@@ -1,404 +1,419 @@
+---
 
-# 🐉 gewyvern v0.02 Design Spec
+# 🐉 gewyvern v0.03 — Integrated Design
 
-### Linux eBPF Execution Runtime (CLI-first, Flow-aware)
+### TCP Network Debugger Runtime (Engineering-first)
 
-MIT License
-Status: Draft v0.02
-Delta: execution semantics / flow emergence / reason chain / protocol-stack entry
+Status: Draft
+Scope: TCP-only
+Nature: Single-host / CLI-first / session runtime
+Orientation: **network debugger（不是 observability）**
 
 ---
 
-# 0. 不变原则（继承 v0.01）
+# 0. 核心定位（必须统一）
 
-gewyvern 仍然是：
+gewyvern 是：
 
-> kernel execution runtime
-> CLI-first / root-only / session-based / non-daemon
-
-不变边界：
-
-* 不做 orchestration
-* 不跨机器
-* 不解释业务语义
-* 不引入 ML
-* 不推理
-* 不做 observability 平台
-
----
-
-# 1. v0.02 新增核心定位
-
-在 v0.01 “execution runtime” 之上增加：
-
-> **protocol-stack behavior observation runtime**
-
-它不观察“程序”，而观察：
-
-> 协议栈中的行为演化。
-
-execution plane 仍为 eBPF
-但 observation plane 进入协议层语义。
-
----
-
-# 2. 执行入口修正（关键变化）
-
-v0.01 中 execution 单位是：
-
-> eBPF program
-
-v0.02 增加：
-
-> execution entrypoint anchored in protocol stack
-
-即：
-
-runtime 默认 attach 入口优先级：
-
-1. protocol stack state
-2. queue / routing
-3. socket lineage
-4. syscall（最后）
+> **protocol-behavior debugger runtime**
 
 不是：
 
-> syscall first
+* 抓包工具
+* observability 平台
+* tracing 系统
+* 网络策略引擎
 
-而是：
+它做的是：
 
-> behavior evolution first
+> 用 eBPF 捕获“物理事实”，在用户态构建“行为连续性”，并输出“可验证因果链”。
 
 ---
 
-# 3. Flow Emergence Model（新增）
+# 1. v0.03 的唯一目标
 
-v0.02 引入：
+让 gewyvern 第一次成为：
 
-> flow 是 runtime emergent entity
-> 不是用户定义对象
+> **可以像调试器一样工作的系统**
 
-flow 定义：
+必须同时成立：
+
+1️⃣ attach 成功
+2️⃣ flow emergent 成功
+3️⃣ reason chain 可生成
+4️⃣ intervention 能被 gate 控制并执行
+
+---
+
+# 2. 用户问题范围（严格限制）
+
+v0.03 只解决三类问题：
+
+## 2.1 连接为什么失败
+
+* SYN 是否发出
+* SYN-ACK 是否到达
+* ACK 是否送出
+* 哪个阶段断裂
+
+## 2.2 为什么卡顿 / 抖动
+
+* 重传迹象
+* 路由变更迹象
+* 队列症状迹象（不做完整 queue engine）
+
+## 2.3 为什么被断开
+
+* FIN / RST
+* 断开前状态演化
+* 路径变化证据
+
+---
+
+# 3. Runtime 架构（最终形态）
+
+```
+kernel plane (eBPF)
+    ↓
+Fact Stream
+    ↓
+Ledger (append-only)
+    ↓
+Flow Registry (projection)
+    ↓
+Reason Engine
+    ↓
+Gate
+    ↓
+CLI Debugger
+```
+
+---
+
+# 4. 设计原则（不可改变）
+
+### 4.1 Evidence-first
+
+所有输出必须能追溯到物理事实。
+
+### 4.2 Flow emergent
+
+flow 不由用户定义。
+
+### 4.3 Session boundary
+
+session 是观测沙箱。
+
+### 4.4 Lazy interpretation
+
+reason 不实时构建，按需生成。
+
+### 4.5 Observe fully or refuse
+
+scope 不完整 → 禁止干预。
+
+---
+
+# 5. 执行入口（protocol anchored）
+
+v0.03 attach 只允许 3 类事实：
+
+### 必须
+
+* TCP state transition
+* TCP packet meta
+* route decision meta
+
+### 可选
+
+* socket lineage
+
+---
+
+# 6. Ledger（事实层）
+
+唯一职责：
+
+> 记录事实，不解释。
+
+特性：
+
+* append-only
+* 可回放
+* 事实不可改
+* 每条带：
+
+  * ts
+  * cpu
+  * netns
+  * ifindex
+  * session
+  * fact_kind
+
+---
+
+# 7. Flow Registry（runtime 核心）
+
+Flow Registry = gewyvern 的大脑。
+
+### 两层结构：
+
+## 7.1 Flow Ledger（事实引用层）
+
+只存 FactId。
+
+## 7.2 Flow View（可变解释层）
+
+包含：
+
+* lifecycle
+* path segments
+* evidence index
+* anchor
+* state snapshot
+
+---
+
+# 8. Flow 定义（TCP-only）
 
 ```
 flow :=
-    连续状态演化
-    + 路径连续
-    + 协议生命周期锚
+  TCP lifecycle continuity
+  + path continuity
+  + time continuity
 ```
 
-flow 不依赖：
+不依赖：
 
 * PID
-* socket id
+* socket fd
 * interface
 
-flow identity 依赖：
+---
 
-* state evolution continuity
+# 9. Identity 匹配规则
+
+优先级：
+
+1. (netns, sk_cookie)
+2. (netns, TcpKey + 时间连续)
+3. TcpKey + packet 行为连续
 
 ---
 
-## 3.1 flow 生命周期
+# 10. Diverge（硬规则）
 
-```
-emerge
-→ evolve
-→ diverge (path change)
-→ terminate
-```
+### path change = new flow
 
-规则：
+条件：
 
-* path change = new flow
-* process change ≠ flow terminate
-* socket change ≠ flow terminate
+* oif/gw 改变
+* 持续时间超过 T_diverge_min
+* 或 evidence 次数 > N
 
----
+结果：
 
-# 4. Behavior-first observation stack
-
-默认观测顺序：
-
-```
-protocol state
-→ routing decision
-→ queue behavior
-→ packet execution
-→ OS attribution
-→ cluster context
-```
-
-不是：
-
-```
-process → socket → network
-```
+* 新 FlowId
+* 旧 flow 标记 diverged
+* anchor 延续
 
 ---
 
-# 5. Session 与 Flow 的关系（新增）
+# 11. Reason Chain（只允许 L0→L1→L3）
 
-v0.01：session = execution boundary
-v0.02：session + flow 形成：
-
-> observation sandbox
-
-关系：
-
-```
-session
-  contains:
-    observation scope
-    templates
-    flow registry
-    intervention policy
-```
-
-flow 不属于 session
-flow 被 session 观察。
-
----
-
-# 6. Cluster 的地位修正
-
-cluster 在 v0.02 中：
-
-> environment metadata layer
-
-不是：
-
-* flow root
-* observation entry
-
-来源：
-
-* cgroup
-* namespace
-* lineage
-* socket attribution
-
-仅用于：
-
-* reason context
-* debugging background
-
----
-
-# 7. Reason Chain Model（新增核心）
-
-v0.01：reason = metadata
-v0.02：reason = structured causality chain
-
-结构：
-
-```
-reason :=
-  session context
-  + flow identity
-  + protocol state evidence
-  + path evidence
-  + intervention trace
-```
-
-特点：
-
-* 不允许用户注释生成
-* 不允许 AI 推理
-* 必须源于物理事件
-
----
-
-## 7.1 reason 分层
-
-### L0 — physical facts
+## L0
 
 * packet
-* state change
-* routing
+* state
+* route
 
-### L1 — runtime structure
+## L1
 
-* flow
-* path
+* timeline
 * lifecycle
+* path segments
 
-### L2 — template interpretations
+## L3
 
-* anomaly classification
+* narrative（可追溯）
 
-### L3 — reason aggregation
+不允许：
 
-* causality output
-
----
-
-# 8. Intervention Model 修订
-
-干预等级：
-
-1. drop (primary)
-2. replay (future)
-3. redirect (later)
-
-执行原子：
-
-> packet
-
-决策锚：
-
-> flow state
-
-执行模型：
-
-```
-flow-level decision
-→ packet-level execution
-```
+* 用户注释生成
+* AI推理
+* 业务解释
 
 ---
 
-## 8.1 Intervention Safety Gate
+# 12. Intervention Model
 
-必须具备：
+## 决策单位
 
-* session scope
-* template allowance
-* reason chain
-* CLI override
+flow
 
-否则拒绝执行。
+## 执行单位
+
+packet
+
+## v0.03 只支持：
+
+* drop SYN
+* drop RST
 
 ---
 
-# 9. Lazy Interfere Enforcement（新增）
+# 13. Safety Gate
 
-原则：
+必须满足：
 
-> observe fully or do not observe
+1. session scope 存在
+2. attach 完整闭环
+3. reason chain 足够
+4. CLI confirm
+
+否则拒绝。
+
+---
+
+# 14. Lazy Interfere
 
 规则：
 
-* session scope 内禁止 sampling
-* attach scope 必须闭环
+* session 内禁止 sampling
 * incomplete observation 禁止 attach
 
 ---
 
-# 10. Protocol Lifecycle Anchor（新增）
+# 15. CLI Contract
 
-flow identity anchored in：
+v0.03 命令集固定：
 
-* TCP lifecycle
-* queue lifecycle
-* routing lifecycle
-
-不绑定：
-
-* 单协议
-* 单 socket
-
----
-
-# 11. Execution vs Observation 分离
-
-execution plane：
-
-* eBPF program lifecycle
-
-observation plane：
-
-* flow emergence
-* behavior structure
-* reason generation
-
-两者通过：
-
-> session runtime bridge
-
-连接。
+* session start
+* session stop
+* attach tcp
+* flow list
+* flow inspect
+* reason show
+* drop syn/rst
+* export json
 
 ---
 
-# 12. Data Output 形态修订
+# 16. 数据输出
 
-v0.01：protobuf pipeline
-v0.02：增加结构层
+输出类型：
 
-输出：
+* event stream
+* flow snapshot
+* reason chain
+* intervention log
 
-```
-event stream
-flow snapshots
-reason chain
-intervention logs
-```
-
-仍然：
+格式：
 
 * protobuf native
-* JSON 仅 export
+* JSON export
 
 ---
 
-# 13. Single-Host Doctrine（明确）
+# 17. 实现模块（最终划分）
 
-gewyvern 永远：
+```
+gewyvern-core
+  ledger
+  registry
+  reason
+  gate
+  snapshot
 
-* 单机 runtime
-* 不跨节点
-* 不 stitch flows
+gewyvern-ebpf
+  probes
+  maps
 
-跨节点：
+gewyvern-loader
+  attach
+  normalize
 
-> leserpent 责任
-
----
-
-# 14. Not in Scope（更新）
-
-新增：
-
-* 不构建 distributed trace
-* 不做 service graph
-* 不构建 topology engine
-* 不进行 anomaly inference
-* 不执行 automated policy
-
----
-
-# 15. v0.02 最大变化总结
-
-| v0.01             | v0.02                        |
-| ----------------- | ---------------------------- |
-| execution runtime | execution + behavior runtime |
-| eBPF centric      | protocol state centric       |
-| program/session   | session + emergent flow      |
-| metadata reason   | causality chain              |
-| attach pipeline   | observation sandbox          |
-| CLI runtime       | debugger-like runtime        |
+gewyvern-cli
+  session
+  commands
+```
 
 ---
 
-# 16. 下一步必须落地的不是代码
+# 18. ingest_fact 核心机制
 
-而是三个“不可跳过”的定义：
-
-### A. Flow Registry 数据结构
-
-runtime 如何保存“状态演化实体”
-
-### B. Protocol Anchor Interface
-
-如何接 TCP / queue / routing 状态
-
-### C. Reason Aggregation Engine
-
-如何从物理证据构建 reason
-
-没有这三块：
-
-写 probe = 无意义。
+```
+append ledger
+→ match identity
+→ emerge / merge
+→ maybe diverge
+→ update lifecycle
+→ mark reason dirty
+```
 
 ---
 
+# 19. Reason 生成（lazy）
+
+只在：
+
+* flow inspect
+* reason show
+
+时生成。
+
+---
+
+# 20. v0.03 验收标准（最重要）
+
+必须跑通 6 场景：
+
+1. 正常三次握手
+2. SYN 无 SYN-ACK
+3. SYN-ACK 无 ACK
+4. RST 断开
+5. 丢包 → retrans迹象
+6. 路由变更 → diverge
+
+全部必须：
+
+* 生成 reason chain
+* 可追溯事实
+* CLI 可展示
+
+---
+
+# 21. v0.03 完成后的系统形态
+
+不是：
+
+* 观测平台
+* 网络分析器
+
+而是：
+
+> Linux TCP 行为调试器。
+
+---
+
+# 22. v0.04 才会进入的领域
+
+* break/watch
+* queue engine
+* redirect/replay
+* UDP
+* multi-host
+
+---
+
+# 23. 最关键的“设计完成标志”
+
+不是写完代码。
+
+而是：
+
+> 当用户可以用 gewyvern 像 gdb 一样“盯着一个 flow 看它发生什么”。
+
+那一刻，系统成立。
+
+---
