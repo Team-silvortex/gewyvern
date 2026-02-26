@@ -1,484 +1,373 @@
+# 🐉 gewyvern v0.03b — Handshake Template Runtime (Ringbuf Skeleton)
 
-
-# 🐉 gewyvern v0.03a — Template-Window Flow Debugger Runtime
-
-### TCP Network Debugger Runtime (Engineering-first)
-
-Status: Draft (0.03a)
-Scope: **TCP-only**
-Nature: Single-host / CLI-first / session runtime
-Orientation: **network debugger（不是 observability）**
+**Status:** Draft (0.03b)
+**Scope:** TCP-only
+**Nature:** Single-host / CLI-first / session runtime
+**Orientation:** **network debugger（不是 observability）**
+**Runtime Stack:** **eBPF C (CO-RE) + Rust runtime + ringbuf**
 
 ---
 
-# 0. v0.03a 的“新增约束”是什么
+## 0. v0.03b 的版本定位
 
-v0.03 已定义了骨架。v0.03a 做三件事：
+**0.03a 是 runtime contract。0.03b 是第一次“让它跑起来并可验证”的 skeleton。**
 
-1. **把“模板驱动”与“窗口采集”变成运行时的第一公民**
-2. **把“程序×网络流×栈阶段”的可感知建模加入 Flow View**（不是精确定位，强调“段落定位”）
-3. **把 Reason / Confidence / Export 作为调试闭环的默认出口**（看不懂就导出问大模型）
+0.03b 的唯一任务：
 
-v0.03a 不引入 ML，不引入业务解释，不引入 multi-host。
+> **把 T1(handshake_debug) 从 attach → ingest → ledger → flow → reason(L0/L1) → CLI → export 跑通，并能在真实场景中复现与验收。**
 
 ---
 
-# 1. v0.03a 的唯一目标（更具体）
+## 1. 0.03b 的新增约束（比 0.03a 更“硬”）
 
-让 gewyvern 第一次成为：
+0.03b 只允许新增“闭环必需”的工程结构，不允许扩展能力边界：
 
-> **模板化切面观测 + flow emergent + 可验证因果链 + 可控干预** 的调试器运行时
-
-必须同时成立：
-
-1️⃣ attach 成功（模板化 attach）
-2️⃣ flow emergent 成功（TCP 生命周期连续体）
-3️⃣ reason chain 可生成（L0→L1→L3）
-4️⃣ intervention 能被 Gate 控制并执行（drop SYN/RST）
+1. **只实现一个模板：T1 handshake_debug（T2/T3 仅允许 stub，不验收）**
+2. **只实现 L0→L1（不实现 L3 narrative）**
+3. **Intervention 默认禁用（drop SYN/RST 不可用）**
+4. **事实通道固定为 ringbuf（不做 perfbuf）**
+5. **强制 Export-first：每个可验收场景必须能导出 JSON 且可追溯 FactId**
 
 ---
 
-# 2. 用户问题范围（不变，但把输出形式固定）
+## 2. 0.03b 不做什么（必须锁死）
 
-v0.03a 只解决三类问题：
-
-## 2.1 连接为什么失败
-
-输出必须能回答：
-
-* SYN 是否出现（哪个切面观测到）
-* SYN-ACK 是否出现
-* ACK 是否出现
-* **断裂发生在：哪个“栈阶段段落”**（segment）
-
-## 2.2 为什么卡顿 / 抖动
-
-输出必须能回答：
-
-* 是否有重传迹象（retrans evidence）
-* 是否有路径变化迹象（route segment diverge）
-* 是否有队列症状迹象（轻量证据，不做 queue engine）
-
-## 2.3 为什么被断开
-
-输出必须能回答：
-
-* FIN / RST 的证据链
-* 断开前生命周期演化
-* 断开前路径段落变化证据
+* ❌ 不开放自定义模板 / DSL
+* ❌ 不支持 UDP / multi-proto
+* ❌ 不支持 multi-host
+* ❌ 不做 GUI
+* ❌ 不做 queue engine / payload / seq-order reconstruction
+* ❌ 不做 ML / AI 推理
+* ❌ 不做 L3 业务解释
+* ❌ 不引入长期观测与持久化平台化能力（window-bounded 不变）
 
 ---
 
-# 3. Runtime 架构（保持不变，新增 Template Runtime）
+## 3. 0.03b 的唯一目标（可验收闭环）
+
+0.03b 必须同时成立：
+
+1️⃣ **template attach 成功（handshake_debug）**
+2️⃣ **fact stream 进入 ledger（append-only）**
+3️⃣ **flow emergent 成功（握手连续体可拼装）**
+4️⃣ **reason L0→L1 可生成（含 breakpoints + segments）**
+5️⃣ **CLI 可 inspect / reason show**
+6️⃣ **export json 可读、可追溯（含 schema/version/coverage）**
+
+---
+
+## 4. Runtime 架构（0.03b 不改层次，只补“闭环组件”）
 
 ```
-kernel plane (eBPF)
-    ↓
+kernel plane (eBPF C, CO-RE)
+    ↓ ringbuf
 Fact Stream
     ↓
 Ledger (append-only)
     ↓
-Flow Registry (projection)
+Flow Registry (projection → FlowSnapshot)
     ↓
-Reason Engine (lazy)
-    ↓
-Gate
+Reason Engine (L0→L1, lazy)
     ↓
 CLI Debugger
     ↓
-Export (JSON / protobuf)
+Export (JSON)
 ```
 
-新增：**Template Runtime** 位于 attach 与 ingest_fact 之间，用于限定采集切面与时间窗口。
+0.03b 新增（闭环必需）：
+
+* **Attach Coverage Engine**
+* **Window Watermark**
+* **Schema/Versioning**
+* **Identity Confidence**
 
 ---
 
-# 4. 设计原则（新增 2 条，保持原有不可变）
+## 5. Template Runtime（0.03b 仅实现 T1）
 
-原有 4.1~4.5 不变，新增：
+### 5.1 T1: handshake_debug（唯一可运行模板）
 
-### 4.6 Template-first capture
+**目的：** 三次握手失败“段落定位”（segment-level）
+**窗口：** `W = 5s`（固定）
+**lateness：** `200ms`（固定，watermark 用）
 
-**事实采集必须由模板定义。**
-没有模板 = 不允许 attach。
+**必须采集 FactKind：**
 
-### 4.7 Window-bounded runtime
+* `TCP_STATE_TRANSITION`
+* `TCP_PACKET_META`（仅 SYN/SYN-ACK/ACK 的 header meta 与方向信息）
+* `ROUTE_META`（简化 fingerprint）
 
-**所有 session 都是 window-bounded 的。**
-没有窗口 = 不允许启动 session（默认窗口可配置）。
+**允许 Filters（仅影响采集，不影响 identity）：**
 
-> v0.03a 的核心：你不是在“长期观测”，你是在“开一次调试会话”。
-
----
-
-# 5. Template Runtime（v0.03a 新核心）
-
-## 5.1 Template 的定义
-
-Template 是：
-
-> “要抓什么事实（facts），在哪些切面抓（slices），用什么筛选（filters），用什么窗口拼装（window）”
-
-Template 由四部分组成：
-
-1. **Slices**：切面（栈阶段/观测点）
-2. **Facts**：事实种类（TCP-only）
-3. **Filters**：筛选规则（可为空）
-4. **Window**：时间窗口策略（拼装与去乱序边界）
-
-## 5.2 v0.03a 内置模板（不可扩展，先锁死）
-
-v0.03a 内置 3 个模板，用户只能选其一（避免 DSL 爆炸）：
-
-### T1: handshake_debug
-
-* 目的：三次握手失败定位
-* 必须采集：
-
-  * TCP state transition
-  * TCP packet meta（只含头部元信息）
-  * route decision meta（简化）
-* Window：
-
-  * W = 5s（固定）
-
-### T2: teardown_debug
-
-* 目的：RST/FIN 断开定位
-* 必须采集：
-
-  * TCP packet meta（FIN/RST）
-  * TCP state transition
-  * route decision meta
-* Window：
-
-  * W = 10s（固定）
-
-### T3: jitter_retrans_debug
-
-* 目的：抖动/重传/路径变化粗定位
-* 必须采集：
-
-  * retrans evidence（迹象）
-  * TCP packet meta（抽取 ACK/seq 摘要）
-  * route decision meta
-* Window：
-
-  * W = 15s（固定）
-
-> v0.03a 只做内置模板，0.04 才开放自定义模板/DSL。
-
-## 5.3 Filters（v0.03a 允许的最小集合）
-
-允许用户指定其中任意组合（全可选）：
-
-* `tcp_key`: src/dst ip:port + direction
+* `tcp_key`（src/dst ip:port + direction）
 * `netns`
-* `pid/cgroup`（若无法稳定获取则降级为 best-effort，不作为 identity 依据）
 * `iface`（ifindex）
+* `pid/cgroup`（best-effort，仅展示，不进入 identity）
 
-**强规则：Filter 只影响采集，不影响 flow identity。**
+> 强规则：**没有模板 = 不允许 attach。**
+> 强规则：**没有 window = 不允许 session start（默认 5s + 200ms lateness）。**
 
 ---
 
-# 6. Facts（事实层）— 0.03a 固化 FactKind
+## 6. Facts（事实层）— 0.03b 固化最小集
 
-Ledger 仍是“记录事实，不解释”。
-v0.03a 固化以下事实种类：
+Ledger 仍然“只记录事实，不解释”。
 
-### 必须
+### 6.1 FactKind（0.03b）
+
+**必须：**
 
 * `TCP_STATE_TRANSITION`
 * `TCP_PACKET_META`
 * `ROUTE_META`
 
-### 可选（模板决定是否采集）
+**用户态事实：**
 
-* `TCP_RETRANS_EVIDENCE`
-* `SOCKET_LINEAGE_META`（可选，不进入 identity）
+* `SESSION_MARK`（start/stop）
+* `ATTACH_REPORT`（见 7）
+* `WINDOW_MARK`（open/freeze/close）
 
-### 用户态事实（系统自举）
+### 6.2 每条事实最小字段
 
-* `INTERVENTION_LOG`（执行记录）
-* `SESSION_MARK`（start/stop marker）
+所有 Fact 必须携带：
 
-每条事实必须带：
-
-* ts, cpu, session_id, netns, ifindex, fact_kind
+* `ts`（kernel timestamp）
+* `cpu`
+* `session_id`
+* `netns`
+* `ifindex`
+* `fact_kind`
+* `fact_id`（用户态分配，append-only 序号或 UUID）
 
 ---
 
-# 7. Window（窗口）— 0.03a 的拼装边界
+## 7. Attach Coverage Engine（0.03b 必须新增）
 
-窗口不是性能优化，是 correctness 约束：
+目的：让 reason 能区分：
+
+* 事件真的没发生
+  vs
+* 事件发生了但没抓到（attach/丢包/溢出）
+
+### 7.1 AttachReport（导出必须包含）
+
+至少包含：
+
+* `required_fact_kinds`：seen/missing（对 T1 的 3 类）
+* `hookpoints`：attached/failed（列出实际 attach 点）
+* `ringbuf_lost_events`：计数（若可取）
+* `probe_build_id`：git sha / build hash
+
+> 0.03b 验收要求：当输出“missing step”时，必须同时输出 attach coverage 以支撑可验证性。
+
+---
+
+## 8. Window（0.03b 加 watermark）
+
+窗口不是性能优化，是 correctness 约束。
+
+### 8.1 固定窗口参数
+
+* `duration = 5s`
+* `lateness = 200ms`
+* `freeze_at = end_ts + lateness`（watermark）
+
+### 8.2 规则
 
 * **flow 拼装只在 window 内进行**
-* **window 外的事实不参与当前 flow view**
-* window 结束后，Flow View 可以被冻结成 snapshot（可导出）
-
-乱序处理规则：
-
-* TCP_PACKET_META 在 window 内允许按 ts 排序拼装
-* 不做 payload 重组
-* 不做完整 seq-order reconstruction
-* 只做 “握手/断开/重传/路径变更” 的行为连续性抽取
+* watermark 之后 **freeze snapshot**
+* freeze 后不再接纳该 window 的事实进入 flow view（late events 仅计入 dropped/late stats）
 
 ---
 
-# 8. Flow Registry（runtime 核心）— 加入“段落定位”与“程序感知”
+## 9. Flow Registry（0.03b 的核心产物：FlowSnapshot）
 
-你原来的两层结构保持：
+0.03b 的“运行时输出本体”是 **FlowSnapshot**。
+CLI/Export 都围绕 snapshot 工作。
 
-## 8.1 Flow Ledger（事实引用层）
+### 9.1 Flow identity（TCP-only，保持 0.03a 逻辑）
 
-* 只存 FactId 引用，不复制事实
-
-## 8.2 Flow View（可变解释层）
-
-新增字段（v0.03a）：
-
-### lifecycle（TCP-only）
-
-* handshake_phase
-* established_phase（可选）
-* teardown_phase
-
-### path segments（段落）
-
-* segment_id
-* route_fingerprint（简化）
-* ifindex/oif（若能拿到）
-* segment_start_ts / end_ts
-* diverge evidence refs
-
-### program footprint（程序感知：best-effort）
-
-* pid/comm/cgroup（若可获取）
-* 仅用于“展示工作流程”，**不参与 identity**
-* 允许为空
-
-### evidence index
-
-* retrans evidence list
-* rst/fin evidence list
-* “断裂点” evidence list
-
-### anchor（延续）
-
-* AnchorId：用于 diverge 新 flow 延续同一“语义实体”
-
----
-
-# 9. Flow 定义（TCP-only，不变）
-
-```
 flow :=
-  TCP lifecycle continuity
-  + path continuity
-  + time continuity (within window)
-```
+
+* TCP lifecycle continuity
+* path continuity
+* time continuity (within window)
 
 不依赖 PID/socket fd/iface。
 
----
+### 9.2 Identity 匹配（0.03b 保留优先级 + window 约束）
 
-# 10. Identity 匹配（实现规则更强调 window）
+1. `(netns, sk_cookie)` 且在同 window 内
+2. `(netns, TcpKey + time continuity)` 同 window 内连续
+3. `TcpKey + packet 行为连续（握手片段连续）` 同 window 内
 
-优先级不变，但加 window 约束：
+### 9.3 Identity Confidence（0.03b 新增）
 
-1. (netns, sk_cookie) **且在同 window 内**
-2. (netns, TcpKey + time continuity) **同 window 内连续**
-3. TcpKey + packet 行为连续（握手片段连续）**同 window 内**
+每个 flow 必须输出：
 
----
+* `sk_cookie_match: bool`
+* `tcp_key_match: bool`
+* `time_continuity: bool`
+* `score ∈ [0,1]`
 
-# 11. Segment / Diverge（段落与分流）— 0.03a 固化为“可定位即可”
-
-### 11.1 Segment 的目标
-
-不是精确定位路由/队列内部细节，而是：
-
-> 给出“哪一段栈阶段/路径段落更可能异常”。
-
-### 11.2 Diverge 规则（保持你的硬规则，但强调“概率性定位”）
-
-path change = new flow（同 AnchorId）
-
-触发条件（任选其一）：
-
-* route fingerprint 改变，并持续超过 `T_diverge_min`
-* 或 route fingerprint 改变的 evidence 次数 > `N`
-
-结果：
-
-* 新 FlowId
-* 旧 flow 标记 diverged
-* anchor 延续
+> 无 ML，只做可解释打分。
 
 ---
 
-# 12. Reason Chain（L0→L1→L3）— 增加“段落定位输出”
+## 10. Segment（段落定位）— 0.03b 最小可用版本
 
-Reason 仍然 lazy，只允许 L0→L1→L3。
+0.03b 段落目标：
 
-## L0（事实）
+> 给出“握手断裂更像发生在网络路径/栈阶段的哪一段”，不是精确定位队列/路由内部细节。
 
-* packet/state/route/retrans
+最小 segment 字段：
 
-## L1（结构）
+* `segment_id`
+* `route_fingerprint`（简化，需稳定字段）
+* `ifindex/oif`（若可得）
+* `start_ts/end_ts`
+* `evidence_refs`（导致段落划分或变化的 FactId）
 
-* timeline
-* lifecycle
-* **segments（必需）**
-* breakpoints（断裂点：缺失/异常出现处）
-
-## L3（叙事）
-
-必须输出：
-
-* 哪个阶段断裂
-* 哪个 segment 更可疑
-* evidence refs（可追溯）
-
-> L3 不允许 AI 推理，不允许业务解释。
+0.03b 允许只生成 1 个 segment（无变化场景）。
 
 ---
 
-# 13. Confidence（无 ML，按“正常/不正常比”）
+## 11. Reason Engine（0.03b 只做 L0→L1）
 
-v0.03a 置信度定义为：
+### 11.1 L0（事实）
 
-> abnormal evidence vs normal evidence 的比值（加上覆盖度）
+* packet/state/route
 
-* `E_abnormal`: retrans / rst / missing handshake step / route diverge
-* `E_normal`: handshake completed / state progression / stable segment
+### 11.2 L1（结构化输出，0.03b 必须）
 
-输出：
+必须包含：
 
-* confidence ∈ [0,1]
-* breakdown（展示 E_abnormal 与 E_normal 的计数与引用）
+* `timeline`（握手关键事件序列）
+* `handshake_phase`（SYN seen / SYN-ACK seen / ACK seen）
+* `breakpoints`（断裂点：哪一步缺失或异常）
+* `segments`（至少 1 段）
+* `evidence_refs`（可追溯 FactId）
+* `attach_coverage_ref`（指向 AttachReport）
 
----
+> 0.03b 不输出 L3，不做叙事，不做 AI 推理。
 
-# 14. Intervention Model（不变，但把“模板闭环”写死）
+### 11.3 Breakpoints（0.03b 最小集合）
 
-## 决策单位
-
-flow
-
-## 执行单位
-
-packet
-
-## v0.03a 只支持
-
-* drop SYN
-* drop RST
-
-**新增硬规则：**
-
-* 只有当模板是 `handshake_debug` / `teardown_debug` 且 attach 闭环完整，才允许干预。
+* `missing_syn`
+* `missing_synack`
+* `missing_ack`
+* `abnormal_state_transition`（可选）
+* `possible_not_captured`（当 coverage 不完整时）
 
 ---
 
-# 15. Safety Gate（不变，补充模板闭环条件）
+## 12. CLI Contract（0.03b 固定最小命令集）
 
-必须满足：
+必须实现：
 
-1. session scope 存在
-2. template 已选择（T1/T2/T3）
-3. attach 闭环完整（模板要求的 FactKind 在 session 内出现）
-4. reason chain 足够（L1 segments 已生成）
-5. CLI confirm
-
-否则拒绝。
-
----
-
-# 16. CLI Contract（v0.03a 固定命令集 + 模板参数）
-
-命令集保持你的列表，但 session start 增加模板：
-
-* `session start --template {handshake_debug|teardown_debug|jitter_retrans_debug} --window {fixed}`
+* `session start --template handshake_debug`
 * `session stop`
-* `attach tcp`（实际由 session start 隐式 attach，可保留显式命令但要幂等）
 * `flow list`
-* `flow inspect <id>`
-* `reason show <id>`
-* `drop syn <flow_id>`
-* `drop rst <flow_id>`
+* `flow inspect <flow_id>`（输出 FlowSnapshot）
+* `reason show <flow_id>`（输出 L1）
 * `export json --session <id> [--flow <id>]`
-* `export pb  --session <id> [--flow <id>]`
+
+允许存在但不验收：
+
+* `attach tcp`（幂等，通常由 session start 隐式触发）
 
 ---
 
-# 17. Export-first（新闭环）
+## 13. Export-first（0.03b 强制）
 
-你说得对：看不懂就导出/截图问大模型。
+### 13.1 Export JSON 必须包含
 
-因此 v0.03a 强制：
+* `schema_version`
+* `template_id` + `template_version`
+* `probe_build_id`
+* `window_params`（duration, lateness, freeze_ts）
+* `attach_report`
+* `ledger_stats`（fact count, late count, lost count）
+* `flow_snapshot`（含 segments + identity_confidence）
+* `reason_l1`（含 breakpoints + refs）
+* `session_marks`
 
-* `export json` 必须包含：
-
-  * selected template
-  * window params
-  * flow snapshot（含 segments）
-  * reason chain（含 refs）
-  * intervention log（若发生）
-
-JSON 目标是 “一 json 多吃”：
+目标：**一 json 多吃**
 
 * CLI debug
 * leserpent 元数据（未来 protobuf）
-* 丢给 LLM 做解释（人类看不懂也行）
+* 外部工具/LLM 读取解释（但 0.03b 不在 runtime 内做 L3）
 
 ---
 
-# 18. v0.03a 验收标准（保持 6 场景，补两条 export 条件）
+## 14. eBPF 实现约束（0.03b：C + CO-RE + ringbuf）
 
-你的 6 场景不变：
+* eBPF 端只负责产出结构化事件（Facts），不做解释
+* 使用 ringbuf 输出
+* 事件结构必须包含：ts/cpu/netns/ifindex/kind + payload（按 kind）
 
-1. 正常三次握手
-2. SYN 无 SYN-ACK
-3. SYN-ACK 无 ACK
-4. RST 断开
-5. 丢包 → retrans 迹象
-6. 路由变更 → diverge
+**最小 hook 集只需覆盖 T1：**
 
-全部必须：
+* 能产出握手 SYN/SYN-ACK/ACK 的 `TCP_PACKET_META`
+* 能产出 `TCP_STATE_TRANSITION`
+* 能产出 `ROUTE_META`（简化 fingerprint）
 
-* 生成 reason chain（含 segment）
-* 可追溯事实（FactId refs）
-* CLI 可展示
-
-**新增：**
-
-* 每个场景必须能导出 JSON 并可被外部工具/大模型读取解释
-* 每个场景必须明确输出 “可疑段落/切面”（哪一段更像问题发生处）
+> 0.03b 不追求完美覆盖，追求“能跑 + 可验证 coverage”。
 
 ---
 
-# 19. v0.03a 完成后的系统形态（更明确）
+## 15. v0.03b 验收标准（只验收 3 场景）
 
-gewyvern v0.03a 是：
+所有场景必须满足：
 
-> Linux TCP 行为调试器 runtime（模板化切面 + 窗口化拼装 + 段落定位 + 可验证因果链）
+* 生成 FlowSnapshot（含 segments）
+* 生成 Reason L1（含 breakpoints）
+* evidence 可追溯（FactId refs）
+* export json 可导出且包含 coverage/version/window
+
+### 场景 1：正常三次握手
+
+* phases 完整（SYN/SYN-ACK/ACK）
+* breakpoints 为空
+* segments = 1（稳定）
+* confidence 高（基于 identity_confidence + 覆盖）
+
+### 场景 2：SYN-ACK 缺失（例如防火墙丢）
+
+* breakpoint = `missing_synack`
+* attach coverage 完整（证明不是没抓到）
+* segments 至少 1
+
+### 场景 3：路径段落变化（route fingerprint 改变）
+
+* segments ≥ 2（或 diverge evidence 出现）
+* reason L1 指出“疑似 segment 变化发生点”
+* evidence refs 可追溯
+
+---
+
+## 16. 0.03b 完成后的系统形态
+
+gewyvern v0.03b 是：
+
+> **Linux TCP handshake 调试器 runtime（模板化切面 + 窗口化拼装 + 段落定位 + 可验证 L1 因果结构 + export-first）**
 
 不是：
 
 * 观测平台
-* 流量分析器
 * 抓包工具
+* 流量分析器
 
 ---
 
-# 20. v0.04 之后才做的事（保持你的列表，补一条）
+## 17. v0.04 才做的事（延后清单）
 
-* break/watch
+* 自定义模板 / DSL
+* T2/T3 的完整实现与验收
+* L3 narrative（可选，且必须可追溯）
+* retrans/jitter 的更强证据引擎
+* intervention（drop SYN/RST）
 * queue engine（真实）
-* redirect/replay
-* UDP
+* UDP / multi-proto
 * multi-host
-* **自定义模板 DSL**
 
----
