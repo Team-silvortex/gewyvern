@@ -344,3 +344,28 @@ gewyvern 不是“解释网络”，
 而是把一次网络异常压缩为可验证、可复核、可重放的证据链结构。
 IR 与 DSL 只是降低扩展成本，而不是扩展解释权。
 
+---
+
+## TDD Workflow
+
+从现在开始，gewyvern 采用测试驱动开发。
+
+工作节奏固定为：
+
+1. 先写或先扩展一个失败测试，表达一个行为、规则或回归场景
+2. 再写最小实现，让测试变绿
+3. 最后重构，但不能破坏 attach/export/replay 语义
+
+当前测试分层：
+
+- `src/template.rs`：模板约束测试
+- `src/fragment.rs`：fragment registry / attach planner 规则测试
+- `tests/runtime_tdd.rs`：面向 T1 场景的端到端行为测试
+
+当前 T1 行为规格覆盖：
+
+- 正常握手可导出 `attach_plan` 与 `fragment_inventory`
+- `SYN-ACK` 缺失时，L1 replay 仍然一致
+- route fingerprint 变化时，flow 必须切分
+
+后续每增加一个 fragment、reason 规则、export 字段，都先补测试，再改实现。

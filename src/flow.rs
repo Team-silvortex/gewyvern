@@ -1,20 +1,19 @@
-// gewyvern v0.03 - Flow Registry View Layer
-
 use crate::ledger::FactId;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct FlowId(pub u64);
 
-#[derive(Clone, Debug)]
-pub struct FlowView {
+#[derive(Clone, Debug, PartialEq)]
+pub struct FlowSnapshot {
     pub id: FlowId,
     pub lifecycle: FlowLifecycleView,
     pub path: PathView,
     pub evidence: EvidenceIndex,
     pub confidence: f32,
+    pub fragment_sources: Vec<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FlowLifecycleView {
     pub emerged_at: FactId,
     pub last_seen_at: FactId,
@@ -23,21 +22,21 @@ pub struct FlowLifecycleView {
     pub termination_fact: Option<FactId>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PathView {
     pub current_oif: Option<u32>,
     pub current_gw: Option<[u8; 16]>,
     pub segments: Vec<PathSegment>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PathSegment {
     pub started_at: FactId,
     pub oif: Option<u32>,
     pub gw: Option<[u8; 16]>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct EvidenceIndex {
     pub tcp_state_facts: Vec<FactId>,
     pub packet_facts: Vec<FactId>,
