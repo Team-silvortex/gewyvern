@@ -1,5 +1,11 @@
 🐉 gewyvern v0.04 — Fragment IR Emergence Runtime
 
+## Documentation
+
+- [Project Overview](docs/overview.md)
+- [Runtime Architecture](docs/architecture.md)
+- [Development Guide](docs/development.md)
+
 Status: Draft (0.04)
 Scope: TCP-only（协议扩展允许，但不改变 debugger 本质）
 Nature: Single-host / CLI-first / window-bounded session runtime
