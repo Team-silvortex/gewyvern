@@ -1,0 +1,12 @@
+# gewyvern DSL v0
+template=handshake_debug
+window=default_5s
+reason=handshake_l1
+fragment=tcp_state_fragment
+fragment=tcp_packet_meta_fragment
+fragment=route_meta_fragment
+program_model=connect_flow_v1
+operation=connect_flow
+rule=process_bound;process_bound;process_bound;true
+rule=socket_state_observed;socket_state_transition;none;false
+rule=route_resolved;route_resolved;static:program resolved a route for this network flow;true

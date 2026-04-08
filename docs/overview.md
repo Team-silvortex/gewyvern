@@ -55,6 +55,15 @@ It is embedded in Rust today, but it already moves `program_flows` away from
 runtime hardcoded protocol inference and toward declarative rule-driven
 materialization.
 
+The repo now also contains DSL files under
+[dsl/](/Users/Shared/chroot/dev/gewyvern/dsl) that compile into
+`TemplateBinding`:
+
+- fragment selection
+- fragment parameter bindings
+- runtime policy selection
+- program-model rules
+
 ## Code Map
 
 - [src/template.rs](/Users/Shared/chroot/dev/gewyvern/src/template.rs): templates, window profiles, reason profiles, program models

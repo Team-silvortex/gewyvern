@@ -165,16 +165,10 @@ fn build_handshake_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[FactEnvelo
                 at: fact.id,
                 kind: KeyEventKind::ProcessIdentified,
             });
-            if let FactKind::SockLineage(lineage) = &fact.kind {
-                let end = lineage
-                    .comm
-                    .iter()
-                    .position(|byte| *byte == 0)
-                    .unwrap_or(lineage.comm.len());
-                let comm = String::from_utf8_lossy(&lineage.comm[..end]).to_string();
+            if let Some(process) = &flow.process {
                 narrative.push(NarrLine {
                     at: fact.id,
-                    text: format!("flow bound to process {} (pid={})", comm, lineage.pid),
+                    text: format!("flow bound to process {} (pid={})", process.comm, process.pid),
                 });
             }
         }
@@ -242,16 +236,10 @@ fn build_udp_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[FactEnvelope]) -
                 at: fact.id,
                 kind: KeyEventKind::ProcessIdentified,
             });
-            if let FactKind::SockLineage(lineage) = &fact.kind {
-                let end = lineage
-                    .comm
-                    .iter()
-                    .position(|byte| *byte == 0)
-                    .unwrap_or(lineage.comm.len());
-                let comm = String::from_utf8_lossy(&lineage.comm[..end]).to_string();
+            if let Some(process) = &flow.process {
                 narrative.push(NarrLine {
                     at: fact.id,
-                    text: format!("flow bound to process {} (pid={})", comm, lineage.pid),
+                    text: format!("flow bound to process {} (pid={})", process.comm, process.pid),
                 });
             }
         }

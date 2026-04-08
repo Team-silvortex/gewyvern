@@ -1,14 +1,17 @@
+use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
 use gewyvern::ledger::{
-    CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact, SessionId,
-    TcpStateFact,
+    CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact,
+    SessionId, SockLineageFact, TcpStateFact,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::socket_input::{
     bind_unix_socket_listener, run_tcp_socket_session, run_tcp_socket_session_on_listener,
+    run_tcp_socket_session_on_listener_with_binding, run_tcp_socket_session_with_binding,
     run_unix_socket_session, run_unix_socket_session_on_listener,
+    run_unix_socket_session_on_listener_with_binding, run_unix_socket_session_with_binding,
 };
-use gewyvern::template::{handshake_debug_template, udp_debug_template};
+use gewyvern::template::{handshake_debug_template, udp_debug_template, TemplateBinding};
 use std::env;
 use std::fs;
 use std::net::TcpListener;
@@ -28,10 +31,11 @@ fn main() {
             return;
         }
 
-        let template = cli.template_mode.template();
-        let export = match socket_target {
-            SocketTarget::Unix(path) => run_unix_socket_session(path, template),
-            SocketTarget::Tcp(addr) => run_tcp_socket_session(addr, template),
+        let export = match (socket_target, cli.dsl_binding()) {
+            (SocketTarget::Unix(path), Some(binding)) => run_unix_socket_session_with_binding(path, binding),
+            (SocketTarget::Tcp(addr), Some(binding)) => run_tcp_socket_session_with_binding(addr, binding),
+            (SocketTarget::Unix(path), None) => run_unix_socket_session(path, cli.template_mode.template()),
+            (SocketTarget::Tcp(addr), None) => run_tcp_socket_session(addr, cli.template_mode.template()),
         }
         .unwrap_or_else(|err| {
             eprintln!("socket session failed: {err:?}");
@@ -39,85 +43,89 @@ fn main() {
         });
         outputs.push(("socket_session", export));
     } else {
-        if cli.demo_mode.includes_tcp() {
-            let tcp_export = run_session(
-                handshake_debug_template(),
-                vec![
-                    FactEnvelope {
-                        id: FactId(1),
-                        ts: base,
-                        cpu: CpuId(0),
-                        ifindex: Some(2),
-                        session: SessionId(1),
-                        fragment_id: "tcp_state_fragment".into(),
-                        kind: FactKind::TcpState(TcpStateFact {
-                            netns: 1,
-                            sk_cookie: 42,
-                            saddr: [0; 16],
-                            daddr: [0; 16],
-                            sport: 42310,
-                            dport: 443,
-                            family: 2,
-                            old: 1,
-                            new: 2,
-                        }),
-                    },
-                    FactEnvelope {
-                        id: FactId(2),
-                        ts: base + Duration::from_millis(10),
-                        cpu: CpuId(0),
-                        ifindex: Some(2),
-                        session: SessionId(1),
-                        fragment_id: "tcp_packet_meta_fragment".into(),
-                        kind: FactKind::PacketMeta(PacketMetaFact {
-                            netns: 1,
-                            sk_cookie: Some(42),
-                            dir: PacketDir::Egress,
-                            l3_proto: 0x0800,
-                            l4_proto: 6,
-                            tot_len: 60,
-                            tcp_flags: 0x02,
-                            seq: Some(1),
-                            ack: None,
-                            window: Some(65535),
-                        }),
-                    },
-                    route_fact(3, base + Duration::from_millis(20), 42, 2, SessionId(1)),
-                ],
-            );
+        if let Some(binding) = cli.dsl_binding() {
+            outputs.push(("dsl_demo", run_binding_demo(binding)));
+        } else {
+            if cli.demo_mode.includes_tcp() {
+                let tcp_export = run_session(
+                    handshake_debug_template(),
+                    vec![
+                        FactEnvelope {
+                            id: FactId(1),
+                            ts: base,
+                            cpu: CpuId(0),
+                            ifindex: Some(2),
+                            session: SessionId(1),
+                            fragment_id: "tcp_state_fragment".into(),
+                            kind: FactKind::TcpState(TcpStateFact {
+                                netns: 1,
+                                sk_cookie: 42,
+                                saddr: [0; 16],
+                                daddr: [0; 16],
+                                sport: 42310,
+                                dport: 443,
+                                family: 2,
+                                old: 1,
+                                new: 2,
+                            }),
+                        },
+                        FactEnvelope {
+                            id: FactId(2),
+                            ts: base + Duration::from_millis(10),
+                            cpu: CpuId(0),
+                            ifindex: Some(2),
+                            session: SessionId(1),
+                            fragment_id: "tcp_packet_meta_fragment".into(),
+                            kind: FactKind::PacketMeta(PacketMetaFact {
+                                netns: 1,
+                                sk_cookie: Some(42),
+                                dir: PacketDir::Egress,
+                                l3_proto: 0x0800,
+                                l4_proto: 6,
+                                tot_len: 60,
+                                tcp_flags: 0x02,
+                                seq: Some(1),
+                                ack: None,
+                                window: Some(65535),
+                            }),
+                        },
+                        route_fact(3, base + Duration::from_millis(20), 42, 2, SessionId(1)),
+                    ],
+                );
 
-            outputs.push(("tcp_demo", tcp_export));
-        }
+                outputs.push(("tcp_demo", tcp_export));
+            }
 
-        if cli.demo_mode.includes_udp() {
-            let udp_export = run_session(
-                udp_debug_template(),
-                vec![
-                    FactEnvelope {
-                        id: FactId(1),
-                        ts: base,
-                        cpu: CpuId(0),
-                        ifindex: Some(3),
-                        session: SessionId(2),
-                        fragment_id: "udp_packet_meta_fragment".into(),
-                        kind: FactKind::PacketMeta(PacketMetaFact {
-                            netns: 1,
-                            sk_cookie: Some(99),
-                            dir: PacketDir::Egress,
-                            l3_proto: 0x0800,
-                            l4_proto: 17,
-                            tot_len: 72,
-                            tcp_flags: 0,
-                            seq: None,
-                            ack: None,
-                            window: None,
-                        }),
-                    },
-                    route_fact(2, base + Duration::from_millis(10), 99, 3, SessionId(2)),
-                ],
-            );
+            if cli.demo_mode.includes_udp() {
+                let udp_export = run_session(
+                    udp_debug_template(),
+                    vec![
+                        FactEnvelope {
+                            id: FactId(1),
+                            ts: base,
+                            cpu: CpuId(0),
+                            ifindex: Some(3),
+                            session: SessionId(2),
+                            fragment_id: "udp_packet_meta_fragment".into(),
+                            kind: FactKind::PacketMeta(PacketMetaFact {
+                                netns: 1,
+                                sk_cookie: Some(99),
+                                dir: PacketDir::Egress,
+                                l3_proto: 0x0800,
+                                l4_proto: 17,
+                                tot_len: 72,
+                                tcp_flags: 0,
+                                seq: None,
+                                ack: None,
+                                window: None,
+                            }),
+                        },
+                        route_fact(2, base + Duration::from_millis(10), 99, 3, SessionId(2)),
+                    ],
+                );
 
-            outputs.push(("udp_demo", udp_export));
+                outputs.push(("udp_demo", udp_export));
+            }
         }
     }
 
@@ -155,6 +163,7 @@ fn main() {
 struct Cli {
     demo_mode: DemoMode,
     template_mode: TemplateMode,
+    dsl_path: Option<String>,
     serve: bool,
     max_sessions: Option<usize>,
     json: bool,
@@ -224,12 +233,22 @@ impl TemplateMode {
 }
 
 impl Cli {
+    fn dsl_binding(&self) -> Option<TemplateBinding> {
+        self.dsl_path
+            .as_deref()
+            .map(|path| compile_file(path).unwrap_or_else(|err| {
+                eprintln!("dsl compile failed: {err:?}");
+                std::process::exit(2);
+            }))
+    }
+
     fn from_args<I>(args: I) -> Result<Self, String>
     where
         I: IntoIterator<Item = String>,
     {
         let mut demo_mode = DemoMode::Both;
         let mut template_mode = TemplateMode::Tcp;
+        let mut dsl_path = None;
         let mut serve = false;
         let mut max_sessions = None;
         let mut json = false;
@@ -265,6 +284,11 @@ impl Cli {
                     })?;
                     template_mode = TemplateMode::from_str(&value)?;
                 }
+                "--dsl" => {
+                    dsl_path = Some(args.next().ok_or_else(|| {
+                        "missing value for --dsl, expected a DSL file path".to_string()
+                    })?);
+                }
                 "--unix-socket" => {
                     socket_target = Some(SocketTarget::Unix(args.next().ok_or_else(|| {
                         "missing value for --unix-socket, expected a filesystem path".to_string()
@@ -288,6 +312,9 @@ impl Cli {
         if summary_only && !json {
             return Err("--summary-only requires --json".into());
         }
+        if dsl_path.is_some() && demo_mode != DemoMode::Both {
+            return Err("--dsl cannot be combined with --demo".into());
+        }
         if socket_target.is_some() && demo_mode != DemoMode::Both {
             return Err("--demo cannot be combined with socket listener mode".into());
         }
@@ -298,6 +325,7 @@ impl Cli {
         Ok(Self {
             demo_mode,
             template_mode,
+            dsl_path,
             serve,
             max_sessions,
             json,
@@ -314,6 +342,148 @@ fn run_session(
 ) -> ExportBundle {
     let config = SessionConfig::for_template(template).expect("builtin template should be valid");
     let mut session = RuntimeSession::start(config).expect("session startup should succeed");
+    let window_end = facts
+        .iter()
+        .map(|fact| fact.ts)
+        .max()
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+
+    for fact in facts {
+        session.ingest(fact);
+    }
+    session.freeze(window_end);
+
+    let export = session.export_bundle();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .expect("runtime should export replayable json")
+        .replay()
+        .expect("export should replay");
+
+    assert_eq!(export.reasons, replay.reasons, "replay should stay deterministic");
+    export
+}
+
+fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
+    let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_000);
+    let fragments = &binding.template.fragment_set;
+    let facts = if fragments.contains(&"tcp_state_fragment") && fragments.contains(&"tcp_packet_meta_fragment") {
+        vec![
+            FactEnvelope {
+                id: FactId(1),
+                ts: base,
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(1),
+                fragment_id: "tcp_state_fragment".into(),
+                kind: FactKind::TcpState(TcpStateFact {
+                    netns: 1,
+                    sk_cookie: 42,
+                    saddr: [0; 16],
+                    daddr: [0; 16],
+                    sport: 42310,
+                    dport: 443,
+                    family: 2,
+                    old: 1,
+                    new: 2,
+                }),
+            },
+            FactEnvelope {
+                id: FactId(2),
+                ts: base + Duration::from_millis(10),
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(1),
+                fragment_id: "tcp_packet_meta_fragment".into(),
+                kind: FactKind::PacketMeta(PacketMetaFact {
+                    netns: 1,
+                    sk_cookie: Some(42),
+                    dir: PacketDir::Egress,
+                    l3_proto: 0x0800,
+                    l4_proto: 6,
+                    tot_len: 60,
+                    tcp_flags: 0x02,
+                    seq: Some(1),
+                    ack: None,
+                    window: Some(65535),
+                }),
+            },
+            route_fact(3, base + Duration::from_millis(20), 42, 2, SessionId(1)),
+        ]
+    } else if fragments.contains(&"udp_packet_meta_fragment") && fragments.contains(&"sock_lineage_fragment") {
+        vec![
+            FactEnvelope {
+                id: FactId(1),
+                ts: base,
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "sock_lineage_fragment".into(),
+                kind: FactKind::SockLineage(SockLineageFact {
+                    netns: 1,
+                    sk_cookie: 99,
+                    pid: 4242,
+                    tid: 4242,
+                    cgroup_id: 4242,
+                    comm: {
+                        let mut comm = [0u8; 16];
+                        comm[..4].copy_from_slice(b"curl");
+                        comm
+                    },
+                }),
+            },
+            FactEnvelope {
+                id: FactId(2),
+                ts: base + Duration::from_millis(10),
+                cpu: CpuId(0),
+                ifindex: Some(3),
+                session: SessionId(2),
+                fragment_id: "udp_packet_meta_fragment".into(),
+                kind: FactKind::PacketMeta(PacketMetaFact {
+                    netns: 1,
+                    sk_cookie: Some(99),
+                    dir: PacketDir::Egress,
+                    l3_proto: 0x0800,
+                    l4_proto: 17,
+                    tot_len: 72,
+                    tcp_flags: 0,
+                    seq: None,
+                    ack: None,
+                    window: None,
+                }),
+            },
+            route_fact(3, base + Duration::from_millis(20), 99, 3, SessionId(2)),
+        ]
+    } else if fragments.contains(&"udp_packet_meta_fragment") {
+        vec![
+            FactEnvelope {
+                id: FactId(1),
+                ts: base,
+                cpu: CpuId(0),
+                ifindex: Some(3),
+                session: SessionId(2),
+                fragment_id: "udp_packet_meta_fragment".into(),
+                kind: FactKind::PacketMeta(PacketMetaFact {
+                    netns: 1,
+                    sk_cookie: Some(99),
+                    dir: PacketDir::Egress,
+                    l3_proto: 0x0800,
+                    l4_proto: 17,
+                    tot_len: 72,
+                    tcp_flags: 0,
+                    seq: None,
+                    ack: None,
+                    window: None,
+                }),
+            },
+            route_fact(2, base + Duration::from_millis(10), 99, 3, SessionId(2)),
+        ]
+    } else {
+        eprintln!("dsl demo failed: unsupported fragment combination");
+        std::process::exit(2);
+    };
+
+    let config = SessionConfig::for_binding(binding).expect("dsl binding should validate");
+    let mut session = RuntimeSession::start(config).expect("dsl session startup should succeed");
     let window_end = facts
         .iter()
         .map(|fact| fact.ts)
@@ -368,7 +538,7 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: gewyvern [--demo tcp|udp|both] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+    "usage: gewyvern [--demo tcp|udp|both] [--dsl path] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
 }
 
 fn summary_json(name: &str, export: &ExportBundle) -> String {
@@ -403,7 +573,11 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
         let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
 
         for _ in 0..max_sessions {
-            let export = run_unix_socket_session_on_listener(&listener, cli.template_mode.template())
+            let export = if let Some(binding) = cli.dsl_binding() {
+                run_unix_socket_session_on_listener_with_binding(&listener, binding)
+            } else {
+                run_unix_socket_session_on_listener(&listener, cli.template_mode.template())
+            }
                 .unwrap_or_else(|err| {
                     eprintln!("socket service failed: {err:?}");
                     std::process::exit(1);
@@ -431,7 +605,11 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
     let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
 
     for _ in 0..max_sessions {
-        let export = run_tcp_socket_session_on_listener(&listener, cli.template_mode.template())
+        let export = if let Some(binding) = cli.dsl_binding() {
+            run_tcp_socket_session_on_listener_with_binding(&listener, binding)
+        } else {
+            run_tcp_socket_session_on_listener(&listener, cli.template_mode.template())
+        }
             .unwrap_or_else(|err| {
                 eprintln!("socket service failed: {err:?}");
                 std::process::exit(1);

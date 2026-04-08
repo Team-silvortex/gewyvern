@@ -24,6 +24,8 @@ pub enum ProgramPredicate {
     SocketStateObserved,
     DatagramObserved { l4_proto: u8 },
     RouteResolved,
+    All(Vec<ProgramPredicate>),
+    Any(Vec<ProgramPredicate>),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -60,7 +62,7 @@ fn build_program_flow(
             if rule.dedupe && seen_predicates.contains(&rule.predicate) {
                 continue;
             }
-            if !matches_predicate(&rule.predicate, flow, fact) {
+            if !matches_predicate(&rule.predicate, flow, fact, facts) {
                 continue;
             }
 
@@ -71,7 +73,7 @@ fn build_program_flow(
                 });
             }
 
-            if let Some(line) = render_narrative(&rule.narrative, fact) {
+            if let Some(line) = render_narrative(&rule.narrative, flow, fact) {
                 narrative.push(line);
             }
 
@@ -93,7 +95,12 @@ fn build_program_flow(
     }
 }
 
-fn matches_predicate(predicate: &ProgramPredicate, flow: &FlowSnapshot, fact: &FactEnvelope) -> bool {
+fn matches_predicate(
+    predicate: &ProgramPredicate,
+    flow: &FlowSnapshot,
+    fact: &FactEnvelope,
+    facts: &[FactEnvelope],
+) -> bool {
     match predicate {
         ProgramPredicate::ProcessBound => flow.evidence.lineage_facts.contains(&fact.id),
         ProgramPredicate::SocketStateObserved => flow.evidence.tcp_state_facts.contains(&fact.id),
@@ -104,28 +111,45 @@ fn matches_predicate(predicate: &ProgramPredicate, flow: &FlowSnapshot, fact: &F
             matches!(&fact.kind, FactKind::PacketMeta(packet) if packet.l4_proto == *l4_proto)
         }
         ProgramPredicate::RouteResolved => flow.evidence.route_facts.contains(&fact.id),
+        ProgramPredicate::All(predicates) => predicates
+            .iter()
+            .all(|predicate| predicate_satisfied_in_flow(predicate, flow, facts))
+            && predicates
+                .iter()
+                .any(|predicate| matches_predicate(predicate, flow, fact, facts)),
+        ProgramPredicate::Any(predicates) => predicates
+            .iter()
+            .any(|predicate| matches_predicate(predicate, flow, fact, facts)),
     }
 }
 
-fn render_narrative(narrative: &ProgramNarrative, fact: &FactEnvelope) -> Option<String> {
+fn predicate_satisfied_in_flow(
+    predicate: &ProgramPredicate,
+    flow: &FlowSnapshot,
+    facts: &[FactEnvelope],
+) -> bool {
+    facts.iter()
+        .any(|fact| matches_predicate(predicate, flow, fact, facts))
+}
+
+fn render_narrative(
+    narrative: &ProgramNarrative,
+    flow: &FlowSnapshot,
+    _fact: &FactEnvelope,
+) -> Option<String> {
     match narrative {
         ProgramNarrative::None => None,
         ProgramNarrative::Static(line) => Some((*line).into()),
         ProgramNarrative::ProcessBound => {
-            if let FactKind::SockLineage(lineage) = &fact.kind {
+            if let Some(process) = &flow.process {
                 Some(format!(
                     "process {} (pid={}) bound this network flow",
-                    decode_comm(&lineage.comm),
-                    lineage.pid
+                    process.comm,
+                    process.pid
                 ))
             } else {
                 None
             }
         }
     }
-}
-
-fn decode_comm(comm: &[u8; 16]) -> String {
-    let end = comm.iter().position(|byte| *byte == 0).unwrap_or(comm.len());
-    String::from_utf8_lossy(&comm[..end]).to_string()
 }

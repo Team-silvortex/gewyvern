@@ -12,7 +12,7 @@ use crate::loader::{
 };
 use crate::program::build_program_flows;
 use crate::reason::{build_reason_chains, ReasonChain, ReasonProfile};
-use crate::template::{Template, TemplateError, WindowProfile};
+use crate::template::{FragmentParamValue, Template, TemplateBinding, TemplateError, WindowProfile};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{Duration, SystemTime};
 
@@ -21,6 +21,7 @@ pub struct SessionConfig {
     pub template: Template,
     pub registry: FragmentRegistry,
     pub attach_failures: Vec<AttachFailure>,
+    pub fragment_params: BTreeMap<String, BTreeMap<String, FragmentParamValue>>,
 }
 
 #[derive(Clone, Debug)]
@@ -30,6 +31,7 @@ pub struct RuntimeSession {
     reason_profile: ReasonProfile,
     attach_plan: AttachPlan,
     attach_report: AttachReport,
+    fragment_params: BTreeMap<String, BTreeMap<String, FragmentParamValue>>,
     facts: Vec<FactEnvelope>,
     rejected_facts: Vec<RejectedFact>,
     window_end: Option<SystemTime>,
@@ -53,12 +55,14 @@ pub struct RejectedFact {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RejectedFactReason {
     FragmentNotLoaded,
+    FilteredByFragmentParam,
 }
 
 impl RejectedFactReason {
     pub fn label(&self) -> &'static str {
         match self {
             Self::FragmentNotLoaded => "fragment_not_loaded",
+            Self::FilteredByFragmentParam => "filtered_by_fragment_param",
         }
     }
 }
@@ -104,6 +108,21 @@ impl SessionConfig {
             template,
             registry: builtin_registry(),
             attach_failures: Vec::new(),
+            fragment_params: BTreeMap::new(),
+        })
+    }
+
+    pub fn for_binding(binding: TemplateBinding) -> Result<Self, RuntimeError> {
+        binding.validate().map_err(RuntimeError::InvalidTemplate)?;
+        let registry = builtin_registry();
+        registry
+            .validate_binding_params(&binding)
+            .map_err(RuntimeError::Registry)?;
+        Ok(Self {
+            template: binding.template,
+            registry,
+            attach_failures: Vec::new(),
+            fragment_params: binding.fragment_params,
         })
     }
 }
@@ -165,6 +184,7 @@ impl RuntimeSession {
             reason_profile,
             attach_plan,
             attach_report,
+            fragment_params: config.fragment_params,
             facts: Vec::new(),
             rejected_facts: Vec::new(),
             window_end: None,
@@ -172,7 +192,7 @@ impl RuntimeSession {
         })
     }
 
-    pub fn ingest(&mut self, fact: FactEnvelope) {
+    pub fn ingest(&mut self, mut fact: FactEnvelope) {
         if !self
             .attach_report
             .fragments_loaded
@@ -190,6 +210,19 @@ impl RuntimeSession {
             .frozen_at
             .is_some_and(|freeze_at| fact.ts > freeze_at)
         {
+            return;
+        }
+        if fact.fragment_id == "sock_lineage_fragment" && !self.capture_comm_enabled(&fact.fragment_id) {
+            if let FactKind::SockLineage(lineage) = &mut fact.kind {
+                lineage.comm = [0; 16];
+            }
+        }
+        if self.packet_below_min_len(&fact) {
+            self.rejected_facts.push(RejectedFact {
+                id: fact.id,
+                fragment_id: fact.fragment_id,
+                reason: RejectedFactReason::FilteredByFragmentParam,
+            });
             return;
         }
         self.facts.push(fact);
@@ -257,6 +290,7 @@ impl RuntimeSession {
             },
             window_profile: self.window_profile.clone(),
             reason_profile_id: self.reason_profile.id().into(),
+            fragment_params: self.fragment_params.clone(),
             facts,
             rejected_facts: self.rejected_facts.clone(),
             rejected_fact_summary,
@@ -290,6 +324,32 @@ impl RuntimeSession {
                 .collect(),
             (_, None) => self.facts.clone(),
         }
+    }
+
+    fn capture_comm_enabled(&self, fragment_id: &str) -> bool {
+        self.fragment_params
+            .get(fragment_id)
+            .and_then(|params| params.get("capture_comm"))
+            .map(|value| matches!(value, FragmentParamValue::Bool(true)))
+            .unwrap_or(true)
+    }
+
+    fn packet_below_min_len(&self, fact: &FactEnvelope) -> bool {
+        let FactKind::PacketMeta(packet) = &fact.kind else {
+            return false;
+        };
+        let Some(min_len) = self
+            .fragment_params
+            .get(&fact.fragment_id)
+            .and_then(|params| params.get("min_len"))
+            .and_then(|value| match value {
+                FragmentParamValue::U64(value) => Some(*value as u32),
+                _ => None,
+            })
+        else {
+            return false;
+        };
+        packet.tot_len < min_len
     }
 }
 
@@ -358,7 +418,7 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
                         pid: lineage.pid,
                         tid: lineage.tid,
                         cgroup_id: lineage.cgroup_id,
-                        comm: decode_comm(&lineage.comm),
+                        comm: decode_comm_or_redacted(&lineage.comm),
                     });
                 }
             }
@@ -440,7 +500,11 @@ impl FlowAccumulatorView for EvidenceIndex {
     }
 }
 
-fn decode_comm(comm: &[u8; 16]) -> String {
+fn decode_comm_or_redacted(comm: &[u8; 16]) -> String {
     let end = comm.iter().position(|byte| *byte == 0).unwrap_or(comm.len());
-    String::from_utf8_lossy(&comm[..end]).to_string()
+    if end == 0 {
+        "<redacted>".into()
+    } else {
+        String::from_utf8_lossy(&comm[..end]).to_string()
+    }
 }

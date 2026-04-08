@@ -15,6 +15,7 @@ The long-term direction is:
 
 - fragments are the embryo of runtime IR
 - templates compose fragments plus runtime policies
+- DSL should compile into template bindings plus fragment parameters
 - protocol behavior should eventually be driven by a DSL over that IR
 
 ## Status
@@ -96,6 +97,24 @@ Template
   - `route_meta_fragment`
   - `sock_lineage_fragment`
 
+## DSL Files
+
+The repository now includes first-class DSL files that compile into
+`TemplateBinding` rather than into eBPF bytecode:
+
+- [dsl/handshake_debug.gwy](/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gwy)
+- [dsl/udp_debug.gwy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_debug.gwy)
+- [dsl/udp_process_debug.gwy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gwy)
+
+These DSL files already cover the current built-in protocol/debugging shapes and
+can express:
+
+- fragment selection
+- window profile selection
+- reason profile selection
+- program model operation/rules
+- fragment parameter bindings
+
 ## Development
 
 This repository is intentionally TDD-driven.
@@ -126,6 +145,12 @@ cargo run -- --demo both --json
 cargo run -- --demo both --json --summary-only
 ```
 
+Run a DSL-driven demo:
+
+```bash
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gwy --json --summary-only
+```
+
 Write output to a file:
 
 ```bash
@@ -149,6 +174,12 @@ TCP socket:
 ```bash
 cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --json
 cargo run --bin gewyvern_socket_send -- --tcp-socket 127.0.0.1:9000 --template udp
+```
+
+Socket session from a DSL file:
+
+```bash
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gwy --unix-socket /tmp/gewyvern.sock --json
 ```
 
 Serve multiple sessions:
@@ -189,6 +220,9 @@ cargo linux-smoke
 - This is still a prototype, not a stable public schema/runtime
 - eBPF programs are still hand-written C, not generated from IR
 - `ProgramModel` is embedded Rust data today, not an external DSL yet
+- `ProgramFlow.operation` can now carry template-defined custom ids, but the rule
+  surface is still intentionally small
+- the intended DSL compile target is `template + fragment params`, not eBPF bytecode
 - Program-flow reconstruction is still intentionally small and conservative
 - Local Unix/TCP socket live tests are ignored in restricted environments that
   do not allow bind permissions

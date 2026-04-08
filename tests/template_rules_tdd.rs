@@ -1,5 +1,5 @@
 use gewyvern::template::{
-    Template, TemplateError, handshake_debug_template, udp_debug_template,
+    FragmentParamValue, Template, TemplateError, handshake_debug_template, udp_debug_template,
     udp_process_debug_template,
 };
 
@@ -47,4 +47,30 @@ fn udp_template_is_valid() {
 fn udp_process_template_is_valid() {
     let template: Template = udp_process_debug_template();
     assert_eq!(template.validate(), Ok(()));
+}
+
+#[test]
+fn template_can_compile_into_binding_with_fragment_params() {
+    let binding = udp_process_debug_template()
+        .bind()
+        .with_fragment_param(
+            "udp_packet_meta_fragment",
+            "l4_proto_hint",
+            FragmentParamValue::U64(17),
+        )
+        .with_fragment_param(
+            "sock_lineage_fragment",
+            "capture_comm",
+            FragmentParamValue::Bool(true),
+        );
+
+    assert_eq!(binding.validate(), Ok(()));
+    assert_eq!(
+        binding.fragment_params["udp_packet_meta_fragment"]["l4_proto_hint"],
+        FragmentParamValue::U64(17)
+    );
+    assert_eq!(
+        binding.fragment_params["sock_lineage_fragment"]["capture_comm"],
+        FragmentParamValue::Bool(true)
+    );
 }

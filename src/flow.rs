@@ -31,6 +31,7 @@ pub struct ProgramFlow {
 pub enum ProgramOperation {
     ConnectFlow,
     DatagramExchange,
+    Custom(String),
     Unknown,
 }
 

@@ -1,7 +1,7 @@
 # Fragment Guide
 
-This document describes how fragments are modeled in the current runtime and how
-new fragments should be introduced.
+This document describes how fragments are modeled in the current `v0.1`
+runtime and how new fragments should be introduced.
 
 ## What A Fragment Is
 
@@ -20,11 +20,16 @@ It is not allowed to:
 - interpret facts
 - know the active session window
 - know the reason profile
+- decide program-flow semantics
 - mutate template semantics
+
+Fragments are the embryo of runtime IR. They describe what evidence can exist,
+not what that evidence means at the final debugger layer.
 
 ## Current Descriptor Shape
 
-The current Rust-side descriptor is `FragmentDescriptor` in `src/fragment.rs`.
+The current Rust-side descriptor is `FragmentDescriptor` in
+[src/fragment.rs](/Users/Shared/chroot/dev/gewyvern/src/fragment.rs).
 
 Fields:
 
@@ -49,15 +54,16 @@ Recommended naming style:
 Examples:
 
 - `tcp_state_fragment`
-- `tcp_packet_meta_fragment`
+- `udp_packet_meta_fragment`
 - `route_meta_fragment`
+- `sock_lineage_fragment`
 
 ### `version`
 
 Monotonic fragment descriptor version.
 
-Even while the project is early, version should change when descriptor semantics
-or exported behavior changes in a meaningful way.
+Even while the project is early, version should change when descriptor
+semantics or exported behavior changes in a meaningful way.
 
 ### `hookpoints`
 
@@ -70,6 +76,13 @@ Current runtime enum:
 - `TCIngress`
 - `TCEgress`
 
+Current label encoding:
+
+- `tracepoint:<name>`
+- `kprobe:<name>`
+- `tc:ingress`
+- `tc:egress`
+
 Two fragments may not claim the same hookpoint inside one attach plan.
 
 ### `emits`
@@ -78,7 +91,7 @@ Declares which fact kinds the fragment produces.
 
 This is used by the registry to:
 
-- build fact graph
+- build the fact graph
 - assign fact ownership
 - validate requirement coverage
 
@@ -89,10 +102,12 @@ session plan.
 
 Declares prerequisite fact kinds.
 
-This does not mean runtime dataflow execution yet. In v0.04 it primarily means:
+This is registry/runtime composition metadata, not a full dataflow engine.
+Today it primarily means:
 
 - the registry can verify coverage
 - dependency edges can be built into the attach plan
+- templates with invalid fragment sets can be rejected early
 
 ### `maps`
 
@@ -104,7 +119,9 @@ Current map kinds:
 - `Hash`
 - `LruHash`
 
-The current runtime only summarizes ringbuf usage into `AttachReport`.
+Current runtime usage:
+
+- ringbuf maps are summarized into `AttachReport.ringbuf_stats`
 
 ### `capabilities`
 
@@ -115,6 +132,7 @@ Current built-ins:
 - `TcpState`
 - `PacketMeta`
 - `RouteMeta`
+- `SockLineage`
 
 These are descriptive tags, not permission boundaries.
 
@@ -127,18 +145,48 @@ The current built-in registry provides:
 - hookpoint: `tracepoint:sock/inet_sock_set_state`
 - emits: `tcp_state`
 - requires: none
+- capability: `TcpState`
+
+This is the primary TCP lifecycle evidence source.
 
 ### `tcp_packet_meta_fragment`
 
 - hookpoint: `tc:ingress`
 - emits: `packet_meta`
 - requires: `tcp_state`
+- capability: `PacketMeta`
+
+This models TCP packet metadata as transport evidence.
+
+### `udp_packet_meta_fragment`
+
+- hookpoint: `tc:ingress`
+- emits: `packet_meta`
+- requires: none
+- capability: `PacketMeta`
+
+This is the UDP packet-evidence counterpart to `tcp_packet_meta_fragment`.
 
 ### `route_meta_fragment`
 
 - hookpoint: `kprobe:ip_route_output_flow`
 - emits: `route_decision`
-- requires: `tcp_state`
+- requires: none
+- capability: `RouteMeta`
+
+This contributes route/path evidence and can participate in both TCP and UDP
+templates.
+
+### `sock_lineage_fragment`
+
+- hookpoint: `tracepoint:syscalls/sys_enter_connect`
+- emits: `sock_lineage`
+- requires: none
+- capability: `SockLineage`
+
+This fragment is what makes process-aware transport/program-flow reconstruction
+possible. It provides the bridge from socket evidence to `pid` / `tid` /
+`cgroup_id` / `comm`.
 
 ## Registry Rules
 
@@ -149,7 +197,36 @@ The registry currently enforces:
 - no fact ownership conflicts inside one plan
 - all required fact kinds must be covered
 
-These rules are tested in `src/fragment.rs`.
+These invariants are specified in:
+
+- [tests/fragment_rules_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/fragment_rules_tdd.rs)
+
+## Attach Reports And Failures
+
+Fragments participate in two related runtime structures:
+
+- `AttachPlan`
+- `AttachReport`
+
+`AttachPlan` is the static composition result.
+
+`AttachReport` is the operational outcome and currently records:
+
+- `fragments_loaded`
+- `hookpoints_attached`
+- `hookpoints_failed`
+- `required_fact_kinds_coverage`
+- `ringbuf_stats`
+
+The loader/runtime path can also produce structured `AttachFailure` records.
+Those are converted into `hookpoints_failed` labels and then influence:
+
+- exported debug summaries
+- attach failure summaries
+- fact-ingest gating
+
+If a fragment fails to attach, facts from that fragment are rejected by the
+runtime and appear in `rejected_facts`.
 
 ## How To Add A New Fragment
 
@@ -159,14 +236,20 @@ Use this sequence:
 2. define the new `FragmentDescriptor`
 3. register it in `builtin_registry()`
 4. update templates if the fragment should be selectable
-5. update runtime behavior only if new facts need new handling
-6. ensure replay and export still make sense
+5. update runtime/export handling only if the new emitted fact kind needs it
+6. verify replay and summaries still make sense
+
+If the new fragment needs real Linux probe coverage, also extend:
+
+- [tests/linux_smoke_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/linux_smoke_tdd.rs)
+- [src/loader.rs](/Users/Shared/chroot/dev/gewyvern/src/loader.rs)
 
 ## Design Rule
 
-If you feel tempted to put windowing, interpretation, or policy into a
+If you feel tempted to put windowing, interpretation, or program policy into a
 fragment, that behavior probably belongs somewhere else:
 
 - window semantics belong to template/session runtime
-- interpretation belongs to reason engine
+- interpretation belongs to reason profiles or program models
+- attach outcome handling belongs to loader/runtime
 - policy belongs to gate or future intervention logic

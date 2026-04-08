@@ -2,6 +2,7 @@ use gewyvern::fragment::{
     AttachFailure, CapabilityFlag, FragmentDescriptor, FragmentRegistry, HookPoint, MapKind,
     MapSpec, RegistryError, builtin_registry,
 };
+use gewyvern::template::{FragmentParamValue, udp_process_debug_template};
 use gewyvern::ledger::FactKindTag;
 
 #[test]
@@ -137,6 +138,20 @@ fn attach_report_keeps_failures_that_are_outside_the_plan() {
     assert_eq!(report.fragments_loaded.len(), 3);
 }
 
+#[test]
+fn registry_validates_binding_params_against_fragment_schema() {
+    let registry = builtin_registry();
+    let binding = udp_process_debug_template()
+        .bind()
+        .with_fragment_param(
+            "sock_lineage_fragment",
+            "capture_comm",
+            FragmentParamValue::Bool(true),
+        );
+
+    assert_eq!(registry.validate_binding_params(&binding), Ok(()));
+}
+
 fn test_fragment(
     id: &'static str,
     hookpoint: HookPoint,
@@ -155,5 +170,6 @@ fn test_fragment(
             max_entries: 1024,
         }],
         capabilities: vec![CapabilityFlag::TcpState],
+        params: vec![],
     }
 }

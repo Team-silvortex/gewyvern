@@ -1,6 +1,7 @@
 use crate::flow::{ProgramOperation, ProgramStageKind};
 use crate::program::{ProgramModel, ProgramNarrative, ProgramPredicate, ProgramRule};
 use crate::reason::{ReasonProfile, ReasonProfile::{HandshakeL1, UdpDatagramL1}};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowProfile {
@@ -16,6 +17,19 @@ pub struct Template {
     pub window_profile: Option<WindowProfile>,
     pub reason_profile: Option<ReasonProfile>,
     pub program_model: Option<ProgramModel>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TemplateBinding {
+    pub template: Template,
+    pub fragment_params: BTreeMap<String, BTreeMap<String, FragmentParamValue>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum FragmentParamValue {
+    Bool(bool),
+    U64(u64),
+    String(String),
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -41,6 +55,32 @@ impl Template {
             return Err(TemplateError::MissingProgramModel);
         }
         Ok(())
+    }
+
+    pub fn bind(self) -> TemplateBinding {
+        TemplateBinding {
+            template: self,
+            fragment_params: BTreeMap::new(),
+        }
+    }
+}
+
+impl TemplateBinding {
+    pub fn validate(&self) -> Result<(), TemplateError> {
+        self.template.validate()
+    }
+
+    pub fn with_fragment_param(
+        mut self,
+        fragment_id: &'static str,
+        key: &'static str,
+        value: FragmentParamValue,
+    ) -> Self {
+        self.fragment_params
+            .entry(fragment_id.into())
+            .or_default()
+            .insert(key.into(), value);
+        self
     }
 }
 

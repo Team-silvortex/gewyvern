@@ -1,4 +1,5 @@
 use crate::ledger::FactKindTag;
+use crate::template::{FragmentParamValue, TemplateBinding};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -10,6 +11,20 @@ pub struct FragmentDescriptor {
     pub requires: Vec<FactKindTag>,
     pub maps: Vec<MapSpec>,
     pub capabilities: Vec<CapabilityFlag>,
+    pub params: Vec<FragmentParamSpec>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FragmentParamSpec {
+    pub key: &'static str,
+    pub value_type: FragmentParamType,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FragmentParamType {
+    Bool,
+    U64,
+    String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -157,6 +172,12 @@ pub enum RegistryError {
     HookConflict(String),
     FactConflict(String),
     MissingCoverage(Vec<FactKindTag>),
+    UnknownFragmentParam { fragment_id: String, key: String },
+    InvalidFragmentParamType {
+        fragment_id: String,
+        key: String,
+        expected: &'static str,
+    },
 }
 
 impl FragmentRegistry {
@@ -267,6 +288,38 @@ impl FragmentRegistry {
         })
     }
 
+    pub fn validate_binding_params(&self, binding: &TemplateBinding) -> Result<(), RegistryError> {
+        for (fragment_id, params) in &binding.fragment_params {
+            let descriptor = self
+                .descriptor(fragment_id)
+                .ok_or_else(|| RegistryError::MissingFragment(fragment_id.clone()))?;
+            for (key, value) in params {
+                let spec = descriptor
+                    .params
+                    .iter()
+                    .find(|spec| spec.key == key)
+                    .ok_or_else(|| RegistryError::UnknownFragmentParam {
+                        fragment_id: fragment_id.clone(),
+                        key: key.clone(),
+                    })?;
+                let type_matches = matches!(
+                    (&spec.value_type, value),
+                    (FragmentParamType::Bool, FragmentParamValue::Bool(_))
+                        | (FragmentParamType::U64, FragmentParamValue::U64(_))
+                        | (FragmentParamType::String, FragmentParamValue::String(_))
+                );
+                if !type_matches {
+                    return Err(RegistryError::InvalidFragmentParamType {
+                        fragment_id: fragment_id.clone(),
+                        key: key.clone(),
+                        expected: spec.value_type.label(),
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn attach_report(&self, plan: &AttachPlan) -> AttachReport {
         self.attach_report_with_failures(plan, std::iter::empty::<String>())
     }
@@ -337,6 +390,16 @@ impl FragmentRegistry {
     }
 }
 
+impl FragmentParamType {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Bool => "bool",
+            Self::U64 => "u64",
+            Self::String => "string",
+        }
+    }
+}
+
 pub fn builtin_registry() -> FragmentRegistry {
     let mut registry = FragmentRegistry::new();
     let fragments = [
@@ -352,6 +415,7 @@ pub fn builtin_registry() -> FragmentRegistry {
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::TcpState],
+            params: vec![],
         },
         FragmentDescriptor {
             id: "tcp_packet_meta_fragment",
@@ -365,6 +429,7 @@ pub fn builtin_registry() -> FragmentRegistry {
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::PacketMeta],
+            params: vec![],
         },
         FragmentDescriptor {
             id: "udp_packet_meta_fragment",
@@ -378,6 +443,10 @@ pub fn builtin_registry() -> FragmentRegistry {
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::PacketMeta],
+            params: vec![FragmentParamSpec {
+                key: "min_len",
+                value_type: FragmentParamType::U64,
+            }],
         },
         FragmentDescriptor {
             id: "route_meta_fragment",
@@ -391,6 +460,7 @@ pub fn builtin_registry() -> FragmentRegistry {
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::RouteMeta],
+            params: vec![],
         },
         FragmentDescriptor {
             id: "sock_lineage_fragment",
@@ -404,6 +474,10 @@ pub fn builtin_registry() -> FragmentRegistry {
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::SockLineage],
+            params: vec![FragmentParamSpec {
+                key: "capture_comm",
+                value_type: FragmentParamType::Bool,
+            }],
         },
     ];
 

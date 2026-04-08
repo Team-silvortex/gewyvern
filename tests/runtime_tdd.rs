@@ -2,9 +2,14 @@ mod support;
 
 use gewyvern::export::ExportBundle;
 use gewyvern::fragment::{AttachFailure, HookPoint};
+use gewyvern::flow::ProgramOperation;
+use gewyvern::ledger::FactKind;
 use gewyvern::loader::StaticFailureLoader;
+use gewyvern::program::{ProgramModel, ProgramNarrative, ProgramPredicate, ProgramRule};
 use gewyvern::runtime::{build_flow_snapshots, RuntimeSession, SessionConfig};
-use gewyvern::template::{handshake_debug_template, udp_debug_template, udp_process_debug_template};
+use gewyvern::template::{
+    FragmentParamValue, handshake_debug_template, udp_debug_template, udp_process_debug_template,
+};
 use support::{
     packet_fact, route_fact, run_handshake_session, run_udp_process_session, run_udp_session,
     sock_lineage_fact, tcp_state_fact, udp_packet_fact,
@@ -431,8 +436,126 @@ fn program_flow_operation_comes_from_template_model() {
     );
     assert_eq!(
         udp_export.program_flows[0].operation,
-        gewyvern::flow::ProgramOperation::DatagramExchange
+        ProgramOperation::DatagramExchange
     );
+}
+
+#[test]
+fn program_flow_operation_supports_custom_model_ids() {
+    let mut template = udp_process_debug_template();
+    template.id = "udp_dns_debug";
+    template.program_model = Some(ProgramModel {
+        id: "dns_lookup_v1",
+        operation: ProgramOperation::Custom("dns_lookup".into()),
+        rules: vec![
+            ProgramRule {
+                predicate: ProgramPredicate::ProcessBound,
+                stage: Some(gewyvern::flow::ProgramStageKind::ProcessBound),
+                narrative: ProgramNarrative::ProcessBound,
+                dedupe: true,
+            },
+            ProgramRule {
+                predicate: ProgramPredicate::DatagramObserved { l4_proto: 17 },
+                stage: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),
+                narrative: ProgramNarrative::Static("program emitted a DNS-style datagram"),
+                dedupe: true,
+            },
+            ProgramRule {
+                predicate: ProgramPredicate::RouteResolved,
+                stage: Some(gewyvern::flow::ProgramStageKind::RouteResolved),
+                narrative: ProgramNarrative::Static("program resolved an upstream route"),
+                dedupe: true,
+            },
+        ],
+    });
+
+    let config = SessionConfig::for_template(template).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 103, 5353, "dig"));
+    session.ingest(udp_packet_fact(2, 103, 72));
+    session.ingest(route_fact(3, 103, 6));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(30));
+
+    let export = session.export_bundle();
+
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("dns_lookup".into())
+    );
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line == "program emitted a DNS-style datagram"));
+
+    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    assert_eq!(export.program_flows, replay.program_flows);
+}
+
+#[test]
+fn program_model_supports_all_and_any_predicates() {
+    let mut template = udp_process_debug_template();
+    template.id = "udp_compound_debug";
+    template.program_model = Some(ProgramModel {
+        id: "compound_rules_v1",
+        operation: ProgramOperation::Custom("compound_udp_activity".into()),
+        rules: vec![
+            ProgramRule {
+                predicate: ProgramPredicate::All(vec![
+                    ProgramPredicate::ProcessBound,
+                    ProgramPredicate::DatagramObserved { l4_proto: 17 },
+                ]),
+                stage: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),
+                narrative: ProgramNarrative::Static(
+                    "process-owned UDP activity observed"
+                ),
+                dedupe: true,
+            },
+            ProgramRule {
+                predicate: ProgramPredicate::Any(vec![
+                    ProgramPredicate::RouteResolved,
+                    ProgramPredicate::SocketStateObserved,
+                ]),
+                stage: Some(gewyvern::flow::ProgramStageKind::RouteResolved),
+                narrative: ProgramNarrative::Static(
+                    "program observed either route or socket progress"
+                ),
+                dedupe: true,
+            },
+        ],
+    });
+
+    let config = SessionConfig::for_template(template).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 104, 7000, "agent"));
+    session.ingest(udp_packet_fact(2, 104, 90));
+    session.ingest(route_fact(3, 104, 8));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    let flow = &export.program_flows[0];
+
+    assert_eq!(
+        flow.operation,
+        ProgramOperation::Custom("compound_udp_activity".into())
+    );
+    assert!(flow
+        .narrative
+        .iter()
+        .any(|line| line == "process-owned UDP activity observed"));
+    assert!(flow
+        .narrative
+        .iter()
+        .any(|line| line == "program observed either route or socket progress"));
+    assert_eq!(
+        flow.stages
+            .iter()
+            .filter(|stage| stage.kind == gewyvern::flow::ProgramStageKind::DatagramObserved)
+            .count(),
+        1
+    );
+
+    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    assert_eq!(export.program_flows, replay.program_flows);
 }
 
 #[test]
@@ -445,4 +568,119 @@ fn udp_process_template_loads_sock_lineage_fragment() {
         .attach_report
         .fragments_loaded
         .contains(&"sock_lineage_fragment".to_string()));
+}
+
+#[test]
+fn session_config_accepts_template_binding_compile_target() {
+    let binding = udp_process_debug_template()
+        .bind()
+        .with_fragment_param(
+            "udp_packet_meta_fragment",
+            "min_len",
+            FragmentParamValue::U64(64),
+        )
+        .with_fragment_param(
+            "sock_lineage_fragment",
+            "capture_comm",
+            FragmentParamValue::Bool(true),
+        );
+
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let session = RuntimeSession::start(config).unwrap();
+    let export = session.export_bundle();
+
+    assert_eq!(export.template_id, "udp_process_debug");
+    assert!(export
+        .attach_report
+        .fragments_loaded
+        .contains(&"udp_packet_meta_fragment".to_string()));
+}
+
+#[test]
+fn capture_comm_fragment_param_redacts_process_name_across_runtime_and_replay() {
+    let binding = udp_process_debug_template()
+        .bind()
+        .with_fragment_param(
+            "sock_lineage_fragment",
+            "capture_comm",
+            FragmentParamValue::Bool(false),
+        );
+
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 105, 4242, "curl"));
+    session.ingest(udp_packet_fact(2, 105, 72));
+    session.ingest(route_fact(3, 105, 9));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+
+    assert_eq!(export.flows[0].process.as_ref().unwrap().comm, "<redacted>");
+    assert_eq!(
+        export.fragment_params["sock_lineage_fragment"]["capture_comm"],
+        FragmentParamValue::Bool(false)
+    );
+    assert!(matches!(
+        &export.facts[0].kind,
+        FactKind::SockLineage(lineage) if lineage.comm == [0; 16]
+    ));
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line == "process <redacted> (pid=4242) bound this network flow"));
+    assert!(export.reasons[0]
+        .l3
+        .narrative
+        .iter()
+        .any(|line| line.text == "flow bound to process <redacted> (pid=4242)"));
+
+    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    assert_eq!(export.fragment_params, replay.fragment_params);
+    assert_eq!(export.flows, replay.flows);
+    assert_eq!(export.program_flows, replay.program_flows);
+    assert_eq!(export.reasons, replay.reasons);
+}
+
+#[test]
+fn udp_packet_min_len_fragment_param_filters_small_packets_with_audit_trail() {
+    let binding = udp_process_debug_template()
+        .bind()
+        .with_fragment_param(
+            "udp_packet_meta_fragment",
+            "min_len",
+            FragmentParamValue::U64(80),
+        );
+
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 106, 4242, "curl"));
+    session.ingest(udp_packet_fact(2, 106, 72));
+    session.ingest(route_fact(3, 106, 10));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+
+    assert_eq!(export.facts.len(), 2);
+    assert!(export
+        .facts
+        .iter()
+        .all(|fact| fact.id != gewyvern::ledger::FactId(2)));
+    assert_eq!(export.rejected_facts.len(), 1);
+    assert_eq!(export.rejected_facts[0].id, gewyvern::ledger::FactId(2));
+    assert_eq!(
+        export.rejected_facts[0].reason,
+        gewyvern::runtime::RejectedFactReason::FilteredByFragmentParam
+    );
+    assert_eq!(export.rejected_fact_summary.len(), 1);
+    assert_eq!(export.rejected_fact_summary[0].reason, "filtered_by_fragment_param");
+    assert_eq!(export.rejected_fact_summary[0].count, 1);
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .all(|line| line != "program emitted or received a UDP datagram"));
+
+    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    assert_eq!(export.rejected_facts, replay.rejected_facts);
+    assert_eq!(export.rejected_fact_summary, replay.rejected_fact_summary);
+    assert_eq!(export.program_flows, replay.program_flows);
 }

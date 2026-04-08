@@ -1,0 +1,11 @@
+# gewyvern DSL v0
+template=udp_debug
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+fragment=route_meta_fragment
+program_model=datagram_exchange_v1
+operation=datagram_exchange
+rule=process_bound;process_bound;process_bound;true
+rule=datagram_observed:udp;datagram_observed;static:program emitted or received a UDP datagram;true
+rule=route_resolved;route_resolved;static:program resolved a route for this network flow;true

@@ -92,6 +92,18 @@ Each part has a separate job:
 - reason profile controls deterministic reduction into reason chains
 - program model controls how transport evidence becomes program-flow structure
 
+### Template Binding
+
+`TemplateBinding` is the current compile-target skeleton for a future DSL layer.
+
+Its role is to carry:
+
+- a validated template
+- fragment-level parameter bindings
+
+This boundary is intentional: the future DSL should compile into fragment
+selection plus parameterization, not into generated eBPF bytecode.
+
 ### Runtime Session
 
 `RuntimeSession` is the session-level orchestrator. It owns:
@@ -141,6 +153,10 @@ Current built-in program-flow operations are intentionally generic:
 - `connect_flow`
 - `datagram_exchange`
 - `unknown`
+
+Templates may also emit custom operation ids through `ProgramModel`, which lets
+the runtime start describing network-function intent without waiting for a full
+external DSL.
 
 Program flows currently include:
 

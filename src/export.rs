@@ -4,7 +4,8 @@ use crate::flow::{
 };
 use crate::fragment::{
     AttachPlan, AttachReport, CapabilityFlag, CoverageReport, DependencyEdge, FactBinding,
-    FragmentDescriptor, HookBinding, HookPoint, MapKind, MapSpec, RingBufStats,
+    FragmentDescriptor, FragmentParamSpec, FragmentParamType, HookBinding, HookPoint, MapKind,
+    MapSpec, RingBufStats,
 };
 use crate::ledger::{
     millis_to_system_time, system_time_to_millis, AttachScopeFact, CpuId, DropActionFact,
@@ -18,7 +19,7 @@ use crate::runtime::{
     summarize_rejected_facts, RejectedFact, RejectedFactReason, RuntimeError, RuntimeSession,
     SessionConfig,
 };
-use crate::template::{default_program_model_for_reason_profile, Template, WindowProfile};
+use crate::template::{default_program_model_for_reason_profile, FragmentParamValue, Template, WindowProfile};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -37,6 +38,7 @@ pub struct ExportBundle {
     pub debug_summary: DebugSummary,
     pub window_profile: WindowProfile,
     pub reason_profile_id: String,
+    pub fragment_params: BTreeMap<String, BTreeMap<String, FragmentParamValue>>,
     pub facts: Vec<FactEnvelope>,
     pub rejected_facts: Vec<RejectedFact>,
     pub rejected_fact_summary: Vec<RejectedFactSummaryItem>,
@@ -94,7 +96,11 @@ impl ExportBundle {
             program_model: Some(default_program_model_for_reason_profile(&reason_profile)),
         };
 
-        let config = SessionConfig::for_template(template).map_err(ExportError::Runtime)?;
+        let config = SessionConfig::for_binding(crate::template::TemplateBinding {
+            template,
+            fragment_params: self.fragment_params.clone(),
+        })
+        .map_err(ExportError::Runtime)?;
         let mut session = RuntimeSession::start(config).map_err(ExportError::Runtime)?;
         for fact in &self.facts {
             session.ingest(fact.clone());
@@ -154,6 +160,10 @@ impl ExportBundle {
             (
                 "reason_profile_id".into(),
                 JsonValue::String(self.reason_profile_id.clone()),
+            ),
+            (
+                "fragment_params".into(),
+                fragment_params_json(&self.fragment_params),
             ),
             (
                 "facts".into(),
@@ -233,6 +243,10 @@ impl ExportBundle {
                 .ok_or_else(|| ExportError::InvalidShape("missing reason_profile_id".into()))?
                 .as_str()?
                 .to_string(),
+            fragment_params: parse_fragment_params(
+                root.get("fragment_params")
+                    .unwrap_or(&JsonValue::Object(BTreeMap::new())),
+            )?,
             facts: root
                 .get("facts")
                 .ok_or_else(|| ExportError::InvalidShape("missing facts".into()))?
@@ -286,6 +300,53 @@ pub fn fact_to_json(fact: &FactEnvelope) -> String {
 pub fn fact_from_json(input: &str) -> Result<FactEnvelope, ExportError> {
     let value = JsonParser::new(input).parse()?;
     parse_fact(&value)
+}
+
+fn fragment_params_json(
+    fragment_params: &BTreeMap<String, BTreeMap<String, FragmentParamValue>>,
+) -> JsonValue {
+    JsonValue::Object(BTreeMap::from_iter(fragment_params.iter().map(|(fragment_id, params)| {
+        (
+            fragment_id.clone(),
+            JsonValue::Object(BTreeMap::from_iter(params.iter().map(|(key, value)| {
+                let json = match value {
+                    FragmentParamValue::Bool(value) => JsonValue::Bool(*value),
+                    FragmentParamValue::U64(value) => JsonValue::Number(*value as i64),
+                    FragmentParamValue::String(value) => JsonValue::String(value.clone()),
+                };
+                (key.clone(), json)
+            }))),
+        )
+    })))
+}
+
+fn parse_fragment_params(
+    value: &JsonValue,
+) -> Result<BTreeMap<String, BTreeMap<String, FragmentParamValue>>, ExportError> {
+    let object = value.as_object()?;
+    object
+        .iter()
+        .map(|(fragment_id, params)| {
+            let params = params.as_object()?;
+            let parsed = params
+                .iter()
+                .map(|(key, value)| {
+                    let value = match value {
+                        JsonValue::Bool(value) => FragmentParamValue::Bool(*value),
+                        JsonValue::Number(value) => FragmentParamValue::U64(*value as u64),
+                        JsonValue::String(value) => FragmentParamValue::String(value.clone()),
+                        _ => {
+                            return Err(ExportError::InvalidShape(format!(
+                                "fragment_params.{fragment_id}.{key}"
+                            )))
+                        }
+                    };
+                    Ok((key.clone(), value))
+                })
+                .collect::<Result<BTreeMap<_, _>, _>>()?;
+            Ok((fragment_id.clone(), parsed))
+        })
+        .collect()
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -631,6 +692,29 @@ fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                                                 CapabilityFlag::SockLineage => "sock_lineage",
                                             }
                                             .into())
+                                        })
+                                        .collect(),
+                                ),
+                            ),
+                            (
+                                "params".into(),
+                                JsonValue::Array(
+                                    fragment
+                                        .params
+                                        .iter()
+                                        .map(|param| {
+                                            JsonValue::Object(BTreeMap::from([
+                                                ("key".into(), JsonValue::String(param.key.into())),
+                                                (
+                                                    "value_type".into(),
+                                                    JsonValue::String(match param.value_type {
+                                                        FragmentParamType::Bool => "bool",
+                                                        FragmentParamType::U64 => "u64",
+                                                        FragmentParamType::String => "string",
+                                                    }
+                                                    .into()),
+                                                ),
+                                            ]))
                                         })
                                         .collect(),
                                 ),
@@ -1073,12 +1157,7 @@ fn program_flow_json(flow: &ProgramFlow) -> JsonValue {
         ),
         (
             "operation".into(),
-            JsonValue::String(match flow.operation {
-                ProgramOperation::ConnectFlow => "connect_flow",
-                ProgramOperation::DatagramExchange => "datagram_exchange",
-                ProgramOperation::Unknown => "unknown",
-            }
-            .into()),
+            JsonValue::String(program_operation_id(&flow.operation).into()),
         ),
         (
             "transport_flows".into(),
@@ -1415,6 +1494,37 @@ fn parse_fragment_descriptor(value: &JsonValue) -> Result<FragmentDescriptor, Ex
                 _ => Err(ExportError::InvalidValue("unknown capability".into())),
             })
             .collect::<Result<Vec<_>, _>>()?,
+        params: object
+            .get("params")
+            .unwrap_or(&JsonValue::Array(Vec::new()))
+            .as_array()?
+            .iter()
+            .map(parse_fragment_param_spec)
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+fn parse_fragment_param_spec(value: &JsonValue) -> Result<FragmentParamSpec, ExportError> {
+    let object = value.as_object()?;
+    Ok(FragmentParamSpec {
+        key: Box::leak(
+            object
+                .get("key")
+                .ok_or_else(|| ExportError::InvalidShape("fragment.param.key".into()))?
+                .as_str()?
+                .to_string()
+                .into_boxed_str(),
+        ),
+        value_type: match object
+            .get("value_type")
+            .ok_or_else(|| ExportError::InvalidShape("fragment.param.value_type".into()))?
+            .as_str()?
+        {
+            "bool" => FragmentParamType::Bool,
+            "u64" => FragmentParamType::U64,
+            "string" => FragmentParamType::String,
+            _ => return Err(ExportError::InvalidValue("unknown fragment param type".into())),
+        },
     })
 }
 
@@ -1938,6 +2048,7 @@ fn parse_rejected_fact(value: &JsonValue) -> Result<RejectedFact, ExportError> {
         .as_str()?
     {
         "fragment_not_loaded" => RejectedFactReason::FragmentNotLoaded,
+        "filtered_by_fragment_param" => RejectedFactReason::FilteredByFragmentParam,
         other => {
             return Err(ExportError::InvalidValue(format!(
                 "unknown rejected fact reason: {other}"
@@ -2078,11 +2189,7 @@ fn parse_program_flow(value: &JsonValue) -> Result<ProgramFlow, ExportError> {
             "connect_flow" => ProgramOperation::ConnectFlow,
             "datagram_exchange" => ProgramOperation::DatagramExchange,
             "unknown" => ProgramOperation::Unknown,
-            other => {
-                return Err(ExportError::InvalidValue(format!(
-                    "unknown program flow operation: {other}"
-                )))
-            }
+            other => ProgramOperation::Custom(other.into()),
         },
         transport_flows: object
             .get("transport_flows")
@@ -2135,6 +2242,15 @@ fn parse_program_flow(value: &JsonValue) -> Result<ProgramFlow, ExportError> {
             .map(|item| Ok(item.as_str()?.to_string()))
             .collect::<Result<Vec<_>, _>>()?,
     })
+}
+
+fn program_operation_id(operation: &ProgramOperation) -> &str {
+    match operation {
+        ProgramOperation::ConnectFlow => "connect_flow",
+        ProgramOperation::DatagramExchange => "datagram_exchange",
+        ProgramOperation::Custom(id) => id.as_str(),
+        ProgramOperation::Unknown => "unknown",
+    }
 }
 
 fn parse_fact_ids(value: &JsonValue) -> Result<Vec<FactId>, ExportError> {

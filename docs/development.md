@@ -130,6 +130,13 @@ local bind permissions are unavailable.
 3. only then update lower-level runtime code if the rule engine is missing a capability
 4. verify export/replay stability for `program_flows`
 
+### Add a future DSL compile target feature
+
+1. treat `TemplateBinding` as the compile target
+2. keep changes in the space of fragment selection, parameter binding, and runtime policy
+3. do not introduce direct DSL-to-bytecode generation paths
+4. verify the resulting binding still works through `SessionConfig`
+
 ### Add a new reason rule
 
 1. add a scenario test in `tests/runtime_tdd.rs`

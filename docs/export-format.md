@@ -283,6 +283,9 @@ Current built-in `operation` values are:
 - `datagram_exchange`
 - `unknown`
 
+Templates may also export custom operation ids. Callers should therefore treat
+`operation` as an extensible string surface rather than a closed public enum.
+
 This layer is driven by the template's embedded `program_model`, which is the
 current IR-like rule surface for reconstructing program behavior from fragment
 evidence.
