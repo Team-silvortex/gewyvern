@@ -32,9 +32,30 @@
 - sender:
   `cargo run --bin gewyvern_socket_send -- --socket /tmp/gewyvern.sock --template udp`
 
+也支持 TCP socket：
+
+- server:
+  `cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --json`
+- sender:
+  `cargo run --bin gewyvern_socket_send -- --tcp-socket 127.0.0.1:9000 --template udp`
+
+如果要连续处理多次连接，可以打开循环服务模式：
+
+- Unix:
+  `cargo run -- --unix-socket /tmp/gewyvern.sock --template udp --serve --json --summary-only`
+- TCP:
+  `cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --serve --json --summary-only`
+
+如果只想跑固定次数的连接，方便演示或自动化：
+
+- `cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --serve --max-sessions 2 --json`
+
 也可以直接跑一键 roundtrip demo：
 
-- `bash scripts/socket_roundtrip_demo.sh /tmp/gewyvern.sock udp /tmp/gewyvern-out.json`
+- Unix:
+  `bash scripts/socket_roundtrip_demo.sh /tmp/gewyvern.sock udp /tmp/gewyvern-out.json unix`
+- TCP:
+  `bash scripts/socket_roundtrip_demo.sh 127.0.0.1:9000 udp /tmp/gewyvern-out.json tcp`
 
 Status: Draft (0.04)
 Scope: TCP + UDP session debugging（仍不改变 debugger 本质）

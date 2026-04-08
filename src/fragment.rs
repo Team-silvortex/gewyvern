@@ -50,6 +50,7 @@ pub enum CapabilityFlag {
     TcpState,
     PacketMeta,
     RouteMeta,
+    SockLineage,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -390,6 +391,19 @@ pub fn builtin_registry() -> FragmentRegistry {
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::RouteMeta],
+        },
+        FragmentDescriptor {
+            id: "sock_lineage_fragment",
+            version: 1,
+            hookpoints: vec![HookPoint::TracePoint("syscalls/sys_enter_connect")],
+            emits: vec![FactKindTag::SockLineage],
+            requires: vec![],
+            maps: vec![MapSpec {
+                name: "events",
+                kind: MapKind::RingBuf,
+                max_entries: 4096,
+            }],
+            capabilities: vec![CapabilityFlag::SockLineage],
         },
     ];
 

@@ -1,4 +1,7 @@
-use crate::flow::{EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView};
+use crate::flow::{
+    EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView, ProgramFlow,
+    ProgramFlowId, ProgramOperation, ProgramStage, ProgramStageKind,
+};
 use crate::fragment::{
     AttachPlan, AttachReport, CapabilityFlag, CoverageReport, DependencyEdge, FactBinding,
     FragmentDescriptor, HookBinding, HookPoint, MapKind, MapSpec, RingBufStats,
@@ -38,6 +41,7 @@ pub struct ExportBundle {
     pub rejected_facts: Vec<RejectedFact>,
     pub rejected_fact_summary: Vec<RejectedFactSummaryItem>,
     pub flows: Vec<FlowSnapshot>,
+    pub program_flows: Vec<ProgramFlow>,
     pub reasons: Vec<ReasonChain>,
 }
 
@@ -54,6 +58,7 @@ pub struct DebugSummary {
     pub accepted_facts: u64,
     pub rejected_facts: u64,
     pub flows: u64,
+    pub program_flows: u64,
     pub reasons: u64,
     pub degraded: bool,
 }
@@ -99,6 +104,7 @@ impl ExportBundle {
         replay.attach_failure_summary = self.attach_failure_summary.clone();
         replay.debug_summary = self.debug_summary.clone();
         replay.rejected_fact_summary = summarize_rejected_facts(&replay.rejected_facts);
+        replay.program_flows = self.program_flows.clone();
         Ok(replay)
     }
 
@@ -169,6 +175,10 @@ impl ExportBundle {
             (
                 "flows".into(),
                 JsonValue::Array(self.flows.iter().map(flow_json).collect()),
+            ),
+            (
+                "program_flows".into(),
+                JsonValue::Array(self.program_flows.iter().map(program_flow_json).collect()),
             ),
             (
                 "reasons".into(),
@@ -250,6 +260,13 @@ impl ExportBundle {
                 .as_array()?
                 .iter()
                 .map(parse_flow)
+                .collect::<Result<Vec<_>, _>>()?,
+            program_flows: root
+                .get("program_flows")
+                .ok_or_else(|| ExportError::InvalidShape("missing program_flows".into()))?
+                .as_array()?
+                .iter()
+                .map(parse_program_flow)
                 .collect::<Result<Vec<_>, _>>()?,
             reasons: root
                 .get("reasons")
@@ -519,6 +536,19 @@ fn escape_json(input: &str) -> String {
         .replace('\t', "\\t")
 }
 
+fn comm_to_string(comm: &[u8; 16]) -> String {
+    let end = comm.iter().position(|byte| *byte == 0).unwrap_or(comm.len());
+    String::from_utf8_lossy(&comm[..end]).to_string()
+}
+
+fn string_to_comm(value: &str) -> [u8; 16] {
+    let mut comm = [0u8; 16];
+    let bytes = value.as_bytes();
+    let len = bytes.len().min(comm.len());
+    comm[..len].copy_from_slice(&bytes[..len]);
+    comm
+}
+
 fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
     JsonValue::Object(BTreeMap::from([
         (
@@ -598,6 +628,7 @@ fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                                                 CapabilityFlag::TcpState => "tcp_state",
                                                 CapabilityFlag::PacketMeta => "packet_meta",
                                                 CapabilityFlag::RouteMeta => "route_meta",
+                                                CapabilityFlag::SockLineage => "sock_lineage",
                                             }
                                             .into())
                                         })
@@ -759,6 +790,10 @@ fn debug_summary_json(summary: &DebugSummary) -> JsonValue {
             JsonValue::Number(summary.rejected_facts as i64),
         ),
         ("flows".into(), JsonValue::Number(summary.flows as i64)),
+        (
+            "program_flows".into(),
+            JsonValue::Number(summary.program_flows as i64),
+        ),
         ("reasons".into(), JsonValue::Number(summary.reasons as i64)),
         ("degraded".into(), JsonValue::Bool(summary.degraded)),
     ]))
@@ -856,6 +891,7 @@ fn fact_json(fact: &FactEnvelope) -> JsonValue {
             ("pid".into(), JsonValue::Number(value.pid as i64)),
             ("tid".into(), JsonValue::Number(value.tid as i64)),
             ("cgroup_id".into(), JsonValue::Number(value.cgroup_id as i64)),
+            ("comm".into(), JsonValue::String(comm_to_string(&value.comm))),
         ])),
         FactKind::DropAction(value) => JsonValue::Object(BTreeMap::from([
             ("tag".into(), JsonValue::String(FactKindTag::DropAction.to_string())),
@@ -983,6 +1019,17 @@ fn flow_json(flow: &FlowSnapshot) -> JsonValue {
             ])),
         ),
         (
+            "process".into(),
+            flow.process.as_ref().map_or(JsonValue::Null, |process| {
+                JsonValue::Object(BTreeMap::from([
+                    ("pid".into(), JsonValue::Number(process.pid as i64)),
+                    ("tid".into(), JsonValue::Number(process.tid as i64)),
+                    ("cgroup_id".into(), JsonValue::Number(process.cgroup_id as i64)),
+                    ("comm".into(), JsonValue::String(process.comm.clone())),
+                ]))
+            }),
+        ),
+        (
             "evidence".into(),
             JsonValue::Object(BTreeMap::from([
                 (
@@ -1004,6 +1051,75 @@ fn flow_json(flow: &FlowSnapshot) -> JsonValue {
                 flow.fragment_sources
                     .iter()
                     .map(|item| JsonValue::String(item.clone()))
+                    .collect(),
+            ),
+        ),
+    ]))
+}
+
+fn program_flow_json(flow: &ProgramFlow) -> JsonValue {
+    JsonValue::Object(BTreeMap::from([
+        ("id".into(), JsonValue::Number(flow.id.0 as i64)),
+        (
+            "process".into(),
+            flow.process.as_ref().map_or(JsonValue::Null, |process| {
+                JsonValue::Object(BTreeMap::from([
+                    ("pid".into(), JsonValue::Number(process.pid as i64)),
+                    ("tid".into(), JsonValue::Number(process.tid as i64)),
+                    ("cgroup_id".into(), JsonValue::Number(process.cgroup_id as i64)),
+                    ("comm".into(), JsonValue::String(process.comm.clone())),
+                ]))
+            }),
+        ),
+        (
+            "operation".into(),
+            JsonValue::String(match flow.operation {
+                ProgramOperation::TcpHandshake => "tcp_handshake",
+                ProgramOperation::UdpDatagramExchange => "udp_datagram_exchange",
+                ProgramOperation::Unknown => "unknown",
+            }
+            .into()),
+        ),
+        (
+            "transport_flows".into(),
+            JsonValue::Array(
+                flow.transport_flows
+                    .iter()
+                    .map(|id| JsonValue::Number(id.0 as i64))
+                    .collect(),
+            ),
+        ),
+        (
+            "stages".into(),
+            JsonValue::Array(
+                flow.stages
+                    .iter()
+                    .map(|stage| {
+                        JsonValue::Object(BTreeMap::from([
+                            ("at".into(), JsonValue::Number(stage.at.0 as i64)),
+                            (
+                                "kind".into(),
+                                JsonValue::String(match stage.kind {
+                                    ProgramStageKind::ProcessBound => "process_bound",
+                                    ProgramStageKind::SocketStateTransition => {
+                                        "socket_state_transition"
+                                    }
+                                    ProgramStageKind::DatagramObserved => "datagram_observed",
+                                    ProgramStageKind::RouteResolved => "route_resolved",
+                                }
+                                .into()),
+                            ),
+                        ]))
+                    })
+                    .collect(),
+            ),
+        ),
+        (
+            "narrative".into(),
+            JsonValue::Array(
+                flow.narrative
+                    .iter()
+                    .map(|line| JsonValue::String(line.clone()))
                     .collect(),
             ),
         ),
@@ -1041,6 +1157,7 @@ fn reason_json(reason: &ReasonChain) -> JsonValue {
                                         JsonValue::String(match &event.kind {
                                             KeyEventKind::SynSeen => "syn_seen",
                                             KeyEventKind::UdpDatagramSeen => "udp_datagram_seen",
+                                            KeyEventKind::ProcessIdentified => "process_identified",
                                             KeyEventKind::RetransSuspected => "retrans_suspected",
                                             KeyEventKind::RouteChanged => "route_changed",
                                             KeyEventKind::FinOrRst => "fin_or_rst",
@@ -1294,6 +1411,7 @@ fn parse_fragment_descriptor(value: &JsonValue) -> Result<FragmentDescriptor, Ex
                 "tcp_state" => Ok(CapabilityFlag::TcpState),
                 "packet_meta" => Ok(CapabilityFlag::PacketMeta),
                 "route_meta" => Ok(CapabilityFlag::RouteMeta),
+                "sock_lineage" => Ok(CapabilityFlag::SockLineage),
                 _ => Err(ExportError::InvalidValue("unknown capability".into())),
             })
             .collect::<Result<Vec<_>, _>>()?,
@@ -1529,7 +1647,11 @@ fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError> {
                 .get("cgroup_id")
                 .ok_or_else(|| ExportError::InvalidShape("fact.sock_lineage.cgroup_id".into()))?
                 .as_i64()? as u64,
-            comm: [0; 16],
+            comm: string_to_comm(
+                kind.get("comm")
+                    .unwrap_or(&JsonValue::String(String::new()))
+                    .as_str()?,
+            ),
         }),
         "drop_action" => FactKind::DropAction(DropActionFact {
             flow: kind
@@ -1610,6 +1732,7 @@ fn parse_flow(value: &JsonValue) -> Result<FlowSnapshot, ExportError> {
         .get("path")
         .ok_or_else(|| ExportError::InvalidShape("flow.path".into()))?
         .as_object()?;
+    let process = object.get("process").unwrap_or(&JsonValue::Null);
     let evidence = object
         .get("evidence")
         .ok_or_else(|| ExportError::InvalidShape("flow.evidence".into()))?
@@ -1669,6 +1792,7 @@ fn parse_flow(value: &JsonValue) -> Result<FlowSnapshot, ExportError> {
                 })
                 .collect::<Result<Vec<_>, _>>()?,
         },
+        process: parse_process_view(process)?,
         evidence: EvidenceIndex {
             tcp_state_facts: parse_fact_ids(
                 evidence.get("tcp_state_facts").unwrap_or(&JsonValue::Array(vec![])),
@@ -1779,6 +1903,7 @@ fn parse_key_event(value: &JsonValue) -> Result<KeyEvent, ExportError> {
     {
         "syn_seen" => KeyEventKind::SynSeen,
         "udp_datagram_seen" => KeyEventKind::UdpDatagramSeen,
+        "process_identified" => KeyEventKind::ProcessIdentified,
         "retrans_suspected" => KeyEventKind::RetransSuspected,
         "route_changed" => KeyEventKind::RouteChanged,
         "fin_or_rst" => KeyEventKind::FinOrRst,
@@ -1894,6 +2019,10 @@ fn parse_debug_summary(value: &JsonValue) -> Result<DebugSummary, ExportError> {
             .get("flows")
             .ok_or_else(|| ExportError::InvalidShape("debug_summary.flows".into()))?
             .as_i64()? as u64,
+        program_flows: object
+            .get("program_flows")
+            .ok_or_else(|| ExportError::InvalidShape("debug_summary.program_flows".into()))?
+            .as_i64()? as u64,
         reasons: object
             .get("reasons")
             .ok_or_else(|| ExportError::InvalidShape("debug_summary.reasons".into()))?
@@ -1902,6 +2031,109 @@ fn parse_debug_summary(value: &JsonValue) -> Result<DebugSummary, ExportError> {
             .get("degraded")
             .ok_or_else(|| ExportError::InvalidShape("debug_summary.degraded".into()))?
             .as_bool()?,
+    })
+}
+
+fn parse_process_view(value: &JsonValue) -> Result<Option<crate::flow::ProcessView>, ExportError> {
+    match value {
+        JsonValue::Null => Ok(None),
+        JsonValue::Object(object) => Ok(Some(crate::flow::ProcessView {
+            pid: object
+                .get("pid")
+                .ok_or_else(|| ExportError::InvalidShape("flow.process.pid".into()))?
+                .as_i64()? as u32,
+            tid: object
+                .get("tid")
+                .ok_or_else(|| ExportError::InvalidShape("flow.process.tid".into()))?
+                .as_i64()? as u32,
+            cgroup_id: object
+                .get("cgroup_id")
+                .ok_or_else(|| ExportError::InvalidShape("flow.process.cgroup_id".into()))?
+                .as_i64()? as u64,
+            comm: object
+                .get("comm")
+                .ok_or_else(|| ExportError::InvalidShape("flow.process.comm".into()))?
+                .as_str()?
+                .to_string(),
+        })),
+        _ => Err(ExportError::InvalidShape("expected flow.process".into())),
+    }
+}
+
+fn parse_program_flow(value: &JsonValue) -> Result<ProgramFlow, ExportError> {
+    let object = value.as_object()?;
+    Ok(ProgramFlow {
+        id: ProgramFlowId(
+            object
+                .get("id")
+                .ok_or_else(|| ExportError::InvalidShape("program_flow.id".into()))?
+                .as_i64()? as u64,
+        ),
+        process: parse_process_view(object.get("process").unwrap_or(&JsonValue::Null))?,
+        operation: match object
+            .get("operation")
+            .ok_or_else(|| ExportError::InvalidShape("program_flow.operation".into()))?
+            .as_str()?
+        {
+            "tcp_handshake" => ProgramOperation::TcpHandshake,
+            "udp_datagram_exchange" => ProgramOperation::UdpDatagramExchange,
+            "unknown" => ProgramOperation::Unknown,
+            other => {
+                return Err(ExportError::InvalidValue(format!(
+                    "unknown program flow operation: {other}"
+                )))
+            }
+        },
+        transport_flows: object
+            .get("transport_flows")
+            .ok_or_else(|| ExportError::InvalidShape("program_flow.transport_flows".into()))?
+            .as_array()?
+            .iter()
+            .map(|item| Ok(FlowId(item.as_i64()? as u64)))
+            .collect::<Result<Vec<_>, _>>()?,
+        stages: object
+            .get("stages")
+            .ok_or_else(|| ExportError::InvalidShape("program_flow.stages".into()))?
+            .as_array()?
+            .iter()
+            .map(|item| {
+                let object = item.as_object()?;
+                Ok(ProgramStage {
+                    at: FactId(
+                        object
+                            .get("at")
+                            .ok_or_else(|| {
+                                ExportError::InvalidShape("program_flow.stage.at".into())
+                            })?
+                            .as_i64()? as u64,
+                    ),
+                    kind: match object
+                        .get("kind")
+                        .ok_or_else(|| {
+                            ExportError::InvalidShape("program_flow.stage.kind".into())
+                        })?
+                        .as_str()?
+                    {
+                        "process_bound" => ProgramStageKind::ProcessBound,
+                        "socket_state_transition" => ProgramStageKind::SocketStateTransition,
+                        "datagram_observed" => ProgramStageKind::DatagramObserved,
+                        "route_resolved" => ProgramStageKind::RouteResolved,
+                        other => {
+                            return Err(ExportError::InvalidValue(format!(
+                                "unknown program flow stage kind: {other}"
+                            )))
+                        }
+                    },
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        narrative: object
+            .get("narrative")
+            .ok_or_else(|| ExportError::InvalidShape("program_flow.narrative".into()))?
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_str()?.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
     })
 }
 

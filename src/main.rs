@@ -4,10 +4,14 @@ use gewyvern::ledger::{
     TcpStateFact,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
-use gewyvern::socket_input::run_unix_socket_session;
+use gewyvern::socket_input::{
+    bind_unix_socket_listener, run_tcp_socket_session, run_tcp_socket_session_on_listener,
+    run_unix_socket_session, run_unix_socket_session_on_listener,
+};
 use gewyvern::template::{handshake_debug_template, udp_debug_template};
 use std::env;
 use std::fs;
+use std::net::TcpListener;
 use std::time::{Duration, SystemTime};
 
 fn main() {
@@ -18,9 +22,18 @@ fn main() {
     let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_000);
     let mut outputs = Vec::new();
 
-    if let Some(socket_path) = cli.unix_socket_path.as_deref() {
+    if let Some(socket_target) = cli.socket_target.as_ref() {
+        if cli.serve {
+            serve_socket_sessions(&cli, socket_target);
+            return;
+        }
+
         let template = cli.template_mode.template();
-        let export = run_unix_socket_session(socket_path, template).unwrap_or_else(|err| {
+        let export = match socket_target {
+            SocketTarget::Unix(path) => run_unix_socket_session(path, template),
+            SocketTarget::Tcp(addr) => run_tcp_socket_session(addr, template),
+        }
+        .unwrap_or_else(|err| {
             eprintln!("socket session failed: {err:?}");
             std::process::exit(1);
         });
@@ -142,10 +155,12 @@ fn main() {
 struct Cli {
     demo_mode: DemoMode,
     template_mode: TemplateMode,
+    serve: bool,
+    max_sessions: Option<usize>,
     json: bool,
     summary_only: bool,
     out_path: Option<String>,
-    unix_socket_path: Option<String>,
+    socket_target: Option<SocketTarget>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -159,6 +174,12 @@ enum DemoMode {
 enum TemplateMode {
     Tcp,
     Udp,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum SocketTarget {
+    Unix(String),
+    Tcp(String),
 }
 
 impl DemoMode {
@@ -209,10 +230,12 @@ impl Cli {
     {
         let mut demo_mode = DemoMode::Both;
         let mut template_mode = TemplateMode::Tcp;
+        let mut serve = false;
+        let mut max_sessions = None;
         let mut json = false;
         let mut summary_only = false;
         let mut out_path = None;
-        let mut unix_socket_path = None;
+        let mut socket_target = None;
         let mut args = args.into_iter();
 
         while let Some(arg) = args.next() {
@@ -224,6 +247,17 @@ impl Cli {
                     demo_mode = DemoMode::from_str(&value)?;
                 }
                 "--json" => json = true,
+                "--serve" => serve = true,
+                "--max-sessions" => {
+                    let value = args.next().ok_or_else(|| {
+                        "missing value for --max-sessions, expected a positive integer".to_string()
+                    })?;
+                    max_sessions = Some(
+                        value
+                            .parse::<usize>()
+                            .map_err(|_| "--max-sessions must be a positive integer".to_string())?,
+                    );
+                }
                 "--summary-only" => summary_only = true,
                 "--template" => {
                     let value = args.next().ok_or_else(|| {
@@ -232,9 +266,14 @@ impl Cli {
                     template_mode = TemplateMode::from_str(&value)?;
                 }
                 "--unix-socket" => {
-                    unix_socket_path = Some(args.next().ok_or_else(|| {
+                    socket_target = Some(SocketTarget::Unix(args.next().ok_or_else(|| {
                         "missing value for --unix-socket, expected a filesystem path".to_string()
-                    })?);
+                    })?));
+                }
+                "--tcp-socket" => {
+                    socket_target = Some(SocketTarget::Tcp(args.next().ok_or_else(|| {
+                        "missing value for --tcp-socket, expected host:port".to_string()
+                    })?));
                 }
                 "--out" => {
                     out_path = Some(args.next().ok_or_else(|| {
@@ -249,17 +288,22 @@ impl Cli {
         if summary_only && !json {
             return Err("--summary-only requires --json".into());
         }
-        if unix_socket_path.is_some() && demo_mode != DemoMode::Both {
-            return Err("--demo cannot be combined with --unix-socket".into());
+        if socket_target.is_some() && demo_mode != DemoMode::Both {
+            return Err("--demo cannot be combined with socket listener mode".into());
+        }
+        if serve && socket_target.is_none() {
+            return Err("--serve requires --unix-socket or --tcp-socket".into());
         }
 
         Ok(Self {
             demo_mode,
             template_mode,
+            serve,
+            max_sessions,
             json,
             summary_only,
             out_path,
-            unix_socket_path,
+            socket_target,
         })
     }
 }
@@ -324,7 +368,7 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: gewyvern [--demo tcp|udp|both] [--template tcp|udp] [--unix-socket path] [--json] [--summary-only] [--out path]"
+    "usage: gewyvern [--demo tcp|udp|both] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
 }
 
 fn summary_json(name: &str, export: &ExportBundle) -> String {
@@ -339,4 +383,90 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
         export.debug_summary.reasons,
         export.debug_summary.degraded
     )
+}
+
+fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {
+    match socket_target {
+        SocketTarget::Unix(path) => serve_unix_socket_sessions(cli, path),
+        SocketTarget::Tcp(addr) => serve_tcp_socket_sessions(cli, addr),
+    }
+}
+
+fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
+    #[cfg(target_family = "unix")]
+    {
+        let _ = fs::remove_file(path);
+        let listener = bind_unix_socket_listener(path).unwrap_or_else(|err| {
+            eprintln!("socket service failed: {err:?}");
+            std::process::exit(1);
+        });
+        let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
+
+        for _ in 0..max_sessions {
+            let export = run_unix_socket_session_on_listener(&listener, cli.template_mode.template())
+                .unwrap_or_else(|err| {
+                    eprintln!("socket service failed: {err:?}");
+                    std::process::exit(1);
+                });
+            emit_rendered(cli, "socket_session", &export, true);
+        }
+
+        let _ = fs::remove_file(path);
+        return;
+    }
+
+    #[cfg(not(target_family = "unix"))]
+    {
+        let _ = path;
+        eprintln!("unix socket service is only supported on unix platforms");
+        std::process::exit(1);
+    }
+}
+
+fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
+    let listener = TcpListener::bind(addr).unwrap_or_else(|err| {
+        eprintln!("socket service failed: {err}");
+        std::process::exit(1);
+    });
+    let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
+
+    for _ in 0..max_sessions {
+        let export = run_tcp_socket_session_on_listener(&listener, cli.template_mode.template())
+            .unwrap_or_else(|err| {
+                eprintln!("socket service failed: {err:?}");
+                std::process::exit(1);
+            });
+        emit_rendered(cli, "socket_session", &export, true);
+    }
+}
+
+fn emit_rendered(cli: &Cli, name: &str, export: &ExportBundle, append: bool) {
+    let rendered = if cli.json {
+        if cli.summary_only {
+            summary_json(name, export)
+        } else {
+            export.to_json()
+        }
+    } else {
+        summary_line(name, export)
+    };
+
+    if let Some(path) = cli.out_path.as_deref() {
+        if append {
+            let mut existing = fs::read_to_string(path).unwrap_or_default();
+            existing.push_str(&rendered);
+            existing.push('\n');
+            fs::write(path, existing).unwrap_or_else(|err| {
+                eprintln!("failed to write output to {path}: {err}");
+                std::process::exit(1);
+            });
+        } else {
+            fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
+                eprintln!("failed to write output to {path}: {err}");
+                std::process::exit(1);
+            });
+        }
+    } else {
+        println!("{rendered}");
+    }
 }

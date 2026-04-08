@@ -4,9 +4,10 @@ use gewyvern::export::ExportBundle;
 use gewyvern::fragment::{AttachFailure, HookPoint};
 use gewyvern::loader::StaticFailureLoader;
 use gewyvern::runtime::{build_flow_snapshots, RuntimeSession, SessionConfig};
-use gewyvern::template::{handshake_debug_template, udp_debug_template};
+use gewyvern::template::{handshake_debug_template, udp_debug_template, udp_process_debug_template};
 use support::{
-    packet_fact, route_fact, run_handshake_session, run_udp_session, tcp_state_fact, udp_packet_fact,
+    packet_fact, route_fact, run_handshake_session, run_udp_process_session, run_udp_session,
+    sock_lineage_fact, tcp_state_fact, udp_packet_fact,
 };
 use std::time::{Duration, SystemTime};
 
@@ -314,6 +315,7 @@ fn debug_summary_stays_clean_when_session_has_no_loader_or_ingest_degradation() 
     assert_eq!(export.debug_summary.accepted_facts, 3);
     assert_eq!(export.debug_summary.rejected_facts, 0);
     assert_eq!(export.debug_summary.flows, 1);
+    assert_eq!(export.debug_summary.program_flows, 1);
     assert_eq!(export.debug_summary.reasons, 1);
     assert!(!export.debug_summary.degraded);
 
@@ -357,4 +359,67 @@ fn udp_template_starts_without_tcp_state_fragment() {
             "route_meta_fragment".to_string()
         ]
     );
+}
+
+#[test]
+fn udp_process_template_binds_flow_to_process_identity() {
+    let export = run_udp_process_session(vec![
+        sock_lineage_fact(1, 91, 4242, "curl"),
+        udp_packet_fact(2, 91, 88),
+        route_fact(3, 91, 5),
+    ]);
+
+    assert_eq!(export.template_id, "udp_process_debug");
+    assert_eq!(export.flows.len(), 1);
+    assert_eq!(export.program_flows.len(), 1);
+    assert_eq!(export.flows[0].process.as_ref().unwrap().pid, 4242);
+    assert_eq!(export.flows[0].process.as_ref().unwrap().comm, "curl");
+    assert_eq!(export.flows[0].evidence.lineage_facts, vec![gewyvern::ledger::FactId(1)]);
+    assert_eq!(
+        export.program_flows[0].operation,
+        gewyvern::flow::ProgramOperation::UdpDatagramExchange
+    );
+    assert_eq!(
+        export.program_flows[0].transport_flows,
+        vec![export.flows[0].id]
+    );
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line == "process curl (pid=4242) bound this network flow"));
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line == "program emitted or received a UDP datagram"));
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line == "program resolved a route for this network flow"));
+    assert!(export.reasons[0]
+        .l3
+        .narrative
+        .iter()
+        .any(|line| line.text == "flow bound to process curl (pid=4242)"));
+    assert!(export.reasons[0]
+        .l1
+        .key_events
+        .iter()
+        .any(|event| matches!(event.kind, gewyvern::reason::KeyEventKind::ProcessIdentified)));
+
+    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    assert_eq!(export.flows, replay.flows);
+    assert_eq!(export.program_flows, replay.program_flows);
+    assert_eq!(export.reasons, replay.reasons);
+}
+
+#[test]
+fn udp_process_template_loads_sock_lineage_fragment() {
+    let config = SessionConfig::for_template(udp_process_debug_template()).unwrap();
+    let session = RuntimeSession::start(config).unwrap();
+    let export = session.export_bundle();
+
+    assert!(export
+        .attach_report
+        .fragments_loaded
+        .contains(&"sock_lineage_fragment".to_string()));
 }

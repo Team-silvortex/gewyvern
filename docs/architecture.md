@@ -9,7 +9,8 @@ Template
   -> Fragment Registry
   -> Attach Planner
   -> Fact Stream
-  -> Flow Snapshots
+  -> Transport Flows
+  -> Program Flows
   -> Reason Chains
   -> Export JSON
   -> Deterministic Replay
@@ -73,18 +74,35 @@ After `freeze(end)`, the materialized session is bounded to the active window
 Facts outside that range are excluded from export, flow snapshots, and reason
 chains.
 
-### Flow Snapshots
+### Transport Flows
 
-Flows are reconstructed from fact streams. Right now they track:
+Transport flows are reconstructed from fact streams. They are the evidence
+layer, not the final semantic aggregation. Right now they track:
 
 - lifecycle boundaries
 - route/path segments
+- process identity when available
 - evidence indexes
 - confidence score
 - `fragment_sources`
 
 When route fingerprint changes, the current implementation rotates into a new
 flow snapshot for that cookie.
+
+### Program Flows
+
+Program flows sit above transport flows. They are the beginning of the
+"network-module decompilation" layer: instead of only saying that packets or
+state transitions happened, they try to describe what network function a
+program implementation was performing.
+
+The current minimal model tracks:
+
+- bound process identity
+- inferred operation kind
+- referenced transport flows
+- ordered stages
+- module-level narrative
 
 ### Reason Chains
 
@@ -115,7 +133,7 @@ The export bundle contains enough state to recompute L1 offline:
 - materialized reasons
 
 Replay parses export JSON, rebuilds a runtime session, replays facts, and
-recomputes flows and reasons.
+recomputes transport flows, program flows, and reasons.
 
 ## Current Limits
 

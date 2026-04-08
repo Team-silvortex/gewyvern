@@ -5,6 +5,7 @@ use gewyvern::ledger::{
 };
 use std::env;
 use std::io::Write;
+use std::net::TcpStream;
 use std::time::{Duration, SystemTime};
 
 fn main() {
@@ -13,34 +14,43 @@ fn main() {
         std::process::exit(2);
     });
 
-    #[cfg(target_family = "unix")]
-    {
-        use std::os::unix::net::UnixStream;
+    match cli.socket_target {
+        SocketTarget::Unix(path) => {
+            #[cfg(target_family = "unix")]
+            {
+                use std::os::unix::net::UnixStream;
 
-        let mut stream = UnixStream::connect(&cli.socket_path).unwrap_or_else(|err| {
-            eprintln!("failed to connect to {}: {err}", cli.socket_path);
-            std::process::exit(1);
-        });
+                let mut stream = UnixStream::connect(&path).unwrap_or_else(|err| {
+                    eprintln!("failed to connect to {path}: {err}");
+                    std::process::exit(1);
+                });
 
-        for fact in sample_facts(cli.template_mode) {
-            writeln!(stream, "{}", fact_to_json(&fact)).unwrap_or_else(|err| {
-                eprintln!("failed to write fact to socket: {err}");
+                write_facts(&mut stream, cli.template_mode);
+                return;
+            }
+
+            #[cfg(not(target_family = "unix"))]
+            {
+                let _ = path;
+                eprintln!("unix socket sender is only supported on unix platforms");
+                std::process::exit(1);
+            }
+        }
+        SocketTarget::Tcp(addr) => {
+            let mut stream = TcpStream::connect(&addr).unwrap_or_else(|err| {
+                eprintln!("failed to connect to {addr}: {err}");
                 std::process::exit(1);
             });
-        }
-        return;
-    }
 
-    #[cfg(not(target_family = "unix"))]
-    {
-        eprintln!("unix socket sender is only supported on unix platforms");
-        std::process::exit(1);
+            write_facts(&mut stream, cli.template_mode);
+            return;
+        }
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Cli {
-    socket_path: String,
+    socket_target: SocketTarget,
     template_mode: TemplateMode,
 }
 
@@ -48,6 +58,12 @@ struct Cli {
 enum TemplateMode {
     Tcp,
     Udp,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum SocketTarget {
+    Unix(String),
+    Tcp(String),
 }
 
 impl TemplateMode {
@@ -67,16 +83,21 @@ impl Cli {
     where
         I: IntoIterator<Item = String>,
     {
-        let mut socket_path = None;
+        let mut socket_target = None;
         let mut template_mode = TemplateMode::Udp;
         let mut args = args.into_iter();
 
         while let Some(arg) = args.next() {
             match arg.as_str() {
-                "--socket" => {
-                    socket_path = Some(args.next().ok_or_else(|| {
+                "--socket" | "--unix-socket" => {
+                    socket_target = Some(SocketTarget::Unix(args.next().ok_or_else(|| {
                         "missing value for --socket, expected a unix socket path".to_string()
-                    })?);
+                    })?));
+                }
+                "--tcp-socket" => {
+                    socket_target = Some(SocketTarget::Tcp(args.next().ok_or_else(|| {
+                        "missing value for --tcp-socket, expected host:port".to_string()
+                    })?));
                 }
                 "--template" => {
                     let value = args.next().ok_or_else(|| {
@@ -90,10 +111,19 @@ impl Cli {
         }
 
         Ok(Self {
-            socket_path: socket_path
-                .ok_or_else(|| "missing required --socket <path>".to_string())?,
+            socket_target: socket_target
+                .ok_or_else(|| "missing required --socket <path> or --tcp-socket <host:port>".to_string())?,
             template_mode,
         })
+    }
+}
+
+fn write_facts<W: Write>(stream: &mut W, template_mode: TemplateMode) {
+    for fact in sample_facts(template_mode) {
+        writeln!(stream, "{}", fact_to_json(&fact)).unwrap_or_else(|err| {
+            eprintln!("failed to write fact to socket: {err}");
+            std::process::exit(1);
+        });
     }
 }
 
@@ -187,5 +217,5 @@ fn route_fact(id: u64, ts: SystemTime, cookie: u64, oif: u32, session: SessionId
 }
 
 fn usage() -> &'static str {
-    "usage: gewyvern_socket_send --socket path [--template tcp|udp]"
+    "usage: gewyvern_socket_send (--socket path|--tcp-socket host:port) [--template tcp|udp]"
 }

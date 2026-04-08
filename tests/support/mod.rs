@@ -1,9 +1,9 @@
 use gewyvern::ledger::{
     CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact,
-    SessionId, TcpStateFact,
+    SessionId, SockLineageFact, TcpStateFact,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
-use gewyvern::template::{handshake_debug_template, udp_debug_template};
+use gewyvern::template::{handshake_debug_template, udp_debug_template, udp_process_debug_template};
 use std::time::{Duration, SystemTime};
 
 pub fn run_handshake_session(facts: Vec<FactEnvelope>) -> gewyvern::export::ExportBundle {
@@ -23,6 +23,21 @@ pub fn run_handshake_session(facts: Vec<FactEnvelope>) -> gewyvern::export::Expo
 
 pub fn run_udp_session(facts: Vec<FactEnvelope>) -> gewyvern::export::ExportBundle {
     let config = SessionConfig::for_template(udp_debug_template()).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    let window_end = facts
+        .iter()
+        .map(|fact| fact.ts)
+        .max()
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+    for fact in facts {
+        session.ingest(fact);
+    }
+    session.freeze(window_end);
+    session.export_bundle()
+}
+
+pub fn run_udp_process_session(facts: Vec<FactEnvelope>) -> gewyvern::export::ExportBundle {
+    let config = SessionConfig::for_template(udp_process_debug_template()).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     let window_end = facts
         .iter()
@@ -118,6 +133,30 @@ pub fn route_fact(id: u64, cookie: u64, oif: u32) -> FactEnvelope {
             fib_table: Some(254),
             oif,
             gw: None,
+        }),
+    }
+}
+
+pub fn sock_lineage_fact(id: u64, cookie: u64, pid: u32, comm: &str) -> FactEnvelope {
+    let mut comm_bytes = [0u8; 16];
+    let bytes = comm.as_bytes();
+    let len = bytes.len().min(comm_bytes.len());
+    comm_bytes[..len].copy_from_slice(&bytes[..len]);
+
+    FactEnvelope {
+        id: FactId(id),
+        ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+        cpu: CpuId(0),
+        ifindex: Some(2),
+        session: SessionId(1),
+        fragment_id: "sock_lineage_fragment".into(),
+        kind: FactKind::SockLineage(SockLineageFact {
+            netns: 1,
+            sk_cookie: cookie,
+            pid,
+            tid: pid,
+            cgroup_id: 4242,
+            comm: comm_bytes,
         }),
     }
 }

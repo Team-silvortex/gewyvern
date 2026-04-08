@@ -30,6 +30,7 @@ pub struct KeyEvent {
 pub enum KeyEventKind {
     SynSeen,
     UdpDatagramSeen,
+    ProcessIdentified,
     StateChange { old: u8, new: u8 },
     RetransSuspected,
     RouteChanged,
@@ -157,6 +158,26 @@ fn build_handshake_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[FactEnvelo
                 text: "route fingerprint updated".into(),
             });
         }
+
+        if flow.evidence.lineage_facts.contains(&fact.id) {
+            l0_facts.push(fact.id);
+            key_events.push(KeyEvent {
+                at: fact.id,
+                kind: KeyEventKind::ProcessIdentified,
+            });
+            if let FactKind::SockLineage(lineage) = &fact.kind {
+                let end = lineage
+                    .comm
+                    .iter()
+                    .position(|byte| *byte == 0)
+                    .unwrap_or(lineage.comm.len());
+                let comm = String::from_utf8_lossy(&lineage.comm[..end]).to_string();
+                narrative.push(NarrLine {
+                    at: fact.id,
+                    text: format!("flow bound to process {} (pid={})", comm, lineage.pid),
+                });
+            }
+        }
     }
 
     l0_facts.sort_unstable();
@@ -213,6 +234,26 @@ fn build_udp_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[FactEnvelope]) -
                 at: fact.id,
                 text: "route fingerprint updated".into(),
             });
+        }
+
+        if flow.evidence.lineage_facts.contains(&fact.id) {
+            l0_facts.push(fact.id);
+            key_events.push(KeyEvent {
+                at: fact.id,
+                kind: KeyEventKind::ProcessIdentified,
+            });
+            if let FactKind::SockLineage(lineage) = &fact.kind {
+                let end = lineage
+                    .comm
+                    .iter()
+                    .position(|byte| *byte == 0)
+                    .unwrap_or(lineage.comm.len());
+                let comm = String::from_utf8_lossy(&lineage.comm[..end]).to_string();
+                narrative.push(NarrLine {
+                    at: fact.id,
+                    text: format!("flow bound to process {} (pid={})", comm, lineage.pid),
+                });
+            }
         }
     }
 

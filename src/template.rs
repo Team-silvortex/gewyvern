@@ -69,3 +69,16 @@ pub fn udp_debug_template() -> Template {
         reason_profile: Some(UdpDatagramL1),
     }
 }
+
+pub fn udp_process_debug_template() -> Template {
+    Template {
+        id: "udp_process_debug",
+        fragment_set: vec![
+            "udp_packet_meta_fragment",
+            "route_meta_fragment",
+            "sock_lineage_fragment",
+        ],
+        window_profile: Some(default_5s_window()),
+        reason_profile: Some(UdpDatagramL1),
+    }
+}

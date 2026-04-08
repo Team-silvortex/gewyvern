@@ -1,4 +1,7 @@
-use gewyvern::template::{Template, TemplateError, handshake_debug_template, udp_debug_template};
+use gewyvern::template::{
+    Template, TemplateError, handshake_debug_template, udp_debug_template,
+    udp_process_debug_template,
+};
 
 #[test]
 fn template_requires_fragment_set() {
@@ -30,5 +33,11 @@ fn handshake_template_is_valid() {
 #[test]
 fn udp_template_is_valid() {
     let template: Template = udp_debug_template();
+    assert_eq!(template.validate(), Ok(()));
+}
+
+#[test]
+fn udp_process_template_is_valid() {
+    let template: Template = udp_process_debug_template();
     assert_eq!(template.validate(), Ok(()));
 }

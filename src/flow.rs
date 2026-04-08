@@ -3,14 +3,57 @@ use crate::ledger::FactId;
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct FlowId(pub u64);
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub struct ProgramFlowId(pub u64);
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct FlowSnapshot {
     pub id: FlowId,
     pub lifecycle: FlowLifecycleView,
     pub path: PathView,
+    pub process: Option<ProcessView>,
     pub evidence: EvidenceIndex,
     pub confidence: f32,
     pub fragment_sources: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProgramFlow {
+    pub id: ProgramFlowId,
+    pub process: Option<ProcessView>,
+    pub operation: ProgramOperation,
+    pub transport_flows: Vec<FlowId>,
+    pub stages: Vec<ProgramStage>,
+    pub narrative: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProgramOperation {
+    TcpHandshake,
+    UdpDatagramExchange,
+    Unknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProgramStage {
+    pub at: FactId,
+    pub kind: ProgramStageKind,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProgramStageKind {
+    ProcessBound,
+    SocketStateTransition,
+    DatagramObserved,
+    RouteResolved,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProcessView {
+    pub pid: u32,
+    pub tid: u32,
+    pub cgroup_id: u64,
+    pub comm: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]

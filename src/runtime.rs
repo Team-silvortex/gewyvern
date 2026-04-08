@@ -1,6 +1,7 @@
 use crate::export::ExportBundle;
 use crate::flow::{
-    EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView,
+    EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView, ProcessView,
+    ProgramFlow, ProgramFlowId, ProgramOperation, ProgramStage, ProgramStageKind,
 };
 use crate::fragment::{
     builtin_registry, summarize_attach_failures, AttachFailure, AttachPlan, AttachReport,
@@ -90,6 +91,7 @@ struct FlowAccumulator {
     termination_fact: Option<FactId>,
     current_oif: Option<u32>,
     current_gw: Option<[u8; 16]>,
+    process: Option<ProcessView>,
     segments: Vec<PathSegment>,
     evidence: EvidenceIndex,
     fragment_sources: BTreeSet<String>,
@@ -218,6 +220,7 @@ impl RuntimeSession {
     pub fn export_bundle(&self) -> ExportBundle {
         let facts = self.materialized_facts();
         let flows = build_flow_snapshots(&facts);
+        let program_flows = build_program_flows(&flows, &facts);
         let reasons = build_reason_chains(&self.reason_profile, &flows, &facts);
         let attach_failure_summary = summarize_attach_failures(&self.attach_report);
         let rejected_fact_summary = summarize_rejected_facts(&self.rejected_facts);
@@ -242,6 +245,7 @@ impl RuntimeSession {
                 accepted_facts: facts.len() as u64,
                 rejected_facts: self.rejected_facts.len() as u64,
                 flows: flows.len() as u64,
+                program_flows: program_flows.len() as u64,
                 reasons: reasons.len() as u64,
                 degraded: !self.attach_report.hookpoints_failed.is_empty()
                     || !self.rejected_facts.is_empty(),
@@ -252,6 +256,7 @@ impl RuntimeSession {
             rejected_facts: self.rejected_facts.clone(),
             rejected_fact_summary,
             flows,
+            program_flows,
             reasons,
         }
     }
@@ -343,6 +348,14 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
             }
             FactKind::SockLineage(_) => {
                 acc.evidence.lineage_facts.push(fact.id);
+                if let FactKind::SockLineage(lineage) = &fact.kind {
+                    acc.process = Some(ProcessView {
+                        pid: lineage.pid,
+                        tid: lineage.tid,
+                        cgroup_id: lineage.cgroup_id,
+                        comm: decode_comm(&lineage.comm),
+                    });
+                }
             }
             FactKind::DropAction(_) | FactKind::AttachScope(_) => {}
         }
@@ -354,6 +367,17 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
         .filter(|acc| acc.emerged_at.is_some())
         .enumerate()
         .map(|(idx, acc)| build_flow_snapshot((idx + 1) as u64, acc))
+        .collect()
+}
+
+pub fn build_program_flows(
+    transport_flows: &[FlowSnapshot],
+    facts: &[FactEnvelope],
+) -> Vec<ProgramFlow> {
+    transport_flows
+        .iter()
+        .enumerate()
+        .map(|(idx, flow)| build_program_flow((idx + 1) as u64, flow, facts))
         .collect()
 }
 
@@ -373,9 +397,76 @@ fn build_flow_snapshot(id: u64, acc: FlowAccumulator) -> FlowSnapshot {
             current_gw: acc.current_gw,
             segments: acc.segments,
         },
+        process: acc.process,
         evidence: acc.evidence,
         confidence,
         fragment_sources: acc.fragment_sources.into_iter().collect(),
+    }
+}
+
+fn build_program_flow(id: u64, flow: &FlowSnapshot, facts: &[FactEnvelope]) -> ProgramFlow {
+    let mut stages = Vec::new();
+    let mut narrative = Vec::new();
+    let mut saw_udp_datagram = false;
+    let mut saw_tcp_state = false;
+
+    for fact in facts {
+        if flow.evidence.lineage_facts.contains(&fact.id) {
+            stages.push(ProgramStage {
+                at: fact.id,
+                kind: ProgramStageKind::ProcessBound,
+            });
+            if let FactKind::SockLineage(lineage) = &fact.kind {
+                narrative.push(format!(
+                    "process {} (pid={}) bound this network flow",
+                    decode_comm(&lineage.comm),
+                    lineage.pid
+                ));
+            }
+        }
+        if flow.evidence.tcp_state_facts.contains(&fact.id) {
+            saw_tcp_state = true;
+            stages.push(ProgramStage {
+                at: fact.id,
+                kind: ProgramStageKind::SocketStateTransition,
+            });
+        }
+        if flow.evidence.packet_facts.contains(&fact.id) {
+            if let FactKind::PacketMeta(packet) = &fact.kind {
+                if packet.l4_proto == 17 {
+                    saw_udp_datagram = true;
+                    stages.push(ProgramStage {
+                        at: fact.id,
+                        kind: ProgramStageKind::DatagramObserved,
+                    });
+                    narrative.push("program emitted or received a UDP datagram".into());
+                }
+            }
+        }
+        if flow.evidence.route_facts.contains(&fact.id) {
+            stages.push(ProgramStage {
+                at: fact.id,
+                kind: ProgramStageKind::RouteResolved,
+            });
+            narrative.push("program resolved a route for this network flow".into());
+        }
+    }
+
+    stages.sort_by_key(|stage| stage.at);
+
+    ProgramFlow {
+        id: ProgramFlowId(id),
+        process: flow.process.clone(),
+        operation: if saw_udp_datagram {
+            ProgramOperation::UdpDatagramExchange
+        } else if saw_tcp_state {
+            ProgramOperation::TcpHandshake
+        } else {
+            ProgramOperation::Unknown
+        },
+        transport_flows: vec![flow.id],
+        stages,
+        narrative,
     }
 }
 
@@ -390,13 +481,17 @@ fn confidence_for_flow(acc: &impl FlowAccumulatorView) -> f32 {
     if !acc.route_facts().is_empty() {
         score += 0.3;
     }
-    score
+    if !acc.lineage_facts().is_empty() {
+        score += 0.2;
+    }
+    score.min(1.0)
 }
 
 trait FlowAccumulatorView {
     fn tcp_state_facts(&self) -> &[crate::ledger::FactId];
     fn packet_facts(&self) -> &[crate::ledger::FactId];
     fn route_facts(&self) -> &[crate::ledger::FactId];
+    fn lineage_facts(&self) -> &[crate::ledger::FactId];
 }
 
 impl FlowAccumulatorView for EvidenceIndex {
@@ -411,4 +506,13 @@ impl FlowAccumulatorView for EvidenceIndex {
     fn route_facts(&self) -> &[crate::ledger::FactId] {
         &self.route_facts
     }
+
+    fn lineage_facts(&self) -> &[crate::ledger::FactId] {
+        &self.lineage_facts
+    }
+}
+
+fn decode_comm(comm: &[u8; 16]) -> String {
+    let end = comm.iter().position(|byte| *byte == 0).unwrap_or(comm.len());
+    String::from_utf8_lossy(&comm[..end]).to_string()
 }
