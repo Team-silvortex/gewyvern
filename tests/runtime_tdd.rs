@@ -2,7 +2,7 @@ mod support;
 
 use gewyvern::export::ExportBundle;
 use gewyvern::fragment::{AttachFailure, HookPoint};
-use gewyvern::flow::ProgramOperation;
+use gewyvern::flow::{ProgramFindingCause, ProgramOperation};
 use gewyvern::ledger::FactKind;
 use gewyvern::loader::StaticFailureLoader;
 use gewyvern::program::{ProgramModel, ProgramNarrative, ProgramPredicate, ProgramRule};
@@ -217,6 +217,7 @@ fn session_rejects_facts_from_fragments_that_failed_to_attach() {
     assert_eq!(export.debug_summary.accepted_facts, 1);
     assert_eq!(export.debug_summary.rejected_facts, 1);
     assert_eq!(export.debug_summary.flows, 1);
+    assert_eq!(export.debug_summary.program_findings, 1);
     assert_eq!(export.debug_summary.reasons, 1);
     assert!(export.debug_summary.degraded);
     assert!(export
@@ -321,6 +322,7 @@ fn debug_summary_stays_clean_when_session_has_no_loader_or_ingest_degradation() 
     assert_eq!(export.debug_summary.rejected_facts, 0);
     assert_eq!(export.debug_summary.flows, 1);
     assert_eq!(export.debug_summary.program_flows, 1);
+    assert_eq!(export.debug_summary.program_findings, 0);
     assert_eq!(export.debug_summary.reasons, 1);
     assert!(!export.debug_summary.degraded);
 
@@ -344,6 +346,7 @@ fn udp_template_exports_deterministic_datagram_reason_chain() {
     assert_eq!(export.reasons[0].l3.narrative[0].text, "udp datagram observed");
     assert_eq!(export.reasons[0].l3.narrative[1].text, "route fingerprint updated");
     assert_eq!(export.debug_summary.fragments_loaded, 2);
+    assert_eq!(export.debug_summary.program_findings, 0);
     assert!(!export.debug_summary.degraded);
 
     let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
@@ -414,6 +417,7 @@ fn udp_process_template_binds_flow_to_process_identity() {
     let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
     assert_eq!(export.flows, replay.flows);
     assert_eq!(export.program_flows, replay.program_flows);
+    assert_eq!(export.program_findings, replay.program_findings);
     assert_eq!(export.reasons, replay.reasons);
 }
 
@@ -489,6 +493,7 @@ fn program_flow_operation_supports_custom_model_ids() {
 
     let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
     assert_eq!(export.program_flows, replay.program_flows);
+    assert_eq!(export.program_findings, replay.program_findings);
 }
 
 #[test]
@@ -683,4 +688,75 @@ fn udp_packet_min_len_fragment_param_filters_small_packets_with_audit_trail() {
     assert_eq!(export.rejected_facts, replay.rejected_facts);
     assert_eq!(export.rejected_fact_summary, replay.rejected_fact_summary);
     assert_eq!(export.program_flows, replay.program_flows);
+    assert_eq!(export.program_findings, replay.program_findings);
+}
+
+#[test]
+fn attach_failures_are_lifted_into_program_findings_for_suspect_module_areas() {
+    let config = SessionConfig::for_template(udp_process_debug_template()).unwrap();
+    let loader = StaticFailureLoader {
+        failures: vec![AttachFailure {
+            fragment_id: "route_meta_fragment",
+            hookpoint: HookPoint::KProbe("ip_route_output_flow"),
+            error: "mock loader failure".into(),
+        }],
+    };
+
+    let mut session = RuntimeSession::start_with_loader(config, &loader).unwrap();
+    session.ingest(sock_lineage_fact(1, 107, 4242, "curl"));
+    session.ingest(udp_packet_fact(2, 107, 96));
+    session.ingest(route_fact(3, 107, 11));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+
+    assert_eq!(export.program_findings.len(), 1);
+    assert_eq!(export.debug_summary.program_findings, 1);
+    assert_eq!(export.program_findings[0].suspect_area, "route_resolution");
+    assert_eq!(export.program_findings[0].cause, ProgramFindingCause::AttachFailure);
+    assert_eq!(
+        export.program_findings[0].supporting_fragments,
+        vec!["route_meta_fragment".to_string()]
+    );
+    assert!(export.program_findings[0]
+        .summary
+        .contains("process curl (pid=4242)"));
+
+    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    assert_eq!(export.program_findings, replay.program_findings);
+}
+
+#[test]
+fn rejected_core_packet_evidence_points_to_datagram_io_as_suspect_area() {
+    let binding = udp_process_debug_template()
+        .bind()
+        .with_fragment_param(
+            "udp_packet_meta_fragment",
+            "min_len",
+            FragmentParamValue::U64(80),
+        );
+
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 108, 4242, "curl"));
+    session.ingest(udp_packet_fact(2, 108, 72));
+    session.ingest(route_fact(3, 108, 10));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+
+    assert_eq!(export.program_findings.len(), 1);
+    assert_eq!(export.debug_summary.program_findings, 1);
+    assert_eq!(export.program_findings[0].suspect_area, "datagram_io");
+    assert_eq!(
+        export.program_findings[0].cause,
+        ProgramFindingCause::RejectedEvidence
+    );
+    assert_eq!(
+        export.program_findings[0].supporting_fragments,
+        vec!["udp_packet_meta_fragment".to_string()]
+    );
+
+    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    assert_eq!(export.program_findings, replay.program_findings);
 }

@@ -1,10 +1,11 @@
 use crate::export::ExportBundle;
 use crate::flow::{
     EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView, ProcessView,
+    ProgramFinding, ProgramFindingCause, ProgramFlow,
 };
 use crate::fragment::{
     builtin_registry, summarize_attach_failures, AttachFailure, AttachPlan, AttachReport,
-    BindingDiagnostics, EvidenceTier, FragmentRegistry, RegistryError,
+    BindingDiagnostics, EvidenceTier, FragmentRegistry, RegistryError, RuleTier,
 };
 use crate::ledger::{FactEnvelope, FactId, FactKind, FactKindTag};
 use crate::loader::{
@@ -275,6 +276,16 @@ impl RuntimeSession {
             .expect("template already validated");
         let program_flows = build_program_flows(program_model, &flows, &facts);
         let reasons = build_reason_chains(&self.reason_profile, &flows, &facts);
+        let program_findings = build_program_findings(
+            self.template
+                .program_model
+                .as_ref()
+                .expect("template already validated"),
+            &self.binding_diagnostics,
+            &self.attach_report,
+            &self.rejected_facts,
+            &program_flows,
+        );
         let attach_failure_summary = summarize_attach_failures(&self.attach_report);
         let rejected_fact_summary = summarize_rejected_facts(&self.rejected_facts);
 
@@ -300,6 +311,7 @@ impl RuntimeSession {
                 rejected_facts: self.rejected_facts.len() as u64,
                 flows: flows.len() as u64,
                 program_flows: program_flows.len() as u64,
+                program_findings: program_findings.len() as u64,
                 reasons: reasons.len() as u64,
                 degraded: !self.attach_report.hookpoints_failed.is_empty()
                     || !self.rejected_facts.is_empty(),
@@ -314,6 +326,7 @@ impl RuntimeSession {
             rejected_fact_summary,
             flows,
             program_flows,
+            program_findings,
             reasons,
         }
     }
@@ -369,6 +382,105 @@ impl RuntimeSession {
         };
         packet.tot_len < min_len
     }
+}
+
+fn build_program_findings(
+    model: &crate::program::ProgramModel,
+    binding_diagnostics: &BindingDiagnostics,
+    attach_report: &AttachReport,
+    rejected_facts: &[RejectedFact],
+    program_flows: &[ProgramFlow],
+) -> Vec<ProgramFinding> {
+    let Some(model_diagnostics) = &binding_diagnostics.program_model else {
+        return Vec::new();
+    };
+
+    let failed_fragments = attach_report
+        .hookpoints_failed
+        .iter()
+        .filter_map(|label| label.split_once('@').map(|(fragment_id, _)| fragment_id))
+        .collect::<BTreeSet<_>>();
+
+    program_flows
+        .iter()
+        .flat_map(|flow| {
+            model_diagnostics.rules.iter().filter_map(|rule_diag| {
+                if rule_diag.tier != RuleTier::CoreRequirement || !rule_diag.supported {
+                    return None;
+                }
+                let signal = model.rules.get(rule_diag.rule_index)?.signal.as_ref()?;
+                if flow.stages.iter().any(|stage| &stage.kind == signal) {
+                    return None;
+                }
+
+                let cause = if rule_diag
+                    .supporting_fragments
+                    .iter()
+                    .any(|fragment| failed_fragments.contains(fragment.as_str()))
+                {
+                    ProgramFindingCause::AttachFailure
+                } else if rejected_facts.iter().any(|rejected| {
+                    rule_diag
+                        .supporting_fragments
+                        .iter()
+                        .any(|fragment| fragment == &rejected.fragment_id)
+                }) {
+                    ProgramFindingCause::RejectedEvidence
+                } else {
+                    ProgramFindingCause::MissingCoreStage
+                };
+
+                let suspect_area = suspect_area_for_signal(signal).to_string();
+                Some(ProgramFinding {
+                    program_flow: flow.id,
+                    process: flow.process.clone(),
+                    operation: flow.operation.clone(),
+                    summary: finding_summary(flow, &suspect_area, &cause),
+                    suspect_area,
+                    cause,
+                    supporting_fragments: rule_diag.supporting_fragments.clone(),
+                })
+            })
+        })
+        .collect()
+}
+
+fn suspect_area_for_signal(signal: &crate::ir::SignalKind) -> &'static str {
+    match signal {
+        crate::ir::SignalKind::ProcessBound | crate::ir::SignalKind::ProcessIdentified => {
+            "process_binding"
+        }
+        crate::ir::SignalKind::SocketStateTransition
+        | crate::ir::SignalKind::StateChange
+        | crate::ir::SignalKind::SynSeen
+        | crate::ir::SignalKind::FinOrRst => "socket_state",
+        crate::ir::SignalKind::DatagramObserved | crate::ir::SignalKind::UdpDatagramSeen => {
+            "datagram_io"
+        }
+        crate::ir::SignalKind::RouteResolved | crate::ir::SignalKind::RouteChanged => {
+            "route_resolution"
+        }
+    }
+}
+
+fn finding_summary(
+    flow: &ProgramFlow,
+    suspect_area: &str,
+    cause: &ProgramFindingCause,
+) -> String {
+    let scope = flow.process.as_ref().map_or_else(
+        || format!("program flow {}", flow.id.0),
+        |process| format!("process {} (pid={})", process.comm, process.pid),
+    );
+    let cause_text = match cause {
+        ProgramFindingCause::AttachFailure => "attach failure blocked required evidence",
+        ProgramFindingCause::RejectedEvidence => "required evidence was rejected during ingest",
+        ProgramFindingCause::MissingCoreStage => "required runtime evidence never materialized",
+    };
+    format!(
+        "{} may have a {} issue during {:?}: {}",
+        scope, suspect_area, flow.operation, cause_text
+    )
 }
 
 pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {

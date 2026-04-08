@@ -1,6 +1,6 @@
 use crate::flow::{
-    EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView, ProgramFlow,
-    ProgramFlowId, ProgramOperation, ProgramStage,
+    EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView, ProgramFinding,
+    ProgramFindingCause, ProgramFlow, ProgramFlowId, ProgramOperation, ProgramStage,
 };
 use crate::fragment::{
     AttachPlan, AttachReport, CapabilityFlag, CoverageReport, DependencyEdge, FactBinding,
@@ -50,6 +50,7 @@ pub struct ExportBundle {
     pub rejected_fact_summary: Vec<RejectedFactSummaryItem>,
     pub flows: Vec<FlowSnapshot>,
     pub program_flows: Vec<ProgramFlow>,
+    pub program_findings: Vec<ProgramFinding>,
     pub reasons: Vec<ReasonChain>,
 }
 
@@ -67,6 +68,7 @@ pub struct DebugSummary {
     pub rejected_facts: u64,
     pub flows: u64,
     pub program_flows: u64,
+    pub program_findings: u64,
     pub reasons: u64,
     pub degraded: bool,
 }
@@ -118,6 +120,7 @@ impl ExportBundle {
         replay.debug_summary = self.debug_summary.clone();
         replay.rejected_fact_summary = summarize_rejected_facts(&replay.rejected_facts);
         replay.program_flows = self.program_flows.clone();
+        replay.program_findings = self.program_findings.clone();
         Ok(replay)
     }
 
@@ -208,6 +211,15 @@ impl ExportBundle {
             (
                 "program_flows".into(),
                 JsonValue::Array(self.program_flows.iter().map(program_flow_json).collect()),
+            ),
+            (
+                "program_findings".into(),
+                JsonValue::Array(
+                    self.program_findings
+                        .iter()
+                        .map(program_finding_json)
+                        .collect(),
+                ),
             ),
             (
                 "reasons".into(),
@@ -318,6 +330,13 @@ impl ExportBundle {
                 .as_array()?
                 .iter()
                 .map(parse_program_flow)
+                .collect::<Result<Vec<_>, _>>()?,
+            program_findings: root
+                .get("program_findings")
+                .ok_or_else(|| ExportError::InvalidShape("missing program_findings".into()))?
+                .as_array()?
+                .iter()
+                .map(parse_program_finding)
                 .collect::<Result<Vec<_>, _>>()?,
             reasons: root
                 .get("reasons")
@@ -1048,6 +1067,10 @@ fn debug_summary_json(summary: &DebugSummary) -> JsonValue {
             "program_flows".into(),
             JsonValue::Number(summary.program_flows as i64),
         ),
+        (
+            "program_findings".into(),
+            JsonValue::Number(summary.program_findings as i64),
+        ),
         ("reasons".into(), JsonValue::Number(summary.reasons as i64)),
         ("degraded".into(), JsonValue::Bool(summary.degraded)),
     ]))
@@ -1361,6 +1384,53 @@ fn program_flow_json(flow: &ProgramFlow) -> JsonValue {
                 flow.narrative
                     .iter()
                     .map(|line| JsonValue::String(line.clone()))
+                    .collect(),
+            ),
+        ),
+    ]))
+}
+
+fn program_finding_json(finding: &ProgramFinding) -> JsonValue {
+    JsonValue::Object(BTreeMap::from([
+        (
+            "program_flow".into(),
+            JsonValue::Number(finding.program_flow.0 as i64),
+        ),
+        (
+            "process".into(),
+            finding.process.as_ref().map_or(JsonValue::Null, |process| {
+                JsonValue::Object(BTreeMap::from([
+                    ("pid".into(), JsonValue::Number(process.pid as i64)),
+                    ("tid".into(), JsonValue::Number(process.tid as i64)),
+                    ("cgroup_id".into(), JsonValue::Number(process.cgroup_id as i64)),
+                    ("comm".into(), JsonValue::String(process.comm.clone())),
+                ]))
+            }),
+        ),
+        (
+            "operation".into(),
+            JsonValue::String(program_operation_id(&finding.operation).into()),
+        ),
+        (
+            "suspect_area".into(),
+            JsonValue::String(finding.suspect_area.clone()),
+        ),
+        (
+            "cause".into(),
+            JsonValue::String(match finding.cause {
+                ProgramFindingCause::AttachFailure => "attach_failure".into(),
+                ProgramFindingCause::RejectedEvidence => "rejected_evidence".into(),
+                ProgramFindingCause::MissingCoreStage => "missing_core_stage".into(),
+            }),
+        ),
+        ("summary".into(), JsonValue::String(finding.summary.clone())),
+        (
+            "supporting_fragments".into(),
+            JsonValue::Array(
+                finding
+                    .supporting_fragments
+                    .iter()
+                    .map(|fragment| JsonValue::String(fragment.clone()))
                     .collect(),
             ),
         ),
@@ -2619,6 +2689,10 @@ fn parse_debug_summary(value: &JsonValue) -> Result<DebugSummary, ExportError> {
             .get("program_flows")
             .ok_or_else(|| ExportError::InvalidShape("debug_summary.program_flows".into()))?
             .as_i64()? as u64,
+        program_findings: object
+            .get("program_findings")
+            .ok_or_else(|| ExportError::InvalidShape("debug_summary.program_findings".into()))?
+            .as_i64()? as u64,
         reasons: object
             .get("reasons")
             .ok_or_else(|| ExportError::InvalidShape("debug_summary.reasons".into()))?
@@ -2718,6 +2792,64 @@ fn parse_program_flow(value: &JsonValue) -> Result<ProgramFlow, ExportError> {
         narrative: object
             .get("narrative")
             .ok_or_else(|| ExportError::InvalidShape("program_flow.narrative".into()))?
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_str()?.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+fn parse_program_finding(value: &JsonValue) -> Result<ProgramFinding, ExportError> {
+    let object = value.as_object()?;
+    let cause = match object
+        .get("cause")
+        .ok_or_else(|| ExportError::InvalidShape("program_finding.cause".into()))?
+        .as_str()?
+    {
+        "attach_failure" => ProgramFindingCause::AttachFailure,
+        "rejected_evidence" => ProgramFindingCause::RejectedEvidence,
+        "missing_core_stage" => ProgramFindingCause::MissingCoreStage,
+        other => {
+            return Err(ExportError::InvalidValue(format!(
+                "unknown program finding cause: {other}"
+            )))
+        }
+    };
+
+    Ok(ProgramFinding {
+        program_flow: ProgramFlowId(
+            object
+                .get("program_flow")
+                .ok_or_else(|| ExportError::InvalidShape("program_finding.program_flow".into()))?
+                .as_i64()? as u64,
+        ),
+        process: parse_process_view(object.get("process").unwrap_or(&JsonValue::Null))?,
+        operation: match object
+            .get("operation")
+            .ok_or_else(|| ExportError::InvalidShape("program_finding.operation".into()))?
+            .as_str()?
+        {
+            "connect_flow" => ProgramOperation::ConnectFlow,
+            "datagram_exchange" => ProgramOperation::DatagramExchange,
+            "unknown" => ProgramOperation::Unknown,
+            other => ProgramOperation::Custom(other.into()),
+        },
+        suspect_area: object
+            .get("suspect_area")
+            .ok_or_else(|| ExportError::InvalidShape("program_finding.suspect_area".into()))?
+            .as_str()?
+            .to_string(),
+        cause,
+        summary: object
+            .get("summary")
+            .ok_or_else(|| ExportError::InvalidShape("program_finding.summary".into()))?
+            .as_str()?
+            .to_string(),
+        supporting_fragments: object
+            .get("supporting_fragments")
+            .ok_or_else(|| {
+                ExportError::InvalidShape("program_finding.supporting_fragments".into())
+            })?
             .as_array()?
             .iter()
             .map(|item| Ok(item.as_str()?.to_string()))

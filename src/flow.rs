@@ -29,6 +29,24 @@ pub struct ProgramFlow {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProgramFinding {
+    pub program_flow: ProgramFlowId,
+    pub process: Option<ProcessView>,
+    pub operation: ProgramOperation,
+    pub suspect_area: String,
+    pub cause: ProgramFindingCause,
+    pub summary: String,
+    pub supporting_fragments: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProgramFindingCause {
+    AttachFailure,
+    RejectedEvidence,
+    MissingCoreStage,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ProgramOperation {
     ConnectFlow,
     DatagramExchange,

@@ -565,16 +565,28 @@ fn route_fact(id: u64, ts: SystemTime, cookie: u64, oif: u32, session: SessionId
 }
 
 fn summary_line(name: &str, export: &ExportBundle) -> String {
+    let suspect_areas = if export.program_findings.is_empty() {
+        "none".to_string()
+    } else {
+        export
+            .program_findings
+            .iter()
+            .map(|finding| finding.suspect_area.clone())
+            .collect::<Vec<_>>()
+            .join(",")
+    };
     format!(
-        "{name}: template={} fragments_loaded={} hookpoints_failed={} accepted_facts={} rejected_facts={} flows={} reasons={} degraded={}",
+        "{name}: template={} fragments_loaded={} hookpoints_failed={} accepted_facts={} rejected_facts={} flows={} program_findings={} reasons={} degraded={} suspect_areas={}",
         export.template_id,
         export.debug_summary.fragments_loaded,
         export.debug_summary.hookpoints_failed,
         export.debug_summary.accepted_facts,
         export.debug_summary.rejected_facts,
         export.debug_summary.flows,
+        export.debug_summary.program_findings,
         export.debug_summary.reasons,
-        export.debug_summary.degraded
+        export.debug_summary.degraded,
+        suspect_areas,
     )
 }
 
@@ -584,13 +596,14 @@ fn usage() -> &'static str {
 
 fn summary_json(name: &str, export: &ExportBundle) -> String {
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"reasons\":{},\"degraded\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"reasons\":{},\"degraded\":{}}}",
         export.template_id,
         export.debug_summary.fragments_loaded,
         export.debug_summary.hookpoints_failed,
         export.debug_summary.accepted_facts,
         export.debug_summary.rejected_facts,
         export.debug_summary.flows,
+        export.debug_summary.program_findings,
         export.debug_summary.reasons,
         export.debug_summary.degraded
     )
