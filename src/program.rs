@@ -1,7 +1,11 @@
 use crate::flow::{
-    FlowSnapshot, ProgramFlow, ProgramFlowId, ProgramOperation, ProgramStage, ProgramStageKind,
+    FlowSnapshot, ProgramFlow, ProgramFlowId, ProgramOperation, ProgramStage,
 };
-use crate::ledger::{FactEnvelope, FactKind};
+use crate::ir::{
+    matches_flow_predicate, render_narrative_template, FlowPredicate, NarrativeSurface,
+    NarrativeTemplate, RuleTemplate,
+};
+use crate::ledger::FactEnvelope;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProgramModel {
@@ -10,30 +14,9 @@ pub struct ProgramModel {
     pub rules: Vec<ProgramRule>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProgramRule {
-    pub predicate: ProgramPredicate,
-    pub stage: Option<ProgramStageKind>,
-    pub narrative: ProgramNarrative,
-    pub dedupe: bool,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ProgramPredicate {
-    ProcessBound,
-    SocketStateObserved,
-    DatagramObserved { l4_proto: u8 },
-    RouteResolved,
-    All(Vec<ProgramPredicate>),
-    Any(Vec<ProgramPredicate>),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ProgramNarrative {
-    None,
-    Static(&'static str),
-    ProcessBound,
-}
+pub type ProgramPredicate = FlowPredicate;
+pub type ProgramNarrative = NarrativeTemplate;
+pub type ProgramRule = RuleTemplate;
 
 pub fn build_program_flows(
     model: &ProgramModel,
@@ -62,11 +45,11 @@ fn build_program_flow(
             if rule.dedupe && seen_predicates.contains(&rule.predicate) {
                 continue;
             }
-            if !matches_predicate(&rule.predicate, flow, fact, facts) {
+            if !matches_flow_predicate(&rule.predicate, flow, fact, facts) {
                 continue;
             }
 
-            if let Some(kind) = &rule.stage {
+            if let Some(kind) = &rule.signal {
                 stages.push(ProgramStage {
                     at: fact.id,
                     kind: kind.clone(),
@@ -95,61 +78,10 @@ fn build_program_flow(
     }
 }
 
-fn matches_predicate(
-    predicate: &ProgramPredicate,
-    flow: &FlowSnapshot,
-    fact: &FactEnvelope,
-    facts: &[FactEnvelope],
-) -> bool {
-    match predicate {
-        ProgramPredicate::ProcessBound => flow.evidence.lineage_facts.contains(&fact.id),
-        ProgramPredicate::SocketStateObserved => flow.evidence.tcp_state_facts.contains(&fact.id),
-        ProgramPredicate::DatagramObserved { l4_proto } => {
-            if !flow.evidence.packet_facts.contains(&fact.id) {
-                return false;
-            }
-            matches!(&fact.kind, FactKind::PacketMeta(packet) if packet.l4_proto == *l4_proto)
-        }
-        ProgramPredicate::RouteResolved => flow.evidence.route_facts.contains(&fact.id),
-        ProgramPredicate::All(predicates) => predicates
-            .iter()
-            .all(|predicate| predicate_satisfied_in_flow(predicate, flow, facts))
-            && predicates
-                .iter()
-                .any(|predicate| matches_predicate(predicate, flow, fact, facts)),
-        ProgramPredicate::Any(predicates) => predicates
-            .iter()
-            .any(|predicate| matches_predicate(predicate, flow, fact, facts)),
-    }
-}
-
-fn predicate_satisfied_in_flow(
-    predicate: &ProgramPredicate,
-    flow: &FlowSnapshot,
-    facts: &[FactEnvelope],
-) -> bool {
-    facts.iter()
-        .any(|fact| matches_predicate(predicate, flow, fact, facts))
-}
-
 fn render_narrative(
     narrative: &ProgramNarrative,
     flow: &FlowSnapshot,
-    _fact: &FactEnvelope,
+    fact: &FactEnvelope,
 ) -> Option<String> {
-    match narrative {
-        ProgramNarrative::None => None,
-        ProgramNarrative::Static(line) => Some((*line).into()),
-        ProgramNarrative::ProcessBound => {
-            if let Some(process) = &flow.process {
-                Some(format!(
-                    "process {} (pid={}) bound this network flow",
-                    process.comm,
-                    process.pid
-                ))
-            } else {
-                None
-            }
-        }
-    }
+    render_narrative_template(narrative, NarrativeSurface::Program, flow, fact)
 }

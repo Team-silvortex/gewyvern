@@ -1,19 +1,21 @@
 use crate::flow::{
     EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView, ProgramFlow,
-    ProgramFlowId, ProgramOperation, ProgramStage, ProgramStageKind,
+    ProgramFlowId, ProgramOperation, ProgramStage,
 };
 use crate::fragment::{
     AttachPlan, AttachReport, CapabilityFlag, CoverageReport, DependencyEdge, FactBinding,
     FragmentDescriptor, FragmentParamSpec, FragmentParamType, HookBinding, HookPoint, MapKind,
     MapSpec, RingBufStats,
 };
+use crate::ir::{NarrativeTemplate, SignalKind};
 use crate::ledger::{
     millis_to_system_time, system_time_to_millis, AttachScopeFact, CpuId, DropActionFact,
     DropVerdict, FactEnvelope, FactId, FactKind, FactKindTag, PacketDir, PacketMetaFact,
     RouteDecisionFact, SessionId, SockLineageFact, TcpStateFact,
 };
 use crate::reason::{
-    KeyEvent, KeyEventKind, NarrLine, ReasonChain, ReasonId, ReasonL1, ReasonL3, ReasonProfile,
+    KeyEvent, KeyEventKind, NarrLine, ReasonChain, ReasonId, ReasonKeyEvent, ReasonL1, ReasonL3,
+    ReasonModel, ReasonNarrative, ReasonPredicate, ReasonProfile, ReasonRule,
 };
 use crate::runtime::{
     summarize_rejected_facts, RejectedFact, RejectedFactReason, RuntimeError, RuntimeSession,
@@ -38,6 +40,7 @@ pub struct ExportBundle {
     pub debug_summary: DebugSummary,
     pub window_profile: WindowProfile,
     pub reason_profile_id: String,
+    pub reason_profile: ReasonProfile,
     pub fragment_params: BTreeMap<String, BTreeMap<String, FragmentParamValue>>,
     pub facts: Vec<FactEnvelope>,
     pub rejected_facts: Vec<RejectedFact>,
@@ -82,8 +85,7 @@ pub enum ExportError {
 
 impl ExportBundle {
     pub fn replay(&self) -> Result<Self, ExportError> {
-        let reason_profile = ReasonProfile::from_id(&self.reason_profile_id)
-            .ok_or_else(|| ExportError::InvalidValue("unknown reason profile".into()))?;
+        let reason_profile = self.reason_profile.clone();
         let template = Template {
             id: Box::leak(self.template_id.clone().into_boxed_str()),
             fragment_set: self
@@ -160,6 +162,10 @@ impl ExportBundle {
             (
                 "reason_profile_id".into(),
                 JsonValue::String(self.reason_profile_id.clone()),
+            ),
+            (
+                "reason_profile".into(),
+                reason_profile_json(&self.reason_profile),
             ),
             (
                 "fragment_params".into(),
@@ -243,6 +249,16 @@ impl ExportBundle {
                 .ok_or_else(|| ExportError::InvalidShape("missing reason_profile_id".into()))?
                 .as_str()?
                 .to_string(),
+            reason_profile: if let Some(value) = root.get("reason_profile") {
+                parse_reason_profile(value)?
+            } else {
+                let id = root
+                    .get("reason_profile_id")
+                    .ok_or_else(|| ExportError::InvalidShape("missing reason_profile_id".into()))?
+                    .as_str()?;
+                ReasonProfile::from_id(id)
+                    .ok_or_else(|| ExportError::InvalidValue("unknown reason profile".into()))?
+            },
             fragment_params: parse_fragment_params(
                 root.get("fragment_params")
                     .unwrap_or(&JsonValue::Object(BTreeMap::new())),
@@ -1178,15 +1194,7 @@ fn program_flow_json(flow: &ProgramFlow) -> JsonValue {
                             ("at".into(), JsonValue::Number(stage.at.0 as i64)),
                             (
                                 "kind".into(),
-                                JsonValue::String(match stage.kind {
-                                    ProgramStageKind::ProcessBound => "process_bound",
-                                    ProgramStageKind::SocketStateTransition => {
-                                        "socket_state_transition"
-                                    }
-                                    ProgramStageKind::DatagramObserved => "datagram_observed",
-                                    ProgramStageKind::RouteResolved => "route_resolved",
-                                }
-                                .into()),
+                                JsonValue::String(stage.kind.id().into()),
                             ),
                         ]))
                     })
@@ -1317,6 +1325,225 @@ fn parse_window_profile(value: &JsonValue) -> Result<WindowProfile, ExportError>
             .ok_or_else(|| ExportError::InvalidShape("window_profile.lateness_ms".into()))?
             .as_i64()? as u64,
     })
+}
+
+fn reason_profile_json(profile: &ReasonProfile) -> JsonValue {
+    match profile {
+        ReasonProfile::HandshakeL1 | ReasonProfile::UdpDatagramL1 => {
+            JsonValue::String(profile.id().into())
+        }
+        ReasonProfile::Declarative(model) => JsonValue::Object(BTreeMap::from([
+            ("id".into(), JsonValue::String(model.id.into())),
+            ("kind".into(), JsonValue::String("declarative".into())),
+            (
+                "rules".into(),
+                JsonValue::Array(model.rules.iter().map(reason_rule_json).collect()),
+            ),
+        ])),
+    }
+}
+
+fn reason_rule_json(rule: &ReasonRule) -> JsonValue {
+    JsonValue::Object(BTreeMap::from([
+        ("predicate".into(), reason_predicate_json(&rule.predicate)),
+        (
+            "key_event".into(),
+            rule.signal
+                .as_ref()
+                .map_or(JsonValue::Null, |event| JsonValue::String(reason_key_event_id(event).into())),
+        ),
+        (
+            "narrative".into(),
+            reason_narrative_json(&rule.narrative),
+        ),
+        ("dedupe".into(), JsonValue::Bool(rule.dedupe)),
+    ]))
+}
+
+fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
+    match predicate {
+        ReasonPredicate::ProcessBound => JsonValue::String("process_bound".into()),
+        ReasonPredicate::SocketStateObserved => JsonValue::String("socket_state_observed".into()),
+        ReasonPredicate::RouteResolved => JsonValue::String("route_resolved".into()),
+        ReasonPredicate::DatagramObserved { l4_proto } => JsonValue::Object(BTreeMap::from([
+            ("kind".into(), JsonValue::String("datagram_observed".into())),
+            ("l4_proto".into(), JsonValue::Number(*l4_proto as i64)),
+        ])),
+        ReasonPredicate::All(items) => JsonValue::Object(BTreeMap::from([
+            ("kind".into(), JsonValue::String("all".into())),
+            (
+                "items".into(),
+                JsonValue::Array(items.iter().map(reason_predicate_json).collect()),
+            ),
+        ])),
+        ReasonPredicate::Any(items) => JsonValue::Object(BTreeMap::from([
+            ("kind".into(), JsonValue::String("any".into())),
+            (
+                "items".into(),
+                JsonValue::Array(items.iter().map(reason_predicate_json).collect()),
+            ),
+        ])),
+    }
+}
+
+fn reason_key_event_id(event: &ReasonKeyEvent) -> &'static str {
+    event.id()
+}
+
+fn reason_narrative_json(narrative: &ReasonNarrative) -> JsonValue {
+    narrative_template_json(narrative)
+}
+
+fn narrative_template_json(narrative: &NarrativeTemplate) -> JsonValue {
+    match narrative {
+        NarrativeTemplate::None => JsonValue::String("none".into()),
+        NarrativeTemplate::ProcessBound => JsonValue::String("process_bound".into()),
+        NarrativeTemplate::TcpStateTransition => JsonValue::String("tcp_state_transition".into()),
+        NarrativeTemplate::RouteChanged => JsonValue::String("route_changed".into()),
+        NarrativeTemplate::UdpDatagramObserved => JsonValue::String("udp_datagram_observed".into()),
+        NarrativeTemplate::Static(text) => JsonValue::Object(BTreeMap::from([
+            ("kind".into(), JsonValue::String("static".into())),
+            ("text".into(), JsonValue::String((*text).into())),
+        ])),
+    }
+}
+
+fn parse_reason_profile(value: &JsonValue) -> Result<ReasonProfile, ExportError> {
+    match value {
+        JsonValue::String(id) => ReasonProfile::from_id(id)
+            .ok_or_else(|| ExportError::InvalidValue("unknown reason profile".into())),
+        JsonValue::Object(object) => {
+            let kind = object
+                .get("kind")
+                .ok_or_else(|| ExportError::InvalidShape("reason_profile.kind".into()))?
+                .as_str()?;
+            match kind {
+                "declarative" => Ok(ReasonProfile::Declarative(ReasonModel {
+                    id: Box::leak(
+                        object
+                            .get("id")
+                            .ok_or_else(|| ExportError::InvalidShape("reason_profile.id".into()))?
+                            .as_str()?
+                            .to_string()
+                            .into_boxed_str(),
+                    ),
+                    rules: object
+                        .get("rules")
+                        .ok_or_else(|| ExportError::InvalidShape("reason_profile.rules".into()))?
+                        .as_array()?
+                        .iter()
+                        .map(parse_reason_rule)
+                        .collect::<Result<Vec<_>, _>>()?,
+                })),
+                _ => Err(ExportError::InvalidValue("unknown reason profile kind".into())),
+            }
+        }
+        _ => Err(ExportError::InvalidShape("reason_profile".into())),
+    }
+}
+
+fn parse_reason_rule(value: &JsonValue) -> Result<ReasonRule, ExportError> {
+    let object = value.as_object()?;
+    Ok(ReasonRule {
+        predicate: parse_reason_predicate(
+            object
+                .get("predicate")
+                .ok_or_else(|| ExportError::InvalidShape("reason_rule.predicate".into()))?,
+        )?,
+        signal: match object.get("key_event").unwrap_or(&JsonValue::Null) {
+            JsonValue::Null => None,
+            value => Some(parse_reason_key_event(value.as_str()?)?),
+        },
+        narrative: parse_reason_narrative(
+            object
+                .get("narrative")
+                .ok_or_else(|| ExportError::InvalidShape("reason_rule.narrative".into()))?,
+        )?,
+        dedupe: object
+            .get("dedupe")
+            .ok_or_else(|| ExportError::InvalidShape("reason_rule.dedupe".into()))?
+            .as_bool()?,
+    })
+}
+
+fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportError> {
+    match value {
+        JsonValue::String(id) => match id.as_str() {
+            "process_bound" => Ok(ReasonPredicate::ProcessBound),
+            "socket_state_observed" => Ok(ReasonPredicate::SocketStateObserved),
+            "route_resolved" => Ok(ReasonPredicate::RouteResolved),
+            _ => Err(ExportError::InvalidValue("unknown reason predicate".into())),
+        },
+        JsonValue::Object(object) => match object
+            .get("kind")
+            .ok_or_else(|| ExportError::InvalidShape("reason_predicate.kind".into()))?
+            .as_str()?
+        {
+            "datagram_observed" => Ok(ReasonPredicate::DatagramObserved {
+                l4_proto: object
+                    .get("l4_proto")
+                    .ok_or_else(|| ExportError::InvalidShape("reason_predicate.l4_proto".into()))?
+                    .as_i64()? as u8,
+            }),
+            "all" => Ok(ReasonPredicate::All(
+                object
+                    .get("items")
+                    .ok_or_else(|| ExportError::InvalidShape("reason_predicate.items".into()))?
+                    .as_array()?
+                    .iter()
+                    .map(parse_reason_predicate)
+                    .collect::<Result<Vec<_>, _>>()?,
+            )),
+            "any" => Ok(ReasonPredicate::Any(
+                object
+                    .get("items")
+                    .ok_or_else(|| ExportError::InvalidShape("reason_predicate.items".into()))?
+                    .as_array()?
+                    .iter()
+                    .map(parse_reason_predicate)
+                    .collect::<Result<Vec<_>, _>>()?,
+            )),
+            _ => Err(ExportError::InvalidValue("unknown reason predicate kind".into())),
+        },
+        _ => Err(ExportError::InvalidShape("reason_predicate".into())),
+    }
+}
+
+fn parse_reason_key_event(value: &str) -> Result<ReasonKeyEvent, ExportError> {
+    SignalKind::from_id(value).ok_or_else(|| ExportError::InvalidValue("unknown reason key event".into()))
+}
+
+fn parse_reason_narrative(value: &JsonValue) -> Result<ReasonNarrative, ExportError> {
+    parse_narrative_template(value)
+}
+
+fn parse_narrative_template(value: &JsonValue) -> Result<NarrativeTemplate, ExportError> {
+    match value {
+        JsonValue::String(id) => match id.as_str() {
+            "none" => Ok(NarrativeTemplate::None),
+            "process_bound" => Ok(NarrativeTemplate::ProcessBound),
+            "tcp_state_transition" => Ok(NarrativeTemplate::TcpStateTransition),
+            "route_changed" => Ok(NarrativeTemplate::RouteChanged),
+            "udp_datagram_observed" => Ok(NarrativeTemplate::UdpDatagramObserved),
+            _ => Err(ExportError::InvalidValue("unknown reason narrative".into())),
+        },
+        JsonValue::Object(object) => match object
+            .get("kind")
+            .ok_or_else(|| ExportError::InvalidShape("reason_narrative.kind".into()))?
+            .as_str()?
+        {
+            "static" => Ok(NarrativeTemplate::Static(Box::leak(
+                object
+                    .get("text")
+                    .ok_or_else(|| ExportError::InvalidShape("reason_narrative.text".into()))?
+                    .as_str()?
+                    .to_string()
+                    .into_boxed_str(),
+            ))),
+            _ => Err(ExportError::InvalidValue("unknown reason narrative kind".into())),
+        },
+        _ => Err(ExportError::InvalidShape("reason_narrative".into())),
+    }
 }
 
 fn parse_attach_plan(value: &JsonValue) -> Result<AttachPlan, ExportError> {
@@ -2221,15 +2448,11 @@ fn parse_program_flow(value: &JsonValue) -> Result<ProgramFlow, ExportError> {
                         })?
                         .as_str()?
                     {
-                        "process_bound" => ProgramStageKind::ProcessBound,
-                        "socket_state_transition" => ProgramStageKind::SocketStateTransition,
-                        "datagram_observed" => ProgramStageKind::DatagramObserved,
-                        "route_resolved" => ProgramStageKind::RouteResolved,
-                        other => {
-                            return Err(ExportError::InvalidValue(format!(
+                        other => SignalKind::from_id(other).ok_or_else(|| {
+                            ExportError::InvalidValue(format!(
                                 "unknown program flow stage kind: {other}"
-                            )))
-                        }
+                            ))
+                        })?,
                     },
                 })
             })

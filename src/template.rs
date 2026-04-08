@@ -91,19 +91,19 @@ pub fn connect_flow_model() -> ProgramModel {
         rules: vec![
             ProgramRule {
                 predicate: ProgramPredicate::ProcessBound,
-                stage: Some(ProgramStageKind::ProcessBound),
+                signal: Some(ProgramStageKind::ProcessBound),
                 narrative: ProgramNarrative::ProcessBound,
                 dedupe: true,
             },
             ProgramRule {
                 predicate: ProgramPredicate::SocketStateObserved,
-                stage: Some(ProgramStageKind::SocketStateTransition),
+                signal: Some(ProgramStageKind::SocketStateTransition),
                 narrative: ProgramNarrative::None,
                 dedupe: false,
             },
             ProgramRule {
                 predicate: ProgramPredicate::RouteResolved,
-                stage: Some(ProgramStageKind::RouteResolved),
+                signal: Some(ProgramStageKind::RouteResolved),
                 narrative: ProgramNarrative::Static("program resolved a route for this network flow"),
                 dedupe: true,
             },
@@ -118,19 +118,19 @@ pub fn datagram_exchange_model() -> ProgramModel {
         rules: vec![
             ProgramRule {
                 predicate: ProgramPredicate::ProcessBound,
-                stage: Some(ProgramStageKind::ProcessBound),
+                signal: Some(ProgramStageKind::ProcessBound),
                 narrative: ProgramNarrative::ProcessBound,
                 dedupe: true,
             },
             ProgramRule {
                 predicate: ProgramPredicate::DatagramObserved { l4_proto: 17 },
-                stage: Some(ProgramStageKind::DatagramObserved),
+                signal: Some(ProgramStageKind::DatagramObserved),
                 narrative: ProgramNarrative::Static("program emitted or received a UDP datagram"),
                 dedupe: true,
             },
             ProgramRule {
                 predicate: ProgramPredicate::RouteResolved,
-                stage: Some(ProgramStageKind::RouteResolved),
+                signal: Some(ProgramStageKind::RouteResolved),
                 narrative: ProgramNarrative::Static("program resolved a route for this network flow"),
                 dedupe: true,
             },
@@ -142,6 +142,11 @@ pub fn default_program_model_for_reason_profile(profile: &ReasonProfile) -> Prog
     match profile {
         ReasonProfile::HandshakeL1 => connect_flow_model(),
         ReasonProfile::UdpDatagramL1 => datagram_exchange_model(),
+        ReasonProfile::Declarative(model) => ProgramModel {
+            id: Box::leak(format!("{}_program_default", model.id).into_boxed_str()),
+            operation: ProgramOperation::Unknown,
+            rules: Vec::new(),
+        },
     }
 }
 

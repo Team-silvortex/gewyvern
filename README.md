@@ -102,9 +102,9 @@ Template
 The repository now includes first-class DSL files that compile into
 `TemplateBinding` rather than into eBPF bytecode:
 
-- [dsl/handshake_debug.gwy](/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gwy)
-- [dsl/udp_debug.gwy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_debug.gwy)
-- [dsl/udp_process_debug.gwy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gwy)
+- [dsl/handshake_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy)
+- [dsl/udp_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_debug.gewy)
+- [dsl/udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy)
 
 These DSL files already cover the current built-in protocol/debugging shapes and
 can express:
@@ -148,7 +148,7 @@ cargo run -- --demo both --json --summary-only
 Run a DSL-driven demo:
 
 ```bash
-cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gwy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --summary-only
 ```
 
 Write output to a file:
@@ -179,7 +179,7 @@ cargo run --bin gewyvern_socket_send -- --tcp-socket 127.0.0.1:9000 --template u
 Socket session from a DSL file:
 
 ```bash
-cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gwy --unix-socket /tmp/gewyvern.sock --json
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --unix-socket /tmp/gewyvern.sock --json
 ```
 
 Serve multiple sessions:
@@ -232,6 +232,7 @@ cargo linux-smoke
 
 - [docs/overview.md](/Users/Shared/chroot/dev/gewyvern/docs/overview.md)
 - [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
 - [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
 - [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)

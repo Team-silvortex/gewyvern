@@ -148,6 +148,17 @@ Program flows sit above transport flows. They are the beginning of the
 state transitions happened, they try to describe what network function a
 program implementation was performing.
 
+Declarative program rules and declarative reason rules now compile into the
+same shared IR skeleton:
+
+- flow predicate
+- optional signal
+- narrative template
+- dedupe flag
+
+That lets the DSL stay protocol-agnostic while keeping actual runtime evidence
+strictly grounded in the selected fragment templates and their parameters.
+
 Current built-in program-flow operations are intentionally generic:
 
 - `connect_flow`

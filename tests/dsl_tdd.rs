@@ -1,6 +1,7 @@
 use gewyvern::dsl::{compile_file, compile_str, DslError};
 use gewyvern::fragment::RegistryError;
 use gewyvern::flow::ProgramOperation;
+use gewyvern::reason::{KeyEventKind, ReasonProfile};
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::template::FragmentParamValue;
 
@@ -11,7 +12,7 @@ use std::time::{Duration, SystemTime};
 
 #[test]
 fn built_in_udp_process_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gwy")
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
         .unwrap();
 
     assert_eq!(binding.template.id, "udp_process_debug");
@@ -28,6 +29,14 @@ fn built_in_udp_process_dsl_compiles_into_template_binding() {
         ProgramOperation::DatagramExchange
     );
     assert_eq!(
+        binding.template.window_profile.as_ref().unwrap().duration_ms,
+        5_000
+    );
+    assert_eq!(
+        binding.template.window_profile.as_ref().unwrap().lateness_ms,
+        200
+    );
+    assert_eq!(
         binding.fragment_params["sock_lineage_fragment"]["capture_comm"],
         FragmentParamValue::Bool(true)
     );
@@ -35,7 +44,7 @@ fn built_in_udp_process_dsl_compiles_into_template_binding() {
 
 #[test]
 fn udp_process_dsl_binding_drives_runtime_session() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gwy")
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
         .unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
@@ -89,7 +98,7 @@ param=udp_packet_meta_fragment.min_len=80
 
 #[test]
 fn handshake_dsl_compiles_and_preserves_tcp_shape() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gwy")
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy")
         .unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
@@ -103,6 +112,184 @@ fn handshake_dsl_compiles_and_preserves_tcp_shape() {
         export.program_flows[0].operation,
         ProgramOperation::ConnectFlow
     );
+}
+
+#[test]
+fn dsl_supports_inline_window_and_infers_program_model_id() {
+    let binding = compile_str(
+        r#"
+template=udp_inline_debug
+window.duration_ms=9000
+window.lateness_ms=450
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+fragment=route_meta_fragment
+operation=datagram_exchange
+rule=datagram_observed:udp;datagram_observed;static:inline udp activity observed;true
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.window_profile.as_ref().unwrap().id, "inline");
+    assert_eq!(
+        binding.template.window_profile.as_ref().unwrap().duration_ms,
+        9_000
+    );
+    assert_eq!(
+        binding.template.window_profile.as_ref().unwrap().lateness_ms,
+        450
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "udp_inline_debug_dsl_model"
+    );
+}
+
+#[test]
+fn dsl_can_fall_back_to_default_program_model_from_reason_profile() {
+    let binding = compile_str(
+        r#"
+template=udp_minimal
+window.duration_ms=5000
+window.lateness_ms=200
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+fragment=route_meta_fragment
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::DatagramExchange
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "datagram_exchange_v1"
+    );
+}
+
+#[test]
+fn dsl_supports_declarative_reason_rules_and_replay_preserves_them() {
+    let binding = compile_str(
+        r#"
+template=udp_reason_inline
+window.duration_ms=5000
+window.lateness_ms=200
+fragment=udp_packet_meta_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+operation=datagram_exchange
+rule=process_bound;process_bound;process_bound;true
+reason.rule=process_bound;process_identified;process_bound;true
+reason.rule=datagram_observed:udp;udp_datagram_seen;udp_datagram_observed;true
+reason.rule=route_resolved;route_changed;route_changed;true
+"#,
+    )
+    .unwrap();
+
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+    assert_eq!(
+        binding.template.reason_profile.as_ref().unwrap().id(),
+        "udp_reason_inline_reason_model"
+    );
+
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 204, 4444, "dig"));
+    session.ingest(udp_packet_fact(2, 204, 96));
+    session.ingest(route_fact(3, 204, 8));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    assert_eq!(export.reason_profile.id(), "udp_reason_inline_reason_model");
+    assert_eq!(export.reasons[0].l1.key_events.len(), 3);
+    assert_eq!(export.reasons[0].l1.key_events[0].kind, KeyEventKind::ProcessIdentified);
+    assert_eq!(export.reasons[0].l1.key_events[1].kind, KeyEventKind::UdpDatagramSeen);
+    assert_eq!(export.reasons[0].l1.key_events[2].kind, KeyEventKind::RouteChanged);
+
+    let replay = gewyvern::export::ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
+    assert_eq!(export.reason_profile, replay.reason_profile);
+    assert_eq!(export.reasons, replay.reasons);
+}
+
+#[test]
+fn dsl_program_rules_can_use_shared_narrative_templates() {
+    let binding = compile_str(
+        r#"
+template=udp_shared_ir
+window.duration_ms=5000
+window.lateness_ms=200
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+operation=datagram_exchange
+rule=process_bound;process_bound;process_bound;true
+rule=datagram_observed:udp;datagram_observed;udp_datagram_observed;true
+rule=route_resolved;route_resolved;route_changed;true
+"#,
+    )
+    .unwrap();
+
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 205, 5353, "dig"));
+    session.ingest(udp_packet_fact(2, 205, 88));
+    session.ingest(route_fact(3, 205, 9));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line == "process dig (pid=5353) bound this network flow"));
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line == "program emitted or received a UDP datagram"));
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line == "program resolved a route for this network flow"));
+}
+
+#[test]
+fn dsl_reason_rules_can_use_shared_signal_ids() {
+    let binding = compile_str(
+        r#"
+template=udp_shared_signal_reason
+window.duration_ms=5000
+window.lateness_ms=200
+fragment=udp_packet_meta_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+operation=datagram_exchange
+rule=process_bound;process_bound;process_bound;true
+reason.rule=process_bound;process_bound;process_bound;true
+reason.rule=datagram_observed:udp;datagram_observed;udp_datagram_observed;true
+reason.rule=route_resolved;route_resolved;route_changed;true
+"#,
+    )
+    .unwrap();
+
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 206, 5354, "dig"));
+    session.ingest(udp_packet_fact(2, 206, 88));
+    session.ingest(route_fact(3, 206, 9));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    assert_eq!(export.reasons[0].l1.key_events[0].kind, KeyEventKind::ProcessIdentified);
+    assert_eq!(export.reasons[0].l1.key_events[1].kind, KeyEventKind::UdpDatagramSeen);
+    assert_eq!(export.reasons[0].l1.key_events[2].kind, KeyEventKind::RouteChanged);
 }
 
 #[test]

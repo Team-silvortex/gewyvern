@@ -19,6 +19,7 @@ At minimum this means exporting:
 - attach report
 - window parameters
 - reason profile id
+- reason profile model
 - materialized transport/program flow state
 
 ## Top-Level Shape
@@ -33,6 +34,7 @@ The current top-level object contains:
 - `debug_summary`
 - `window_profile`
 - `reason_profile_id`
+- `reason_profile`
 - `facts`
 - `rejected_facts`
 - `rejected_fact_summary`
@@ -184,6 +186,21 @@ Current built-in value:
 
 - `handshake_l1`
 - `udp_datagram_l1`
+
+### `reason_profile`
+
+Stable export of the active reason profile.
+
+Built-in profiles currently serialize as a string id.
+
+Declarative profiles serialize as an object containing:
+
+- `id`
+- `kind`
+- `rules`
+
+This field exists so export replay can preserve DSL-defined reason semantics,
+not only built-in profile ids.
 
 ### `facts`
 

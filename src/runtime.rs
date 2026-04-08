@@ -290,6 +290,7 @@ impl RuntimeSession {
             },
             window_profile: self.window_profile.clone(),
             reason_profile_id: self.reason_profile.id().into(),
+            reason_profile: self.reason_profile.clone(),
             fragment_params: self.fragment_params.clone(),
             facts,
             rejected_facts: self.rejected_facts.clone(),

@@ -8,6 +8,7 @@ Recommended reading before changing code:
 
 - `docs/overview.md`
 - `docs/architecture.md`
+- `docs/dsl.md`
 - `docs/fragments.md`
 - `docs/export-format.md`
 - `docs/headless-linux.md` when the change touches real eBPF attach/runtime work

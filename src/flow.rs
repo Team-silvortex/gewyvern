@@ -1,3 +1,4 @@
+use crate::ir::SignalKind;
 use crate::ledger::FactId;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -41,13 +42,7 @@ pub struct ProgramStage {
     pub kind: ProgramStageKind,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ProgramStageKind {
-    ProcessBound,
-    SocketStateTransition,
-    DatagramObserved,
-    RouteResolved,
-}
+pub type ProgramStageKind = SignalKind;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProcessView {

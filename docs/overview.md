@@ -94,5 +94,6 @@ These scenarios are validated through TDD specs and expected to remain replay-st
 1. [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
 2. [docs/overview.md](/Users/Shared/chroot/dev/gewyvern/docs/overview.md)
 3. [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
-4. [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
-5. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+4. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+5. [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
+6. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)

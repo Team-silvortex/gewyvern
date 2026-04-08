@@ -450,19 +450,19 @@ fn program_flow_operation_supports_custom_model_ids() {
         rules: vec![
             ProgramRule {
                 predicate: ProgramPredicate::ProcessBound,
-                stage: Some(gewyvern::flow::ProgramStageKind::ProcessBound),
+                signal: Some(gewyvern::flow::ProgramStageKind::ProcessBound),
                 narrative: ProgramNarrative::ProcessBound,
                 dedupe: true,
             },
             ProgramRule {
                 predicate: ProgramPredicate::DatagramObserved { l4_proto: 17 },
-                stage: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),
+                signal: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),
                 narrative: ProgramNarrative::Static("program emitted a DNS-style datagram"),
                 dedupe: true,
             },
             ProgramRule {
                 predicate: ProgramPredicate::RouteResolved,
-                stage: Some(gewyvern::flow::ProgramStageKind::RouteResolved),
+                signal: Some(gewyvern::flow::ProgramStageKind::RouteResolved),
                 narrative: ProgramNarrative::Static("program resolved an upstream route"),
                 dedupe: true,
             },
@@ -504,7 +504,7 @@ fn program_model_supports_all_and_any_predicates() {
                     ProgramPredicate::ProcessBound,
                     ProgramPredicate::DatagramObserved { l4_proto: 17 },
                 ]),
-                stage: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),
+                signal: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),
                 narrative: ProgramNarrative::Static(
                     "process-owned UDP activity observed"
                 ),
@@ -515,7 +515,7 @@ fn program_model_supports_all_and_any_predicates() {
                     ProgramPredicate::RouteResolved,
                     ProgramPredicate::SocketStateObserved,
                 ]),
-                stage: Some(gewyvern::flow::ProgramStageKind::RouteResolved),
+                signal: Some(gewyvern::flow::ProgramStageKind::RouteResolved),
                 narrative: ProgramNarrative::Static(
                     "program observed either route or socket progress"
                 ),

@@ -1,4 +1,8 @@
 use crate::flow::{FlowId, FlowSnapshot};
+use crate::ir::{
+    matches_flow_predicate, render_narrative_template, FlowPredicate, NarrativeSurface,
+    NarrativeTemplate, RuleTemplate, SignalKind,
+};
 use crate::ledger::{FactEnvelope, FactId, FactKind, PacketDir};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -52,13 +56,26 @@ pub struct NarrLine {
 pub enum ReasonProfile {
     HandshakeL1,
     UdpDatagramL1,
+    Declarative(ReasonModel),
 }
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReasonModel {
+    pub id: &'static str,
+    pub rules: Vec<ReasonRule>,
+}
+
+pub type ReasonPredicate = FlowPredicate;
+pub type ReasonKeyEvent = SignalKind;
+pub type ReasonNarrative = NarrativeTemplate;
+pub type ReasonRule = RuleTemplate;
 
 impl ReasonProfile {
     pub fn id(&self) -> &'static str {
         match self {
             Self::HandshakeL1 => "handshake_l1",
             Self::UdpDatagramL1 => "udp_datagram_l1",
+            Self::Declarative(model) => model.id,
         }
     }
 
@@ -86,6 +103,11 @@ pub fn build_reason_chains(
             .iter()
             .enumerate()
             .map(|(idx, flow)| build_udp_reason(ReasonId((idx + 1) as u64), flow, facts))
+            .collect(),
+        ReasonProfile::Declarative(model) => flows
+            .iter()
+            .enumerate()
+            .map(|(idx, flow)| build_declarative_reason(model, ReasonId((idx + 1) as u64), flow, facts))
             .collect(),
     }
 }
@@ -261,4 +283,120 @@ fn build_udp_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[FactEnvelope]) -
         },
         l3: ReasonL3 { narrative },
     }
+}
+
+fn build_declarative_reason(
+    model: &ReasonModel,
+    id: ReasonId,
+    flow: &FlowSnapshot,
+    facts: &[FactEnvelope],
+) -> ReasonChain {
+    let mut l0_facts = Vec::new();
+    let mut timeline = Vec::new();
+    let mut path_segments = Vec::new();
+    let mut key_events = Vec::new();
+    let mut narrative = Vec::new();
+    let mut seen_predicates = Vec::new();
+
+    for fact in facts {
+        if flow.evidence.tcp_state_facts.contains(&fact.id)
+            || flow.evidence.packet_facts.contains(&fact.id)
+            || flow.evidence.route_facts.contains(&fact.id)
+            || flow.evidence.lineage_facts.contains(&fact.id)
+        {
+            l0_facts.push(fact.id);
+        }
+
+        for rule in &model.rules {
+            if rule.dedupe && seen_predicates.contains(&rule.predicate) {
+                continue;
+            }
+            if !matches_flow_predicate(&rule.predicate, flow, fact, facts) {
+                continue;
+            }
+
+            if let Some(event) = render_key_event(rule.signal.as_ref(), fact) {
+                if matches!(event.kind, KeyEventKind::StateChange { .. }) {
+                    timeline.push(fact.id);
+                }
+                if matches!(event.kind, KeyEventKind::RouteChanged) {
+                    path_segments.push(fact.id);
+                }
+                key_events.push(event);
+            }
+
+            if let Some(line) = render_narrative(&rule.narrative, flow, fact) {
+                narrative.push(NarrLine {
+                    at: fact.id,
+                    text: line,
+                });
+            }
+
+            if rule.dedupe {
+                seen_predicates.push(rule.predicate.clone());
+            }
+        }
+    }
+
+    l0_facts.sort_unstable();
+    l0_facts.dedup();
+    timeline.sort_unstable();
+    timeline.dedup();
+    path_segments.sort_unstable();
+    path_segments.dedup();
+    key_events.sort_by_key(|event| event.at);
+    narrative.sort_by_key(|line| line.at);
+
+    ReasonChain {
+        id,
+        flow: flow.id,
+        l0_facts,
+        l1: ReasonL1 {
+            tcp_state_timeline: timeline,
+            path_segments,
+            key_events,
+        },
+        l3: ReasonL3 { narrative },
+    }
+}
+
+fn render_key_event(kind: Option<&ReasonKeyEvent>, fact: &FactEnvelope) -> Option<KeyEvent> {
+    let kind = match kind? {
+        ReasonKeyEvent::SynSeen => KeyEventKind::SynSeen,
+        ReasonKeyEvent::UdpDatagramSeen => KeyEventKind::UdpDatagramSeen,
+        ReasonKeyEvent::ProcessIdentified => KeyEventKind::ProcessIdentified,
+        ReasonKeyEvent::StateChange => {
+            let FactKind::TcpState(state) = &fact.kind else {
+                return None;
+            };
+            KeyEventKind::StateChange {
+                old: state.old,
+                new: state.new,
+            }
+        }
+        ReasonKeyEvent::RouteChanged => KeyEventKind::RouteChanged,
+        ReasonKeyEvent::FinOrRst => KeyEventKind::FinOrRst,
+        ReasonKeyEvent::ProcessBound => KeyEventKind::ProcessIdentified,
+        ReasonKeyEvent::SocketStateTransition => {
+            let FactKind::TcpState(state) = &fact.kind else {
+                return None;
+            };
+            KeyEventKind::StateChange {
+                old: state.old,
+                new: state.new,
+            }
+        }
+        ReasonKeyEvent::DatagramObserved => KeyEventKind::UdpDatagramSeen,
+        ReasonKeyEvent::RouteResolved => KeyEventKind::RouteChanged,
+    };
+
+    Some(KeyEvent { at: fact.id, kind })
+}
+
+fn render_narrative(
+    narrative: &ReasonNarrative,
+    flow: &FlowSnapshot,
+    fact: &FactEnvelope,
+) -> Option<String> {
+    render_narrative_template(narrative, NarrativeSurface::Reason, flow, fact)
 }
