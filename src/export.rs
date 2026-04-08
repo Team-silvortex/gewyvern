@@ -18,7 +18,7 @@ use crate::runtime::{
     summarize_rejected_facts, RejectedFact, RejectedFactReason, RuntimeError, RuntimeSession,
     SessionConfig,
 };
-use crate::template::{Template, WindowProfile};
+use crate::template::{default_program_model_for_reason_profile, Template, WindowProfile};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -80,6 +80,8 @@ pub enum ExportError {
 
 impl ExportBundle {
     pub fn replay(&self) -> Result<Self, ExportError> {
+        let reason_profile = ReasonProfile::from_id(&self.reason_profile_id)
+            .ok_or_else(|| ExportError::InvalidValue("unknown reason profile".into()))?;
         let template = Template {
             id: Box::leak(self.template_id.clone().into_boxed_str()),
             fragment_set: self
@@ -88,10 +90,8 @@ impl ExportBundle {
                 .map(|item| Box::leak(item.id.clone().into_boxed_str()) as &'static str)
                 .collect(),
             window_profile: Some(self.window_profile.clone()),
-            reason_profile: Some(
-                ReasonProfile::from_id(&self.reason_profile_id)
-                    .ok_or_else(|| ExportError::InvalidValue("unknown reason profile".into()))?,
-            ),
+            reason_profile: Some(reason_profile.clone()),
+            program_model: Some(default_program_model_for_reason_profile(&reason_profile)),
         };
 
         let config = SessionConfig::for_template(template).map_err(ExportError::Runtime)?;
@@ -1074,8 +1074,8 @@ fn program_flow_json(flow: &ProgramFlow) -> JsonValue {
         (
             "operation".into(),
             JsonValue::String(match flow.operation {
-                ProgramOperation::TcpHandshake => "tcp_handshake",
-                ProgramOperation::UdpDatagramExchange => "udp_datagram_exchange",
+                ProgramOperation::ConnectFlow => "connect_flow",
+                ProgramOperation::DatagramExchange => "datagram_exchange",
                 ProgramOperation::Unknown => "unknown",
             }
             .into()),
@@ -2075,8 +2075,8 @@ fn parse_program_flow(value: &JsonValue) -> Result<ProgramFlow, ExportError> {
             .ok_or_else(|| ExportError::InvalidShape("program_flow.operation".into()))?
             .as_str()?
         {
-            "tcp_handshake" => ProgramOperation::TcpHandshake,
-            "udp_datagram_exchange" => ProgramOperation::UdpDatagramExchange,
+            "connect_flow" => ProgramOperation::ConnectFlow,
+            "datagram_exchange" => ProgramOperation::DatagramExchange,
             "unknown" => ProgramOperation::Unknown,
             other => {
                 return Err(ExportError::InvalidValue(format!(

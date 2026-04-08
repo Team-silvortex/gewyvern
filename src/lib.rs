@@ -4,6 +4,7 @@ pub mod fragment;
 pub mod gate;
 pub mod ledger;
 pub mod loader;
+pub mod program;
 pub mod reason;
 pub mod runtime;
 pub mod socket_input;

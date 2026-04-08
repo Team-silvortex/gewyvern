@@ -1,5 +1,7 @@
 # Development Guide
 
+This guide describes the current `v0.1` development workflow.
+
 ## Quick Start
 
 Recommended reading before changing code:
@@ -14,6 +16,12 @@ Run the demo binary:
 
 ```bash
 cargo run
+```
+
+Run JSON demo output:
+
+```bash
+cargo run -- --demo both --json --summary-only
 ```
 
 Run the full test suite:
@@ -54,14 +62,15 @@ In practice, that means:
 
 ### Rule tests
 
-Rule-level behavior lives close to the source modules:
+Rule-level behavior is specified in dedicated TDD files:
 
-- `src/template.rs`
-- `src/fragment.rs`
+- `tests/template_rules_tdd.rs`
+- `tests/fragment_rules_tdd.rs`
 
 These tests protect invariants such as:
 
 - template completeness
+- program-model completeness
 - hookpoint conflict rejection
 - required fact coverage
 
@@ -87,6 +96,23 @@ These tests describe the current T1 acceptance behaviors:
 - missing SYN-ACK remains replay-stable
 - route fingerprint change rotates into a new flow
 - facts beyond freeze cutoff are excluded from export and replay
+- attach outcomes gate fact ingest
+- rejected facts are exported and replay-stable
+- UDP and process-aware program flows remain deterministic
+
+### Environment-specific tests
+
+Some tests are intentionally environment-specific:
+
+- `tests/linux_smoke_tdd.rs`
+  Linux-only real probe smoke/probe specs
+- `tests/socket_input_tdd.rs`
+  Unix socket ingest roundtrip spec
+- `tests/tcp_socket_input_tdd.rs`
+  TCP socket ingest roundtrip spec
+
+In restricted environments, socket live tests may remain `ignored` because
+local bind permissions are unavailable.
 
 ## How To Extend The Runtime
 
@@ -96,6 +122,13 @@ These tests describe the current T1 acceptance behaviors:
 2. add or extend a failing scenario in `tests/runtime_tdd.rs`
 3. add rule tests for conflicts and coverage if needed
 4. only then update runtime behavior
+
+### Add or change a program-flow rule
+
+1. add a scenario test in `tests/runtime_tdd.rs`
+2. update the template's `program_model`
+3. only then update lower-level runtime code if the rule engine is missing a capability
+4. verify export/replay stability for `program_flows`
 
 ### Add a new reason rule
 
@@ -118,6 +151,7 @@ After behavior changes, update the matching document:
 - export semantics -> `docs/export-format.md`
 - runtime pipeline or boundaries -> `docs/architecture.md`
 - workflow changes -> `docs/development.md`
+- project-facing capabilities -> `README.md` and `docs/overview.md`
 
 ## Practical Rule
 
@@ -133,5 +167,11 @@ implicit for this project.
 
 ## Linux Bring-Up
 
-When work crosses from runtime skeleton into real eBPF attach behavior, switch
-to the headless Linux flow documented in `docs/headless-linux.md`.
+When work touches real eBPF probe/attach behavior, switch to the headless Linux
+flow documented in `docs/headless-linux.md`.
+
+Useful commands there:
+
+- `cargo linux-smoke`
+- `cargo tdd`
+- `cargo test`

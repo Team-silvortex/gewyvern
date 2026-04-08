@@ -29,8 +29,8 @@ pub struct ProgramFlow {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ProgramOperation {
-    TcpHandshake,
-    UdpDatagramExchange,
+    ConnectFlow,
+    DatagramExchange,
     Unknown,
 }
 

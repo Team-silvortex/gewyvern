@@ -2,12 +2,13 @@
 
 ## Pipeline
 
-The current v0.04 pipeline in code is:
+The current `v0.1` pipeline in code is:
 
 ```text
 Template
   -> Fragment Registry
   -> Attach Planner
+  -> Loader / Probe Path
   -> Fact Stream
   -> Transport Flows
   -> Program Flows
@@ -30,8 +31,8 @@ A fragment is the smallest attachable capability unit. It includes:
 - map specifications
 - capability flags
 
-The runtime treats fragment metadata as the embryo of IR. The fragment does not
-know about windowing or reasoning.
+The runtime treats fragment metadata as the embryo of IR. A fragment does not
+know about windowing, program reasoning, or final protocol interpretation.
 
 ### Fragment Registry
 
@@ -54,8 +55,42 @@ An attach plan is the read-only runtime IR for a session. It contains:
 - dependency graph
 - coverage report
 
-The plan does not compile eBPF. It only manages composition order and runtime
-consistency.
+The plan does not compile eBPF. It manages composition order, ownership, and
+runtime consistency.
+
+### Loader
+
+The loader layer turns an attach plan into real or synthetic attach outcomes.
+
+Current implementations include:
+
+- `NoopLoader`
+- `StaticFailureLoader`
+- `LinuxProbeLoader`
+
+The Linux probe path already supports real smoke/probe execution for:
+
+- `tracepoint`
+- `kprobe`
+- `tc ingress`
+
+Attach results are materialized into `AttachReport` and then influence runtime
+behavior directly, including fact-ingest gating.
+
+### Template
+
+A template is the session recipe:
+
+```text
+Template = Fragment Set + Window Profile + Reason Profile + Program Model
+```
+
+Each part has a separate job:
+
+- fragment set controls available evidence
+- window profile controls session materialization bounds
+- reason profile controls deterministic reduction into reason chains
+- program model controls how transport evidence becomes program-flow structure
 
 ### Runtime Session
 
@@ -63,16 +98,21 @@ consistency.
 
 - selected template
 - validated window profile
-- reason profile
+- selected reason profile
 - attach plan and attach report
 - ingested facts
+- rejected facts
 - freeze timestamp
 
 The session is window-bounded and can be exported after freeze.
+
 After `freeze(end)`, the materialized session is bounded to the active window
 `[end - duration_ms, end]` plus the allowed late-arrival tail `lateness_ms`.
-Facts outside that range are excluded from export, flow snapshots, and reason
-chains.
+Facts outside that range are excluded from export, transport flows, program
+flows, and reasons.
+
+Facts emitted by fragments that failed to attach are rejected at ingest time and
+tracked as audit records.
 
 ### Transport Flows
 
@@ -87,7 +127,7 @@ layer, not the final semantic aggregation. Right now they track:
 - `fragment_sources`
 
 When route fingerprint changes, the current implementation rotates into a new
-flow snapshot for that cookie.
+transport flow snapshot for that cookie.
 
 ### Program Flows
 
@@ -96,13 +136,35 @@ Program flows sit above transport flows. They are the beginning of the
 state transitions happened, they try to describe what network function a
 program implementation was performing.
 
-The current minimal model tracks:
+Current built-in program-flow operations are intentionally generic:
+
+- `connect_flow`
+- `datagram_exchange`
+- `unknown`
+
+Program flows currently include:
 
 - bound process identity
-- inferred operation kind
+- operation kind
 - referenced transport flows
 - ordered stages
 - module-level narrative
+
+### Program Model
+
+`ProgramModel` is the current embedded rule layer that materializes
+`program_flows`.
+
+Today it is implemented as Rust data attached to templates:
+
+- operation id
+- ordered rules
+- rule predicates
+- optional emitted stage kinds
+- optional narrative rendering
+
+This is not the final DSL. It is the first explicit bridge from fragment/fact
+evidence toward a protocol-agnostic rule-driven engine.
 
 ### Reason Chains
 
@@ -129,7 +191,8 @@ The export bundle contains enough state to recompute L1 offline:
 - attach report
 - window profile
 - reason profile id
-- materialized flows
+- materialized transport flows
+- materialized program flows
 - materialized reasons
 
 Replay parses export JSON, rebuilds a runtime session, replays facts, and
@@ -137,12 +200,11 @@ recomputes transport flows, program flows, and reasons.
 
 ## Current Limits
 
-- no real eBPF loader yet
-- no ringbuf consumer yet
-- no external DSL yet
-- reason engine is still intentionally small and only ships TCP handshake plus
-  UDP datagram views
-- export JSON is implemented with a focused internal serializer/parser
+- eBPF programs are still hand-written C, not generated from IR
+- there is no external DSL yet; `ProgramModel` is still embedded Rust data
+- reason profiles are still intentionally small and conservative
+- `tc egress` is not implemented in the real Linux probe path yet
+- export JSON is still an internal project format, not a public stable schema
 
-These limits are intentional. The runtime currently prioritizes debugger
-structure and determinism over breadth.
+These limits are intentional. `v0.1` prioritizes debugger structure,
+determinism, and a clean path toward protocol-agnostic modeling over breadth.

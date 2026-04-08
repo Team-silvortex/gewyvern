@@ -1,7 +1,6 @@
 use crate::export::ExportBundle;
 use crate::flow::{
     EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView, ProcessView,
-    ProgramFlow, ProgramFlowId, ProgramOperation, ProgramStage, ProgramStageKind,
 };
 use crate::fragment::{
     builtin_registry, summarize_attach_failures, AttachFailure, AttachPlan, AttachReport,
@@ -11,6 +10,7 @@ use crate::ledger::{FactEnvelope, FactId, FactKind};
 use crate::loader::{
     LinuxProbeLoader, Loader, LoaderError,
 };
+use crate::program::build_program_flows;
 use crate::reason::{build_reason_chains, ReasonChain, ReasonProfile};
 use crate::template::{Template, TemplateError, WindowProfile};
 use std::collections::{BTreeMap, BTreeSet};
@@ -220,7 +220,12 @@ impl RuntimeSession {
     pub fn export_bundle(&self) -> ExportBundle {
         let facts = self.materialized_facts();
         let flows = build_flow_snapshots(&facts);
-        let program_flows = build_program_flows(&flows, &facts);
+        let program_model = self
+            .template
+            .program_model
+            .as_ref()
+            .expect("template already validated");
+        let program_flows = build_program_flows(program_model, &flows, &facts);
         let reasons = build_reason_chains(&self.reason_profile, &flows, &facts);
         let attach_failure_summary = summarize_attach_failures(&self.attach_report);
         let rejected_fact_summary = summarize_rejected_facts(&self.rejected_facts);
@@ -370,17 +375,6 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
         .collect()
 }
 
-pub fn build_program_flows(
-    transport_flows: &[FlowSnapshot],
-    facts: &[FactEnvelope],
-) -> Vec<ProgramFlow> {
-    transport_flows
-        .iter()
-        .enumerate()
-        .map(|(idx, flow)| build_program_flow((idx + 1) as u64, flow, facts))
-        .collect()
-}
-
 fn build_flow_snapshot(id: u64, acc: FlowAccumulator) -> FlowSnapshot {
     let confidence = confidence_for_flow(&acc.evidence);
     FlowSnapshot {
@@ -401,72 +395,6 @@ fn build_flow_snapshot(id: u64, acc: FlowAccumulator) -> FlowSnapshot {
         evidence: acc.evidence,
         confidence,
         fragment_sources: acc.fragment_sources.into_iter().collect(),
-    }
-}
-
-fn build_program_flow(id: u64, flow: &FlowSnapshot, facts: &[FactEnvelope]) -> ProgramFlow {
-    let mut stages = Vec::new();
-    let mut narrative = Vec::new();
-    let mut saw_udp_datagram = false;
-    let mut saw_tcp_state = false;
-
-    for fact in facts {
-        if flow.evidence.lineage_facts.contains(&fact.id) {
-            stages.push(ProgramStage {
-                at: fact.id,
-                kind: ProgramStageKind::ProcessBound,
-            });
-            if let FactKind::SockLineage(lineage) = &fact.kind {
-                narrative.push(format!(
-                    "process {} (pid={}) bound this network flow",
-                    decode_comm(&lineage.comm),
-                    lineage.pid
-                ));
-            }
-        }
-        if flow.evidence.tcp_state_facts.contains(&fact.id) {
-            saw_tcp_state = true;
-            stages.push(ProgramStage {
-                at: fact.id,
-                kind: ProgramStageKind::SocketStateTransition,
-            });
-        }
-        if flow.evidence.packet_facts.contains(&fact.id) {
-            if let FactKind::PacketMeta(packet) = &fact.kind {
-                if packet.l4_proto == 17 {
-                    saw_udp_datagram = true;
-                    stages.push(ProgramStage {
-                        at: fact.id,
-                        kind: ProgramStageKind::DatagramObserved,
-                    });
-                    narrative.push("program emitted or received a UDP datagram".into());
-                }
-            }
-        }
-        if flow.evidence.route_facts.contains(&fact.id) {
-            stages.push(ProgramStage {
-                at: fact.id,
-                kind: ProgramStageKind::RouteResolved,
-            });
-            narrative.push("program resolved a route for this network flow".into());
-        }
-    }
-
-    stages.sort_by_key(|stage| stage.at);
-
-    ProgramFlow {
-        id: ProgramFlowId(id),
-        process: flow.process.clone(),
-        operation: if saw_udp_datagram {
-            ProgramOperation::UdpDatagramExchange
-        } else if saw_tcp_state {
-            ProgramOperation::TcpHandshake
-        } else {
-            ProgramOperation::Unknown
-        },
-        transport_flows: vec![flow.id],
-        stages,
-        narrative,
     }
 }
 

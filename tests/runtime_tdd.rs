@@ -377,7 +377,7 @@ fn udp_process_template_binds_flow_to_process_identity() {
     assert_eq!(export.flows[0].evidence.lineage_facts, vec![gewyvern::ledger::FactId(1)]);
     assert_eq!(
         export.program_flows[0].operation,
-        gewyvern::flow::ProgramOperation::UdpDatagramExchange
+        gewyvern::flow::ProgramOperation::DatagramExchange
     );
     assert_eq!(
         export.program_flows[0].transport_flows,
@@ -410,6 +410,29 @@ fn udp_process_template_binds_flow_to_process_identity() {
     assert_eq!(export.flows, replay.flows);
     assert_eq!(export.program_flows, replay.program_flows);
     assert_eq!(export.reasons, replay.reasons);
+}
+
+#[test]
+fn program_flow_operation_comes_from_template_model() {
+    let handshake_export = run_handshake_session(vec![
+        tcp_state_fact(1, 101, 1, 2),
+        packet_fact(2, 101, 0x02),
+        route_fact(3, 101, 2),
+    ]);
+    let udp_export = run_udp_process_session(vec![
+        sock_lineage_fact(1, 102, 9001, "dig"),
+        udp_packet_fact(2, 102, 64),
+        route_fact(3, 102, 5),
+    ]);
+
+    assert_eq!(
+        handshake_export.program_flows[0].operation,
+        gewyvern::flow::ProgramOperation::ConnectFlow
+    );
+    assert_eq!(
+        udp_export.program_flows[0].operation,
+        gewyvern::flow::ProgramOperation::DatagramExchange
+    );
 }
 
 #[test]

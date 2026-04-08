@@ -70,12 +70,9 @@ fn runtime_session_start_can_probe_linux_loader_failure() {
 #[test]
 #[ignore = "requires a Linux eBPF-capable environment"]
 fn runtime_session_can_probe_real_tcp_state_fragment_attach() {
-    let template = Template {
-        id: "tcp_state_probe",
-        fragment_set: vec!["tcp_state_fragment"],
-        window_profile: Some(default_5s_window()),
-        reason_profile: Some(ReasonProfile::HandshakeL1),
-    };
+    let mut template = handshake_debug_template();
+    template.id = "tcp_state_probe";
+    template.fragment_set = vec!["tcp_state_fragment"];
     let config = SessionConfig::for_template(template).unwrap();
     let session = RuntimeSession::start_with_linux_tracepoint_probes(config).unwrap();
 
@@ -95,12 +92,9 @@ fn runtime_session_can_probe_real_tcp_state_fragment_attach() {
 #[test]
 #[ignore = "requires a Linux eBPF-capable environment"]
 fn runtime_session_can_probe_real_route_meta_fragment_attach() {
-    let template = Template {
-        id: "route_meta_probe",
-        fragment_set: vec!["tcp_state_fragment", "route_meta_fragment"],
-        window_profile: Some(default_5s_window()),
-        reason_profile: Some(ReasonProfile::HandshakeL1),
-    };
+    let mut template = handshake_debug_template();
+    template.id = "route_meta_probe";
+    template.fragment_set = vec!["tcp_state_fragment", "route_meta_fragment"];
     let config = SessionConfig::for_template(template).unwrap();
     let session = RuntimeSession::start_with_linux_kernel_probes(config).unwrap();
 
@@ -123,12 +117,9 @@ fn runtime_session_can_probe_real_route_meta_fragment_attach() {
 #[test]
 #[ignore = "requires a Linux eBPF-capable environment"]
 fn runtime_session_can_probe_real_tcp_packet_meta_fragment_attach() {
-    let template = Template {
-        id: "packet_meta_probe",
-        fragment_set: vec!["tcp_state_fragment", "tcp_packet_meta_fragment"],
-        window_profile: Some(default_5s_window()),
-        reason_profile: Some(ReasonProfile::HandshakeL1),
-    };
+    let mut template = handshake_debug_template();
+    template.id = "packet_meta_probe";
+    template.fragment_set = vec!["tcp_state_fragment", "tcp_packet_meta_fragment"];
     let config = SessionConfig::for_template(template).unwrap();
     let session = RuntimeSession::start_with_linux_kernel_probes(config).unwrap();
 

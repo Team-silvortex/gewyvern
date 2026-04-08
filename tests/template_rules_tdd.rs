@@ -25,6 +25,13 @@ fn template_requires_reason_profile() {
 }
 
 #[test]
+fn template_requires_program_model() {
+    let mut template = handshake_debug_template();
+    template.program_model = None;
+    assert_eq!(template.validate(), Err(TemplateError::MissingProgramModel));
+}
+
+#[test]
 fn handshake_template_is_valid() {
     let template: Template = handshake_debug_template();
     assert_eq!(template.validate(), Ok(()));

@@ -1,438 +1,210 @@
-🐉 gewyvern v0.04 — Fragment IR Emergence Runtime
+# gewyvern v0.1
 
-## Documentation
+Protocol-agnostic network debugging runtime driven by eBPF fragments.
 
-- [Project Overview](docs/overview.md)
-- [Runtime Architecture](docs/architecture.md)
-- [Development Guide](docs/development.md)
-- [Headless Linux Guide](docs/headless-linux.md)
+`gewyvern` is not trying to be a long-running observability platform. The
+current shape is a single-host, window-bounded debugger/runtime that:
 
-## TDD First
+- composes eBPF fragments into an attach plan
+- ingests structured kernel facts
+- reconstructs transport flows and higher-level program flows
+- derives deterministic reason chains
+- exports a replayable JSON bundle
 
-这个仓库现在以 TDD 方式推进。
+The long-term direction is:
 
-默认开发入口：
+- fragments are the embryo of runtime IR
+- templates compose fragments plus runtime policies
+- protocol behavior should eventually be driven by a DSL over that IR
 
-- `cargo tdd`：先跑主行为规格
-- `cargo tdd-one <test_name>`：只迭代一个场景
-- `cargo tdd-rules`：跑规则规格
-- `cargo test`：收口前跑全量
+## Status
 
-当前规格分为两层：
+- project version: `0.1.0`
+- stage: working prototype
+- transport support: TCP + UDP
+- input modes: demo facts, Unix socket, TCP socket
+- Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
+- replay: deterministic for exported sessions
 
-- `tests/runtime_tdd.rs`：场景/验收规格
-- `tests/template_rules_tdd.rs` 与 `tests/fragment_rules_tdd.rs`：规则规格
+## What Works In v0.1
+
+- Fragment registry, attach planning, and attach reporting
+- TDD-first runtime and rule specs
+- Window-bounded sessions with `freeze(end)` and late-arrival cutoff
+- Fact ingest gating based on real attach outcomes
+- Rejected fact audit trail and aggregated summaries
+- Transport flow reconstruction from packet/state/route/lineage facts
+- Program flow reconstruction for process-aware network behavior
+- Deterministic reason chains for:
+  - TCP handshake-oriented sessions
+  - UDP datagram-oriented sessions
+- Export/replay JSON including:
+  - attach plan
+  - attach report
+  - debug summary
+  - facts
+  - transport flows
+  - program flows
+  - reasons
+- Linux-only probe path for built-in fragments:
+  - `tcp_state_fragment`
+  - `route_meta_fragment`
+  - `tcp_packet_meta_fragment`
+  - UDP template attach path through `route_meta_fragment` + `udp_packet_meta_fragment`
+
+## Core Model
+
+`Template` is now effectively:
+
+```text
+Template = Fragment Set + Window Profile + Reason Profile + Program Model
+```
+
+Where:
+
+- `Fragment Set` decides what kernel/userland evidence can exist
+- `Window Profile` decides session materialization bounds
+- `Reason Profile` decides how L1/L3 reasoning is derived
+- `Program Model` is the current embedded IR-like rule layer for materializing
+  `program_flows`
+
+The runtime pipeline today is:
+
+```text
+Template
+  -> Fragment Registry
+  -> Attach Planner
+  -> Fact Stream
+  -> Transport Flows
+  -> Program Flows
+  -> Reason Chains
+  -> Export JSON
+  -> Deterministic Replay
+```
+
+## Built-In Templates
+
+- `handshake_debug`
+  - `tcp_state_fragment`
+  - `tcp_packet_meta_fragment`
+  - `route_meta_fragment`
+- `udp_debug`
+  - `udp_packet_meta_fragment`
+  - `route_meta_fragment`
+- `udp_process_debug`
+  - `udp_packet_meta_fragment`
+  - `route_meta_fragment`
+  - `sock_lineage_fragment`
+
+## Development
+
+This repository is intentionally TDD-driven.
+
+Main commands:
+
+- `cargo tdd`
+- `cargo tdd-one <test_name>`
+- `cargo tdd-rules`
+- `cargo test`
+
+Current test layers:
+
+- [tests/runtime_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/runtime_tdd.rs)
+- [tests/template_rules_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/template_rules_tdd.rs)
+- [tests/fragment_rules_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/fragment_rules_tdd.rs)
+- [tests/linux_smoke_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/linux_smoke_tdd.rs)
+
+## Quick Start
+
+Run the built-in demos:
+
+```bash
+cargo run
+cargo run -- --demo tcp
+cargo run -- --demo udp
+cargo run -- --demo both --json
+cargo run -- --demo both --json --summary-only
+```
+
+Write output to a file:
+
+```bash
+cargo run -- --demo udp --json --out /tmp/gewyvern-export.json
+cargo run -- --demo udp --json --summary-only --out /tmp/gewyvern-summary.jsonl
+```
 
 ## Socket Input
 
-现在可以通过 Unix socket 向 runtime 发送 JSON Lines 形式的 fact：
+`gewyvern` can ingest fact JSON Lines over Unix or TCP sockets.
 
-- server:
-  `cargo run -- --unix-socket /tmp/gewyvern.sock --template udp --json`
-- sender:
-  `cargo run --bin gewyvern_socket_send -- --socket /tmp/gewyvern.sock --template udp`
+Unix socket:
 
-也支持 TCP socket：
+```bash
+cargo run -- --unix-socket /tmp/gewyvern.sock --template udp --json
+cargo run --bin gewyvern_socket_send -- --socket /tmp/gewyvern.sock --template udp
+```
 
-- server:
-  `cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --json`
-- sender:
-  `cargo run --bin gewyvern_socket_send -- --tcp-socket 127.0.0.1:9000 --template udp`
+TCP socket:
 
-如果要连续处理多次连接，可以打开循环服务模式：
+```bash
+cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --json
+cargo run --bin gewyvern_socket_send -- --tcp-socket 127.0.0.1:9000 --template udp
+```
 
-- Unix:
-  `cargo run -- --unix-socket /tmp/gewyvern.sock --template udp --serve --json --summary-only`
-- TCP:
-  `cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --serve --json --summary-only`
+Serve multiple sessions:
 
-如果只想跑固定次数的连接，方便演示或自动化：
+```bash
+cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --serve --json --summary-only
+cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --serve --max-sessions 2 --json
+```
 
-- `cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --serve --max-sessions 2 --json`
+Roundtrip demo:
 
-也可以直接跑一键 roundtrip demo：
+```bash
+bash scripts/socket_roundtrip_demo.sh /tmp/gewyvern.sock udp /tmp/gewyvern-out.json unix
+bash scripts/socket_roundtrip_demo.sh 127.0.0.1:9000 udp /tmp/gewyvern-out.json tcp
+```
 
-- Unix:
-  `bash scripts/socket_roundtrip_demo.sh /tmp/gewyvern.sock udp /tmp/gewyvern-out.json unix`
-- TCP:
-  `bash scripts/socket_roundtrip_demo.sh 127.0.0.1:9000 udp /tmp/gewyvern-out.json tcp`
+## Linux eBPF Probe Environment
 
-Status: Draft (0.04)
-Scope: TCP + UDP session debugging（仍不改变 debugger 本质）
-Nature: Single-host / CLI-first / window-bounded session runtime
-Orientation: network debugger（非 observability 平台）
-Runtime Stack: eBPF C (CO-RE) + Rust runtime + ringbuf
+The repo includes a headless Linux path for real probe smoke tests.
 
-⸻
+Build and enter the container:
 
-0. 版本哲学
+```bash
+docker compose -f docker-compose.headless-linux.yml build
+docker compose -f docker-compose.headless-linux.yml up -d
+docker compose -f docker-compose.headless-linux.yml exec ebpf-dev bash
+```
 
-v0.03b 解决了闭环。
+Inside Linux, useful commands are:
 
-v0.04 的目标不是扩展能力，而是：
+```bash
+cargo tdd
+cargo linux-smoke
+```
 
-让 eBPF 代码从“文件集合”演进为“可组合片段集合”。
+## Important Current Boundaries
 
-同时确立：
+- This is still a prototype, not a stable public schema/runtime
+- eBPF programs are still hand-written C, not generated from IR
+- `ProgramModel` is embedded Rust data today, not an external DSL yet
+- Program-flow reconstruction is still intentionally small and conservative
+- Local Unix/TCP socket live tests are ignored in restricted environments that
+  do not allow bind permissions
+- `tc egress` is not implemented yet in the real Linux probe path
 
-IR 从片段中生长
-DSL 从 IR 中生长
-不反向设计
+## Repo Docs
 
-⸻
+- [docs/overview.md](/Users/Shared/chroot/dev/gewyvern/docs/overview.md)
+- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+- [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+- [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
+- [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)
 
-1. v0.04 核心原则
+## Near-Term Direction
 
-1.1 Debugger First 不变
-
-ge 仍然是：
-	•	单机会话
-	•	有窗口
-	•	可 freeze
-	•	可导出
-	•	可复核
-
-不允许演化为：
-	•	长期观测平台
-	•	持久化监控系统
-	•	分布式 agent 编排
-
-⸻
-
-1.2 IR 不是编译目标
-
-IR 的目标：
-
-管理片段组合秩序
-
-不是：
-
-生成 eBPF 程序
-
-eBPF 程序仍然手写 C。
-
-⸻
-
-1.3 模板 = 片段集合
-
-模板不再直接对应 attach 逻辑。
-
-模板现在等价于：
-
-Template = Fragment Set + Window Profile + Reason Profile
-
-
-⸻
-
-2. Fragment（片段）— v0.04 新核心结构
-
-2.1 定义
-
-Fragment 是：
-	•	一份 eBPF 程序（或其中一部分逻辑）
-	•	一份 Rust 侧的描述文件（manifest）
-
-每个 Fragment 必须具有唯一 ID。
-
-⸻
-
-2.2 Fragment Manifest（IR 胚胎）
-
-struct FragmentDescriptor {
-    id: &'static str,
-    version: u32,
-
-    hookpoints: Vec<HookPoint>,
-    emits: Vec<FactKind>,
-    requires: Vec<FactKind>,
-
-    maps: Vec<MapSpec>,
-
-    capabilities: Vec<CapabilityFlag>,
-}
-
-字段解释
-	•	hookpoints：声明 attach 点
-	•	emits：该片段产生的 FactKind
-	•	requires：依赖哪些事实或前置片段
-	•	maps：该片段使用的 BPF maps 规范
-	•	capabilities：例如 tcp_state, packet_meta, route_meta
-
-⸻
-
-2.3 强规则
-	•	Fragment 不允许解释事实
-	•	Fragment 只产生结构化事实
-	•	Fragment 不知道 window
-	•	Fragment 不知道 reason
-
-⸻
-
-3. Fragment Registry
-
-Runtime 内新增：
-
-Fragment Registry
-
-职责：
-	•	注册所有可用 FragmentDescriptor
-	•	校验 hookpoint 冲突
-	•	校验 FactKind 冲突
-	•	生成 Attach Plan
-
-⸻
-
-4. IR v0（隐式 IR）
-
-v0.04 不实现完整 IR。
-
-但 runtime 内部隐式存在：
-
-4.1 IR 结构（只读）
-
-HookGraph
-FactGraph
-DependencyGraph
-
-HookGraph
-	•	哪些 fragment attach 到哪些 hookpoint
-
-FactGraph
-	•	哪些 fragment 产出哪些 FactKind
-	•	哪些 fragment 依赖哪些 FactKind
-
-DependencyGraph
-	•	片段间依赖关系
-	•	是否允许并行
-
-⸻
-
-5. Template 重定义（v0.04）
-
-5.1 handshake_debug（重构后）
-
-T1 不再直接 attach。
-
-定义为：
-
-T1 =
-    tcp_state_fragment
-    tcp_packet_meta_fragment
-    route_meta_fragment
-
-window_profile = default_5s
-reason_profile = handshake_l1
-
-UDP 调试模板现在也已经存在：
-
-UDP1 =
-    udp_packet_meta_fragment
-    route_meta_fragment
-
-window_profile = default_5s
-reason_profile = udp_datagram_l1
-
-
-⸻
-
-5.2 模板约束
-	•	没有 Fragment Set → 不允许启动
-	•	没有 window_profile → 不允许启动
-	•	reason_profile 必须存在
-
-⸻
-
-6. Runtime 架构（更新）
-
-Fragment Registry
-    ↓
-Attach Planner (IR based)
-    ↓
-kernel plane (eBPF fragments)
-    ↓ ringbuf
-Fact Stream
-    ↓
-Ledger
-    ↓
-Flow Registry
-    ↓
-Reason Engine
-    ↓
-CLI
-    ↓
-Export
-
-
-⸻
-
-7. Attach Planner（v0.04 新增）
-
-根据 Fragment Set：
-	1.	汇总 hookpoints
-	2.	检查冲突
-	3.	构建 attach plan
-	4.	生成 AttachReport
-
-AttachReport 现在包含：
-	•	fragments_loaded
-	•	hookpoints_attached
-	•	hookpoints_failed
-	•	required_fact_kinds_coverage
-	•	ringbuf_stats
-
-⸻
-
-8. Flow / Window / Reason 不变（Debugger 本体不变）
-
-8.1 Window
-	•	duration = 5s（默认）
-	•	lateness = 200ms
-	•	freeze_at = end + lateness
-
-冻结规则不变。
-
-⸻
-
-8.2 Identity / Confidence 不变
-
-FlowSnapshot 结构保持 0.03b 版本。
-
-新增：
-
-fragment_sources: Vec<FragmentId>
-
-用于追溯 flow 来自哪些片段。
-
-⸻
-
-9. Deterministic Replay（v0.04 强制）
-
-新增规则：
-
-L1 必须可由 Export JSON 重新计算
-
-runtime 的 reason 只是在线计算。
-
-Export JSON 必须包含：
-	•	所有事实
-	•	所有 fragment 描述
-	•	window 参数
-	•	coverage 报告
-
-⸻
-
-10. Export JSON（v0.04 扩展）
-
-新增字段：
-
-fragment_inventory: [
-    { id, version }
-]
-
-attach_plan: {
-    fragments,
-    hookpoints,
-    coverage
-}
-
-
-⸻
-
-11. DSL 暂不实现，但预留边界
-
-v0.04 不实现 DSL。
-
-但明确未来 DSL 只能表达：
-	•	fragment set 选择
-	•	window 参数
-	•	filters
-	•	reason profile
-
-DSL 不允许：
-	•	自定义 FactKind
-	•	自定义推理逻辑
-	•	动态代码生成
-
-⸻
-
-12. v0.04 验收标准
-
-仍然只验收 T1 三场景：
-	1.	正常握手
-	2.	SYN-ACK 缺失
-	3.	route fingerprint 变化
-
-但新增要求：
-	•	attach_plan 必须可导出
-	•	fragment_inventory 必须可导出
-	•	L1 可 replay 重算一致
-
-⸻
-
-13. v0.04 完成后的系统形态
-
-ge v0.04 是：
-
-单机、窗口化、片段化、可验证、可重放的 TCP network debugger runtime
-
-不是：
-	•	观测平台
-	•	分布式 agent
-	•	协议解释引擎
-	•	编译型 DSL 系统
-
-⸻
-
-14. 演进路线
-
-v0.05
-	•	新增 1–2 个协议片段
-	•	扩展 fragment registry
-	•	reason 仍然 L0→L1
-
-v0.06
-	•	IR v0 显式化
-	•	attach planner 基于 IR graph
-
-v0.07
-	•	DSL v0（Template Assembly Language）
-	•	仅做 fragment 组合声明
-
-v1.0
-	•	CLI niche debugger 稳定版
-	•	再考虑 leserpent 多实例 orchestration
-
-⸻
-
-15. 最终哲学一句话
-
-gewyvern 不是“解释网络”，
-而是把一次网络异常压缩为可验证、可复核、可重放的证据链结构。
-IR 与 DSL 只是降低扩展成本，而不是扩展解释权。
-
----
-
-## TDD Workflow
-
-从现在开始，gewyvern 采用测试驱动开发。
-
-工作节奏固定为：
-
-1. 先写或先扩展一个失败测试，表达一个行为、规则或回归场景
-2. 再写最小实现，让测试变绿
-3. 最后重构，但不能破坏 attach/export/replay 语义
-
-当前测试分层：
-
-- `tests/template_rules_tdd.rs`：模板约束测试
-- `tests/fragment_rules_tdd.rs`：fragment registry / attach planner 规则测试
-- `tests/runtime_tdd.rs`：面向 T1 场景的端到端行为测试
-
-当前 T1 行为规格覆盖：
-
-- 正常握手可导出 `attach_plan` 与 `fragment_inventory`
-- `SYN-ACK` 缺失时，L1 replay 仍然一致
-- route fingerprint 变化时，flow 必须切分
-- freeze cutoff 之外的事实不能进入 export / replay
-
-后续每增加一个 fragment、reason 规则、export 字段，都先补测试，再改实现。
+The next meaningful step after `v0.1` is not “more protocol branches”.
+It is pushing `ProgramModel` from embedded Rust rules toward a more explicit,
+protocol-agnostic DSL over fragment/attach/fact IR so the engine can model
+network functionality as program behavior rather than just protocol lifecycle.

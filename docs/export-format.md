@@ -9,7 +9,7 @@ analytics ingestion.
 ## Goal
 
 The export JSON must contain enough information to recompute L1 reason results
-offline.
+offline and preserve the materialized runtime view seen by the debugger.
 
 At minimum this means exporting:
 
@@ -19,6 +19,7 @@ At minimum this means exporting:
 - attach report
 - window parameters
 - reason profile id
+- materialized transport/program flow state
 
 ## Top-Level Shape
 
@@ -115,8 +116,9 @@ It contains:
 - `required_fact_kinds_coverage`
 - `ringbuf_stats`
 
-`hookpoints_failed` is currently empty in the in-memory runtime, but it is part
-of the stable shape because a real loader will need it.
+`hookpoints_failed` is part of the stable shape because attach outcomes are now
+first-class runtime inputs. Loader results can affect both debug output and
+fact-ingest gating.
 
 ### `attach_failure_summary`
 
@@ -275,6 +277,16 @@ Each program flow currently exports:
 - `stages`
 - `narrative`
 
+Current built-in `operation` values are:
+
+- `connect_flow`
+- `datagram_exchange`
+- `unknown`
+
+This layer is driven by the template's embedded `program_model`, which is the
+current IR-like rule surface for reconstructing program behavior from fragment
+evidence.
+
 ### `reasons`
 
 Materialized reason chains generated from facts and flows.
@@ -297,14 +309,24 @@ Replay is valid only if:
 1. export JSON can be parsed
 2. the referenced reason profile exists
 3. the referenced fragment ids exist in the local registry
-4. replayed facts produce the same L1 result
+4. replay can rebuild a compatible template/program model pairing
+5. replayed facts produce the same materialized result
 
 In the current code, replay works by:
 
 1. rebuilding a template from export metadata
 2. starting a fresh `RuntimeSession`
 3. re-ingesting every exported fact
-4. re-exporting the reconstructed state
+4. restoring rejected-fact audit state
+5. re-exporting the reconstructed state
+
+The replay implementation must preserve:
+
+- `flows`
+- `program_flows`
+- `reasons`
+- `debug_summary`
+- rejected-fact audit semantics
 
 ## Stability Notes
 
