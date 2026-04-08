@@ -24,7 +24,7 @@
 - `tests/template_rules_tdd.rs` 与 `tests/fragment_rules_tdd.rs`：规则规格
 
 Status: Draft (0.04)
-Scope: TCP-only（协议扩展允许，但不改变 debugger 本质）
+Scope: TCP + UDP session debugging（仍不改变 debugger 本质）
 Nature: Single-host / CLI-first / window-bounded session runtime
 Orientation: network debugger（非 observability 平台）
 Runtime Stack: eBPF C (CO-RE) + Rust runtime + ringbuf
@@ -188,6 +188,15 @@ T1 =
 
 window_profile = default_5s
 reason_profile = handshake_l1
+
+UDP 调试模板现在也已经存在：
+
+UDP1 =
+    udp_packet_meta_fragment
+    route_meta_fragment
+
+window_profile = default_5s
+reason_profile = udp_datagram_l1
 
 
 ⸻

@@ -89,9 +89,14 @@ flow snapshot for that cookie.
 ### Reason Chains
 
 Reason chains are built from physical facts plus runtime structure. The current
-implementation provides an L1 handshake-oriented view with:
+implementation provides two built-in L1 views:
 
-- TCP state timeline
+- `handshake_l1` for TCP handshake-oriented reasoning
+- `udp_datagram_l1` for UDP packet and route reasoning
+
+Both views export:
+
+- TCP state timeline when applicable
 - path segment events
 - key events
 - narrative lines
@@ -117,7 +122,8 @@ recomputes flows and reasons.
 - no real eBPF loader yet
 - no ringbuf consumer yet
 - no external DSL yet
-- reason engine is still handshake-centric
+- reason engine is still intentionally small and only ships TCP handshake plus
+  UDP datagram views
 - export JSON is implemented with a focused internal serializer/parser
 
 These limits are intentional. The runtime currently prioritizes debugger

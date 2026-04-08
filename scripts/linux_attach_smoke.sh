@@ -2,11 +2,11 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TMP_DIR="${TMPDIR:-/tmp}/gewyvern-linux-attach-smoke"
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gewyvern-linux-attach-smoke.XXXXXX")"
 HOOKPOINT_NAME="${1:-syscalls/sys_enter_nanosleep}"
 HOOKPOINT_CATEGORY="${HOOKPOINT_NAME%%/*}"
 HOOKPOINT_EVENT="${HOOKPOINT_NAME#*/}"
-mkdir -p "${TMP_DIR}"
+trap 'rm -rf "${TMP_DIR}"' EXIT
 
 BPF_OBJ="${TMP_DIR}/tracepoint_min.bpf.o"
 LOADER_BIN="${TMP_DIR}/attach_smoke"

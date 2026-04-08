@@ -29,6 +29,7 @@ pub struct KeyEvent {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum KeyEventKind {
     SynSeen,
+    UdpDatagramSeen,
     StateChange { old: u8, new: u8 },
     RetransSuspected,
     RouteChanged,
@@ -49,18 +50,21 @@ pub struct NarrLine {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReasonProfile {
     HandshakeL1,
+    UdpDatagramL1,
 }
 
 impl ReasonProfile {
     pub fn id(&self) -> &'static str {
         match self {
             Self::HandshakeL1 => "handshake_l1",
+            Self::UdpDatagramL1 => "udp_datagram_l1",
         }
     }
 
     pub fn from_id(id: &str) -> Option<Self> {
         match id {
             "handshake_l1" => Some(Self::HandshakeL1),
+            "udp_datagram_l1" => Some(Self::UdpDatagramL1),
             _ => None,
         }
     }
@@ -76,6 +80,11 @@ pub fn build_reason_chains(
             .iter()
             .enumerate()
             .map(|(idx, flow)| build_handshake_reason(ReasonId((idx + 1) as u64), flow, facts))
+            .collect(),
+        ReasonProfile::UdpDatagramL1 => flows
+            .iter()
+            .enumerate()
+            .map(|(idx, flow)| build_udp_reason(ReasonId((idx + 1) as u64), flow, facts))
             .collect(),
     }
 }
@@ -152,6 +161,62 @@ fn build_handshake_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[FactEnvelo
 
     l0_facts.sort_unstable();
     timeline.sort_unstable();
+    path_segments.sort_unstable();
+    key_events.sort_by_key(|event| event.at);
+    narrative.sort_by_key(|line| line.at);
+
+    ReasonChain {
+        id,
+        flow: flow.id,
+        l0_facts,
+        l1: ReasonL1 {
+            tcp_state_timeline: timeline,
+            path_segments,
+            key_events,
+        },
+        l3: ReasonL3 { narrative },
+    }
+}
+
+fn build_udp_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[FactEnvelope]) -> ReasonChain {
+    let mut l0_facts = Vec::new();
+    let timeline = Vec::new();
+    let mut path_segments = Vec::new();
+    let mut key_events = Vec::new();
+    let mut narrative = Vec::new();
+
+    for fact in facts {
+        if flow.evidence.packet_facts.contains(&fact.id) {
+            l0_facts.push(fact.id);
+            if let FactKind::PacketMeta(packet) = &fact.kind {
+                if packet.l4_proto == 17 {
+                    key_events.push(KeyEvent {
+                        at: fact.id,
+                        kind: KeyEventKind::UdpDatagramSeen,
+                    });
+                    narrative.push(NarrLine {
+                        at: fact.id,
+                        text: "udp datagram observed".into(),
+                    });
+                }
+            }
+        }
+
+        if flow.evidence.route_facts.contains(&fact.id) {
+            l0_facts.push(fact.id);
+            path_segments.push(fact.id);
+            key_events.push(KeyEvent {
+                at: fact.id,
+                kind: KeyEventKind::RouteChanged,
+            });
+            narrative.push(NarrLine {
+                at: fact.id,
+                text: "route fingerprint updated".into(),
+            });
+        }
+    }
+
+    l0_facts.sort_unstable();
     path_segments.sort_unstable();
     key_events.sort_by_key(|event| event.at);
     narrative.sort_by_key(|line| line.at);

@@ -85,6 +85,34 @@ impl AttachFailure {
     }
 }
 
+pub fn summarize_attach_failures(
+    report: &AttachReport,
+) -> Vec<crate::export::AttachFailureSummaryItem> {
+    let mut counts = BTreeMap::<&'static str, u64>::new();
+
+    for label in &report.hookpoints_failed {
+        let hookpoint_kind = match label
+            .split_once('@')
+            .and_then(|(_, hookpoint)| hookpoint.split_once(':'))
+        {
+            Some(("tc", "ingress")) => "tc_ingress",
+            Some(("tc", "egress")) => "tc_egress",
+            Some(("tracepoint", _)) => "tracepoint",
+            Some(("kprobe", _)) => "kprobe",
+            _ => "unknown",
+        };
+        *counts.entry(hookpoint_kind).or_default() += 1;
+    }
+
+    counts
+        .into_iter()
+        .map(|(hookpoint_kind, count)| crate::export::AttachFailureSummaryItem {
+            hookpoint_kind: hookpoint_kind.into(),
+            count,
+        })
+        .collect()
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FactBinding {
     pub fragment_id: &'static str,
@@ -265,15 +293,21 @@ impl FragmentRegistry {
         let mut attached = Vec::new();
         let mut failed_report = Vec::new();
         let mut loaded_fragments = BTreeSet::new();
+        let mut matched_failures = BTreeSet::new();
 
         for binding in &plan.hook_graph {
             let label = format!("{}@{}", binding.fragment_id, binding.hookpoint.label());
             if failed.contains(&label) {
+                matched_failures.insert(label.clone());
                 failed_report.push(label);
             } else {
                 loaded_fragments.insert(binding.fragment_id);
                 attached.push(label);
             }
+        }
+
+        for failure in failed.difference(&matched_failures) {
+            failed_report.push(failure.clone());
         }
 
         let maps = plan
@@ -332,11 +366,24 @@ pub fn builtin_registry() -> FragmentRegistry {
             capabilities: vec![CapabilityFlag::PacketMeta],
         },
         FragmentDescriptor {
+            id: "udp_packet_meta_fragment",
+            version: 1,
+            hookpoints: vec![HookPoint::TCIngress],
+            emits: vec![FactKindTag::PacketMeta],
+            requires: vec![],
+            maps: vec![MapSpec {
+                name: "events",
+                kind: MapKind::RingBuf,
+                max_entries: 4096,
+            }],
+            capabilities: vec![CapabilityFlag::PacketMeta],
+        },
+        FragmentDescriptor {
             id: "route_meta_fragment",
             version: 1,
             hookpoints: vec![HookPoint::KProbe("ip_route_output_flow")],
             emits: vec![FactKindTag::RouteDecision],
-            requires: vec![FactKindTag::TcpState],
+            requires: vec![],
             maps: vec![MapSpec {
                 name: "events",
                 kind: MapKind::RingBuf,

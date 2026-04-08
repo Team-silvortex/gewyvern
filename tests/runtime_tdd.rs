@@ -2,9 +2,12 @@ mod support;
 
 use gewyvern::export::ExportBundle;
 use gewyvern::fragment::{AttachFailure, HookPoint};
+use gewyvern::loader::StaticFailureLoader;
 use gewyvern::runtime::{build_flow_snapshots, RuntimeSession, SessionConfig};
-use gewyvern::template::handshake_debug_template;
-use support::{packet_fact, route_fact, run_handshake_session, tcp_state_fact};
+use gewyvern::template::{handshake_debug_template, udp_debug_template};
+use support::{
+    packet_fact, route_fact, run_handshake_session, run_udp_session, tcp_state_fact, udp_packet_fact,
+};
 use std::time::{Duration, SystemTime};
 
 #[test]
@@ -152,4 +155,206 @@ fn session_start_can_materialize_attach_failures_into_export() {
 
     let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
     assert_eq!(replay.attach_report.hookpoints_failed, Vec::<String>::new());
+}
+
+#[test]
+fn session_start_with_loader_materializes_structured_failures() {
+    let config = SessionConfig::for_template(handshake_debug_template()).unwrap();
+    let loader = StaticFailureLoader {
+        failures: vec![AttachFailure {
+            fragment_id: "route_meta_fragment",
+            hookpoint: HookPoint::KProbe("ip_route_output_flow"),
+            error: "mock loader failure".into(),
+        }],
+    };
+
+    let session = RuntimeSession::start_with_loader(config, &loader).unwrap();
+    let export = session.export_bundle();
+
+    assert_eq!(
+        export.attach_report.hookpoints_failed,
+        vec!["route_meta_fragment@kprobe:ip_route_output_flow".to_string()]
+    );
+    assert_eq!(export.attach_report.fragments_loaded.len(), 2);
+    assert_eq!(export.attach_failure_summary.len(), 1);
+    assert_eq!(export.attach_failure_summary[0].hookpoint_kind, "kprobe");
+    assert_eq!(export.attach_failure_summary[0].count, 1);
+}
+
+#[test]
+fn session_rejects_facts_from_fragments_that_failed_to_attach() {
+    let config = SessionConfig::for_template(handshake_debug_template()).unwrap();
+    let loader = StaticFailureLoader {
+        failures: vec![AttachFailure {
+            fragment_id: "route_meta_fragment",
+            hookpoint: HookPoint::KProbe("ip_route_output_flow"),
+            error: "mock loader failure".into(),
+        }],
+    };
+
+    let mut session = RuntimeSession::start_with_loader(config, &loader).unwrap();
+    session.ingest(tcp_state_fact(1, 60, 1, 2));
+    session.ingest(route_fact(2, 60, 7));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(20));
+
+    let export = session.export_bundle();
+    assert_eq!(export.facts.len(), 1);
+    assert_eq!(export.facts[0].fragment_id, "tcp_state_fragment");
+    assert_eq!(export.rejected_facts.len(), 1);
+    assert_eq!(export.rejected_facts[0].fragment_id, "route_meta_fragment");
+    assert_eq!(export.rejected_fact_summary.len(), 1);
+    assert_eq!(export.rejected_fact_summary[0].fragment_id, "route_meta_fragment");
+    assert_eq!(export.rejected_fact_summary[0].reason, "fragment_not_loaded");
+    assert_eq!(export.rejected_fact_summary[0].count, 1);
+    assert_eq!(export.debug_summary.fragments_loaded, 2);
+    assert_eq!(export.debug_summary.hookpoints_failed, 1);
+    assert_eq!(export.debug_summary.accepted_facts, 1);
+    assert_eq!(export.debug_summary.rejected_facts, 1);
+    assert_eq!(export.debug_summary.flows, 1);
+    assert_eq!(export.debug_summary.reasons, 1);
+    assert!(export.debug_summary.degraded);
+    assert!(export
+        .facts
+        .iter()
+        .all(|fact| fact.fragment_id != "route_meta_fragment"));
+
+    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    assert_eq!(export.rejected_facts, replay.rejected_facts);
+    assert_eq!(export.rejected_fact_summary, replay.rejected_fact_summary);
+    assert_eq!(export.debug_summary, replay.debug_summary);
+}
+
+#[test]
+fn rejected_fact_summary_groups_multiple_drops_by_fragment_and_reason() {
+    let config = SessionConfig::for_template(handshake_debug_template()).unwrap();
+    let loader = StaticFailureLoader {
+        failures: vec![
+            AttachFailure {
+                fragment_id: "route_meta_fragment",
+                hookpoint: HookPoint::KProbe("ip_route_output_flow"),
+                error: "mock loader failure".into(),
+            },
+            AttachFailure {
+                fragment_id: "tcp_packet_meta_fragment",
+                hookpoint: HookPoint::TCIngress,
+                error: "mock loader failure".into(),
+            },
+        ],
+    };
+
+    let mut session = RuntimeSession::start_with_loader(config, &loader).unwrap();
+    session.ingest(route_fact(1, 70, 7));
+    session.ingest(route_fact(2, 70, 9));
+    session.ingest(packet_fact(3, 70, 0x12));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(20));
+
+    let export = session.export_bundle();
+    assert_eq!(export.rejected_facts.len(), 3);
+    assert_eq!(export.rejected_fact_summary.len(), 2);
+    assert_eq!(export.rejected_fact_summary[0].fragment_id, "route_meta_fragment");
+    assert_eq!(export.rejected_fact_summary[0].reason, "fragment_not_loaded");
+    assert_eq!(export.rejected_fact_summary[0].count, 2);
+    assert_eq!(export.rejected_fact_summary[1].fragment_id, "tcp_packet_meta_fragment");
+    assert_eq!(export.rejected_fact_summary[1].reason, "fragment_not_loaded");
+    assert_eq!(export.rejected_fact_summary[1].count, 1);
+
+    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    assert_eq!(export.rejected_fact_summary, replay.rejected_fact_summary);
+}
+
+#[test]
+fn attach_failure_summary_groups_failures_by_hookpoint_kind() {
+    let config = SessionConfig::for_template(handshake_debug_template()).unwrap();
+    let loader = StaticFailureLoader {
+        failures: vec![
+            AttachFailure {
+                fragment_id: "route_meta_fragment",
+                hookpoint: HookPoint::KProbe("ip_route_output_flow"),
+                error: "mock loader failure".into(),
+            },
+            AttachFailure {
+                fragment_id: "tcp_packet_meta_fragment",
+                hookpoint: HookPoint::TCIngress,
+                error: "mock loader failure".into(),
+            },
+            AttachFailure {
+                fragment_id: "linux_tracepoint_smoke_fragment",
+                hookpoint: HookPoint::TracePoint("syscalls/definitely_missing_smoke_event"),
+                error: "mock loader failure".into(),
+            },
+        ],
+    };
+
+    let session = RuntimeSession::start_with_loader(config, &loader).unwrap();
+    let export = session.export_bundle();
+
+    assert_eq!(export.attach_report.hookpoints_failed.len(), 3);
+    assert_eq!(export.attach_failure_summary.len(), 3);
+    assert_eq!(export.attach_failure_summary[0].hookpoint_kind, "kprobe");
+    assert_eq!(export.attach_failure_summary[0].count, 1);
+    assert_eq!(export.attach_failure_summary[1].hookpoint_kind, "tc_ingress");
+    assert_eq!(export.attach_failure_summary[1].count, 1);
+    assert_eq!(export.attach_failure_summary[2].hookpoint_kind, "tracepoint");
+    assert_eq!(export.attach_failure_summary[2].count, 1);
+
+    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    assert_eq!(export.attach_failure_summary, replay.attach_failure_summary);
+}
+
+#[test]
+fn debug_summary_stays_clean_when_session_has_no_loader_or_ingest_degradation() {
+    let export = run_handshake_session(vec![
+        tcp_state_fact(1, 80, 1, 2),
+        packet_fact(2, 80, 0x02),
+        route_fact(3, 80, 2),
+    ]);
+
+    assert_eq!(export.debug_summary.fragments_loaded, 3);
+    assert_eq!(export.debug_summary.hookpoints_failed, 0);
+    assert_eq!(export.debug_summary.accepted_facts, 3);
+    assert_eq!(export.debug_summary.rejected_facts, 0);
+    assert_eq!(export.debug_summary.flows, 1);
+    assert_eq!(export.debug_summary.reasons, 1);
+    assert!(!export.debug_summary.degraded);
+
+    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    assert_eq!(export.debug_summary, replay.debug_summary);
+}
+
+#[test]
+fn udp_template_exports_deterministic_datagram_reason_chain() {
+    let export = run_udp_session(vec![
+        udp_packet_fact(1, 90, 72),
+        route_fact(2, 90, 3),
+    ]);
+
+    assert_eq!(export.template_id, "udp_debug");
+    assert_eq!(export.facts.len(), 2);
+    assert_eq!(export.flows.len(), 1);
+    assert_eq!(export.reasons.len(), 1);
+    assert_eq!(export.reasons[0].l1.tcp_state_timeline.len(), 0);
+    assert_eq!(export.reasons[0].l1.path_segments, vec![gewyvern::ledger::FactId(2)]);
+    assert_eq!(export.reasons[0].l3.narrative[0].text, "udp datagram observed");
+    assert_eq!(export.reasons[0].l3.narrative[1].text, "route fingerprint updated");
+    assert_eq!(export.debug_summary.fragments_loaded, 2);
+    assert!(!export.debug_summary.degraded);
+
+    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    assert_eq!(export.reasons, replay.reasons);
+    assert_eq!(export.debug_summary, replay.debug_summary);
+}
+
+#[test]
+fn udp_template_starts_without_tcp_state_fragment() {
+    let config = SessionConfig::for_template(udp_debug_template()).unwrap();
+    let session = RuntimeSession::start(config).unwrap();
+    let export = session.export_bundle();
+
+    assert_eq!(
+        export.attach_report.fragments_loaded,
+        vec![
+            "udp_packet_meta_fragment".to_string(),
+            "route_meta_fragment".to_string()
+        ]
+    );
 }

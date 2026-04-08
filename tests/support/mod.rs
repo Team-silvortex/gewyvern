@@ -3,11 +3,26 @@ use gewyvern::ledger::{
     SessionId, TcpStateFact,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
-use gewyvern::template::handshake_debug_template;
+use gewyvern::template::{handshake_debug_template, udp_debug_template};
 use std::time::{Duration, SystemTime};
 
 pub fn run_handshake_session(facts: Vec<FactEnvelope>) -> gewyvern::export::ExportBundle {
     let config = SessionConfig::for_template(handshake_debug_template()).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    let window_end = facts
+        .iter()
+        .map(|fact| fact.ts)
+        .max()
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+    for fact in facts {
+        session.ingest(fact);
+    }
+    session.freeze(window_end);
+    session.export_bundle()
+}
+
+pub fn run_udp_session(facts: Vec<FactEnvelope>) -> gewyvern::export::ExportBundle {
+    let config = SessionConfig::for_template(udp_debug_template()).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     let window_end = facts
         .iter()
@@ -62,6 +77,29 @@ pub fn packet_fact(id: u64, cookie: u64, tcp_flags: u16) -> FactEnvelope {
             seq: Some(id as u32),
             ack: None,
             window: Some(65535),
+        }),
+    }
+}
+
+pub fn udp_packet_fact(id: u64, cookie: u64, tot_len: u32) -> FactEnvelope {
+    FactEnvelope {
+        id: FactId(id),
+        ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+        cpu: CpuId(0),
+        ifindex: Some(2),
+        session: SessionId(1),
+        fragment_id: "udp_packet_meta_fragment".into(),
+        kind: FactKind::PacketMeta(PacketMetaFact {
+            netns: 1,
+            sk_cookie: Some(cookie),
+            dir: PacketDir::Egress,
+            l3_proto: 0x0800,
+            l4_proto: 17,
+            tot_len,
+            tcp_flags: 0,
+            seq: None,
+            ack: None,
+            window: None,
         }),
     }
 }

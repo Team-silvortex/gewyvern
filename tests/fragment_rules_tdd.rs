@@ -110,6 +110,33 @@ fn attach_report_accepts_structured_failure_records() {
     assert_eq!(report.fragments_loaded.len(), 2);
 }
 
+#[test]
+fn attach_report_keeps_failures_that_are_outside_the_plan() {
+    let registry = builtin_registry();
+    let plan = registry
+        .plan([
+            "tcp_state_fragment",
+            "tcp_packet_meta_fragment",
+            "route_meta_fragment",
+        ])
+        .unwrap();
+
+    let report = registry.attach_report_with_failure_records(
+        &plan,
+        [AttachFailure {
+            fragment_id: "linux_tracepoint_smoke_fragment",
+            hookpoint: HookPoint::TracePoint("syscalls/definitely_missing_smoke_event"),
+            error: "mock attach failure".into(),
+        }],
+    );
+
+    assert_eq!(
+        report.hookpoints_failed,
+        vec!["linux_tracepoint_smoke_fragment@tracepoint:syscalls/definitely_missing_smoke_event".to_string()]
+    );
+    assert_eq!(report.fragments_loaded.len(), 3);
+}
+
 fn test_fragment(
     id: &'static str,
     hookpoint: HookPoint,

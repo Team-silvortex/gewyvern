@@ -28,9 +28,13 @@ The current top-level object contains:
 - `fragment_inventory`
 - `attach_plan`
 - `attach_report`
+- `attach_failure_summary`
+- `debug_summary`
 - `window_profile`
 - `reason_profile_id`
 - `facts`
+- `rejected_facts`
+- `rejected_fact_summary`
 - `flows`
 - `reasons`
 
@@ -113,6 +117,43 @@ It contains:
 `hookpoints_failed` is currently empty in the in-memory runtime, but it is part
 of the stable shape because a real loader will need it.
 
+### `attach_failure_summary`
+
+Aggregated debug view over `attach_report.hookpoints_failed`.
+
+Each item groups failures by:
+
+- `hookpoint_kind`
+
+Current kind values:
+
+- `tracepoint`
+- `kprobe`
+- `tc_ingress`
+- `tc_egress`
+- `unknown`
+
+And exports:
+
+- `count`
+
+### `debug_summary`
+
+Small operational overview intended for CLI and UI surfaces.
+
+Current exported fields:
+
+- `fragments_loaded`
+- `hookpoints_failed`
+- `accepted_facts`
+- `rejected_facts`
+- `flows`
+- `reasons`
+- `degraded`
+
+`degraded` is `true` when the session saw loader failures or runtime fact
+rejections, and `false` otherwise.
+
 ### `window_profile`
 
 Current exported fields:
@@ -138,6 +179,7 @@ String id of the active reason profile.
 Current built-in value:
 
 - `handshake_l1`
+- `udp_datagram_l1`
 
 ### `facts`
 
@@ -167,6 +209,38 @@ Current fact tags:
 - `sock_lineage`
 - `drop_action`
 - `attach_scope`
+
+### `rejected_facts`
+
+Audit list for facts that were observed by the runtime input path but rejected
+before materialization.
+
+Current exported fields:
+
+- `id`
+- `fragment_id`
+- `reason`
+
+Current reason values:
+
+- `fragment_not_loaded`
+
+### `rejected_fact_summary`
+
+Aggregated debug view over `rejected_facts`.
+
+Each item groups drops by:
+
+- `fragment_id`
+- `reason`
+
+And exports:
+
+- `count`
+
+This summary is redundant with the raw audit list, but it makes attach/debug
+triage much easier because callers can immediately see which fragment is being
+dropped most often without scanning every rejected fact.
 
 ### `flows`
 

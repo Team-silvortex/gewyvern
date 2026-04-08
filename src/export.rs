@@ -11,7 +11,10 @@ use crate::ledger::{
 use crate::reason::{
     KeyEvent, KeyEventKind, NarrLine, ReasonChain, ReasonId, ReasonL1, ReasonL3, ReasonProfile,
 };
-use crate::runtime::{RuntimeError, RuntimeSession, SessionConfig};
+use crate::runtime::{
+    summarize_rejected_facts, RejectedFact, RejectedFactReason, RuntimeError, RuntimeSession,
+    SessionConfig,
+};
 use crate::template::{Template, WindowProfile};
 use std::collections::BTreeMap;
 
@@ -27,11 +30,39 @@ pub struct ExportBundle {
     pub fragment_inventory: Vec<FragmentInventoryItem>,
     pub attach_plan: AttachPlan,
     pub attach_report: AttachReport,
+    pub attach_failure_summary: Vec<AttachFailureSummaryItem>,
+    pub debug_summary: DebugSummary,
     pub window_profile: WindowProfile,
     pub reason_profile_id: String,
     pub facts: Vec<FactEnvelope>,
+    pub rejected_facts: Vec<RejectedFact>,
+    pub rejected_fact_summary: Vec<RejectedFactSummaryItem>,
     pub flows: Vec<FlowSnapshot>,
     pub reasons: Vec<ReasonChain>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttachFailureSummaryItem {
+    pub hookpoint_kind: String,
+    pub count: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DebugSummary {
+    pub fragments_loaded: u64,
+    pub hookpoints_failed: u64,
+    pub accepted_facts: u64,
+    pub rejected_facts: u64,
+    pub flows: u64,
+    pub reasons: u64,
+    pub degraded: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RejectedFactSummaryItem {
+    pub fragment_id: String,
+    pub reason: String,
+    pub count: u64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -63,7 +94,12 @@ impl ExportBundle {
         for fact in &self.facts {
             session.ingest(fact.clone());
         }
-        Ok(session.export_bundle())
+        session.seed_rejected_facts(self.rejected_facts.clone());
+        let mut replay = session.export_bundle();
+        replay.attach_failure_summary = self.attach_failure_summary.clone();
+        replay.debug_summary = self.debug_summary.clone();
+        replay.rejected_fact_summary = summarize_rejected_facts(&replay.rejected_facts);
+        Ok(replay)
     }
 
     pub fn to_json(&self) -> String {
@@ -86,6 +122,16 @@ impl ExportBundle {
             ("attach_plan".into(), attach_plan_json(&self.attach_plan)),
             ("attach_report".into(), attach_report_json(&self.attach_report)),
             (
+                "attach_failure_summary".into(),
+                JsonValue::Array(
+                    self.attach_failure_summary
+                        .iter()
+                        .map(attach_failure_summary_json)
+                        .collect(),
+                ),
+            ),
+            ("debug_summary".into(), debug_summary_json(&self.debug_summary)),
+            (
                 "window_profile".into(),
                 JsonValue::Object(BTreeMap::from([
                     ("id".into(), JsonValue::String(self.window_profile.id.into())),
@@ -106,6 +152,19 @@ impl ExportBundle {
             (
                 "facts".into(),
                 JsonValue::Array(self.facts.iter().map(fact_json).collect()),
+            ),
+            (
+                "rejected_facts".into(),
+                JsonValue::Array(self.rejected_facts.iter().map(rejected_fact_json).collect()),
+            ),
+            (
+                "rejected_fact_summary".into(),
+                JsonValue::Array(
+                    self.rejected_fact_summary
+                        .iter()
+                        .map(rejected_fact_summary_json)
+                        .collect(),
+                ),
             ),
             (
                 "flows".into(),
@@ -144,6 +203,17 @@ impl ExportBundle {
                 root.get("attach_report")
                     .ok_or_else(|| ExportError::InvalidShape("missing attach_report".into()))?,
             )?,
+            attach_failure_summary: root
+                .get("attach_failure_summary")
+                .ok_or_else(|| ExportError::InvalidShape("missing attach_failure_summary".into()))?
+                .as_array()?
+                .iter()
+                .map(parse_attach_failure_summary)
+                .collect::<Result<Vec<_>, _>>()?,
+            debug_summary: parse_debug_summary(
+                root.get("debug_summary")
+                    .ok_or_else(|| ExportError::InvalidShape("missing debug_summary".into()))?,
+            )?,
             window_profile: parse_window_profile(
                 root.get("window_profile")
                     .ok_or_else(|| ExportError::InvalidShape("missing window_profile".into()))?,
@@ -159,6 +229,20 @@ impl ExportBundle {
                 .as_array()?
                 .iter()
                 .map(parse_fact)
+                .collect::<Result<Vec<_>, _>>()?,
+            rejected_facts: root
+                .get("rejected_facts")
+                .ok_or_else(|| ExportError::InvalidShape("missing rejected_facts".into()))?
+                .as_array()?
+                .iter()
+                .map(parse_rejected_fact)
+                .collect::<Result<Vec<_>, _>>()?,
+            rejected_fact_summary: root
+                .get("rejected_fact_summary")
+                .ok_or_else(|| ExportError::InvalidShape("missing rejected_fact_summary".into()))?
+                .as_array()?
+                .iter()
+                .map(parse_rejected_fact_summary)
                 .collect::<Result<Vec<_>, _>>()?,
             flows: root
                 .get("flows")
@@ -637,6 +721,40 @@ fn attach_report_json(report: &AttachReport) -> JsonValue {
     ]))
 }
 
+fn attach_failure_summary_json(summary: &AttachFailureSummaryItem) -> JsonValue {
+    JsonValue::Object(BTreeMap::from([
+        (
+            "hookpoint_kind".into(),
+            JsonValue::String(summary.hookpoint_kind.clone()),
+        ),
+        ("count".into(), JsonValue::Number(summary.count as i64)),
+    ]))
+}
+
+fn debug_summary_json(summary: &DebugSummary) -> JsonValue {
+    JsonValue::Object(BTreeMap::from([
+        (
+            "fragments_loaded".into(),
+            JsonValue::Number(summary.fragments_loaded as i64),
+        ),
+        (
+            "hookpoints_failed".into(),
+            JsonValue::Number(summary.hookpoints_failed as i64),
+        ),
+        (
+            "accepted_facts".into(),
+            JsonValue::Number(summary.accepted_facts as i64),
+        ),
+        (
+            "rejected_facts".into(),
+            JsonValue::Number(summary.rejected_facts as i64),
+        ),
+        ("flows".into(), JsonValue::Number(summary.flows as i64)),
+        ("reasons".into(), JsonValue::Number(summary.reasons as i64)),
+        ("degraded".into(), JsonValue::Bool(summary.degraded)),
+    ]))
+}
+
 fn coverage_json(coverage: &CoverageReport) -> JsonValue {
     JsonValue::Object(BTreeMap::from([
         (
@@ -770,6 +888,31 @@ fn fact_json(fact: &FactEnvelope) -> JsonValue {
     ]))
 }
 
+fn rejected_fact_json(rejected: &RejectedFact) -> JsonValue {
+    JsonValue::Object(BTreeMap::from([
+        ("id".into(), JsonValue::Number(rejected.id.0 as i64)),
+        (
+            "fragment_id".into(),
+            JsonValue::String(rejected.fragment_id.clone()),
+        ),
+        (
+            "reason".into(),
+            JsonValue::String(rejected.reason.label().into()),
+        ),
+    ]))
+}
+
+fn rejected_fact_summary_json(summary: &RejectedFactSummaryItem) -> JsonValue {
+    JsonValue::Object(BTreeMap::from([
+        (
+            "fragment_id".into(),
+            JsonValue::String(summary.fragment_id.clone()),
+        ),
+        ("reason".into(), JsonValue::String(summary.reason.clone())),
+        ("count".into(), JsonValue::Number(summary.count as i64)),
+    ]))
+}
+
 fn flow_json(flow: &FlowSnapshot) -> JsonValue {
     JsonValue::Object(BTreeMap::from([
         ("id".into(), JsonValue::Number(flow.id.0 as i64)),
@@ -888,6 +1031,7 @@ fn reason_json(reason: &ReasonChain) -> JsonValue {
                                         "kind".into(),
                                         JsonValue::String(match &event.kind {
                                             KeyEventKind::SynSeen => "syn_seen",
+                                            KeyEventKind::UdpDatagramSeen => "udp_datagram_seen",
                                             KeyEventKind::RetransSuspected => "retrans_suspected",
                                             KeyEventKind::RouteChanged => "route_changed",
                                             KeyEventKind::FinOrRst => "fin_or_rst",
@@ -1625,6 +1769,7 @@ fn parse_key_event(value: &JsonValue) -> Result<KeyEvent, ExportError> {
         .as_str()?
     {
         "syn_seen" => KeyEventKind::SynSeen,
+        "udp_datagram_seen" => KeyEventKind::UdpDatagramSeen,
         "retrans_suspected" => KeyEventKind::RetransSuspected,
         "route_changed" => KeyEventKind::RouteChanged,
         "fin_or_rst" => KeyEventKind::FinOrRst,
@@ -1648,6 +1793,106 @@ fn parse_key_event(value: &JsonValue) -> Result<KeyEvent, ExportError> {
                 .as_i64()? as u64,
         ),
         kind,
+    })
+}
+
+fn parse_rejected_fact(value: &JsonValue) -> Result<RejectedFact, ExportError> {
+    let object = value.as_object()?;
+    let reason = match object
+        .get("reason")
+        .ok_or_else(|| ExportError::InvalidShape("rejected_fact.reason".into()))?
+        .as_str()?
+    {
+        "fragment_not_loaded" => RejectedFactReason::FragmentNotLoaded,
+        other => {
+            return Err(ExportError::InvalidValue(format!(
+                "unknown rejected fact reason: {other}"
+            )))
+        }
+    };
+
+    Ok(RejectedFact {
+        id: FactId(
+            object
+                .get("id")
+                .ok_or_else(|| ExportError::InvalidShape("rejected_fact.id".into()))?
+                .as_i64()? as u64,
+        ),
+        fragment_id: object
+            .get("fragment_id")
+            .ok_or_else(|| ExportError::InvalidShape("rejected_fact.fragment_id".into()))?
+            .as_str()?
+            .to_string(),
+        reason,
+    })
+}
+
+fn parse_rejected_fact_summary(value: &JsonValue) -> Result<RejectedFactSummaryItem, ExportError> {
+    let object = value.as_object()?;
+    Ok(RejectedFactSummaryItem {
+        fragment_id: object
+            .get("fragment_id")
+            .ok_or_else(|| ExportError::InvalidShape("rejected_fact_summary.fragment_id".into()))?
+            .as_str()?
+            .to_string(),
+        reason: object
+            .get("reason")
+            .ok_or_else(|| ExportError::InvalidShape("rejected_fact_summary.reason".into()))?
+            .as_str()?
+            .to_string(),
+        count: object
+            .get("count")
+            .ok_or_else(|| ExportError::InvalidShape("rejected_fact_summary.count".into()))?
+            .as_i64()? as u64,
+    })
+}
+
+fn parse_attach_failure_summary(value: &JsonValue) -> Result<AttachFailureSummaryItem, ExportError> {
+    let object = value.as_object()?;
+    Ok(AttachFailureSummaryItem {
+        hookpoint_kind: object
+            .get("hookpoint_kind")
+            .ok_or_else(|| ExportError::InvalidShape("attach_failure_summary.hookpoint_kind".into()))?
+            .as_str()?
+            .to_string(),
+        count: object
+            .get("count")
+            .ok_or_else(|| ExportError::InvalidShape("attach_failure_summary.count".into()))?
+            .as_i64()? as u64,
+    })
+}
+
+fn parse_debug_summary(value: &JsonValue) -> Result<DebugSummary, ExportError> {
+    let object = value.as_object()?;
+    Ok(DebugSummary {
+        fragments_loaded: object
+            .get("fragments_loaded")
+            .ok_or_else(|| ExportError::InvalidShape("debug_summary.fragments_loaded".into()))?
+            .as_i64()? as u64,
+        hookpoints_failed: object
+            .get("hookpoints_failed")
+            .ok_or_else(|| ExportError::InvalidShape("debug_summary.hookpoints_failed".into()))?
+            .as_i64()? as u64,
+        accepted_facts: object
+            .get("accepted_facts")
+            .ok_or_else(|| ExportError::InvalidShape("debug_summary.accepted_facts".into()))?
+            .as_i64()? as u64,
+        rejected_facts: object
+            .get("rejected_facts")
+            .ok_or_else(|| ExportError::InvalidShape("debug_summary.rejected_facts".into()))?
+            .as_i64()? as u64,
+        flows: object
+            .get("flows")
+            .ok_or_else(|| ExportError::InvalidShape("debug_summary.flows".into()))?
+            .as_i64()? as u64,
+        reasons: object
+            .get("reasons")
+            .ok_or_else(|| ExportError::InvalidShape("debug_summary.reasons".into()))?
+            .as_i64()? as u64,
+        degraded: object
+            .get("degraded")
+            .ok_or_else(|| ExportError::InvalidShape("debug_summary.degraded".into()))?
+            .as_bool()?,
     })
 }
 

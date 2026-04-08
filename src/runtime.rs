@@ -3,9 +3,13 @@ use crate::flow::{
     EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView,
 };
 use crate::fragment::{
-    builtin_registry, AttachFailure, AttachPlan, AttachReport, FragmentRegistry, RegistryError,
+    builtin_registry, summarize_attach_failures, AttachFailure, AttachPlan, AttachReport,
+    FragmentRegistry, RegistryError,
 };
 use crate::ledger::{FactEnvelope, FactId, FactKind};
+use crate::loader::{
+    LinuxProbeLoader, Loader, LoaderError,
+};
 use crate::reason::{build_reason_chains, ReasonChain, ReasonProfile};
 use crate::template::{Template, TemplateError, WindowProfile};
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,6 +30,7 @@ pub struct RuntimeSession {
     attach_plan: AttachPlan,
     attach_report: AttachReport,
     facts: Vec<FactEnvelope>,
+    rejected_facts: Vec<RejectedFact>,
     window_end: Option<SystemTime>,
     frozen_at: Option<SystemTime>,
 }
@@ -34,6 +39,46 @@ pub struct RuntimeSession {
 pub enum RuntimeError {
     InvalidTemplate(TemplateError),
     Registry(RegistryError),
+    Loader(LoaderError),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RejectedFact {
+    pub id: FactId,
+    pub fragment_id: String,
+    pub reason: RejectedFactReason,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RejectedFactReason {
+    FragmentNotLoaded,
+}
+
+impl RejectedFactReason {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::FragmentNotLoaded => "fragment_not_loaded",
+        }
+    }
+}
+
+pub fn summarize_rejected_facts(rejected_facts: &[RejectedFact]) -> Vec<crate::export::RejectedFactSummaryItem> {
+    let mut counts = BTreeMap::<(String, &'static str), u64>::new();
+
+    for rejected in rejected_facts {
+        *counts
+            .entry((rejected.fragment_id.clone(), rejected.reason.label()))
+            .or_default() += 1;
+    }
+
+    counts
+        .into_iter()
+        .map(|((fragment_id, reason), count)| crate::export::RejectedFactSummaryItem {
+            fragment_id,
+            reason: reason.into(),
+            count,
+        })
+        .collect()
 }
 
 #[derive(Default)]
@@ -62,6 +107,37 @@ impl SessionConfig {
 }
 
 impl RuntimeSession {
+    pub fn start_with_loader<L: Loader>(
+        config: SessionConfig,
+        loader: &L,
+    ) -> Result<Self, RuntimeError> {
+        let attach_plan = config
+            .registry
+            .plan(config.template.fragment_set.iter().copied())
+            .map_err(RuntimeError::Registry)?;
+
+        let mut config = config;
+        config.attach_failures = loader
+            .collect_failures(&attach_plan)
+            .map_err(RuntimeError::Loader)?;
+        Self::start(config)
+    }
+
+    pub fn start_with_linux_kernel_probes(config: SessionConfig) -> Result<Self, RuntimeError> {
+        Self::start_with_loader(config, &LinuxProbeLoader::kernel())
+    }
+
+    pub fn start_with_linux_tracepoint_probes(config: SessionConfig) -> Result<Self, RuntimeError> {
+        Self::start_with_loader(config, &LinuxProbeLoader::tracepoints_only())
+    }
+
+    pub fn start_with_linux_tracepoint_smoke(
+        config: SessionConfig,
+        hookpoint_name: &'static str,
+    ) -> Result<Self, RuntimeError> {
+        Self::start_with_loader(config, &LinuxProbeLoader::single_tracepoint_smoke(hookpoint_name))
+    }
+
     pub fn start(config: SessionConfig) -> Result<Self, RuntimeError> {
         let window_profile = config
             .template
@@ -88,12 +164,26 @@ impl RuntimeSession {
             attach_plan,
             attach_report,
             facts: Vec::new(),
+            rejected_facts: Vec::new(),
             window_end: None,
             frozen_at: None,
         })
     }
 
     pub fn ingest(&mut self, fact: FactEnvelope) {
+        if !self
+            .attach_report
+            .fragments_loaded
+            .iter()
+            .any(|fragment_id| fragment_id == &fact.fragment_id)
+        {
+            self.rejected_facts.push(RejectedFact {
+                id: fact.id,
+                fragment_id: fact.fragment_id,
+                reason: RejectedFactReason::FragmentNotLoaded,
+            });
+            return;
+        }
         if self
             .frozen_at
             .is_some_and(|freeze_at| fact.ts > freeze_at)
@@ -126,6 +216,12 @@ impl RuntimeSession {
     }
 
     pub fn export_bundle(&self) -> ExportBundle {
+        let facts = self.materialized_facts();
+        let flows = build_flow_snapshots(&facts);
+        let reasons = build_reason_chains(&self.reason_profile, &flows, &facts);
+        let attach_failure_summary = summarize_attach_failures(&self.attach_report);
+        let rejected_fact_summary = summarize_rejected_facts(&self.rejected_facts);
+
         ExportBundle {
             template_id: self.template.id.into(),
             fragment_inventory: self
@@ -139,12 +235,29 @@ impl RuntimeSession {
                 .collect(),
             attach_plan: self.attach_plan.clone(),
             attach_report: self.attach_report.clone(),
+            attach_failure_summary,
+            debug_summary: crate::export::DebugSummary {
+                fragments_loaded: self.attach_report.fragments_loaded.len() as u64,
+                hookpoints_failed: self.attach_report.hookpoints_failed.len() as u64,
+                accepted_facts: facts.len() as u64,
+                rejected_facts: self.rejected_facts.len() as u64,
+                flows: flows.len() as u64,
+                reasons: reasons.len() as u64,
+                degraded: !self.attach_report.hookpoints_failed.is_empty()
+                    || !self.rejected_facts.is_empty(),
+            },
             window_profile: self.window_profile.clone(),
             reason_profile_id: self.reason_profile.id().into(),
-            facts: self.materialized_facts(),
-            flows: self.flow_snapshots(),
-            reasons: self.reasons(),
+            facts,
+            rejected_facts: self.rejected_facts.clone(),
+            rejected_fact_summary,
+            flows,
+            reasons,
         }
+    }
+
+    pub fn seed_rejected_facts(&mut self, rejected_facts: Vec<RejectedFact>) {
+        self.rejected_facts = rejected_facts;
     }
 
     fn materialized_facts(&self) -> Vec<FactEnvelope> {

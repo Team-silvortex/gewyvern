@@ -1,4 +1,4 @@
-use crate::reason::{ReasonProfile, ReasonProfile::HandshakeL1};
+use crate::reason::{ReasonProfile, ReasonProfile::{HandshakeL1, UdpDatagramL1}};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowProfile {
@@ -55,5 +55,17 @@ pub fn handshake_debug_template() -> Template {
         ],
         window_profile: Some(default_5s_window()),
         reason_profile: Some(HandshakeL1),
+    }
+}
+
+pub fn udp_debug_template() -> Template {
+    Template {
+        id: "udp_debug",
+        fragment_set: vec![
+            "udp_packet_meta_fragment",
+            "route_meta_fragment",
+        ],
+        window_profile: Some(default_5s_window()),
+        reason_profile: Some(UdpDatagramL1),
     }
 }
