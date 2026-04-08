@@ -23,6 +23,19 @@
 - `tests/runtime_tdd.rs`：场景/验收规格
 - `tests/template_rules_tdd.rs` 与 `tests/fragment_rules_tdd.rs`：规则规格
 
+## Socket Input
+
+现在可以通过 Unix socket 向 runtime 发送 JSON Lines 形式的 fact：
+
+- server:
+  `cargo run -- --unix-socket /tmp/gewyvern.sock --template udp --json`
+- sender:
+  `cargo run --bin gewyvern_socket_send -- --socket /tmp/gewyvern.sock --template udp`
+
+也可以直接跑一键 roundtrip demo：
+
+- `bash scripts/socket_roundtrip_demo.sh /tmp/gewyvern.sock udp /tmp/gewyvern-out.json`
+
 Status: Draft (0.04)
 Scope: TCP + UDP session debugging（仍不改变 debugger 本质）
 Nature: Single-host / CLI-first / window-bounded session runtime
