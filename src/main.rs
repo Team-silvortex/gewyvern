@@ -4,6 +4,7 @@ use gewyvern::ledger::{
     TcpStateFact,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
+use gewyvern::socket_input::run_unix_socket_session;
 use gewyvern::template::{handshake_debug_template, udp_debug_template};
 use std::env;
 use std::fs;
@@ -17,85 +18,94 @@ fn main() {
     let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_000);
     let mut outputs = Vec::new();
 
-    if cli.demo_mode.includes_tcp() {
-        let tcp_export = run_session(
-            handshake_debug_template(),
-            vec![
-                FactEnvelope {
-                    id: FactId(1),
-                    ts: base,
-                    cpu: CpuId(0),
-                    ifindex: Some(2),
-                    session: SessionId(1),
-                    fragment_id: "tcp_state_fragment".into(),
-                    kind: FactKind::TcpState(TcpStateFact {
-                        netns: 1,
-                        sk_cookie: 42,
-                        saddr: [0; 16],
-                        daddr: [0; 16],
-                        sport: 42310,
-                        dport: 443,
-                        family: 2,
-                        old: 1,
-                        new: 2,
-                    }),
-                },
-                FactEnvelope {
-                    id: FactId(2),
-                    ts: base + Duration::from_millis(10),
-                    cpu: CpuId(0),
-                    ifindex: Some(2),
-                    session: SessionId(1),
-                    fragment_id: "tcp_packet_meta_fragment".into(),
-                    kind: FactKind::PacketMeta(PacketMetaFact {
-                        netns: 1,
-                        sk_cookie: Some(42),
-                        dir: PacketDir::Egress,
-                        l3_proto: 0x0800,
-                        l4_proto: 6,
-                        tot_len: 60,
-                        tcp_flags: 0x02,
-                        seq: Some(1),
-                        ack: None,
-                        window: Some(65535),
-                    }),
-                },
-                route_fact(3, base + Duration::from_millis(20), 42, 2, SessionId(1)),
-            ],
-        );
+    if let Some(socket_path) = cli.unix_socket_path.as_deref() {
+        let template = cli.template_mode.template();
+        let export = run_unix_socket_session(socket_path, template).unwrap_or_else(|err| {
+            eprintln!("socket session failed: {err:?}");
+            std::process::exit(1);
+        });
+        outputs.push(("socket_session", export));
+    } else {
+        if cli.demo_mode.includes_tcp() {
+            let tcp_export = run_session(
+                handshake_debug_template(),
+                vec![
+                    FactEnvelope {
+                        id: FactId(1),
+                        ts: base,
+                        cpu: CpuId(0),
+                        ifindex: Some(2),
+                        session: SessionId(1),
+                        fragment_id: "tcp_state_fragment".into(),
+                        kind: FactKind::TcpState(TcpStateFact {
+                            netns: 1,
+                            sk_cookie: 42,
+                            saddr: [0; 16],
+                            daddr: [0; 16],
+                            sport: 42310,
+                            dport: 443,
+                            family: 2,
+                            old: 1,
+                            new: 2,
+                        }),
+                    },
+                    FactEnvelope {
+                        id: FactId(2),
+                        ts: base + Duration::from_millis(10),
+                        cpu: CpuId(0),
+                        ifindex: Some(2),
+                        session: SessionId(1),
+                        fragment_id: "tcp_packet_meta_fragment".into(),
+                        kind: FactKind::PacketMeta(PacketMetaFact {
+                            netns: 1,
+                            sk_cookie: Some(42),
+                            dir: PacketDir::Egress,
+                            l3_proto: 0x0800,
+                            l4_proto: 6,
+                            tot_len: 60,
+                            tcp_flags: 0x02,
+                            seq: Some(1),
+                            ack: None,
+                            window: Some(65535),
+                        }),
+                    },
+                    route_fact(3, base + Duration::from_millis(20), 42, 2, SessionId(1)),
+                ],
+            );
 
-        outputs.push(("tcp_demo", tcp_export));
-    }
+            outputs.push(("tcp_demo", tcp_export));
+        }
 
-    if cli.demo_mode.includes_udp() {
-        let udp_export = run_session(
-            udp_debug_template(),
-            vec![
-                FactEnvelope {
-                    id: FactId(1),
-                    ts: base,
-                    cpu: CpuId(0),
-                    ifindex: Some(3),
-                    session: SessionId(2),
-                    fragment_id: "udp_packet_meta_fragment".into(),
-                    kind: FactKind::PacketMeta(PacketMetaFact {
-                        netns: 1,
-                        sk_cookie: Some(99),
-                        dir: PacketDir::Egress,
-                        l3_proto: 0x0800,
-                        l4_proto: 17,
-                        tot_len: 72,
-                        tcp_flags: 0,
-                        seq: None,
-                        ack: None,
-                        window: None,
-                    }),
-                },
-                route_fact(2, base + Duration::from_millis(10), 99, 3, SessionId(2)),
-            ],
-        );
+        if cli.demo_mode.includes_udp() {
+            let udp_export = run_session(
+                udp_debug_template(),
+                vec![
+                    FactEnvelope {
+                        id: FactId(1),
+                        ts: base,
+                        cpu: CpuId(0),
+                        ifindex: Some(3),
+                        session: SessionId(2),
+                        fragment_id: "udp_packet_meta_fragment".into(),
+                        kind: FactKind::PacketMeta(PacketMetaFact {
+                            netns: 1,
+                            sk_cookie: Some(99),
+                            dir: PacketDir::Egress,
+                            l3_proto: 0x0800,
+                            l4_proto: 17,
+                            tot_len: 72,
+                            tcp_flags: 0,
+                            seq: None,
+                            ack: None,
+                            window: None,
+                        }),
+                    },
+                    route_fact(2, base + Duration::from_millis(10), 99, 3, SessionId(2)),
+                ],
+            );
 
-        outputs.push(("udp_demo", udp_export));
+            outputs.push(("udp_demo", udp_export));
+        }
     }
 
     let rendered = if cli.json {
@@ -131,9 +141,11 @@ fn main() {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Cli {
     demo_mode: DemoMode,
+    template_mode: TemplateMode,
     json: bool,
     summary_only: bool,
     out_path: Option<String>,
+    unix_socket_path: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -141,6 +153,12 @@ enum DemoMode {
     Tcp,
     Udp,
     Both,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TemplateMode {
+    Tcp,
+    Udp,
 }
 
 impl DemoMode {
@@ -165,15 +183,36 @@ impl DemoMode {
     }
 }
 
+impl TemplateMode {
+    fn from_str(value: &str) -> Result<Self, String> {
+        match value {
+            "tcp" => Ok(Self::Tcp),
+            "udp" => Ok(Self::Udp),
+            other => Err(format!(
+                "unsupported template '{other}', expected tcp or udp"
+            )),
+        }
+    }
+
+    fn template(self) -> gewyvern::template::Template {
+        match self {
+            Self::Tcp => handshake_debug_template(),
+            Self::Udp => udp_debug_template(),
+        }
+    }
+}
+
 impl Cli {
     fn from_args<I>(args: I) -> Result<Self, String>
     where
         I: IntoIterator<Item = String>,
     {
         let mut demo_mode = DemoMode::Both;
+        let mut template_mode = TemplateMode::Tcp;
         let mut json = false;
         let mut summary_only = false;
         let mut out_path = None;
+        let mut unix_socket_path = None;
         let mut args = args.into_iter();
 
         while let Some(arg) = args.next() {
@@ -186,6 +225,17 @@ impl Cli {
                 }
                 "--json" => json = true,
                 "--summary-only" => summary_only = true,
+                "--template" => {
+                    let value = args.next().ok_or_else(|| {
+                        "missing value for --template, expected tcp or udp".to_string()
+                    })?;
+                    template_mode = TemplateMode::from_str(&value)?;
+                }
+                "--unix-socket" => {
+                    unix_socket_path = Some(args.next().ok_or_else(|| {
+                        "missing value for --unix-socket, expected a filesystem path".to_string()
+                    })?);
+                }
                 "--out" => {
                     out_path = Some(args.next().ok_or_else(|| {
                         "missing value for --out, expected a writable file path".to_string()
@@ -199,12 +249,17 @@ impl Cli {
         if summary_only && !json {
             return Err("--summary-only requires --json".into());
         }
+        if unix_socket_path.is_some() && demo_mode != DemoMode::Both {
+            return Err("--demo cannot be combined with --unix-socket".into());
+        }
 
         Ok(Self {
             demo_mode,
+            template_mode,
             json,
             summary_only,
             out_path,
+            unix_socket_path,
         })
     }
 }
@@ -269,7 +324,7 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: gewyvern [--demo tcp|udp|both] [--json] [--summary-only] [--out path]"
+    "usage: gewyvern [--demo tcp|udp|both] [--template tcp|udp] [--unix-socket path] [--json] [--summary-only] [--out path]"
 }
 
 fn summary_json(name: &str, export: &ExportBundle) -> String {

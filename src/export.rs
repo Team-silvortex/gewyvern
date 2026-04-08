@@ -262,6 +262,15 @@ impl ExportBundle {
     }
 }
 
+pub fn fact_to_json(fact: &FactEnvelope) -> String {
+    fact_json(fact).render()
+}
+
+pub fn fact_from_json(input: &str) -> Result<FactEnvelope, ExportError> {
+    let value = JsonParser::new(input).parse()?;
+    parse_fact(&value)
+}
+
 #[derive(Clone, Debug, PartialEq)]
 enum JsonValue {
     Null,

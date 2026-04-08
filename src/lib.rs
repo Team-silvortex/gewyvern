@@ -6,4 +6,5 @@ pub mod ledger;
 pub mod loader;
 pub mod reason;
 pub mod runtime;
+pub mod socket_input;
 pub mod template;
