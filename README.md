@@ -5,6 +5,23 @@
 - [Project Overview](docs/overview.md)
 - [Runtime Architecture](docs/architecture.md)
 - [Development Guide](docs/development.md)
+- [Headless Linux Guide](docs/headless-linux.md)
+
+## TDD First
+
+这个仓库现在以 TDD 方式推进。
+
+默认开发入口：
+
+- `cargo tdd`：先跑主行为规格
+- `cargo tdd-one <test_name>`：只迭代一个场景
+- `cargo tdd-rules`：跑规则规格
+- `cargo test`：收口前跑全量
+
+当前规格分为两层：
+
+- `tests/runtime_tdd.rs`：场景/验收规格
+- `tests/template_rules_tdd.rs` 与 `tests/fragment_rules_tdd.rs`：规则规格
 
 Status: Draft (0.04)
 Scope: TCP-only（协议扩展允许，但不改变 debugger 本质）
@@ -364,8 +381,8 @@ IR 与 DSL 只是降低扩展成本，而不是扩展解释权。
 
 当前测试分层：
 
-- `src/template.rs`：模板约束测试
-- `src/fragment.rs`：fragment registry / attach planner 规则测试
+- `tests/template_rules_tdd.rs`：模板约束测试
+- `tests/fragment_rules_tdd.rs`：fragment registry / attach planner 规则测试
 - `tests/runtime_tdd.rs`：面向 T1 场景的端到端行为测试
 
 当前 T1 行为规格覆盖：
@@ -373,5 +390,6 @@ IR 与 DSL 只是降低扩展成本，而不是扩展解释权。
 - 正常握手可导出 `attach_plan` 与 `fragment_inventory`
 - `SYN-ACK` 缺失时，L1 replay 仍然一致
 - route fingerprint 变化时，flow 必须切分
+- freeze cutoff 之外的事实不能进入 export / replay
 
 后续每增加一个 fragment、reason 规则、export 字段，都先补测试，再改实现。

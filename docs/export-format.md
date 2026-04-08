@@ -143,6 +143,10 @@ Current built-in value:
 
 Physical fact envelopes in session order.
 
+When a session has been frozen, only facts inside the active window
+(`window end - duration_ms` through `window end`) plus the late-arrival cutoff
+(`window end + lateness_ms`) are exported.
+
 Each fact includes:
 
 - `id`

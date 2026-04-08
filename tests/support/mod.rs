@@ -9,10 +9,15 @@ use std::time::{Duration, SystemTime};
 pub fn run_handshake_session(facts: Vec<FactEnvelope>) -> gewyvern::export::ExportBundle {
     let config = SessionConfig::for_template(handshake_debug_template()).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
+    let window_end = facts
+        .iter()
+        .map(|fact| fact.ts)
+        .max()
+        .unwrap_or(SystemTime::UNIX_EPOCH);
     for fact in facts {
         session.ingest(fact);
     }
-    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_secs(32));
+    session.freeze(window_end);
     session.export_bundle()
 }
 

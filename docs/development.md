@@ -8,6 +8,7 @@ Recommended reading before changing code:
 - `docs/architecture.md`
 - `docs/fragments.md`
 - `docs/export-format.md`
+- `docs/headless-linux.md` when the change touches real eBPF attach/runtime work
 
 Run the demo binary:
 
@@ -21,15 +22,33 @@ Run the full test suite:
 cargo test
 ```
 
+Run the primary TDD acceptance loop:
+
+```bash
+cargo tdd
+```
+
+Run a single scenario while iterating:
+
+```bash
+cargo tdd-one freeze_excludes_facts_beyond_lateness_cutoff
+```
+
 ## TDD Workflow
 
-This project now follows a test-driven workflow.
+This project should be worked in a test-driven way by default.
 
 Every change should follow this order:
 
 1. write a failing test for the new behavior or regression
 2. implement the minimum code needed to make it pass
 3. refactor only after the test is green
+
+In practice, that means:
+
+1. if the change is behavioral, start in `tests/runtime_tdd.rs`
+2. if the change is a local invariant, start next to the source module
+3. keep `cargo tdd` green before expanding scope
 
 ## Test Layout
 
@@ -48,9 +67,14 @@ These tests protect invariants such as:
 
 ### Scenario tests
 
-Behavioral runtime scenarios live in:
+Behavioral runtime scenarios live in the main acceptance spec:
 
 - `tests/runtime_tdd.rs`
+
+Rule-level invariants live in dedicated rule specs:
+
+- `tests/template_rules_tdd.rs`
+- `tests/fragment_rules_tdd.rs`
 
 Shared fixtures live in:
 
@@ -62,14 +86,15 @@ These tests describe the current T1 acceptance behaviors:
 - export contains `fragment_inventory`
 - missing SYN-ACK remains replay-stable
 - route fingerprint change rotates into a new flow
+- facts beyond freeze cutoff are excluded from export and replay
 
 ## How To Extend The Runtime
 
 ### Add a new fragment
 
 1. add a new `FragmentDescriptor` to `builtin_registry()`
-2. add rule tests for conflicts and coverage if needed
-3. add a scenario test that proves the fragment's runtime effect
+2. add or extend a failing scenario in `tests/runtime_tdd.rs`
+3. add rule tests for conflicts and coverage if needed
 4. only then update runtime behavior
 
 ### Add a new reason rule
@@ -98,3 +123,15 @@ After behavior changes, update the matching document:
 
 If a code change does not come with a new or updated test, it is probably too
 implicit for this project.
+
+## Default Commands
+
+- `cargo tdd`: run the acceptance behavior suite first
+- `cargo tdd-one <name>`: iterate on one named acceptance test
+- `cargo tdd-rules`: run rule/invariant specs
+- `cargo test`: run the full suite before finishing
+
+## Linux Bring-Up
+
+When work crosses from runtime skeleton into real eBPF attach behavior, switch
+to the headless Linux flow documented in `docs/headless-linux.md`.

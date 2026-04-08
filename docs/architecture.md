@@ -68,6 +68,10 @@ consistency.
 - freeze timestamp
 
 The session is window-bounded and can be exported after freeze.
+After `freeze(end)`, the materialized session is bounded to the active window
+`[end - duration_ms, end]` plus the allowed late-arrival tail `lateness_ms`.
+Facts outside that range are excluded from export, flow snapshots, and reason
+chains.
 
 ### Flow Snapshots
 

@@ -1,0 +1,18 @@
+services:
+  ebpf-dev:
+    build:
+      context: .
+      dockerfile: docker/linux-dev/Dockerfile
+    container_name: gewyvern-ebpf-dev
+    working_dir: /workspace
+    command: ["sleep", "infinity"]
+    privileged: true
+    pid: "host"
+    cgroup: "host"
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/workspace
+      - /sys/fs/bpf:/sys/fs/bpf
+      - /sys/kernel/debug:/sys/kernel/debug
+      - /lib/modules:/lib/modules:ro

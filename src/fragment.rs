@@ -73,6 +73,19 @@ pub struct HookBinding {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttachFailure {
+    pub fragment_id: &'static str,
+    pub hookpoint: HookPoint,
+    pub error: String,
+}
+
+impl AttachFailure {
+    pub fn label(&self) -> String {
+        format!("{}@{}", self.fragment_id, self.hookpoint.label())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FactBinding {
     pub fragment_id: &'static str,
     pub emits: Vec<FactKindTag>,
@@ -226,21 +239,60 @@ impl FragmentRegistry {
     }
 
     pub fn attach_report(&self, plan: &AttachPlan) -> AttachReport {
+        self.attach_report_with_failures(plan, std::iter::empty::<String>())
+    }
+
+    pub fn attach_report_with_failure_records<I>(
+        &self,
+        plan: &AttachPlan,
+        failures: I,
+    ) -> AttachReport
+    where
+        I: IntoIterator<Item = AttachFailure>,
+    {
+        self.attach_report_with_failures(plan, failures.into_iter().map(|failure| failure.label()))
+    }
+
+    pub fn attach_report_with_failures<I>(
+        &self,
+        plan: &AttachPlan,
+        failed_hookpoints: I,
+    ) -> AttachReport
+    where
+        I: IntoIterator<Item = String>,
+    {
+        let failed: BTreeSet<_> = failed_hookpoints.into_iter().collect();
+        let mut attached = Vec::new();
+        let mut failed_report = Vec::new();
+        let mut loaded_fragments = BTreeSet::new();
+
+        for binding in &plan.hook_graph {
+            let label = format!("{}@{}", binding.fragment_id, binding.hookpoint.label());
+            if failed.contains(&label) {
+                failed_report.push(label);
+            } else {
+                loaded_fragments.insert(binding.fragment_id);
+                attached.push(label);
+            }
+        }
+
         let maps = plan
             .fragments
             .iter()
+            .filter(|fragment| loaded_fragments.contains(fragment.id))
             .flat_map(|fragment| fragment.maps.iter())
             .filter(|spec| spec.kind == MapKind::RingBuf)
             .collect::<Vec<_>>();
 
         AttachReport {
-            fragments_loaded: plan.fragments.iter().map(|fragment| fragment.id.into()).collect(),
-            hookpoints_attached: plan
-                .hook_graph
+            fragments_loaded: plan
+                .fragments
                 .iter()
-                .map(|binding| format!("{}@{}", binding.fragment_id, binding.hookpoint.label()))
+                .filter(|fragment| loaded_fragments.contains(fragment.id))
+                .map(|fragment| fragment.id.into())
                 .collect(),
-            hookpoints_failed: Vec::new(),
+            hookpoints_attached: attached,
+            hookpoints_failed: failed_report,
             required_fact_kinds_coverage: plan.coverage.clone(),
             ringbuf_stats: RingBufStats {
                 maps: maps.len(),
@@ -300,80 +352,4 @@ pub fn builtin_registry() -> FragmentRegistry {
             .expect("builtin registry must stay valid");
     }
     registry
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        builtin_registry, CapabilityFlag, FragmentDescriptor, FragmentRegistry, HookPoint, MapKind,
-        MapSpec, RegistryError,
-    };
-    use crate::ledger::FactKindTag;
-
-    #[test]
-    fn builtin_handshake_plan_has_full_coverage() {
-        let registry = builtin_registry();
-        let plan = registry
-            .plan([
-                "tcp_state_fragment",
-                "tcp_packet_meta_fragment",
-                "route_meta_fragment",
-            ])
-            .unwrap();
-
-        assert!(plan.coverage.missing.is_empty());
-        assert_eq!(plan.fragments.len(), 3);
-        assert_eq!(plan.hook_graph.len(), 3);
-    }
-
-    #[test]
-    fn registry_rejects_hookpoint_conflicts() {
-        let mut registry = FragmentRegistry::new();
-        let first = test_fragment("a", HookPoint::TCIngress, FactKindTag::TcpState, vec![]);
-        let second = test_fragment("b", HookPoint::TCIngress, FactKindTag::PacketMeta, vec![]);
-        registry.register(first).unwrap();
-        registry.register(second).unwrap();
-
-        let err = registry.plan(["a", "b"]).unwrap_err();
-        assert!(matches!(err, RegistryError::HookConflict(_)));
-    }
-
-    #[test]
-    fn registry_rejects_missing_required_fact_coverage() {
-        let mut registry = FragmentRegistry::new();
-        let fragment = test_fragment(
-            "needs_route",
-            HookPoint::TCEgress,
-            FactKindTag::PacketMeta,
-            vec![FactKindTag::RouteDecision],
-        );
-        registry.register(fragment).unwrap();
-
-        let err = registry.plan(["needs_route"]).unwrap_err();
-        assert_eq!(
-            err,
-            RegistryError::MissingCoverage(vec![FactKindTag::RouteDecision])
-        );
-    }
-
-    fn test_fragment(
-        id: &'static str,
-        hookpoint: HookPoint,
-        emits: FactKindTag,
-        requires: Vec<FactKindTag>,
-    ) -> FragmentDescriptor {
-        FragmentDescriptor {
-            id,
-            version: 1,
-            hookpoints: vec![hookpoint],
-            emits: vec![emits],
-            requires,
-            maps: vec![MapSpec {
-                name: "events",
-                kind: MapKind::RingBuf,
-                max_entries: 1024,
-            }],
-            capabilities: vec![CapabilityFlag::TcpState],
-        }
-    }
 }

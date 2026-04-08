@@ -2,7 +2,9 @@ use crate::export::ExportBundle;
 use crate::flow::{
     EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView,
 };
-use crate::fragment::{builtin_registry, AttachPlan, AttachReport, FragmentRegistry, RegistryError};
+use crate::fragment::{
+    builtin_registry, AttachFailure, AttachPlan, AttachReport, FragmentRegistry, RegistryError,
+};
 use crate::ledger::{FactEnvelope, FactId, FactKind};
 use crate::reason::{build_reason_chains, ReasonChain, ReasonProfile};
 use crate::template::{Template, TemplateError, WindowProfile};
@@ -13,6 +15,7 @@ use std::time::{Duration, SystemTime};
 pub struct SessionConfig {
     pub template: Template,
     pub registry: FragmentRegistry,
+    pub attach_failures: Vec<AttachFailure>,
 }
 
 #[derive(Clone, Debug)]
@@ -23,6 +26,7 @@ pub struct RuntimeSession {
     attach_plan: AttachPlan,
     attach_report: AttachReport,
     facts: Vec<FactEnvelope>,
+    window_end: Option<SystemTime>,
     frozen_at: Option<SystemTime>,
 }
 
@@ -52,6 +56,7 @@ impl SessionConfig {
         Ok(Self {
             template,
             registry: builtin_registry(),
+            attach_failures: Vec::new(),
         })
     }
 }
@@ -72,7 +77,9 @@ impl RuntimeSession {
             .registry
             .plan(config.template.fragment_set.iter().copied())
             .map_err(RuntimeError::Registry)?;
-        let attach_report = config.registry.attach_report(&attach_plan);
+        let attach_report = config
+            .registry
+            .attach_report_with_failure_records(&attach_plan, config.attach_failures.clone());
 
         Ok(Self {
             template: config.template,
@@ -81,27 +88,41 @@ impl RuntimeSession {
             attach_plan,
             attach_report,
             facts: Vec::new(),
+            window_end: None,
             frozen_at: None,
         })
     }
 
     pub fn ingest(&mut self, fact: FactEnvelope) {
+        if self
+            .frozen_at
+            .is_some_and(|freeze_at| fact.ts > freeze_at)
+        {
+            return;
+        }
         self.facts.push(fact);
         self.facts.sort_by_key(|fact| fact.id);
     }
 
     pub fn freeze(&mut self, end: SystemTime) {
-        let freeze_at =
-            end + Duration::from_millis(self.window_profile.lateness_ms);
+        let freeze_at = end + Duration::from_millis(self.window_profile.lateness_ms);
+        self.window_end = Some(end);
         self.frozen_at = Some(freeze_at);
     }
 
     pub fn flow_snapshots(&self) -> Vec<FlowSnapshot> {
-        build_flow_snapshots(&self.facts)
+        let facts = self.materialized_facts();
+        build_flow_snapshots(&facts)
     }
 
     pub fn reasons(&self) -> Vec<ReasonChain> {
-        build_reason_chains(&self.reason_profile, &self.flow_snapshots(), &self.facts)
+        let facts = self.materialized_facts();
+        let flows = build_flow_snapshots(&facts);
+        build_reason_chains(
+            &self.reason_profile,
+            &flows,
+            &facts,
+        )
     }
 
     pub fn export_bundle(&self) -> ExportBundle {
@@ -120,9 +141,31 @@ impl RuntimeSession {
             attach_report: self.attach_report.clone(),
             window_profile: self.window_profile.clone(),
             reason_profile_id: self.reason_profile.id().into(),
-            facts: self.facts.clone(),
+            facts: self.materialized_facts(),
             flows: self.flow_snapshots(),
             reasons: self.reasons(),
+        }
+    }
+
+    fn materialized_facts(&self) -> Vec<FactEnvelope> {
+        match (self.window_end, self.frozen_at) {
+            (Some(window_end), Some(freeze_at)) => {
+                let window_start = window_end
+                    .checked_sub(Duration::from_millis(self.window_profile.duration_ms))
+                    .unwrap_or(SystemTime::UNIX_EPOCH);
+                self.facts
+                    .iter()
+                    .filter(|fact| fact.ts >= window_start && fact.ts <= freeze_at)
+                    .cloned()
+                    .collect()
+            }
+            (_, Some(freeze_at)) => self
+                .facts
+                .iter()
+                .filter(|fact| fact.ts <= freeze_at)
+                .cloned()
+                .collect(),
+            (_, None) => self.facts.clone(),
         }
     }
 }
