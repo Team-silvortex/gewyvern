@@ -1,9 +1,13 @@
 use gewyvern::fragment::{
-    AttachFailure, CapabilityFlag, FragmentDescriptor, FragmentRegistry, HookPoint, MapKind,
-    MapSpec, RegistryError, builtin_registry,
+    AttachFailure, CapabilityFlag, EvidenceClassSpec, EvidenceTier, FragmentDescriptor,
+    FragmentRegistry, HookPoint, MapKind, MapSpec, RegistryError, builtin_registry,
 };
-use gewyvern::template::{FragmentParamValue, udp_process_debug_template};
+use gewyvern::flow::{ProgramOperation, ProgramStageKind};
 use gewyvern::ledger::FactKindTag;
+use gewyvern::program::{ProgramModel, ProgramNarrative, ProgramPredicate, ProgramRule};
+use gewyvern::template::{
+    FragmentParamValue, Template, default_5s_window, udp_process_debug_template,
+};
 
 #[test]
 fn builtin_handshake_plan_has_full_coverage() {
@@ -152,6 +156,36 @@ fn registry_validates_binding_params_against_fragment_schema() {
     assert_eq!(registry.validate_binding_params(&binding), Ok(()));
 }
 
+#[test]
+fn registry_rejects_bindings_whose_rules_require_missing_fragment_evidence() {
+    let binding = Template {
+        id: "invalid_rule_binding",
+        fragment_set: vec!["route_meta_fragment"],
+        window_profile: Some(default_5s_window()),
+        reason_profile: Some(gewyvern::reason::ReasonProfile::UdpDatagramL1),
+        program_model: Some(ProgramModel {
+            id: "invalid_program_model",
+            operation: ProgramOperation::DatagramExchange,
+            rules: vec![ProgramRule {
+                predicate: ProgramPredicate::ProcessBound,
+                signal: Some(ProgramStageKind::ProcessBound),
+                narrative: ProgramNarrative::ProcessBound,
+                dedupe: true,
+            }],
+        }),
+    }
+    .bind();
+
+    assert_eq!(
+        builtin_registry().validate_binding(&binding),
+        Err(RegistryError::MissingRuleEvidence {
+            model: "program_model".into(),
+            rule_index: 0,
+            missing: vec![FactKindTag::SockLineage],
+        })
+    );
+}
+
 fn test_fragment(
     id: &'static str,
     hookpoint: HookPoint,
@@ -163,6 +197,10 @@ fn test_fragment(
         version: 1,
         hookpoints: vec![hookpoint],
         emits: vec![emits],
+        evidence_classes: vec![EvidenceClassSpec {
+            fact_kind: emits,
+            tier: EvidenceTier::CoreRequirement,
+        }],
         requires,
         maps: vec![MapSpec {
             name: "events",

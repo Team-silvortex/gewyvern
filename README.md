@@ -151,6 +151,13 @@ Run a DSL-driven demo:
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --summary-only
 ```
 
+Inspect binding diagnostics without starting a runtime session:
+
+```bash
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --diagnostics
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --diagnostics --json
+```
+
 Write output to a file:
 
 ```bash

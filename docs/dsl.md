@@ -234,6 +234,21 @@ predicate language to learn.
 Internally, both now compile into the same shared rule skeleton: predicate +
 optional signal + narrative template + dedupe.
 
+The DSL compiler also validates that the selected fragment set can actually
+produce the evidence each rule depends on. A rule that references
+`process_bound`, for example, now fails at compile time unless the binding
+includes a fragment that emits `sock_lineage`.
+
+Planner diagnostics also classify rules into:
+
+- `core_requirement`
+- `optional_enhancement`
+- `unsupported`
+
+In the current prototype, process-identity lineage driven rules are treated as
+optional enhancements, while packet/route/state driven rules are treated as
+core requirements.
+
 ## Stages
 
 Current stage values are:

@@ -159,6 +159,11 @@ same shared IR skeleton:
 That lets the DSL stay protocol-agnostic while keeping actual runtime evidence
 strictly grounded in the selected fragment templates and their parameters.
 
+The registry now statically validates that a binding's rule skeleton is
+supported by the chosen fragment set. In other words, IR declarations are only
+accepted when the current fragment inventory can actually emit the evidence
+those predicates, signals, and narratives depend on.
+
 Current built-in program-flow operations are intentionally generic:
 
 - `connect_flow`

@@ -149,7 +149,7 @@ pub fn compile_str(input: &str) -> Result<TemplateBinding, DslError> {
 
     let binding = binding.unwrap_or_else(|| template.bind());
     builtin_registry()
-        .validate_binding_params(&binding)
+        .validate_binding(&binding)
         .map_err(DslError::Registry)?;
     Ok(binding)
 }

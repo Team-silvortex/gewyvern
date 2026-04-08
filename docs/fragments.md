@@ -37,6 +37,7 @@ Fields:
 - `version`
 - `hookpoints`
 - `emits`
+- `evidence_classes`
 - `requires`
 - `maps`
 - `capabilities`
@@ -108,6 +109,19 @@ Today it primarily means:
 - the registry can verify coverage
 - dependency edges can be built into the attach plan
 - templates with invalid fragment sets can be rejected early
+
+### `evidence_classes`
+
+Declares how emitted fact kinds should be treated by planner diagnostics.
+
+Current tiers:
+
+- `CoreRequirement`
+- `OptionalEnhancement`
+
+This is what lets binding diagnostics distinguish between rules that depend on
+core transport/path evidence and rules that depend on optional enrichment such
+as socket-to-process lineage.
 
 ### `maps`
 

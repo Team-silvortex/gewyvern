@@ -1,5 +1,5 @@
 use gewyvern::dsl::{compile_file, compile_str, DslError};
-use gewyvern::fragment::RegistryError;
+use gewyvern::fragment::{RegistryError, RuleTier};
 use gewyvern::flow::ProgramOperation;
 use gewyvern::reason::{KeyEventKind, ReasonProfile};
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
@@ -290,6 +290,67 @@ reason.rule=route_resolved;route_resolved;route_changed;true
     assert_eq!(export.reasons[0].l1.key_events[0].kind, KeyEventKind::ProcessIdentified);
     assert_eq!(export.reasons[0].l1.key_events[1].kind, KeyEventKind::UdpDatagramSeen);
     assert_eq!(export.reasons[0].l1.key_events[2].kind, KeyEventKind::RouteChanged);
+}
+
+#[test]
+fn dsl_rejects_program_rules_when_fragment_set_cannot_supply_evidence() {
+    let err = compile_str(
+        r#"
+template=route_only_invalid
+window.duration_ms=5000
+window.lateness_ms=200
+reason=udp_datagram_l1
+fragment=route_meta_fragment
+operation=datagram_exchange
+rule=process_bound;process_bound;process_bound;true
+"#,
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        err,
+        DslError::Registry(RegistryError::MissingRuleEvidence {
+            model: "program_model".into(),
+            rule_index: 0,
+            missing: vec![gewyvern::ledger::FactKindTag::SockLineage],
+        })
+    );
+}
+
+#[test]
+fn binding_diagnostics_report_rule_support_and_supporting_fragments() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let session = RuntimeSession::start(config).unwrap();
+    let export = session.export_bundle();
+
+    let diagnostics = export.binding_diagnostics.program_model.as_ref().unwrap();
+    assert_eq!(diagnostics.model, "udp_process_debug_dsl_model");
+    assert_eq!(diagnostics.rules.len(), 3);
+    assert!(diagnostics.rules.iter().all(|rule| rule.supported));
+    assert_eq!(diagnostics.rules[0].tier, RuleTier::OptionalEnhancement);
+    assert_eq!(diagnostics.rules[1].tier, RuleTier::CoreRequirement);
+    assert_eq!(diagnostics.rules[2].tier, RuleTier::CoreRequirement);
+    assert_eq!(diagnostics.rules[0].required_facts, vec![gewyvern::ledger::FactKindTag::SockLineage]);
+    assert_eq!(
+        diagnostics.rules[0].supporting_fragments,
+        vec!["sock_lineage_fragment".to_string()]
+    );
+    assert_eq!(
+        diagnostics.rules[1].supporting_fragments,
+        vec!["udp_packet_meta_fragment".to_string()]
+    );
+    assert_eq!(
+        diagnostics.rules[2].supporting_fragments,
+        vec!["route_meta_fragment".to_string()]
+    );
+
+    let replay = gewyvern::export::ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
+    assert_eq!(export.binding_diagnostics, replay.binding_diagnostics);
 }
 
 #[test]

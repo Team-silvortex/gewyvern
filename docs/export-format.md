@@ -30,6 +30,7 @@ The current top-level object contains:
 - `fragment_inventory`
 - `attach_plan`
 - `attach_report`
+- `binding_diagnostics`
 - `attach_failure_summary`
 - `debug_summary`
 - `window_profile`
@@ -121,6 +122,33 @@ It contains:
 `hookpoints_failed` is part of the stable shape because attach outcomes are now
 first-class runtime inputs. Loader results can affect both debug output and
 fact-ingest gating.
+
+### `binding_diagnostics`
+
+Planner/debug view for the compiled binding.
+
+It currently exports diagnostics for:
+
+- `program_model`
+- `reason_model`
+
+Each model diagnostic contains per-rule entries with:
+
+- `rule_index`
+- `tier`
+- `required_facts`
+- `supporting_fragments`
+- `missing_facts`
+- `supported`
+
+Current `tier` values:
+
+- `core_requirement`
+- `optional_enhancement`
+- `unsupported`
+
+This field exists to explain why a binding was accepted, degraded, or rejected
+against the current fragment inventory.
 
 ### `attach_failure_summary`
 

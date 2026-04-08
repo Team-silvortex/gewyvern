@@ -1,4 +1,6 @@
+use crate::ir::{FlowPredicate, NarrativeTemplate, SignalKind};
 use crate::ledger::FactKindTag;
+use crate::reason::{ReasonProfile, ReasonRule};
 use crate::template::{FragmentParamValue, TemplateBinding};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -8,10 +10,23 @@ pub struct FragmentDescriptor {
     pub version: u32,
     pub hookpoints: Vec<HookPoint>,
     pub emits: Vec<FactKindTag>,
+    pub evidence_classes: Vec<EvidenceClassSpec>,
     pub requires: Vec<FactKindTag>,
     pub maps: Vec<MapSpec>,
     pub capabilities: Vec<CapabilityFlag>,
     pub params: Vec<FragmentParamSpec>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceClassSpec {
+    pub fact_kind: FactKindTag,
+    pub tier: EvidenceTier,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EvidenceTier {
+    CoreRequirement,
+    OptionalEnhancement,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -160,6 +175,35 @@ pub struct AttachReport {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BindingDiagnostics {
+    pub program_model: Option<ModelDiagnostics>,
+    pub reason_model: Option<ModelDiagnostics>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModelDiagnostics {
+    pub model: String,
+    pub rules: Vec<RuleDiagnostics>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuleDiagnostics {
+    pub rule_index: usize,
+    pub tier: RuleTier,
+    pub required_facts: Vec<FactKindTag>,
+    pub supporting_fragments: Vec<String>,
+    pub missing_facts: Vec<FactKindTag>,
+    pub supported: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RuleTier {
+    CoreRequirement,
+    OptionalEnhancement,
+    Unsupported,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RingBufStats {
     pub maps: usize,
     pub total_max_entries: u32,
@@ -177,6 +221,11 @@ pub enum RegistryError {
         fragment_id: String,
         key: String,
         expected: &'static str,
+    },
+    MissingRuleEvidence {
+        model: String,
+        rule_index: usize,
+        missing: Vec<FactKindTag>,
     },
 }
 
@@ -320,6 +369,77 @@ impl FragmentRegistry {
         Ok(())
     }
 
+    pub fn validate_binding(&self, binding: &TemplateBinding) -> Result<(), RegistryError> {
+        self.validate_binding_params(binding)?;
+        self.validate_binding_rule_coverage(binding)
+    }
+
+    pub fn binding_diagnostics(
+        &self,
+        binding: &TemplateBinding,
+    ) -> Result<BindingDiagnostics, RegistryError> {
+        let descriptors = binding
+            .template
+            .fragment_set
+            .iter()
+            .map(|fragment_id| {
+                self.descriptor(fragment_id)
+                    .cloned()
+                    .ok_or_else(|| RegistryError::MissingFragment((*fragment_id).into()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut fact_producers = BTreeMap::<FactKindTag, Vec<String>>::new();
+        let mut fact_tiers = BTreeMap::<FactKindTag, EvidenceTier>::new();
+        for descriptor in &descriptors {
+            for fact in &descriptor.emits {
+                fact_producers
+                    .entry(*fact)
+                    .or_default()
+                    .push(descriptor.id.into());
+                let tier = descriptor
+                    .evidence_classes
+                    .iter()
+                    .find(|spec| spec.fact_kind == *fact)
+                    .map(|spec| spec.tier.clone())
+                    .unwrap_or(EvidenceTier::CoreRequirement);
+                fact_tiers.entry(*fact).or_insert(tier);
+            }
+        }
+
+        Ok(BindingDiagnostics {
+            program_model: binding
+                .template
+                .program_model
+                .as_ref()
+                .map(|model| ModelDiagnostics {
+                    model: model.id.into(),
+                    rules: model
+                        .rules
+                        .iter()
+                        .enumerate()
+                        .map(|(rule_index, rule)| {
+                            build_rule_diagnostics(rule_index, rule, &fact_producers, &fact_tiers)
+                        })
+                        .collect(),
+                }),
+            reason_model: match &binding.template.reason_profile {
+                Some(ReasonProfile::Declarative(model)) => Some(ModelDiagnostics {
+                    model: model.id.into(),
+                    rules: model
+                        .rules
+                        .iter()
+                        .enumerate()
+                        .map(|(rule_index, rule)| {
+                            build_rule_diagnostics(rule_index, rule, &fact_producers, &fact_tiers)
+                        })
+                        .collect(),
+                }),
+                _ => None,
+            },
+        })
+    }
+
     pub fn attach_report(&self, plan: &AttachPlan) -> AttachReport {
         self.attach_report_with_failures(plan, std::iter::empty::<String>())
     }
@@ -390,6 +510,135 @@ impl FragmentRegistry {
     }
 }
 
+impl FragmentRegistry {
+    fn validate_binding_rule_coverage(&self, binding: &TemplateBinding) -> Result<(), RegistryError> {
+        let diagnostics = self.binding_diagnostics(binding)?;
+        if let Some(model) = diagnostics.program_model {
+            validate_model_diagnostics("program_model", &model)?;
+        }
+        if let Some(model) = diagnostics.reason_model {
+            validate_model_diagnostics("reason_model", &model)?;
+        }
+        Ok(())
+    }
+}
+
+fn validate_model_diagnostics(model_name: &str, diagnostics: &ModelDiagnostics) -> Result<(), RegistryError> {
+    if diagnostics.rules.is_empty() {
+        return Ok(());
+    }
+
+    if diagnostics.rules.iter().any(|rule| rule.supported) {
+        return Ok(());
+    }
+
+    let first = diagnostics.rules.first().expect("checked non-empty rules");
+    Err(RegistryError::MissingRuleEvidence {
+        model: model_name.into(),
+        rule_index: first.rule_index,
+        missing: first.missing_facts.clone(),
+    })
+}
+
+fn build_rule_diagnostics(
+    rule_index: usize,
+    rule: &ReasonRule,
+    fact_producers: &BTreeMap<FactKindTag, Vec<String>>,
+    fact_tiers: &BTreeMap<FactKindTag, EvidenceTier>,
+) -> RuleDiagnostics {
+    let mut required_facts = predicate_required_facts(&rule.predicate);
+    required_facts.extend(signal_required_facts(rule.signal.as_ref()));
+    required_facts.extend(narrative_required_facts(&rule.narrative));
+    required_facts.sort();
+    required_facts.dedup();
+
+    let mut supporting_fragments = Vec::new();
+    let mut missing_facts = Vec::new();
+    for fact in &required_facts {
+        match fact_producers.get(fact) {
+            Some(producers) if !producers.is_empty() => {
+                supporting_fragments.extend(producers.iter().cloned());
+            }
+            _ => missing_facts.push(*fact),
+        }
+    }
+    supporting_fragments.sort();
+    supporting_fragments.dedup();
+
+    RuleDiagnostics {
+        rule_index,
+        tier: classify_rule_tier(&required_facts, &missing_facts, fact_tiers),
+        required_facts,
+        supporting_fragments,
+        missing_facts: missing_facts.clone(),
+        supported: missing_facts.is_empty(),
+    }
+}
+
+fn classify_rule_tier(
+    required_facts: &[FactKindTag],
+    missing_facts: &[FactKindTag],
+    fact_tiers: &BTreeMap<FactKindTag, EvidenceTier>,
+) -> RuleTier {
+    if !missing_facts.is_empty() {
+        return RuleTier::Unsupported;
+    }
+    if required_facts.iter().any(|fact| {
+        fact_tiers.get(fact) == Some(&EvidenceTier::OptionalEnhancement)
+    }) {
+        return RuleTier::OptionalEnhancement;
+    }
+    RuleTier::CoreRequirement
+}
+
+fn predicate_required_facts(predicate: &FlowPredicate) -> Vec<FactKindTag> {
+    match predicate {
+        FlowPredicate::ProcessBound => vec![FactKindTag::SockLineage],
+        FlowPredicate::SocketStateObserved => vec![FactKindTag::TcpState],
+        FlowPredicate::DatagramObserved { .. } => vec![FactKindTag::PacketMeta],
+        FlowPredicate::RouteResolved => vec![FactKindTag::RouteDecision],
+        FlowPredicate::All(predicates) => predicates
+            .iter()
+            .flat_map(predicate_required_facts)
+            .collect(),
+        FlowPredicate::Any(predicates) => predicates
+            .iter()
+            .flat_map(predicate_required_facts)
+            .collect(),
+    }
+}
+
+fn signal_required_facts(signal: Option<&SignalKind>) -> Vec<FactKindTag> {
+    match signal {
+        None => Vec::new(),
+        Some(SignalKind::ProcessBound | SignalKind::ProcessIdentified) => {
+            vec![FactKindTag::SockLineage]
+        }
+        Some(
+            SignalKind::SocketStateTransition
+            | SignalKind::StateChange
+            | SignalKind::SynSeen
+            | SignalKind::FinOrRst,
+        ) => vec![FactKindTag::TcpState],
+        Some(SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen) => {
+            vec![FactKindTag::PacketMeta]
+        }
+        Some(SignalKind::RouteResolved | SignalKind::RouteChanged) => {
+            vec![FactKindTag::RouteDecision]
+        }
+    }
+}
+
+fn narrative_required_facts(narrative: &NarrativeTemplate) -> Vec<FactKindTag> {
+    match narrative {
+        NarrativeTemplate::None | NarrativeTemplate::Static(_) => Vec::new(),
+        NarrativeTemplate::ProcessBound => vec![FactKindTag::SockLineage],
+        NarrativeTemplate::TcpStateTransition => vec![FactKindTag::TcpState],
+        NarrativeTemplate::RouteChanged => vec![FactKindTag::RouteDecision],
+        NarrativeTemplate::UdpDatagramObserved => vec![FactKindTag::PacketMeta],
+    }
+}
+
 impl FragmentParamType {
     pub fn label(&self) -> &'static str {
         match self {
@@ -408,6 +657,10 @@ pub fn builtin_registry() -> FragmentRegistry {
             version: 1,
             hookpoints: vec![HookPoint::TracePoint("sock/inet_sock_set_state")],
             emits: vec![FactKindTag::TcpState],
+            evidence_classes: vec![EvidenceClassSpec {
+                fact_kind: FactKindTag::TcpState,
+                tier: EvidenceTier::CoreRequirement,
+            }],
             requires: vec![],
             maps: vec![MapSpec {
                 name: "events",
@@ -422,6 +675,10 @@ pub fn builtin_registry() -> FragmentRegistry {
             version: 1,
             hookpoints: vec![HookPoint::TCIngress],
             emits: vec![FactKindTag::PacketMeta],
+            evidence_classes: vec![EvidenceClassSpec {
+                fact_kind: FactKindTag::PacketMeta,
+                tier: EvidenceTier::CoreRequirement,
+            }],
             requires: vec![FactKindTag::TcpState],
             maps: vec![MapSpec {
                 name: "events",
@@ -436,6 +693,10 @@ pub fn builtin_registry() -> FragmentRegistry {
             version: 1,
             hookpoints: vec![HookPoint::TCIngress],
             emits: vec![FactKindTag::PacketMeta],
+            evidence_classes: vec![EvidenceClassSpec {
+                fact_kind: FactKindTag::PacketMeta,
+                tier: EvidenceTier::CoreRequirement,
+            }],
             requires: vec![],
             maps: vec![MapSpec {
                 name: "events",
@@ -453,6 +714,10 @@ pub fn builtin_registry() -> FragmentRegistry {
             version: 1,
             hookpoints: vec![HookPoint::KProbe("ip_route_output_flow")],
             emits: vec![FactKindTag::RouteDecision],
+            evidence_classes: vec![EvidenceClassSpec {
+                fact_kind: FactKindTag::RouteDecision,
+                tier: EvidenceTier::CoreRequirement,
+            }],
             requires: vec![],
             maps: vec![MapSpec {
                 name: "events",
@@ -467,6 +732,10 @@ pub fn builtin_registry() -> FragmentRegistry {
             version: 1,
             hookpoints: vec![HookPoint::TracePoint("syscalls/sys_enter_connect")],
             emits: vec![FactKindTag::SockLineage],
+            evidence_classes: vec![EvidenceClassSpec {
+                fact_kind: FactKindTag::SockLineage,
+                tier: EvidenceTier::OptionalEnhancement,
+            }],
             requires: vec![],
             maps: vec![MapSpec {
                 name: "events",

@@ -1,5 +1,6 @@
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
+use gewyvern::fragment::{builtin_registry, BindingDiagnostics};
 use gewyvern::ledger::{
     CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact,
     SessionId, SockLineageFact, TcpStateFact,
@@ -24,6 +25,33 @@ fn main() {
     });
     let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_000);
     let mut outputs = Vec::new();
+
+    if cli.diagnostics {
+        let binding = cli.dsl_binding().unwrap_or_else(|| {
+            eprintln!("--diagnostics requires --dsl");
+            std::process::exit(2);
+        });
+        let diagnostics = builtin_registry()
+            .binding_diagnostics(&binding)
+            .unwrap_or_else(|err| {
+                eprintln!("binding diagnostics failed: {err:?}");
+                std::process::exit(2);
+            });
+        let rendered = if cli.json {
+            diagnostics_json(&binding, &diagnostics)
+        } else {
+            diagnostics_text(&binding, &diagnostics)
+        };
+        if let Some(path) = cli.out_path.as_deref() {
+            fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
+                eprintln!("failed to write output to {path}: {err}");
+                std::process::exit(1);
+            });
+        } else {
+            println!("{rendered}");
+        }
+        return;
+    }
 
     if let Some(socket_target) = cli.socket_target.as_ref() {
         if cli.serve {
@@ -164,6 +192,7 @@ struct Cli {
     demo_mode: DemoMode,
     template_mode: TemplateMode,
     dsl_path: Option<String>,
+    diagnostics: bool,
     serve: bool,
     max_sessions: Option<usize>,
     json: bool,
@@ -249,6 +278,7 @@ impl Cli {
         let mut demo_mode = DemoMode::Both;
         let mut template_mode = TemplateMode::Tcp;
         let mut dsl_path = None;
+        let mut diagnostics = false;
         let mut serve = false;
         let mut max_sessions = None;
         let mut json = false;
@@ -289,6 +319,7 @@ impl Cli {
                         "missing value for --dsl, expected a DSL file path".to_string()
                     })?);
                 }
+                "--diagnostics" => diagnostics = true,
                 "--unix-socket" => {
                     socket_target = Some(SocketTarget::Unix(args.next().ok_or_else(|| {
                         "missing value for --unix-socket, expected a filesystem path".to_string()
@@ -312,6 +343,15 @@ impl Cli {
         if summary_only && !json {
             return Err("--summary-only requires --json".into());
         }
+        if diagnostics && dsl_path.is_none() {
+            return Err("--diagnostics requires --dsl".into());
+        }
+        if diagnostics && socket_target.is_some() {
+            return Err("--diagnostics cannot be combined with socket listener mode".into());
+        }
+        if diagnostics && serve {
+            return Err("--diagnostics cannot be combined with --serve".into());
+        }
         if dsl_path.is_some() && demo_mode != DemoMode::Both {
             return Err("--dsl cannot be combined with --demo".into());
         }
@@ -326,6 +366,7 @@ impl Cli {
             demo_mode,
             template_mode,
             dsl_path,
+            diagnostics,
             serve,
             max_sessions,
             json,
@@ -538,7 +579,7 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: gewyvern [--demo tcp|udp|both] [--dsl path] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+    "usage: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
 }
 
 fn summary_json(name: &str, export: &ExportBundle) -> String {
@@ -553,6 +594,125 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
         export.debug_summary.reasons,
         export.debug_summary.degraded
     )
+}
+
+fn diagnostics_text(binding: &TemplateBinding, diagnostics: &BindingDiagnostics) -> String {
+    fn tier_label(tier: &gewyvern::fragment::RuleTier) -> &'static str {
+        match tier {
+            gewyvern::fragment::RuleTier::CoreRequirement => "core_requirement",
+            gewyvern::fragment::RuleTier::OptionalEnhancement => "optional_enhancement",
+            gewyvern::fragment::RuleTier::Unsupported => "unsupported",
+        }
+    }
+
+    let mut lines = vec![format!(
+        "template={} fragments={}",
+        binding.template.id,
+        binding.template.fragment_set.join(",")
+    )];
+
+    if let Some(model) = &diagnostics.program_model {
+        lines.push(format!("program_model={}", model.model));
+        for rule in &model.rules {
+            lines.push(format!(
+                "  program_rule[{}]: tier={} supported={} required={:?} supporting={:?} missing={:?}",
+                rule.rule_index,
+                tier_label(&rule.tier),
+                rule.supported,
+                rule.required_facts,
+                rule.supporting_fragments,
+                rule.missing_facts
+            ));
+        }
+    }
+
+    if let Some(model) = &diagnostics.reason_model {
+        lines.push(format!("reason_model={}", model.model));
+        for rule in &model.rules {
+            lines.push(format!(
+                "  reason_rule[{}]: tier={} supported={} required={:?} supporting={:?} missing={:?}",
+                rule.rule_index,
+                tier_label(&rule.tier),
+                rule.supported,
+                rule.required_facts,
+                rule.supporting_fragments,
+                rule.missing_facts
+            ));
+        }
+    }
+
+    lines.join("\n")
+}
+
+fn diagnostics_json(binding: &TemplateBinding, diagnostics: &BindingDiagnostics) -> String {
+    fn fact_list(items: &[gewyvern::ledger::FactKindTag]) -> String {
+        format!(
+            "[{}]",
+            items.iter()
+                .map(|item| format!("\"{}\"", item))
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+    }
+
+    fn string_list(items: &[String]) -> String {
+        format!(
+            "[{}]",
+            items.iter()
+                .map(|item| format!("\"{}\"", item))
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+    }
+
+    fn model_json(name: &str, model: &gewyvern::fragment::ModelDiagnostics) -> String {
+        format!(
+            "\"{name}\":{{\"model\":\"{}\",\"rules\":[{}]}}",
+            model.model,
+            model.rules
+                .iter()
+                .map(|rule| format!(
+                    "{{\"rule_index\":{},\"tier\":\"{}\",\"supported\":{},\"required_facts\":{},\"supporting_fragments\":{},\"missing_facts\":{}}}",
+                    rule.rule_index,
+                    match rule.tier {
+                        gewyvern::fragment::RuleTier::CoreRequirement => "core_requirement",
+                        gewyvern::fragment::RuleTier::OptionalEnhancement => "optional_enhancement",
+                        gewyvern::fragment::RuleTier::Unsupported => "unsupported",
+                    },
+                    rule.supported,
+                    fact_list(&rule.required_facts),
+                    string_list(&rule.supporting_fragments),
+                    fact_list(&rule.missing_facts),
+                ))
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+    }
+
+    let mut fields = vec![
+        format!("\"template_id\":\"{}\"", binding.template.id),
+        format!(
+            "\"fragments\":[{}]",
+            binding
+                .template
+                .fragment_set
+                .iter()
+                .map(|fragment| format!("\"{}\"", fragment))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+    ];
+    if let Some(model) = &diagnostics.program_model {
+        fields.push(model_json("program_model", model));
+    } else {
+        fields.push("\"program_model\":null".into());
+    }
+    if let Some(model) = &diagnostics.reason_model {
+        fields.push(model_json("reason_model", model));
+    } else {
+        fields.push("\"reason_model\":null".into());
+    }
+    format!("{{{}}}", fields.join(","))
 }
 
 fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {

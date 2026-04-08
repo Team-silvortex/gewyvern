@@ -4,8 +4,9 @@ use crate::flow::{
 };
 use crate::fragment::{
     AttachPlan, AttachReport, CapabilityFlag, CoverageReport, DependencyEdge, FactBinding,
-    FragmentDescriptor, FragmentParamSpec, FragmentParamType, HookBinding, HookPoint, MapKind,
-    MapSpec, RingBufStats,
+    BindingDiagnostics, EvidenceClassSpec, EvidenceTier, FragmentDescriptor, FragmentParamSpec,
+    FragmentParamType, HookBinding, HookPoint, MapKind, MapSpec, ModelDiagnostics, RingBufStats,
+    RuleDiagnostics, RuleTier,
 };
 use crate::ir::{NarrativeTemplate, SignalKind};
 use crate::ledger::{
@@ -36,6 +37,7 @@ pub struct ExportBundle {
     pub fragment_inventory: Vec<FragmentInventoryItem>,
     pub attach_plan: AttachPlan,
     pub attach_report: AttachReport,
+    pub binding_diagnostics: BindingDiagnostics,
     pub attach_failure_summary: Vec<AttachFailureSummaryItem>,
     pub debug_summary: DebugSummary,
     pub window_profile: WindowProfile,
@@ -109,6 +111,7 @@ impl ExportBundle {
         }
         session.seed_rejected_facts(self.rejected_facts.clone());
         let mut replay = session.export_bundle();
+        replay.binding_diagnostics = self.binding_diagnostics.clone();
         replay.attach_failure_summary = self.attach_failure_summary.clone();
         replay.debug_summary = self.debug_summary.clone();
         replay.rejected_fact_summary = summarize_rejected_facts(&replay.rejected_facts);
@@ -135,6 +138,10 @@ impl ExportBundle {
             ),
             ("attach_plan".into(), attach_plan_json(&self.attach_plan)),
             ("attach_report".into(), attach_report_json(&self.attach_report)),
+            (
+                "binding_diagnostics".into(),
+                binding_diagnostics_json(&self.binding_diagnostics),
+            ),
             (
                 "attach_failure_summary".into(),
                 JsonValue::Array(
@@ -228,6 +235,10 @@ impl ExportBundle {
             attach_report: parse_attach_report(
                 root.get("attach_report")
                     .ok_or_else(|| ExportError::InvalidShape("missing attach_report".into()))?,
+            )?,
+            binding_diagnostics: parse_binding_diagnostics(
+                root.get("binding_diagnostics")
+                    .ok_or_else(|| ExportError::InvalidShape("missing binding_diagnostics".into()))?,
             )?,
             attach_failure_summary: root
                 .get("attach_failure_summary")
@@ -668,6 +679,35 @@ fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                                 ),
                             ),
                             (
+                                "evidence_classes".into(),
+                                JsonValue::Array(
+                                    fragment
+                                        .evidence_classes
+                                        .iter()
+                                        .map(|spec| {
+                                            JsonValue::Object(BTreeMap::from([
+                                                (
+                                                    "fact_kind".into(),
+                                                    JsonValue::String(spec.fact_kind.to_string()),
+                                                ),
+                                                (
+                                                    "tier".into(),
+                                                    JsonValue::String(match spec.tier {
+                                                        EvidenceTier::CoreRequirement => {
+                                                            "core_requirement"
+                                                        }
+                                                        EvidenceTier::OptionalEnhancement => {
+                                                            "optional_enhancement"
+                                                        }
+                                                    }
+                                                    .into()),
+                                                ),
+                                            ]))
+                                        })
+                                        .collect(),
+                                ),
+                            ),
+                            (
                                 "maps".into(),
                                 JsonValue::Array(
                                     fragment
@@ -858,6 +898,72 @@ fn attach_report_json(report: &AttachReport) -> JsonValue {
                 ),
             ])),
         ),
+    ]))
+}
+
+fn binding_diagnostics_json(diagnostics: &BindingDiagnostics) -> JsonValue {
+    JsonValue::Object(BTreeMap::from([
+        (
+            "program_model".into(),
+            diagnostics.program_model.as_ref().map_or(JsonValue::Null, model_diagnostics_json),
+        ),
+        (
+            "reason_model".into(),
+            diagnostics.reason_model.as_ref().map_or(JsonValue::Null, model_diagnostics_json),
+        ),
+    ]))
+}
+
+fn model_diagnostics_json(model: &ModelDiagnostics) -> JsonValue {
+    JsonValue::Object(BTreeMap::from([
+        ("model".into(), JsonValue::String(model.model.clone())),
+        (
+            "rules".into(),
+            JsonValue::Array(model.rules.iter().map(rule_diagnostics_json).collect()),
+        ),
+    ]))
+}
+
+fn rule_diagnostics_json(rule: &RuleDiagnostics) -> JsonValue {
+    JsonValue::Object(BTreeMap::from([
+        ("rule_index".into(), JsonValue::Number(rule.rule_index as i64)),
+        (
+            "tier".into(),
+            JsonValue::String(match rule.tier {
+                RuleTier::CoreRequirement => "core_requirement",
+                RuleTier::OptionalEnhancement => "optional_enhancement",
+                RuleTier::Unsupported => "unsupported",
+            }
+            .into()),
+        ),
+        (
+            "required_facts".into(),
+            JsonValue::Array(
+                rule.required_facts
+                    .iter()
+                    .map(|fact| JsonValue::String(fact.to_string()))
+                    .collect(),
+            ),
+        ),
+        (
+            "supporting_fragments".into(),
+            JsonValue::Array(
+                rule.supporting_fragments
+                    .iter()
+                    .map(|fragment| JsonValue::String(fragment.clone()))
+                    .collect(),
+            ),
+        ),
+        (
+            "missing_facts".into(),
+            JsonValue::Array(
+                rule.missing_facts
+                    .iter()
+                    .map(|fact| JsonValue::String(fact.to_string()))
+                    .collect(),
+            ),
+        ),
+        ("supported".into(), JsonValue::Bool(rule.supported)),
     ]))
 }
 
@@ -1637,6 +1743,81 @@ fn parse_attach_report(value: &JsonValue) -> Result<AttachReport, ExportError> {
     })
 }
 
+fn parse_binding_diagnostics(value: &JsonValue) -> Result<BindingDiagnostics, ExportError> {
+    let object = value.as_object()?;
+    Ok(BindingDiagnostics {
+        program_model: match object.get("program_model").unwrap_or(&JsonValue::Null) {
+            JsonValue::Null => None,
+            value => Some(parse_model_diagnostics(value)?),
+        },
+        reason_model: match object.get("reason_model").unwrap_or(&JsonValue::Null) {
+            JsonValue::Null => None,
+            value => Some(parse_model_diagnostics(value)?),
+        },
+    })
+}
+
+fn parse_model_diagnostics(value: &JsonValue) -> Result<ModelDiagnostics, ExportError> {
+    let object = value.as_object()?;
+    Ok(ModelDiagnostics {
+        model: object
+            .get("model")
+            .ok_or_else(|| ExportError::InvalidShape("model_diagnostics.model".into()))?
+            .as_str()?
+            .to_string(),
+        rules: object
+            .get("rules")
+            .ok_or_else(|| ExportError::InvalidShape("model_diagnostics.rules".into()))?
+            .as_array()?
+            .iter()
+            .map(parse_rule_diagnostics)
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+fn parse_rule_diagnostics(value: &JsonValue) -> Result<RuleDiagnostics, ExportError> {
+    let object = value.as_object()?;
+    Ok(RuleDiagnostics {
+        rule_index: object
+            .get("rule_index")
+            .ok_or_else(|| ExportError::InvalidShape("rule_diagnostics.rule_index".into()))?
+            .as_i64()? as usize,
+        tier: match object
+            .get("tier")
+            .ok_or_else(|| ExportError::InvalidShape("rule_diagnostics.tier".into()))?
+            .as_str()?
+        {
+            "core_requirement" => RuleTier::CoreRequirement,
+            "optional_enhancement" => RuleTier::OptionalEnhancement,
+            "unsupported" => RuleTier::Unsupported,
+            _ => return Err(ExportError::InvalidValue("unknown rule diagnostics tier".into())),
+        },
+        required_facts: parse_fact_kind_list(
+            object
+                .get("required_facts")
+                .ok_or_else(|| ExportError::InvalidShape("rule_diagnostics.required_facts".into()))?,
+        )?,
+        supporting_fragments: object
+            .get("supporting_fragments")
+            .ok_or_else(|| {
+                ExportError::InvalidShape("rule_diagnostics.supporting_fragments".into())
+            })?
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_str()?.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
+        missing_facts: parse_fact_kind_list(
+            object
+                .get("missing_facts")
+                .ok_or_else(|| ExportError::InvalidShape("rule_diagnostics.missing_facts".into()))?,
+        )?,
+        supported: object
+            .get("supported")
+            .ok_or_else(|| ExportError::InvalidShape("rule_diagnostics.supported".into()))?
+            .as_bool()?,
+    })
+}
+
 fn parse_coverage(value: &JsonValue) -> Result<CoverageReport, ExportError> {
     let object = value.as_object()?;
     Ok(CoverageReport {
@@ -1696,6 +1877,13 @@ fn parse_fragment_descriptor(value: &JsonValue) -> Result<FragmentDescriptor, Ex
                 .get("emits")
                 .ok_or_else(|| ExportError::InvalidShape("fragment.emits".into()))?,
         )?,
+        evidence_classes: object
+            .get("evidence_classes")
+            .unwrap_or(&JsonValue::Array(Vec::new()))
+            .as_array()?
+            .iter()
+            .map(parse_evidence_class_spec)
+            .collect::<Result<Vec<_>, _>>()?,
         requires: parse_fact_kind_list(
             object
                 .get("requires")
@@ -1728,6 +1916,28 @@ fn parse_fragment_descriptor(value: &JsonValue) -> Result<FragmentDescriptor, Ex
             .iter()
             .map(parse_fragment_param_spec)
             .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+fn parse_evidence_class_spec(value: &JsonValue) -> Result<EvidenceClassSpec, ExportError> {
+    let object = value.as_object()?;
+    Ok(EvidenceClassSpec {
+        fact_kind: FactKindTag::from_str(
+            object
+                .get("fact_kind")
+                .ok_or_else(|| ExportError::InvalidShape("fragment.evidence_class.fact_kind".into()))?
+                .as_str()?,
+        )
+        .ok_or_else(|| ExportError::InvalidValue("unknown fact kind".into()))?,
+        tier: match object
+            .get("tier")
+            .ok_or_else(|| ExportError::InvalidShape("fragment.evidence_class.tier".into()))?
+            .as_str()?
+        {
+            "core_requirement" => EvidenceTier::CoreRequirement,
+            "optional_enhancement" => EvidenceTier::OptionalEnhancement,
+            _ => return Err(ExportError::InvalidValue("unknown evidence tier".into())),
+        },
     })
 }
 

@@ -4,7 +4,7 @@ use crate::flow::{
 };
 use crate::fragment::{
     builtin_registry, summarize_attach_failures, AttachFailure, AttachPlan, AttachReport,
-    FragmentRegistry, RegistryError,
+    BindingDiagnostics, FragmentRegistry, RegistryError,
 };
 use crate::ledger::{FactEnvelope, FactId, FactKind};
 use crate::loader::{
@@ -31,6 +31,7 @@ pub struct RuntimeSession {
     reason_profile: ReasonProfile,
     attach_plan: AttachPlan,
     attach_report: AttachReport,
+    binding_diagnostics: BindingDiagnostics,
     fragment_params: BTreeMap<String, BTreeMap<String, FragmentParamValue>>,
     facts: Vec<FactEnvelope>,
     rejected_facts: Vec<RejectedFact>,
@@ -116,7 +117,7 @@ impl SessionConfig {
         binding.validate().map_err(RuntimeError::InvalidTemplate)?;
         let registry = builtin_registry();
         registry
-            .validate_binding_params(&binding)
+            .validate_binding(&binding)
             .map_err(RuntimeError::Registry)?;
         Ok(Self {
             template: binding.template,
@@ -174,6 +175,13 @@ impl RuntimeSession {
             .registry
             .plan(config.template.fragment_set.iter().copied())
             .map_err(RuntimeError::Registry)?;
+        let binding_diagnostics = config
+            .registry
+            .binding_diagnostics(&TemplateBinding {
+                template: config.template.clone(),
+                fragment_params: config.fragment_params.clone(),
+            })
+            .map_err(RuntimeError::Registry)?;
         let attach_report = config
             .registry
             .attach_report_with_failure_records(&attach_plan, config.attach_failures.clone());
@@ -184,6 +192,7 @@ impl RuntimeSession {
             reason_profile,
             attach_plan,
             attach_report,
+            binding_diagnostics,
             fragment_params: config.fragment_params,
             facts: Vec::new(),
             rejected_facts: Vec::new(),
@@ -276,6 +285,7 @@ impl RuntimeSession {
                 .collect(),
             attach_plan: self.attach_plan.clone(),
             attach_report: self.attach_report.clone(),
+            binding_diagnostics: self.binding_diagnostics.clone(),
             attach_failure_summary,
             debug_summary: crate::export::DebugSummary {
                 fragments_loaded: self.attach_report.fragments_loaded.len() as u64,
