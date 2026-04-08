@@ -100,6 +100,7 @@ Its role is to carry:
 
 - a validated template
 - fragment-level parameter bindings
+- template-local evidence tier overrides
 
 This boundary is intentional: the future DSL should compile into fragment
 selection plus parameterization, not into generated eBPF bytecode.

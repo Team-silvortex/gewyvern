@@ -4,9 +4,9 @@ use crate::flow::{
 };
 use crate::fragment::{
     builtin_registry, summarize_attach_failures, AttachFailure, AttachPlan, AttachReport,
-    BindingDiagnostics, FragmentRegistry, RegistryError,
+    BindingDiagnostics, EvidenceTier, FragmentRegistry, RegistryError,
 };
-use crate::ledger::{FactEnvelope, FactId, FactKind};
+use crate::ledger::{FactEnvelope, FactId, FactKind, FactKindTag};
 use crate::loader::{
     LinuxProbeLoader, Loader, LoaderError,
 };
@@ -22,6 +22,7 @@ pub struct SessionConfig {
     pub registry: FragmentRegistry,
     pub attach_failures: Vec<AttachFailure>,
     pub fragment_params: BTreeMap<String, BTreeMap<String, FragmentParamValue>>,
+    pub evidence_overrides: BTreeMap<FactKindTag, EvidenceTier>,
 }
 
 #[derive(Clone, Debug)]
@@ -33,6 +34,7 @@ pub struct RuntimeSession {
     attach_report: AttachReport,
     binding_diagnostics: BindingDiagnostics,
     fragment_params: BTreeMap<String, BTreeMap<String, FragmentParamValue>>,
+    evidence_overrides: BTreeMap<FactKindTag, EvidenceTier>,
     facts: Vec<FactEnvelope>,
     rejected_facts: Vec<RejectedFact>,
     window_end: Option<SystemTime>,
@@ -110,6 +112,7 @@ impl SessionConfig {
             registry: builtin_registry(),
             attach_failures: Vec::new(),
             fragment_params: BTreeMap::new(),
+            evidence_overrides: BTreeMap::new(),
         })
     }
 
@@ -124,6 +127,7 @@ impl SessionConfig {
             registry,
             attach_failures: Vec::new(),
             fragment_params: binding.fragment_params,
+            evidence_overrides: binding.evidence_overrides,
         })
     }
 }
@@ -180,6 +184,7 @@ impl RuntimeSession {
             .binding_diagnostics(&TemplateBinding {
                 template: config.template.clone(),
                 fragment_params: config.fragment_params.clone(),
+                evidence_overrides: config.evidence_overrides.clone(),
             })
             .map_err(RuntimeError::Registry)?;
         let attach_report = config
@@ -194,6 +199,7 @@ impl RuntimeSession {
             attach_report,
             binding_diagnostics,
             fragment_params: config.fragment_params,
+            evidence_overrides: config.evidence_overrides,
             facts: Vec::new(),
             rejected_facts: Vec::new(),
             window_end: None,
@@ -302,6 +308,7 @@ impl RuntimeSession {
             reason_profile_id: self.reason_profile.id().into(),
             reason_profile: self.reason_profile.clone(),
             fragment_params: self.fragment_params.clone(),
+            evidence_overrides: self.evidence_overrides.clone(),
             facts,
             rejected_facts: self.rejected_facts.clone(),
             rejected_fact_summary,

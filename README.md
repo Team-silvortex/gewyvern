@@ -114,6 +114,7 @@ can express:
 - reason profile selection
 - program model operation/rules
 - fragment parameter bindings
+- template-local evidence tier overrides
 
 ## Development
 
@@ -237,6 +238,8 @@ cargo linux-smoke
 
 ## Repo Docs
 
+- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+- [docs/walkthrough.md](/Users/Shared/chroot/dev/gewyvern/docs/walkthrough.md)
 - [docs/overview.md](/Users/Shared/chroot/dev/gewyvern/docs/overview.md)
 - [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)

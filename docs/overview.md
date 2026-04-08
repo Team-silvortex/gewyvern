@@ -61,6 +61,7 @@ The repo now also contains DSL files under
 
 - fragment selection
 - fragment parameter bindings
+- evidence tier overrides
 - runtime policy selection
 - program-model rules
 
@@ -92,8 +93,10 @@ These scenarios are validated through TDD specs and expected to remain replay-st
 ## Recommended Reading Order
 
 1. [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
-2. [docs/overview.md](/Users/Shared/chroot/dev/gewyvern/docs/overview.md)
-3. [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
-4. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-5. [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
-6. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+2. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+3. [docs/walkthrough.md](/Users/Shared/chroot/dev/gewyvern/docs/walkthrough.md)
+4. [docs/overview.md](/Users/Shared/chroot/dev/gewyvern/docs/overview.md)
+5. [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+6. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+7. [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
+8. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)

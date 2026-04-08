@@ -1,3 +1,5 @@
+use gewyvern::fragment::EvidenceTier;
+use gewyvern::ledger::FactKindTag;
 use gewyvern::template::{
     FragmentParamValue, Template, TemplateError, handshake_debug_template, udp_debug_template,
     udp_process_debug_template,
@@ -72,5 +74,21 @@ fn template_can_compile_into_binding_with_fragment_params() {
     assert_eq!(
         binding.fragment_params["sock_lineage_fragment"]["capture_comm"],
         FragmentParamValue::Bool(true)
+    );
+}
+
+#[test]
+fn template_binding_can_override_evidence_tiers() {
+    let binding = udp_process_debug_template()
+        .bind()
+        .with_evidence_tier(
+            FactKindTag::SockLineage,
+            EvidenceTier::CoreRequirement,
+        );
+
+    assert_eq!(binding.validate(), Ok(()));
+    assert_eq!(
+        binding.evidence_overrides.get(&FactKindTag::SockLineage),
+        Some(&EvidenceTier::CoreRequirement)
     );
 }

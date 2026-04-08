@@ -354,6 +354,43 @@ fn binding_diagnostics_report_rule_support_and_supporting_fragments() {
 }
 
 #[test]
+fn dsl_can_override_evidence_tiers_per_template() {
+    let binding = compile_str(
+        r#"
+template=udp_process_core_lineage
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+operation=datagram_exchange
+rule=process_bound;process_bound;process_bound;true
+rule=datagram_observed:udp;datagram_observed;udp_datagram_observed;true
+rule=route_resolved;route_resolved;route_changed;true
+evidence=sock_lineage:core_requirement
+evidence=packet_meta:optional_enhancement
+"#,
+    )
+    .unwrap();
+
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let session = RuntimeSession::start(config).unwrap();
+    let export = session.export_bundle();
+    let diagnostics = export.binding_diagnostics.program_model.as_ref().unwrap();
+
+    assert_eq!(diagnostics.rules[0].tier, RuleTier::CoreRequirement);
+    assert_eq!(diagnostics.rules[1].tier, RuleTier::OptionalEnhancement);
+    assert_eq!(diagnostics.rules[2].tier, RuleTier::CoreRequirement);
+
+    let replay = gewyvern::export::ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
+    assert_eq!(export.evidence_overrides, replay.evidence_overrides);
+    assert_eq!(export.binding_diagnostics, replay.binding_diagnostics);
+}
+
+#[test]
 fn dsl_rejects_unknown_fragment_param_keys() {
     let err = compile_str(
         r#"

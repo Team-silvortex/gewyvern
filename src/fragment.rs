@@ -406,6 +406,9 @@ impl FragmentRegistry {
                 fact_tiers.entry(*fact).or_insert(tier);
             }
         }
+        for (fact_kind, tier) in &binding.evidence_overrides {
+            fact_tiers.insert(*fact_kind, tier.clone());
+        }
 
         Ok(BindingDiagnostics {
             program_model: binding

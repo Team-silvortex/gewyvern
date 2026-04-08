@@ -44,6 +44,7 @@ pub struct ExportBundle {
     pub reason_profile_id: String,
     pub reason_profile: ReasonProfile,
     pub fragment_params: BTreeMap<String, BTreeMap<String, FragmentParamValue>>,
+    pub evidence_overrides: BTreeMap<FactKindTag, EvidenceTier>,
     pub facts: Vec<FactEnvelope>,
     pub rejected_facts: Vec<RejectedFact>,
     pub rejected_fact_summary: Vec<RejectedFactSummaryItem>,
@@ -103,6 +104,7 @@ impl ExportBundle {
         let config = SessionConfig::for_binding(crate::template::TemplateBinding {
             template,
             fragment_params: self.fragment_params.clone(),
+            evidence_overrides: self.evidence_overrides.clone(),
         })
         .map_err(ExportError::Runtime)?;
         let mut session = RuntimeSession::start(config).map_err(ExportError::Runtime)?;
@@ -177,6 +179,10 @@ impl ExportBundle {
             (
                 "fragment_params".into(),
                 fragment_params_json(&self.fragment_params),
+            ),
+            (
+                "evidence_overrides".into(),
+                evidence_overrides_json(&self.evidence_overrides),
             ),
             (
                 "facts".into(),
@@ -274,6 +280,10 @@ impl ExportBundle {
                 root.get("fragment_params")
                     .unwrap_or(&JsonValue::Object(BTreeMap::new())),
             )?,
+            evidence_overrides: parse_evidence_overrides(
+                root.get("evidence_overrides")
+                    .unwrap_or(&JsonValue::Object(BTreeMap::new())),
+            )?,
             facts: root
                 .get("facts")
                 .ok_or_else(|| ExportError::InvalidShape("missing facts".into()))?
@@ -347,6 +357,20 @@ fn fragment_params_json(
     })))
 }
 
+fn evidence_overrides_json(
+    evidence_overrides: &BTreeMap<FactKindTag, EvidenceTier>,
+) -> JsonValue {
+    JsonValue::Object(BTreeMap::from_iter(evidence_overrides.iter().map(|(fact_kind, tier)| {
+        (
+            fact_kind.to_string(),
+            JsonValue::String(match tier {
+                EvidenceTier::CoreRequirement => "core_requirement".into(),
+                EvidenceTier::OptionalEnhancement => "optional_enhancement".into(),
+            }),
+        )
+    })))
+}
+
 fn parse_fragment_params(
     value: &JsonValue,
 ) -> Result<BTreeMap<String, BTreeMap<String, FragmentParamValue>>, ExportError> {
@@ -372,6 +396,30 @@ fn parse_fragment_params(
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()?;
             Ok((fragment_id.clone(), parsed))
+        })
+        .collect()
+}
+
+fn parse_evidence_overrides(
+    value: &JsonValue,
+) -> Result<BTreeMap<FactKindTag, EvidenceTier>, ExportError> {
+    value
+        .as_object()?
+        .iter()
+        .map(|(fact_kind, value)| {
+            let fact_kind = FactKindTag::from_str(fact_kind).ok_or_else(|| {
+                ExportError::InvalidValue(format!("unknown fact kind '{fact_kind}'"))
+            })?;
+            let tier = match value.as_str()? {
+                "core_requirement" => EvidenceTier::CoreRequirement,
+                "optional_enhancement" => EvidenceTier::OptionalEnhancement,
+                other => {
+                    return Err(ExportError::InvalidValue(format!(
+                        "unknown evidence tier '{other}'"
+                    )))
+                }
+            };
+            Ok((fact_kind, tier))
         })
         .collect()
 }

@@ -14,6 +14,7 @@ Its compile target is `TemplateBinding`, which carries:
 - reason profile
 - program model
 - fragment parameter bindings
+- evidence tier overrides
 
 That boundary is intentional. The DSL is for selecting and parameterizing
 existing fragment templates, not for generating arbitrary kernel programs.
@@ -67,6 +68,7 @@ Current supported keys are:
 - `operation`
 - `rule`
 - `param`
+- `evidence`
 
 ### `template`
 
@@ -204,6 +206,26 @@ param=sock_lineage_fragment.capture_comm=false
 param=udp_packet_meta_fragment.min_len=80
 ```
 
+### `evidence`
+
+Template-local evidence tier override format:
+
+```text
+evidence=<fact_kind>:<tier>
+```
+
+Examples:
+
+```text
+evidence=sock_lineage:core_requirement
+evidence=packet_meta:optional_enhancement
+```
+
+This does not change what the underlying fragment template emits. It only
+changes how the compiled binding classifies that evidence in planner
+diagnostics. That lets two templates interpret the same fragment evidence with
+different priority while still reusing the same stable eBPF fragment templates.
+
 ## Predicates
 
 Current predicates are:
@@ -245,9 +267,9 @@ Planner diagnostics also classify rules into:
 - `optional_enhancement`
 - `unsupported`
 
-In the current prototype, process-identity lineage driven rules are treated as
-optional enhancements, while packet/route/state driven rules are treated as
-core requirements.
+By default these tiers come from the selected fragment descriptors, but a
+template can override them with `evidence=...` lines when a specific network
+module view wants to treat the same evidence differently.
 
 ## Stages
 

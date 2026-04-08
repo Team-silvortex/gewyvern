@@ -1,6 +1,7 @@
-use crate::fragment::{builtin_registry, RegistryError};
+use crate::fragment::{builtin_registry, EvidenceTier, RegistryError};
 use crate::flow::{ProgramOperation, ProgramStageKind};
 use crate::ir::{FlowPredicate, NarrativeTemplate, SignalKind};
+use crate::ledger::FactKindTag;
 use crate::program::{ProgramModel, ProgramNarrative, ProgramRule};
 use crate::reason::{
     ReasonKeyEvent, ReasonModel, ReasonNarrative, ReasonProfile, ReasonRule,
@@ -37,7 +38,8 @@ pub fn compile_str(input: &str) -> Result<TemplateBinding, DslError> {
     let mut program_model_id = None;
     let mut operation = None;
     let mut rules = Vec::new();
-    let mut binding: Option<TemplateBinding> = None;
+    let mut fragment_params = Vec::new();
+    let mut evidence_overrides = Vec::new();
 
     for raw_line in input.lines() {
         let line = raw_line.trim();
@@ -71,47 +73,8 @@ pub fn compile_str(input: &str) -> Result<TemplateBinding, DslError> {
             "program_model" => program_model_id = Some(value.to_string()),
             "operation" => operation = Some(parse_operation(value)),
             "rule" => rules.push(parse_rule(value)?),
-            "param" => {
-                if binding.is_none() {
-                    let template_id = template_id
-                        .clone()
-                        .ok_or(DslError::MissingField("template"))?;
-                    let window_profile = build_window_profile(
-                        window_profile.clone(),
-                        inline_window_duration_ms,
-                        inline_window_lateness_ms,
-                    )?;
-                    let reason_profile = build_reason_profile(
-                        &template_id,
-                        reason_profile.clone(),
-                        reason_model_id.clone(),
-                        reason_rules.clone(),
-                    )?;
-                    binding = Some(Template {
-                        id: Box::leak(
-                            template_id.clone().into_boxed_str(),
-                        ),
-                        fragment_set: fragment_set
-                            .iter()
-                            .map(|item| Box::leak(item.clone().into_boxed_str()) as &'static str)
-                            .collect(),
-                        window_profile: Some(window_profile),
-                        reason_profile: Some(reason_profile.clone()),
-                        program_model: Some(build_program_model(
-                            &template_id,
-                            &reason_profile,
-                            program_model_id.clone(),
-                            operation.clone(),
-                            rules.clone(),
-                        )?),
-                    }
-                    .bind());
-                }
-                binding = Some(parse_param(
-                    binding.take().expect("binding initialized"),
-                    value,
-                )?);
-            }
+            "param" => fragment_params.push(parse_param_entry(value)?),
+            "evidence" => evidence_overrides.push(parse_evidence_override(value)?),
             other => return Err(DslError::InvalidValue(format!("unknown DSL key '{other}'"))),
         }
     }
@@ -147,7 +110,13 @@ pub fn compile_str(input: &str) -> Result<TemplateBinding, DslError> {
         program_model: Some(program_model),
     };
 
-    let binding = binding.unwrap_or_else(|| template.bind());
+    let mut binding = template.bind();
+    for (fragment_id, key, value) in fragment_params {
+        binding = binding.with_fragment_param(fragment_id, key, value);
+    }
+    for (fact_kind, tier) in evidence_overrides {
+        binding = binding.with_evidence_tier(fact_kind, tier);
+    }
     builtin_registry()
         .validate_binding(&binding)
         .map_err(DslError::Registry)?;
@@ -341,7 +310,9 @@ fn parse_narrative_template(value: &str) -> NarrativeTemplate {
     }
 }
 
-fn parse_param(binding: TemplateBinding, value: &str) -> Result<TemplateBinding, DslError> {
+fn parse_param_entry(
+    value: &str,
+) -> Result<(&'static str, &'static str, FragmentParamValue), DslError> {
     let (lhs, rhs) = value
         .split_once('=')
         .ok_or_else(|| DslError::InvalidValue(format!("invalid param '{value}'")))?;
@@ -349,11 +320,30 @@ fn parse_param(binding: TemplateBinding, value: &str) -> Result<TemplateBinding,
         .split_once('.')
         .ok_or_else(|| DslError::InvalidValue(format!("invalid param target '{lhs}'")))?;
 
-    Ok(binding.with_fragment_param(
+    Ok((
         Box::leak(fragment_id.trim().to_string().into_boxed_str()),
         Box::leak(key.trim().to_string().into_boxed_str()),
         parse_param_value(rhs.trim())?,
     ))
+}
+
+fn parse_evidence_override(value: &str) -> Result<(FactKindTag, EvidenceTier), DslError> {
+    let (fact_kind, tier) = value
+        .split_once(':')
+        .ok_or_else(|| DslError::InvalidValue(format!("invalid evidence override '{value}'")))?;
+    let fact_kind = FactKindTag::from_str(fact_kind.trim()).ok_or_else(|| {
+        DslError::InvalidValue(format!("unknown evidence fact kind '{}'", fact_kind.trim()))
+    })?;
+    let tier = match tier.trim() {
+        "core_requirement" => EvidenceTier::CoreRequirement,
+        "optional_enhancement" => EvidenceTier::OptionalEnhancement,
+        other => {
+            return Err(DslError::InvalidValue(format!(
+                "unknown evidence tier '{other}'"
+            )))
+        }
+    };
+    Ok((fact_kind, tier))
 }
 
 fn parse_param_value(value: &str) -> Result<FragmentParamValue, DslError> {

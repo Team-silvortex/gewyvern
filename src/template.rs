@@ -1,4 +1,6 @@
+use crate::fragment::EvidenceTier;
 use crate::flow::{ProgramOperation, ProgramStageKind};
+use crate::ledger::FactKindTag;
 use crate::program::{ProgramModel, ProgramNarrative, ProgramPredicate, ProgramRule};
 use crate::reason::{ReasonProfile, ReasonProfile::{HandshakeL1, UdpDatagramL1}};
 use std::collections::BTreeMap;
@@ -23,6 +25,7 @@ pub struct Template {
 pub struct TemplateBinding {
     pub template: Template,
     pub fragment_params: BTreeMap<String, BTreeMap<String, FragmentParamValue>>,
+    pub evidence_overrides: BTreeMap<FactKindTag, EvidenceTier>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -61,6 +64,7 @@ impl Template {
         TemplateBinding {
             template: self,
             fragment_params: BTreeMap::new(),
+            evidence_overrides: BTreeMap::new(),
         }
     }
 }
@@ -80,6 +84,15 @@ impl TemplateBinding {
             .entry(fragment_id.into())
             .or_default()
             .insert(key.into(), value);
+        self
+    }
+
+    pub fn with_evidence_tier(
+        mut self,
+        fact_kind: FactKindTag,
+        tier: EvidenceTier,
+    ) -> Self {
+        self.evidence_overrides.insert(fact_kind, tier);
         self
     }
 }

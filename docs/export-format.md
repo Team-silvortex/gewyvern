@@ -36,6 +36,8 @@ The current top-level object contains:
 - `window_profile`
 - `reason_profile_id`
 - `reason_profile`
+- `fragment_params`
+- `evidence_overrides`
 - `facts`
 - `rejected_facts`
 - `rejected_fact_summary`
@@ -218,6 +220,28 @@ Current built-in value:
 ### `reason_profile`
 
 Stable export of the active reason profile.
+
+### `fragment_params`
+
+Per-fragment parameter bindings compiled from the `.gewy` file or attached
+directly to a `TemplateBinding`.
+
+### `evidence_overrides`
+
+Template-local rule-tier overrides keyed by fact kind.
+
+Example:
+
+```json
+{
+  "sock_lineage": "core_requirement",
+  "packet_meta": "optional_enhancement"
+}
+```
+
+These do not mutate fragment descriptors or eBPF behavior. They preserve how
+the originating binding reinterpreted evidence priority for planner
+diagnostics, and replay keeps them stable.
 
 Built-in profiles currently serialize as a string id.
 
