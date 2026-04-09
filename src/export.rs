@@ -1,6 +1,7 @@
 use crate::flow::{
-    EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView, ProgramFinding,
-    ProgramFindingCause, ProgramFlow, ProgramFlowId, ProgramOperation, ProgramStage,
+    EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, ModuleFinding, PathSegment, PathView,
+    ProgramFinding, ProgramFindingCause, ProgramFlow, ProgramFlowId, ProgramOperation,
+    ProgramStage,
 };
 use crate::fragment::{
     AttachPlan, AttachReport, CapabilityFlag, CoverageReport, DependencyEdge, FactBinding,
@@ -51,6 +52,7 @@ pub struct ExportBundle {
     pub flows: Vec<FlowSnapshot>,
     pub program_flows: Vec<ProgramFlow>,
     pub program_findings: Vec<ProgramFinding>,
+    pub module_findings: Vec<ModuleFinding>,
     pub reasons: Vec<ReasonChain>,
 }
 
@@ -69,6 +71,7 @@ pub struct DebugSummary {
     pub flows: u64,
     pub program_flows: u64,
     pub program_findings: u64,
+    pub module_findings: u64,
     pub reasons: u64,
     pub degraded: bool,
 }
@@ -121,6 +124,7 @@ impl ExportBundle {
         replay.rejected_fact_summary = summarize_rejected_facts(&replay.rejected_facts);
         replay.program_flows = self.program_flows.clone();
         replay.program_findings = self.program_findings.clone();
+        replay.module_findings = self.module_findings.clone();
         Ok(replay)
     }
 
@@ -218,6 +222,15 @@ impl ExportBundle {
                     self.program_findings
                         .iter()
                         .map(program_finding_json)
+                        .collect(),
+                ),
+            ),
+            (
+                "module_findings".into(),
+                JsonValue::Array(
+                    self.module_findings
+                        .iter()
+                        .map(module_finding_json)
                         .collect(),
                 ),
             ),
@@ -337,6 +350,13 @@ impl ExportBundle {
                 .as_array()?
                 .iter()
                 .map(parse_program_finding)
+                .collect::<Result<Vec<_>, _>>()?,
+            module_findings: root
+                .get("module_findings")
+                .ok_or_else(|| ExportError::InvalidShape("missing module_findings".into()))?
+                .as_array()?
+                .iter()
+                .map(parse_module_finding)
                 .collect::<Result<Vec<_>, _>>()?,
             reasons: root
                 .get("reasons")
@@ -1071,6 +1091,10 @@ fn debug_summary_json(summary: &DebugSummary) -> JsonValue {
             "program_findings".into(),
             JsonValue::Number(summary.program_findings as i64),
         ),
+        (
+            "module_findings".into(),
+            JsonValue::Number(summary.module_findings as i64),
+        ),
         ("reasons".into(), JsonValue::Number(summary.reasons as i64)),
         ("degraded".into(), JsonValue::Bool(summary.degraded)),
     ]))
@@ -1412,6 +1436,10 @@ fn program_finding_json(finding: &ProgramFinding) -> JsonValue {
             JsonValue::String(program_operation_id(&finding.operation).into()),
         ),
         (
+            "module_label".into(),
+            JsonValue::String(finding.module_label.clone()),
+        ),
+        (
             "suspect_area".into(),
             JsonValue::String(finding.suspect_area.clone()),
         ),
@@ -1431,6 +1459,106 @@ fn program_finding_json(finding: &ProgramFinding) -> JsonValue {
                     .supporting_fragments
                     .iter()
                     .map(|fragment| JsonValue::String(fragment.clone()))
+                    .collect(),
+            ),
+        ),
+        (
+            "evidence_trace".into(),
+            JsonValue::Array(
+                finding
+                    .evidence_trace
+                    .iter()
+                    .map(|item| JsonValue::String(item.clone()))
+                    .collect(),
+            ),
+        ),
+    ]))
+}
+
+fn module_finding_json(finding: &ModuleFinding) -> JsonValue {
+    JsonValue::Object(BTreeMap::from([
+        (
+            "module_label".into(),
+            JsonValue::String(finding.module_label.clone()),
+        ),
+        (
+            "process".into(),
+            finding.process.as_ref().map_or(JsonValue::Null, |process| {
+                JsonValue::Object(BTreeMap::from([
+                    ("pid".into(), JsonValue::Number(process.pid as i64)),
+                    ("tid".into(), JsonValue::Number(process.tid as i64)),
+                    ("cgroup_id".into(), JsonValue::Number(process.cgroup_id as i64)),
+                    ("comm".into(), JsonValue::String(process.comm.clone())),
+                ]))
+            }),
+        ),
+        (
+            "operation".into(),
+            JsonValue::String(program_operation_id(&finding.operation).into()),
+        ),
+        (
+            "suspect_areas".into(),
+            JsonValue::Array(
+                finding
+                    .suspect_areas
+                    .iter()
+                    .map(|item| JsonValue::String(item.clone()))
+                    .collect(),
+            ),
+        ),
+        (
+            "causes".into(),
+            JsonValue::Array(
+                finding
+                    .causes
+                    .iter()
+                    .map(|cause| {
+                        JsonValue::String(match cause {
+                            ProgramFindingCause::AttachFailure => "attach_failure".into(),
+                            ProgramFindingCause::RejectedEvidence => "rejected_evidence".into(),
+                            ProgramFindingCause::MissingCoreStage => "missing_core_stage".into(),
+                        })
+                    })
+                    .collect(),
+            ),
+        ),
+        (
+            "supporting_fragments".into(),
+            JsonValue::Array(
+                finding
+                    .supporting_fragments
+                    .iter()
+                    .map(|fragment| JsonValue::String(fragment.clone()))
+                    .collect(),
+            ),
+        ),
+        (
+            "program_flows".into(),
+            JsonValue::Array(
+                finding
+                    .program_flows
+                    .iter()
+                    .map(|id| JsonValue::Number(id.0 as i64))
+                    .collect(),
+            ),
+        ),
+        (
+            "summaries".into(),
+            JsonValue::Array(
+                finding
+                    .summaries
+                    .iter()
+                    .map(|item| JsonValue::String(item.clone()))
+                    .collect(),
+            ),
+        ),
+        (
+            "evidence_trace".into(),
+            JsonValue::Array(
+                finding
+                    .evidence_trace
+                    .iter()
+                    .map(|item| JsonValue::String(item.clone()))
                     .collect(),
             ),
         ),
@@ -1581,6 +1709,12 @@ fn reason_rule_json(rule: &ReasonRule) -> JsonValue {
             reason_narrative_json(&rule.narrative),
         ),
         ("dedupe".into(), JsonValue::Bool(rule.dedupe)),
+        (
+            "module".into(),
+            rule.module
+                .as_ref()
+                .map_or(JsonValue::Null, |module| JsonValue::String(module.clone())),
+        ),
     ]))
 }
 
@@ -1687,6 +1821,10 @@ fn parse_reason_rule(value: &JsonValue) -> Result<ReasonRule, ExportError> {
             .get("dedupe")
             .ok_or_else(|| ExportError::InvalidShape("reason_rule.dedupe".into()))?
             .as_bool()?,
+        module: match object.get("module").unwrap_or(&JsonValue::Null) {
+            JsonValue::Null => None,
+            value => Some(value.as_str()?.to_string()),
+        },
     })
 }
 
@@ -2693,6 +2831,10 @@ fn parse_debug_summary(value: &JsonValue) -> Result<DebugSummary, ExportError> {
             .get("program_findings")
             .ok_or_else(|| ExportError::InvalidShape("debug_summary.program_findings".into()))?
             .as_i64()? as u64,
+        module_findings: object
+            .get("module_findings")
+            .ok_or_else(|| ExportError::InvalidShape("debug_summary.module_findings".into()))?
+            .as_i64()? as u64,
         reasons: object
             .get("reasons")
             .ok_or_else(|| ExportError::InvalidShape("debug_summary.reasons".into()))?
@@ -2834,6 +2976,11 @@ fn parse_program_finding(value: &JsonValue) -> Result<ProgramFinding, ExportErro
             "unknown" => ProgramOperation::Unknown,
             other => ProgramOperation::Custom(other.into()),
         },
+        module_label: object
+            .get("module_label")
+            .ok_or_else(|| ExportError::InvalidShape("program_finding.module_label".into()))?
+            .as_str()?
+            .to_string(),
         suspect_area: object
             .get("suspect_area")
             .ok_or_else(|| ExportError::InvalidShape("program_finding.suspect_area".into()))?
@@ -2850,6 +2997,86 @@ fn parse_program_finding(value: &JsonValue) -> Result<ProgramFinding, ExportErro
             .ok_or_else(|| {
                 ExportError::InvalidShape("program_finding.supporting_fragments".into())
             })?
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_str()?.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
+        evidence_trace: object
+            .get("evidence_trace")
+            .ok_or_else(|| ExportError::InvalidShape("program_finding.evidence_trace".into()))?
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_str()?.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+fn parse_module_finding(value: &JsonValue) -> Result<ModuleFinding, ExportError> {
+    let object = value.as_object()?;
+    Ok(ModuleFinding {
+        module_label: object
+            .get("module_label")
+            .ok_or_else(|| ExportError::InvalidShape("module_finding.module_label".into()))?
+            .as_str()?
+            .to_string(),
+        process: parse_process_view(object.get("process").unwrap_or(&JsonValue::Null))?,
+        operation: match object
+            .get("operation")
+            .ok_or_else(|| ExportError::InvalidShape("module_finding.operation".into()))?
+            .as_str()?
+        {
+            "connect_flow" => ProgramOperation::ConnectFlow,
+            "datagram_exchange" => ProgramOperation::DatagramExchange,
+            "unknown" => ProgramOperation::Unknown,
+            other => ProgramOperation::Custom(other.into()),
+        },
+        suspect_areas: object
+            .get("suspect_areas")
+            .ok_or_else(|| ExportError::InvalidShape("module_finding.suspect_areas".into()))?
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_str()?.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
+        causes: object
+            .get("causes")
+            .ok_or_else(|| ExportError::InvalidShape("module_finding.causes".into()))?
+            .as_array()?
+            .iter()
+            .map(|item| match item.as_str()? {
+                "attach_failure" => Ok(ProgramFindingCause::AttachFailure),
+                "rejected_evidence" => Ok(ProgramFindingCause::RejectedEvidence),
+                "missing_core_stage" => Ok(ProgramFindingCause::MissingCoreStage),
+                other => Err(ExportError::InvalidValue(format!(
+                    "unknown module finding cause: {other}"
+                ))),
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        supporting_fragments: object
+            .get("supporting_fragments")
+            .ok_or_else(|| {
+                ExportError::InvalidShape("module_finding.supporting_fragments".into())
+            })?
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_str()?.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
+        program_flows: object
+            .get("program_flows")
+            .ok_or_else(|| ExportError::InvalidShape("module_finding.program_flows".into()))?
+            .as_array()?
+            .iter()
+            .map(|item| Ok(ProgramFlowId(item.as_i64()? as u64)))
+            .collect::<Result<Vec<_>, _>>()?,
+        summaries: object
+            .get("summaries")
+            .ok_or_else(|| ExportError::InvalidShape("module_finding.summaries".into()))?
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_str()?.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
+        evidence_trace: object
+            .get("evidence_trace")
+            .ok_or_else(|| ExportError::InvalidShape("module_finding.evidence_trace".into()))?
             .as_array()?
             .iter()
             .map(|item| Ok(item.as_str()?.to_string()))

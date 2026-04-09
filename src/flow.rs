@@ -33,10 +33,25 @@ pub struct ProgramFinding {
     pub program_flow: ProgramFlowId,
     pub process: Option<ProcessView>,
     pub operation: ProgramOperation,
+    pub module_label: String,
     pub suspect_area: String,
     pub cause: ProgramFindingCause,
     pub summary: String,
     pub supporting_fragments: Vec<String>,
+    pub evidence_trace: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModuleFinding {
+    pub module_label: String,
+    pub process: Option<ProcessView>,
+    pub operation: ProgramOperation,
+    pub suspect_areas: Vec<String>,
+    pub causes: Vec<ProgramFindingCause>,
+    pub supporting_fragments: Vec<String>,
+    pub program_flows: Vec<ProgramFlowId>,
+    pub summaries: Vec<String>,
+    pub evidence_trace: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -46,7 +61,7 @@ pub enum ProgramFindingCause {
     MissingCoreStage,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum ProgramOperation {
     ConnectFlow,
     DatagramExchange,
@@ -62,7 +77,7 @@ pub struct ProgramStage {
 
 pub type ProgramStageKind = SignalKind;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct ProcessView {
     pub pid: u32,
     pub tid: u32,

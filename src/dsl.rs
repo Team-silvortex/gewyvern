@@ -198,7 +198,7 @@ fn parse_operation(value: &str) -> ProgramOperation {
 
 fn parse_rule(value: &str) -> Result<ProgramRule, DslError> {
     let parts = split_top_level(value, ';');
-    if parts.len() != 4 {
+    if parts.len() != 4 && parts.len() != 5 {
         return Err(DslError::InvalidValue(format!("invalid rule '{value}'")));
     }
 
@@ -207,12 +207,13 @@ fn parse_rule(value: &str) -> Result<ProgramRule, DslError> {
         signal: parse_stage(parts[1].trim())?,
         narrative: parse_narrative(parts[2].trim()),
         dedupe: parse_bool(parts[3].trim())?,
+        module: parts.get(4).map(|value| value.trim().to_string()),
     })
 }
 
 fn parse_reason_rule(value: &str) -> Result<ReasonRule, DslError> {
     let parts = split_top_level(value, ';');
-    if parts.len() != 4 {
+    if parts.len() != 4 && parts.len() != 5 {
         return Err(DslError::InvalidValue(format!("invalid reason rule '{value}'")));
     }
 
@@ -221,6 +222,7 @@ fn parse_reason_rule(value: &str) -> Result<ReasonRule, DslError> {
         signal: parse_reason_key_event(parts[1].trim())?,
         narrative: parse_reason_narrative(parts[2].trim()),
         dedupe: parse_bool(parts[3].trim())?,
+        module: parts.get(4).map(|value| value.trim().to_string()),
     })
 }
 

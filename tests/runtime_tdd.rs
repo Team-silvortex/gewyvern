@@ -218,6 +218,7 @@ fn session_rejects_facts_from_fragments_that_failed_to_attach() {
     assert_eq!(export.debug_summary.rejected_facts, 1);
     assert_eq!(export.debug_summary.flows, 1);
     assert_eq!(export.debug_summary.program_findings, 1);
+    assert_eq!(export.debug_summary.module_findings, 1);
     assert_eq!(export.debug_summary.reasons, 1);
     assert!(export.debug_summary.degraded);
     assert!(export
@@ -323,6 +324,7 @@ fn debug_summary_stays_clean_when_session_has_no_loader_or_ingest_degradation() 
     assert_eq!(export.debug_summary.flows, 1);
     assert_eq!(export.debug_summary.program_flows, 1);
     assert_eq!(export.debug_summary.program_findings, 0);
+    assert_eq!(export.debug_summary.module_findings, 0);
     assert_eq!(export.debug_summary.reasons, 1);
     assert!(!export.debug_summary.degraded);
 
@@ -347,6 +349,7 @@ fn udp_template_exports_deterministic_datagram_reason_chain() {
     assert_eq!(export.reasons[0].l3.narrative[1].text, "route fingerprint updated");
     assert_eq!(export.debug_summary.fragments_loaded, 2);
     assert_eq!(export.debug_summary.program_findings, 0);
+    assert_eq!(export.debug_summary.module_findings, 0);
     assert!(!export.debug_summary.degraded);
 
     let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
@@ -457,18 +460,21 @@ fn program_flow_operation_supports_custom_model_ids() {
                 signal: Some(gewyvern::flow::ProgramStageKind::ProcessBound),
                 narrative: ProgramNarrative::ProcessBound,
                 dedupe: true,
+                module: None,
             },
             ProgramRule {
                 predicate: ProgramPredicate::DatagramObserved { l4_proto: 17 },
                 signal: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),
                 narrative: ProgramNarrative::Static("program emitted a DNS-style datagram"),
                 dedupe: true,
+                module: None,
             },
             ProgramRule {
                 predicate: ProgramPredicate::RouteResolved,
                 signal: Some(gewyvern::flow::ProgramStageKind::RouteResolved),
                 narrative: ProgramNarrative::Static("program resolved an upstream route"),
                 dedupe: true,
+                module: None,
             },
         ],
     });
@@ -514,6 +520,7 @@ fn program_model_supports_all_and_any_predicates() {
                     "process-owned UDP activity observed"
                 ),
                 dedupe: true,
+                module: None,
             },
             ProgramRule {
                 predicate: ProgramPredicate::Any(vec![
@@ -525,6 +532,7 @@ fn program_model_supports_all_and_any_predicates() {
                     "program observed either route or socket progress"
                 ),
                 dedupe: true,
+                module: None,
             },
         ],
     });
@@ -712,6 +720,12 @@ fn attach_failures_are_lifted_into_program_findings_for_suspect_module_areas() {
 
     assert_eq!(export.program_findings.len(), 1);
     assert_eq!(export.debug_summary.program_findings, 1);
+    assert_eq!(export.module_findings.len(), 1);
+    assert_eq!(export.debug_summary.module_findings, 1);
+    assert_eq!(
+        export.program_findings[0].module_label,
+        "datagram_exchange::route_resolution::route_meta_fragment"
+    );
     assert_eq!(export.program_findings[0].suspect_area, "route_resolution");
     assert_eq!(export.program_findings[0].cause, ProgramFindingCause::AttachFailure);
     assert_eq!(
@@ -719,11 +733,40 @@ fn attach_failures_are_lifted_into_program_findings_for_suspect_module_areas() {
         vec!["route_meta_fragment".to_string()]
     );
     assert!(export.program_findings[0]
+        .evidence_trace
+        .iter()
+        .any(|item| item == "missing_signal:route_resolved"));
+    assert!(export.program_findings[0]
+        .evidence_trace
+        .iter()
+        .any(|item| item == "observed_stage:process_bound@1"));
+    assert!(export.program_findings[0]
+        .evidence_trace
+        .iter()
+        .any(|item| item == "observed_stage:datagram_observed@2"));
+    assert!(export.program_findings[0]
+        .evidence_trace
+        .iter()
+        .any(|item| item == "failed_hookpoint:route_meta_fragment@kprobe:ip_route_output_flow"));
+    assert!(export.program_findings[0]
         .summary
         .contains("process curl (pid=4242)"));
+    assert_eq!(
+        export.module_findings[0].module_label,
+        "datagram_exchange::route_resolution::route_meta_fragment"
+    );
+    assert_eq!(
+        export.module_findings[0].suspect_areas,
+        vec!["route_resolution".to_string()]
+    );
+    assert_eq!(
+        export.module_findings[0].program_flows,
+        vec![export.program_findings[0].program_flow]
+    );
 
     let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
     assert_eq!(export.program_findings, replay.program_findings);
+    assert_eq!(export.module_findings, replay.module_findings);
 }
 
 #[test]
@@ -747,6 +790,12 @@ fn rejected_core_packet_evidence_points_to_datagram_io_as_suspect_area() {
 
     assert_eq!(export.program_findings.len(), 1);
     assert_eq!(export.debug_summary.program_findings, 1);
+    assert_eq!(export.module_findings.len(), 1);
+    assert_eq!(export.debug_summary.module_findings, 1);
+    assert_eq!(
+        export.program_findings[0].module_label,
+        "datagram_exchange::datagram_io::udp_packet_meta_fragment"
+    );
     assert_eq!(export.program_findings[0].suspect_area, "datagram_io");
     assert_eq!(
         export.program_findings[0].cause,
@@ -756,7 +805,70 @@ fn rejected_core_packet_evidence_points_to_datagram_io_as_suspect_area() {
         export.program_findings[0].supporting_fragments,
         vec!["udp_packet_meta_fragment".to_string()]
     );
+    assert!(export.program_findings[0]
+        .evidence_trace
+        .iter()
+        .any(|item| item == "missing_signal:datagram_observed"));
+    assert!(export.program_findings[0]
+        .evidence_trace
+        .iter()
+        .any(|item| item == "observed_stage:process_bound@1"));
+    assert!(export.program_findings[0]
+        .evidence_trace
+        .iter()
+        .any(|item| item == "observed_stage:route_resolved@3"));
+    assert!(export.program_findings[0]
+        .evidence_trace
+        .iter()
+        .any(|item| item == "rejected_fact:2:udp_packet_meta_fragment:filtered_by_fragment_param"));
+    assert_eq!(
+        export.module_findings[0].module_label,
+        "datagram_exchange::datagram_io::udp_packet_meta_fragment"
+    );
+    assert_eq!(
+        export.module_findings[0].suspect_areas,
+        vec!["datagram_io".to_string()]
+    );
 
     let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
     assert_eq!(export.program_findings, replay.program_findings);
+    assert_eq!(export.module_findings, replay.module_findings);
+}
+
+#[test]
+fn dsl_declared_module_names_override_auto_generated_module_labels() {
+    let binding = gewyvern::dsl::compile_str(
+        r#"
+template=udp_module_debug
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+operation=datagram_exchange
+rule=process_bound;process_bound;process_bound;true;udp_request_path
+rule=datagram_observed:udp;datagram_observed;udp_datagram_observed;true;udp_request_path
+rule=route_resolved;route_resolved;route_changed;true;udp_request_path
+param=udp_packet_meta_fragment.min_len=80
+"#,
+    )
+    .unwrap();
+
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 109, 4242, "curl"));
+    session.ingest(udp_packet_fact(2, 109, 72));
+    session.ingest(route_fact(3, 109, 10));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+
+    assert_eq!(export.program_findings.len(), 1);
+    assert_eq!(export.module_findings.len(), 1);
+    assert_eq!(export.program_findings[0].module_label, "udp_request_path");
+    assert_eq!(export.module_findings[0].module_label, "udp_request_path");
+
+    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    assert_eq!(export.program_findings, replay.program_findings);
+    assert_eq!(export.module_findings, replay.module_findings);
 }

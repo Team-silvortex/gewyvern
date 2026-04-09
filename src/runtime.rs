@@ -1,7 +1,7 @@
 use crate::export::ExportBundle;
 use crate::flow::{
-    EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, PathSegment, PathView, ProcessView,
-    ProgramFinding, ProgramFindingCause, ProgramFlow,
+    EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, ModuleFinding, PathSegment, PathView,
+    ProcessView, ProgramFinding, ProgramFindingCause, ProgramFlow,
 };
 use crate::fragment::{
     builtin_registry, summarize_attach_failures, AttachFailure, AttachPlan, AttachReport,
@@ -286,6 +286,7 @@ impl RuntimeSession {
             &self.rejected_facts,
             &program_flows,
         );
+        let module_findings = summarize_module_findings(&program_findings);
         let attach_failure_summary = summarize_attach_failures(&self.attach_report);
         let rejected_fact_summary = summarize_rejected_facts(&self.rejected_facts);
 
@@ -312,6 +313,7 @@ impl RuntimeSession {
                 flows: flows.len() as u64,
                 program_flows: program_flows.len() as u64,
                 program_findings: program_findings.len() as u64,
+                module_findings: module_findings.len() as u64,
                 reasons: reasons.len() as u64,
                 degraded: !self.attach_report.hookpoints_failed.is_empty()
                     || !self.rejected_facts.is_empty(),
@@ -327,6 +329,7 @@ impl RuntimeSession {
             flows,
             program_flows,
             program_findings,
+            module_findings,
             reasons,
         }
     }
@@ -431,14 +434,29 @@ fn build_program_findings(
                 };
 
                 let suspect_area = suspect_area_for_signal(signal).to_string();
+                let module_label = module_label(
+                    model.rules.get(rule_diag.rule_index)?.module.as_deref(),
+                    &flow.operation,
+                    &suspect_area,
+                    &rule_diag.supporting_fragments,
+                );
+                let evidence_trace = build_evidence_trace(
+                    signal,
+                    attach_report,
+                    rejected_facts,
+                    flow,
+                    &rule_diag.supporting_fragments,
+                );
                 Some(ProgramFinding {
                     program_flow: flow.id,
                     process: flow.process.clone(),
                     operation: flow.operation.clone(),
+                    module_label,
                     summary: finding_summary(flow, &suspect_area, &cause),
                     suspect_area,
                     cause,
                     supporting_fragments: rule_diag.supporting_fragments.clone(),
+                    evidence_trace,
                 })
             })
         })
@@ -481,6 +499,132 @@ fn finding_summary(
         "{} may have a {} issue during {:?}: {}",
         scope, suspect_area, flow.operation, cause_text
     )
+}
+
+fn module_label(
+    declared_module: Option<&str>,
+    operation: &crate::flow::ProgramOperation,
+    suspect_area: &str,
+    supporting_fragments: &[String],
+) -> String {
+    if let Some(module) = declared_module {
+        return module.to_string();
+    }
+    let fragment_scope = if supporting_fragments.is_empty() {
+        "unknown_fragment".to_string()
+    } else {
+        supporting_fragments.join("+")
+    };
+    format!(
+        "{}::{}::{}",
+        operation_label(operation),
+        suspect_area,
+        fragment_scope
+    )
+}
+
+fn operation_label(operation: &crate::flow::ProgramOperation) -> String {
+    match operation {
+        crate::flow::ProgramOperation::ConnectFlow => "connect_flow".into(),
+        crate::flow::ProgramOperation::DatagramExchange => "datagram_exchange".into(),
+        crate::flow::ProgramOperation::Custom(value) => value.clone(),
+        crate::flow::ProgramOperation::Unknown => "unknown".into(),
+    }
+}
+
+fn build_evidence_trace(
+    signal: &crate::ir::SignalKind,
+    attach_report: &AttachReport,
+    rejected_facts: &[RejectedFact],
+    flow: &ProgramFlow,
+    supporting_fragments: &[String],
+) -> Vec<String> {
+    let mut trace = vec![format!("missing_signal:{}", signal.id())];
+
+    for stage in &flow.stages {
+        trace.push(format!("observed_stage:{}@{}", stage.kind.id(), stage.at.0));
+    }
+
+    for hookpoint in &attach_report.hookpoints_failed {
+        if supporting_fragments
+            .iter()
+            .any(|fragment| hookpoint.starts_with(&format!("{fragment}@")))
+        {
+            trace.push(format!("failed_hookpoint:{hookpoint}"));
+        }
+    }
+
+    for rejected in rejected_facts {
+        if supporting_fragments
+            .iter()
+            .any(|fragment| fragment == &rejected.fragment_id)
+        {
+            trace.push(format!(
+                "rejected_fact:{}:{}:{}",
+                rejected.id.0,
+                rejected.fragment_id,
+                rejected.reason.label()
+            ));
+        }
+    }
+
+    trace
+}
+
+fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleFinding> {
+    let mut grouped = BTreeMap::<(String, Option<ProcessView>, crate::flow::ProgramOperation), ModuleFinding>::new();
+
+    for finding in program_findings {
+        let key = (
+            finding.module_label.clone(),
+            finding.process.clone(),
+            finding.operation.clone(),
+        );
+        let entry = grouped.entry(key).or_insert_with(|| ModuleFinding {
+            module_label: finding.module_label.clone(),
+            process: finding.process.clone(),
+            operation: finding.operation.clone(),
+            suspect_areas: Vec::new(),
+            causes: Vec::new(),
+            supporting_fragments: Vec::new(),
+            program_flows: Vec::new(),
+            summaries: Vec::new(),
+            evidence_trace: Vec::new(),
+        });
+
+        entry.suspect_areas.push(finding.suspect_area.clone());
+        entry.causes.push(finding.cause.clone());
+        entry.supporting_fragments.extend(finding.supporting_fragments.clone());
+        entry.program_flows.push(finding.program_flow);
+        entry.summaries.push(finding.summary.clone());
+        entry.evidence_trace.extend(finding.evidence_trace.clone());
+    }
+
+    let mut findings = grouped
+        .into_values()
+        .map(|mut finding| {
+            finding.suspect_areas.sort();
+            finding.suspect_areas.dedup();
+            finding.causes.sort_by_key(|cause| match cause {
+                ProgramFindingCause::AttachFailure => 0,
+                ProgramFindingCause::RejectedEvidence => 1,
+                ProgramFindingCause::MissingCoreStage => 2,
+            });
+            finding.causes.dedup();
+            finding.supporting_fragments.sort();
+            finding.supporting_fragments.dedup();
+            finding.program_flows.sort();
+            finding.program_flows.dedup();
+            finding.summaries.sort();
+            finding.summaries.dedup();
+            finding.evidence_trace.sort();
+            finding.evidence_trace.dedup();
+            finding
+        })
+        .collect::<Vec<_>>();
+
+    findings.sort_by(|a, b| a.module_label.cmp(&b.module_label));
+    findings
 }
 
 pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {

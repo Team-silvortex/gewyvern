@@ -107,18 +107,21 @@ pub fn connect_flow_model() -> ProgramModel {
                 signal: Some(ProgramStageKind::ProcessBound),
                 narrative: ProgramNarrative::ProcessBound,
                 dedupe: true,
+                module: None,
             },
             ProgramRule {
                 predicate: ProgramPredicate::SocketStateObserved,
                 signal: Some(ProgramStageKind::SocketStateTransition),
                 narrative: ProgramNarrative::None,
                 dedupe: false,
+                module: None,
             },
             ProgramRule {
                 predicate: ProgramPredicate::RouteResolved,
                 signal: Some(ProgramStageKind::RouteResolved),
                 narrative: ProgramNarrative::Static("program resolved a route for this network flow"),
                 dedupe: true,
+                module: None,
             },
         ],
     }
@@ -134,18 +137,21 @@ pub fn datagram_exchange_model() -> ProgramModel {
                 signal: Some(ProgramStageKind::ProcessBound),
                 narrative: ProgramNarrative::ProcessBound,
                 dedupe: true,
+                module: None,
             },
             ProgramRule {
                 predicate: ProgramPredicate::DatagramObserved { l4_proto: 17 },
                 signal: Some(ProgramStageKind::DatagramObserved),
                 narrative: ProgramNarrative::Static("program emitted or received a UDP datagram"),
                 dedupe: true,
+                module: None,
             },
             ProgramRule {
                 predicate: ProgramPredicate::RouteResolved,
                 signal: Some(ProgramStageKind::RouteResolved),
                 narrative: ProgramNarrative::Static("program resolved a route for this network flow"),
                 dedupe: true,
+                module: None,
             },
         ],
     }

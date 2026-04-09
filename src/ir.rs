@@ -47,6 +47,7 @@ pub struct RuleTemplate {
     pub signal: Option<SignalKind>,
     pub narrative: NarrativeTemplate,
     pub dedupe: bool,
+    pub module: Option<String>,
 }
 
 impl SignalKind {

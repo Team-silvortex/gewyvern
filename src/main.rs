@@ -575,8 +575,18 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
             .collect::<Vec<_>>()
             .join(",")
     };
+    let suspect_modules = if export.program_findings.is_empty() {
+        "none".to_string()
+    } else {
+        export
+            .program_findings
+            .iter()
+            .map(|finding| finding.module_label.clone())
+            .collect::<Vec<_>>()
+            .join(",")
+    };
     format!(
-        "{name}: template={} fragments_loaded={} hookpoints_failed={} accepted_facts={} rejected_facts={} flows={} program_findings={} reasons={} degraded={} suspect_areas={}",
+        "{name}: template={} fragments_loaded={} hookpoints_failed={} accepted_facts={} rejected_facts={} flows={} program_findings={} module_findings={} reasons={} degraded={} suspect_areas={} suspect_modules={}",
         export.template_id,
         export.debug_summary.fragments_loaded,
         export.debug_summary.hookpoints_failed,
@@ -584,9 +594,11 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
         export.debug_summary.rejected_facts,
         export.debug_summary.flows,
         export.debug_summary.program_findings,
+        export.debug_summary.module_findings,
         export.debug_summary.reasons,
         export.debug_summary.degraded,
         suspect_areas,
+        suspect_modules,
     )
 }
 
@@ -595,8 +607,17 @@ fn usage() -> &'static str {
 }
 
 fn summary_json(name: &str, export: &ExportBundle) -> String {
+    let suspect_modules = format!(
+        "[{}]",
+        export
+            .program_findings
+            .iter()
+            .map(|finding| format!("\"{}\"", finding.module_label))
+            .collect::<Vec<_>>()
+            .join(",")
+    );
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"reasons\":{},\"degraded\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{}}}",
         export.template_id,
         export.debug_summary.fragments_loaded,
         export.debug_summary.hookpoints_failed,
@@ -604,8 +625,10 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
         export.debug_summary.rejected_facts,
         export.debug_summary.flows,
         export.debug_summary.program_findings,
+        export.debug_summary.module_findings,
         export.debug_summary.reasons,
-        export.debug_summary.degraded
+        export.debug_summary.degraded,
+        suspect_modules,
     )
 }
 
