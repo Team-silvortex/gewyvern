@@ -1645,6 +1645,7 @@ fn reason_json(reason: &ReasonChain) -> JsonValue {
                                         "kind".into(),
                                         JsonValue::String(match &event.kind {
                                             KeyEventKind::SynSeen => "syn_seen",
+                                            KeyEventKind::PacketObserved => "packet_observed",
                                             KeyEventKind::UdpDatagramSeen => "udp_datagram_seen",
                                             KeyEventKind::ProcessIdentified => "process_identified",
                                             KeyEventKind::RetransSuspected => "retrans_suspected",
@@ -1800,6 +1801,16 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             }
         },
         ReasonPredicate::RouteResolved => JsonValue::String("route_resolved".into()),
+        ReasonPredicate::PacketObserved { l4_proto, dir } => {
+            let mut object = BTreeMap::from([
+                ("kind".into(), JsonValue::String("packet_observed".into())),
+                ("l4_proto".into(), JsonValue::Number(*l4_proto as i64)),
+            ]);
+            if let Some(dir) = dir {
+                object.insert("dir".into(), JsonValue::String(dir.as_str().into()));
+            }
+            JsonValue::Object(object)
+        }
         ReasonPredicate::DatagramObserved { l4_proto, dir } => {
             let mut object = BTreeMap::from([
                 ("kind".into(), JsonValue::String("datagram_observed".into())),
@@ -1839,6 +1850,7 @@ fn narrative_template_json(narrative: &NarrativeTemplate) -> JsonValue {
     match narrative {
         NarrativeTemplate::None => JsonValue::String("none".into()),
         NarrativeTemplate::ProcessBound => JsonValue::String("process_bound".into()),
+        NarrativeTemplate::PacketObserved => JsonValue::String("packet_observed".into()),
         NarrativeTemplate::TcpStateTransition => JsonValue::String("tcp_state_transition".into()),
         NarrativeTemplate::RouteChanged => JsonValue::String("route_changed".into()),
         NarrativeTemplate::UdpDatagramObserved => JsonValue::String("udp_datagram_observed".into()),
@@ -1941,6 +1953,19 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                     value => Some(value.as_i64()? as u8),
                 },
             }),
+            "packet_observed" => Ok(ReasonPredicate::PacketObserved {
+                l4_proto: object
+                    .get("l4_proto")
+                    .ok_or_else(|| ExportError::InvalidShape("reason_predicate.l4_proto".into()))?
+                    .as_i64()? as u8,
+                dir: match object.get("dir").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    JsonValue::String(value) => Some(PacketDir::from_str(value).ok_or_else(|| {
+                        ExportError::InvalidValue("unknown reason predicate packet dir".into())
+                    })?),
+                    _ => return Err(ExportError::InvalidShape("reason_predicate.dir".into())),
+                },
+            }),
             "datagram_observed" => Ok(ReasonPredicate::DatagramObserved {
                 l4_proto: object
                     .get("l4_proto")
@@ -1991,6 +2016,7 @@ fn parse_narrative_template(value: &JsonValue) -> Result<NarrativeTemplate, Expo
         JsonValue::String(id) => match id.as_str() {
             "none" => Ok(NarrativeTemplate::None),
             "process_bound" => Ok(NarrativeTemplate::ProcessBound),
+            "packet_observed" => Ok(NarrativeTemplate::PacketObserved),
             "tcp_state_transition" => Ok(NarrativeTemplate::TcpStateTransition),
             "route_changed" => Ok(NarrativeTemplate::RouteChanged),
             "udp_datagram_observed" => Ok(NarrativeTemplate::UdpDatagramObserved),
@@ -2812,6 +2838,7 @@ fn parse_key_event(value: &JsonValue) -> Result<KeyEvent, ExportError> {
         .as_str()?
     {
         "syn_seen" => KeyEventKind::SynSeen,
+        "packet_observed" => KeyEventKind::PacketObserved,
         "udp_datagram_seen" => KeyEventKind::UdpDatagramSeen,
         "process_identified" => KeyEventKind::ProcessIdentified,
         "retrans_suspected" => KeyEventKind::RetransSuspected,

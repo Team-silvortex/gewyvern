@@ -334,6 +334,34 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             }
             Ok(FlowPredicate::DatagramObserved { l4_proto, dir })
         }
+        other if other.starts_with("packet_observed:") => {
+            let suffix = &other["packet_observed:".len()..];
+            let mut parts = suffix.split(':');
+            let proto = parts.next().unwrap_or_default();
+            let l4_proto = match proto {
+                "udp" => 17,
+                "tcp" => 6,
+                _ => proto
+                    .parse::<u8>()
+                    .map_err(|_| DslError::InvalidValue(format!("unknown packet proto '{proto}'")))?,
+            };
+            let dir = match parts.next() {
+                None => None,
+                Some("egress") => Some(PacketDir::Egress),
+                Some("ingress") => Some(PacketDir::Ingress),
+                Some(other) => {
+                    return Err(DslError::InvalidValue(format!(
+                        "unknown packet direction '{other}'"
+                    )))
+                }
+            };
+            if let Some(extra) = parts.next() {
+                return Err(DslError::InvalidValue(format!(
+                    "unexpected packet predicate suffix '{extra}'"
+                )));
+            }
+            Ok(FlowPredicate::PacketObserved { l4_proto, dir })
+        }
         other => Err(DslError::InvalidValue(format!("unknown predicate '{other}'"))),
     }
 }
@@ -357,6 +385,7 @@ fn parse_narrative_template(value: &str) -> NarrativeTemplate {
     match value {
         "none" => NarrativeTemplate::None,
         "process_bound" => NarrativeTemplate::ProcessBound,
+        "packet_observed" => NarrativeTemplate::PacketObserved,
         "tcp_state_transition" => NarrativeTemplate::TcpStateTransition,
         "route_changed" => NarrativeTemplate::RouteChanged,
         "udp_datagram_observed" => NarrativeTemplate::UdpDatagramObserved,

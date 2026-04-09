@@ -905,7 +905,233 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
             _ => 443,
         })
         .unwrap_or(443);
+    let is_dns_lookup = binding
+        .template
+        .program_model
+        .as_ref()
+        .is_some_and(|model| matches!(
+            &model.operation,
+            gewyvern::flow::ProgramOperation::Custom(value) if value == "dns_lookup"
+        ));
+    let is_http_request = binding
+        .template
+        .program_model
+        .as_ref()
+        .is_some_and(|model| matches!(
+            &model.operation,
+            gewyvern::flow::ProgramOperation::Custom(value) if value == "http_request"
+        ));
+    let is_tls_client = binding
+        .template
+        .program_model
+        .as_ref()
+        .is_some_and(|model| matches!(
+            &model.operation,
+            gewyvern::flow::ProgramOperation::Custom(value) if value == "tls_client"
+        ));
     let facts = if fragments.contains(&"tcp_state_fragment")
+        && fragments.contains(&"tcp_packet_meta_fragment")
+        && fragments.contains(&"sock_lineage_fragment")
+        && is_tls_client
+    {
+        let mut facts = vec![
+            FactEnvelope {
+                id: FactId(1),
+                ts: base,
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "sock_lineage_fragment".into(),
+                kind: FactKind::SockLineage(SockLineageFact {
+                    netns: 1,
+                    sk_cookie: 88,
+                    pid: 4242,
+                    tid: 4242,
+                    cgroup_id: 4242,
+                    comm: {
+                        let mut comm = [0u8; 16];
+                        comm[..4].copy_from_slice(b"curl");
+                        comm
+                    },
+                }),
+            },
+        ];
+        if fragments.contains(&"route_meta_fragment") {
+            facts.push(route_fact(2, base + Duration::from_millis(10), 88, 2, SessionId(2)));
+        }
+        let offset = facts.len() as u64 + 1;
+        facts.extend([
+            FactEnvelope {
+                id: FactId(offset),
+                ts: base + Duration::from_millis(20),
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "tcp_state_fragment".into(),
+                kind: FactKind::TcpState(TcpStateFact {
+                    netns: 1,
+                    sk_cookie: 88,
+                    saddr: [0; 16],
+                    daddr: [0; 16],
+                    sport: 42310,
+                    dport: tcp_demo_dport,
+                    family: 2,
+                    old: 1,
+                    new: 2,
+                }),
+            },
+            FactEnvelope {
+                id: FactId(offset + 1),
+                ts: base + Duration::from_millis(30),
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "tcp_state_fragment".into(),
+                kind: FactKind::TcpState(TcpStateFact {
+                    netns: 1,
+                    sk_cookie: 88,
+                    saddr: [0; 16],
+                    daddr: [0; 16],
+                    sport: 42310,
+                    dport: tcp_demo_dport,
+                    family: 2,
+                    old: 2,
+                    new: 3,
+                }),
+            },
+            FactEnvelope {
+                id: FactId(offset + 2),
+                ts: base + Duration::from_millis(40),
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "tcp_packet_meta_fragment".into(),
+                kind: FactKind::PacketMeta(PacketMetaFact {
+                    netns: 1,
+                    sk_cookie: Some(88),
+                    dir: PacketDir::Egress,
+                    l3_proto: 0x0800,
+                    l4_proto: 6,
+                    tot_len: 96,
+                    tcp_flags: 0x18,
+                    seq: Some(1),
+                    ack: Some(1),
+                    window: Some(65535),
+                }),
+            },
+        ]);
+        facts
+    } else if fragments.contains(&"udp_packet_meta_fragment")
+        && fragments.contains(&"tcp_state_fragment")
+        && fragments.contains(&"sock_lineage_fragment")
+    {
+        if is_http_request {
+            vec![
+                FactEnvelope {
+                    id: FactId(1),
+                    ts: base,
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "sock_lineage_fragment".into(),
+                    kind: FactKind::SockLineage(SockLineageFact {
+                        netns: 1,
+                        sk_cookie: 99,
+                        pid: 4242,
+                        tid: 4242,
+                        cgroup_id: 4242,
+                        comm: {
+                            let mut comm = [0u8; 16];
+                            comm[..4].copy_from_slice(b"curl");
+                            comm
+                        },
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(2),
+                    ts: base + Duration::from_millis(10),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(99),
+                        dir: PacketDir::Egress,
+                        l3_proto: 0x0800,
+                        l4_proto: 17,
+                        tot_len: 72,
+                        tcp_flags: 0,
+                        seq: None,
+                        ack: None,
+                        window: None,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(3),
+                    ts: base + Duration::from_millis(20),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(99),
+                        dir: PacketDir::Ingress,
+                        l3_proto: 0x0800,
+                        l4_proto: 17,
+                        tot_len: 96,
+                        tcp_flags: 0,
+                        seq: None,
+                        ack: None,
+                        window: None,
+                    }),
+                },
+                route_fact(4, base + Duration::from_millis(30), 99, 3, SessionId(2)),
+                FactEnvelope {
+                    id: FactId(5),
+                    ts: base + Duration::from_millis(40),
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "tcp_state_fragment".into(),
+                    kind: FactKind::TcpState(TcpStateFact {
+                        netns: 1,
+                        sk_cookie: 99,
+                        saddr: [0; 16],
+                        daddr: [0; 16],
+                        sport: 42310,
+                        dport: tcp_demo_dport,
+                        family: 2,
+                        old: 1,
+                        new: 2,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(6),
+                    ts: base + Duration::from_millis(50),
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "tcp_state_fragment".into(),
+                    kind: FactKind::TcpState(TcpStateFact {
+                        netns: 1,
+                        sk_cookie: 99,
+                        saddr: [0; 16],
+                        daddr: [0; 16],
+                        sport: 42310,
+                        dport: tcp_demo_dport,
+                        family: 2,
+                        old: 2,
+                        new: 3,
+                    }),
+                },
+            ]
+        } else {
+            eprintln!("{}", UiLocale::detect().msg("unsupported_fragment_combo"));
+            std::process::exit(2);
+        }
+    } else if fragments.contains(&"tcp_state_fragment")
         && fragments.contains(&"tcp_packet_meta_fragment")
     {
         vec![
@@ -996,49 +1222,115 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
             route_fact(3, base + Duration::from_millis(20), 42, 2, SessionId(1)),
         ]
     } else if fragments.contains(&"udp_packet_meta_fragment") && fragments.contains(&"sock_lineage_fragment") {
-        vec![
-            FactEnvelope {
-                id: FactId(1),
-                ts: base,
-                cpu: CpuId(0),
-                ifindex: Some(2),
-                session: SessionId(2),
-                fragment_id: "sock_lineage_fragment".into(),
-                kind: FactKind::SockLineage(SockLineageFact {
-                    netns: 1,
-                    sk_cookie: 99,
-                    pid: 4242,
-                    tid: 4242,
-                    cgroup_id: 4242,
-                    comm: {
-                        let mut comm = [0u8; 16];
-                        comm[..4].copy_from_slice(b"curl");
-                        comm
-                    },
-                }),
-            },
-            FactEnvelope {
-                id: FactId(2),
-                ts: base + Duration::from_millis(10),
-                cpu: CpuId(0),
-                ifindex: Some(3),
-                session: SessionId(2),
-                fragment_id: "udp_packet_meta_fragment".into(),
-                kind: FactKind::PacketMeta(PacketMetaFact {
-                    netns: 1,
-                    sk_cookie: Some(99),
-                    dir: PacketDir::Egress,
-                    l3_proto: 0x0800,
-                    l4_proto: 17,
-                    tot_len: 72,
-                    tcp_flags: 0,
-                    seq: None,
-                    ack: None,
-                    window: None,
-                }),
-            },
-            route_fact(3, base + Duration::from_millis(20), 99, 3, SessionId(2)),
-        ]
+        if is_dns_lookup {
+            vec![
+                FactEnvelope {
+                    id: FactId(1),
+                    ts: base,
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "sock_lineage_fragment".into(),
+                    kind: FactKind::SockLineage(SockLineageFact {
+                        netns: 1,
+                        sk_cookie: 99,
+                        pid: 4242,
+                        tid: 4242,
+                        cgroup_id: 4242,
+                        comm: {
+                            let mut comm = [0u8; 16];
+                            comm[..4].copy_from_slice(b"curl");
+                            comm
+                        },
+                    }),
+                },
+                route_fact(2, base + Duration::from_millis(10), 99, 3, SessionId(2)),
+                FactEnvelope {
+                    id: FactId(3),
+                    ts: base + Duration::from_millis(20),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(99),
+                        dir: PacketDir::Egress,
+                        l3_proto: 0x0800,
+                        l4_proto: 17,
+                        tot_len: 72,
+                        tcp_flags: 0,
+                        seq: None,
+                        ack: None,
+                        window: None,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(4),
+                    ts: base + Duration::from_millis(30),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(99),
+                        dir: PacketDir::Ingress,
+                        l3_proto: 0x0800,
+                        l4_proto: 17,
+                        tot_len: 96,
+                        tcp_flags: 0,
+                        seq: None,
+                        ack: None,
+                        window: None,
+                    }),
+                },
+            ]
+        } else {
+            vec![
+                FactEnvelope {
+                    id: FactId(1),
+                    ts: base,
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "sock_lineage_fragment".into(),
+                    kind: FactKind::SockLineage(SockLineageFact {
+                        netns: 1,
+                        sk_cookie: 99,
+                        pid: 4242,
+                        tid: 4242,
+                        cgroup_id: 4242,
+                        comm: {
+                            let mut comm = [0u8; 16];
+                            comm[..4].copy_from_slice(b"curl");
+                            comm
+                        },
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(2),
+                    ts: base + Duration::from_millis(10),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(99),
+                        dir: PacketDir::Egress,
+                        l3_proto: 0x0800,
+                        l4_proto: 17,
+                        tot_len: 72,
+                        tcp_flags: 0,
+                        seq: None,
+                        ack: None,
+                        window: None,
+                    }),
+                },
+                route_fact(3, base + Duration::from_millis(20), 99, 3, SessionId(2)),
+            ]
+        }
     } else if fragments.contains(&"udp_packet_meta_fragment") {
         vec![
             FactEnvelope {
@@ -1089,6 +1381,46 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
 
     assert_eq!(export.reasons, replay.reasons, "replay should stay deterministic");
     export
+}
+
+#[cfg(test)]
+mod tests {
+    use super::run_binding_demo;
+    use gewyvern::dsl::compile_file;
+    use gewyvern::flow::ProgramOperation;
+
+    #[test]
+    fn http_request_demo_produces_healthy_cross_transport_path() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                .expect("http_request_path DSL should compile");
+        let bundle = run_binding_demo(binding);
+        assert_eq!(bundle.debug_summary.accepted_facts, 6);
+        assert_eq!(bundle.program_findings.len(), 0);
+        assert_eq!(bundle.module_findings.len(), 0);
+        assert_eq!(bundle.program_flows.len(), 1);
+        assert_eq!(
+            bundle.program_flows[0].operation,
+            ProgramOperation::Custom("http_request".into())
+        );
+    }
+
+    #[test]
+    fn tls_client_demo_produces_healthy_packet_phase() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+            .expect("tls_client_path DSL should compile");
+        let bundle = run_binding_demo(binding);
+        assert_eq!(bundle.program_findings.len(), 0);
+        assert_eq!(bundle.module_findings.len(), 0);
+        assert!(bundle.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_client_hello")));
+        assert_eq!(
+            bundle.program_flows[0].operation,
+            ProgramOperation::Custom("tls_client".into())
+        );
+    }
 }
 
 fn route_fact(id: u64, ts: SystemTime, cookie: u64, oif: u32, session: SessionId) -> FactEnvelope {

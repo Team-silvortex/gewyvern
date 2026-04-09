@@ -492,6 +492,7 @@ fn suspect_area_for_signal(signal: &crate::ir::SignalKind) -> &'static str {
         | crate::ir::SignalKind::StateChange
         | crate::ir::SignalKind::SynSeen
         | crate::ir::SignalKind::FinOrRst => "socket_state",
+        crate::ir::SignalKind::PacketObserved => "transport_io",
         crate::ir::SignalKind::DatagramObserved | crate::ir::SignalKind::UdpDatagramSeen => {
             "datagram_io"
         }

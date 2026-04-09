@@ -33,6 +33,7 @@ pub struct KeyEvent {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum KeyEventKind {
     SynSeen,
+    PacketObserved,
     UdpDatagramSeen,
     ProcessIdentified,
     StateChange { old: u8, new: u8 },
@@ -363,6 +364,7 @@ fn build_declarative_reason(
 fn render_key_event(kind: Option<&ReasonKeyEvent>, fact: &FactEnvelope) -> Option<KeyEvent> {
     let kind = match kind? {
         ReasonKeyEvent::SynSeen => KeyEventKind::SynSeen,
+        ReasonKeyEvent::PacketObserved => KeyEventKind::PacketObserved,
         ReasonKeyEvent::UdpDatagramSeen => KeyEventKind::UdpDatagramSeen,
         ReasonKeyEvent::ProcessIdentified => KeyEventKind::ProcessIdentified,
         ReasonKeyEvent::StateChange => {

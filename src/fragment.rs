@@ -598,6 +598,7 @@ fn predicate_required_facts(predicate: &FlowPredicate) -> Vec<FactKindTag> {
     match predicate {
         FlowPredicate::ProcessBound => vec![FactKindTag::SockLineage],
         FlowPredicate::SocketStateObserved { .. } => vec![FactKindTag::TcpState],
+        FlowPredicate::PacketObserved { .. } => vec![FactKindTag::PacketMeta],
         FlowPredicate::DatagramObserved { .. } => vec![FactKindTag::PacketMeta],
         FlowPredicate::RouteResolved => vec![FactKindTag::RouteDecision],
         FlowPredicate::All(predicates) => predicates
@@ -623,6 +624,7 @@ fn signal_required_facts(signal: Option<&SignalKind>) -> Vec<FactKindTag> {
             | SignalKind::SynSeen
             | SignalKind::FinOrRst,
         ) => vec![FactKindTag::TcpState],
+        Some(SignalKind::PacketObserved) => vec![FactKindTag::PacketMeta],
         Some(SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen) => {
             vec![FactKindTag::PacketMeta]
         }
@@ -636,6 +638,7 @@ fn narrative_required_facts(narrative: &NarrativeTemplate) -> Vec<FactKindTag> {
     match narrative {
         NarrativeTemplate::None | NarrativeTemplate::Static(_) => Vec::new(),
         NarrativeTemplate::ProcessBound => vec![FactKindTag::SockLineage],
+        NarrativeTemplate::PacketObserved => vec![FactKindTag::PacketMeta],
         NarrativeTemplate::TcpStateTransition => vec![FactKindTag::TcpState],
         NarrativeTemplate::RouteChanged => vec![FactKindTag::RouteDecision],
         NarrativeTemplate::UdpDatagramObserved => vec![FactKindTag::PacketMeta],

@@ -8,6 +8,10 @@ pub enum FlowPredicate {
         dport: Option<u16>,
         min_new_state: Option<u8>,
     },
+    PacketObserved {
+        l4_proto: u8,
+        dir: Option<PacketDir>,
+    },
     DatagramObserved { l4_proto: u8, dir: Option<PacketDir> },
     RouteResolved,
     All(Vec<FlowPredicate>),
@@ -24,6 +28,7 @@ pub enum NarrativeSurface {
 pub enum SignalKind {
     ProcessBound,
     SocketStateTransition,
+    PacketObserved,
     DatagramObserved,
     RouteResolved,
     SynSeen,
@@ -39,6 +44,7 @@ pub enum NarrativeTemplate {
     None,
     Static(&'static str),
     ProcessBound,
+    PacketObserved,
     TcpStateTransition,
     RouteChanged,
     UdpDatagramObserved,
@@ -59,6 +65,7 @@ impl SignalKind {
         match self {
             SignalKind::ProcessBound => "process_bound",
             SignalKind::SocketStateTransition => "socket_state_transition",
+            SignalKind::PacketObserved => "packet_observed",
             SignalKind::DatagramObserved => "datagram_observed",
             SignalKind::RouteResolved => "route_resolved",
             SignalKind::SynSeen => "syn_seen",
@@ -74,6 +81,7 @@ impl SignalKind {
         match id {
             "process_bound" => Some(Self::ProcessBound),
             "socket_state_transition" => Some(Self::SocketStateTransition),
+            "packet_observed" => Some(Self::PacketObserved),
             "datagram_observed" => Some(Self::DatagramObserved),
             "route_resolved" => Some(Self::RouteResolved),
             "syn_seen" => Some(Self::SynSeen),
@@ -109,6 +117,17 @@ pub fn matches_flow_predicate(
                         && min_new_state
                             .as_ref()
                             .is_none_or(|expected| state.new >= *expected)
+            )
+        }
+        FlowPredicate::PacketObserved { l4_proto, dir } => {
+            if !flow.evidence.packet_facts.contains(&fact.id) {
+                return false;
+            }
+            matches!(
+                &fact.kind,
+                FactKind::PacketMeta(packet)
+                    if packet.l4_proto == *l4_proto
+                        && dir.as_ref().is_none_or(|expected| packet.dir == *expected)
             )
         }
         FlowPredicate::DatagramObserved { l4_proto, dir } => {
@@ -161,6 +180,10 @@ pub fn render_narrative_template(
             NarrativeSurface::Reason => {
                 format!("flow bound to process {} (pid={})", process.comm, process.pid)
             }
+        }),
+        NarrativeTemplate::PacketObserved => Some(match surface {
+            NarrativeSurface::Program => "program observed a transport packet for this flow".into(),
+            NarrativeSurface::Reason => "transport packet observed".into(),
         }),
         NarrativeTemplate::TcpStateTransition => {
             let FactKind::TcpState(state) = &fact.kind else {

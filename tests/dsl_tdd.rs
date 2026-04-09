@@ -9,8 +9,8 @@ use gewyvern::template::FragmentParamValue;
 mod support;
 
 use support::{
-    route_fact, sock_lineage_fact, tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact,
-    udp_packet_fact_with_dir,
+    packet_fact, route_fact, sock_lineage_fact, tcp_state_fact, tcp_state_fact_with_ports,
+    udp_packet_fact, udp_packet_fact_with_dir,
 };
 use std::time::{Duration, SystemTime};
 
@@ -113,6 +113,30 @@ fn built_in_redis_connect_process_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn built_in_http_request_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "http_request_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("http_request".into())
+    );
+}
+
+#[test]
+fn built_in_tls_client_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "tls_client_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("tls_client".into())
+    );
+}
+
+#[test]
 fn udp_process_dsl_binding_drives_runtime_session() {
     let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
         .unwrap();
@@ -173,9 +197,10 @@ fn dns_dsl_uses_egress_direction_to_model_lookup_requests() {
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 303, 5353, "dig"));
-    session.ingest(udp_packet_fact_with_dir(2, 303, 96, PacketDir::Egress));
-    session.ingest(route_fact(3, 303, 7));
-    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+    session.ingest(route_fact(2, 303, 7));
+    session.ingest(udp_packet_fact_with_dir(3, 303, 96, PacketDir::Egress));
+    session.ingest(udp_packet_fact_with_dir(4, 303, 96, PacketDir::Ingress));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(50));
 
     let export = session.export_bundle();
     assert_eq!(
@@ -186,8 +211,24 @@ fn dns_dsl_uses_egress_direction_to_model_lookup_requests() {
         .narrative
         .iter()
         .any(|line| line.contains("DNS request datagram")));
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line.contains("DNS reply datagram")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_reply")));
     assert_eq!(export.module_findings.len(), 0);
-    assert_eq!(export.reasons[0].l1.key_events[1].kind, KeyEventKind::UdpDatagramSeen);
+    assert_eq!(
+        export.reasons[0]
+            .l1
+            .key_events
+            .iter()
+            .filter(|event| event.kind == KeyEventKind::UdpDatagramSeen)
+            .count(),
+        2
+    );
 }
 
 #[test]
@@ -197,24 +238,152 @@ fn dns_dsl_does_not_treat_ingress_udp_as_lookup_request() {
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 304, 5353, "dig"));
-    session.ingest(udp_packet_fact_with_dir(2, 304, 96, PacketDir::Ingress));
-    session.ingest(route_fact(3, 304, 7));
+    session.ingest(route_fact(2, 304, 7));
+    session.ingest(udp_packet_fact_with_dir(3, 304, 96, PacketDir::Ingress));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
 
     let export = session.export_bundle();
     assert!(export.program_flows[0]
         .stages
         .iter()
-        .all(|stage| stage.kind != gewyvern::flow::ProgramStageKind::DatagramObserved));
+        .all(|stage| stage.phase.as_deref() != Some("send_request")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_reply")));
     assert!(export.program_flows[0]
         .narrative
         .iter()
         .all(|line| !line.contains("DNS request datagram")));
-    assert!(export.reasons[0]
-        .l1
-        .key_events
+    assert!(export.program_findings.iter().any(|finding| {
+        finding.phase.as_deref() == Some("send_request")
+            && finding.phase_transition.as_deref() == Some("resolve->send_request")
+    }));
+}
+
+#[test]
+fn dns_dsl_missing_reply_produces_send_request_to_receive_reply_transition() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 305, 5353, "dig"));
+    session.ingest(route_fact(2, 305, 7));
+    session.ingest(udp_packet_fact_with_dir(3, 305, 96, PacketDir::Egress));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    assert!(export.program_findings.iter().any(|finding| {
+        finding.phase.as_deref() == Some("receive_reply")
+            && finding.phase_transition.as_deref() == Some("send_request->receive_reply")
+    }));
+    assert!(export.module_findings.iter().any(|finding| {
+        finding
+            .phase_transitions
+            .contains(&"send_request->receive_reply".to_string())
+    }));
+}
+
+#[test]
+fn http_request_path_can_span_dns_and_https_phases_in_one_module() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 601, 4242, "curl"));
+    session.ingest(udp_packet_fact_with_dir(2, 601, 80, PacketDir::Egress));
+    session.ingest(udp_packet_fact_with_dir(3, 601, 128, PacketDir::Ingress));
+    session.ingest(route_fact(4, 601, 7));
+    session.ingest(tcp_state_fact_with_ports(5, 601, 1, 2, 42000, 443));
+    session.ingest(tcp_state_fact_with_ports(6, 601, 2, 3, 42000, 443));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("http_request".into())
+    );
+    let phases = export.program_flows[0]
+        .stages
         .iter()
-        .all(|event| event.kind != KeyEventKind::UdpDatagramSeen));
+        .filter_map(|stage| stage.phase.clone())
+        .collect::<Vec<_>>();
+    assert!(phases.contains(&"bind".to_string()));
+    assert!(phases.contains(&"resolve_dns_request".to_string()));
+    assert!(phases.contains(&"resolve_dns_reply".to_string()));
+    assert!(phases.contains(&"resolve_upstream".to_string()));
+    assert!(phases.contains(&"connect".to_string()));
+    assert!(phases.contains(&"establish".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn http_request_path_missing_establish_produces_connect_to_establish_transition() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 602, 4242, "curl"));
+    session.ingest(udp_packet_fact_with_dir(2, 602, 80, PacketDir::Egress));
+    session.ingest(udp_packet_fact_with_dir(3, 602, 128, PacketDir::Ingress));
+    session.ingest(route_fact(4, 602, 7));
+    session.ingest(tcp_state_fact_with_ports(5, 602, 1, 2, 42000, 443));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert!(export.program_findings.iter().any(|finding| {
+        finding.module_label == "http_request_path"
+            && finding.phase.as_deref() == Some("establish")
+            && finding.phase_transition.as_deref() == Some("connect->establish")
+    }));
+}
+
+#[test]
+fn tls_client_path_materializes_transport_packet_phase() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 801, 4242, "curl"));
+    session.ingest(route_fact(2, 801, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 801, 1, 2, 42310, 443));
+    session.ingest(tcp_state_fact_with_ports(4, 801, 2, 3, 42310, 443));
+    session.ingest(packet_fact(5, 801, 0x18));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("tls_client".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_client_hello")));
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line.contains("TLS client payload")));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn tls_client_path_missing_packet_phase_produces_establish_transition() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 802, 4242, "curl"));
+    session.ingest(route_fact(2, 802, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 802, 1, 2, 42310, 443));
+    session.ingest(tcp_state_fact_with_ports(4, 802, 2, 3, 42310, 443));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(50));
+
+    let export = session.export_bundle();
+    assert!(export.program_findings.iter().any(|finding| {
+        finding.phase.as_deref() == Some("send_client_hello")
+            && finding.phase_transition.as_deref() == Some("establish->send_client_hello")
+    }));
 }
 
 #[test]
