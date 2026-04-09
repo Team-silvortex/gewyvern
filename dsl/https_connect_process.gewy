@@ -1,0 +1,16 @@
+# gewyvern DSL v0
+template=https_connect_process
+window.duration_ms=5000
+window.lateness_ms=200
+reason_model=https_connect_process_reason
+fragment=tcp_state_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+operation=https_connect
+rule=process_bound;process_bound;process_bound;true;https_connect_path
+rule=socket_state_observed:https;socket_state_transition;static:program initiated or advanced an HTTPS socket state transition;false;https_connect_path
+rule=route_resolved;route_resolved;static:program resolved an upstream route for this HTTPS connect path;true;https_connect_path
+reason.rule=process_bound;process_identified;process_bound;true;https_connect_path
+reason.rule=socket_state_observed:https;state_change;tcp_state_transition;false;https_connect_path
+reason.rule=route_resolved;route_changed;route_changed;true;https_connect_path
+param=sock_lineage_fragment.capture_comm=true

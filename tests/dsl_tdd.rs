@@ -1,5 +1,6 @@
 use gewyvern::dsl::{compile_file, compile_str, DslError};
 use gewyvern::fragment::{RegistryError, RuleTier};
+use gewyvern::ledger::PacketDir;
 use gewyvern::flow::ProgramOperation;
 use gewyvern::reason::{KeyEventKind, ReasonProfile};
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
@@ -7,7 +8,10 @@ use gewyvern::template::FragmentParamValue;
 
 mod support;
 
-use support::{route_fact, sock_lineage_fact, tcp_state_fact, udp_packet_fact};
+use support::{
+    route_fact, sock_lineage_fact, tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact,
+    udp_packet_fact_with_dir,
+};
 use std::time::{Duration, SystemTime};
 
 #[test]
@@ -39,6 +43,72 @@ fn built_in_udp_process_dsl_compiles_into_template_binding() {
     assert_eq!(
         binding.fragment_params["sock_lineage_fragment"]["capture_comm"],
         FragmentParamValue::Bool(true)
+    );
+}
+
+#[test]
+fn built_in_dns_udp_process_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "dns_udp_process");
+    assert_eq!(
+        binding.template.fragment_set,
+        vec![
+            "udp_packet_meta_fragment",
+            "route_meta_fragment",
+            "sock_lineage_fragment"
+        ]
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("dns_lookup".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_https_connect_process_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "https_connect_process");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("https_connect".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_postgres_connect_process_dsl_compiles_into_template_binding() {
+    let binding = compile_file(
+        "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy",
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "postgres_connect_process");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("postgres_connect".into())
+    );
+}
+
+#[test]
+fn built_in_redis_connect_process_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_connect_process.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "redis_connect_process");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("redis_connect".into())
     );
 }
 
@@ -94,6 +164,257 @@ param=udp_packet_meta_fragment.min_len=80
     assert_eq!(export.flows[0].process.as_ref().unwrap().comm, "<redacted>");
     assert_eq!(export.rejected_facts.len(), 1);
     assert_eq!(export.rejected_fact_summary[0].reason, "filtered_by_fragment_param");
+}
+
+#[test]
+fn dns_dsl_uses_egress_direction_to_model_lookup_requests() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 303, 5353, "dig"));
+    session.ingest(udp_packet_fact_with_dir(2, 303, 96, PacketDir::Egress));
+    session.ingest(route_fact(3, 303, 7));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("dns_lookup".into())
+    );
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line.contains("DNS request datagram")));
+    assert_eq!(export.module_findings.len(), 0);
+    assert_eq!(export.reasons[0].l1.key_events[1].kind, KeyEventKind::UdpDatagramSeen);
+}
+
+#[test]
+fn dns_dsl_does_not_treat_ingress_udp_as_lookup_request() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 304, 5353, "dig"));
+    session.ingest(udp_packet_fact_with_dir(2, 304, 96, PacketDir::Ingress));
+    session.ingest(route_fact(3, 304, 7));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.kind != gewyvern::flow::ProgramStageKind::DatagramObserved));
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .all(|line| !line.contains("DNS request datagram")));
+    assert!(export.reasons[0]
+        .l1
+        .key_events
+        .iter()
+        .all(|event| event.kind != KeyEventKind::UdpDatagramSeen));
+}
+
+#[test]
+fn https_connect_dsl_uses_destination_port_to_model_connect_path() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 401, 9001, "curl"));
+    session.ingest(tcp_state_fact_with_ports(2, 401, 1, 2, 42310, 443));
+    session.ingest(route_fact(3, 401, 5));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("https_connect".into())
+    );
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line.contains("HTTPS socket state transition")));
+    assert!(export.reasons[0]
+        .l3
+        .narrative
+        .iter()
+        .any(|line| line.text.contains("tcp state 1 -> 2")));
+}
+
+#[test]
+fn https_connect_dsl_does_not_treat_other_ports_as_https_connect() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 402, 9002, "curl"));
+    session.ingest(tcp_state_fact_with_ports(2, 402, 1, 2, 42310, 80));
+    session.ingest(route_fact(3, 402, 5));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .all(|line| !line.contains("HTTPS socket state transition")));
+    assert!(export.reasons[0]
+        .l3
+        .narrative
+        .iter()
+        .all(|line| !line.text.contains("tcp state 1 -> 2")));
+}
+
+#[test]
+fn postgres_connect_dsl_uses_named_port_alias() {
+    let binding = compile_file(
+        "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy",
+    )
+    .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 501, 7777, "psql"));
+    session.ingest(tcp_state_fact_with_ports(2, 501, 1, 2, 43123, 5432));
+    session.ingest(tcp_state_fact_with_ports(3, 501, 2, 3, 43123, 5432));
+    session.ingest(route_fact(4, 501, 6));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(50));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("postgres_connect".into())
+    );
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line.contains("PostgreSQL socket state transition")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("connect")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("establish")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("resolve")));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn redis_connect_dsl_uses_named_port_alias() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_connect_process.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 502, 8888, "redis-cli"));
+    session.ingest(tcp_state_fact_with_ports(2, 502, 1, 2, 43124, 6379));
+    session.ingest(route_fact(3, 502, 6));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("redis_connect".into())
+    );
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line.contains("Redis socket state transition")));
+}
+
+#[test]
+fn declarative_module_phases_are_preserved_in_export_and_replay() {
+    let binding = compile_file(
+        "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy",
+    )
+    .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 503, 7778, "psql"));
+    session.ingest(tcp_state_fact_with_ports(2, 503, 1, 2, 43123, 5432));
+    session.ingest(route_fact(3, 503, 6));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    let phases = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase.clone())
+        .collect::<Vec<_>>();
+    assert!(phases.contains(&"bind".to_string()));
+    assert!(phases.contains(&"connect".to_string()));
+    assert!(phases.contains(&"resolve".to_string()));
+
+    let replay = gewyvern::export::ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
+    assert_eq!(export.program_flows, replay.program_flows);
+}
+
+#[test]
+fn missing_connect_phase_produces_bind_to_connect_transition_finding() {
+    let binding = compile_file(
+        "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy",
+    )
+    .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 504, 7779, "psql"));
+    session.ingest(route_fact(2, 504, 6));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    assert_eq!(export.program_findings.len(), 1);
+    assert_eq!(export.program_findings[0].phase.as_deref(), Some("connect"));
+    assert_eq!(
+        export.program_findings[0].phase_transition.as_deref(),
+        Some("bind->connect")
+    );
+    assert!(export.program_findings[0]
+        .summary
+        .contains("bind->connect"));
+    assert_eq!(
+        export.module_findings[0].phase_transitions,
+        vec!["bind->connect".to_string()]
+    );
+
+    let replay = gewyvern::export::ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
+    assert_eq!(export.program_findings, replay.program_findings);
+    assert_eq!(export.module_findings, replay.module_findings);
+}
+
+#[test]
+fn missing_establish_phase_produces_connect_to_establish_transition_finding() {
+    let binding = compile_file(
+        "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy",
+    )
+    .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 505, 7780, "psql"));
+    session.ingest(tcp_state_fact_with_ports(2, 505, 1, 2, 43123, 5432));
+    session.ingest(route_fact(3, 505, 6));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    assert!(export.program_findings.iter().any(|finding| {
+        finding.phase.as_deref() == Some("establish")
+            && finding.phase_transition.as_deref() == Some("connect->establish")
+    }));
+    assert!(export.module_findings.iter().any(|finding| {
+        finding
+            .phase_transitions
+            .contains(&"connect->establish".to_string())
+    }));
 }
 
 #[test]

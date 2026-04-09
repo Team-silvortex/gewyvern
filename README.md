@@ -105,6 +105,8 @@ The repository now includes first-class DSL files that compile into
 - [dsl/handshake_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy)
 - [dsl/udp_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_debug.gewy)
 - [dsl/udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy)
+- [dsl/dns_udp_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy)
+- [dsl/https_connect_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy)
 
 These DSL files already cover the current built-in protocol/debugging shapes and
 can express:
@@ -142,14 +144,18 @@ Run the built-in demos:
 cargo run
 cargo run -- --demo tcp
 cargo run -- --demo udp
+cargo run -- --findings
 cargo run -- --demo both --json
 cargo run -- --demo both --json --summary-only
+cargo run -- --findings --json
 ```
 
 Run a DSL-driven demo:
 
 ```bash
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy --json --summary-only
 ```
 
 Inspect binding diagnostics without starting a runtime session:
@@ -157,6 +163,14 @@ Inspect binding diagnostics without starting a runtime session:
 ```bash
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --diagnostics
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --diagnostics --json
+```
+
+Inspect the most suspicious program/network modules directly:
+
+```bash
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --findings
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --findings --json
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy --findings
 ```
 
 Write output to a file:

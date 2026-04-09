@@ -1,7 +1,7 @@
 use crate::export::ExportBundle;
 use crate::flow::{
-    EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, ModuleFinding, PathSegment, PathView,
-    ProcessView, ProgramFinding, ProgramFindingCause, ProgramFlow,
+    EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, ModuleFinding, ModuleSeverity,
+    PathSegment, PathView, ProcessView, ProgramFinding, ProgramFindingCause, ProgramFlow,
 };
 use crate::fragment::{
     builtin_registry, summarize_attach_failures, AttachFailure, AttachPlan, AttachReport,
@@ -411,8 +411,14 @@ fn build_program_findings(
                 if rule_diag.tier != RuleTier::CoreRequirement || !rule_diag.supported {
                     return None;
                 }
-                let signal = model.rules.get(rule_diag.rule_index)?.signal.as_ref()?;
-                if flow.stages.iter().any(|stage| &stage.kind == signal) {
+                let rule = model.rules.get(rule_diag.rule_index)?;
+                let signal = rule.signal.as_ref()?;
+                if flow.stages.iter().any(|stage| {
+                    &stage.kind == signal && stage.phase == rule.phase
+                }) {
+                    return None;
+                }
+                if !prior_phase_requirements_satisfied(model, rule_diag.rule_index, flow) {
                     return None;
                 }
 
@@ -434,6 +440,12 @@ fn build_program_findings(
                 };
 
                 let suspect_area = suspect_area_for_signal(signal).to_string();
+                let phase = rule.phase.clone();
+                let phase_transition = phase_transition_for_rule(
+                    model,
+                    rule_diag.rule_index,
+                    flow,
+                );
                 let module_label = module_label(
                     model.rules.get(rule_diag.rule_index)?.module.as_deref(),
                     &flow.operation,
@@ -452,7 +464,15 @@ fn build_program_findings(
                     process: flow.process.clone(),
                     operation: flow.operation.clone(),
                     module_label,
-                    summary: finding_summary(flow, &suspect_area, &cause),
+                    phase: phase.clone(),
+                    phase_transition: phase_transition.clone(),
+                    summary: finding_summary(
+                        flow,
+                        phase.as_deref(),
+                        phase_transition.as_deref(),
+                        &suspect_area,
+                        &cause,
+                    ),
                     suspect_area,
                     cause,
                     supporting_fragments: rule_diag.supporting_fragments.clone(),
@@ -483,6 +503,8 @@ fn suspect_area_for_signal(signal: &crate::ir::SignalKind) -> &'static str {
 
 fn finding_summary(
     flow: &ProgramFlow,
+    phase: Option<&str>,
+    phase_transition: Option<&str>,
     suspect_area: &str,
     cause: &ProgramFindingCause,
 ) -> String {
@@ -495,10 +517,67 @@ fn finding_summary(
         ProgramFindingCause::RejectedEvidence => "required evidence was rejected during ingest",
         ProgramFindingCause::MissingCoreStage => "required runtime evidence never materialized",
     };
+    let phase_scope = phase
+        .map(|phase| format!(" during {phase} phase"))
+        .unwrap_or_default();
+    let transition_scope = phase_transition
+        .map(|transition| format!(" around {transition}"))
+        .unwrap_or_default();
     format!(
-        "{} may have a {} issue during {:?}: {}",
-        scope, suspect_area, flow.operation, cause_text
+        "{} may have a {} issue during {:?}{}{}: {}",
+        scope, suspect_area, flow.operation, phase_scope, transition_scope, cause_text
     )
+}
+
+fn phase_transition_for_rule(
+    model: &crate::program::ProgramModel,
+    rule_index: usize,
+    flow: &ProgramFlow,
+) -> Option<String> {
+    let current_phase = model.rules.get(rule_index)?.phase.as_ref()?;
+    let current_module = model.rules.get(rule_index)?.module.as_deref();
+    let previous_phase = model.rules[..rule_index]
+        .iter()
+        .filter(|rule| rule.phase.is_some() && rule.module.as_deref() == current_module)
+        .filter_map(|rule| {
+            let signal = rule.signal.as_ref()?;
+            flow.stages
+                .iter()
+                .any(|stage| &stage.kind == signal && stage.phase == rule.phase)
+                .then(|| rule.phase.clone())
+                .flatten()
+        })
+        .next_back();
+
+    Some(match previous_phase {
+        Some(previous) => format!("{previous}->{current_phase}"),
+        None => format!("start->{current_phase}"),
+    })
+}
+
+fn prior_phase_requirements_satisfied(
+    model: &crate::program::ProgramModel,
+    rule_index: usize,
+    flow: &ProgramFlow,
+) -> bool {
+    let rule = match model.rules.get(rule_index) {
+        Some(rule) => rule,
+        None => return false,
+    };
+    let current_module = rule.module.as_deref();
+    let prior_rule = model.rules[..rule_index]
+        .iter()
+        .rev()
+        .find(|candidate| candidate.phase.is_some() && candidate.module.as_deref() == current_module);
+    let Some(prior_rule) = prior_rule else {
+        return true;
+    };
+    let Some(signal) = prior_rule.signal.as_ref() else {
+        return true;
+    };
+    flow.stages
+        .iter()
+        .any(|stage| &stage.kind == signal && stage.phase == prior_rule.phase)
 }
 
 fn module_label(
@@ -542,7 +621,10 @@ fn build_evidence_trace(
     let mut trace = vec![format!("missing_signal:{}", signal.id())];
 
     for stage in &flow.stages {
-        trace.push(format!("observed_stage:{}@{}", stage.kind.id(), stage.at.0));
+        trace.push(match &stage.phase {
+            Some(phase) => format!("observed_stage:{}:{}@{}", phase, stage.kind.id(), stage.at.0),
+            None => format!("observed_stage:{}@{}", stage.kind.id(), stage.at.0),
+        });
     }
 
     for hookpoint in &attach_report.hookpoints_failed {
@@ -584,6 +666,9 @@ fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleF
             module_label: finding.module_label.clone(),
             process: finding.process.clone(),
             operation: finding.operation.clone(),
+            severity: ModuleSeverity::Low,
+            phases: Vec::new(),
+            phase_transitions: Vec::new(),
             suspect_areas: Vec::new(),
             causes: Vec::new(),
             supporting_fragments: Vec::new(),
@@ -592,6 +677,12 @@ fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleF
             evidence_trace: Vec::new(),
         });
 
+        if let Some(phase) = &finding.phase {
+            entry.phases.push(phase.clone());
+        }
+        if let Some(transition) = &finding.phase_transition {
+            entry.phase_transitions.push(transition.clone());
+        }
         entry.suspect_areas.push(finding.suspect_area.clone());
         entry.causes.push(finding.cause.clone());
         entry.supporting_fragments.extend(finding.supporting_fragments.clone());
@@ -605,6 +696,10 @@ fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleF
         .map(|mut finding| {
             finding.suspect_areas.sort();
             finding.suspect_areas.dedup();
+            finding.phases.sort();
+            finding.phases.dedup();
+            finding.phase_transitions.sort();
+            finding.phase_transitions.dedup();
             finding.causes.sort_by_key(|cause| match cause {
                 ProgramFindingCause::AttachFailure => 0,
                 ProgramFindingCause::RejectedEvidence => 1,
@@ -619,12 +714,35 @@ fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleF
             finding.summaries.dedup();
             finding.evidence_trace.sort();
             finding.evidence_trace.dedup();
+            finding.severity = module_severity(&finding.causes);
             finding
         })
         .collect::<Vec<_>>();
 
-    findings.sort_by(|a, b| a.module_label.cmp(&b.module_label));
+    findings.sort_by(|a, b| {
+        severity_rank(&a.severity)
+            .cmp(&severity_rank(&b.severity))
+            .then_with(|| a.module_label.cmp(&b.module_label))
+    });
     findings
+}
+
+fn module_severity(causes: &[ProgramFindingCause]) -> ModuleSeverity {
+    if causes.contains(&ProgramFindingCause::AttachFailure) {
+        return ModuleSeverity::High;
+    }
+    if causes.contains(&ProgramFindingCause::RejectedEvidence) {
+        return ModuleSeverity::Medium;
+    }
+    ModuleSeverity::Low
+}
+
+fn severity_rank(severity: &ModuleSeverity) -> u8 {
+    match severity {
+        ModuleSeverity::High => 0,
+        ModuleSeverity::Medium => 1,
+        ModuleSeverity::Low => 2,
+    }
 }
 
 pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {

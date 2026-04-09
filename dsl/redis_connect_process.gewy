@@ -1,0 +1,16 @@
+# gewyvern DSL v0
+template=redis_connect_process
+window.duration_ms=5000
+window.lateness_ms=200
+reason_model=redis_connect_process_reason
+fragment=tcp_state_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+operation=redis_connect
+rule=process_bound;process_bound;process_bound;true;redis_connect_path
+rule=socket_state_observed:redis;socket_state_transition;static:program initiated or advanced a Redis socket state transition;false;redis_connect_path
+rule=route_resolved;route_resolved;static:program resolved an upstream route for this Redis connect path;true;redis_connect_path
+reason.rule=process_bound;process_identified;process_bound;true;redis_connect_path
+reason.rule=socket_state_observed:redis;state_change;tcp_state_transition;false;redis_connect_path
+reason.rule=route_resolved;route_changed;route_changed;true;redis_connect_path
+param=sock_lineage_fragment.capture_comm=true

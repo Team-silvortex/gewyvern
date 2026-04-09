@@ -1,7 +1,7 @@
 use crate::flow::{
-    EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, ModuleFinding, PathSegment, PathView,
-    ProgramFinding, ProgramFindingCause, ProgramFlow, ProgramFlowId, ProgramOperation,
-    ProgramStage,
+    EvidenceIndex, FlowId, FlowLifecycleView, FlowSnapshot, ModuleFinding, ModuleSeverity,
+    PathSegment, PathView, ProgramFinding, ProgramFindingCause, ProgramFlow, ProgramFlowId,
+    ProgramOperation, ProgramStage,
 };
 use crate::fragment::{
     AttachPlan, AttachReport, CapabilityFlag, CoverageReport, DependencyEdge, FactBinding,
@@ -1391,13 +1391,20 @@ fn program_flow_json(flow: &ProgramFlow) -> JsonValue {
                 flow.stages
                     .iter()
                     .map(|stage| {
-                        JsonValue::Object(BTreeMap::from([
+                        let mut object = BTreeMap::from([
                             ("at".into(), JsonValue::Number(stage.at.0 as i64)),
                             (
                                 "kind".into(),
                                 JsonValue::String(stage.kind.id().into()),
                             ),
-                        ]))
+                        ]);
+                        object.insert(
+                            "phase".into(),
+                            stage.phase.as_ref().map_or(JsonValue::Null, |phase| {
+                                JsonValue::String(phase.clone())
+                            }),
+                        );
+                        JsonValue::Object(object)
                     })
                     .collect(),
             ),
@@ -1438,6 +1445,21 @@ fn program_finding_json(finding: &ProgramFinding) -> JsonValue {
         (
             "module_label".into(),
             JsonValue::String(finding.module_label.clone()),
+        ),
+        (
+            "phase".into(),
+            finding.phase.as_ref().map_or(JsonValue::Null, |phase| {
+                JsonValue::String(phase.clone())
+            }),
+        ),
+        (
+            "phase_transition".into(),
+            finding
+                .phase_transition
+                .as_ref()
+                .map_or(JsonValue::Null, |transition| {
+                    JsonValue::String(transition.clone())
+                }),
         ),
         (
             "suspect_area".into(),
@@ -1495,6 +1517,34 @@ fn module_finding_json(finding: &ModuleFinding) -> JsonValue {
         (
             "operation".into(),
             JsonValue::String(program_operation_id(&finding.operation).into()),
+        ),
+        (
+            "severity".into(),
+            JsonValue::String(match finding.severity {
+                ModuleSeverity::High => "high".into(),
+                ModuleSeverity::Medium => "medium".into(),
+                ModuleSeverity::Low => "low".into(),
+            }),
+        ),
+        (
+            "phases".into(),
+            JsonValue::Array(
+                finding
+                    .phases
+                    .iter()
+                    .map(|phase| JsonValue::String(phase.clone()))
+                    .collect(),
+            ),
+        ),
+        (
+            "phase_transitions".into(),
+            JsonValue::Array(
+                finding
+                    .phase_transitions
+                    .iter()
+                    .map(|transition| JsonValue::String(transition.clone()))
+                    .collect(),
+            ),
         ),
         (
             "suspect_areas".into(),
@@ -1715,18 +1765,51 @@ fn reason_rule_json(rule: &ReasonRule) -> JsonValue {
                 .as_ref()
                 .map_or(JsonValue::Null, |module| JsonValue::String(module.clone())),
         ),
+        (
+            "phase".into(),
+            rule.phase
+                .as_ref()
+                .map_or(JsonValue::Null, |phase| JsonValue::String(phase.clone())),
+        ),
     ]))
 }
 
 fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
     match predicate {
         ReasonPredicate::ProcessBound => JsonValue::String("process_bound".into()),
-        ReasonPredicate::SocketStateObserved => JsonValue::String("socket_state_observed".into()),
+        ReasonPredicate::SocketStateObserved {
+            dport,
+            min_new_state,
+        } => match (dport, min_new_state) {
+            (None, None) => JsonValue::String("socket_state_observed".into()),
+            _ => {
+                let mut object = BTreeMap::from([(
+                    "kind".into(),
+                    JsonValue::String("socket_state_observed".into()),
+                )]);
+                if let Some(dport) = dport {
+                    object.insert("dport".into(), JsonValue::Number(*dport as i64));
+                }
+                if let Some(min_new_state) = min_new_state {
+                    object.insert(
+                        "min_new_state".into(),
+                        JsonValue::Number(*min_new_state as i64),
+                    );
+                }
+                JsonValue::Object(object)
+            }
+        },
         ReasonPredicate::RouteResolved => JsonValue::String("route_resolved".into()),
-        ReasonPredicate::DatagramObserved { l4_proto } => JsonValue::Object(BTreeMap::from([
-            ("kind".into(), JsonValue::String("datagram_observed".into())),
-            ("l4_proto".into(), JsonValue::Number(*l4_proto as i64)),
-        ])),
+        ReasonPredicate::DatagramObserved { l4_proto, dir } => {
+            let mut object = BTreeMap::from([
+                ("kind".into(), JsonValue::String("datagram_observed".into())),
+                ("l4_proto".into(), JsonValue::Number(*l4_proto as i64)),
+            ]);
+            if let Some(dir) = dir {
+                object.insert("dir".into(), JsonValue::String(dir.as_str().into()));
+            }
+            JsonValue::Object(object)
+        }
         ReasonPredicate::All(items) => JsonValue::Object(BTreeMap::from([
             ("kind".into(), JsonValue::String("all".into())),
             (
@@ -1825,6 +1908,10 @@ fn parse_reason_rule(value: &JsonValue) -> Result<ReasonRule, ExportError> {
             JsonValue::Null => None,
             value => Some(value.as_str()?.to_string()),
         },
+        phase: match object.get("phase").unwrap_or(&JsonValue::Null) {
+            JsonValue::Null => None,
+            value => Some(value.as_str()?.to_string()),
+        },
     })
 }
 
@@ -1832,7 +1919,10 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
     match value {
         JsonValue::String(id) => match id.as_str() {
             "process_bound" => Ok(ReasonPredicate::ProcessBound),
-            "socket_state_observed" => Ok(ReasonPredicate::SocketStateObserved),
+            "socket_state_observed" => Ok(ReasonPredicate::SocketStateObserved {
+                dport: None,
+                min_new_state: None,
+            }),
             "route_resolved" => Ok(ReasonPredicate::RouteResolved),
             _ => Err(ExportError::InvalidValue("unknown reason predicate".into())),
         },
@@ -1841,11 +1931,28 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
             .ok_or_else(|| ExportError::InvalidShape("reason_predicate.kind".into()))?
             .as_str()?
         {
+            "socket_state_observed" => Ok(ReasonPredicate::SocketStateObserved {
+                dport: match object.get("dport").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u16),
+                },
+                min_new_state: match object.get("min_new_state").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u8),
+                },
+            }),
             "datagram_observed" => Ok(ReasonPredicate::DatagramObserved {
                 l4_proto: object
                     .get("l4_proto")
                     .ok_or_else(|| ExportError::InvalidShape("reason_predicate.l4_proto".into()))?
                     .as_i64()? as u8,
+                dir: match object.get("dir").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    JsonValue::String(value) => Some(PacketDir::from_str(value).ok_or_else(|| {
+                        ExportError::InvalidValue("unknown reason predicate datagram dir".into())
+                    })?),
+                    _ => return Err(ExportError::InvalidShape("reason_predicate.dir".into())),
+                },
             }),
             "all" => Ok(ReasonPredicate::All(
                 object
@@ -2928,6 +3035,10 @@ fn parse_program_flow(value: &JsonValue) -> Result<ProgramFlow, ExportError> {
                             ))
                         })?,
                     },
+                    phase: match object.get("phase").unwrap_or(&JsonValue::Null) {
+                        JsonValue::Null => None,
+                        value => Some(value.as_str()?.to_string()),
+                    },
                 })
             })
             .collect::<Result<Vec<_>, _>>()?,
@@ -2981,6 +3092,14 @@ fn parse_program_finding(value: &JsonValue) -> Result<ProgramFinding, ExportErro
             .ok_or_else(|| ExportError::InvalidShape("program_finding.module_label".into()))?
             .as_str()?
             .to_string(),
+        phase: match object.get("phase").unwrap_or(&JsonValue::Null) {
+            JsonValue::Null => None,
+            value => Some(value.as_str()?.to_string()),
+        },
+        phase_transition: match object.get("phase_transition").unwrap_or(&JsonValue::Null) {
+            JsonValue::Null => None,
+            value => Some(value.as_str()?.to_string()),
+        },
         suspect_area: object
             .get("suspect_area")
             .ok_or_else(|| ExportError::InvalidShape("program_finding.suspect_area".into()))?
@@ -3030,6 +3149,34 @@ fn parse_module_finding(value: &JsonValue) -> Result<ModuleFinding, ExportError>
             "unknown" => ProgramOperation::Unknown,
             other => ProgramOperation::Custom(other.into()),
         },
+        severity: match object
+            .get("severity")
+            .ok_or_else(|| ExportError::InvalidShape("module_finding.severity".into()))?
+            .as_str()?
+        {
+            "high" => ModuleSeverity::High,
+            "medium" => ModuleSeverity::Medium,
+            "low" => ModuleSeverity::Low,
+            other => {
+                return Err(ExportError::InvalidValue(format!(
+                    "unknown module severity: {other}"
+                )))
+            }
+        },
+        phases: object
+            .get("phases")
+            .unwrap_or(&JsonValue::Array(Vec::new()))
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_str()?.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
+        phase_transitions: object
+            .get("phase_transitions")
+            .unwrap_or(&JsonValue::Array(Vec::new()))
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_str()?.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
         suspect_areas: object
             .get("suspect_areas")
             .ok_or_else(|| ExportError::InvalidShape("module_finding.suspect_areas".into()))?

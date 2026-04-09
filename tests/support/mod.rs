@@ -52,6 +52,17 @@ pub fn run_udp_process_session(facts: Vec<FactEnvelope>) -> gewyvern::export::Ex
 }
 
 pub fn tcp_state_fact(id: u64, cookie: u64, old: u8, new: u8) -> FactEnvelope {
+    tcp_state_fact_with_ports(id, cookie, old, new, 12345, 443)
+}
+
+pub fn tcp_state_fact_with_ports(
+    id: u64,
+    cookie: u64,
+    old: u8,
+    new: u8,
+    sport: u16,
+    dport: u16,
+) -> FactEnvelope {
     FactEnvelope {
         id: FactId(id),
         ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
@@ -64,8 +75,8 @@ pub fn tcp_state_fact(id: u64, cookie: u64, old: u8, new: u8) -> FactEnvelope {
             sk_cookie: cookie,
             saddr: [0; 16],
             daddr: [0; 16],
-            sport: 12345,
-            dport: 443,
+            sport,
+            dport,
             family: 2,
             old,
             new,
@@ -97,6 +108,15 @@ pub fn packet_fact(id: u64, cookie: u64, tcp_flags: u16) -> FactEnvelope {
 }
 
 pub fn udp_packet_fact(id: u64, cookie: u64, tot_len: u32) -> FactEnvelope {
+    udp_packet_fact_with_dir(id, cookie, tot_len, PacketDir::Egress)
+}
+
+pub fn udp_packet_fact_with_dir(
+    id: u64,
+    cookie: u64,
+    tot_len: u32,
+    dir: PacketDir,
+) -> FactEnvelope {
     FactEnvelope {
         id: FactId(id),
         ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
@@ -107,7 +127,7 @@ pub fn udp_packet_fact(id: u64, cookie: u64, tot_len: u32) -> FactEnvelope {
         kind: FactKind::PacketMeta(PacketMetaFact {
             netns: 1,
             sk_cookie: Some(cookie),
-            dir: PacketDir::Egress,
+            dir,
             l3_proto: 0x0800,
             l4_proto: 17,
             tot_len,

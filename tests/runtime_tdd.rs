@@ -2,7 +2,7 @@ mod support;
 
 use gewyvern::export::ExportBundle;
 use gewyvern::fragment::{AttachFailure, HookPoint};
-use gewyvern::flow::{ProgramFindingCause, ProgramOperation};
+use gewyvern::flow::{ModuleSeverity, ProgramFindingCause, ProgramOperation};
 use gewyvern::ledger::FactKind;
 use gewyvern::loader::StaticFailureLoader;
 use gewyvern::program::{ProgramModel, ProgramNarrative, ProgramPredicate, ProgramRule};
@@ -461,13 +461,18 @@ fn program_flow_operation_supports_custom_model_ids() {
                 narrative: ProgramNarrative::ProcessBound,
                 dedupe: true,
                 module: None,
+                phase: None,
             },
             ProgramRule {
-                predicate: ProgramPredicate::DatagramObserved { l4_proto: 17 },
+                predicate: ProgramPredicate::DatagramObserved {
+                    l4_proto: 17,
+                    dir: None,
+                },
                 signal: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),
                 narrative: ProgramNarrative::Static("program emitted a DNS-style datagram"),
                 dedupe: true,
                 module: None,
+                phase: None,
             },
             ProgramRule {
                 predicate: ProgramPredicate::RouteResolved,
@@ -475,6 +480,7 @@ fn program_flow_operation_supports_custom_model_ids() {
                 narrative: ProgramNarrative::Static("program resolved an upstream route"),
                 dedupe: true,
                 module: None,
+                phase: None,
             },
         ],
     });
@@ -513,7 +519,10 @@ fn program_model_supports_all_and_any_predicates() {
             ProgramRule {
                 predicate: ProgramPredicate::All(vec![
                     ProgramPredicate::ProcessBound,
-                    ProgramPredicate::DatagramObserved { l4_proto: 17 },
+                    ProgramPredicate::DatagramObserved {
+                        l4_proto: 17,
+                        dir: None,
+                    },
                 ]),
                 signal: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),
                 narrative: ProgramNarrative::Static(
@@ -521,11 +530,15 @@ fn program_model_supports_all_and_any_predicates() {
                 ),
                 dedupe: true,
                 module: None,
+                phase: None,
             },
             ProgramRule {
                 predicate: ProgramPredicate::Any(vec![
                     ProgramPredicate::RouteResolved,
-                    ProgramPredicate::SocketStateObserved,
+                    ProgramPredicate::SocketStateObserved {
+                        dport: None,
+                        min_new_state: None,
+                    },
                 ]),
                 signal: Some(gewyvern::flow::ProgramStageKind::RouteResolved),
                 narrative: ProgramNarrative::Static(
@@ -533,6 +546,7 @@ fn program_model_supports_all_and_any_predicates() {
                 ),
                 dedupe: true,
                 module: None,
+                phase: None,
             },
         ],
     });
@@ -755,6 +769,7 @@ fn attach_failures_are_lifted_into_program_findings_for_suspect_module_areas() {
         export.module_findings[0].module_label,
         "datagram_exchange::route_resolution::route_meta_fragment"
     );
+    assert_eq!(export.module_findings[0].severity, ModuleSeverity::High);
     assert_eq!(
         export.module_findings[0].suspect_areas,
         vec!["route_resolution".to_string()]
@@ -825,6 +840,7 @@ fn rejected_core_packet_evidence_points_to_datagram_io_as_suspect_area() {
         export.module_findings[0].module_label,
         "datagram_exchange::datagram_io::udp_packet_meta_fragment"
     );
+    assert_eq!(export.module_findings[0].severity, ModuleSeverity::Medium);
     assert_eq!(
         export.module_findings[0].suspect_areas,
         vec!["datagram_io".to_string()]
@@ -867,6 +883,7 @@ param=udp_packet_meta_fragment.min_len=80
     assert_eq!(export.module_findings.len(), 1);
     assert_eq!(export.program_findings[0].module_label, "udp_request_path");
     assert_eq!(export.module_findings[0].module_label, "udp_request_path");
+    assert_eq!(export.module_findings[0].severity, ModuleSeverity::Medium);
 
     let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
     assert_eq!(export.program_findings, replay.program_findings);

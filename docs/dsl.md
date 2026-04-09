@@ -28,6 +28,8 @@ Examples in this repository:
 - [dsl/handshake_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy)
 - [dsl/udp_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_debug.gewy)
 - [dsl/udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy)
+- [dsl/dns_udp_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy)
+- [dsl/https_connect_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy)
 
 ## Current Shape
 
@@ -119,6 +121,13 @@ Declarative reason-rule format:
 reason.rule=<predicate>;<key_event>;<narrative>;<dedupe>
 ```
 
+Declarative reason rules also support optional trailing `module` and `phase`
+fields:
+
+```text
+reason.rule=route_resolved;route_changed;route_changed;true;postgres_connect_path;resolve
+```
+
 Example:
 
 ```text
@@ -185,10 +194,30 @@ Fields:
 - `narrative`
 - `dedupe`
 
+Optional trailing fields:
+
+- `module`
+- `phase`
+
 Example:
 
 ```text
 rule=datagram_observed:udp;datagram_observed;static:program emitted or received a UDP datagram;true
+rule=route_resolved;route_resolved;static:program resolved an upstream route;true;dns_lookup_path;resolve
+```
+
+`datagram_observed` also supports an optional direction suffix:
+
+```text
+rule=datagram_observed:udp:egress;datagram_observed;static:program emitted a DNS request datagram;true
+rule=datagram_observed:udp:ingress;datagram_observed;static:program observed a UDP reply datagram;true
+```
+
+`socket_state_observed` also supports an optional destination-port suffix:
+
+```text
+rule=socket_state_observed:https;socket_state_transition;static:https socket progress observed;false
+rule=socket_state_observed:443;socket_state_transition;static:https socket progress observed;false
 ```
 
 ### `param`

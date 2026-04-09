@@ -108,13 +108,18 @@ pub fn connect_flow_model() -> ProgramModel {
                 narrative: ProgramNarrative::ProcessBound,
                 dedupe: true,
                 module: None,
+                phase: None,
             },
             ProgramRule {
-                predicate: ProgramPredicate::SocketStateObserved,
+                predicate: ProgramPredicate::SocketStateObserved {
+                    dport: None,
+                    min_new_state: None,
+                },
                 signal: Some(ProgramStageKind::SocketStateTransition),
                 narrative: ProgramNarrative::None,
                 dedupe: false,
                 module: None,
+                phase: None,
             },
             ProgramRule {
                 predicate: ProgramPredicate::RouteResolved,
@@ -122,6 +127,7 @@ pub fn connect_flow_model() -> ProgramModel {
                 narrative: ProgramNarrative::Static("program resolved a route for this network flow"),
                 dedupe: true,
                 module: None,
+                phase: None,
             },
         ],
     }
@@ -138,13 +144,18 @@ pub fn datagram_exchange_model() -> ProgramModel {
                 narrative: ProgramNarrative::ProcessBound,
                 dedupe: true,
                 module: None,
+                phase: None,
             },
             ProgramRule {
-                predicate: ProgramPredicate::DatagramObserved { l4_proto: 17 },
+                predicate: ProgramPredicate::DatagramObserved {
+                    l4_proto: 17,
+                    dir: None,
+                },
                 signal: Some(ProgramStageKind::DatagramObserved),
                 narrative: ProgramNarrative::Static("program emitted or received a UDP datagram"),
                 dedupe: true,
                 module: None,
+                phase: None,
             },
             ProgramRule {
                 predicate: ProgramPredicate::RouteResolved,
@@ -152,6 +163,7 @@ pub fn datagram_exchange_model() -> ProgramModel {
                 narrative: ProgramNarrative::Static("program resolved a route for this network flow"),
                 dedupe: true,
                 module: None,
+                phase: None,
             },
         ],
     }

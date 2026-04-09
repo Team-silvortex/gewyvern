@@ -172,6 +172,7 @@ fn registry_rejects_bindings_whose_rules_require_missing_fragment_evidence() {
                 narrative: ProgramNarrative::ProcessBound,
                 dedupe: true,
                 module: None,
+                phase: None,
             }],
         }),
     }

@@ -1,11 +1,14 @@
 use crate::flow::FlowSnapshot;
-use crate::ledger::{FactEnvelope, FactKind};
+use crate::ledger::{FactEnvelope, FactKind, PacketDir};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FlowPredicate {
     ProcessBound,
-    SocketStateObserved,
-    DatagramObserved { l4_proto: u8 },
+    SocketStateObserved {
+        dport: Option<u16>,
+        min_new_state: Option<u8>,
+    },
+    DatagramObserved { l4_proto: u8, dir: Option<PacketDir> },
     RouteResolved,
     All(Vec<FlowPredicate>),
     Any(Vec<FlowPredicate>),
@@ -48,6 +51,7 @@ pub struct RuleTemplate {
     pub narrative: NarrativeTemplate,
     pub dedupe: bool,
     pub module: Option<String>,
+    pub phase: Option<String>,
 }
 
 impl SignalKind {
@@ -91,12 +95,32 @@ pub fn matches_flow_predicate(
 ) -> bool {
     match predicate {
         FlowPredicate::ProcessBound => flow.evidence.lineage_facts.contains(&fact.id),
-        FlowPredicate::SocketStateObserved => flow.evidence.tcp_state_facts.contains(&fact.id),
-        FlowPredicate::DatagramObserved { l4_proto } => {
+        FlowPredicate::SocketStateObserved {
+            dport,
+            min_new_state,
+        } => {
+            if !flow.evidence.tcp_state_facts.contains(&fact.id) {
+                return false;
+            }
+            matches!(
+                &fact.kind,
+                FactKind::TcpState(state)
+                    if dport.as_ref().is_none_or(|expected| state.dport == *expected)
+                        && min_new_state
+                            .as_ref()
+                            .is_none_or(|expected| state.new >= *expected)
+            )
+        }
+        FlowPredicate::DatagramObserved { l4_proto, dir } => {
             if !flow.evidence.packet_facts.contains(&fact.id) {
                 return false;
             }
-            matches!(&fact.kind, FactKind::PacketMeta(packet) if packet.l4_proto == *l4_proto)
+            matches!(
+                &fact.kind,
+                FactKind::PacketMeta(packet)
+                    if packet.l4_proto == *l4_proto
+                        && dir.as_ref().is_none_or(|expected| packet.dir == *expected)
+            )
         }
         FlowPredicate::RouteResolved => flow.evidence.route_facts.contains(&fact.id),
         FlowPredicate::All(predicates) => predicates

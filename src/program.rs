@@ -53,6 +53,7 @@ fn build_program_flow(
                 stages.push(ProgramStage {
                     at: fact.id,
                     kind: kind.clone(),
+                    phase: rule.phase.clone(),
                 });
             }
 

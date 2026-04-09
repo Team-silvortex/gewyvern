@@ -597,7 +597,7 @@ fn classify_rule_tier(
 fn predicate_required_facts(predicate: &FlowPredicate) -> Vec<FactKindTag> {
     match predicate {
         FlowPredicate::ProcessBound => vec![FactKindTag::SockLineage],
-        FlowPredicate::SocketStateObserved => vec![FactKindTag::TcpState],
+        FlowPredicate::SocketStateObserved { .. } => vec![FactKindTag::TcpState],
         FlowPredicate::DatagramObserved { .. } => vec![FactKindTag::PacketMeta],
         FlowPredicate::RouteResolved => vec![FactKindTag::RouteDecision],
         FlowPredicate::All(predicates) => predicates

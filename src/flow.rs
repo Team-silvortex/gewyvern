@@ -34,6 +34,8 @@ pub struct ProgramFinding {
     pub process: Option<ProcessView>,
     pub operation: ProgramOperation,
     pub module_label: String,
+    pub phase: Option<String>,
+    pub phase_transition: Option<String>,
     pub suspect_area: String,
     pub cause: ProgramFindingCause,
     pub summary: String,
@@ -46,12 +48,22 @@ pub struct ModuleFinding {
     pub module_label: String,
     pub process: Option<ProcessView>,
     pub operation: ProgramOperation,
+    pub severity: ModuleSeverity,
+    pub phases: Vec<String>,
+    pub phase_transitions: Vec<String>,
     pub suspect_areas: Vec<String>,
     pub causes: Vec<ProgramFindingCause>,
     pub supporting_fragments: Vec<String>,
     pub program_flows: Vec<ProgramFlowId>,
     pub summaries: Vec<String>,
     pub evidence_trace: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum ModuleSeverity {
+    High,
+    Medium,
+    Low,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -73,6 +85,7 @@ pub enum ProgramOperation {
 pub struct ProgramStage {
     pub at: FactId,
     pub kind: ProgramStageKind,
+    pub phase: Option<String>,
 }
 
 pub type ProgramStageKind = SignalKind;

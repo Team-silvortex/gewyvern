@@ -1,7 +1,7 @@
 use crate::fragment::{builtin_registry, EvidenceTier, RegistryError};
 use crate::flow::{ProgramOperation, ProgramStageKind};
 use crate::ir::{FlowPredicate, NarrativeTemplate, SignalKind};
-use crate::ledger::FactKindTag;
+use crate::ledger::{FactKindTag, PacketDir};
 use crate::program::{ProgramModel, ProgramNarrative, ProgramRule};
 use crate::reason::{
     ReasonKeyEvent, ReasonModel, ReasonNarrative, ReasonProfile, ReasonRule,
@@ -198,7 +198,7 @@ fn parse_operation(value: &str) -> ProgramOperation {
 
 fn parse_rule(value: &str) -> Result<ProgramRule, DslError> {
     let parts = split_top_level(value, ';');
-    if parts.len() != 4 && parts.len() != 5 {
+    if !(4..=6).contains(&parts.len()) {
         return Err(DslError::InvalidValue(format!("invalid rule '{value}'")));
     }
 
@@ -208,12 +208,13 @@ fn parse_rule(value: &str) -> Result<ProgramRule, DslError> {
         narrative: parse_narrative(parts[2].trim()),
         dedupe: parse_bool(parts[3].trim())?,
         module: parts.get(4).map(|value| value.trim().to_string()),
+        phase: parts.get(5).map(|value| value.trim().to_string()),
     })
 }
 
 fn parse_reason_rule(value: &str) -> Result<ReasonRule, DslError> {
     let parts = split_top_level(value, ';');
-    if parts.len() != 4 && parts.len() != 5 {
+    if !(4..=6).contains(&parts.len()) {
         return Err(DslError::InvalidValue(format!("invalid reason rule '{value}'")));
     }
 
@@ -223,6 +224,7 @@ fn parse_reason_rule(value: &str) -> Result<ReasonRule, DslError> {
         narrative: parse_reason_narrative(parts[2].trim()),
         dedupe: parse_bool(parts[3].trim())?,
         module: parts.get(4).map(|value| value.trim().to_string()),
+        phase: parts.get(5).map(|value| value.trim().to_string()),
     })
 }
 
@@ -266,10 +268,48 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
 
     match value {
         "process_bound" => Ok(FlowPredicate::ProcessBound),
-        "socket_state_observed" => Ok(FlowPredicate::SocketStateObserved),
+        "socket_state_observed" => Ok(FlowPredicate::SocketStateObserved {
+            dport: None,
+            min_new_state: None,
+        }),
+        other if other.starts_with("socket_state_observed:") => {
+            let suffix = &other["socket_state_observed:".len()..];
+            let mut parts = suffix.split(':');
+            let port = parts.next().unwrap_or_default();
+            let dport = match port {
+                "https" => 443,
+                "http" => 80,
+                "postgres" => 5432,
+                "mysql" => 3306,
+                "redis" => 6379,
+                _ => port.parse::<u16>().map_err(|_| {
+                    DslError::InvalidValue(format!("unknown socket_state_observed port '{port}'"))
+                })?,
+            };
+            let min_new_state = match parts.next() {
+                None => None,
+                Some("established") => Some(3),
+                Some(other) => {
+                    return Err(DslError::InvalidValue(format!(
+                        "unknown socket_state_observed state qualifier '{other}'"
+                    )))
+                }
+            };
+            if let Some(extra) = parts.next() {
+                return Err(DslError::InvalidValue(format!(
+                    "unexpected socket_state_observed suffix '{extra}'"
+                )));
+            }
+            Ok(FlowPredicate::SocketStateObserved {
+                dport: Some(dport),
+                min_new_state,
+            })
+        }
         "route_resolved" => Ok(FlowPredicate::RouteResolved),
         other if other.starts_with("datagram_observed:") => {
-            let proto = &other["datagram_observed:".len()..];
+            let suffix = &other["datagram_observed:".len()..];
+            let mut parts = suffix.split(':');
+            let proto = parts.next().unwrap_or_default();
             let l4_proto = match proto {
                 "udp" => 17,
                 "tcp" => 6,
@@ -277,7 +317,22 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                     .parse::<u8>()
                     .map_err(|_| DslError::InvalidValue(format!("unknown datagram proto '{proto}'")))?,
             };
-            Ok(FlowPredicate::DatagramObserved { l4_proto })
+            let dir = match parts.next() {
+                None => None,
+                Some("egress") => Some(PacketDir::Egress),
+                Some("ingress") => Some(PacketDir::Ingress),
+                Some(other) => {
+                    return Err(DslError::InvalidValue(format!(
+                        "unknown datagram direction '{other}'"
+                    )))
+                }
+            };
+            if let Some(extra) = parts.next() {
+                return Err(DslError::InvalidValue(format!(
+                    "unexpected datagram predicate suffix '{extra}'"
+                )));
+            }
+            Ok(FlowPredicate::DatagramObserved { l4_proto, dir })
         }
         other => Err(DslError::InvalidValue(format!("unknown predicate '{other}'"))),
     }
