@@ -536,6 +536,7 @@ fn program_model_supports_all_and_any_predicates() {
                 predicate: ProgramPredicate::Any(vec![
                     ProgramPredicate::RouteResolved,
                     ProgramPredicate::SocketStateObserved {
+                        sport: None,
                         dport: None,
                         min_new_state: None,
                     },

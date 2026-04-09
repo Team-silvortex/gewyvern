@@ -269,21 +269,29 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
     match value {
         "process_bound" => Ok(FlowPredicate::ProcessBound),
         "socket_state_observed" => Ok(FlowPredicate::SocketStateObserved {
+            sport: None,
             dport: None,
             min_new_state: None,
         }),
         other if other.starts_with("socket_state_observed:") => {
             let suffix = &other["socket_state_observed:".len()..];
             let mut parts = suffix.split(':');
-            let port = parts.next().unwrap_or_default();
-            let dport = match port {
+            let first = parts.next().unwrap_or_default();
+            let (sport, dport, port) = match first {
+                "sport" => (true, false, parts.next().unwrap_or_default()),
+                "dport" => (false, true, parts.next().unwrap_or_default()),
+                _ => (false, true, first),
+            };
+            let port = match port {
                 "https" => 443,
                 "http" => 80,
                 "postgres" => 5432,
                 "mysql" => 3306,
                 "redis" => 6379,
-                _ => port.parse::<u16>().map_err(|_| {
-                    DslError::InvalidValue(format!("unknown socket_state_observed port '{port}'"))
+                other => other.parse::<u16>().map_err(|_| {
+                    DslError::InvalidValue(format!(
+                        "unknown socket_state_observed port '{other}'"
+                    ))
                 })?,
             };
             let min_new_state = match parts.next() {
@@ -301,7 +309,8 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 )));
             }
             Ok(FlowPredicate::SocketStateObserved {
-                dport: Some(dport),
+                sport: sport.then_some(port),
+                dport: dport.then_some(port),
                 min_new_state,
             })
         }

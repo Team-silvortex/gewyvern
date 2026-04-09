@@ -1,6 +1,7 @@
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
 use gewyvern::fragment::{builtin_registry, BindingDiagnostics};
+use gewyvern::http::{compose_http_transactions, HttpSuspectSide, HttpTransactionView};
 use gewyvern::ledger::{
     CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact,
     SessionId, SockLineageFact, TcpStateFact,
@@ -81,15 +82,15 @@ impl UiLocale {
 
     fn usage(self) -> &'static str {
         match self {
-            Self::Zh => "用法: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::Ja => "使い方: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::Ko => "사용법: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::Fr => "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::De => "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::Es => "Uso: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::Pt => "Uso: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::Ru => "Использование: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::En => "usage: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
+            Self::Zh => "用法: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
+            Self::Ja => "使い方: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
+            Self::Ko => "사용법: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
+            Self::Fr => "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
+            Self::De => "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
+            Self::Es => "Uso: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
+            Self::Pt => "Uso: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
+            Self::Ru => "Использование: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
+            Self::En => "usage: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
         }
     }
 
@@ -639,7 +640,36 @@ fn main() {
         }
     }
 
-    let rendered = if cli.findings {
+    let rendered = if cli.http_transactions {
+        let transactions = if cli.dsl_path.is_some() {
+            let mut composed_exports = Vec::new();
+            composed_exports.extend(outputs.iter().map(|(_, export)| export.clone()));
+            composed_exports.push(run_binding_demo(
+                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
+                    .expect("dns dsl should compile"),
+            ));
+            composed_exports.push(run_binding_demo(
+                compile_file(
+                    "/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy",
+                )
+                .expect("http server dsl should compile"),
+            ));
+            compose_http_transactions(&composed_exports)
+        } else {
+            compose_http_transactions(
+                &outputs
+                    .iter()
+                    .map(|(_, export)| export.clone())
+                    .collect::<Vec<_>>(),
+            )
+        };
+
+        if cli.json {
+            http_transactions_json(&transactions)
+        } else {
+            http_transactions_text(&transactions)
+        }
+    } else if cli.findings {
         outputs
             .into_iter()
             .map(|(name, export)| {
@@ -688,6 +718,7 @@ struct Cli {
     dsl_path: Option<String>,
     diagnostics: bool,
     findings: bool,
+    http_transactions: bool,
     serve: bool,
     max_sessions: Option<usize>,
     json: bool,
@@ -775,6 +806,7 @@ impl Cli {
         let mut dsl_path = None;
         let mut diagnostics = false;
         let mut findings = false;
+        let mut http_transactions = false;
         let mut serve = false;
         let mut max_sessions = None;
         let mut json = false;
@@ -792,6 +824,7 @@ impl Cli {
                 "--json" => json = true,
                 "--serve" => serve = true,
                 "--findings" => findings = true,
+                "--http-transactions" => http_transactions = true,
                 "--max-sessions" => {
                     let value = args.next().ok_or_else(|| locale.msgf("missing_max_sessions", "", None))?;
                     max_sessions = Some(
@@ -838,6 +871,9 @@ impl Cli {
         if diagnostics && findings {
             return Err(locale.msg("findings_diagnostics_conflict").into());
         }
+        if diagnostics && http_transactions {
+            return Err(locale.msg("findings_diagnostics_conflict").into());
+        }
         if dsl_path.is_some() && demo_mode != DemoMode::Both {
             return Err(locale.msg("dsl_demo_conflict").into());
         }
@@ -854,6 +890,7 @@ impl Cli {
             dsl_path,
             diagnostics,
             findings,
+            http_transactions,
             serve,
             max_sessions,
             json,
@@ -929,7 +966,232 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
             &model.operation,
             gewyvern::flow::ProgramOperation::Custom(value) if value == "tls_client"
         ));
+    let is_http_server_response = binding
+        .template
+        .program_model
+        .as_ref()
+        .is_some_and(|model| matches!(
+            &model.operation,
+            gewyvern::flow::ProgramOperation::Custom(value) if value == "http_server_response"
+        ));
     let facts = if fragments.contains(&"tcp_state_fragment")
+        && fragments.contains(&"tcp_packet_meta_fragment")
+        && fragments.contains(&"sock_lineage_fragment")
+        && is_http_server_response
+    {
+        vec![
+            FactEnvelope {
+                id: FactId(1),
+                ts: base,
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "sock_lineage_fragment".into(),
+                kind: FactKind::SockLineage(SockLineageFact {
+                    netns: 1,
+                    sk_cookie: 77,
+                    pid: 8080,
+                    tid: 8080,
+                    cgroup_id: 8080,
+                    comm: {
+                        let mut comm = [0u8; 16];
+                        comm[..5].copy_from_slice(b"nginx");
+                        comm
+                    },
+                }),
+            },
+            FactEnvelope {
+                id: FactId(2),
+                ts: base + Duration::from_millis(10),
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "tcp_state_fragment".into(),
+                kind: FactKind::TcpState(TcpStateFact {
+                    netns: 1,
+                    sk_cookie: 77,
+                    saddr: [0; 16],
+                    daddr: [0; 16],
+                    sport: 80,
+                    dport: 53000,
+                    family: 2,
+                    old: 1,
+                    new: 2,
+                }),
+            },
+            FactEnvelope {
+                id: FactId(3),
+                ts: base + Duration::from_millis(20),
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "tcp_state_fragment".into(),
+                kind: FactKind::TcpState(TcpStateFact {
+                    netns: 1,
+                    sk_cookie: 77,
+                    saddr: [0; 16],
+                    daddr: [0; 16],
+                    sport: 80,
+                    dport: 53000,
+                    family: 2,
+                    old: 2,
+                    new: 3,
+                }),
+            },
+            FactEnvelope {
+                id: FactId(4),
+                ts: base + Duration::from_millis(30),
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "tcp_packet_meta_fragment".into(),
+                kind: FactKind::PacketMeta(PacketMetaFact {
+                    netns: 1,
+                    sk_cookie: Some(77),
+                    dir: PacketDir::Ingress,
+                    l3_proto: 0x0800,
+                    l4_proto: 6,
+                    tot_len: 140,
+                    tcp_flags: 0x18,
+                    seq: Some(1),
+                    ack: Some(1),
+                    window: Some(65535),
+                }),
+            },
+            FactEnvelope {
+                id: FactId(5),
+                ts: base + Duration::from_millis(40),
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "tcp_packet_meta_fragment".into(),
+                kind: FactKind::PacketMeta(PacketMetaFact {
+                    netns: 1,
+                    sk_cookie: Some(77),
+                    dir: PacketDir::Egress,
+                    l3_proto: 0x0800,
+                    l4_proto: 6,
+                    tot_len: 220,
+                    tcp_flags: 0x18,
+                    seq: Some(2),
+                    ack: Some(2),
+                    window: Some(65535),
+                }),
+            },
+        ]
+    } else if fragments.contains(&"tcp_state_fragment")
+        && fragments.contains(&"tcp_packet_meta_fragment")
+        && fragments.contains(&"sock_lineage_fragment")
+        && is_http_request
+    {
+        let mut facts = vec![
+            FactEnvelope {
+                id: FactId(1),
+                ts: base,
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "sock_lineage_fragment".into(),
+                kind: FactKind::SockLineage(SockLineageFact {
+                    netns: 1,
+                    sk_cookie: 99,
+                    pid: 4242,
+                    tid: 4242,
+                    cgroup_id: 4242,
+                    comm: {
+                        let mut comm = [0u8; 16];
+                        comm[..4].copy_from_slice(b"curl");
+                        comm
+                    },
+                }),
+            },
+        ];
+        if fragments.contains(&"route_meta_fragment") {
+            facts.push(route_fact(2, base + Duration::from_millis(10), 99, 2, SessionId(2)));
+        }
+        let offset = facts.len() as u64 + 1;
+        facts.extend([
+            FactEnvelope {
+                id: FactId(offset),
+                ts: base + Duration::from_millis(20),
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "tcp_state_fragment".into(),
+                kind: FactKind::TcpState(TcpStateFact {
+                    netns: 1,
+                    sk_cookie: 99,
+                    saddr: [0; 16],
+                    daddr: [0; 16],
+                    sport: 42310,
+                    dport: 443,
+                    family: 2,
+                    old: 1,
+                    new: 2,
+                }),
+            },
+            FactEnvelope {
+                id: FactId(offset + 1),
+                ts: base + Duration::from_millis(30),
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "tcp_state_fragment".into(),
+                kind: FactKind::TcpState(TcpStateFact {
+                    netns: 1,
+                    sk_cookie: 99,
+                    saddr: [0; 16],
+                    daddr: [0; 16],
+                    sport: 42310,
+                    dport: 443,
+                    family: 2,
+                    old: 2,
+                    new: 3,
+                }),
+            },
+            FactEnvelope {
+                id: FactId(offset + 2),
+                ts: base + Duration::from_millis(40),
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "tcp_packet_meta_fragment".into(),
+                kind: FactKind::PacketMeta(PacketMetaFact {
+                    netns: 1,
+                    sk_cookie: Some(99),
+                    dir: PacketDir::Egress,
+                    l3_proto: 0x0800,
+                    l4_proto: 6,
+                    tot_len: 120,
+                    tcp_flags: 0x18,
+                    seq: Some(1),
+                    ack: Some(1),
+                    window: Some(65535),
+                }),
+            },
+            FactEnvelope {
+                id: FactId(offset + 3),
+                ts: base + Duration::from_millis(50),
+                cpu: CpuId(0),
+                ifindex: Some(2),
+                session: SessionId(2),
+                fragment_id: "tcp_packet_meta_fragment".into(),
+                kind: FactKind::PacketMeta(PacketMetaFact {
+                    netns: 1,
+                    sk_cookie: Some(99),
+                    dir: PacketDir::Ingress,
+                    l3_proto: 0x0800,
+                    l4_proto: 6,
+                    tot_len: 180,
+                    tcp_flags: 0x18,
+                    seq: Some(2),
+                    ack: Some(2),
+                    window: Some(65535),
+                }),
+            },
+        ]);
+        facts
+    } else if fragments.contains(&"tcp_state_fragment")
         && fragments.contains(&"tcp_packet_meta_fragment")
         && fragments.contains(&"sock_lineage_fragment")
         && is_tls_client
@@ -1021,116 +1283,6 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
             },
         ]);
         facts
-    } else if fragments.contains(&"udp_packet_meta_fragment")
-        && fragments.contains(&"tcp_state_fragment")
-        && fragments.contains(&"sock_lineage_fragment")
-    {
-        if is_http_request {
-            vec![
-                FactEnvelope {
-                    id: FactId(1),
-                    ts: base,
-                    cpu: CpuId(0),
-                    ifindex: Some(2),
-                    session: SessionId(2),
-                    fragment_id: "sock_lineage_fragment".into(),
-                    kind: FactKind::SockLineage(SockLineageFact {
-                        netns: 1,
-                        sk_cookie: 99,
-                        pid: 4242,
-                        tid: 4242,
-                        cgroup_id: 4242,
-                        comm: {
-                            let mut comm = [0u8; 16];
-                            comm[..4].copy_from_slice(b"curl");
-                            comm
-                        },
-                    }),
-                },
-                FactEnvelope {
-                    id: FactId(2),
-                    ts: base + Duration::from_millis(10),
-                    cpu: CpuId(0),
-                    ifindex: Some(3),
-                    session: SessionId(2),
-                    fragment_id: "udp_packet_meta_fragment".into(),
-                    kind: FactKind::PacketMeta(PacketMetaFact {
-                        netns: 1,
-                        sk_cookie: Some(99),
-                        dir: PacketDir::Egress,
-                        l3_proto: 0x0800,
-                        l4_proto: 17,
-                        tot_len: 72,
-                        tcp_flags: 0,
-                        seq: None,
-                        ack: None,
-                        window: None,
-                    }),
-                },
-                FactEnvelope {
-                    id: FactId(3),
-                    ts: base + Duration::from_millis(20),
-                    cpu: CpuId(0),
-                    ifindex: Some(3),
-                    session: SessionId(2),
-                    fragment_id: "udp_packet_meta_fragment".into(),
-                    kind: FactKind::PacketMeta(PacketMetaFact {
-                        netns: 1,
-                        sk_cookie: Some(99),
-                        dir: PacketDir::Ingress,
-                        l3_proto: 0x0800,
-                        l4_proto: 17,
-                        tot_len: 96,
-                        tcp_flags: 0,
-                        seq: None,
-                        ack: None,
-                        window: None,
-                    }),
-                },
-                route_fact(4, base + Duration::from_millis(30), 99, 3, SessionId(2)),
-                FactEnvelope {
-                    id: FactId(5),
-                    ts: base + Duration::from_millis(40),
-                    cpu: CpuId(0),
-                    ifindex: Some(2),
-                    session: SessionId(2),
-                    fragment_id: "tcp_state_fragment".into(),
-                    kind: FactKind::TcpState(TcpStateFact {
-                        netns: 1,
-                        sk_cookie: 99,
-                        saddr: [0; 16],
-                        daddr: [0; 16],
-                        sport: 42310,
-                        dport: tcp_demo_dport,
-                        family: 2,
-                        old: 1,
-                        new: 2,
-                    }),
-                },
-                FactEnvelope {
-                    id: FactId(6),
-                    ts: base + Duration::from_millis(50),
-                    cpu: CpuId(0),
-                    ifindex: Some(2),
-                    session: SessionId(2),
-                    fragment_id: "tcp_state_fragment".into(),
-                    kind: FactKind::TcpState(TcpStateFact {
-                        netns: 1,
-                        sk_cookie: 99,
-                        saddr: [0; 16],
-                        daddr: [0; 16],
-                        sport: 42310,
-                        dport: tcp_demo_dport,
-                        family: 2,
-                        old: 2,
-                        new: 3,
-                    }),
-                },
-            ]
-        } else {
-            eprintln!("{}", UiLocale::detect().msg("unsupported_fragment_combo"));
-            std::process::exit(2);
-        }
     } else if fragments.contains(&"tcp_state_fragment")
         && fragments.contains(&"tcp_packet_meta_fragment")
     {
@@ -1399,6 +1551,14 @@ mod tests {
         assert_eq!(bundle.program_findings.len(), 0);
         assert_eq!(bundle.module_findings.len(), 0);
         assert_eq!(bundle.program_flows.len(), 1);
+        assert!(bundle.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_request")));
+        assert!(bundle.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_response")));
         assert_eq!(
             bundle.program_flows[0].operation,
             ProgramOperation::Custom("http_request".into())
@@ -1419,6 +1579,28 @@ mod tests {
         assert_eq!(
             bundle.program_flows[0].operation,
             ProgramOperation::Custom("tls_client".into())
+        );
+    }
+
+    #[test]
+    fn http_server_response_demo_produces_healthy_server_path() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy")
+                .expect("http_server_response_path DSL should compile");
+        let bundle = run_binding_demo(binding);
+        assert_eq!(bundle.program_findings.len(), 0);
+        assert_eq!(bundle.module_findings.len(), 0);
+        assert!(bundle.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_request")));
+        assert!(bundle.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_response")));
+        assert_eq!(
+            bundle.program_flows[0].operation,
+            ProgramOperation::Custom("http_server_response".into())
         );
     }
 }
@@ -1608,6 +1790,117 @@ fn findings_json(name: &str, export: &ExportBundle) -> String {
     )
 }
 
+fn http_transactions_text(transactions: &[HttpTransactionView]) -> String {
+    let locale = UiLocale::detect();
+    if transactions.is_empty() {
+        return locale.none().into();
+    }
+
+    transactions
+        .iter()
+        .map(|tx| {
+            format!(
+                "http_transaction#{}: client={} server={} verdict={} severity={} degraded={} suspect_sides={} phases={} components={} summaries={}",
+                tx.id.0,
+                tx.client_process
+                    .as_ref()
+                    .map(|p| format!("{}(pid={})", p.comm, p.pid))
+                    .unwrap_or_else(|| locale.none().to_string()),
+                tx.server_process
+                    .as_ref()
+                    .map(|p| format!("{}(pid={})", p.comm, p.pid))
+                    .unwrap_or_else(|| locale.none().to_string()),
+                http_transaction_verdict_label(&tx.verdict),
+                tx.severity
+                    .as_ref()
+                    .map(module_severity_label)
+                    .unwrap_or_else(|| locale.none()),
+                tx.degraded,
+                if tx.suspect_sides.is_empty() {
+                    locale.none().to_string()
+                } else {
+                    tx.suspect_sides
+                        .iter()
+                        .map(http_suspect_side_label)
+                        .collect::<Vec<_>>()
+                        .join(",")
+                },
+                if tx.phases.is_empty() {
+                    locale.none().to_string()
+                } else {
+                    tx.phases.join(",")
+                },
+                tx.components
+                    .iter()
+                    .map(|component| format!("{}:{}", http_component_kind_label(&component.kind), operation_label(&component.operation)))
+                    .collect::<Vec<_>>()
+                    .join(","),
+                if tx.finding_summaries.is_empty() {
+                    tx.summaries.join("|")
+                } else {
+                    tx.finding_summaries.join("|")
+                }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn http_transactions_json(transactions: &[HttpTransactionView]) -> String {
+    format!(
+        "[{}]",
+        transactions
+            .iter()
+            .map(http_transaction_json)
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
+fn http_transaction_json(transaction: &HttpTransactionView) -> String {
+    format!(
+        "{{\"id\":{},\"client_process\":{},\"server_process\":{},\"verdict\":\"{}\",\"severity\":{},\"degraded\":{},\"suspect_sides\":{},\"phases\":{},\"components\":{},\"finding_summaries\":{},\"summaries\":{}}}",
+        transaction.id.0,
+        process_json(transaction.client_process.as_ref()),
+        process_json(transaction.server_process.as_ref()),
+        http_transaction_verdict_label(&transaction.verdict),
+        transaction
+            .severity
+            .as_ref()
+            .map(|severity| format!("\"{}\"", module_severity_label(severity)))
+            .unwrap_or_else(|| "null".into()),
+        transaction.degraded,
+        string_list_json(
+            &transaction
+                .suspect_sides
+                .iter()
+                .map(|side| http_suspect_side_label(side).to_string())
+                .collect::<Vec<_>>()
+        ),
+        string_list_json(&transaction.phases),
+        format!(
+            "[{}]",
+            transaction
+                .components
+                .iter()
+                .map(http_component_json)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        string_list_json(&transaction.finding_summaries),
+        string_list_json(&transaction.summaries),
+    )
+}
+
+fn http_component_json(component: &gewyvern::http::HttpComponentRef) -> String {
+    format!(
+        "{{\"template_id\":\"{}\",\"kind\":\"{}\",\"operation\":\"{}\"}}",
+        component.template_id,
+        http_component_kind_label(&component.kind),
+        operation_label(&component.operation),
+    )
+}
+
 fn module_finding_json(finding: &gewyvern::flow::ModuleFinding) -> String {
     format!(
         "{{\"module_label\":\"{}\",\"severity\":\"{}\",\"process\":{},\"operation\":\"{}\",\"phases\":{},\"phase_transitions\":{},\"suspect_areas\":{},\"causes\":{},\"supporting_fragments\":{},\"program_flows\":{},\"summaries\":{},\"evidence_trace\":{}}}",
@@ -1656,6 +1949,44 @@ fn program_finding_json(finding: &gewyvern::flow::ProgramFinding) -> String {
         string_list_json(&finding.supporting_fragments),
         string_list_json(&finding.evidence_trace),
     )
+}
+
+fn http_component_kind_label(kind: &gewyvern::http::HttpComponentKind) -> &'static str {
+    match kind {
+        gewyvern::http::HttpComponentKind::DnsLookup => "dns",
+        gewyvern::http::HttpComponentKind::ClientRequest => "client",
+        gewyvern::http::HttpComponentKind::ServerResponse => "server",
+    }
+}
+
+fn http_suspect_side_label(side: &HttpSuspectSide) -> &'static str {
+    match side {
+        HttpSuspectSide::Dns => "dns",
+        HttpSuspectSide::Client => "client",
+        HttpSuspectSide::Server => "server",
+    }
+}
+
+fn http_transaction_verdict_label(
+    verdict: &gewyvern::http::HttpTransactionVerdict,
+) -> &'static str {
+    match verdict {
+        gewyvern::http::HttpTransactionVerdict::HealthyRequestResponsePath => {
+            "healthy_request_response_path"
+        }
+        gewyvern::http::HttpTransactionVerdict::SuspectDnsResolutionGap => {
+            "suspect_dns_resolution_gap"
+        }
+        gewyvern::http::HttpTransactionVerdict::SuspectClientResponseGap => {
+            "suspect_client_response_gap"
+        }
+        gewyvern::http::HttpTransactionVerdict::SuspectServerResponseGap => {
+            "suspect_server_response_gap"
+        }
+        gewyvern::http::HttpTransactionVerdict::SuspectMultiSidedGap => {
+            "suspect_multi_sided_gap"
+        }
+    }
 }
 
 fn process_json(process: Option<&gewyvern::flow::ProcessView>) -> String {

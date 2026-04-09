@@ -1779,15 +1779,19 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
     match predicate {
         ReasonPredicate::ProcessBound => JsonValue::String("process_bound".into()),
         ReasonPredicate::SocketStateObserved {
+            sport,
             dport,
             min_new_state,
-        } => match (dport, min_new_state) {
-            (None, None) => JsonValue::String("socket_state_observed".into()),
+        } => match (sport, dport, min_new_state) {
+            (None, None, None) => JsonValue::String("socket_state_observed".into()),
             _ => {
                 let mut object = BTreeMap::from([(
                     "kind".into(),
                     JsonValue::String("socket_state_observed".into()),
                 )]);
+                if let Some(sport) = sport {
+                    object.insert("sport".into(), JsonValue::Number(*sport as i64));
+                }
                 if let Some(dport) = dport {
                     object.insert("dport".into(), JsonValue::Number(*dport as i64));
                 }
@@ -1932,6 +1936,7 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
         JsonValue::String(id) => match id.as_str() {
             "process_bound" => Ok(ReasonPredicate::ProcessBound),
             "socket_state_observed" => Ok(ReasonPredicate::SocketStateObserved {
+                sport: None,
                 dport: None,
                 min_new_state: None,
             }),
@@ -1944,6 +1949,10 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
             .as_str()?
         {
             "socket_state_observed" => Ok(ReasonPredicate::SocketStateObserved {
+                sport: match object.get("sport").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u16),
+                },
                 dport: match object.get("dport").unwrap_or(&JsonValue::Null) {
                     JsonValue::Null => None,
                     value => Some(value.as_i64()? as u16),

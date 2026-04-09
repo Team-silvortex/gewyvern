@@ -85,6 +85,15 @@ pub fn tcp_state_fact_with_ports(
 }
 
 pub fn packet_fact(id: u64, cookie: u64, tcp_flags: u16) -> FactEnvelope {
+    packet_fact_with_dir(id, cookie, tcp_flags, PacketDir::Egress)
+}
+
+pub fn packet_fact_with_dir(
+    id: u64,
+    cookie: u64,
+    tcp_flags: u16,
+    dir: PacketDir,
+) -> FactEnvelope {
     FactEnvelope {
         id: FactId(id),
         ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
@@ -95,7 +104,7 @@ pub fn packet_fact(id: u64, cookie: u64, tcp_flags: u16) -> FactEnvelope {
         kind: FactKind::PacketMeta(PacketMetaFact {
             netns: 1,
             sk_cookie: Some(cookie),
-            dir: PacketDir::Egress,
+            dir,
             l3_proto: 0x0800,
             l4_proto: 6,
             tot_len: 60,

@@ -5,6 +5,7 @@ use crate::ledger::{FactEnvelope, FactKind, PacketDir};
 pub enum FlowPredicate {
     ProcessBound,
     SocketStateObserved {
+        sport: Option<u16>,
         dport: Option<u16>,
         min_new_state: Option<u8>,
     },
@@ -104,6 +105,7 @@ pub fn matches_flow_predicate(
     match predicate {
         FlowPredicate::ProcessBound => flow.evidence.lineage_facts.contains(&fact.id),
         FlowPredicate::SocketStateObserved {
+            sport,
             dport,
             min_new_state,
         } => {
@@ -113,7 +115,8 @@ pub fn matches_flow_predicate(
             matches!(
                 &fact.kind,
                 FactKind::TcpState(state)
-                    if dport.as_ref().is_none_or(|expected| state.dport == *expected)
+                    if sport.as_ref().is_none_or(|expected| state.sport == *expected)
+                        && dport.as_ref().is_none_or(|expected| state.dport == *expected)
                         && min_new_state
                             .as_ref()
                             .is_none_or(|expected| state.new >= *expected)

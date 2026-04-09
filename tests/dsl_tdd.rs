@@ -9,8 +9,8 @@ use gewyvern::template::FragmentParamValue;
 mod support;
 
 use support::{
-    packet_fact, route_fact, sock_lineage_fact, tcp_state_fact, tcp_state_fact_with_ports,
-    udp_packet_fact, udp_packet_fact_with_dir,
+    packet_fact, packet_fact_with_dir, route_fact, sock_lineage_fact, tcp_state_fact,
+    tcp_state_fact_with_ports, udp_packet_fact, udp_packet_fact_with_dir,
 };
 use std::time::{Duration, SystemTime};
 
@@ -121,6 +121,19 @@ fn built_in_http_request_path_dsl_compiles_into_template_binding() {
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("http_request".into())
+    );
+}
+
+#[test]
+fn built_in_http_server_response_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "http_server_response_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("http_server_response".into())
     );
 }
 
@@ -285,17 +298,17 @@ fn dns_dsl_missing_reply_produces_send_request_to_receive_reply_transition() {
 }
 
 #[test]
-fn http_request_path_can_span_dns_and_https_phases_in_one_module() {
+fn http_request_path_can_span_connect_and_request_response_phases_in_one_module() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 601, 4242, "curl"));
-    session.ingest(udp_packet_fact_with_dir(2, 601, 80, PacketDir::Egress));
-    session.ingest(udp_packet_fact_with_dir(3, 601, 128, PacketDir::Ingress));
-    session.ingest(route_fact(4, 601, 7));
-    session.ingest(tcp_state_fact_with_ports(5, 601, 1, 2, 42000, 443));
-    session.ingest(tcp_state_fact_with_ports(6, 601, 2, 3, 42000, 443));
+    session.ingest(route_fact(2, 601, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 601, 1, 2, 42000, 443));
+    session.ingest(tcp_state_fact_with_ports(4, 601, 2, 3, 42000, 443));
+    session.ingest(packet_fact_with_dir(5, 601, 0x18, PacketDir::Egress));
+    session.ingest(packet_fact_with_dir(6, 601, 0x18, PacketDir::Ingress));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
 
     let export = session.export_bundle();
@@ -309,11 +322,11 @@ fn http_request_path_can_span_dns_and_https_phases_in_one_module() {
         .filter_map(|stage| stage.phase.clone())
         .collect::<Vec<_>>();
     assert!(phases.contains(&"bind".to_string()));
-    assert!(phases.contains(&"resolve_dns_request".to_string()));
-    assert!(phases.contains(&"resolve_dns_reply".to_string()));
     assert!(phases.contains(&"resolve_upstream".to_string()));
     assert!(phases.contains(&"connect".to_string()));
     assert!(phases.contains(&"establish".to_string()));
+    assert!(phases.contains(&"send_request".to_string()));
+    assert!(phases.contains(&"receive_response".to_string()));
     assert_eq!(export.module_findings.len(), 0);
 }
 
@@ -324,17 +337,84 @@ fn http_request_path_missing_establish_produces_connect_to_establish_transition(
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 602, 4242, "curl"));
-    session.ingest(udp_packet_fact_with_dir(2, 602, 80, PacketDir::Egress));
-    session.ingest(udp_packet_fact_with_dir(3, 602, 128, PacketDir::Ingress));
-    session.ingest(route_fact(4, 602, 7));
-    session.ingest(tcp_state_fact_with_ports(5, 602, 1, 2, 42000, 443));
-    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+    session.ingest(route_fact(2, 602, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 602, 1, 2, 42000, 443));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(50));
 
     let export = session.export_bundle();
     assert!(export.program_findings.iter().any(|finding| {
         finding.module_label == "http_request_path"
             && finding.phase.as_deref() == Some("establish")
             && finding.phase_transition.as_deref() == Some("connect->establish")
+    }));
+}
+
+#[test]
+fn http_request_path_missing_response_produces_request_to_response_transition() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 603, 4242, "curl"));
+    session.ingest(route_fact(2, 603, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 603, 1, 2, 42000, 443));
+    session.ingest(tcp_state_fact_with_ports(4, 603, 2, 3, 42000, 443));
+    session.ingest(packet_fact_with_dir(5, 603, 0x18, PacketDir::Egress));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert!(export.program_findings.iter().any(|finding| {
+        finding.module_label == "http_request_path"
+            && finding.phase.as_deref() == Some("receive_response")
+            && finding.phase_transition.as_deref() == Some("send_request->receive_response")
+    }));
+}
+
+#[test]
+fn http_server_response_path_can_span_accept_request_and_response_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 604, 8080, "nginx"));
+    session.ingest(tcp_state_fact_with_ports(2, 604, 1, 2, 80, 53000));
+    session.ingest(tcp_state_fact_with_ports(3, 604, 2, 3, 80, 53000));
+    session.ingest(packet_fact_with_dir(4, 604, 0x18, PacketDir::Ingress));
+    session.ingest(packet_fact_with_dir(5, 604, 0x18, PacketDir::Egress));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    let phases = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase.clone())
+        .collect::<Vec<_>>();
+    assert!(phases.contains(&"accept".to_string()));
+    assert!(phases.contains(&"establish".to_string()));
+    assert!(phases.contains(&"receive_request".to_string()));
+    assert!(phases.contains(&"send_response".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn http_server_response_path_missing_response_produces_request_to_response_transition() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 605, 8080, "nginx"));
+    session.ingest(tcp_state_fact_with_ports(2, 605, 1, 2, 80, 53000));
+    session.ingest(tcp_state_fact_with_ports(3, 605, 2, 3, 80, 53000));
+    session.ingest(packet_fact_with_dir(4, 605, 0x18, PacketDir::Ingress));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_findings.iter().any(|finding| {
+        finding.module_label == "http_server_response_path"
+            && finding.phase.as_deref() == Some("send_response")
+            && finding.phase_transition.as_deref() == Some("receive_request->send_response")
     }));
 }
 
