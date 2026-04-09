@@ -112,8 +112,8 @@ pub fn connect_flow_model() -> ProgramModel {
             },
             ProgramRule {
                 predicate: ProgramPredicate::SocketStateObserved {
-                    sport: None,
-                    dport: None,
+                    local_port: None,
+                    remote_port: None,
                     min_new_state: None,
                 },
                 signal: Some(ProgramStageKind::SocketStateTransition),

@@ -8,13 +8,13 @@ fragment=tcp_packet_meta_fragment
 fragment=sock_lineage_fragment
 operation=http_server_response
 rule=process_bound;process_bound;process_bound;true;http_server_response_path;bind
-rule=socket_state_observed:sport:http;socket_state_transition;static:program accepted or advanced an HTTP server socket;false;http_server_response_path;accept
-rule=socket_state_observed:sport:http:established;socket_state_transition;static:program reached an established HTTP server socket state;true;http_server_response_path;establish
+rule=socket_state_observed:local:http;socket_state_transition;static:program accepted or advanced an HTTP server socket;false;http_server_response_path;accept
+rule=socket_state_observed:local:http:established;socket_state_transition;static:program reached an established HTTP server socket state;true;http_server_response_path;establish
 rule=packet_observed:tcp:ingress;packet_observed;static:program observed an HTTP request payload from a client;true;http_server_response_path;receive_request
 rule=packet_observed:tcp:egress;packet_observed;static:program sent an HTTP response payload to a client;true;http_server_response_path;send_response
 reason.rule=process_bound;process_identified;process_bound;true;http_server_response_path;bind
-reason.rule=socket_state_observed:sport:http;state_change;tcp_state_transition;false;http_server_response_path;accept
-reason.rule=socket_state_observed:sport:http:established;state_change;tcp_state_transition;true;http_server_response_path;establish
+reason.rule=socket_state_observed:local:http;state_change;tcp_state_transition;false;http_server_response_path;accept
+reason.rule=socket_state_observed:local:http:established;state_change;tcp_state_transition;true;http_server_response_path;establish
 reason.rule=packet_observed:tcp:ingress;packet_observed;static:http_request_payload_observed;true;http_server_response_path;receive_request
 reason.rule=packet_observed:tcp:egress;packet_observed;static:http_response_payload_observed;true;http_server_response_path;send_response
 param=sock_lineage_fragment.capture_comm=true

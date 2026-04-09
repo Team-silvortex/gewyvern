@@ -269,17 +269,17 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
     match value {
         "process_bound" => Ok(FlowPredicate::ProcessBound),
         "socket_state_observed" => Ok(FlowPredicate::SocketStateObserved {
-            sport: None,
-            dport: None,
+            local_port: None,
+            remote_port: None,
             min_new_state: None,
         }),
         other if other.starts_with("socket_state_observed:") => {
             let suffix = &other["socket_state_observed:".len()..];
             let mut parts = suffix.split(':');
             let first = parts.next().unwrap_or_default();
-            let (sport, dport, port) = match first {
-                "sport" => (true, false, parts.next().unwrap_or_default()),
-                "dport" => (false, true, parts.next().unwrap_or_default()),
+            let (local_port, remote_port, port) = match first {
+                "local" | "sport" => (true, false, parts.next().unwrap_or_default()),
+                "remote" | "dport" => (false, true, parts.next().unwrap_or_default()),
                 _ => (false, true, first),
             };
             let port = match port {
@@ -309,8 +309,8 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 )));
             }
             Ok(FlowPredicate::SocketStateObserved {
-                sport: sport.then_some(port),
-                dport: dport.then_some(port),
+                local_port: local_port.then_some(port),
+                remote_port: remote_port.then_some(port),
                 min_new_state,
             })
         }

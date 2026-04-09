@@ -138,6 +138,60 @@ fn built_in_http_server_response_path_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn dsl_accepts_local_remote_port_predicates_and_legacy_aliases() {
+    let local_binding = compile_str(
+        r#"
+template=http_server_compat
+window=default_5s
+reason=handshake_l1
+fragment=tcp_state_fragment
+program_model=http_server_compat_model
+operation=http_server_response
+rule=socket_state_observed:local:http;socket_state_transition;static:local http socket observed;true
+"#,
+    )
+    .unwrap();
+    let legacy_binding = compile_str(
+        r#"
+template=http_server_legacy
+window=default_5s
+reason=handshake_l1
+fragment=tcp_state_fragment
+program_model=http_server_legacy_model
+operation=http_server_response
+rule=socket_state_observed:sport:http;socket_state_transition;static:legacy local http socket observed;true
+"#,
+    )
+    .unwrap();
+    let remote_binding = compile_str(
+        r#"
+template=http_client_remote
+window=default_5s
+reason=handshake_l1
+fragment=tcp_state_fragment
+program_model=http_client_remote_model
+operation=http_request
+rule=socket_state_observed:remote:https;socket_state_transition;static:remote https socket observed;true
+"#,
+    )
+    .unwrap();
+
+    let local_rule = &local_binding.template.program_model.as_ref().unwrap().rules[0];
+    let legacy_rule = &legacy_binding.template.program_model.as_ref().unwrap().rules[0];
+    let remote_rule = &remote_binding.template.program_model.as_ref().unwrap().rules[0];
+
+    assert_eq!(local_rule.predicate, legacy_rule.predicate);
+    assert_eq!(
+        remote_rule.predicate,
+        gewyvern::ir::FlowPredicate::SocketStateObserved {
+            local_port: None,
+            remote_port: Some(443),
+            min_new_state: None,
+        }
+    );
+}
+
+#[test]
 fn built_in_tls_client_path_dsl_compiles_into_template_binding() {
     let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
         .unwrap();
