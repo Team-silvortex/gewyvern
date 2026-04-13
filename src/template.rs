@@ -151,6 +151,9 @@ pub fn datagram_exchange_model() -> ProgramModel {
                 predicate: ProgramPredicate::DatagramObserved {
                     l4_proto: 17,
                     dir: None,
+                    local_port: None,
+                    remote_port: None,
+                    min_len: None,
                 },
                 signal: Some(ProgramStageKind::DatagramObserved),
                 narrative: ProgramNarrative::Static("program emitted or received a UDP datagram"),

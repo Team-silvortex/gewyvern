@@ -100,6 +100,8 @@ pub struct PacketMetaFact {
     pub netns: u32,
     pub sk_cookie: Option<u64>,
     pub dir: PacketDir,
+    pub local_port: Option<u16>,
+    pub remote_port: Option<u16>,
     pub l3_proto: u16,
     pub l4_proto: u8,
     pub tot_len: u32,

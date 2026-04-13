@@ -467,6 +467,9 @@ fn program_flow_operation_supports_custom_model_ids() {
                 predicate: ProgramPredicate::DatagramObserved {
                     l4_proto: 17,
                     dir: None,
+                    local_port: None,
+                    remote_port: None,
+                    min_len: None,
                 },
                 signal: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),
                 narrative: ProgramNarrative::Static("program emitted a DNS-style datagram"),
@@ -522,6 +525,9 @@ fn program_model_supports_all_and_any_predicates() {
                     ProgramPredicate::DatagramObserved {
                         l4_proto: 17,
                         dir: None,
+                        local_port: None,
+                        remote_port: None,
+                        min_len: None,
                     },
                 ]),
                 signal: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),

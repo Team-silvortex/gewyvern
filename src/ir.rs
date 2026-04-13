@@ -13,7 +13,13 @@ pub enum FlowPredicate {
         l4_proto: u8,
         dir: Option<PacketDir>,
     },
-    DatagramObserved { l4_proto: u8, dir: Option<PacketDir> },
+    DatagramObserved {
+        l4_proto: u8,
+        dir: Option<PacketDir>,
+        local_port: Option<u16>,
+        remote_port: Option<u16>,
+        min_len: Option<u32>,
+    },
     RouteResolved,
     All(Vec<FlowPredicate>),
     Any(Vec<FlowPredicate>),
@@ -168,7 +174,13 @@ pub fn matches_flow_predicate(
                         && dir.as_ref().is_none_or(|expected| packet.dir == *expected)
             )
         }
-        FlowPredicate::DatagramObserved { l4_proto, dir } => {
+        FlowPredicate::DatagramObserved {
+            l4_proto,
+            dir,
+            local_port,
+            remote_port,
+            min_len,
+        } => {
             if !flow.evidence.packet_facts.contains(&fact.id) {
                 return false;
             }
@@ -177,6 +189,15 @@ pub fn matches_flow_predicate(
                 FactKind::PacketMeta(packet)
                     if packet.l4_proto == *l4_proto
                         && dir.as_ref().is_none_or(|expected| packet.dir == *expected)
+                        && local_port
+                            .as_ref()
+                            .is_none_or(|expected| packet.local_port == Some(*expected))
+                        && remote_port
+                            .as_ref()
+                            .is_none_or(|expected| packet.remote_port == Some(*expected))
+                        && min_len
+                            .as_ref()
+                            .is_none_or(|expected| packet.tot_len >= *expected)
             )
         }
         FlowPredicate::RouteResolved => flow.evidence.route_facts.contains(&fact.id),

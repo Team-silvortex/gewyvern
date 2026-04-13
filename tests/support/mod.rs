@@ -105,6 +105,8 @@ pub fn packet_fact_with_dir(
             netns: 1,
             sk_cookie: Some(cookie),
             dir,
+            local_port: Some(42310),
+            remote_port: Some(443),
             l3_proto: 0x0800,
             l4_proto: 6,
             tot_len: 60,
@@ -126,6 +128,17 @@ pub fn udp_packet_fact_with_dir(
     tot_len: u32,
     dir: PacketDir,
 ) -> FactEnvelope {
+    udp_packet_fact_with_dir_and_ports(id, cookie, tot_len, dir, None, None)
+}
+
+pub fn udp_packet_fact_with_dir_and_ports(
+    id: u64,
+    cookie: u64,
+    tot_len: u32,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+) -> FactEnvelope {
     FactEnvelope {
         id: FactId(id),
         ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
@@ -137,6 +150,8 @@ pub fn udp_packet_fact_with_dir(
             netns: 1,
             sk_cookie: Some(cookie),
             dir,
+            local_port,
+            remote_port,
             l3_proto: 0x0800,
             l4_proto: 17,
             tot_len,

@@ -326,22 +326,52 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                     .parse::<u8>()
                     .map_err(|_| DslError::InvalidValue(format!("unknown datagram proto '{proto}'")))?,
             };
-            let dir = match parts.next() {
-                None => None,
-                Some("egress") | Some("local_to_remote") => Some(PacketDir::Egress),
-                Some("ingress") | Some("remote_to_local") => Some(PacketDir::Ingress),
-                Some(other) => {
-                    return Err(DslError::InvalidValue(format!(
-                        "unknown datagram direction '{other}'"
-                    )))
+            let mut dir = None;
+            let mut local_port = None;
+            let mut remote_port = None;
+            let mut min_len = None;
+            while let Some(part) = parts.next() {
+                match part {
+                    "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
+                    "ingress" | "remote_to_local" => dir = Some(PacketDir::Ingress),
+                    "local" | "sport" => {
+                        let port = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing datagram local port qualifier".into())
+                        })?;
+                        local_port = Some(parse_named_port(port, "datagram_observed")?);
+                    }
+                    "remote" | "dport" => {
+                        let port = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing datagram remote port qualifier".into())
+                        })?;
+                        remote_port = Some(parse_named_port(port, "datagram_observed")?);
+                    }
+                    "min_len" => {
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing datagram min_len qualifier".into(),
+                            )
+                        })?;
+                        min_len = Some(value.parse::<u32>().map_err(|_| {
+                            DslError::InvalidValue(format!(
+                                "invalid datagram min_len '{value}'"
+                            ))
+                        })?);
+                    }
+                    other => {
+                        return Err(DslError::InvalidValue(format!(
+                            "unknown datagram predicate suffix '{other}'"
+                        )))
+                    }
                 }
-            };
-            if let Some(extra) = parts.next() {
-                return Err(DslError::InvalidValue(format!(
-                    "unexpected datagram predicate suffix '{extra}'"
-                )));
             }
-            Ok(FlowPredicate::DatagramObserved { l4_proto, dir })
+            Ok(FlowPredicate::DatagramObserved {
+                l4_proto,
+                dir,
+                local_port,
+                remote_port,
+                min_len,
+            })
         }
         other if other.starts_with("packet_observed:") => {
             let suffix = &other["packet_observed:".len()..];
@@ -388,6 +418,19 @@ fn parse_reason_key_event(value: &str) -> Result<Option<ReasonKeyEvent>, DslErro
 
 fn parse_reason_narrative(value: &str) -> ReasonNarrative {
     parse_narrative_template(value)
+}
+
+fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslError> {
+    match value {
+        "quic" | "https" => Ok(443),
+        "http" => Ok(80),
+        "postgres" => Ok(5432),
+        "mysql" => Ok(3306),
+        "redis" => Ok(6379),
+        other => other
+            .parse::<u16>()
+            .map_err(|_| DslError::InvalidValue(format!("unknown {predicate} port '{other}'"))),
+    }
 }
 
 fn parse_narrative_template(value: &str) -> NarrativeTemplate {

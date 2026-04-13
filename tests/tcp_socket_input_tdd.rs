@@ -52,6 +52,8 @@ mod support {
                 netns: 1,
                 sk_cookie: Some(cookie),
                 dir: PacketDir::Egress,
+                local_port: None,
+                remote_port: None,
                 l3_proto: 0x0800,
                 l4_proto: 17,
                 tot_len,

@@ -1155,6 +1155,14 @@ fn fact_json(fact: &FactEnvelope) -> JsonValue {
                 value.sk_cookie.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             ("dir".into(), JsonValue::String(value.dir.as_str().into())),
+            (
+                "local_port".into(),
+                value.local_port.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+            ),
+            (
+                "remote_port".into(),
+                value.remote_port.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+            ),
             ("l3_proto".into(), JsonValue::Number(value.l3_proto as i64)),
             ("l4_proto".into(), JsonValue::Number(value.l4_proto as i64)),
             ("tot_len".into(), JsonValue::Number(value.tot_len as i64)),
@@ -1854,13 +1862,28 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             }
             JsonValue::Object(object)
         }
-        ReasonPredicate::DatagramObserved { l4_proto, dir } => {
+        ReasonPredicate::DatagramObserved {
+            l4_proto,
+            dir,
+            local_port,
+            remote_port,
+            min_len,
+        } => {
             let mut object = BTreeMap::from([
                 ("kind".into(), JsonValue::String("datagram_observed".into())),
                 ("l4_proto".into(), JsonValue::Number(*l4_proto as i64)),
             ]);
             if let Some(dir) = dir {
                 object.insert("dir".into(), JsonValue::String(dir.as_flow_str().into()));
+            }
+            if let Some(local_port) = local_port {
+                object.insert("local_port".into(), JsonValue::Number(*local_port as i64));
+            }
+            if let Some(remote_port) = remote_port {
+                object.insert("remote_port".into(), JsonValue::Number(*remote_port as i64));
+            }
+            if let Some(min_len) = min_len {
+                object.insert("min_len".into(), JsonValue::Number(*min_len as i64));
             }
             JsonValue::Object(object)
         }
@@ -2043,6 +2066,26 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                         ExportError::InvalidValue("unknown reason predicate datagram dir".into())
                     })?),
                     _ => return Err(ExportError::InvalidShape("reason_predicate.dir".into())),
+                },
+                local_port: match object
+                    .get("local_port")
+                    .or_else(|| object.get("sport"))
+                    .unwrap_or(&JsonValue::Null)
+                {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u16),
+                },
+                remote_port: match object
+                    .get("remote_port")
+                    .or_else(|| object.get("dport"))
+                    .unwrap_or(&JsonValue::Null)
+                {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u16),
+                },
+                min_len: match object.get("min_len").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u32),
                 },
             }),
             "all" => Ok(ReasonPredicate::All(
@@ -2599,6 +2642,16 @@ fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError> {
                     .as_str()?,
             )
             .ok_or_else(|| ExportError::InvalidValue("unknown packet dir".into()))?,
+            local_port: parse_optional_u16(
+                kind.get("local_port")
+                    .or_else(|| kind.get("sport"))
+                    .unwrap_or(&JsonValue::Null),
+            )?,
+            remote_port: parse_optional_u16(
+                kind.get("remote_port")
+                    .or_else(|| kind.get("dport"))
+                    .unwrap_or(&JsonValue::Null),
+            )?,
             l3_proto: kind
                 .get("l3_proto")
                 .ok_or_else(|| ExportError::InvalidShape("fact.packet_meta.l3_proto".into()))?
