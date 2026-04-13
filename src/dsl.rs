@@ -328,8 +328,8 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             };
             let dir = match parts.next() {
                 None => None,
-                Some("egress") => Some(PacketDir::Egress),
-                Some("ingress") => Some(PacketDir::Ingress),
+                Some("egress") | Some("local_to_remote") => Some(PacketDir::Egress),
+                Some("ingress") | Some("remote_to_local") => Some(PacketDir::Ingress),
                 Some(other) => {
                     return Err(DslError::InvalidValue(format!(
                         "unknown datagram direction '{other}'"
@@ -356,8 +356,8 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             };
             let dir = match parts.next() {
                 None => None,
-                Some("egress") => Some(PacketDir::Egress),
-                Some("ingress") => Some(PacketDir::Ingress),
+                Some("egress") | Some("local_to_remote") => Some(PacketDir::Egress),
+                Some("ingress") | Some("remote_to_local") => Some(PacketDir::Ingress),
                 Some(other) => {
                     return Err(DslError::InvalidValue(format!(
                         "unknown packet direction '{other}'"
@@ -395,9 +395,13 @@ fn parse_narrative_template(value: &str) -> NarrativeTemplate {
         "none" => NarrativeTemplate::None,
         "process_bound" => NarrativeTemplate::ProcessBound,
         "packet_observed" => NarrativeTemplate::PacketObserved,
+        "transport_payload_sent" => NarrativeTemplate::TransportPayloadSent,
+        "transport_payload_received" => NarrativeTemplate::TransportPayloadReceived,
         "tcp_state_transition" => NarrativeTemplate::TcpStateTransition,
         "route_changed" => NarrativeTemplate::RouteChanged,
         "udp_datagram_observed" => NarrativeTemplate::UdpDatagramObserved,
+        "udp_datagram_sent" => NarrativeTemplate::UdpDatagramSent,
+        "udp_datagram_received" => NarrativeTemplate::UdpDatagramReceived,
         other if other.starts_with("static:") => {
             NarrativeTemplate::Static(Box::leak(other[7..].to_string().into_boxed_str()))
         }

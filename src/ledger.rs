@@ -123,10 +123,17 @@ impl PacketDir {
         }
     }
 
+    pub fn as_flow_str(&self) -> &'static str {
+        match self {
+            Self::Ingress => "remote_to_local",
+            Self::Egress => "local_to_remote",
+        }
+    }
+
     pub fn from_str(value: &str) -> Option<Self> {
         match value {
-            "ingress" => Some(Self::Ingress),
-            "egress" => Some(Self::Egress),
+            "ingress" | "remote_to_local" => Some(Self::Ingress),
+            "egress" | "local_to_remote" => Some(Self::Egress),
             _ => None,
         }
     }

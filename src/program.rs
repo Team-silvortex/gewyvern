@@ -2,8 +2,8 @@ use crate::flow::{
     FlowSnapshot, ProgramFlow, ProgramFlowId, ProgramOperation, ProgramStage,
 };
 use crate::ir::{
-    matches_flow_predicate, render_narrative_template, FlowPredicate, NarrativeSurface,
-    NarrativeTemplate, RuleTemplate,
+    matches_flow_predicate, phase_kind, render_narrative_template, FlowPredicate,
+    NarrativeSurface, NarrativeTemplate, RuleTemplate,
 };
 use crate::ledger::FactEnvelope;
 
@@ -54,6 +54,7 @@ fn build_program_flow(
                     at: fact.id,
                     kind: kind.clone(),
                     phase: rule.phase.clone(),
+                    phase_kind: phase_kind(kind, rule.phase.as_deref()).map(str::to_string),
                 });
             }
 

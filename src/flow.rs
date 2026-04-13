@@ -35,7 +35,9 @@ pub struct ProgramFinding {
     pub operation: ProgramOperation,
     pub module_label: String,
     pub phase: Option<String>,
+    pub phase_kind: Option<String>,
     pub phase_transition: Option<String>,
+    pub phase_transition_kind: Option<String>,
     pub suspect_area: String,
     pub cause: ProgramFindingCause,
     pub summary: String,
@@ -50,7 +52,9 @@ pub struct ModuleFinding {
     pub operation: ProgramOperation,
     pub severity: ModuleSeverity,
     pub phases: Vec<String>,
+    pub phase_kinds: Vec<String>,
     pub phase_transitions: Vec<String>,
+    pub phase_transition_kinds: Vec<String>,
     pub suspect_areas: Vec<String>,
     pub causes: Vec<ProgramFindingCause>,
     pub supporting_fragments: Vec<String>,
@@ -86,6 +90,7 @@ pub struct ProgramStage {
     pub at: FactId,
     pub kind: ProgramStageKind,
     pub phase: Option<String>,
+    pub phase_kind: Option<String>,
 }
 
 pub type ProgramStageKind = SignalKind;

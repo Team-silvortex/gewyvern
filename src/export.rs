@@ -1404,6 +1404,12 @@ fn program_flow_json(flow: &ProgramFlow) -> JsonValue {
                                 JsonValue::String(phase.clone())
                             }),
                         );
+                        object.insert(
+                            "phase_kind".into(),
+                            stage.phase_kind.as_ref().map_or(JsonValue::Null, |phase_kind| {
+                                JsonValue::String(phase_kind.clone())
+                            }),
+                        );
                         JsonValue::Object(object)
                     })
                     .collect(),
@@ -1453,6 +1459,12 @@ fn program_finding_json(finding: &ProgramFinding) -> JsonValue {
             }),
         ),
         (
+            "phase_kind".into(),
+            finding.phase_kind.as_ref().map_or(JsonValue::Null, |phase_kind| {
+                JsonValue::String(phase_kind.clone())
+            }),
+        ),
+        (
             "phase_transition".into(),
             finding
                 .phase_transition
@@ -1460,6 +1472,13 @@ fn program_finding_json(finding: &ProgramFinding) -> JsonValue {
                 .map_or(JsonValue::Null, |transition| {
                     JsonValue::String(transition.clone())
                 }),
+        ),
+        (
+            "phase_transition_kind".into(),
+            finding.phase_transition_kind.as_ref().map_or(
+                JsonValue::Null,
+                |transition_kind| JsonValue::String(transition_kind.clone()),
+            ),
         ),
         (
             "suspect_area".into(),
@@ -1537,12 +1556,32 @@ fn module_finding_json(finding: &ModuleFinding) -> JsonValue {
             ),
         ),
         (
+            "phase_kinds".into(),
+            JsonValue::Array(
+                finding
+                    .phase_kinds
+                    .iter()
+                    .map(|phase_kind| JsonValue::String(phase_kind.clone()))
+                    .collect(),
+            ),
+        ),
+        (
             "phase_transitions".into(),
             JsonValue::Array(
                 finding
                     .phase_transitions
                     .iter()
                     .map(|transition| JsonValue::String(transition.clone()))
+                    .collect(),
+            ),
+        ),
+        (
+            "phase_transition_kinds".into(),
+            JsonValue::Array(
+                finding
+                    .phase_transition_kinds
+                    .iter()
+                    .map(|transition_kind| JsonValue::String(transition_kind.clone()))
                     .collect(),
             ),
         ),
@@ -1811,7 +1850,7 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
                 ("l4_proto".into(), JsonValue::Number(*l4_proto as i64)),
             ]);
             if let Some(dir) = dir {
-                object.insert("dir".into(), JsonValue::String(dir.as_str().into()));
+                object.insert("dir".into(), JsonValue::String(dir.as_flow_str().into()));
             }
             JsonValue::Object(object)
         }
@@ -1821,7 +1860,7 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
                 ("l4_proto".into(), JsonValue::Number(*l4_proto as i64)),
             ]);
             if let Some(dir) = dir {
-                object.insert("dir".into(), JsonValue::String(dir.as_str().into()));
+                object.insert("dir".into(), JsonValue::String(dir.as_flow_str().into()));
             }
             JsonValue::Object(object)
         }
@@ -1855,9 +1894,19 @@ fn narrative_template_json(narrative: &NarrativeTemplate) -> JsonValue {
         NarrativeTemplate::None => JsonValue::String("none".into()),
         NarrativeTemplate::ProcessBound => JsonValue::String("process_bound".into()),
         NarrativeTemplate::PacketObserved => JsonValue::String("packet_observed".into()),
+        NarrativeTemplate::TransportPayloadSent => {
+            JsonValue::String("transport_payload_sent".into())
+        }
+        NarrativeTemplate::TransportPayloadReceived => {
+            JsonValue::String("transport_payload_received".into())
+        }
         NarrativeTemplate::TcpStateTransition => JsonValue::String("tcp_state_transition".into()),
         NarrativeTemplate::RouteChanged => JsonValue::String("route_changed".into()),
         NarrativeTemplate::UdpDatagramObserved => JsonValue::String("udp_datagram_observed".into()),
+        NarrativeTemplate::UdpDatagramSent => JsonValue::String("udp_datagram_sent".into()),
+        NarrativeTemplate::UdpDatagramReceived => {
+            JsonValue::String("udp_datagram_received".into())
+        }
         NarrativeTemplate::Static(text) => JsonValue::Object(BTreeMap::from([
             ("kind".into(), JsonValue::String("static".into())),
             ("text".into(), JsonValue::String((*text).into())),
@@ -2034,9 +2083,13 @@ fn parse_narrative_template(value: &JsonValue) -> Result<NarrativeTemplate, Expo
             "none" => Ok(NarrativeTemplate::None),
             "process_bound" => Ok(NarrativeTemplate::ProcessBound),
             "packet_observed" => Ok(NarrativeTemplate::PacketObserved),
+            "transport_payload_sent" => Ok(NarrativeTemplate::TransportPayloadSent),
+            "transport_payload_received" => Ok(NarrativeTemplate::TransportPayloadReceived),
             "tcp_state_transition" => Ok(NarrativeTemplate::TcpStateTransition),
             "route_changed" => Ok(NarrativeTemplate::RouteChanged),
             "udp_datagram_observed" => Ok(NarrativeTemplate::UdpDatagramObserved),
+            "udp_datagram_sent" => Ok(NarrativeTemplate::UdpDatagramSent),
+            "udp_datagram_received" => Ok(NarrativeTemplate::UdpDatagramReceived),
             _ => Err(ExportError::InvalidValue("unknown reason narrative".into())),
         },
         JsonValue::Object(object) => match object
@@ -3083,6 +3136,10 @@ fn parse_program_flow(value: &JsonValue) -> Result<ProgramFlow, ExportError> {
                         JsonValue::Null => None,
                         value => Some(value.as_str()?.to_string()),
                     },
+                    phase_kind: match object.get("phase_kind").unwrap_or(&JsonValue::Null) {
+                        JsonValue::Null => None,
+                        value => Some(value.as_str()?.to_string()),
+                    },
                 })
             })
             .collect::<Result<Vec<_>, _>>()?,
@@ -3140,7 +3197,18 @@ fn parse_program_finding(value: &JsonValue) -> Result<ProgramFinding, ExportErro
             JsonValue::Null => None,
             value => Some(value.as_str()?.to_string()),
         },
+        phase_kind: match object.get("phase_kind").unwrap_or(&JsonValue::Null) {
+            JsonValue::Null => None,
+            value => Some(value.as_str()?.to_string()),
+        },
         phase_transition: match object.get("phase_transition").unwrap_or(&JsonValue::Null) {
+            JsonValue::Null => None,
+            value => Some(value.as_str()?.to_string()),
+        },
+        phase_transition_kind: match object
+            .get("phase_transition_kind")
+            .unwrap_or(&JsonValue::Null)
+        {
             JsonValue::Null => None,
             value => Some(value.as_str()?.to_string()),
         },
@@ -3214,8 +3282,22 @@ fn parse_module_finding(value: &JsonValue) -> Result<ModuleFinding, ExportError>
             .iter()
             .map(|item| Ok(item.as_str()?.to_string()))
             .collect::<Result<Vec<_>, _>>()?,
+        phase_kinds: object
+            .get("phase_kinds")
+            .unwrap_or(&JsonValue::Array(Vec::new()))
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_str()?.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
         phase_transitions: object
             .get("phase_transitions")
+            .unwrap_or(&JsonValue::Array(Vec::new()))
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_str()?.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
+        phase_transition_kinds: object
+            .get("phase_transition_kinds")
             .unwrap_or(&JsonValue::Array(Vec::new()))
             .as_array()?
             .iter()

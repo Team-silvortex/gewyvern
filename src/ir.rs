@@ -46,9 +46,13 @@ pub enum NarrativeTemplate {
     Static(&'static str),
     ProcessBound,
     PacketObserved,
+    TransportPayloadSent,
+    TransportPayloadReceived,
     TcpStateTransition,
     RouteChanged,
     UdpDatagramObserved,
+    UdpDatagramSent,
+    UdpDatagramReceived,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -93,6 +97,33 @@ impl SignalKind {
             "fin_or_rst" => Some(Self::FinOrRst),
             _ => None,
         }
+    }
+}
+
+pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static str> {
+    let phase = phase?;
+    match signal {
+        SignalKind::ProcessBound | SignalKind::ProcessIdentified => Some("bind_process"),
+        SignalKind::RouteResolved | SignalKind::RouteChanged => Some("resolve_route"),
+        SignalKind::SocketStateTransition | SignalKind::StateChange => match phase {
+            "bind" => Some("bind_socket"),
+            "connect" => Some("initiate_connection"),
+            "establish" => Some("establish_connection"),
+            "accept" => Some("accept_connection"),
+            _ => None,
+        },
+        SignalKind::PacketObserved => match phase {
+            "send_request" | "send_response" | "send_client_hello" => Some("emit_payload"),
+            "receive_request" | "receive_response" => Some("receive_payload"),
+            _ => None,
+        },
+        SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {
+            "send_request" | "send_initial" => Some("emit_datagram"),
+            "receive_reply" | "receive_handshake" => Some("receive_datagram"),
+            _ => None,
+        },
+        SignalKind::SynSeen => Some("initiate_connection"),
+        SignalKind::FinOrRst => Some("terminate_connection"),
     }
 }
 
@@ -192,6 +223,18 @@ pub fn render_narrative_template(
             NarrativeSurface::Program => "program observed a transport packet for this flow".into(),
             NarrativeSurface::Reason => "transport packet observed".into(),
         }),
+        NarrativeTemplate::TransportPayloadSent => Some(match surface {
+            NarrativeSurface::Program => {
+                "program sent transport payload on this network flow".into()
+            }
+            NarrativeSurface::Reason => "transport payload sent".into(),
+        }),
+        NarrativeTemplate::TransportPayloadReceived => Some(match surface {
+            NarrativeSurface::Program => {
+                "program received transport payload on this network flow".into()
+            }
+            NarrativeSurface::Reason => "transport payload received".into(),
+        }),
         NarrativeTemplate::TcpStateTransition => {
             let FactKind::TcpState(state) = &fact.kind else {
                 return None;
@@ -210,6 +253,14 @@ pub fn render_narrative_template(
         NarrativeTemplate::UdpDatagramObserved => Some(match surface {
             NarrativeSurface::Program => "program emitted or received a UDP datagram".into(),
             NarrativeSurface::Reason => "udp datagram observed".into(),
+        }),
+        NarrativeTemplate::UdpDatagramSent => Some(match surface {
+            NarrativeSurface::Program => "program emitted a UDP datagram".into(),
+            NarrativeSurface::Reason => "udp datagram sent".into(),
+        }),
+        NarrativeTemplate::UdpDatagramReceived => Some(match surface {
+            NarrativeSurface::Program => "program received a UDP datagram".into(),
+            NarrativeSurface::Reason => "udp datagram received".into(),
         }),
     }
 }

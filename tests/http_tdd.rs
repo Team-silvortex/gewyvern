@@ -50,6 +50,15 @@ fn http_transaction_composes_dns_and_client_request_for_same_process() {
         .any(|component| component.kind == HttpComponentKind::ClientRequest));
     assert!(transactions[0].phases.contains(&"send_request".to_string()));
     assert!(transactions[0].phases.contains(&"receive_response".to_string()));
+    assert!(transactions[0]
+        .phase_kinds
+        .contains(&"emit_datagram".to_string()));
+    assert!(transactions[0]
+        .phase_kinds
+        .contains(&"emit_payload".to_string()));
+    assert!(transactions[0]
+        .phase_kinds
+        .contains(&"receive_payload".to_string()));
     assert_eq!(
         transactions[0].verdict,
         HttpTransactionVerdict::HealthyRequestResponsePath
@@ -96,6 +105,12 @@ fn http_transaction_can_attach_overlapping_server_response_component() {
         .any(|component| component.kind == HttpComponentKind::ServerResponse));
     assert!(transactions[0].phases.contains(&"receive_request".to_string()));
     assert!(transactions[0].phases.contains(&"send_response".to_string()));
+    assert!(transactions[0]
+        .phase_kinds
+        .contains(&"receive_payload".to_string()));
+    assert!(transactions[0]
+        .phase_kinds
+        .contains(&"emit_payload".to_string()));
 }
 
 #[test]

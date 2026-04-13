@@ -638,10 +638,14 @@ fn narrative_required_facts(narrative: &NarrativeTemplate) -> Vec<FactKindTag> {
     match narrative {
         NarrativeTemplate::None | NarrativeTemplate::Static(_) => Vec::new(),
         NarrativeTemplate::ProcessBound => vec![FactKindTag::SockLineage],
-        NarrativeTemplate::PacketObserved => vec![FactKindTag::PacketMeta],
+        NarrativeTemplate::PacketObserved
+        | NarrativeTemplate::TransportPayloadSent
+        | NarrativeTemplate::TransportPayloadReceived => vec![FactKindTag::PacketMeta],
         NarrativeTemplate::TcpStateTransition => vec![FactKindTag::TcpState],
         NarrativeTemplate::RouteChanged => vec![FactKindTag::RouteDecision],
-        NarrativeTemplate::UdpDatagramObserved => vec![FactKindTag::PacketMeta],
+        NarrativeTemplate::UdpDatagramObserved
+        | NarrativeTemplate::UdpDatagramSent
+        | NarrativeTemplate::UdpDatagramReceived => vec![FactKindTag::PacketMeta],
     }
 }
 

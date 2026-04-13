@@ -7,6 +7,7 @@ use crate::fragment::{
     builtin_registry, summarize_attach_failures, AttachFailure, AttachPlan, AttachReport,
     BindingDiagnostics, EvidenceTier, FragmentRegistry, RegistryError, RuleTier,
 };
+use crate::ir::phase_kind;
 use crate::ledger::{FactEnvelope, FactId, FactKind, FactKindTag};
 use crate::loader::{
     LinuxProbeLoader, Loader, LoaderError,
@@ -441,7 +442,8 @@ fn build_program_findings(
 
                 let suspect_area = suspect_area_for_signal(signal).to_string();
                 let phase = rule.phase.clone();
-                let phase_transition = phase_transition_for_rule(
+                let phase_kind = phase_kind(signal, phase.as_deref()).map(str::to_string);
+                let (phase_transition, phase_transition_kind) = phase_transition_for_rule(
                     model,
                     rule_diag.rule_index,
                     flow,
@@ -465,7 +467,9 @@ fn build_program_findings(
                     operation: flow.operation.clone(),
                     module_label,
                     phase: phase.clone(),
+                    phase_kind,
                     phase_transition: phase_transition.clone(),
+                    phase_transition_kind,
                     summary: finding_summary(
                         flow,
                         phase.as_deref(),
@@ -534,10 +538,18 @@ fn phase_transition_for_rule(
     model: &crate::program::ProgramModel,
     rule_index: usize,
     flow: &ProgramFlow,
-) -> Option<String> {
-    let current_phase = model.rules.get(rule_index)?.phase.as_ref()?;
-    let current_module = model.rules.get(rule_index)?.module.as_deref();
-    let previous_phase = model.rules[..rule_index]
+) -> (Option<String>, Option<String>) {
+    let Some(rule) = model.rules.get(rule_index) else {
+        return (None, None);
+    };
+    let Some(current_phase) = rule.phase.as_ref() else {
+        return (None, None);
+    };
+    let current_module = rule.module.as_deref();
+    let Some(current_signal) = rule.signal.as_ref() else {
+        return (None, None);
+    };
+    let previous_rule = model.rules[..rule_index]
         .iter()
         .filter(|rule| rule.phase.is_some() && rule.module.as_deref() == current_module)
         .filter_map(|rule| {
@@ -545,15 +557,27 @@ fn phase_transition_for_rule(
             flow.stages
                 .iter()
                 .any(|stage| &stage.kind == signal && stage.phase == rule.phase)
-                .then(|| rule.phase.clone())
-                .flatten()
+                .then_some((rule.phase.as_deref(), signal))
         })
         .next_back();
 
-    Some(match previous_phase {
-        Some(previous) => format!("{previous}->{current_phase}"),
-        None => format!("start->{current_phase}"),
-    })
+    let phase_transition = Some(match previous_rule {
+        Some((Some(previous), _)) => format!("{previous}->{current_phase}"),
+        _ => format!("start->{current_phase}"),
+    });
+    let phase_transition_kind = Some(match previous_rule {
+        Some((previous_phase, previous_signal)) => {
+            let previous = phase_kind(previous_signal, previous_phase).unwrap_or("start");
+            let current = phase_kind(current_signal, Some(current_phase)).unwrap_or("unknown");
+            format!("{previous}->{current}")
+        }
+        None => {
+            let current = phase_kind(current_signal, Some(current_phase)).unwrap_or("unknown");
+            format!("start->{current}")
+        }
+    });
+
+    (phase_transition, phase_transition_kind)
 }
 
 fn prior_phase_requirements_satisfied(
@@ -669,7 +693,9 @@ fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleF
             operation: finding.operation.clone(),
             severity: ModuleSeverity::Low,
             phases: Vec::new(),
+            phase_kinds: Vec::new(),
             phase_transitions: Vec::new(),
+            phase_transition_kinds: Vec::new(),
             suspect_areas: Vec::new(),
             causes: Vec::new(),
             supporting_fragments: Vec::new(),
@@ -681,8 +707,14 @@ fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleF
         if let Some(phase) = &finding.phase {
             entry.phases.push(phase.clone());
         }
+        if let Some(phase_kind) = &finding.phase_kind {
+            entry.phase_kinds.push(phase_kind.clone());
+        }
         if let Some(transition) = &finding.phase_transition {
             entry.phase_transitions.push(transition.clone());
+        }
+        if let Some(transition_kind) = &finding.phase_transition_kind {
+            entry.phase_transition_kinds.push(transition_kind.clone());
         }
         entry.suspect_areas.push(finding.suspect_area.clone());
         entry.causes.push(finding.cause.clone());
@@ -699,8 +731,12 @@ fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleF
             finding.suspect_areas.dedup();
             finding.phases.sort();
             finding.phases.dedup();
+            finding.phase_kinds.sort();
+            finding.phase_kinds.dedup();
             finding.phase_transitions.sort();
             finding.phase_transitions.dedup();
+            finding.phase_transition_kinds.sort();
+            finding.phase_transition_kinds.dedup();
             finding.causes.sort_by_key(|cause| match cause {
                 ProgramFindingCause::AttachFailure => 0,
                 ProgramFindingCause::RejectedEvidence => 1,

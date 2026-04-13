@@ -192,6 +192,124 @@ rule=socket_state_observed:remote:https;socket_state_transition;static:remote ht
 }
 
 #[test]
+fn dsl_accepts_flow_direction_predicates_and_legacy_aliases() {
+    let packet_binding = compile_str(
+        r#"
+template=http_client_direction
+window=default_5s
+reason=handshake_l1
+fragment=tcp_packet_meta_fragment
+program_model=http_client_direction_model
+operation=http_request
+rule=packet_observed:tcp:local_to_remote;packet_observed;static:outbound http payload observed;true
+"#,
+    )
+    .unwrap();
+    let legacy_packet_binding = compile_str(
+        r#"
+template=http_client_direction_legacy
+window=default_5s
+reason=handshake_l1
+fragment=tcp_packet_meta_fragment
+program_model=http_client_direction_legacy_model
+operation=http_request
+rule=packet_observed:tcp:egress;packet_observed;static:legacy outbound http payload observed;true
+"#,
+    )
+    .unwrap();
+    let datagram_binding = compile_str(
+        r#"
+template=dns_direction
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+program_model=dns_direction_model
+operation=dns_lookup
+rule=datagram_observed:udp:remote_to_local;datagram_observed;static:inbound dns datagram observed;true
+"#,
+    )
+    .unwrap();
+    let legacy_datagram_binding = compile_str(
+        r#"
+template=dns_direction_legacy
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+program_model=dns_direction_legacy_model
+operation=dns_lookup
+rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns datagram observed;true
+"#,
+    )
+    .unwrap();
+
+    let packet_rule = &packet_binding.template.program_model.as_ref().unwrap().rules[0];
+    let legacy_packet_rule = &legacy_packet_binding.template.program_model.as_ref().unwrap().rules[0];
+    let datagram_rule = &datagram_binding.template.program_model.as_ref().unwrap().rules[0];
+    let legacy_datagram_rule =
+        &legacy_datagram_binding.template.program_model.as_ref().unwrap().rules[0];
+
+    assert_eq!(packet_rule.predicate, legacy_packet_rule.predicate);
+    assert_eq!(
+        packet_rule.predicate,
+        gewyvern::ir::FlowPredicate::PacketObserved {
+            l4_proto: 6,
+            dir: Some(PacketDir::Egress),
+        }
+    );
+    assert_eq!(datagram_rule.predicate, legacy_datagram_rule.predicate);
+    assert_eq!(
+        datagram_rule.predicate,
+        gewyvern::ir::FlowPredicate::DatagramObserved {
+            l4_proto: 17,
+            dir: Some(PacketDir::Ingress),
+        }
+    );
+}
+
+#[test]
+fn directional_narrative_templates_render_and_replay_cleanly() {
+    let binding = compile_str(
+        r#"
+template=directional_narrative_templates
+window.duration_ms=5000
+window.lateness_ms=200
+fragment=udp_packet_meta_fragment
+fragment=sock_lineage_fragment
+operation=datagram_exchange
+rule=process_bound;process_bound;process_bound;true
+rule=datagram_observed:udp:remote_to_local;datagram_observed;udp_datagram_received;true
+reason.rule=process_bound;process_identified;process_bound;true
+reason.rule=datagram_observed:udp:remote_to_local;udp_datagram_seen;udp_datagram_received;true
+"#,
+    )
+    .unwrap();
+
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 207, 5355, "curl"));
+    session.ingest(udp_packet_fact_with_dir(2, 207, 88, PacketDir::Ingress));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line == "program received a UDP datagram"));
+    assert!(export.reasons[0]
+        .l3
+        .narrative
+        .iter()
+        .any(|line| line.text == "udp datagram received"));
+
+    let replay = gewyvern::export::ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
+    assert_eq!(export.program_flows, replay.program_flows);
+    assert_eq!(export.reasons, replay.reasons);
+}
+
+#[test]
 fn built_in_tls_client_path_dsl_compiles_into_template_binding() {
     let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
         .unwrap();
@@ -200,6 +318,19 @@ fn built_in_tls_client_path_dsl_compiles_into_template_binding() {
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("tls_client".into())
+    );
+}
+
+#[test]
+fn built_in_quic_client_initial_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "quic_client_initial_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("quic_client_initial".into())
     );
 }
 
@@ -277,11 +408,11 @@ fn dns_dsl_uses_egress_direction_to_model_lookup_requests() {
     assert!(export.program_flows[0]
         .narrative
         .iter()
-        .any(|line| line.contains("DNS request datagram")));
+        .any(|line| line == "program emitted a UDP datagram"));
     assert!(export.program_flows[0]
         .narrative
         .iter()
-        .any(|line| line.contains("DNS reply datagram")));
+        .any(|line| line == "program received a UDP datagram"));
     assert!(export.program_flows[0]
         .stages
         .iter()
@@ -321,7 +452,7 @@ fn dns_dsl_does_not_treat_ingress_udp_as_lookup_request() {
     assert!(export.program_flows[0]
         .narrative
         .iter()
-        .all(|line| !line.contains("DNS request datagram")));
+        .all(|line| line != "program emitted a UDP datagram"));
     assert!(export.program_findings.iter().any(|finding| {
         finding.phase.as_deref() == Some("send_request")
             && finding.phase_transition.as_deref() == Some("resolve->send_request")
@@ -381,6 +512,16 @@ fn http_request_path_can_span_connect_and_request_response_phases_in_one_module(
     assert!(phases.contains(&"establish".to_string()));
     assert!(phases.contains(&"send_request".to_string()));
     assert!(phases.contains(&"receive_response".to_string()));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"resolve_route".to_string()));
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"establish_connection".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
     assert_eq!(export.module_findings.len(), 0);
 }
 
@@ -497,7 +638,7 @@ fn tls_client_path_materializes_transport_packet_phase() {
     assert!(export.program_flows[0]
         .narrative
         .iter()
-        .any(|line| line.contains("TLS client payload")));
+        .any(|line| line == "program sent transport payload on this network flow"));
     assert_eq!(export.module_findings.len(), 0);
 }
 
@@ -517,6 +658,70 @@ fn tls_client_path_missing_packet_phase_produces_establish_transition() {
     assert!(export.program_findings.iter().any(|finding| {
         finding.phase.as_deref() == Some("send_client_hello")
             && finding.phase_transition.as_deref() == Some("establish->send_client_hello")
+    }));
+}
+
+#[test]
+fn quic_client_initial_path_materializes_initial_and_handshake_datagrams() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 803, 4242, "curl"));
+    session.ingest(route_fact(2, 803, 7));
+    session.ingest(udp_packet_fact_with_dir(3, 803, 1280, PacketDir::Egress));
+    session.ingest(udp_packet_fact_with_dir(4, 803, 220, PacketDir::Ingress));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("quic_client_initial".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_initial")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_handshake")));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_datagram".to_string()));
+    assert!(phase_kinds.contains(&"receive_datagram".to_string()));
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line == "program emitted a UDP datagram"));
+    assert!(export.program_flows[0]
+        .narrative
+        .iter()
+        .any(|line| line == "program received a UDP datagram"));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn quic_client_initial_path_missing_handshake_produces_datagram_transition() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 804, 4242, "curl"));
+    session.ingest(route_fact(2, 804, 7));
+    session.ingest(udp_packet_fact_with_dir(3, 804, 1280, PacketDir::Egress));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(50));
+
+    let export = session.export_bundle();
+    assert!(export.program_findings.iter().any(|finding| {
+        finding.phase.as_deref() == Some("receive_handshake")
+            && finding.phase_transition.as_deref() == Some("send_initial->receive_handshake")
+            && finding.phase_transition_kind.as_deref() == Some("emit_datagram->receive_datagram")
     }));
 }
 
@@ -678,6 +883,10 @@ fn missing_connect_phase_produces_bind_to_connect_transition_finding() {
     assert_eq!(
         export.program_findings[0].phase_transition.as_deref(),
         Some("bind->connect")
+    );
+    assert_eq!(
+        export.program_findings[0].phase_transition_kind.as_deref(),
+        Some("bind_process->initiate_connection")
     );
     assert!(export.program_findings[0]
         .summary

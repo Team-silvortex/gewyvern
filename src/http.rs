@@ -26,6 +26,7 @@ pub struct HttpTransactionView {
     pub server_process: Option<ProcessView>,
     pub components: Vec<HttpComponentRef>,
     pub phases: Vec<String>,
+    pub phase_kinds: Vec<String>,
     pub verdict: HttpTransactionVerdict,
     pub severity: Option<ModuleSeverity>,
     pub degraded: bool,
@@ -82,8 +83,16 @@ pub fn compose_http_transactions(exports: &[ExportBundle]) -> Vec<HttpTransactio
                 .iter()
                 .flat_map(|flow| flow.stages.iter().filter_map(|stage| stage.phase.clone()))
                 .collect::<Vec<_>>();
+            let mut phase_kinds = request
+                .bundle
+                .program_flows
+                .iter()
+                .flat_map(|flow| flow.stages.iter().filter_map(|stage| stage.phase_kind.clone()))
+                .collect::<Vec<_>>();
             phases.sort();
             phases.dedup();
+            phase_kinds.sort();
+            phase_kinds.dedup();
             let mut summaries = request
                 .bundle
                 .module_findings
@@ -129,6 +138,12 @@ pub fn compose_http_transactions(exports: &[ExportBundle]) -> Vec<HttpTransactio
                         .iter()
                         .flat_map(|flow| flow.stages.iter().filter_map(|stage| stage.phase.clone())),
                 );
+                extend_unique(
+                    &mut phase_kinds,
+                    dns.bundle.program_flows.iter().flat_map(|flow| {
+                        flow.stages.iter().filter_map(|stage| stage.phase_kind.clone())
+                    }),
+                );
                 degraded |= dns.bundle.debug_summary.degraded;
                 severity = max_severity(
                     severity,
@@ -163,6 +178,12 @@ pub fn compose_http_transactions(exports: &[ExportBundle]) -> Vec<HttpTransactio
                         .program_flows
                         .iter()
                         .flat_map(|flow| flow.stages.iter().filter_map(|stage| stage.phase.clone())),
+                );
+                extend_unique(
+                    &mut phase_kinds,
+                    server.bundle.program_flows.iter().flat_map(|flow| {
+                        flow.stages.iter().filter_map(|stage| stage.phase_kind.clone())
+                    }),
                 );
                 degraded |= server.bundle.debug_summary.degraded;
                 severity = max_severity(
@@ -200,6 +221,7 @@ pub fn compose_http_transactions(exports: &[ExportBundle]) -> Vec<HttpTransactio
                 server_process,
                 components,
                 phases,
+                phase_kinds,
                 verdict,
                 severity,
                 degraded,
