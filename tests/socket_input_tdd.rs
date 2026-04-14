@@ -66,6 +66,8 @@ mod support {
                 dir: PacketDir::Egress,
                 local_port: None,
                 remote_port: None,
+                payload_byte0: None,
+                payload_prefix2: None,
                 l3_proto: 0x0800,
                 l4_proto: 17,
                 tot_len,

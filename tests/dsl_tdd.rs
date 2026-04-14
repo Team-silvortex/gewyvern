@@ -12,6 +12,7 @@ use support::{
     packet_fact, packet_fact_with_dir, route_fact, sock_lineage_fact, tcp_state_fact,
     tcp_state_fact_with_ports, udp_packet_fact, udp_packet_fact_with_dir,
     udp_packet_fact_with_dir_and_ports,
+    udp_packet_fact_with_dir_and_ports_and_payload,
 };
 use std::time::{Duration, SystemTime};
 
@@ -266,6 +267,9 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
             local_port: None,
             remote_port: None,
             min_len: None,
+            first_byte_mask: None,
+            first_byte_value: None,
+            prefix2: None,
         }
     );
 }
@@ -308,6 +312,9 @@ rule=datagram_observed:udp:dport:443:local_to_remote;datagram_observed;udp_datag
             local_port: None,
             remote_port: Some(443),
             min_len: None,
+            first_byte_mask: None,
+            first_byte_value: None,
+            prefix2: None,
         }
     );
 }
@@ -336,6 +343,40 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200;datagram_obs
             local_port: None,
             remote_port: Some(443),
             min_len: Some(1200),
+            first_byte_mask: None,
+            first_byte_value: None,
+            prefix2: None,
+        }
+    );
+}
+
+#[test]
+fn dsl_accepts_datagram_byte0_mask_qualifier() {
+    let binding = compile_str(
+        r#"
+template=quic_initial_byte_match
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+program_model=quic_initial_byte_match_model
+operation=quic_client_initial
+rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0xf0:0xc0;datagram_observed;udp_datagram_sent;true
+"#,
+    )
+    .unwrap();
+
+    let rule = &binding.template.program_model.as_ref().unwrap().rules[0];
+    assert_eq!(
+        rule.predicate,
+        gewyvern::ir::FlowPredicate::DatagramObserved {
+            l4_proto: 17,
+            dir: Some(PacketDir::Egress),
+            local_port: None,
+            remote_port: Some(443),
+            min_len: Some(1200),
+            first_byte_mask: Some(0xf0),
+            first_byte_value: Some(0xc0),
+            prefix2: None,
         }
     );
 }
@@ -744,13 +785,15 @@ fn quic_client_initial_path_materializes_initial_and_handshake_datagrams() {
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 803, 4242, "curl"));
     session.ingest(route_fact(2, 803, 7));
-    session.ingest(udp_packet_fact_with_dir_and_ports(
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
         3,
         803,
         1280,
         PacketDir::Egress,
         Some(42310),
         Some(443),
+        Some(0xc3),
+        Some(0xc300),
     ));
     session.ingest(udp_packet_fact_with_dir_and_ports(
         4,
@@ -802,13 +845,15 @@ fn quic_client_initial_path_missing_handshake_produces_datagram_transition() {
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 804, 4242, "curl"));
     session.ingest(route_fact(2, 804, 7));
-    session.ingest(udp_packet_fact_with_dir_and_ports(
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
         3,
         804,
         1280,
         PacketDir::Egress,
         Some(42310),
         Some(443),
+        Some(0xc1),
+        Some(0xc300),
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(50));
 
@@ -829,13 +874,15 @@ fn quic_client_initial_path_does_not_match_non_quic_udp_ports() {
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 805, 4242, "curl"));
     session.ingest(route_fact(2, 805, 7));
-    session.ingest(udp_packet_fact_with_dir_and_ports(
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
         3,
         805,
         1280,
         PacketDir::Egress,
         Some(42310),
         Some(53),
+        Some(0xc0),
+        Some(0xc300),
     ));
     session.ingest(udp_packet_fact_with_dir_and_ports(
         4,
@@ -867,13 +914,15 @@ fn quic_client_initial_path_does_not_treat_small_quic_port_datagrams_as_initial(
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 806, 4242, "curl"));
     session.ingest(route_fact(2, 806, 7));
-    session.ingest(udp_packet_fact_with_dir_and_ports(
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
         3,
         806,
         200,
         PacketDir::Egress,
         Some(42310),
         Some(443),
+        Some(0xc0),
+        Some(0xc300),
     ));
     session.ingest(udp_packet_fact_with_dir_and_ports(
         4,
@@ -894,6 +943,78 @@ fn quic_client_initial_path_does_not_treat_small_quic_port_datagrams_as_initial(
         .stages
         .iter()
         .any(|stage| stage.phase.as_deref() == Some("receive_handshake")));
+}
+
+#[test]
+fn quic_client_initial_path_does_not_treat_wrong_first_byte_as_initial() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 807, 4242, "curl"));
+    session.ingest(route_fact(2, 807, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        807,
+        1280,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        Some(0x40),
+        Some(0x4000),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports(
+        4,
+        807,
+        220,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("send_initial")));
+}
+
+#[test]
+fn quic_client_initial_path_does_not_treat_wrong_prefix2_as_initial() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 808, 4242, "curl"));
+    session.ingest(route_fact(2, 808, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        808,
+        1280,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        Some(0xc3),
+        Some(0xc301),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports(
+        4,
+        808,
+        220,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("send_initial")));
 }
 
 #[test]
@@ -1446,5 +1567,35 @@ param=udp_packet_meta_fragment.min_len=false
             key: "min_len".into(),
             expected: "u64",
         })
+    );
+}
+#[test]
+fn dsl_accepts_datagram_prefix2_qualifier() {
+    let binding = compile_str(
+        r#"
+template=quic_initial_prefix2_match
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+program_model=quic_initial_prefix2_match_model
+operation=quic_client_initial
+rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0xf0:0xc0:prefix2:0xc300;datagram_observed;udp_datagram_sent;true
+"#,
+    )
+    .unwrap();
+
+    let rule = &binding.template.program_model.as_ref().unwrap().rules[0];
+    assert_eq!(
+        rule.predicate,
+        gewyvern::ir::FlowPredicate::DatagramObserved {
+            l4_proto: 17,
+            dir: Some(PacketDir::Egress),
+            local_port: None,
+            remote_port: Some(443),
+            min_len: Some(1200),
+            first_byte_mask: Some(0xf0),
+            first_byte_value: Some(0xc0),
+            prefix2: Some(0xc300),
+        }
     );
 }

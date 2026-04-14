@@ -19,6 +19,9 @@ pub enum FlowPredicate {
         local_port: Option<u16>,
         remote_port: Option<u16>,
         min_len: Option<u32>,
+        first_byte_mask: Option<u8>,
+        first_byte_value: Option<u8>,
+        prefix2: Option<u16>,
     },
     RouteResolved,
     All(Vec<FlowPredicate>),
@@ -180,6 +183,9 @@ pub fn matches_flow_predicate(
             local_port,
             remote_port,
             min_len,
+            first_byte_mask,
+            first_byte_value,
+            prefix2,
         } => {
             if !flow.evidence.packet_facts.contains(&fact.id) {
                 return false;
@@ -198,6 +204,15 @@ pub fn matches_flow_predicate(
                         && min_len
                             .as_ref()
                             .is_none_or(|expected| packet.tot_len >= *expected)
+                        && match (first_byte_mask, first_byte_value) {
+                            (Some(mask), Some(value)) => packet
+                                .payload_byte0
+                                .is_some_and(|byte| byte & *mask == *value),
+                            _ => true,
+                        }
+                        && prefix2
+                            .as_ref()
+                            .is_none_or(|expected| packet.payload_prefix2 == Some(*expected))
             )
         }
         FlowPredicate::RouteResolved => flow.evidence.route_facts.contains(&fact.id),

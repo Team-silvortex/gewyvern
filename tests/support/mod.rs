@@ -107,6 +107,8 @@ pub fn packet_fact_with_dir(
             dir,
             local_port: Some(42310),
             remote_port: Some(443),
+            payload_byte0: None,
+            payload_prefix2: None,
             l3_proto: 0x0800,
             l4_proto: 6,
             tot_len: 60,
@@ -128,7 +130,9 @@ pub fn udp_packet_fact_with_dir(
     tot_len: u32,
     dir: PacketDir,
 ) -> FactEnvelope {
-    udp_packet_fact_with_dir_and_ports(id, cookie, tot_len, dir, None, None)
+    udp_packet_fact_with_dir_and_ports_and_payload(
+        id, cookie, tot_len, dir, None, None, None, None,
+    )
 }
 
 pub fn udp_packet_fact_with_dir_and_ports(
@@ -138,6 +142,49 @@ pub fn udp_packet_fact_with_dir_and_ports(
     dir: PacketDir,
     local_port: Option<u16>,
     remote_port: Option<u16>,
+) -> FactEnvelope {
+    udp_packet_fact_with_dir_and_ports_and_payload(
+        id,
+        cookie,
+        tot_len,
+        dir,
+        local_port,
+        remote_port,
+        None,
+        None,
+    )
+}
+
+pub fn udp_packet_fact_with_dir_and_ports_and_byte(
+    id: u64,
+    cookie: u64,
+    tot_len: u32,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+    payload_byte0: Option<u8>,
+) -> FactEnvelope {
+    udp_packet_fact_with_dir_and_ports_and_payload(
+        id,
+        cookie,
+        tot_len,
+        dir,
+        local_port,
+        remote_port,
+        payload_byte0,
+        None,
+    )
+}
+
+pub fn udp_packet_fact_with_dir_and_ports_and_payload(
+    id: u64,
+    cookie: u64,
+    tot_len: u32,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+    payload_byte0: Option<u8>,
+    payload_prefix2: Option<u16>,
 ) -> FactEnvelope {
     FactEnvelope {
         id: FactId(id),
@@ -152,6 +199,8 @@ pub fn udp_packet_fact_with_dir_and_ports(
             dir,
             local_port,
             remote_port,
+            payload_byte0,
+            payload_prefix2,
             l3_proto: 0x0800,
             l4_proto: 17,
             tot_len,

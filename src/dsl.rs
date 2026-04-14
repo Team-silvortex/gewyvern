@@ -330,6 +330,9 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut local_port = None;
             let mut remote_port = None;
             let mut min_len = None;
+            let mut first_byte_mask = None;
+            let mut first_byte_value = None;
+            let mut prefix2 = None;
             while let Some(part) = parts.next() {
                 match part {
                     "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
@@ -358,6 +361,32 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                             ))
                         })?);
                     }
+                    "byte0_mask" => {
+                        let mask = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing datagram byte0_mask mask qualifier".into(),
+                            )
+                        })?;
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing datagram byte0_mask value qualifier".into(),
+                            )
+                        })?;
+                        first_byte_mask =
+                            Some(parse_u8_literal(mask, "datagram_observed", "byte0_mask")?);
+                        first_byte_value =
+                            Some(parse_u8_literal(value, "datagram_observed", "byte0_value")?);
+                    }
+                    "prefix2" => {
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing datagram prefix2 qualifier".into())
+                        })?;
+                        prefix2 = Some(parse_u16_literal(
+                            value,
+                            "datagram_observed",
+                            "prefix2",
+                        )?);
+                    }
                     other => {
                         return Err(DslError::InvalidValue(format!(
                             "unknown datagram predicate suffix '{other}'"
@@ -371,6 +400,9 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 local_port,
                 remote_port,
                 min_len,
+                first_byte_mask,
+                first_byte_value,
+                prefix2,
             })
         }
         other if other.starts_with("packet_observed:") => {
@@ -431,6 +463,28 @@ fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslError> {
             .parse::<u16>()
             .map_err(|_| DslError::InvalidValue(format!("unknown {predicate} port '{other}'"))),
     }
+}
+
+fn parse_u8_literal(value: &str, predicate: &str, field: &str) -> Result<u8, DslError> {
+    let parsed = if let Some(hex) = value.strip_prefix("0x") {
+        u8::from_str_radix(hex, 16)
+    } else {
+        value.parse::<u8>()
+    };
+    parsed.map_err(|_| {
+        DslError::InvalidValue(format!("invalid {predicate} {field} '{value}'"))
+    })
+}
+
+fn parse_u16_literal(value: &str, predicate: &str, field: &str) -> Result<u16, DslError> {
+    let parsed = if let Some(hex) = value.strip_prefix("0x") {
+        u16::from_str_radix(hex, 16)
+    } else {
+        value.parse::<u16>()
+    };
+    parsed.map_err(|_| {
+        DslError::InvalidValue(format!("invalid {predicate} {field} '{value}'"))
+    })
 }
 
 fn parse_narrative_template(value: &str) -> NarrativeTemplate {
