@@ -109,6 +109,7 @@ pub fn packet_fact_with_dir(
             remote_port: Some(443),
             payload_byte0: None,
             payload_prefix2: None,
+            payload_prefix4: None,
             l3_proto: 0x0800,
             l4_proto: 6,
             tot_len: 60,
@@ -143,13 +144,14 @@ pub fn udp_packet_fact_with_dir_and_ports(
     local_port: Option<u16>,
     remote_port: Option<u16>,
 ) -> FactEnvelope {
-    udp_packet_fact_with_dir_and_ports_and_payload(
+    udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
         id,
         cookie,
         tot_len,
         dir,
         local_port,
         remote_port,
+        None,
         None,
         None,
     )
@@ -164,7 +166,7 @@ pub fn udp_packet_fact_with_dir_and_ports_and_byte(
     remote_port: Option<u16>,
     payload_byte0: Option<u8>,
 ) -> FactEnvelope {
-    udp_packet_fact_with_dir_and_ports_and_payload(
+    udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
         id,
         cookie,
         tot_len,
@@ -172,6 +174,7 @@ pub fn udp_packet_fact_with_dir_and_ports_and_byte(
         local_port,
         remote_port,
         payload_byte0,
+        None,
         None,
     )
 }
@@ -185,6 +188,30 @@ pub fn udp_packet_fact_with_dir_and_ports_and_payload(
     remote_port: Option<u16>,
     payload_byte0: Option<u8>,
     payload_prefix2: Option<u16>,
+) -> FactEnvelope {
+    udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
+        id,
+        cookie,
+        tot_len,
+        dir,
+        local_port,
+        remote_port,
+        payload_byte0,
+        payload_prefix2,
+        None,
+    )
+}
+
+pub fn udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
+    id: u64,
+    cookie: u64,
+    tot_len: u32,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+    payload_byte0: Option<u8>,
+    payload_prefix2: Option<u16>,
+    payload_prefix4: Option<u32>,
 ) -> FactEnvelope {
     FactEnvelope {
         id: FactId(id),
@@ -201,6 +228,7 @@ pub fn udp_packet_fact_with_dir_and_ports_and_payload(
             remote_port,
             payload_byte0,
             payload_prefix2,
+            payload_prefix4,
             l3_proto: 0x0800,
             l4_proto: 17,
             tot_len,

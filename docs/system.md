@@ -236,7 +236,7 @@ Today the system already supports:
 - TCP handshake-oriented debugging
 - UDP datagram-oriented debugging
 - process-aware UDP debugging
-- DSL-driven application-path modeling for HTTP, TLS, QUIC, STUN, CoAP, NTP, and DHCP
+- DSL-driven application-path modeling for HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, and mDNS
 - shared phase-kind classification across transport and datagram paths
 - Linux tracepoint/kprobe/tc-ingress probe paths
 - socket-based fact injection

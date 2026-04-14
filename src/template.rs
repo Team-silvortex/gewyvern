@@ -157,6 +157,7 @@ pub fn datagram_exchange_model() -> ProgramModel {
                     first_byte_mask: None,
                     first_byte_value: None,
                     prefix2: None,
+                    prefix4: None,
                 },
                 signal: Some(ProgramStageKind::DatagramObserved),
                 narrative: ProgramNarrative::Static("program emitted or received a UDP datagram"),

@@ -13,6 +13,7 @@ use support::{
     tcp_state_fact_with_ports, udp_packet_fact, udp_packet_fact_with_dir,
     udp_packet_fact_with_dir_and_ports,
     udp_packet_fact_with_dir_and_ports_and_payload,
+    udp_packet_fact_with_dir_and_ports_and_payload_prefix4,
 };
 use std::time::{Duration, SystemTime};
 
@@ -270,6 +271,7 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
             first_byte_mask: None,
             first_byte_value: None,
             prefix2: None,
+            prefix4: None,
         }
     );
 }
@@ -315,6 +317,7 @@ rule=datagram_observed:udp:dport:443:local_to_remote;datagram_observed;udp_datag
             first_byte_mask: None,
             first_byte_value: None,
             prefix2: None,
+            prefix4: None,
         }
     );
 }
@@ -346,6 +349,7 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200;datagram_obs
             first_byte_mask: None,
             first_byte_value: None,
             prefix2: None,
+            prefix4: None,
         }
     );
 }
@@ -377,6 +381,39 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0
             first_byte_mask: Some(0xf0),
             first_byte_value: Some(0xc0),
             prefix2: None,
+            prefix4: None,
+        }
+    );
+}
+
+#[test]
+fn dsl_accepts_datagram_prefix4_qualifier() {
+    let binding = compile_str(
+        r#"
+template=mdns_response_prefix4_match
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+program_model=mdns_response_prefix4_match_model
+operation=mdns_query
+rule=datagram_observed:udp:remote:mdns:remote_to_local:prefix4:0x00008400;datagram_observed;udp_datagram_received;true
+"#,
+    )
+    .unwrap();
+
+    let rule = &binding.template.program_model.as_ref().unwrap().rules[0];
+    assert_eq!(
+        rule.predicate,
+        gewyvern::ir::FlowPredicate::DatagramObserved {
+            l4_proto: 17,
+            dir: Some(PacketDir::Ingress),
+            local_port: None,
+            remote_port: Some(5353),
+            min_len: None,
+            first_byte_mask: None,
+            first_byte_value: None,
+            prefix2: None,
+            prefix4: Some(0x00008400),
         }
     );
 }
@@ -494,6 +531,31 @@ fn built_in_dhcp_client_path_dsl_compiles_into_template_binding() {
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("dhcp_client".into())
+    );
+}
+
+#[test]
+fn built_in_wireguard_handshake_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "wireguard_handshake_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("wireguard_handshake".into())
+    );
+}
+
+#[test]
+fn built_in_mdns_query_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "mdns_query_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("mdns_query".into())
     );
 }
 
@@ -1426,6 +1488,192 @@ fn dhcp_client_path_does_not_match_wrong_reply_opcode() {
 }
 
 #[test]
+fn wireguard_handshake_path_materializes_initiation_and_response_datagrams() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 817, 53000, "wg-quick"));
+    session.ingest(route_fact(2, 817, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        817,
+        148,
+        PacketDir::Egress,
+        Some(53000),
+        Some(51820),
+        Some(0x01),
+        Some(0x0100),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        817,
+        92,
+        PacketDir::Ingress,
+        Some(53000),
+        Some(51820),
+        Some(0x02),
+        Some(0x0200),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("wireguard_handshake".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_initiation")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_datagram".to_string()));
+    assert!(phase_kinds.contains(&"receive_datagram".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn wireguard_handshake_path_does_not_match_wrong_response_type() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 818, 53000, "wg-quick"));
+    session.ingest(route_fact(2, 818, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        818,
+        148,
+        PacketDir::Egress,
+        Some(53000),
+        Some(51820),
+        Some(0x01),
+        Some(0x0100),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        818,
+        64,
+        PacketDir::Ingress,
+        Some(53000),
+        Some(51820),
+        Some(0x04),
+        Some(0x0400),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("receive_response")));
+}
+
+#[test]
+fn mdns_query_path_materializes_query_and_response_datagrams() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 819, 5353, "avahi-daemon"));
+    session.ingest(route_fact(2, 819, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
+        3,
+        819,
+        64,
+        PacketDir::Egress,
+        Some(5353),
+        Some(5353),
+        Some(0x00),
+        Some(0x0000),
+        Some(0x00000000),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
+        4,
+        819,
+        96,
+        PacketDir::Ingress,
+        Some(5353),
+        Some(5353),
+        Some(0x00),
+        Some(0x0000),
+        Some(0x00008400),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("mdns_query".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_query")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_datagram".to_string()));
+    assert!(phase_kinds.contains(&"receive_datagram".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn mdns_query_path_does_not_match_wrong_response_flags() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 820, 5353, "avahi-daemon"));
+    session.ingest(route_fact(2, 820, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
+        3,
+        820,
+        64,
+        PacketDir::Egress,
+        Some(5353),
+        Some(5353),
+        Some(0x00),
+        Some(0x0000),
+        Some(0x00000000),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
+        4,
+        820,
+        96,
+        PacketDir::Ingress,
+        Some(5353),
+        Some(5353),
+        Some(0x00),
+        Some(0x0000),
+        Some(0x00000400),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("receive_response")));
+}
+
+#[test]
 fn https_connect_dsl_uses_destination_port_to_model_connect_path() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy").unwrap();
@@ -2004,6 +2252,7 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0
             first_byte_mask: Some(0xf0),
             first_byte_value: Some(0xc0),
             prefix2: Some(0xc300),
+            prefix4: None,
         }
     );
 }

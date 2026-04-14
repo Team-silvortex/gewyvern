@@ -38,6 +38,8 @@ Examples in this repository:
 - [dsl/coap_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy)
 - [dsl/ntp_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy)
 - [dsl/dhcp_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy)
+- [dsl/wireguard_handshake_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_path.gewy)
+- [dsl/mdns_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy)
 
 ## Current Shape
 
@@ -240,6 +242,7 @@ protocol and direction:
 - `min_len:<u32>`
 - `byte0_mask:<u8>:<u8>`
 - `prefix2:<u16>`
+- `prefix4:<u32>`
 
 These qualifiers can be combined in suffix order. Example:
 
@@ -260,6 +263,8 @@ Named ports currently include:
 - `dhcp_server`
 - `bootpc`
 - `bootps`
+- `wireguard`
+- `mdns`
 - `postgres`
 - `mysql`
 - `redis`
@@ -345,6 +350,7 @@ express a bounded protocol fingerprint over:
 - minimum payload length
 - masked first-byte checks
 - fixed two-byte prefixes
+- fixed four-byte prefixes
 
 That lets the DSL drive existing fragment templates into useful protocol-path
 models without turning the DSL into an eBPF code generator.

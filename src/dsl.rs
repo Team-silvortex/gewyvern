@@ -333,6 +333,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut first_byte_mask = None;
             let mut first_byte_value = None;
             let mut prefix2 = None;
+            let mut prefix4 = None;
             while let Some(part) = parts.next() {
                 match part {
                     "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
@@ -387,6 +388,16 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                             "prefix2",
                         )?);
                     }
+                    "prefix4" => {
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing datagram prefix4 qualifier".into())
+                        })?;
+                        prefix4 = Some(parse_u32_literal(
+                            value,
+                            "datagram_observed",
+                            "prefix4",
+                        )?);
+                    }
                     other => {
                         return Err(DslError::InvalidValue(format!(
                             "unknown datagram predicate suffix '{other}'"
@@ -403,6 +414,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 first_byte_mask,
                 first_byte_value,
                 prefix2,
+                prefix4,
             })
         }
         other if other.starts_with("packet_observed:") => {
@@ -458,6 +470,8 @@ fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslError> {
         "http" => Ok(80),
         "dhcp_client" | "bootpc" => Ok(68),
         "dhcp_server" | "bootps" | "dhcp" => Ok(67),
+        "mdns" => Ok(5353),
+        "wireguard" => Ok(51820),
         "coap" => Ok(5683),
         "ntp" => Ok(123),
         "stun" => Ok(3478),
@@ -486,6 +500,17 @@ fn parse_u16_literal(value: &str, predicate: &str, field: &str) -> Result<u16, D
         u16::from_str_radix(hex, 16)
     } else {
         value.parse::<u16>()
+    };
+    parsed.map_err(|_| {
+        DslError::InvalidValue(format!("invalid {predicate} {field} '{value}'"))
+    })
+}
+
+fn parse_u32_literal(value: &str, predicate: &str, field: &str) -> Result<u32, DslError> {
+    let parsed = if let Some(hex) = value.strip_prefix("0x") {
+        u32::from_str_radix(hex, 16)
+    } else {
+        value.parse::<u32>()
     };
     parsed.map_err(|_| {
         DslError::InvalidValue(format!("invalid {predicate} {field} '{value}'"))

@@ -56,6 +56,7 @@ mod support {
                 remote_port: None,
                 payload_byte0: None,
                 payload_prefix2: None,
+                payload_prefix4: None,
                 l3_proto: 0x0800,
                 l4_proto: 17,
                 tot_len,

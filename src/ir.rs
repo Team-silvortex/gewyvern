@@ -22,6 +22,7 @@ pub enum FlowPredicate {
         first_byte_mask: Option<u8>,
         first_byte_value: Option<u8>,
         prefix2: Option<u16>,
+        prefix4: Option<u32>,
     },
     RouteResolved,
     All(Vec<FlowPredicate>),
@@ -127,8 +128,14 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             _ => None,
         },
         SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {
-            "send_request" | "send_initial" | "send_discover" => Some("emit_datagram"),
-            "receive_reply" | "receive_handshake" | "receive_response" | "receive_offer" => {
+            "send_request" | "send_initial" | "send_discover" | "send_initiation"
+            | "send_query" => {
+                Some("emit_datagram")
+            }
+            "receive_reply"
+            | "receive_handshake"
+            | "receive_response"
+            | "receive_offer" => {
                 Some("receive_datagram")
             }
             _ => None,
@@ -188,6 +195,7 @@ pub fn matches_flow_predicate(
             first_byte_mask,
             first_byte_value,
             prefix2,
+            prefix4,
         } => {
             if !flow.evidence.packet_facts.contains(&fact.id) {
                 return false;
@@ -215,6 +223,9 @@ pub fn matches_flow_predicate(
                         && prefix2
                             .as_ref()
                             .is_none_or(|expected| packet.payload_prefix2 == Some(*expected))
+                        && prefix4
+                            .as_ref()
+                            .is_none_or(|expected| packet.payload_prefix4 == Some(*expected))
             )
         }
         FlowPredicate::RouteResolved => flow.evidence.route_facts.contains(&fact.id),
