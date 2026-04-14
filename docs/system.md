@@ -236,6 +236,8 @@ Today the system already supports:
 - TCP handshake-oriented debugging
 - UDP datagram-oriented debugging
 - process-aware UDP debugging
+- DSL-driven application-path modeling for HTTP, TLS, QUIC, STUN, CoAP, NTP, and DHCP
+- shared phase-kind classification across transport and datagram paths
 - Linux tracepoint/kprobe/tc-ingress probe paths
 - socket-based fact injection
 - deterministic export/replay
@@ -246,7 +248,7 @@ These are explicitly not part of `v0.1`:
 
 - generating eBPF from DSL
 - treating `ProgramModel` as final DSL design
-- broad protocol coverage
+- complete protocol coverage or parser-level semantics for every protocol
 - distributed multi-host runtime
 - stable public schema guarantees
 

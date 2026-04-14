@@ -450,6 +450,54 @@ fn built_in_quic_client_initial_path_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn built_in_stun_binding_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "stun_binding_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("stun_binding".into())
+    );
+}
+
+#[test]
+fn built_in_coap_get_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "coap_get_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("coap_get".into())
+    );
+}
+
+#[test]
+fn built_in_ntp_client_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "ntp_client_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("ntp_client".into())
+    );
+}
+
+#[test]
+fn built_in_dhcp_client_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "dhcp_client_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("dhcp_client".into())
+    );
+}
+
+#[test]
 fn udp_process_dsl_binding_drives_runtime_session() {
     let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
         .unwrap();
@@ -1015,6 +1063,366 @@ fn quic_client_initial_path_does_not_treat_wrong_prefix2_as_initial() {
         .stages
         .iter()
         .all(|stage| stage.phase.as_deref() != Some("send_initial")));
+}
+
+#[test]
+fn stun_binding_path_materializes_request_and_response_datagrams() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 809, 5000, "webrtc-app"));
+    session.ingest(route_fact(2, 809, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        809,
+        120,
+        PacketDir::Egress,
+        Some(54000),
+        Some(3478),
+        Some(0x00),
+        Some(0x0001),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        809,
+        140,
+        PacketDir::Ingress,
+        Some(54000),
+        Some(3478),
+        Some(0x01),
+        Some(0x0101),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("stun_binding".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_request")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_datagram".to_string()));
+    assert!(phase_kinds.contains(&"receive_datagram".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn stun_binding_path_does_not_match_wrong_message_type() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 810, 5000, "webrtc-app"));
+    session.ingest(route_fact(2, 810, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        810,
+        120,
+        PacketDir::Egress,
+        Some(54000),
+        Some(3478),
+        Some(0x00),
+        Some(0x0002),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        810,
+        140,
+        PacketDir::Ingress,
+        Some(54000),
+        Some(3478),
+        Some(0x01),
+        Some(0x0101),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("send_request")));
+}
+
+#[test]
+fn coap_get_path_materializes_request_and_response_datagrams() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 811, 6000, "coap-client"));
+    session.ingest(route_fact(2, 811, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        811,
+        64,
+        PacketDir::Egress,
+        Some(56000),
+        Some(5683),
+        Some(0x40),
+        Some(0x4001),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        811,
+        80,
+        PacketDir::Ingress,
+        Some(56000),
+        Some(5683),
+        Some(0x60),
+        Some(0x6045),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("coap_get".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_request")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_datagram".to_string()));
+    assert!(phase_kinds.contains(&"receive_datagram".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn coap_get_path_does_not_match_wrong_response_code() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 812, 6000, "coap-client"));
+    session.ingest(route_fact(2, 812, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        812,
+        64,
+        PacketDir::Egress,
+        Some(56000),
+        Some(5683),
+        Some(0x40),
+        Some(0x4001),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        812,
+        80,
+        PacketDir::Ingress,
+        Some(56000),
+        Some(5683),
+        Some(0x60),
+        Some(0x6050),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("receive_response")));
+}
+
+#[test]
+fn ntp_client_path_materializes_request_and_response_datagrams() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 813, 7000, "chrony-client"));
+    session.ingest(route_fact(2, 813, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        813,
+        48,
+        PacketDir::Egress,
+        Some(53000),
+        Some(123),
+        Some(0x23),
+        Some(0x2300),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        813,
+        48,
+        PacketDir::Ingress,
+        Some(53000),
+        Some(123),
+        Some(0x24),
+        Some(0x2400),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("ntp_client".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_request")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_datagram".to_string()));
+    assert!(phase_kinds.contains(&"receive_datagram".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ntp_client_path_does_not_match_wrong_response_mode() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 814, 7000, "chrony-client"));
+    session.ingest(route_fact(2, 814, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        814,
+        48,
+        PacketDir::Egress,
+        Some(53000),
+        Some(123),
+        Some(0x23),
+        Some(0x2300),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        814,
+        48,
+        PacketDir::Ingress,
+        Some(53000),
+        Some(123),
+        Some(0x25),
+        Some(0x2500),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("receive_response")));
+}
+
+#[test]
+fn dhcp_client_path_materializes_request_and_response_datagrams() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 815, 68, "dhclient"));
+    session.ingest(route_fact(2, 815, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        815,
+        300,
+        PacketDir::Egress,
+        Some(68),
+        Some(67),
+        Some(0x01),
+        Some(0x0101),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        815,
+        300,
+        PacketDir::Ingress,
+        Some(68),
+        Some(67),
+        Some(0x02),
+        Some(0x0201),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("dhcp_client".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_discover")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_offer")));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_datagram".to_string()));
+    assert!(phase_kinds.contains(&"receive_datagram".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn dhcp_client_path_does_not_match_wrong_reply_opcode() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 816, 68, "dhclient"));
+    session.ingest(route_fact(2, 816, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        816,
+        300,
+        PacketDir::Egress,
+        Some(68),
+        Some(67),
+        Some(0x01),
+        Some(0x0101),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        816,
+        300,
+        PacketDir::Ingress,
+        Some(68),
+        Some(67),
+        Some(0x01),
+        Some(0x0101),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("receive_offer")));
 }
 
 #[test]

@@ -17,12 +17,15 @@ The long-term direction is:
 - templates compose fragments plus runtime policies
 - DSL should compile into template bindings plus fragment parameters
 - protocol behavior should eventually be driven by a DSL over that IR
+- all protocol behavior should stay grounded in existing eBPF fragment templates,
+  not ad hoc generated kernel bytecode
 
 ## Status
 
 - project version: `0.1.0`
 - stage: working prototype
 - transport support: TCP + UDP
+- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
 - replay: deterministic for exported sessions
@@ -36,9 +39,20 @@ The long-term direction is:
 - Rejected fact audit trail and aggregated summaries
 - Transport flow reconstruction from packet/state/route/lineage facts
 - Program flow reconstruction for process-aware network behavior
+- shared flow-phase classification such as `resolve_route`,
+  `initiate_connection`, `emit_payload`, and `emit_datagram`
 - Deterministic reason chains for:
   - TCP handshake-oriented sessions
   - UDP datagram-oriented sessions
+- DSL-driven protocol-path modeling for:
+  - DNS over UDP
+  - HTTP client/server request-response paths
+  - TLS client paths
+  - QUIC client initial paths
+  - STUN binding exchanges
+  - CoAP request/response exchanges
+  - NTP client request/response exchanges
+  - DHCP client discover/offer exchanges
 - Export/replay JSON including:
   - attach plan
   - attach report
@@ -108,6 +122,13 @@ The repository now includes first-class DSL files that compile into
 - [dsl/dns_udp_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy)
 - [dsl/https_connect_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy)
 - [dsl/http_request_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy)
+- [dsl/http_server_response_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy)
+- [dsl/tls_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy)
+- [dsl/quic_client_initial_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy)
+- [dsl/stun_binding_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy)
+- [dsl/coap_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy)
+- [dsl/ntp_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy)
+- [dsl/dhcp_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy)
 
 These DSL files already cover the current built-in protocol/debugging shapes and
 can express:
@@ -118,6 +139,20 @@ can express:
 - program model operation/rules
 - fragment parameter bindings
 - template-local evidence tier overrides
+- datagram predicates over direction, local/remote ports, minimum payload
+  length, masked first-byte checks, and fixed two-byte prefixes
+
+The shared datagram predicate surface is what the current UDP-family protocol
+DSLs build on. In practice, the engine is already using the same IR layer to
+differentiate:
+
+- generic UDP process activity
+- DNS request/reply paths
+- QUIC initial and handshake traffic
+- STUN binding request/response pairs
+- CoAP request/response pairs
+- NTP client request/response pairs
+- DHCP client discover/offer pairs
 
 ## Development
 
@@ -158,6 +193,11 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy 
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy --json --summary-only
 ```
 
 Inspect binding diagnostics without starting a runtime session:
@@ -243,10 +283,14 @@ cargo linux-smoke
 
 - This is still a prototype, not a stable public schema/runtime
 - eBPF programs are still hand-written C, not generated from IR
-- `ProgramModel` is embedded Rust data today, not an external DSL yet
+- `ProgramModel` is now DSL-driven for the built-in path templates, but the IR
+  surface is still intentionally small and evolving
 - `ProgramFlow.operation` can now carry template-defined custom ids, but the rule
   surface is still intentionally small
 - the intended DSL compile target is `template + fragment params`, not eBPF bytecode
+- protocol specialization is currently biased toward flow evidence that can be
+  expressed through the shared datagram/socket/route IR, not arbitrary payload
+  parsers in kernel space
 - Program-flow reconstruction is still intentionally small and conservative
 - Local Unix/TCP socket live tests are ignored in restricted environments that
   do not allow bind permissions

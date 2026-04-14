@@ -31,6 +31,13 @@ Examples in this repository:
 - [dsl/dns_udp_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy)
 - [dsl/https_connect_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy)
 - [dsl/http_request_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy)
+- [dsl/http_server_response_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy)
+- [dsl/tls_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy)
+- [dsl/quic_client_initial_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy)
+- [dsl/stun_binding_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy)
+- [dsl/coap_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy)
+- [dsl/ntp_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy)
+- [dsl/dhcp_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy)
 
 ## Current Shape
 
@@ -214,6 +221,49 @@ rule=datagram_observed:udp:egress;datagram_observed;static:program emitted a DNS
 rule=datagram_observed:udp:ingress;datagram_observed;static:program observed a UDP reply datagram;true
 ```
 
+The preferred direction names now mirror the flow IR:
+
+```text
+rule=datagram_observed:udp:local_to_remote;datagram_observed;udp_datagram_sent;true
+rule=datagram_observed:udp:remote_to_local;datagram_observed;udp_datagram_received;true
+```
+
+Legacy aliases `egress` and `ingress` are still accepted.
+
+`datagram_observed` also supports optional datagram qualifiers after the
+protocol and direction:
+
+- `local:<port|name>`
+- `remote:<port|name>`
+- `sport:<port|name>`
+- `dport:<port|name>`
+- `min_len:<u32>`
+- `byte0_mask:<u8>:<u8>`
+- `prefix2:<u16>`
+
+These qualifiers can be combined in suffix order. Example:
+
+```text
+rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0xf0:0xc0:prefix2:0xc300;datagram_observed;udp_datagram_sent;true
+```
+
+Named ports currently include:
+
+- `http`
+- `https`
+- `quic`
+- `coap`
+- `ntp`
+- `stun`
+- `dhcp`
+- `dhcp_client`
+- `dhcp_server`
+- `bootpc`
+- `bootps`
+- `postgres`
+- `mysql`
+- `redis`
+
 `socket_state_observed` also supports an optional destination-port suffix:
 
 ```text
@@ -286,6 +336,19 @@ predicate language to learn.
 Internally, both now compile into the same shared rule skeleton: predicate +
 optional signal + narrative template + dedupe.
 
+For UDP-family protocol modeling, the important point is that
+`datagram_observed` is no longer just "some UDP packet happened". It can now
+express a bounded protocol fingerprint over:
+
+- transport direction
+- local or remote service port
+- minimum payload length
+- masked first-byte checks
+- fixed two-byte prefixes
+
+That lets the DSL drive existing fragment templates into useful protocol-path
+models without turning the DSL into an eBPF code generator.
+
 The DSL compiler also validates that the selected fragment set can actually
 produce the evidence each rule depends on. A rule that references
 `process_bound`, for example, now fails at compile time unless the binding
@@ -323,6 +386,10 @@ Current narrative forms are:
 - `tcp_state_transition`
 - `route_changed`
 - `udp_datagram_observed`
+- `udp_datagram_sent`
+- `udp_datagram_received`
+- `transport_payload_sent`
+- `transport_payload_received`
 - `static:<text>`
 
 This narrative vocabulary is shared by both `rule=` and `reason.rule=`. The
@@ -339,6 +406,7 @@ Examples:
 ```text
 none
 process_bound
+udp_datagram_sent
 static:program resolved a route for this network flow
 ```
 
@@ -406,6 +474,8 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy 
 - It does not generate eBPF bytecode
 - Window profiles and reason profiles are still selected from built-in ids
 - Narrative rendering is still intentionally simple
+- UDP-family protocol recognition is still based on compact flow evidence
+  fingerprints, not full parser completeness
 
 ## Related Files
 

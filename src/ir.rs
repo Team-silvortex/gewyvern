@@ -127,8 +127,10 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             _ => None,
         },
         SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {
-            "send_request" | "send_initial" => Some("emit_datagram"),
-            "receive_reply" | "receive_handshake" => Some("receive_datagram"),
+            "send_request" | "send_initial" | "send_discover" => Some("emit_datagram"),
+            "receive_reply" | "receive_handshake" | "receive_response" | "receive_offer" => {
+                Some("receive_datagram")
+            }
             _ => None,
         },
         SignalKind::SynSeen => Some("initiate_connection"),

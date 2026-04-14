@@ -456,6 +456,11 @@ fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslError> {
     match value {
         "quic" | "https" => Ok(443),
         "http" => Ok(80),
+        "dhcp_client" | "bootpc" => Ok(68),
+        "dhcp_server" | "bootps" | "dhcp" => Ok(67),
+        "coap" => Ok(5683),
+        "ntp" => Ok(123),
+        "stun" => Ok(3478),
         "postgres" => Ok(5432),
         "mysql" => Ok(3306),
         "redis" => Ok(6379),
