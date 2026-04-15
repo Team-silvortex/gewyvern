@@ -428,22 +428,66 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                     .parse::<u8>()
                     .map_err(|_| DslError::InvalidValue(format!("unknown packet proto '{proto}'")))?,
             };
-            let dir = match parts.next() {
-                None => None,
-                Some("egress") | Some("local_to_remote") => Some(PacketDir::Egress),
-                Some("ingress") | Some("remote_to_local") => Some(PacketDir::Ingress),
-                Some(other) => {
-                    return Err(DslError::InvalidValue(format!(
-                        "unknown packet direction '{other}'"
-                    )))
+            let mut dir = None;
+            let mut local_port = None;
+            let mut remote_port = None;
+            let mut first_byte_mask = None;
+            let mut first_byte_value = None;
+            let mut prefix4 = None;
+            while let Some(part) = parts.next() {
+                match part {
+                    "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
+                    "ingress" | "remote_to_local" => dir = Some(PacketDir::Ingress),
+                    "local" | "sport" => {
+                        let port = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing packet local port qualifier".into())
+                        })?;
+                        local_port = Some(parse_named_port(port, "packet_observed")?);
+                    }
+                    "remote" | "dport" => {
+                        let port = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing packet remote port qualifier".into())
+                        })?;
+                        remote_port = Some(parse_named_port(port, "packet_observed")?);
+                    }
+                    "byte0_mask" => {
+                        let mask = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing packet byte0_mask mask qualifier".into(),
+                            )
+                        })?;
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing packet byte0_mask value qualifier".into(),
+                            )
+                        })?;
+                        first_byte_mask =
+                            Some(parse_u8_literal(mask, "packet_observed", "byte0_mask")?);
+                        first_byte_value =
+                            Some(parse_u8_literal(value, "packet_observed", "byte0_value")?);
+                    }
+                    "prefix4" => {
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing packet prefix4 qualifier".into())
+                        })?;
+                        prefix4 = Some(parse_u32_literal(value, "packet_observed", "prefix4")?);
+                    }
+                    other => {
+                        return Err(DslError::InvalidValue(format!(
+                            "unexpected packet predicate suffix '{other}'"
+                        )))
+                    }
                 }
-            };
-            if let Some(extra) = parts.next() {
-                return Err(DslError::InvalidValue(format!(
-                    "unexpected packet predicate suffix '{extra}'"
-                )));
             }
-            Ok(FlowPredicate::PacketObserved { l4_proto, dir })
+            Ok(FlowPredicate::PacketObserved {
+                l4_proto,
+                dir,
+                local_port,
+                remote_port,
+                first_byte_mask,
+                first_byte_value,
+                prefix4,
+            })
         }
         other => Err(DslError::InvalidValue(format!("unknown predicate '{other}'"))),
     }
@@ -471,6 +515,7 @@ fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslError> {
         "dhcp_client" | "bootpc" => Ok(68),
         "dhcp_server" | "bootps" | "dhcp" => Ok(67),
         "mdns" => Ok(5353),
+        "ssdp" => Ok(1900),
         "wireguard" => Ok(51820),
         "coap" => Ok(5683),
         "ntp" => Ok(123),

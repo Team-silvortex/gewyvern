@@ -40,6 +40,8 @@ Examples in this repository:
 - [dsl/dhcp_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy)
 - [dsl/wireguard_handshake_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_path.gewy)
 - [dsl/mdns_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy)
+- [dsl/ssdp_discovery_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy)
+- [dsl/redis_ping_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy)
 
 ## Current Shape
 
@@ -265,6 +267,7 @@ Named ports currently include:
 - `bootps`
 - `wireguard`
 - `mdns`
+- `ssdp`
 - `postgres`
 - `mysql`
 - `redis`
@@ -354,6 +357,23 @@ express a bounded protocol fingerprint over:
 
 That lets the DSL drive existing fragment templates into useful protocol-path
 models without turning the DSL into an eBPF code generator.
+
+`packet_observed` now supports the same direction aliases plus a compact TCP
+payload fingerprint surface:
+
+- `local:<port|name>`
+- `remote:<port|name>`
+- `sport:<port|name>`
+- `dport:<port|name>`
+- `byte0_mask:<u8>:<u8>`
+- `prefix4:<u32>`
+
+Example:
+
+```text
+rule=packet_observed:tcp:remote:redis:local_to_remote:byte0_mask:0xff:0x2a;packet_observed;transport_payload_sent;true
+rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_observed;transport_payload_received;true
+```
 
 The DSL compiler also validates that the selected fragment set can actually
 produce the evidence each rule depends on. A rule that references

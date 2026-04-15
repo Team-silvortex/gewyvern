@@ -12,6 +12,11 @@ pub enum FlowPredicate {
     PacketObserved {
         l4_proto: u8,
         dir: Option<PacketDir>,
+        local_port: Option<u16>,
+        remote_port: Option<u16>,
+        first_byte_mask: Option<u8>,
+        first_byte_value: Option<u8>,
+        prefix4: Option<u32>,
     },
     DatagramObserved {
         l4_proto: u8,
@@ -123,13 +128,15 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             _ => None,
         },
         SignalKind::PacketObserved => match phase {
-            "send_request" | "send_response" | "send_client_hello" => Some("emit_payload"),
-            "receive_request" | "receive_response" => Some("receive_payload"),
+            "send_request" | "send_response" | "send_client_hello" | "send_ping" => {
+                Some("emit_payload")
+            }
+            "receive_request" | "receive_response" | "receive_pong" => Some("receive_payload"),
             _ => None,
         },
         SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {
             "send_request" | "send_initial" | "send_discover" | "send_initiation"
-            | "send_query" => {
+            | "send_query" | "send_search" => {
                 Some("emit_datagram")
             }
             "receive_reply"
@@ -175,7 +182,15 @@ pub fn matches_flow_predicate(
                             .is_none_or(|expected| state.new >= *expected)
             )
         }
-        FlowPredicate::PacketObserved { l4_proto, dir } => {
+        FlowPredicate::PacketObserved {
+            l4_proto,
+            dir,
+            local_port,
+            remote_port,
+            first_byte_mask,
+            first_byte_value,
+            prefix4,
+        } => {
             if !flow.evidence.packet_facts.contains(&fact.id) {
                 return false;
             }
@@ -184,6 +199,21 @@ pub fn matches_flow_predicate(
                 FactKind::PacketMeta(packet)
                     if packet.l4_proto == *l4_proto
                         && dir.as_ref().is_none_or(|expected| packet.dir == *expected)
+                        && local_port
+                            .as_ref()
+                            .is_none_or(|expected| packet.local_port == Some(*expected))
+                        && remote_port
+                            .as_ref()
+                            .is_none_or(|expected| packet.remote_port == Some(*expected))
+                        && match (first_byte_mask, first_byte_value) {
+                            (Some(mask), Some(value)) => packet
+                                .payload_byte0
+                                .is_some_and(|byte| byte & *mask == *value),
+                            _ => true,
+                        }
+                        && prefix4
+                            .as_ref()
+                            .is_none_or(|expected| packet.payload_prefix4 == Some(*expected))
             )
         }
         FlowPredicate::DatagramObserved {

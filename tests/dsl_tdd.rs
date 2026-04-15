@@ -9,7 +9,7 @@ use gewyvern::template::FragmentParamValue;
 mod support;
 
 use support::{
-    packet_fact, packet_fact_with_dir, route_fact, sock_lineage_fact, tcp_state_fact,
+    packet_fact, packet_fact_with_dir, packet_fact_with_dir_and_payload, route_fact, sock_lineage_fact, tcp_state_fact,
     tcp_state_fact_with_ports, udp_packet_fact, udp_packet_fact_with_dir,
     udp_packet_fact_with_dir_and_ports,
     udp_packet_fact_with_dir_and_ports_and_payload,
@@ -257,6 +257,11 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
         gewyvern::ir::FlowPredicate::PacketObserved {
             l4_proto: 6,
             dir: Some(PacketDir::Egress),
+            local_port: None,
+            remote_port: None,
+            first_byte_mask: None,
+            first_byte_value: None,
+            prefix4: None,
         }
     );
     assert_eq!(datagram_rule.predicate, legacy_datagram_rule.predicate);
@@ -272,6 +277,50 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
             first_byte_value: None,
             prefix2: None,
             prefix4: None,
+        }
+    );
+}
+
+#[test]
+fn dsl_accepts_packet_port_and_prefix4_qualifiers() {
+    let binding = compile_str(
+        r#"
+template=redis_resp_packet_match
+window=default_5s
+reason=handshake_l1
+fragment=tcp_packet_meta_fragment
+program_model=redis_resp_packet_match_model
+operation=redis_ping
+rule=packet_observed:tcp:remote:redis:local_to_remote:byte0_mask:0xff:0x2a;packet_observed;transport_payload_sent;true
+rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_observed;transport_payload_received;true
+"#,
+    )
+    .unwrap();
+
+    let request_rule = &binding.template.program_model.as_ref().unwrap().rules[0];
+    let response_rule = &binding.template.program_model.as_ref().unwrap().rules[1];
+    assert_eq!(
+        request_rule.predicate,
+        gewyvern::ir::FlowPredicate::PacketObserved {
+            l4_proto: 6,
+            dir: Some(PacketDir::Egress),
+            local_port: None,
+            remote_port: Some(6379),
+            first_byte_mask: Some(0xff),
+            first_byte_value: Some(0x2a),
+            prefix4: None,
+        }
+    );
+    assert_eq!(
+        response_rule.predicate,
+        gewyvern::ir::FlowPredicate::PacketObserved {
+            l4_proto: 6,
+            dir: Some(PacketDir::Ingress),
+            local_port: None,
+            remote_port: Some(6379),
+            first_byte_mask: None,
+            first_byte_value: None,
+            prefix4: Some(0x2b504f4e),
         }
     );
 }
@@ -556,6 +605,30 @@ fn built_in_mdns_query_path_dsl_compiles_into_template_binding() {
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("mdns_query".into())
+    );
+}
+
+#[test]
+fn built_in_ssdp_discovery_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "ssdp_discovery_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("ssdp_discovery".into())
+    );
+}
+
+#[test]
+fn built_in_redis_ping_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "redis_ping_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("redis_ping".into())
     );
 }
 
@@ -1671,6 +1744,194 @@ fn mdns_query_path_does_not_match_wrong_response_flags() {
         .stages
         .iter()
         .all(|stage| stage.phase.as_deref() != Some("receive_response")));
+}
+
+#[test]
+fn ssdp_discovery_path_materializes_search_and_response_datagrams() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 821, 1900, "ssdp-client"));
+    session.ingest(route_fact(2, 821, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
+        3,
+        821,
+        96,
+        PacketDir::Egress,
+        Some(1900),
+        Some(1900),
+        Some(0x4d),
+        Some(0x4d2d),
+        Some(0x4d2d5345),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
+        4,
+        821,
+        180,
+        PacketDir::Ingress,
+        Some(1900),
+        Some(1900),
+        Some(0x48),
+        Some(0x4854),
+        Some(0x48545450),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("ssdp_discovery".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_search")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_datagram".to_string()));
+    assert!(phase_kinds.contains(&"receive_datagram".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ssdp_discovery_path_does_not_match_wrong_response_prefix() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 822, 1900, "ssdp-client"));
+    session.ingest(route_fact(2, 822, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
+        3,
+        822,
+        96,
+        PacketDir::Egress,
+        Some(1900),
+        Some(1900),
+        Some(0x4d),
+        Some(0x4d2d),
+        Some(0x4d2d5345),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
+        4,
+        822,
+        180,
+        PacketDir::Ingress,
+        Some(1900),
+        Some(1900),
+        Some(0x4e),
+        Some(0x4e4f),
+        Some(0x4e4f5459),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("receive_response")));
+}
+
+#[test]
+fn redis_ping_path_materializes_request_and_response_payload_phases() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 823, 53001, "redis-cli"));
+    session.ingest(route_fact(2, 823, 7));
+    session.ingest(packet_fact_with_dir_and_payload(
+        3,
+        823,
+        0x18,
+        PacketDir::Egress,
+        Some(53001),
+        Some(6379),
+        Some(0x2a),
+        Some(0x2a31),
+        Some(0x2a310d0a),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        823,
+        0x18,
+        PacketDir::Ingress,
+        Some(53001),
+        Some(6379),
+        Some(0x2b),
+        Some(0x2b50),
+        Some(0x2b504f4e),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("redis_ping".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_ping")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_pong")));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn redis_ping_path_does_not_match_wrong_response_prefix() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 824, 53001, "redis-cli"));
+    session.ingest(route_fact(2, 824, 7));
+    session.ingest(packet_fact_with_dir_and_payload(
+        3,
+        824,
+        0x18,
+        PacketDir::Egress,
+        Some(53001),
+        Some(6379),
+        Some(0x2a),
+        Some(0x2a31),
+        Some(0x2a310d0a),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        824,
+        0x18,
+        PacketDir::Ingress,
+        Some(53001),
+        Some(6379),
+        Some(0x2d),
+        Some(0x2d45),
+        Some(0x2d455252),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("receive_pong")));
 }
 
 #[test]

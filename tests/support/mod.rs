@@ -94,6 +94,20 @@ pub fn packet_fact_with_dir(
     tcp_flags: u16,
     dir: PacketDir,
 ) -> FactEnvelope {
+    packet_fact_with_dir_and_payload(id, cookie, tcp_flags, dir, None, None, None, None, None)
+}
+
+pub fn packet_fact_with_dir_and_payload(
+    id: u64,
+    cookie: u64,
+    tcp_flags: u16,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+    payload_byte0: Option<u8>,
+    payload_prefix2: Option<u16>,
+    payload_prefix4: Option<u32>,
+) -> FactEnvelope {
     FactEnvelope {
         id: FactId(id),
         ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
@@ -105,11 +119,11 @@ pub fn packet_fact_with_dir(
             netns: 1,
             sk_cookie: Some(cookie),
             dir,
-            local_port: Some(42310),
-            remote_port: Some(443),
-            payload_byte0: None,
-            payload_prefix2: None,
-            payload_prefix4: None,
+            local_port: local_port.or(Some(42310)),
+            remote_port: remote_port.or(Some(443)),
+            payload_byte0,
+            payload_prefix2,
+            payload_prefix4,
             l3_proto: 0x0800,
             l4_proto: 6,
             tot_len: 60,

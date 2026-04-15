@@ -1,0 +1,17 @@
+template=ssdp_discovery_path
+window=default_5s
+reason=udp_datagram_l1
+reason_model=ssdp_discovery_path_reason
+fragment=udp_packet_meta_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+program_model=ssdp_discovery_path_model
+operation=ssdp_discovery
+rule=process_bound;process_bound;process_bound;true;ssdp_discovery_path;bind
+rule=route_resolved;route_resolved;static:program resolved a multicast route for this SSDP discovery path;true;ssdp_discovery_path;resolve_upstream
+rule=datagram_observed:udp:local:ssdp:remote:ssdp:local_to_remote:prefix4:0x4d2d5345;datagram_observed;udp_datagram_sent;true;ssdp_discovery_path;send_search
+rule=datagram_observed:udp:local:ssdp:remote:ssdp:remote_to_local:prefix4:0x48545450;datagram_observed;udp_datagram_received;true;ssdp_discovery_path;receive_response
+reason.rule=process_bound;process_identified;process_bound;true;ssdp_discovery_path;bind
+reason.rule=route_resolved;route_changed;route_changed;true;ssdp_discovery_path;resolve_upstream
+reason.rule=datagram_observed:udp:local:ssdp:remote:ssdp:local_to_remote:prefix4:0x4d2d5345;udp_datagram_seen;udp_datagram_sent;true;ssdp_discovery_path;send_search
+reason.rule=datagram_observed:udp:local:ssdp:remote:ssdp:remote_to_local:prefix4:0x48545450;udp_datagram_seen;udp_datagram_received;true;ssdp_discovery_path;receive_response

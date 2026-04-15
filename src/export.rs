@@ -1864,13 +1864,42 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             }
         },
         ReasonPredicate::RouteResolved => JsonValue::String("route_resolved".into()),
-        ReasonPredicate::PacketObserved { l4_proto, dir } => {
+        ReasonPredicate::PacketObserved {
+            l4_proto,
+            dir,
+            local_port,
+            remote_port,
+            first_byte_mask,
+            first_byte_value,
+            prefix4,
+        } => {
             let mut object = BTreeMap::from([
                 ("kind".into(), JsonValue::String("packet_observed".into())),
                 ("l4_proto".into(), JsonValue::Number(*l4_proto as i64)),
             ]);
             if let Some(dir) = dir {
                 object.insert("dir".into(), JsonValue::String(dir.as_flow_str().into()));
+            }
+            if let Some(local_port) = local_port {
+                object.insert("local_port".into(), JsonValue::Number(*local_port as i64));
+            }
+            if let Some(remote_port) = remote_port {
+                object.insert("remote_port".into(), JsonValue::Number(*remote_port as i64));
+            }
+            if let Some(first_byte_mask) = first_byte_mask {
+                object.insert(
+                    "first_byte_mask".into(),
+                    JsonValue::Number(*first_byte_mask as i64),
+                );
+            }
+            if let Some(first_byte_value) = first_byte_value {
+                object.insert(
+                    "first_byte_value".into(),
+                    JsonValue::Number(*first_byte_value as i64),
+                );
+            }
+            if let Some(prefix4) = prefix4 {
+                object.insert("prefix4".into(), JsonValue::Number(*prefix4 as i64));
             }
             JsonValue::Object(object)
         }
@@ -2087,6 +2116,37 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                         ExportError::InvalidValue("unknown reason predicate packet dir".into())
                     })?),
                     _ => return Err(ExportError::InvalidShape("reason_predicate.dir".into())),
+                },
+                local_port: match object
+                    .get("local_port")
+                    .or_else(|| object.get("sport"))
+                    .unwrap_or(&JsonValue::Null)
+                {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u16),
+                },
+                remote_port: match object
+                    .get("remote_port")
+                    .or_else(|| object.get("dport"))
+                    .unwrap_or(&JsonValue::Null)
+                {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u16),
+                },
+                first_byte_mask: match object.get("first_byte_mask").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u8),
+                },
+                first_byte_value: match object
+                    .get("first_byte_value")
+                    .unwrap_or(&JsonValue::Null)
+                {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u8),
+                },
+                prefix4: match object.get("prefix4").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u32),
                 },
             }),
             "datagram_observed" => Ok(ReasonPredicate::DatagramObserved {
