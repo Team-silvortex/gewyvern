@@ -105,6 +105,7 @@ pub struct PacketMetaFact {
     pub payload_byte0: Option<u8>,
     pub payload_prefix2: Option<u16>,
     pub payload_prefix4: Option<u32>,
+    pub payload_byte4: Option<u8>,
     pub l3_proto: u16,
     pub l4_proto: u8,
     pub tot_len: u32,

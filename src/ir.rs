@@ -17,6 +17,8 @@ pub enum FlowPredicate {
         first_byte_mask: Option<u8>,
         first_byte_value: Option<u8>,
         prefix4: Option<u32>,
+        byte4_mask: Option<u8>,
+        byte4_value: Option<u8>,
     },
     DatagramObserved {
         l4_proto: u8,
@@ -128,7 +130,8 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             _ => None,
         },
         SignalKind::PacketObserved => match phase {
-            "send_request" | "send_response" | "send_client_hello" | "send_ping" => {
+            "send_request" | "send_response" | "send_client_hello" | "send_ping"
+            | "send_query" => {
                 Some("emit_payload")
             }
             "receive_request" | "receive_response" | "receive_pong" => Some("receive_payload"),
@@ -190,6 +193,8 @@ pub fn matches_flow_predicate(
             first_byte_mask,
             first_byte_value,
             prefix4,
+            byte4_mask,
+            byte4_value,
         } => {
             if !flow.evidence.packet_facts.contains(&fact.id) {
                 return false;
@@ -214,6 +219,12 @@ pub fn matches_flow_predicate(
                         && prefix4
                             .as_ref()
                             .is_none_or(|expected| packet.payload_prefix4 == Some(*expected))
+                        && match (byte4_mask, byte4_value) {
+                            (Some(mask), Some(value)) => packet
+                                .payload_byte4
+                                .is_some_and(|byte| byte & *mask == *value),
+                            _ => true,
+                        }
             )
         }
         FlowPredicate::DatagramObserved {

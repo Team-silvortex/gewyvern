@@ -9,7 +9,8 @@ use gewyvern::template::FragmentParamValue;
 mod support;
 
 use support::{
-    packet_fact, packet_fact_with_dir, packet_fact_with_dir_and_payload, route_fact, sock_lineage_fact, tcp_state_fact,
+    packet_fact, packet_fact_with_dir, packet_fact_with_dir_and_payload,
+    packet_fact_with_dir_and_payload_and_byte4, route_fact, sock_lineage_fact, tcp_state_fact,
     tcp_state_fact_with_ports, udp_packet_fact, udp_packet_fact_with_dir,
     udp_packet_fact_with_dir_and_ports,
     udp_packet_fact_with_dir_and_ports_and_payload,
@@ -262,6 +263,8 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
             first_byte_mask: None,
             first_byte_value: None,
             prefix4: None,
+            byte4_mask: None,
+            byte4_value: None,
         }
     );
     assert_eq!(datagram_rule.predicate, legacy_datagram_rule.predicate);
@@ -309,6 +312,8 @@ rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_
             first_byte_mask: Some(0xff),
             first_byte_value: Some(0x2a),
             prefix4: None,
+            byte4_mask: None,
+            byte4_value: None,
         }
     );
     assert_eq!(
@@ -321,6 +326,40 @@ rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_
             first_byte_mask: None,
             first_byte_value: None,
             prefix4: Some(0x2b504f4e),
+            byte4_mask: None,
+            byte4_value: None,
+        }
+    );
+}
+
+#[test]
+fn dsl_accepts_packet_byte4_mask_qualifier() {
+    let binding = compile_str(
+        r#"
+template=dns_tcp_packet_match
+window=default_5s
+reason=handshake_l1
+fragment=tcp_packet_meta_fragment
+program_model=dns_tcp_packet_match_model
+operation=dns_tcp_query
+rule=packet_observed:tcp:remote:53:remote_to_local:byte4_mask:0x80:0x80;packet_observed;transport_payload_received;true
+"#,
+    )
+    .unwrap();
+
+    let rule = &binding.template.program_model.as_ref().unwrap().rules[0];
+    assert_eq!(
+        rule.predicate,
+        gewyvern::ir::FlowPredicate::PacketObserved {
+            l4_proto: 6,
+            dir: Some(PacketDir::Ingress),
+            local_port: None,
+            remote_port: Some(53),
+            first_byte_mask: None,
+            first_byte_value: None,
+            prefix4: None,
+            byte4_mask: Some(0x80),
+            byte4_value: Some(0x80),
         }
     );
 }
@@ -629,6 +668,18 @@ fn built_in_redis_ping_path_dsl_compiles_into_template_binding() {
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("redis_ping".into())
+    );
+}
+
+#[test]
+fn built_in_dns_tcp_query_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "dns_tcp_query_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("dns_tcp_query".into())
     );
 }
 
@@ -1932,6 +1983,104 @@ fn redis_ping_path_does_not_match_wrong_response_prefix() {
         .stages
         .iter()
         .all(|stage| stage.phase.as_deref() != Some("receive_pong")));
+}
+
+#[test]
+fn dns_tcp_query_path_materializes_request_and_response_payload_phases() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 825, 53053, "dig"));
+    session.ingest(route_fact(2, 825, 7));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        3,
+        825,
+        0x18,
+        PacketDir::Egress,
+        Some(53053),
+        Some(53),
+        Some(0x00),
+        Some(0x001c),
+        Some(0x001c1234),
+        Some(0x01),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        4,
+        825,
+        0x18,
+        PacketDir::Ingress,
+        Some(53053),
+        Some(53),
+        Some(0x00),
+        Some(0x001c),
+        Some(0x001c1234),
+        Some(0x81),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("dns_tcp_query".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_query")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn dns_tcp_query_path_does_not_match_wrong_response_qr_bit() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 826, 53053, "dig"));
+    session.ingest(route_fact(2, 826, 7));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        3,
+        826,
+        0x18,
+        PacketDir::Egress,
+        Some(53053),
+        Some(53),
+        Some(0x00),
+        Some(0x001c),
+        Some(0x001c1234),
+        Some(0x01),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        4,
+        826,
+        0x18,
+        PacketDir::Ingress,
+        Some(53053),
+        Some(53),
+        Some(0x00),
+        Some(0x001c),
+        Some(0x001c1234),
+        Some(0x01),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("receive_response")));
 }
 
 #[test]

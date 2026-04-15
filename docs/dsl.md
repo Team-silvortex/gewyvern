@@ -42,6 +42,7 @@ Examples in this repository:
 - [dsl/mdns_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy)
 - [dsl/ssdp_discovery_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy)
 - [dsl/redis_ping_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy)
+- [dsl/dns_tcp_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy)
 
 ## Current Shape
 
@@ -367,12 +368,14 @@ payload fingerprint surface:
 - `dport:<port|name>`
 - `byte0_mask:<u8>:<u8>`
 - `prefix4:<u32>`
+- `byte4_mask:<u8>:<u8>`
 
 Example:
 
 ```text
 rule=packet_observed:tcp:remote:redis:local_to_remote:byte0_mask:0xff:0x2a;packet_observed;transport_payload_sent;true
 rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_observed;transport_payload_received;true
+rule=packet_observed:tcp:remote:53:remote_to_local:byte4_mask:0x80:0x80;packet_observed;transport_payload_received;true
 ```
 
 The DSL compiler also validates that the selected fragment set can actually

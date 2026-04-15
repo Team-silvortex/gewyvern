@@ -434,6 +434,8 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut first_byte_mask = None;
             let mut first_byte_value = None;
             let mut prefix4 = None;
+            let mut byte4_mask = None;
+            let mut byte4_value = None;
             while let Some(part) = parts.next() {
                 match part {
                     "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
@@ -472,6 +474,22 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         })?;
                         prefix4 = Some(parse_u32_literal(value, "packet_observed", "prefix4")?);
                     }
+                    "byte4_mask" => {
+                        let mask = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing packet byte4_mask mask qualifier".into(),
+                            )
+                        })?;
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing packet byte4_mask value qualifier".into(),
+                            )
+                        })?;
+                        byte4_mask =
+                            Some(parse_u8_literal(mask, "packet_observed", "byte4_mask")?);
+                        byte4_value =
+                            Some(parse_u8_literal(value, "packet_observed", "byte4_value")?);
+                    }
                     other => {
                         return Err(DslError::InvalidValue(format!(
                             "unexpected packet predicate suffix '{other}'"
@@ -487,6 +505,8 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 first_byte_mask,
                 first_byte_value,
                 prefix4,
+                byte4_mask,
+                byte4_value,
             })
         }
         other => Err(DslError::InvalidValue(format!("unknown predicate '{other}'"))),

@@ -25,7 +25,7 @@ The long-term direction is:
 - project version: `0.1.0`
 - stage: working prototype
 - transport support: TCP + UDP
-- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis
+- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, DNS-over-TCP
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
 - replay: deterministic for exported sessions
@@ -57,6 +57,7 @@ The long-term direction is:
   - mDNS query/response exchanges
   - SSDP discovery search/response exchanges
   - Redis RESP ping/pong exchanges
+  - DNS-over-TCP query/response exchanges
 - Export/replay JSON including:
   - attach plan
   - attach report
@@ -137,6 +138,7 @@ The repository now includes first-class DSL files that compile into
 - [dsl/mdns_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy)
 - [dsl/ssdp_discovery_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy)
 - [dsl/redis_ping_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy)
+- [dsl/dns_tcp_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy)
 
 These DSL files already cover the current built-in protocol/debugging shapes and
 can express:
@@ -150,7 +152,7 @@ can express:
 - datagram predicates over direction, local/remote ports, minimum payload
   length, masked first-byte checks, and fixed two-byte/four-byte prefixes
 - packet predicates over direction, local/remote ports, masked first-byte checks,
-  and fixed four-byte prefixes
+  fixed four-byte prefixes, and masked byte-4 checks
 
 The shared datagram predicate surface is what the current UDP-family protocol
 DSLs build on. In practice, the engine is already using the same IR layer to
@@ -167,6 +169,7 @@ differentiate:
 - mDNS query/response pairs
 - SSDP discovery search/response pairs
 - Redis RESP ping/pong pairs
+- DNS-over-TCP query/response pairs
 
 ## Development
 
@@ -216,6 +219,7 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_pat
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json --summary-only
 ```
 
 Inspect binding diagnostics without starting a runtime session:
