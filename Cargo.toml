@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "crates/gewyc"]
+resolver = "3"
+
 [package]
 name = "gewyvern"
 version = "0.1.0"

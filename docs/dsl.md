@@ -493,15 +493,17 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy 
 Compile a `.gewy` file without starting the runtime:
 
 ```bash
-cargo run --bin gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
-cargo run --bin gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
+cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --out /tmp/udp-process-binding.json
 ```
 
 Inspect binding diagnostics through the dedicated compiler surface:
 
 ```bash
-cargo run --bin gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
-cargo run --bin gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
+cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --emit diagnostics --json --out /tmp/udp-process-diagnostics.json
 ```
 
 Run a socket session from a DSL file:
@@ -519,8 +521,8 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy 
 - Narrative rendering is still intentionally simple
 - UDP-family protocol recognition is still based on compact flow evidence
   fingerprints, not full parser completeness
-- `gewyc` is currently a separate compiler binary inside the same Rust package,
-  not a fully split standalone crate/workspace yet
+- `gewyc` is currently a separate workspace crate that still reuses
+  `gewyvern`'s shared DSL/compiler library surface
 
 ## Related Files
 

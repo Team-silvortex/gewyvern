@@ -1,6 +1,6 @@
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
-use gewyvern::fragment::{builtin_registry, BindingDiagnostics};
+use gewyvern::gewyc::{RenderFormat, collect_binding_diagnostics, render_diagnostics};
 use gewyvern::http::{compose_http_transactions, HttpSuspectSide, HttpTransactionView};
 use gewyvern::ledger::{
     CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact,
@@ -514,16 +514,14 @@ fn main() {
             eprintln!("{}", locale.msg("diagnostics_requires_dsl"));
             std::process::exit(2);
         });
-        let diagnostics = builtin_registry()
-            .binding_diagnostics(&binding)
-            .unwrap_or_else(|err| {
-                eprintln!("{}", locale.msgf("binding_diagnostics_failed", &format!("{err:?}"), None));
-                std::process::exit(2);
-            });
+        let diagnostics = collect_binding_diagnostics(&binding).unwrap_or_else(|err| {
+            eprintln!("{}", locale.msgf("binding_diagnostics_failed", &format!("{err:?}"), None));
+            std::process::exit(2);
+        });
         let rendered = if cli.json {
-            diagnostics_json(&binding, &diagnostics)
+            render_diagnostics(&binding, &diagnostics, RenderFormat::Json)
         } else {
-            diagnostics_text(&binding, &diagnostics)
+            render_diagnostics(&binding, &diagnostics, RenderFormat::Text)
         };
         if let Some(path) = cli.out_path.as_deref() {
             fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
@@ -2104,140 +2102,6 @@ fn module_severity_label(severity: &gewyvern::flow::ModuleSeverity) -> &'static 
         gewyvern::flow::ModuleSeverity::Medium => "medium",
         gewyvern::flow::ModuleSeverity::Low => "low",
     }
-}
-
-fn diagnostics_text(binding: &TemplateBinding, diagnostics: &BindingDiagnostics) -> String {
-    let locale = UiLocale::detect();
-    fn tier_label(tier: &gewyvern::fragment::RuleTier) -> &'static str {
-        match tier {
-            gewyvern::fragment::RuleTier::CoreRequirement => "core_requirement",
-            gewyvern::fragment::RuleTier::OptionalEnhancement => "optional_enhancement",
-            gewyvern::fragment::RuleTier::Unsupported => "unsupported",
-        }
-    }
-
-    let mut lines = vec![format!(
-        "{}={} {}={}",
-        locale.label("template"),
-        binding.template.id,
-        locale.label("fragments"),
-        binding.template.fragment_set.join(",")
-    )];
-
-    if let Some(model) = &diagnostics.program_model {
-        lines.push(format!("{}={}", locale.label("program_model"), model.model));
-        for rule in &model.rules {
-            lines.push(format!(
-                "  {}[{}]: {}={} {}={} {}={:?} {}={:?} {}={:?}",
-                locale.label("program_rule"),
-                rule.rule_index,
-                locale.label("tier"),
-                tier_label(&rule.tier),
-                locale.label("supported"),
-                rule.supported,
-                locale.label("required"),
-                rule.required_facts,
-                locale.label("supporting"),
-                rule.supporting_fragments,
-                locale.label("missing"),
-                rule.missing_facts
-            ));
-        }
-    }
-
-    if let Some(model) = &diagnostics.reason_model {
-        lines.push(format!("{}={}", locale.label("reason_model"), model.model));
-        for rule in &model.rules {
-            lines.push(format!(
-                "  {}[{}]: {}={} {}={} {}={:?} {}={:?} {}={:?}",
-                locale.label("reason_rule"),
-                rule.rule_index,
-                locale.label("tier"),
-                tier_label(&rule.tier),
-                locale.label("supported"),
-                rule.supported,
-                locale.label("required"),
-                rule.required_facts,
-                locale.label("supporting"),
-                rule.supporting_fragments,
-                locale.label("missing"),
-                rule.missing_facts
-            ));
-        }
-    }
-
-    lines.join("\n")
-}
-
-fn diagnostics_json(binding: &TemplateBinding, diagnostics: &BindingDiagnostics) -> String {
-    fn fact_list(items: &[gewyvern::ledger::FactKindTag]) -> String {
-        format!(
-            "[{}]",
-            items.iter()
-                .map(|item| format!("\"{}\"", item))
-                .collect::<Vec<_>>()
-                .join(",")
-        )
-    }
-
-    fn string_list(items: &[String]) -> String {
-        format!(
-            "[{}]",
-            items.iter()
-                .map(|item| format!("\"{}\"", item))
-                .collect::<Vec<_>>()
-                .join(",")
-        )
-    }
-
-    fn model_json(name: &str, model: &gewyvern::fragment::ModelDiagnostics) -> String {
-        format!(
-            "\"{name}\":{{\"model\":\"{}\",\"rules\":[{}]}}",
-            model.model,
-            model.rules
-                .iter()
-                .map(|rule| format!(
-                    "{{\"rule_index\":{},\"tier\":\"{}\",\"supported\":{},\"required_facts\":{},\"supporting_fragments\":{},\"missing_facts\":{}}}",
-                    rule.rule_index,
-                    match rule.tier {
-                        gewyvern::fragment::RuleTier::CoreRequirement => "core_requirement",
-                        gewyvern::fragment::RuleTier::OptionalEnhancement => "optional_enhancement",
-                        gewyvern::fragment::RuleTier::Unsupported => "unsupported",
-                    },
-                    rule.supported,
-                    fact_list(&rule.required_facts),
-                    string_list(&rule.supporting_fragments),
-                    fact_list(&rule.missing_facts),
-                ))
-                .collect::<Vec<_>>()
-                .join(",")
-        )
-    }
-
-    let mut fields = vec![
-        format!("\"template_id\":\"{}\"", binding.template.id),
-        format!(
-            "\"fragments\":[{}]",
-            binding
-                .template
-                .fragment_set
-                .iter()
-                .map(|fragment| format!("\"{}\"", fragment))
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-    ];
-    if let Some(model) = &diagnostics.program_model {
-        fields.push(model_json("program_model", model));
-    } else {
-        fields.push("\"program_model\":null".into());
-    }
-    if let Some(model) = &diagnostics.reason_model {
-        fields.push(model_json("reason_model", model));
-    } else {
-        fields.push("\"reason_model\":null".into());
-    }
-    format!("{{{}}}", fields.join(","))
 }
 
 fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {

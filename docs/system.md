@@ -29,6 +29,7 @@ The current system is easiest to understand as seven layers:
 Source files:
 
 - [src/dsl.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl.rs)
+- [src/gewyc.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc.rs)
 - [src/template.rs](/Users/Shared/chroot/dev/gewyvern/src/template.rs)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
 
@@ -205,7 +206,7 @@ fact stream.
 Source files:
 
 - [src/main.rs](/Users/Shared/chroot/dev/gewyvern/src/main.rs)
-- [src/bin/gewyc.rs](/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc.rs)
+- [crates/gewyc/src/main.rs](/Users/Shared/chroot/dev/gewyvern/crates/gewyc/src/main.rs)
 - [src/socket_input.rs](/Users/Shared/chroot/dev/gewyvern/src/socket_input.rs)
 
 Current entry surfaces:
@@ -213,6 +214,8 @@ Current entry surfaces:
 - demo runs
 - DSL-driven runs
 - DSL compile/diagnostics runs through `gewyc`
+- shared `gewyc` render/diagnostics surface consumed by both `gewyc` and `gewyvern`
+- `gewyc` is now a separate workspace crate, not just an extra binary target
 - planner diagnostics
 - Unix socket fact ingest
 - TCP socket fact ingest

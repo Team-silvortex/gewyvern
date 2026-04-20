@@ -3,5 +3,12 @@
 version = 4
 
 [[package]]
+name = "gewyc"
+version = "0.1.0"
+dependencies = [
+ "gewyvern",
+]
+
+[[package]]
 name = "gewyvern"
 version = "0.1.0"
