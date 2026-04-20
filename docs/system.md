@@ -35,6 +35,11 @@ Source files:
 
 `.gewy` files compile into `TemplateBinding`.
 
+The compiler-facing surface now also materializes owned reports for frontends:
+
+- `BindingReport`
+- `DiagnosticsReport`
+
 That binding currently carries:
 
 - template identity

@@ -1,6 +1,6 @@
 use gewyvern::gewyc::{
-    RenderFormat, collect_binding_diagnostics, compile_binding_file, render_binding,
-    render_diagnostics,
+    RenderFormat, compile_binding_report_file, compile_diagnostics_report_file,
+    render_binding_report, render_diagnostics_report,
 };
 use std::env;
 use std::fs;
@@ -159,25 +159,20 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
 }
 
 fn run_compile(cli: Cli, locale: UiLocale) {
-    let binding = compile_binding_file(&cli.path).unwrap_or_else(|err| {
+    let report = compile_binding_report_file(&cli.path).unwrap_or_else(|err| {
         eprintln!("{}: {err:?}", locale.msg("compile_failed"));
         std::process::exit(1);
     });
-    let out = render_binding(&binding, render_format(cli.output));
+    let out = render_binding_report(&report, render_format(cli.output));
     emit_output(&out, cli.out.as_deref(), locale);
 }
 
 fn run_diagnostics(cli: Cli, locale: UiLocale) {
-    let binding = compile_binding_file(&cli.path).unwrap_or_else(|err| {
-        eprintln!("{}: {err:?}", locale.msg("compile_failed"));
-        std::process::exit(1);
-    });
-    let diagnostics = collect_binding_diagnostics(&binding).unwrap_or_else(|err| {
+    let report = compile_diagnostics_report_file(&cli.path).unwrap_or_else(|err| {
         eprintln!("{}: {err:?}", locale.msg("diagnostics_failed"));
         std::process::exit(1);
     });
-
-    let out = render_diagnostics(&binding, &diagnostics, render_format(cli.output));
+    let out = render_diagnostics_report(&report, render_format(cli.output));
     emit_output(&out, cli.out.as_deref(), locale);
 }
 
@@ -202,7 +197,9 @@ fn emit_output(rendered: &str, out: Option<&str>, locale: UiLocale) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gewyvern::gewyc::{RenderFormat, compile_binding_file, render_binding};
+    use gewyvern::gewyc::{
+        RenderFormat, compile_binding_report_file, render_binding_report,
+    };
 
     #[test]
     fn parse_cli_defaults_to_compile_command() {
@@ -261,11 +258,11 @@ mod tests {
 
     #[test]
     fn binding_json_mentions_template_id() {
-        let binding = compile_binding_file(
+        let report = compile_binding_report_file(
             "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
         )
         .unwrap();
-        let json = render_binding(&binding, RenderFormat::Json);
+        let json = render_binding_report(&report, RenderFormat::Json);
         assert!(json.contains("\"template_id\":\"udp_process_debug\""));
         assert!(json.contains("\"program_model\""));
     }

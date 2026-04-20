@@ -1,6 +1,8 @@
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
-use gewyvern::gewyc::{RenderFormat, collect_binding_diagnostics, render_diagnostics};
+use gewyvern::gewyc::{
+    RenderFormat, compile_diagnostics_report_file, render_diagnostics_report,
+};
 use gewyvern::http::{compose_http_transactions, HttpSuspectSide, HttpTransactionView};
 use gewyvern::ledger::{
     CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact,
@@ -510,18 +512,18 @@ fn main() {
     let mut outputs = Vec::new();
 
     if cli.diagnostics {
-        let binding = cli.dsl_binding().unwrap_or_else(|| {
+        let path = cli.dsl_path.as_deref().unwrap_or_else(|| {
             eprintln!("{}", locale.msg("diagnostics_requires_dsl"));
             std::process::exit(2);
         });
-        let diagnostics = collect_binding_diagnostics(&binding).unwrap_or_else(|err| {
+        let report = compile_diagnostics_report_file(path).unwrap_or_else(|err| {
             eprintln!("{}", locale.msgf("binding_diagnostics_failed", &format!("{err:?}"), None));
             std::process::exit(2);
         });
         let rendered = if cli.json {
-            render_diagnostics(&binding, &diagnostics, RenderFormat::Json)
+            render_diagnostics_report(&report, RenderFormat::Json)
         } else {
-            render_diagnostics(&binding, &diagnostics, RenderFormat::Text)
+            render_diagnostics_report(&report, RenderFormat::Text)
         };
         if let Some(path) = cli.out_path.as_deref() {
             fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {

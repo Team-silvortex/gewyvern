@@ -1,7 +1,6 @@
 use crate::dsl::{DslError, compile_file};
 use crate::flow::ProgramOperation;
 use crate::fragment::{BindingDiagnostics, EvidenceTier, ModelDiagnostics, RegistryError, RuleTier, builtin_registry};
-use crate::ledger::FactKindTag;
 use crate::reason::ReasonProfile;
 use crate::template::{FragmentParamValue, TemplateBinding};
 
@@ -11,8 +10,92 @@ pub enum RenderFormat {
     Json,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BindingReport {
+    pub template_id: String,
+    pub fragments: Vec<String>,
+    pub window: Option<WindowReport>,
+    pub reason_profile: Option<ReasonProfileReport>,
+    pub program_model: Option<ProgramModelReport>,
+    pub fragment_params: Vec<FragmentParamReport>,
+    pub evidence_overrides: Vec<EvidenceOverrideReport>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WindowReport {
+    pub id: String,
+    pub duration_ms: u64,
+    pub lateness_ms: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ReasonProfileReport {
+    Builtin {
+        id: String,
+    },
+    Declarative {
+        id: String,
+        rules: usize,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProgramModelReport {
+    pub id: String,
+    pub operation: String,
+    pub rules: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FragmentParamReport {
+    pub fragment: String,
+    pub key: String,
+    pub value: ParamValueReport,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ParamValueReport {
+    Bool(bool),
+    U64(u64),
+    String(String),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceOverrideReport {
+    pub fact_kind: String,
+    pub tier: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DiagnosticsReport {
+    pub template_id: String,
+    pub fragments: Vec<String>,
+    pub program_model: Option<ModelDiagnosticsReport>,
+    pub reason_model: Option<ModelDiagnosticsReport>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModelDiagnosticsReport {
+    pub model: String,
+    pub rules: Vec<RuleDiagnosticsReport>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuleDiagnosticsReport {
+    pub rule_index: usize,
+    pub tier: String,
+    pub supported: bool,
+    pub required_facts: Vec<String>,
+    pub supporting_fragments: Vec<String>,
+    pub missing_facts: Vec<String>,
+}
+
 pub fn compile_binding_file(path: &str) -> Result<TemplateBinding, DslError> {
     compile_file(path)
+}
+
+pub fn compile_binding_report_file(path: &str) -> Result<BindingReport, DslError> {
+    compile_binding_file(path).map(|binding| binding_report(&binding))
 }
 
 pub fn collect_binding_diagnostics(
@@ -21,10 +104,38 @@ pub fn collect_binding_diagnostics(
     builtin_registry().binding_diagnostics(binding)
 }
 
+pub fn compile_diagnostics_report_file(path: &str) -> Result<DiagnosticsReport, CompileDiagnosticsError> {
+    let binding = compile_binding_file(path)?;
+    let diagnostics = collect_binding_diagnostics(&binding)?;
+    Ok(diagnostics_report(&binding, &diagnostics))
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum CompileDiagnosticsError {
+    Dsl(DslError),
+    Registry(RegistryError),
+}
+
+impl From<DslError> for CompileDiagnosticsError {
+    fn from(value: DslError) -> Self {
+        Self::Dsl(value)
+    }
+}
+
+impl From<RegistryError> for CompileDiagnosticsError {
+    fn from(value: RegistryError) -> Self {
+        Self::Registry(value)
+    }
+}
+
 pub fn render_binding(binding: &TemplateBinding, format: RenderFormat) -> String {
+    render_binding_report(&binding_report(binding), format)
+}
+
+pub fn render_binding_report(report: &BindingReport, format: RenderFormat) -> String {
     match format {
-        RenderFormat::Text => binding_text(binding),
-        RenderFormat::Json => binding_json(binding),
+        RenderFormat::Text => binding_text(report),
+        RenderFormat::Json => binding_json(report),
     }
 }
 
@@ -33,74 +144,155 @@ pub fn render_diagnostics(
     diagnostics: &BindingDiagnostics,
     format: RenderFormat,
 ) -> String {
+    render_diagnostics_report(&diagnostics_report(binding, diagnostics), format)
+}
+
+pub fn render_diagnostics_report(report: &DiagnosticsReport, format: RenderFormat) -> String {
     match format {
-        RenderFormat::Text => diagnostics_text(binding, diagnostics),
-        RenderFormat::Json => diagnostics_json(binding, diagnostics),
+        RenderFormat::Text => diagnostics_text(report),
+        RenderFormat::Json => diagnostics_json(report),
     }
 }
 
-fn binding_text(binding: &TemplateBinding) -> String {
+pub fn binding_report(binding: &TemplateBinding) -> BindingReport {
+    BindingReport {
+        template_id: binding.template.id.to_string(),
+        fragments: binding
+            .template
+            .fragment_set
+            .iter()
+            .map(|fragment| (*fragment).to_string())
+            .collect(),
+        window: binding.template.window_profile.as_ref().map(|window| WindowReport {
+            id: window.id.to_string(),
+            duration_ms: window.duration_ms,
+            lateness_ms: window.lateness_ms,
+        }),
+        reason_profile: binding
+            .template
+            .reason_profile
+            .as_ref()
+            .map(reason_profile_report),
+        program_model: binding
+            .template
+            .program_model
+            .as_ref()
+            .map(|model| ProgramModelReport {
+                id: model.id.to_string(),
+                operation: program_operation_text(&model.operation).to_string(),
+                rules: model.rules.len(),
+            }),
+        fragment_params: binding
+            .fragment_params
+            .iter()
+            .flat_map(|(fragment, params)| {
+                params.iter().map(|(key, value)| FragmentParamReport {
+                    fragment: fragment.clone(),
+                    key: key.clone(),
+                    value: fragment_param_report(value),
+                })
+            })
+            .collect(),
+        evidence_overrides: binding
+            .evidence_overrides
+            .iter()
+            .map(|(fact_kind, tier)| EvidenceOverrideReport {
+                fact_kind: fact_kind.to_string(),
+                tier: evidence_tier_text(tier).to_string(),
+            })
+            .collect(),
+    }
+}
+
+pub fn diagnostics_report(
+    binding: &TemplateBinding,
+    diagnostics: &BindingDiagnostics,
+) -> DiagnosticsReport {
+    DiagnosticsReport {
+        template_id: binding.template.id.to_string(),
+        fragments: binding
+            .template
+            .fragment_set
+            .iter()
+            .map(|fragment| (*fragment).to_string())
+            .collect(),
+        program_model: diagnostics.program_model.as_ref().map(model_diagnostics_report),
+        reason_model: diagnostics.reason_model.as_ref().map(model_diagnostics_report),
+    }
+}
+
+fn binding_text(report: &BindingReport) -> String {
     let mut lines = vec![
-        format!("template={}", binding.template.id),
-        format!("fragments={}", binding.template.fragment_set.join(",")),
+        format!("template={}", report.template_id),
+        format!("fragments={}", report.fragments.join(",")),
     ];
 
-    if let Some(window) = &binding.template.window_profile {
+    if let Some(window) = &report.window {
         lines.push(format!(
             "window={} duration_ms={} lateness_ms={}",
             window.id, window.duration_ms, window.lateness_ms
         ));
     }
 
-    if let Some(reason) = &binding.template.reason_profile {
+    if let Some(reason) = &report.reason_profile {
         lines.push(format!("reason={}", reason_profile_text(reason)));
     }
 
-    if let Some(model) = &binding.template.program_model {
+    if let Some(model) = &report.program_model {
         lines.push(format!(
             "program_model={} operation={} rules={}",
-            model.id,
-            program_operation_text(&model.operation),
-            model.rules.len()
+            model.id, model.operation, model.rules
         ));
     }
 
-    for (fragment, params) in &binding.fragment_params {
-        for (key, value) in params {
-            lines.push(format!(
-                "param={fragment}.{key}={}",
-                fragment_param_text(value)
-            ));
-        }
+    for param in &report.fragment_params {
+        lines.push(format!(
+            "param={}.{}={}",
+            param.fragment,
+            param.key,
+            fragment_param_text(&param.value)
+        ));
     }
 
-    for (fact_kind, tier) in &binding.evidence_overrides {
-        lines.push(format!("evidence={fact_kind}:{}", evidence_tier_text(tier)));
+    for evidence in &report.evidence_overrides {
+        lines.push(format!("evidence={}:{}", evidence.fact_kind, evidence.tier));
     }
 
     lines.join("\n")
 }
 
-fn binding_json(binding: &TemplateBinding) -> String {
-    let fragment_params = binding
+fn binding_json(report: &BindingReport) -> String {
+    let fragment_params = report
         .fragment_params
         .iter()
-        .map(|(fragment, params)| {
-            format!(
-                "\"{fragment}\":{{{}}}",
-                params
-                    .iter()
-                    .map(|(key, value)| format!("\"{key}\":{}", fragment_param_json(value)))
-                    .collect::<Vec<_>>()
-                    .join(",")
-            )
+        .fold(Vec::<(String, Vec<String>)>::new(), |mut acc, param| {
+            if let Some((_, entries)) = acc.iter_mut().find(|(fragment, _)| fragment == &param.fragment)
+            {
+                entries.push(format!(
+                    "\"{}\":{}",
+                    param.key,
+                    fragment_param_json(&param.value)
+                ));
+            } else {
+                acc.push((
+                    param.fragment.clone(),
+                    vec![format!(
+                        "\"{}\":{}",
+                        param.key,
+                        fragment_param_json(&param.value)
+                    )],
+                ));
+            }
+            acc
         })
+        .into_iter()
+        .map(|(fragment, entries)| format!("\"{fragment}\":{{{}}}", entries.join(",")))
         .collect::<Vec<_>>()
         .join(",");
-    let evidence_overrides = binding
+    let evidence_overrides = report
         .evidence_overrides
         .iter()
-        .map(|(fact_kind, tier)| format!("\"{fact_kind}\":\"{}\"", evidence_tier_text(tier)))
+        .map(|evidence| format!("\"{}\":\"{}\"", evidence.fact_kind, evidence.tier))
         .collect::<Vec<_>>()
         .join(",");
 
@@ -116,55 +308,49 @@ fn binding_json(binding: &TemplateBinding) -> String {
             "\"evidence_overrides\":{{{}}}",
             "}}"
         ),
-        binding.template.id,
-        binding
-            .template
-            .fragment_set
+        report.template_id,
+        report
+            .fragments
             .iter()
             .map(|fragment| format!("\"{fragment}\""))
             .collect::<Vec<_>>()
             .join(","),
-        binding
-            .template
-            .window_profile
+        report
+            .window
             .as_ref()
             .map_or("null".into(), |window| format!(
                 "{{\"id\":\"{}\",\"duration_ms\":{},\"lateness_ms\":{}}}",
                 window.id, window.duration_ms, window.lateness_ms
             )),
-        binding
-            .template
+        report
             .reason_profile
             .as_ref()
             .map_or("null".into(), reason_profile_json),
-        binding
-            .template
+        report
             .program_model
             .as_ref()
             .map_or("null".into(), |model| format!(
                 "{{\"id\":\"{}\",\"operation\":\"{}\",\"rules\":{}}}",
-                model.id,
-                program_operation_text(&model.operation),
-                model.rules.len()
+                model.id, model.operation, model.rules
             )),
         fragment_params,
         evidence_overrides
     )
 }
 
-fn diagnostics_text(binding: &TemplateBinding, diagnostics: &BindingDiagnostics) -> String {
+fn diagnostics_text(report: &DiagnosticsReport) -> String {
     let mut lines = vec![
-        format!("template={}", binding.template.id),
-        format!("fragments={}", binding.template.fragment_set.join(",")),
+        format!("template={}", report.template_id),
+        format!("fragments={}", report.fragments.join(",")),
     ];
 
-    if let Some(model) = &diagnostics.program_model {
+    if let Some(model) = &report.program_model {
         lines.push(format!("program_model={}", model.model));
         for rule in &model.rules {
             lines.push(format!(
                 "  program_rule[{}]: tier={} supported={} required={:?} supporting={:?} missing={:?}",
                 rule.rule_index,
-                rule_tier_text(&rule.tier),
+                rule.tier,
                 rule.supported,
                 rule.required_facts,
                 rule.supporting_fragments,
@@ -173,13 +359,13 @@ fn diagnostics_text(binding: &TemplateBinding, diagnostics: &BindingDiagnostics)
         }
     }
 
-    if let Some(model) = &diagnostics.reason_model {
+    if let Some(model) = &report.reason_model {
         lines.push(format!("reason_model={}", model.model));
         for rule in &model.rules {
             lines.push(format!(
                 "  reason_rule[{}]: tier={} supported={} required={:?} supporting={:?} missing={:?}",
                 rule.rule_index,
-                rule_tier_text(&rule.tier),
+                rule.tier,
                 rule.supported,
                 rule.required_facts,
                 rule.supporting_fragments,
@@ -191,7 +377,7 @@ fn diagnostics_text(binding: &TemplateBinding, diagnostics: &BindingDiagnostics)
     lines.join("\n")
 }
 
-fn diagnostics_json(binding: &TemplateBinding, diagnostics: &BindingDiagnostics) -> String {
+fn diagnostics_json(report: &DiagnosticsReport) -> String {
     format!(
         concat!(
             "{{",
@@ -201,26 +387,25 @@ fn diagnostics_json(binding: &TemplateBinding, diagnostics: &BindingDiagnostics)
             "\"reason_model\":{}",
             "}}"
         ),
-        binding.template.id,
-        binding
-            .template
-            .fragment_set
+        report.template_id,
+        report
+            .fragments
             .iter()
             .map(|fragment| format!("\"{fragment}\""))
             .collect::<Vec<_>>()
             .join(","),
-        diagnostics
+        report
             .program_model
             .as_ref()
             .map_or("null".into(), model_diagnostics_json),
-        diagnostics
+        report
             .reason_model
             .as_ref()
             .map_or("null".into(), model_diagnostics_json),
     )
 }
 
-fn model_diagnostics_json(model: &ModelDiagnostics) -> String {
+fn model_diagnostics_json(model: &ModelDiagnosticsReport) -> String {
     format!(
         "{{\"model\":\"{}\",\"rules\":[{}]}}",
         model.model,
@@ -230,23 +415,15 @@ fn model_diagnostics_json(model: &ModelDiagnostics) -> String {
             .map(|rule| format!(
                 "{{\"rule_index\":{},\"tier\":\"{}\",\"supported\":{},\"required_facts\":[{}],\"supporting_fragments\":[{}],\"missing_facts\":[{}]}}",
                 rule.rule_index,
-                rule_tier_text(&rule.tier),
+                rule.tier,
                 rule.supported,
-                fact_tag_json_list(&rule.required_facts),
+                string_json_list(&rule.required_facts),
                 string_json_list(&rule.supporting_fragments),
-                fact_tag_json_list(&rule.missing_facts),
+                string_json_list(&rule.missing_facts),
             ))
             .collect::<Vec<_>>()
             .join(",")
     )
-}
-
-fn fact_tag_json_list(items: &[FactKindTag]) -> String {
-    items
-        .iter()
-        .map(|item| format!("\"{item}\""))
-        .collect::<Vec<_>>()
-        .join(",")
 }
 
 fn string_json_list(items: &[String]) -> String {
@@ -257,24 +434,61 @@ fn string_json_list(items: &[String]) -> String {
         .join(",")
 }
 
-fn reason_profile_text(profile: &ReasonProfile) -> String {
+fn reason_profile_report(profile: &ReasonProfile) -> ReasonProfileReport {
     match profile {
-        ReasonProfile::HandshakeL1 | ReasonProfile::UdpDatagramL1 => profile.id().into(),
-        ReasonProfile::Declarative(model) => {
-            format!("declarative:{} rules={}", model.id, model.rules.len())
+        ReasonProfile::HandshakeL1 | ReasonProfile::UdpDatagramL1 => ReasonProfileReport::Builtin {
+            id: profile.id().to_string(),
+        },
+        ReasonProfile::Declarative(model) => ReasonProfileReport::Declarative {
+            id: model.id.to_string(),
+            rules: model.rules.len(),
+        },
+    }
+}
+
+fn model_diagnostics_report(model: &ModelDiagnostics) -> ModelDiagnosticsReport {
+    ModelDiagnosticsReport {
+        model: model.model.to_string(),
+        rules: model
+            .rules
+            .iter()
+            .map(|rule| RuleDiagnosticsReport {
+                rule_index: rule.rule_index,
+                tier: rule_tier_text(&rule.tier).to_string(),
+                supported: rule.supported,
+                required_facts: rule.required_facts.iter().map(|item| item.to_string()).collect(),
+                supporting_fragments: rule.supporting_fragments.clone(),
+                missing_facts: rule.missing_facts.iter().map(|item| item.to_string()).collect(),
+            })
+            .collect(),
+    }
+}
+
+fn fragment_param_report(value: &FragmentParamValue) -> ParamValueReport {
+    match value {
+        FragmentParamValue::Bool(value) => ParamValueReport::Bool(*value),
+        FragmentParamValue::U64(value) => ParamValueReport::U64(*value),
+        FragmentParamValue::String(value) => ParamValueReport::String(value.clone()),
+    }
+}
+
+fn reason_profile_text(profile: &ReasonProfileReport) -> String {
+    match profile {
+        ReasonProfileReport::Builtin { id } => id.clone(),
+        ReasonProfileReport::Declarative { id, rules } => {
+            format!("declarative:{id} rules={rules}")
         }
     }
 }
 
-fn reason_profile_json(profile: &ReasonProfile) -> String {
+fn reason_profile_json(profile: &ReasonProfileReport) -> String {
     match profile {
-        ReasonProfile::HandshakeL1 | ReasonProfile::UdpDatagramL1 => {
-            format!("{{\"kind\":\"builtin\",\"id\":\"{}\"}}", profile.id())
+        ReasonProfileReport::Builtin { id } => {
+            format!("{{\"kind\":\"builtin\",\"id\":\"{id}\"}}")
         }
-        ReasonProfile::Declarative(model) => format!(
+        ReasonProfileReport::Declarative { id, rules } => format!(
             "{{\"kind\":\"declarative\",\"id\":\"{}\",\"rules\":{}}}",
-            model.id,
-            model.rules.len()
+            id, rules
         ),
     }
 }
@@ -288,19 +502,19 @@ fn program_operation_text(operation: &ProgramOperation) -> &str {
     }
 }
 
-fn fragment_param_text(value: &FragmentParamValue) -> String {
+fn fragment_param_text(value: &ParamValueReport) -> String {
     match value {
-        FragmentParamValue::Bool(value) => value.to_string(),
-        FragmentParamValue::U64(value) => value.to_string(),
-        FragmentParamValue::String(value) => value.clone(),
+        ParamValueReport::Bool(value) => value.to_string(),
+        ParamValueReport::U64(value) => value.to_string(),
+        ParamValueReport::String(value) => value.clone(),
     }
 }
 
-fn fragment_param_json(value: &FragmentParamValue) -> String {
+fn fragment_param_json(value: &ParamValueReport) -> String {
     match value {
-        FragmentParamValue::Bool(value) => value.to_string(),
-        FragmentParamValue::U64(value) => value.to_string(),
-        FragmentParamValue::String(value) => format!("\"{value}\""),
+        ParamValueReport::Bool(value) => value.to_string(),
+        ParamValueReport::U64(value) => value.to_string(),
+        ParamValueReport::String(value) => format!("\"{value}\""),
     }
 }
 
@@ -344,5 +558,33 @@ mod tests {
         let text = render_diagnostics(&binding, &diagnostics, RenderFormat::Text);
         assert!(text.contains("program_model="));
         assert!(text.contains("program_rule["));
+    }
+
+    #[test]
+    fn binding_report_is_owned_and_stable() {
+        let binding = compile_binding_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        let report = binding_report(&binding);
+        assert_eq!(report.template_id, "udp_process_debug");
+        assert!(report.fragments.contains(&"udp_packet_meta_fragment".to_string()));
+        assert!(
+            report
+                .fragment_params
+                .iter()
+                .any(|param| param.fragment == "sock_lineage_fragment" && param.key == "capture_comm")
+        );
+    }
+
+    #[test]
+    fn compile_diagnostics_report_file_materializes_reason_and_program_models() {
+        let report = compile_diagnostics_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        assert_eq!(report.template_id, "udp_process_debug");
+        assert!(report.fragments.contains(&"udp_packet_meta_fragment".to_string()));
+        assert!(report.program_model.is_some());
     }
 }
