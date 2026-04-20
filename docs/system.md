@@ -205,12 +205,14 @@ fact stream.
 Source files:
 
 - [src/main.rs](/Users/Shared/chroot/dev/gewyvern/src/main.rs)
+- [src/bin/gewyc.rs](/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc.rs)
 - [src/socket_input.rs](/Users/Shared/chroot/dev/gewyvern/src/socket_input.rs)
 
 Current entry surfaces:
 
 - demo runs
 - DSL-driven runs
+- DSL compile/diagnostics runs through `gewyc`
 - planner diagnostics
 - Unix socket fact ingest
 - TCP socket fact ingest

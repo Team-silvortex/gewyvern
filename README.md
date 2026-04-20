@@ -181,6 +181,8 @@ Main commands:
 - `cargo tdd-one <test_name>`
 - `cargo tdd-rules`
 - `cargo test`
+- `cargo run --bin gewyc -- <path.gewy>`
+- `cargo run --bin gewyc -- diagnostics <path.gewy> --json`
 
 Current test layers:
 
@@ -227,6 +229,27 @@ Inspect binding diagnostics without starting a runtime session:
 ```bash
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --diagnostics
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --diagnostics --json
+cargo run --bin gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
+cargo run --bin gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+```
+
+## `gewyc`
+
+`gewyc` is the first extracted DSL toolchain surface for `.gewy`.
+
+Current responsibilities:
+
+- compile `.gewy` into validated `TemplateBinding`
+- print compiled binding in text or JSON
+- print binding diagnostics in text or JSON
+
+Current examples:
+
+```bash
+cargo run --bin gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy
+cargo run --bin gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy --json
+cargo run --bin gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy
+cargo run --bin gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json
 ```
 
 Inspect the most suspicious program/network modules directly:
