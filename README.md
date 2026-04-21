@@ -183,6 +183,8 @@ Main commands:
 - `cargo test`
 - `cargo run -p gewyc -- <path.gewy>`
 - `cargo run -p gewyc -- diagnostics <path.gewy> --json`
+- `cargo run -p gewyc -- findings <path.gewy> --json`
+- `cargo run -p gewyc -- stages <path.gewy> --json`
 - `cargo run -p gewyc -- <path.gewy> --emit diagnostics --json --out /tmp/gewyc.json`
 
 Current test layers:
@@ -232,6 +234,8 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy 
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --diagnostics --json
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
 cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- findings /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --emit diagnostics --json --out /tmp/gewyc-diagnostics.json
 ```
 
@@ -244,8 +248,10 @@ Current responsibilities:
 - compile `.gewy` into validated `TemplateBinding`
 - print compiled binding in text or JSON
 - print binding diagnostics in text or JSON
+- print structured compiler findings in text or JSON
+- print staged compiler output in text or JSON
 - write compiler output to a file with `--out`
-- select compiler surface explicitly with `--emit binding|diagnostics`
+- select compiler surface explicitly with `--emit binding|diagnostics|findings|stages`
 
 Current examples:
 
@@ -254,6 +260,8 @@ cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy --json
 cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy
 cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json
+cargo run -p gewyc -- findings /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json
+cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --emit diagnostics --json --out /tmp/dns-tcp-diagnostics.json
 ```
 

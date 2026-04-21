@@ -1,4 +1,6 @@
-use crate::dsl::{DslError, compile_file};
+use crate::dsl::{
+    DslError, compile_file, parse_file_unvalidated, parse_str_unvalidated, validate_compiled_binding,
+};
 use crate::flow::ProgramOperation;
 use crate::fragment::{BindingDiagnostics, EvidenceTier, ModelDiagnostics, RegistryError, RuleTier, builtin_registry};
 use crate::reason::ReasonProfile;
@@ -90,6 +92,39 @@ pub struct RuleDiagnosticsReport {
     pub missing_facts: Vec<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompilerStagesReport {
+    pub parsed_binding: BindingReport,
+    pub diagnostics: DiagnosticsReport,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompilerFindingsReport {
+    pub findings: Vec<CompilerFinding>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompilerFinding {
+    pub stage: CompilerFindingStage,
+    pub code: String,
+    pub severity: CompilerFindingSeverity,
+    pub line: Option<usize>,
+    pub message: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CompilerFindingStage {
+    Parse,
+    Validation,
+    Diagnostics,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CompilerFindingSeverity {
+    Error,
+    Warning,
+}
+
 pub fn compile_binding_file(path: &str) -> Result<TemplateBinding, DslError> {
     compile_file(path)
 }
@@ -110,6 +145,52 @@ pub fn compile_diagnostics_report_file(path: &str) -> Result<DiagnosticsReport, 
     Ok(diagnostics_report(&binding, &diagnostics))
 }
 
+pub fn compile_stages_report_file(path: &str) -> Result<CompilerStagesReport, CompileStagesError> {
+    let binding = parse_file_unvalidated(path)?;
+    let parsed_binding = binding_report(&binding);
+    validate_compiled_binding(&binding).map_err(CompileStagesError::Validation)?;
+    let diagnostics = collect_binding_diagnostics(&binding).map_err(CompileStagesError::Diagnostics)?;
+    Ok(CompilerStagesReport {
+        parsed_binding,
+        diagnostics: diagnostics_report(&binding, &diagnostics),
+    })
+}
+
+pub fn compile_findings_report_file(path: &str) -> CompilerFindingsReport {
+    let input = match crate::dsl::read_file(path) {
+        Ok(input) => input,
+        Err(err) => return CompilerFindingsReport {
+            findings: vec![finding_from_dsl_error(&err)],
+        },
+    };
+    compile_findings_report_str(&input)
+}
+
+pub fn compile_findings_report_str(input: &str) -> CompilerFindingsReport {
+    let binding = match parse_str_unvalidated(input) {
+        Ok(binding) => binding,
+        Err(err) => {
+            return CompilerFindingsReport {
+                findings: vec![finding_from_dsl_error(&err)],
+            }
+        }
+    };
+
+    if let Err(err) = validate_compiled_binding(&binding) {
+        return CompilerFindingsReport {
+            findings: vec![finding_from_registry_error(CompilerFindingStage::Validation, &err)],
+        };
+    }
+
+    if let Err(err) = collect_binding_diagnostics(&binding) {
+        return CompilerFindingsReport {
+            findings: vec![finding_from_registry_error(CompilerFindingStage::Diagnostics, &err)],
+        };
+    }
+
+    CompilerFindingsReport { findings: Vec::new() }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum CompileDiagnosticsError {
     Dsl(DslError),
@@ -117,6 +198,19 @@ pub enum CompileDiagnosticsError {
 }
 
 impl From<DslError> for CompileDiagnosticsError {
+    fn from(value: DslError) -> Self {
+        Self::Dsl(value)
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum CompileStagesError {
+    Dsl(DslError),
+    Validation(RegistryError),
+    Diagnostics(RegistryError),
+}
+
+impl From<DslError> for CompileStagesError {
     fn from(value: DslError) -> Self {
         Self::Dsl(value)
     }
@@ -151,6 +245,20 @@ pub fn render_diagnostics_report(report: &DiagnosticsReport, format: RenderForma
     match format {
         RenderFormat::Text => diagnostics_text(report),
         RenderFormat::Json => diagnostics_json(report),
+    }
+}
+
+pub fn render_findings_report(report: &CompilerFindingsReport, format: RenderFormat) -> String {
+    match format {
+        RenderFormat::Text => findings_text(report),
+        RenderFormat::Json => findings_json(report),
+    }
+}
+
+pub fn render_stages_report(report: &CompilerStagesReport, format: RenderFormat) -> String {
+    match format {
+        RenderFormat::Text => stages_text(report),
+        RenderFormat::Json => stages_json(report),
     }
 }
 
@@ -405,6 +513,79 @@ fn diagnostics_json(report: &DiagnosticsReport) -> String {
     )
 }
 
+fn findings_text(report: &CompilerFindingsReport) -> String {
+    if report.findings.is_empty() {
+        return "findings=none".into();
+    }
+
+    report
+        .findings
+        .iter()
+        .map(|finding| match finding.line {
+            Some(line) => format!(
+                "finding stage={} severity={} code={} line={} message={}",
+                finding_stage_text(finding.stage),
+                finding_severity_text(finding.severity),
+                finding.code,
+                line,
+                finding.message
+            ),
+            None => format!(
+                "finding stage={} severity={} code={} message={}",
+                finding_stage_text(finding.stage),
+                finding_severity_text(finding.severity),
+                finding.code,
+                finding.message
+            ),
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn findings_json(report: &CompilerFindingsReport) -> String {
+    format!(
+        "{{\"findings\":[{}]}}",
+        report
+            .findings
+            .iter()
+            .map(|finding| match finding.line {
+                Some(line) => format!(
+                    "{{\"stage\":\"{}\",\"severity\":\"{}\",\"code\":\"{}\",\"line\":{},\"message\":\"{}\"}}",
+                    finding_stage_text(finding.stage),
+                    finding_severity_text(finding.severity),
+                    finding.code,
+                    line,
+                    json_escape(&finding.message),
+                ),
+                None => format!(
+                    "{{\"stage\":\"{}\",\"severity\":\"{}\",\"code\":\"{}\",\"line\":null,\"message\":\"{}\"}}",
+                    finding_stage_text(finding.stage),
+                    finding_severity_text(finding.severity),
+                    finding.code,
+                    json_escape(&finding.message),
+                ),
+            })
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
+fn stages_text(report: &CompilerStagesReport) -> String {
+    format!(
+        "stage=parse\n{}\nstage=diagnostics\n{}",
+        binding_text(&report.parsed_binding),
+        diagnostics_text(&report.diagnostics)
+    )
+}
+
+fn stages_json(report: &CompilerStagesReport) -> String {
+    format!(
+        "{{\"parse\":{},\"diagnostics\":{}}}",
+        binding_json(&report.parsed_binding),
+        diagnostics_json(&report.diagnostics),
+    )
+}
+
 fn model_diagnostics_json(model: &ModelDiagnosticsReport) -> String {
     format!(
         "{{\"model\":\"{}\",\"rules\":[{}]}}",
@@ -533,6 +714,91 @@ fn rule_tier_text(tier: &RuleTier) -> &'static str {
     }
 }
 
+fn finding_from_dsl_error(err: &DslError) -> CompilerFinding {
+    let root = err.root();
+    CompilerFinding {
+        stage: CompilerFindingStage::Parse,
+        code: dsl_error_code(root).to_string(),
+        severity: CompilerFindingSeverity::Error,
+        line: err.line(),
+        message: dsl_error_message(root),
+    }
+}
+
+fn finding_from_registry_error(stage: CompilerFindingStage, err: &RegistryError) -> CompilerFinding {
+    CompilerFinding {
+        stage,
+        code: registry_error_code(err).to_string(),
+        severity: CompilerFindingSeverity::Error,
+        line: None,
+        message: format!("{err:?}"),
+    }
+}
+
+fn dsl_error_message(err: &DslError) -> String {
+    match err {
+        DslError::Located { inner, .. } => dsl_error_message(inner),
+        DslError::InvalidLine(line) => format!("invalid line: {line}"),
+        DslError::MissingField(field) => format!("missing field: {field}"),
+        DslError::InvalidValue(value) => value.clone(),
+        DslError::Registry(err) => format!("{err:?}"),
+        DslError::Io(err) => err.clone(),
+    }
+}
+
+fn dsl_error_code(err: &DslError) -> &'static str {
+    match err {
+        DslError::Located { inner, .. } => dsl_error_code(inner),
+        DslError::InvalidLine(_) => "GEWYC-PARSE-INVALID-LINE",
+        DslError::MissingField(_) => "GEWYC-PARSE-MISSING-FIELD",
+        DslError::InvalidValue(_) => "GEWYC-PARSE-INVALID-VALUE",
+        DslError::Registry(_) => "GEWYC-PARSE-REGISTRY",
+        DslError::Io(_) => "GEWYC-PARSE-IO",
+    }
+}
+
+fn registry_error_code(err: &RegistryError) -> &'static str {
+    match err {
+        RegistryError::DuplicateFragmentId(_) => "GEWYC-VALIDATE-DUPLICATE-FRAGMENT-ID",
+        RegistryError::MissingFragment(_) => "GEWYC-VALIDATE-MISSING-FRAGMENT",
+        RegistryError::HookConflict(_) => "GEWYC-VALIDATE-HOOK-CONFLICT",
+        RegistryError::FactConflict(_) => "GEWYC-VALIDATE-FACT-CONFLICT",
+        RegistryError::MissingCoverage { .. } => "GEWYC-VALIDATE-MISSING-COVERAGE",
+        RegistryError::MissingRuleEvidence { .. } => "GEWYC-VALIDATE-MISSING-RULE-EVIDENCE",
+        RegistryError::UnknownFragmentParam { .. } => "GEWYC-VALIDATE-UNKNOWN-FRAGMENT-PARAM",
+        RegistryError::InvalidFragmentParamType { .. } => "GEWYC-VALIDATE-INVALID-FRAGMENT-PARAM-TYPE",
+    }
+}
+
+fn finding_stage_text(stage: CompilerFindingStage) -> &'static str {
+    match stage {
+        CompilerFindingStage::Parse => "parse",
+        CompilerFindingStage::Validation => "validation",
+        CompilerFindingStage::Diagnostics => "diagnostics",
+    }
+}
+
+fn finding_severity_text(severity: CompilerFindingSeverity) -> &'static str {
+    match severity {
+        CompilerFindingSeverity::Error => "error",
+        CompilerFindingSeverity::Warning => "warning",
+    }
+}
+
+fn json_escape(value: &str) -> String {
+    value
+        .chars()
+        .flat_map(|ch| match ch {
+            '\\' => "\\\\".chars().collect::<Vec<_>>(),
+            '"' => "\\\"".chars().collect::<Vec<_>>(),
+            '\n' => "\\n".chars().collect::<Vec<_>>(),
+            '\r' => "\\r".chars().collect::<Vec<_>>(),
+            '\t' => "\\t".chars().collect::<Vec<_>>(),
+            other => vec![other],
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -586,5 +852,96 @@ mod tests {
         assert_eq!(report.template_id, "udp_process_debug");
         assert!(report.fragments.contains(&"udp_packet_meta_fragment".to_string()));
         assert!(report.program_model.is_some());
+    }
+
+    #[test]
+    fn compile_stages_report_file_separates_binding_and_diagnostics_reports() {
+        let report = compile_stages_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        assert_eq!(report.parsed_binding.template_id, "udp_process_debug");
+        assert_eq!(report.diagnostics.template_id, "udp_process_debug");
+        assert!(report.parsed_binding.program_model.is_some());
+        assert!(report.diagnostics.program_model.is_some());
+    }
+
+    #[test]
+    fn compile_findings_report_str_surfaces_parse_failures() {
+        let report = compile_findings_report_str(
+            r#"
+template=broken
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+oops=true
+"#,
+        );
+        assert_eq!(report.findings.len(), 1);
+        assert_eq!(report.findings[0].stage, CompilerFindingStage::Parse);
+        assert_eq!(report.findings[0].code, "GEWYC-PARSE-INVALID-VALUE");
+        assert_eq!(report.findings[0].severity, CompilerFindingSeverity::Error);
+        assert_eq!(report.findings[0].line, Some(6));
+        assert!(report.findings[0].message.contains("unknown DSL key"));
+    }
+
+    #[test]
+    fn compile_findings_report_str_surfaces_validation_failures() {
+        let report = compile_findings_report_str(
+            r#"
+template=broken_validation
+window=default_5s
+reason=udp_datagram_l1
+fragment=route_meta_fragment
+program_model=broken_validation_model
+operation=dns_lookup
+rule=datagram_observed:udp;datagram_observed;static:udp seen;true
+"#,
+        );
+        assert_eq!(report.findings.len(), 1);
+        assert_eq!(report.findings[0].stage, CompilerFindingStage::Validation);
+        assert_eq!(report.findings[0].code, "GEWYC-VALIDATE-MISSING-RULE-EVIDENCE");
+        assert_eq!(report.findings[0].severity, CompilerFindingSeverity::Error);
+        assert_eq!(report.findings[0].line, None);
+        assert!(report.findings[0].message.contains("MissingRuleEvidence"));
+    }
+
+    #[test]
+    fn compile_findings_report_str_is_empty_when_pipeline_succeeds() {
+        let input = crate::dsl::read_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        let report = compile_findings_report_str(&input);
+        assert!(report.findings.is_empty());
+    }
+
+    #[test]
+    fn findings_json_includes_code_severity_and_line() {
+        let report = compile_findings_report_str(
+            r#"
+template=broken
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+oops=true
+"#,
+        );
+        let json = render_findings_report(&report, RenderFormat::Json);
+        assert!(json.contains("\"code\":\"GEWYC-PARSE-INVALID-VALUE\""));
+        assert!(json.contains("\"severity\":\"error\""));
+        assert!(json.contains("\"line\":6"));
+    }
+
+    #[test]
+    fn stages_json_includes_parse_and_diagnostics_sections() {
+        let report = compile_stages_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        let json = render_stages_report(&report, RenderFormat::Json);
+        assert!(json.contains("\"parse\":"));
+        assert!(json.contains("\"diagnostics\":"));
+        assert!(json.contains("\"template_id\":\"udp_process_debug\""));
     }
 }

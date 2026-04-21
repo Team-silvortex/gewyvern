@@ -1,6 +1,7 @@
 use gewyvern::gewyc::{
     RenderFormat, compile_binding_report_file, compile_diagnostics_report_file,
-    render_binding_report, render_diagnostics_report,
+    compile_findings_report_file, render_binding_report, render_diagnostics_report,
+    compile_stages_report_file, render_findings_report, render_stages_report,
 };
 use std::env;
 use std::fs;
@@ -15,12 +16,16 @@ enum OutputMode {
 enum Command {
     Compile,
     Diagnostics,
+    Findings,
+    Stages,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum EmitTarget {
     Binding,
     Diagnostics,
+    Findings,
+    Stages,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -53,12 +58,12 @@ impl UiLocale {
     fn usage(self) -> &'static str {
         match self {
             Self::Zh => {
-                "用法: gewyc <compile|diagnostics> <path.gewy> [--json] [--out path]\n\
-                 用法: gewyc <path.gewy> [--json] [--emit binding|diagnostics] [--out path]"
+                "用法: gewyc <compile|diagnostics|findings|stages> <path.gewy> [--json] [--out path]\n\
+                 用法: gewyc <path.gewy> [--json] [--emit binding|diagnostics|findings|stages] [--out path]"
             }
             Self::En => {
-                "usage: gewyc <compile|diagnostics> <path.gewy> [--json] [--out path]\n\
-                 usage: gewyc <path.gewy> [--json] [--emit binding|diagnostics] [--out path]"
+                "usage: gewyc <compile|diagnostics|findings|stages> <path.gewy> [--json] [--out path]\n\
+                 usage: gewyc <path.gewy> [--json] [--emit binding|diagnostics|findings|stages] [--out path]"
             }
         }
     }
@@ -69,14 +74,16 @@ impl UiLocale {
             (Self::Zh, "unknown_arg") => "未知参数",
             (Self::Zh, "compile_failed") => "DSL 编译失败",
             (Self::Zh, "diagnostics_failed") => "binding 诊断失败",
-            (Self::Zh, "missing_emit") => "缺少 --emit 的值，期望 binding 或 diagnostics",
+            (Self::Zh, "stages_failed") => "compiler 阶段报告生成失败",
+            (Self::Zh, "missing_emit") => "缺少 --emit 的值，期望 binding、diagnostics、findings 或 stages",
             (Self::Zh, "missing_out") => "缺少 --out 的值，期望输出路径",
             (Self::Zh, "write_failed") => "写入输出失败",
             (_, "missing_path") => "missing .gewy file path",
             (_, "unknown_arg") => "unknown argument",
             (_, "compile_failed") => "dsl compile failed",
             (_, "diagnostics_failed") => "binding diagnostics failed",
-            (_, "missing_emit") => "missing value for --emit, expected binding or diagnostics",
+            (_, "stages_failed") => "compiler stages report failed",
+            (_, "missing_emit") => "missing value for --emit, expected binding, diagnostics, findings, or stages",
             (_, "missing_out") => "missing value for --out, expected an output path",
             (_, "write_failed") => "failed to write output",
             _ => "error",
@@ -94,6 +101,8 @@ fn main() {
     match cli.emit {
         EmitTarget::Binding => run_compile(cli, locale),
         EmitTarget::Diagnostics => run_diagnostics(cli, locale),
+        EmitTarget::Findings => run_findings(cli, locale),
+        EmitTarget::Stages => run_stages(cli, locale),
     }
 }
 
@@ -115,6 +124,8 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
                 emit = match value.as_str() {
                     "binding" => EmitTarget::Binding,
                     "diagnostics" => EmitTarget::Diagnostics,
+                    "findings" => EmitTarget::Findings,
+                    "stages" => EmitTarget::Stages,
                     _ => {
                         return Err(format!(
                             "{}: {value}\n{}",
@@ -137,6 +148,14 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
             "diagnostics" if path.is_none() => {
                 command = Command::Diagnostics;
                 emit = EmitTarget::Diagnostics;
+            }
+            "findings" if path.is_none() => {
+                command = Command::Findings;
+                emit = EmitTarget::Findings;
+            }
+            "stages" if path.is_none() => {
+                command = Command::Stages;
+                emit = EmitTarget::Stages;
             }
             value if value.starts_with('-') => {
                 return Err(format!("{}: {value}\n{}", locale.msg("unknown_arg"), locale.usage()))
@@ -173,6 +192,21 @@ fn run_diagnostics(cli: Cli, locale: UiLocale) {
         std::process::exit(1);
     });
     let out = render_diagnostics_report(&report, render_format(cli.output));
+    emit_output(&out, cli.out.as_deref(), locale);
+}
+
+fn run_findings(cli: Cli, locale: UiLocale) {
+    let report = compile_findings_report_file(&cli.path);
+    let out = render_findings_report(&report, render_format(cli.output));
+    emit_output(&out, cli.out.as_deref(), locale);
+}
+
+fn run_stages(cli: Cli, locale: UiLocale) {
+    let report = compile_stages_report_file(&cli.path).unwrap_or_else(|err| {
+        eprintln!("{}: {err:?}", locale.msg("stages_failed"));
+        std::process::exit(1);
+    });
+    let out = render_stages_report(&report, render_format(cli.output));
     emit_output(&out, cli.out.as_deref(), locale);
 }
 
@@ -254,6 +288,40 @@ mod tests {
         assert_eq!(cli.command, Command::Compile);
         assert_eq!(cli.emit, EmitTarget::Diagnostics);
         assert_eq!(cli.out.as_deref(), Some("/tmp/gewyc-out.json"));
+    }
+
+    #[test]
+    fn parse_cli_accepts_findings_command() {
+        let cli = parse_cli(
+            vec![
+                "gewyc".into(),
+                "findings".into(),
+                "dsl/udp_process_debug.gewy".into(),
+                "--json".into(),
+            ],
+            UiLocale::En,
+        )
+        .unwrap();
+        assert_eq!(cli.command, Command::Findings);
+        assert_eq!(cli.emit, EmitTarget::Findings);
+        assert_eq!(cli.output, OutputMode::Json);
+    }
+
+    #[test]
+    fn parse_cli_accepts_stages_command() {
+        let cli = parse_cli(
+            vec![
+                "gewyc".into(),
+                "stages".into(),
+                "dsl/udp_process_debug.gewy".into(),
+                "--json".into(),
+            ],
+            UiLocale::En,
+        )
+        .unwrap();
+        assert_eq!(cli.command, Command::Stages);
+        assert_eq!(cli.emit, EmitTarget::Stages);
+        assert_eq!(cli.output, OutputMode::Json);
     }
 
     #[test]

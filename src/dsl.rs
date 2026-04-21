@@ -14,6 +14,10 @@ use std::fs;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum DslError {
+    Located {
+        line: usize,
+        inner: Box<DslError>,
+    },
     InvalidLine(String),
     MissingField(&'static str),
     InvalidValue(String),
@@ -21,12 +25,22 @@ pub enum DslError {
     Io(String),
 }
 
-pub fn compile_file(path: &str) -> Result<TemplateBinding, DslError> {
-    let input = fs::read_to_string(path).map_err(|err| DslError::Io(err.to_string()))?;
-    compile_str(&input)
+pub fn read_file(path: &str) -> Result<String, DslError> {
+    fs::read_to_string(path).map_err(|err| DslError::Io(err.to_string()))
 }
 
-pub fn compile_str(input: &str) -> Result<TemplateBinding, DslError> {
+pub fn parse_file_unvalidated(path: &str) -> Result<TemplateBinding, DslError> {
+    let input = read_file(path)?;
+    parse_str_unvalidated(&input)
+}
+
+pub fn compile_file(path: &str) -> Result<TemplateBinding, DslError> {
+    let binding = parse_file_unvalidated(path)?;
+    validate_compiled_binding(&binding).map_err(DslError::Registry)?;
+    Ok(binding)
+}
+
+pub fn parse_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError> {
     let mut template_id = None;
     let mut window_profile = None;
     let mut inline_window_duration_ms = None;
@@ -41,41 +55,44 @@ pub fn compile_str(input: &str) -> Result<TemplateBinding, DslError> {
     let mut fragment_params = Vec::new();
     let mut evidence_overrides = Vec::new();
 
-    for raw_line in input.lines() {
+    for (line_no, raw_line) in input.lines().enumerate() {
+        let line_no = line_no + 1;
         let line = raw_line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
         let (key, value) = line
             .split_once('=')
-            .ok_or_else(|| DslError::InvalidLine(line.into()))?;
+            .ok_or_else(|| DslError::InvalidLine(line.into()).at_line(line_no))?;
         let key = key.trim();
         let value = value.trim();
 
         match key {
             "template" => template_id = Some(value.to_string()),
-            "window" => window_profile = Some(parse_window_profile(value)?),
+            "window" => window_profile = Some(parse_window_profile(value).map_err(|err| err.at_line(line_no))?),
             "window.duration_ms" => {
-                inline_window_duration_ms = Some(parse_u64(value, key)?);
+                inline_window_duration_ms = Some(parse_u64(value, key).map_err(|err| err.at_line(line_no))?);
             }
             "window.lateness_ms" => {
-                inline_window_lateness_ms = Some(parse_u64(value, key)?);
+                inline_window_lateness_ms = Some(parse_u64(value, key).map_err(|err| err.at_line(line_no))?);
             }
             "reason" => {
                 reason_profile = Some(
                     ReasonProfile::from_id(value)
-                        .ok_or_else(|| DslError::InvalidValue(format!("unknown reason profile '{value}'")))?,
+                        .ok_or_else(|| DslError::InvalidValue(format!("unknown reason profile '{value}'")).at_line(line_no))?,
                 )
             }
             "reason_model" => reason_model_id = Some(value.to_string()),
-            "reason.rule" => reason_rules.push(parse_reason_rule(value)?),
+            "reason.rule" => reason_rules.push(parse_reason_rule(value).map_err(|err| err.at_line(line_no))?),
             "fragment" => fragment_set.push(value.to_string()),
             "program_model" => program_model_id = Some(value.to_string()),
             "operation" => operation = Some(parse_operation(value)),
-            "rule" => rules.push(parse_rule(value)?),
-            "param" => fragment_params.push(parse_param_entry(value)?),
-            "evidence" => evidence_overrides.push(parse_evidence_override(value)?),
-            other => return Err(DslError::InvalidValue(format!("unknown DSL key '{other}'"))),
+            "rule" => rules.push(parse_rule(value).map_err(|err| err.at_line(line_no))?),
+            "param" => fragment_params.push(parse_param_entry(value).map_err(|err| err.at_line(line_no))?),
+            "evidence" => {
+                evidence_overrides.push(parse_evidence_override(value).map_err(|err| err.at_line(line_no))?)
+            }
+            other => return Err(DslError::InvalidValue(format!("unknown DSL key '{other}'")).at_line(line_no)),
         }
     }
 
@@ -117,10 +134,43 @@ pub fn compile_str(input: &str) -> Result<TemplateBinding, DslError> {
     for (fact_kind, tier) in evidence_overrides {
         binding = binding.with_evidence_tier(fact_kind, tier);
     }
-    builtin_registry()
-        .validate_binding(&binding)
-        .map_err(DslError::Registry)?;
     Ok(binding)
+}
+
+pub fn compile_str(input: &str) -> Result<TemplateBinding, DslError> {
+    let binding = parse_str_unvalidated(input)?;
+    validate_compiled_binding(&binding).map_err(DslError::Registry)?;
+    Ok(binding)
+}
+
+pub fn validate_compiled_binding(binding: &TemplateBinding) -> Result<(), RegistryError> {
+    builtin_registry().validate_binding(binding)
+}
+
+impl DslError {
+    pub fn at_line(self, line: usize) -> Self {
+        match self {
+            Self::Located { .. } => self,
+            other => Self::Located {
+                line,
+                inner: Box::new(other),
+            },
+        }
+    }
+
+    pub fn line(&self) -> Option<usize> {
+        match self {
+            Self::Located { line, .. } => Some(*line),
+            _ => None,
+        }
+    }
+
+    pub fn root(&self) -> &DslError {
+        match self {
+            Self::Located { inner, .. } => inner.root(),
+            other => other,
+        }
+    }
 }
 
 fn parse_window_profile(value: &str) -> Result<WindowProfile, DslError> {

@@ -39,6 +39,14 @@ The compiler-facing surface now also materializes owned reports for frontends:
 
 - `BindingReport`
 - `DiagnosticsReport`
+- `CompilerFindingsReport`
+
+The compiler pipeline is now exposed as distinct stages:
+
+- parse into an unvalidated `TemplateBinding`
+- validate the compiled binding against the fragment registry
+- materialize owned frontend reports from the validated result
+- surface parse/validation failures as structured compiler findings
 
 That binding currently carries:
 

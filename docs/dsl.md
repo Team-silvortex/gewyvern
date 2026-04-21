@@ -506,6 +506,20 @@ cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_proc
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --emit diagnostics --json --out /tmp/udp-process-diagnostics.json
 ```
 
+Inspect compiler findings through the dedicated compiler surface:
+
+```bash
+cargo run -p gewyc -- findings /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
+cargo run -p gewyc -- findings /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+```
+
+Inspect staged compiler output through the dedicated compiler surface:
+
+```bash
+cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
+cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+```
+
 Run a socket session from a DSL file:
 
 ```bash
