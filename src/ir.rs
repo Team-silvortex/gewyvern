@@ -131,21 +131,24 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
         },
         SignalKind::PacketObserved => match phase {
             "send_request" | "send_response" | "send_client_hello" | "send_ping"
-            | "send_query" => {
+            | "send_query" | "send_connect" => {
                 Some("emit_payload")
             }
-            "receive_request" | "receive_response" | "receive_pong" => Some("receive_payload"),
+            "receive_request" | "receive_response" | "receive_pong" | "receive_connack" => {
+                Some("receive_payload")
+            }
             _ => None,
         },
         SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {
             "send_request" | "send_initial" | "send_discover" | "send_initiation"
-            | "send_query" | "send_search" => {
+            | "send_query" | "send_search" | "send_access_request" => {
                 Some("emit_datagram")
             }
             "receive_reply"
             | "receive_handshake"
             | "receive_response"
-            | "receive_offer" => {
+            | "receive_offer"
+            | "receive_access_accept" => {
                 Some("receive_datagram")
             }
             _ => None,

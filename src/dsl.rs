@@ -593,6 +593,8 @@ fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslError> {
         "postgres" => Ok(5432),
         "mysql" => Ok(3306),
         "redis" => Ok(6379),
+        "mqtt" => Ok(1883),
+        "radius" => Ok(1812),
         other => other
             .parse::<u16>()
             .map_err(|_| DslError::InvalidValue(format!("unknown {predicate} port '{other}'"))),

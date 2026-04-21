@@ -95,7 +95,18 @@ pub struct RuleDiagnosticsReport {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CompilerStagesReport {
     pub parsed_binding: BindingReport,
+    pub validation: ValidationReport,
     pub diagnostics: DiagnosticsReport,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ValidationReport {
+    pub ok: bool,
+    pub registry: String,
+    pub fragment_count: usize,
+    pub program_rule_count: usize,
+    pub reason_rule_count: usize,
+    pub checks: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -152,6 +163,7 @@ pub fn compile_stages_report_file(path: &str) -> Result<CompilerStagesReport, Co
     let diagnostics = collect_binding_diagnostics(&binding).map_err(CompileStagesError::Diagnostics)?;
     Ok(CompilerStagesReport {
         parsed_binding,
+        validation: validation_report(&binding),
         diagnostics: diagnostics_report(&binding, &diagnostics),
     })
 }
@@ -572,16 +584,28 @@ fn findings_json(report: &CompilerFindingsReport) -> String {
 
 fn stages_text(report: &CompilerStagesReport) -> String {
     format!(
-        "stage=parse\n{}\nstage=diagnostics\n{}",
+        "stage=parse\n{}\nstage=validation\nok={}\nregistry={}\nfragments={}\nprogram_rules={}\nreason_rules={}\nchecks={}\nstage=diagnostics\n{}",
         binding_text(&report.parsed_binding),
+        report.validation.ok,
+        report.validation.registry,
+        report.validation.fragment_count,
+        report.validation.program_rule_count,
+        report.validation.reason_rule_count,
+        report.validation.checks.join(","),
         diagnostics_text(&report.diagnostics)
     )
 }
 
 fn stages_json(report: &CompilerStagesReport) -> String {
     format!(
-        "{{\"parse\":{},\"diagnostics\":{}}}",
+        "{{\"parse\":{},\"validation\":{{\"ok\":{},\"registry\":\"{}\",\"fragment_count\":{},\"program_rule_count\":{},\"reason_rule_count\":{},\"checks\":[{}]}},\"diagnostics\":{}}}",
         binding_json(&report.parsed_binding),
+        report.validation.ok,
+        report.validation.registry,
+        report.validation.fragment_count,
+        report.validation.program_rule_count,
+        report.validation.reason_rule_count,
+        string_json_list(&report.validation.checks),
         diagnostics_json(&report.diagnostics),
     )
 }
@@ -642,6 +666,29 @@ fn model_diagnostics_report(model: &ModelDiagnostics) -> ModelDiagnosticsReport 
                 missing_facts: rule.missing_facts.iter().map(|item| item.to_string()).collect(),
             })
             .collect(),
+    }
+}
+
+fn validation_report(binding: &TemplateBinding) -> ValidationReport {
+    let reason_rule_count = match binding.template.reason_profile.as_ref() {
+        Some(ReasonProfile::Declarative(model)) => model.rules.len(),
+        _ => 0,
+    };
+    ValidationReport {
+        ok: true,
+        registry: "builtin".into(),
+        fragment_count: binding.template.fragment_set.len(),
+        program_rule_count: binding
+            .template
+            .program_model
+            .as_ref()
+            .map_or(0, |model| model.rules.len()),
+        reason_rule_count,
+        checks: vec![
+            "binding_schema".into(),
+            "fragment_params".into(),
+            "rule_evidence".into(),
+        ],
     }
 }
 
@@ -862,6 +909,11 @@ mod tests {
         .unwrap();
         assert_eq!(report.parsed_binding.template_id, "udp_process_debug");
         assert_eq!(report.diagnostics.template_id, "udp_process_debug");
+        assert!(report.validation.ok);
+        assert_eq!(report.validation.registry, "builtin");
+        assert_eq!(report.validation.fragment_count, 3);
+        assert!(report.validation.program_rule_count > 0);
+        assert!(report.validation.checks.contains(&"rule_evidence".to_string()));
         assert!(report.parsed_binding.program_model.is_some());
         assert!(report.diagnostics.program_model.is_some());
     }
@@ -941,6 +993,9 @@ oops=true
         .unwrap();
         let json = render_stages_report(&report, RenderFormat::Json);
         assert!(json.contains("\"parse\":"));
+        assert!(json.contains("\"validation\":{\"ok\":true"));
+        assert!(json.contains("\"registry\":\"builtin\""));
+        assert!(json.contains("\"checks\":[\"binding_schema\",\"fragment_params\",\"rule_evidence\"]"));
         assert!(json.contains("\"diagnostics\":"));
         assert!(json.contains("\"template_id\":\"udp_process_debug\""));
     }

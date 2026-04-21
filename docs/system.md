@@ -48,6 +48,19 @@ The compiler pipeline is now exposed as distinct stages:
 - materialize owned frontend reports from the validated result
 - surface parse/validation failures as structured compiler findings
 
+The staged frontend report now exposes explicit sections for:
+
+- `parse`
+- `validation`
+- `diagnostics`
+
+The `validation` section currently summarizes:
+
+- registry source
+- fragment count
+- program/reason rule counts
+- executed validation checks
+
 That binding currently carries:
 
 - template identity
