@@ -25,7 +25,7 @@ The long-term direction is:
 - project version: `0.1.0`
 - stage: working prototype
 - transport support: TCP + UDP
-- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, RADIUS, DNS-over-TCP
+- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, RADIUS, SMTP, SNMP, DNS-over-TCP
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
 - replay: deterministic for exported sessions
@@ -59,6 +59,8 @@ The long-term direction is:
   - Redis RESP ping/pong exchanges
   - MQTT CONNECT/CONNACK exchanges
   - RADIUS Access-Request/Access-Accept exchanges
+  - SMTP connect/banner/EHLO exchanges
+  - SNMP GET/RESPONSE exchanges
   - DNS-over-TCP query/response exchanges
 - Export/replay JSON including:
   - attach plan
@@ -142,6 +144,8 @@ The repository now includes first-class DSL files that compile into
 - [dsl/redis_ping_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy)
 - [dsl/mqtt_connect_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy)
 - [dsl/radius_access_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy)
+- [dsl/smtp_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy)
+- [dsl/snmp_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy)
 - [dsl/dns_tcp_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy)
 
 These DSL files already cover the current built-in protocol/debugging shapes and
@@ -154,9 +158,10 @@ can express:
 - fragment parameter bindings
 - template-local evidence tier overrides
 - datagram predicates over direction, local/remote ports, minimum payload
-  length, masked first-byte checks, and fixed two-byte/four-byte prefixes
+  length, masked first-byte checks, fixed two-byte/four-byte prefixes, and
+  masked byte-13 checks
 - packet predicates over direction, local/remote ports, masked first-byte checks,
-  fixed four-byte prefixes, and masked byte-4 checks
+  fixed four-byte prefixes, masked byte-4 checks, and masked byte-13 checks
 
 The shared datagram predicate surface is what the current UDP-family protocol
 DSLs build on. In practice, the engine is already using the same IR layer to
@@ -175,6 +180,8 @@ differentiate:
 - Redis RESP ping/pong pairs
 - MQTT CONNECT/CONNACK pairs
 - RADIUS Access-Request/Access-Accept pairs
+- SMTP connect/banner/EHLO sequences
+- SNMP GET/RESPONSE pairs
 - DNS-over-TCP query/response pairs
 
 ## Development
@@ -232,6 +239,8 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gew
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json --summary-only
 ```
 

@@ -15,6 +15,7 @@ use support::{
     udp_packet_fact_with_dir_and_ports,
     udp_packet_fact_with_dir_and_ports_and_payload,
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4,
+    udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13,
 };
 use std::time::{Duration, SystemTime};
 
@@ -265,6 +266,8 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
             prefix4: None,
             byte4_mask: None,
             byte4_value: None,
+            byte13_mask: None,
+            byte13_value: None,
         }
     );
     assert_eq!(datagram_rule.predicate, legacy_datagram_rule.predicate);
@@ -280,6 +283,8 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
             first_byte_value: None,
             prefix2: None,
             prefix4: None,
+            byte13_mask: None,
+            byte13_value: None,
         }
     );
 }
@@ -314,6 +319,8 @@ rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_
             prefix4: None,
             byte4_mask: None,
             byte4_value: None,
+            byte13_mask: None,
+            byte13_value: None,
         }
     );
     assert_eq!(
@@ -328,6 +335,8 @@ rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_
             prefix4: Some(0x2b504f4e),
             byte4_mask: None,
             byte4_value: None,
+            byte13_mask: None,
+            byte13_value: None,
         }
     );
 }
@@ -360,6 +369,8 @@ rule=packet_observed:tcp:remote:53:remote_to_local:byte4_mask:0x80:0x80;packet_o
             prefix4: None,
             byte4_mask: Some(0x80),
             byte4_value: Some(0x80),
+            byte13_mask: None,
+            byte13_value: None,
         }
     );
 }
@@ -406,6 +417,8 @@ rule=datagram_observed:udp:dport:443:local_to_remote;datagram_observed;udp_datag
             first_byte_value: None,
             prefix2: None,
             prefix4: None,
+            byte13_mask: None,
+            byte13_value: None,
         }
     );
 }
@@ -438,6 +451,8 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200;datagram_obs
             first_byte_value: None,
             prefix2: None,
             prefix4: None,
+            byte13_mask: None,
+            byte13_value: None,
         }
     );
 }
@@ -470,6 +485,8 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0
             first_byte_value: Some(0xc0),
             prefix2: None,
             prefix4: None,
+            byte13_mask: None,
+            byte13_value: None,
         }
     );
 }
@@ -502,8 +519,37 @@ rule=datagram_observed:udp:remote:mdns:remote_to_local:prefix4:0x00008400;datagr
             first_byte_value: None,
             prefix2: None,
             prefix4: Some(0x00008400),
+            byte13_mask: None,
+            byte13_value: None,
         }
     );
+}
+
+#[test]
+fn dsl_accepts_datagram_byte13_mask_qualifier() {
+    let binding = compile_str(
+        r#"
+template=snmp_byte13_match
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+program_model=snmp_byte13_match_model
+operation=snmp_get
+rule=datagram_observed:udp:remote:snmp:byte13_mask:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+"#,
+    )
+    .unwrap();
+
+    let rule = &binding.template.program_model.as_ref().unwrap().rules[0];
+    assert!(matches!(
+        &rule.predicate,
+        gewyvern::ir::FlowPredicate::DatagramObserved {
+            remote_port: Some(161),
+            byte13_mask: Some(0xff),
+            byte13_value: Some(0xa0),
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -696,6 +742,38 @@ fn built_in_radius_access_path_dsl_compiles_into_template_binding() {
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("radius_access".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_smtp_session_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "smtp_session_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("smtp_session".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_snmp_get_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "snmp_get_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("snmp_get".into())
     );
     assert!(matches!(
         binding.template.reason_profile.as_ref().unwrap(),
@@ -2163,6 +2241,205 @@ fn radius_access_path_does_not_match_wrong_response_code() {
 }
 
 #[test]
+fn smtp_session_path_materializes_connect_banner_and_ehlo_phases() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 827, 53010, "postfix-client"));
+    session.ingest(route_fact(2, 827, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 827, 1, 2, 53010, 25));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        827,
+        0x18,
+        PacketDir::Ingress,
+        Some(53010),
+        Some(25),
+        Some(0x32),
+        Some(0x3232),
+        Some(0x32323020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        827,
+        0x18,
+        PacketDir::Egress,
+        Some(53010),
+        Some(25),
+        Some(0x45),
+        Some(0x4548),
+        Some(0x45484c4f),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("smtp_session".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("connect")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_banner")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_ehlo")));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn smtp_session_path_does_not_match_wrong_banner_prefix() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 828, 53010, "postfix-client"));
+    session.ingest(route_fact(2, 828, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 828, 1, 2, 53010, 25));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        828,
+        0x18,
+        PacketDir::Ingress,
+        Some(53010),
+        Some(25),
+        Some(0x35),
+        Some(0x3535),
+        Some(0x35353020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        828,
+        0x18,
+        PacketDir::Egress,
+        Some(53010),
+        Some(25),
+        Some(0x45),
+        Some(0x4548),
+        Some(0x45484c4f),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("receive_banner")));
+}
+
+#[test]
+fn snmp_get_path_materializes_request_and_response_datagrams() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 829, 54000, "snmpwalk"));
+    session.ingest(route_fact(2, 829, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
+        3,
+        829,
+        96,
+        PacketDir::Egress,
+        Some(54000),
+        Some(161),
+        Some(0x30),
+        Some(0x3026),
+        Some(0x30260201),
+        Some(0xa0),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
+        4,
+        829,
+        104,
+        PacketDir::Ingress,
+        Some(54000),
+        Some(161),
+        Some(0x30),
+        Some(0x3028),
+        Some(0x30280201),
+        Some(0xa2),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("snmp_get".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_get_request")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_get_response")));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_datagram".to_string()));
+    assert!(phase_kinds.contains(&"receive_datagram".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn snmp_get_path_does_not_match_wrong_response_pdu_type() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 830, 54000, "snmpwalk"));
+    session.ingest(route_fact(2, 830, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
+        3,
+        830,
+        96,
+        PacketDir::Egress,
+        Some(54000),
+        Some(161),
+        Some(0x30),
+        Some(0x3026),
+        Some(0x30260201),
+        Some(0xa0),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
+        4,
+        830,
+        104,
+        PacketDir::Ingress,
+        Some(54000),
+        Some(161),
+        Some(0x30),
+        Some(0x3028),
+        Some(0x30280201),
+        Some(0xa1),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("receive_get_response")));
+}
+
+#[test]
 fn mqtt_connect_path_does_not_match_wrong_connack_prefix() {
     let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy")
         .unwrap();
@@ -2879,6 +3156,8 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0
             first_byte_value: Some(0xc0),
             prefix2: Some(0xc300),
             prefix4: None,
+            byte13_mask: None,
+            byte13_value: None,
         }
     );
 }

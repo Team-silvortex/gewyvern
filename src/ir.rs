@@ -19,6 +19,8 @@ pub enum FlowPredicate {
         prefix4: Option<u32>,
         byte4_mask: Option<u8>,
         byte4_value: Option<u8>,
+        byte13_mask: Option<u8>,
+        byte13_value: Option<u8>,
     },
     DatagramObserved {
         l4_proto: u8,
@@ -30,6 +32,8 @@ pub enum FlowPredicate {
         first_byte_value: Option<u8>,
         prefix2: Option<u16>,
         prefix4: Option<u32>,
+        byte13_mask: Option<u8>,
+        byte13_value: Option<u8>,
     },
     RouteResolved,
     All(Vec<FlowPredicate>),
@@ -131,24 +135,26 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
         },
         SignalKind::PacketObserved => match phase {
             "send_request" | "send_response" | "send_client_hello" | "send_ping"
-            | "send_query" | "send_connect" => {
+            | "send_query" | "send_connect" | "send_ehlo" => {
                 Some("emit_payload")
             }
-            "receive_request" | "receive_response" | "receive_pong" | "receive_connack" => {
+            "receive_request" | "receive_response" | "receive_pong" | "receive_connack"
+            | "receive_banner" => {
                 Some("receive_payload")
             }
             _ => None,
         },
         SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {
             "send_request" | "send_initial" | "send_discover" | "send_initiation"
-            | "send_query" | "send_search" | "send_access_request" => {
+            | "send_query" | "send_search" | "send_access_request" | "send_get_request" => {
                 Some("emit_datagram")
             }
             "receive_reply"
             | "receive_handshake"
             | "receive_response"
             | "receive_offer"
-            | "receive_access_accept" => {
+            | "receive_access_accept"
+            | "receive_get_response" => {
                 Some("receive_datagram")
             }
             _ => None,
@@ -198,6 +204,8 @@ pub fn matches_flow_predicate(
             prefix4,
             byte4_mask,
             byte4_value,
+            byte13_mask,
+            byte13_value,
         } => {
             if !flow.evidence.packet_facts.contains(&fact.id) {
                 return false;
@@ -228,6 +236,12 @@ pub fn matches_flow_predicate(
                                 .is_some_and(|byte| byte & *mask == *value),
                             _ => true,
                         }
+                        && match (byte13_mask, byte13_value) {
+                            (Some(mask), Some(value)) => packet
+                                .payload_byte13
+                                .is_some_and(|byte| byte & *mask == *value),
+                            _ => true,
+                        }
             )
         }
         FlowPredicate::DatagramObserved {
@@ -240,6 +254,8 @@ pub fn matches_flow_predicate(
             first_byte_value,
             prefix2,
             prefix4,
+            byte13_mask,
+            byte13_value,
         } => {
             if !flow.evidence.packet_facts.contains(&fact.id) {
                 return false;
@@ -270,6 +286,12 @@ pub fn matches_flow_predicate(
                         && prefix4
                             .as_ref()
                             .is_none_or(|expected| packet.payload_prefix4 == Some(*expected))
+                        && match (byte13_mask, byte13_value) {
+                            (Some(mask), Some(value)) => packet
+                                .payload_byte13
+                                .is_some_and(|byte| byte & *mask == *value),
+                            _ => true,
+                        }
             )
         }
         FlowPredicate::RouteResolved => flow.evidence.route_facts.contains(&fact.id),

@@ -332,18 +332,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 "remote" | "dport" => (false, true, parts.next().unwrap_or_default()),
                 _ => (false, true, first),
             };
-            let port = match port {
-                "https" => 443,
-                "http" => 80,
-                "postgres" => 5432,
-                "mysql" => 3306,
-                "redis" => 6379,
-                other => other.parse::<u16>().map_err(|_| {
-                    DslError::InvalidValue(format!(
-                        "unknown socket_state_observed port '{other}'"
-                    ))
-                })?,
-            };
+            let port = parse_named_port(port, "socket_state_observed")?;
             let min_new_state = match parts.next() {
                 None => None,
                 Some("established") => Some(3),
@@ -384,6 +373,8 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut first_byte_value = None;
             let mut prefix2 = None;
             let mut prefix4 = None;
+            let mut byte13_mask = None;
+            let mut byte13_value = None;
             while let Some(part) = parts.next() {
                 match part {
                     "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
@@ -448,6 +439,22 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                             "prefix4",
                         )?);
                     }
+                    "byte13_mask" => {
+                        let mask = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing datagram byte13_mask mask qualifier".into(),
+                            )
+                        })?;
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing datagram byte13_mask value qualifier".into(),
+                            )
+                        })?;
+                        byte13_mask =
+                            Some(parse_u8_literal(mask, "datagram_observed", "byte13_mask")?);
+                        byte13_value =
+                            Some(parse_u8_literal(value, "datagram_observed", "byte13_value")?);
+                    }
                     other => {
                         return Err(DslError::InvalidValue(format!(
                             "unknown datagram predicate suffix '{other}'"
@@ -465,6 +472,8 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 first_byte_value,
                 prefix2,
                 prefix4,
+                byte13_mask,
+                byte13_value,
             })
         }
         other if other.starts_with("packet_observed:") => {
@@ -486,6 +495,8 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut prefix4 = None;
             let mut byte4_mask = None;
             let mut byte4_value = None;
+            let mut byte13_mask = None;
+            let mut byte13_value = None;
             while let Some(part) = parts.next() {
                 match part {
                     "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
@@ -540,6 +551,22 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         byte4_value =
                             Some(parse_u8_literal(value, "packet_observed", "byte4_value")?);
                     }
+                    "byte13_mask" => {
+                        let mask = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing packet byte13_mask mask qualifier".into(),
+                            )
+                        })?;
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing packet byte13_mask value qualifier".into(),
+                            )
+                        })?;
+                        byte13_mask =
+                            Some(parse_u8_literal(mask, "packet_observed", "byte13_mask")?);
+                        byte13_value =
+                            Some(parse_u8_literal(value, "packet_observed", "byte13_value")?);
+                    }
                     other => {
                         return Err(DslError::InvalidValue(format!(
                             "unexpected packet predicate suffix '{other}'"
@@ -557,6 +584,8 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 prefix4,
                 byte4_mask,
                 byte4_value,
+                byte13_mask,
+                byte13_value,
             })
         }
         other => Err(DslError::InvalidValue(format!("unknown predicate '{other}'"))),
@@ -595,6 +624,8 @@ fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslError> {
         "redis" => Ok(6379),
         "mqtt" => Ok(1883),
         "radius" => Ok(1812),
+        "smtp" => Ok(25),
+        "snmp" => Ok(161),
         other => other
             .parse::<u16>()
             .map_err(|_| DslError::InvalidValue(format!("unknown {predicate} port '{other}'"))),

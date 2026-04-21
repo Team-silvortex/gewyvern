@@ -44,6 +44,8 @@ Examples in this repository:
 - [dsl/redis_ping_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy)
 - [dsl/mqtt_connect_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy)
 - [dsl/radius_access_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy)
+- [dsl/smtp_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy)
+- [dsl/snmp_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy)
 - [dsl/dns_tcp_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy)
 
 ## Current Shape
@@ -248,6 +250,7 @@ protocol and direction:
 - `byte0_mask:<u8>:<u8>`
 - `prefix2:<u16>`
 - `prefix4:<u32>`
+- `byte13_mask:<u8>:<u8>`
 
 These qualifiers can be combined in suffix order. Example:
 
@@ -274,6 +277,10 @@ Named ports currently include:
 - `postgres`
 - `mysql`
 - `redis`
+- `mqtt`
+- `radius`
+- `smtp`
+- `snmp`
 
 `socket_state_observed` also supports an optional destination-port suffix:
 

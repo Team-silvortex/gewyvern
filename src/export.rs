@@ -1179,6 +1179,10 @@ fn fact_json(fact: &FactEnvelope) -> JsonValue {
                 "payload_byte4".into(),
                 value.payload_byte4.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
+            (
+                "payload_byte13".into(),
+                value.payload_byte13.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+            ),
             ("l3_proto".into(), JsonValue::Number(value.l3_proto as i64)),
             ("l4_proto".into(), JsonValue::Number(value.l4_proto as i64)),
             ("tot_len".into(), JsonValue::Number(value.tot_len as i64)),
@@ -1878,6 +1882,8 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             prefix4,
             byte4_mask,
             byte4_value,
+            byte13_mask,
+            byte13_value,
         } => {
             let mut object = BTreeMap::from([
                 ("kind".into(), JsonValue::String("packet_observed".into())),
@@ -1913,6 +1919,12 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             if let Some(byte4_value) = byte4_value {
                 object.insert("byte4_value".into(), JsonValue::Number(*byte4_value as i64));
             }
+            if let Some(byte13_mask) = byte13_mask {
+                object.insert("byte13_mask".into(), JsonValue::Number(*byte13_mask as i64));
+            }
+            if let Some(byte13_value) = byte13_value {
+                object.insert("byte13_value".into(), JsonValue::Number(*byte13_value as i64));
+            }
             JsonValue::Object(object)
         }
         ReasonPredicate::DatagramObserved {
@@ -1925,6 +1937,8 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             first_byte_value,
             prefix2,
             prefix4,
+            byte13_mask,
+            byte13_value,
         } => {
             let mut object = BTreeMap::from([
                 ("kind".into(), JsonValue::String("datagram_observed".into())),
@@ -1959,6 +1973,12 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             }
             if let Some(prefix4) = prefix4 {
                 object.insert("prefix4".into(), JsonValue::Number(*prefix4 as i64));
+            }
+            if let Some(byte13_mask) = byte13_mask {
+                object.insert("byte13_mask".into(), JsonValue::Number(*byte13_mask as i64));
+            }
+            if let Some(byte13_value) = byte13_value {
+                object.insert("byte13_value".into(), JsonValue::Number(*byte13_value as i64));
             }
             JsonValue::Object(object)
         }
@@ -2168,6 +2188,14 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                     JsonValue::Null => None,
                     value => Some(value.as_i64()? as u8),
                 },
+                byte13_mask: match object.get("byte13_mask").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u8),
+                },
+                byte13_value: match object.get("byte13_value").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u8),
+                },
             }),
             "datagram_observed" => Ok(ReasonPredicate::DatagramObserved {
                 l4_proto: object
@@ -2219,6 +2247,14 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                 prefix4: match object.get("prefix4").unwrap_or(&JsonValue::Null) {
                     JsonValue::Null => None,
                     value => Some(value.as_i64()? as u32),
+                },
+                byte13_mask: match object.get("byte13_mask").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u8),
+                },
+                byte13_value: match object.get("byte13_value").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u8),
                 },
             }),
             "all" => Ok(ReasonPredicate::All(
@@ -2798,6 +2834,10 @@ fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError> {
                 value => Some(value.as_i64()? as u32),
             },
             payload_byte4: match kind.get("payload_byte4").unwrap_or(&JsonValue::Null) {
+                JsonValue::Null => None,
+                value => Some(value.as_i64()? as u8),
+            },
+            payload_byte13: match kind.get("payload_byte13").unwrap_or(&JsonValue::Null) {
                 JsonValue::Null => None,
                 value => Some(value.as_i64()? as u8),
             },
