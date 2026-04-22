@@ -211,6 +211,11 @@ Main commands:
 - `required_payload_offsets`: offsets referenced by the binding's offset-based DSL predicates
 - `unsupported_payload_offsets`: required offsets that current fragments do not sample
 
+Unlike `binding` or `diagnostics`, `stages` now keeps partial compiler output on
+parse and validation failures, so stage-local findings are still available when
+a `.gewy` does not fully compile. Only outer file I/O failures still surface as
+a top-level command error.
+
 Current test layers:
 
 - [tests/runtime_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/runtime_tdd.rs)

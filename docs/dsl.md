@@ -550,6 +550,11 @@ coverage for the selected fragment set:
 - `required_payload_offsets`
 - `unsupported_payload_offsets`
 
+If parse or validation fails, `stages` still records that failure as a
+stage-local finding, so frontends can inspect partial compiler state without
+falling back to an unstructured error string. Only outer file read failures stay
+outside the staged report surface.
+
 Run a socket session from a DSL file:
 
 ```bash

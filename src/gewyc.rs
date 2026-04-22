@@ -1,5 +1,5 @@
 use crate::dsl::{
-    DslError, compile_file, parse_file_unvalidated, parse_str_unvalidated, validate_compiled_binding,
+    DslError, compile_file, parse_str_unvalidated, validate_compiled_binding,
 };
 use crate::flow::ProgramOperation;
 use crate::fragment::{
@@ -98,9 +98,24 @@ pub struct RuleDiagnosticsReport {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CompilerStagesReport {
-    pub parsed_binding: BindingReport,
+    pub parse: ParseStageReport,
     pub validation: ValidationReport,
-    pub diagnostics: DiagnosticsReport,
+    pub diagnostics: DiagnosticsStageReport,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompilerEnvelope {
+    pub binding: Option<BindingReport>,
+    pub diagnostics: Option<DiagnosticsReport>,
+    pub findings: CompilerFindingsReport,
+    pub stages: CompilerStagesReport,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ParseStageReport {
+    pub ok: bool,
+    pub report: Option<BindingReport>,
+    pub finding: Option<CompilerFinding>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -114,6 +129,14 @@ pub struct ValidationReport {
     pub sampled_payload_offsets: Vec<u16>,
     pub required_payload_offsets: Vec<u16>,
     pub unsupported_payload_offsets: Vec<u16>,
+    pub finding: Option<CompilerFinding>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DiagnosticsStageReport {
+    pub ok: bool,
+    pub report: Option<DiagnosticsReport>,
+    pub finding: Option<CompilerFinding>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -148,7 +171,11 @@ pub fn compile_binding_file(path: &str) -> Result<TemplateBinding, DslError> {
 }
 
 pub fn compile_binding_report_file(path: &str) -> Result<BindingReport, DslError> {
-    compile_binding_file(path).map(|binding| binding_report(&binding))
+    compile_envelope_file(path).and_then(|envelope| {
+        envelope
+            .binding
+            .ok_or_else(|| DslError::InvalidValue("binding report unavailable".into()))
+    })
 }
 
 pub fn collect_binding_diagnostics(
@@ -158,21 +185,27 @@ pub fn collect_binding_diagnostics(
 }
 
 pub fn compile_diagnostics_report_file(path: &str) -> Result<DiagnosticsReport, CompileDiagnosticsError> {
-    let binding = compile_binding_file(path)?;
-    let diagnostics = collect_binding_diagnostics(&binding)?;
-    Ok(diagnostics_report(&binding, &diagnostics))
+    let envelope = compile_envelope_file(path)?;
+    envelope
+        .diagnostics
+        .ok_or_else(|| {
+            let finding = envelope
+                .findings
+                .findings
+                .first()
+                .map(|finding| finding.message.clone())
+                .unwrap_or_else(|| "diagnostics report unavailable".into());
+            CompileDiagnosticsError::Dsl(DslError::InvalidValue(finding))
+        })
 }
 
 pub fn compile_stages_report_file(path: &str) -> Result<CompilerStagesReport, CompileStagesError> {
-    let binding = parse_file_unvalidated(path)?;
-    let parsed_binding = binding_report(&binding);
-    validate_compiled_binding(&binding).map_err(CompileStagesError::Validation)?;
-    let diagnostics = collect_binding_diagnostics(&binding).map_err(CompileStagesError::Diagnostics)?;
-    Ok(CompilerStagesReport {
-        parsed_binding,
-        validation: validation_report(&binding, &diagnostics),
-        diagnostics: diagnostics_report(&binding, &diagnostics),
-    })
+    let envelope = compile_envelope_file(path)?;
+    Ok(envelope.stages)
+}
+
+pub fn compile_stages_report_str(input: &str) -> CompilerStagesReport {
+    compile_envelope_str(input).stages
 }
 
 pub fn compile_findings_report_file(path: &str) -> CompilerFindingsReport {
@@ -186,28 +219,69 @@ pub fn compile_findings_report_file(path: &str) -> CompilerFindingsReport {
 }
 
 pub fn compile_findings_report_str(input: &str) -> CompilerFindingsReport {
-    let binding = match parse_str_unvalidated(input) {
-        Ok(binding) => binding,
-        Err(err) => {
-            return CompilerFindingsReport {
-                findings: vec![finding_from_dsl_error(&err)],
+    compile_envelope_str(input).findings
+}
+
+pub fn compile_envelope_file(path: &str) -> Result<CompilerEnvelope, DslError> {
+    let input = crate::dsl::read_file(path)?;
+    Ok(compile_envelope_str(&input))
+}
+
+pub fn compile_envelope_str(input: &str) -> CompilerEnvelope {
+    match parse_str_unvalidated(input) {
+        Ok(binding) => {
+            let binding_report = binding_report(&binding);
+            let diagnostics_result = collect_binding_diagnostics(&binding);
+            let validation_result = validate_compiled_binding(&binding);
+            let validation = validation_report(
+                &binding,
+                diagnostics_result.as_ref().ok(),
+                validation_result.err().as_ref(),
+            );
+            let diagnostics_stage = diagnostics_stage_report(&binding, diagnostics_result);
+            let diagnostics = diagnostics_stage.report.clone();
+            let parse = ParseStageReport {
+                ok: true,
+                report: Some(binding_report.clone()),
+                finding: None,
+            };
+            let findings = findings_from_stage_reports(&parse, &validation, &diagnostics_stage);
+            let stages = CompilerStagesReport {
+                parse,
+                validation,
+                diagnostics: diagnostics_stage,
+            };
+            CompilerEnvelope {
+                binding: Some(binding_report),
+                diagnostics,
+                findings,
+                stages,
             }
         }
-    };
-
-    if let Err(err) = validate_compiled_binding(&binding) {
-        return CompilerFindingsReport {
-            findings: vec![finding_from_registry_error(CompilerFindingStage::Validation, &err)],
-        };
+        Err(err) => {
+            let parse = ParseStageReport {
+                ok: false,
+                report: None,
+                finding: Some(finding_from_dsl_error(&err)),
+            };
+            let validation = empty_validation_report();
+            let diagnostics = DiagnosticsStageReport {
+                ok: false,
+                report: None,
+                finding: None,
+            };
+            CompilerEnvelope {
+                binding: None,
+                diagnostics: None,
+                findings: findings_from_stage_reports(&parse, &validation, &diagnostics),
+                stages: CompilerStagesReport {
+                    parse,
+                    validation,
+                    diagnostics,
+                },
+            }
+        }
     }
-
-    if let Err(err) = collect_binding_diagnostics(&binding) {
-        return CompilerFindingsReport {
-            findings: vec![finding_from_registry_error(CompilerFindingStage::Diagnostics, &err)],
-        };
-    }
-
-    CompilerFindingsReport { findings: Vec::new() }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -225,8 +299,6 @@ impl From<DslError> for CompileDiagnosticsError {
 #[derive(Debug, Eq, PartialEq)]
 pub enum CompileStagesError {
     Dsl(DslError),
-    Validation(RegistryError),
-    Diagnostics(RegistryError),
 }
 
 impl From<DslError> for CompileStagesError {
@@ -542,23 +614,8 @@ fn findings_text(report: &CompilerFindingsReport) -> String {
     report
         .findings
         .iter()
-        .map(|finding| match finding.line {
-            Some(line) => format!(
-                "finding stage={} severity={} code={} line={} message={}",
-                finding_stage_text(finding.stage),
-                finding_severity_text(finding.severity),
-                finding.code,
-                line,
-                finding.message
-            ),
-            None => format!(
-                "finding stage={} severity={} code={} message={}",
-                finding_stage_text(finding.stage),
-                finding_severity_text(finding.severity),
-                finding.code,
-                finding.message
-            ),
-        })
+        .map(finding_text_record)
+        .map(|finding| format!("finding {finding}"))
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -569,23 +626,7 @@ fn findings_json(report: &CompilerFindingsReport) -> String {
         report
             .findings
             .iter()
-            .map(|finding| match finding.line {
-                Some(line) => format!(
-                    "{{\"stage\":\"{}\",\"severity\":\"{}\",\"code\":\"{}\",\"line\":{},\"message\":\"{}\"}}",
-                    finding_stage_text(finding.stage),
-                    finding_severity_text(finding.severity),
-                    finding.code,
-                    line,
-                    json_escape(&finding.message),
-                ),
-                None => format!(
-                    "{{\"stage\":\"{}\",\"severity\":\"{}\",\"code\":\"{}\",\"line\":null,\"message\":\"{}\"}}",
-                    finding_stage_text(finding.stage),
-                    finding_severity_text(finding.severity),
-                    finding.code,
-                    json_escape(&finding.message),
-                ),
-            })
+            .map(finding_json_record)
             .collect::<Vec<_>>()
             .join(",")
     )
@@ -593,8 +634,14 @@ fn findings_json(report: &CompilerFindingsReport) -> String {
 
 fn stages_text(report: &CompilerStagesReport) -> String {
     format!(
-        "stage=parse\n{}\nstage=validation\nok={}\nregistry={}\nfragments={}\nprogram_rules={}\nreason_rules={}\nchecks={}\nsampled_payload_offsets={:?}\nrequired_payload_offsets={:?}\nunsupported_payload_offsets={:?}\nstage=diagnostics\n{}",
-        binding_text(&report.parsed_binding),
+        "stage=parse\nok={}\nparse_finding={}\n{}\nstage=validation\nok={}\nregistry={}\nfragments={}\nprogram_rules={}\nreason_rules={}\nchecks={}\nsampled_payload_offsets={:?}\nrequired_payload_offsets={:?}\nunsupported_payload_offsets={:?}\nvalidation_finding={}\nstage=diagnostics\nok={}\ndiagnostics_finding={}\n{}",
+        report.parse.ok,
+        finding_text(report.parse.finding.as_ref()),
+        report
+            .parse
+            .report
+            .as_ref()
+            .map_or_else(String::new, binding_text),
         report.validation.ok,
         report.validation.registry,
         report.validation.fragment_count,
@@ -604,14 +651,27 @@ fn stages_text(report: &CompilerStagesReport) -> String {
         report.validation.sampled_payload_offsets,
         report.validation.required_payload_offsets,
         report.validation.unsupported_payload_offsets,
-        diagnostics_text(&report.diagnostics)
+        finding_text(report.validation.finding.as_ref()),
+        report.diagnostics.ok,
+        finding_text(report.diagnostics.finding.as_ref()),
+        report
+            .diagnostics
+            .report
+            .as_ref()
+            .map_or_else(String::new, diagnostics_text)
     )
 }
 
 fn stages_json(report: &CompilerStagesReport) -> String {
     format!(
-        "{{\"parse\":{},\"validation\":{{\"ok\":{},\"registry\":\"{}\",\"fragment_count\":{},\"program_rule_count\":{},\"reason_rule_count\":{},\"checks\":[{}],\"sampled_payload_offsets\":[{}],\"required_payload_offsets\":[{}],\"unsupported_payload_offsets\":[{}]}},\"diagnostics\":{}}}",
-        binding_json(&report.parsed_binding),
+        "{{\"parse\":{{\"ok\":{},\"finding\":{},\"report\":{}}},\"validation\":{{\"ok\":{},\"registry\":\"{}\",\"fragment_count\":{},\"program_rule_count\":{},\"reason_rule_count\":{},\"checks\":[{}],\"sampled_payload_offsets\":[{}],\"required_payload_offsets\":[{}],\"unsupported_payload_offsets\":[{}],\"finding\":{}}},\"diagnostics\":{{\"ok\":{},\"finding\":{},\"report\":{}}}}}",
+        report.parse.ok,
+        finding_json(report.parse.finding.as_ref()),
+        report
+            .parse
+            .report
+            .as_ref()
+            .map_or_else(|| "null".to_string(), binding_json),
         report.validation.ok,
         report.validation.registry,
         report.validation.fragment_count,
@@ -621,7 +681,14 @@ fn stages_json(report: &CompilerStagesReport) -> String {
         u16_json_list(&report.validation.sampled_payload_offsets),
         u16_json_list(&report.validation.required_payload_offsets),
         u16_json_list(&report.validation.unsupported_payload_offsets),
-        diagnostics_json(&report.diagnostics),
+        finding_json(report.validation.finding.as_ref()),
+        report.diagnostics.ok,
+        finding_json(report.diagnostics.finding.as_ref()),
+        report
+            .diagnostics
+            .report
+            .as_ref()
+            .map_or_else(|| "null".to_string(), diagnostics_json),
     )
 }
 
@@ -668,6 +735,60 @@ fn u16_json_list(items: &[u16]) -> String {
         .join(",")
 }
 
+fn finding_text(finding: Option<&CompilerFinding>) -> String {
+    match finding {
+        Some(finding) => finding_text_record(finding),
+        None => "none".into(),
+    }
+}
+
+fn finding_json(finding: Option<&CompilerFinding>) -> String {
+    match finding {
+        Some(finding) => finding_json_record(finding),
+        None => "null".into(),
+    }
+}
+
+fn finding_text_record(finding: &CompilerFinding) -> String {
+    match finding.line {
+        Some(line) => format!(
+            "stage={} severity={} code={} line={} message={}",
+            finding_stage_text(finding.stage),
+            finding_severity_text(finding.severity),
+            finding.code,
+            line,
+            finding.message
+        ),
+        None => format!(
+            "stage={} severity={} code={} message={}",
+            finding_stage_text(finding.stage),
+            finding_severity_text(finding.severity),
+            finding.code,
+            finding.message
+        ),
+    }
+}
+
+fn finding_json_record(finding: &CompilerFinding) -> String {
+    match finding.line {
+        Some(line) => format!(
+            "{{\"stage\":\"{}\",\"severity\":\"{}\",\"code\":\"{}\",\"line\":{},\"message\":\"{}\"}}",
+            finding_stage_text(finding.stage),
+            finding_severity_text(finding.severity),
+            finding.code,
+            line,
+            json_escape(&finding.message),
+        ),
+        None => format!(
+            "{{\"stage\":\"{}\",\"severity\":\"{}\",\"code\":\"{}\",\"line\":null,\"message\":\"{}\"}}",
+            finding_stage_text(finding.stage),
+            finding_severity_text(finding.severity),
+            finding.code,
+            json_escape(&finding.message),
+        ),
+    }
+}
+
 fn reason_profile_report(profile: &ReasonProfile) -> ReasonProfileReport {
     match profile {
         ReasonProfile::HandshakeL1 | ReasonProfile::UdpDatagramL1 => ReasonProfileReport::Builtin {
@@ -699,7 +820,11 @@ fn model_diagnostics_report(model: &ModelDiagnostics) -> ModelDiagnosticsReport 
     }
 }
 
-fn validation_report(binding: &TemplateBinding, diagnostics: &BindingDiagnostics) -> ValidationReport {
+fn validation_report(
+    binding: &TemplateBinding,
+    diagnostics: Option<&BindingDiagnostics>,
+    validation_error: Option<&RegistryError>,
+) -> ValidationReport {
     let reason_rule_count = match binding.template.reason_profile.as_ref() {
         Some(ReasonProfile::Declarative(model)) => model.rules.len(),
         _ => 0,
@@ -708,9 +833,25 @@ fn validation_report(binding: &TemplateBinding, diagnostics: &BindingDiagnostics
         sampled_offsets: sampled_payload_offsets,
         required_offsets: required_payload_offsets,
         unsupported_offsets: unsupported_payload_offsets,
-    } = builtin_registry().payload_offset_support_summary(binding, diagnostics);
+    } = match diagnostics {
+        Some(diagnostics) => builtin_registry().payload_offset_support_summary(binding, diagnostics),
+        None => {
+            let registry = builtin_registry();
+            PayloadOffsetSupportSummary {
+                sampled_offsets: binding
+                    .template
+                    .fragment_set
+                    .iter()
+                    .filter_map(|fragment_id| registry.descriptor(fragment_id))
+                    .flat_map(|descriptor| descriptor.sampled_payload_offsets.iter().copied())
+                    .collect(),
+                required_offsets: Vec::new(),
+                unsupported_offsets: Vec::new(),
+            }
+        }
+    };
     ValidationReport {
-        ok: true,
+        ok: validation_error.is_none(),
         registry: "builtin".into(),
         fragment_count: binding.template.fragment_set.len(),
         program_rule_count: binding
@@ -728,7 +869,68 @@ fn validation_report(binding: &TemplateBinding, diagnostics: &BindingDiagnostics
         sampled_payload_offsets,
         required_payload_offsets,
         unsupported_payload_offsets,
+        finding: validation_error
+            .map(|err| finding_from_registry_error(CompilerFindingStage::Validation, err)),
     }
+}
+
+fn diagnostics_stage_report(
+    binding: &TemplateBinding,
+    diagnostics: Result<BindingDiagnostics, RegistryError>,
+) -> DiagnosticsStageReport {
+    match diagnostics {
+        Ok(diagnostics) => DiagnosticsStageReport {
+            ok: true,
+            report: Some(diagnostics_report(binding, &diagnostics)),
+            finding: None,
+        },
+        Err(err) => DiagnosticsStageReport {
+            ok: false,
+            report: None,
+            finding: Some(finding_from_registry_error(
+                CompilerFindingStage::Diagnostics,
+                &err,
+            )),
+        },
+    }
+}
+
+fn empty_validation_report() -> ValidationReport {
+    ValidationReport {
+        ok: false,
+        registry: "builtin".into(),
+        fragment_count: 0,
+        program_rule_count: 0,
+        reason_rule_count: 0,
+        checks: vec![
+            "binding_schema".into(),
+            "fragment_params".into(),
+            "rule_evidence".into(),
+            "payload_offsets".into(),
+        ],
+        sampled_payload_offsets: Vec::new(),
+        required_payload_offsets: Vec::new(),
+        unsupported_payload_offsets: Vec::new(),
+        finding: None,
+    }
+}
+
+fn findings_from_stage_reports(
+    parse: &ParseStageReport,
+    validation: &ValidationReport,
+    diagnostics: &DiagnosticsStageReport,
+) -> CompilerFindingsReport {
+    let mut findings = Vec::new();
+    if let Some(finding) = &parse.finding {
+        findings.push(finding.clone());
+    }
+    if let Some(finding) = &validation.finding {
+        findings.push(finding.clone());
+    }
+    if let Some(finding) = &diagnostics.finding {
+        findings.push(finding.clone());
+    }
+    CompilerFindingsReport { findings }
 }
 
 fn fragment_param_report(value: &FragmentParamValue) -> ParamValueReport {
@@ -944,20 +1146,132 @@ mod tests {
     }
 
     #[test]
+    fn compile_envelope_str_collects_all_frontend_surfaces() {
+        let input = crate::dsl::read_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        let envelope = compile_envelope_str(&input);
+        assert_eq!(
+            envelope.binding.as_ref().map(|report| report.template_id.as_str()),
+            Some("udp_process_debug")
+        );
+        assert_eq!(
+            envelope
+                .diagnostics
+                .as_ref()
+                .and_then(|report| report.program_model.as_ref())
+                .map(|_| true),
+            Some(true)
+        );
+        assert!(envelope.findings.findings.is_empty());
+        assert!(envelope.stages.parse.ok);
+        assert!(envelope.stages.validation.ok);
+        assert!(envelope.stages.diagnostics.ok);
+    }
+
+    #[test]
+    fn compile_envelope_str_keeps_findings_and_stages_in_sync_for_parse_failure() {
+        let envelope = compile_envelope_str(
+            r#"
+template=broken
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+oops=true
+"#,
+        );
+        assert!(envelope.binding.is_none());
+        assert!(envelope.diagnostics.is_none());
+        assert_eq!(envelope.findings.findings.len(), 1);
+        assert_eq!(
+            envelope.findings.findings[0],
+            envelope.stages.parse.finding.clone().unwrap()
+        );
+    }
+
+    #[test]
     fn compile_stages_report_file_separates_binding_and_diagnostics_reports() {
         let report = compile_stages_report_file(
             "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
         )
         .unwrap();
-        assert_eq!(report.parsed_binding.template_id, "udp_process_debug");
-        assert_eq!(report.diagnostics.template_id, "udp_process_debug");
+        assert!(report.parse.ok);
+        assert!(report.parse.finding.is_none());
+        assert_eq!(
+            report.parse.report.as_ref().unwrap().template_id,
+            "udp_process_debug"
+        );
+        assert!(report.diagnostics.ok);
+        assert_eq!(
+            report.diagnostics.report.as_ref().unwrap().template_id,
+            "udp_process_debug"
+        );
         assert!(report.validation.ok);
+        assert!(report.validation.finding.is_none());
         assert_eq!(report.validation.registry, "builtin");
         assert_eq!(report.validation.fragment_count, 3);
         assert!(report.validation.program_rule_count > 0);
         assert!(report.validation.checks.contains(&"rule_evidence".to_string()));
-        assert!(report.parsed_binding.program_model.is_some());
-        assert!(report.diagnostics.program_model.is_some());
+        assert!(report.parse.report.as_ref().unwrap().program_model.is_some());
+        assert!(report
+            .diagnostics
+            .report
+            .as_ref()
+            .unwrap()
+            .program_model
+            .is_some());
+    }
+
+    #[test]
+    fn compile_stages_report_str_keeps_parse_failure_as_stage_finding() {
+        let report = compile_stages_report_str(
+            r#"
+template=broken
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+oops=true
+"#,
+        );
+        assert!(!report.parse.ok);
+        assert!(report.parse.report.is_none());
+        assert_eq!(
+            report.parse.finding.as_ref().map(|finding| finding.code.as_str()),
+            Some("GEWYC-PARSE-INVALID-VALUE")
+        );
+        assert!(!report.validation.ok);
+        assert!(report.validation.finding.is_none());
+        assert!(!report.diagnostics.ok);
+        assert!(report.diagnostics.finding.is_none());
+    }
+
+    #[test]
+    fn compile_stages_report_file_keeps_partial_report_on_validation_failure() {
+        let path = "/tmp/gewyc-validation-failure.gewy";
+        std::fs::write(
+            path,
+            r#"
+template=broken_offset_validation
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+program_model=broken_offset_validation_model
+operation=snmp_get
+rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;static:snmp seen;true
+"#,
+        )
+        .unwrap();
+        let report = compile_stages_report_file(path).unwrap();
+        assert!(!report.validation.ok);
+        assert_eq!(
+            report.validation.finding.as_ref().map(|finding| finding.code.as_str()),
+            Some("GEWYC-VALIDATE-UNSUPPORTED-PAYLOAD-OFFSETS")
+        );
+        assert!(report.diagnostics.ok);
+        let diagnostics = report.diagnostics.report.as_ref().unwrap();
+        let program_model = diagnostics.program_model.as_ref().unwrap();
+        assert_eq!(program_model.rules[0].unsupported_payload_offsets, vec![9]);
     }
 
     #[test]
@@ -1054,13 +1368,39 @@ oops=true
     }
 
     #[test]
+    fn stage_local_finding_json_matches_standalone_findings_shape() {
+        let stages = compile_stages_report_str(
+            r#"
+template=broken
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+oops=true
+"#,
+        );
+        let standalone = compile_findings_report_str(
+            r#"
+template=broken
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+oops=true
+"#,
+        );
+        let standalone_finding = standalone.findings.first().unwrap();
+        let stages_json = render_stages_report(&stages, RenderFormat::Json);
+        let expected = finding_json_record(standalone_finding);
+        assert!(stages_json.contains(&format!("\"finding\":{expected}")));
+    }
+
+    #[test]
     fn stages_json_includes_parse_and_diagnostics_sections() {
         let report = compile_stages_report_file(
             "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
         )
         .unwrap();
         let json = render_stages_report(&report, RenderFormat::Json);
-        assert!(json.contains("\"parse\":"));
+        assert!(json.contains("\"parse\":{\"ok\":true"));
         assert!(json.contains("\"validation\":{\"ok\":true"));
         assert!(json.contains("\"registry\":\"builtin\""));
         assert!(json.contains(
@@ -1069,7 +1409,9 @@ oops=true
         assert!(json.contains("\"sampled_payload_offsets\":[0,4,13]"));
         assert!(json.contains("\"required_payload_offsets\":[]"));
         assert!(json.contains("\"unsupported_payload_offsets\":[]"));
-        assert!(json.contains("\"diagnostics\":"));
+        assert!(json.contains("\"finding\":null"));
+        assert!(json.contains("\"diagnostics\":{\"ok\":true"));
+        assert!(json.contains("\"report\":"));
         assert!(json.contains("\"template_id\":\"udp_process_debug\""));
     }
 

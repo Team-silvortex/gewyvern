@@ -40,6 +40,7 @@ The compiler-facing surface now also materializes owned reports for frontends:
 - `BindingReport`
 - `DiagnosticsReport`
 - `CompilerFindingsReport`
+- `CompilerEnvelope`
 
 The compiler pipeline is now exposed as distinct stages:
 
@@ -48,11 +49,23 @@ The compiler pipeline is now exposed as distinct stages:
 - materialize owned frontend reports from the validated result
 - surface parse/validation failures as structured compiler findings
 
+`CompilerEnvelope` now acts as the shared aggregation surface for the current
+front-end outputs:
+
+- `binding`
+- `diagnostics`
+- `findings`
+- `stages`
+
 The staged frontend report now exposes explicit sections for:
 
 - `parse`
 - `validation`
 - `diagnostics`
+
+For parse/validation/diagnostics failures, the staged report now preserves
+stage-local findings and any already-materialized stage output instead of
+collapsing immediately into a single top-level error.
 
 The `validation` section currently summarizes:
 
