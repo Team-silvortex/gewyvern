@@ -14,6 +14,7 @@ pub struct FragmentDescriptor {
     pub requires: Vec<FactKindTag>,
     pub maps: Vec<MapSpec>,
     pub capabilities: Vec<CapabilityFlag>,
+    pub sampled_payload_offsets: Vec<u16>,
     pub params: Vec<FragmentParamSpec>,
 }
 
@@ -193,6 +194,7 @@ pub struct RuleDiagnostics {
     pub required_facts: Vec<FactKindTag>,
     pub supporting_fragments: Vec<String>,
     pub missing_facts: Vec<FactKindTag>,
+    pub unsupported_payload_offsets: Vec<u16>,
     pub supported: bool,
 }
 
@@ -422,7 +424,13 @@ impl FragmentRegistry {
                         .iter()
                         .enumerate()
                         .map(|(rule_index, rule)| {
-                            build_rule_diagnostics(rule_index, rule, &fact_producers, &fact_tiers)
+                            build_rule_diagnostics(
+                                rule_index,
+                                rule,
+                                &fact_producers,
+                                &fact_tiers,
+                                &descriptors,
+                            )
                         })
                         .collect(),
                 }),
@@ -434,7 +442,13 @@ impl FragmentRegistry {
                         .iter()
                         .enumerate()
                         .map(|(rule_index, rule)| {
-                            build_rule_diagnostics(rule_index, rule, &fact_producers, &fact_tiers)
+                            build_rule_diagnostics(
+                                rule_index,
+                                rule,
+                                &fact_producers,
+                                &fact_tiers,
+                                &descriptors,
+                            )
                         })
                         .collect(),
                 }),
@@ -548,6 +562,7 @@ fn build_rule_diagnostics(
     rule: &ReasonRule,
     fact_producers: &BTreeMap<FactKindTag, Vec<String>>,
     fact_tiers: &BTreeMap<FactKindTag, EvidenceTier>,
+    descriptors: &[FragmentDescriptor],
 ) -> RuleDiagnostics {
     let mut required_facts = predicate_required_facts(&rule.predicate);
     required_facts.extend(signal_required_facts(rule.signal.as_ref()));
@@ -567,23 +582,96 @@ fn build_rule_diagnostics(
     }
     supporting_fragments.sort();
     supporting_fragments.dedup();
+    let unsupported_payload_offsets =
+        unsupported_payload_offsets(&rule.predicate, descriptors, &required_facts);
 
     RuleDiagnostics {
         rule_index,
-        tier: classify_rule_tier(&required_facts, &missing_facts, fact_tiers),
+        tier: classify_rule_tier(
+            &required_facts,
+            &missing_facts,
+            &unsupported_payload_offsets,
+            fact_tiers,
+        ),
         required_facts,
         supporting_fragments,
         missing_facts: missing_facts.clone(),
-        supported: missing_facts.is_empty(),
+        unsupported_payload_offsets: unsupported_payload_offsets.clone(),
+        supported: missing_facts.is_empty() && unsupported_payload_offsets.is_empty(),
     }
+}
+
+fn unsupported_payload_offsets(
+    predicate: &FlowPredicate,
+    descriptors: &[FragmentDescriptor],
+    required_facts: &[FactKindTag],
+) -> Vec<u16> {
+    if !required_facts.contains(&FactKindTag::PacketMeta) {
+        return Vec::new();
+    }
+    let required_offsets = predicate_payload_offsets(predicate);
+    if required_offsets.is_empty() {
+        return Vec::new();
+    }
+    let available_offsets = descriptors
+        .iter()
+        .filter(|descriptor| descriptor.emits.contains(&FactKindTag::PacketMeta))
+        .flat_map(|descriptor| descriptor.sampled_payload_offsets.iter().copied())
+        .collect::<BTreeSet<_>>();
+    required_offsets
+        .into_iter()
+        .filter(|offset| !available_offsets.contains(offset))
+        .collect()
+}
+
+fn predicate_payload_offsets(predicate: &FlowPredicate) -> Vec<u16> {
+    let mut offsets = BTreeSet::new();
+    match predicate {
+        FlowPredicate::PacketObserved {
+            byte4_mask,
+            byte13_mask,
+            byte_matches,
+            ..
+        } => {
+            if byte4_mask.is_some() {
+                offsets.insert(4);
+            }
+            if byte13_mask.is_some() {
+                offsets.insert(13);
+            }
+            for matcher in byte_matches {
+                offsets.insert(matcher.offset);
+            }
+        }
+        FlowPredicate::DatagramObserved {
+            byte13_mask,
+            byte_matches,
+            ..
+        } => {
+            if byte13_mask.is_some() {
+                offsets.insert(13);
+            }
+            for matcher in byte_matches {
+                offsets.insert(matcher.offset);
+            }
+        }
+        FlowPredicate::All(predicates) | FlowPredicate::Any(predicates) => {
+            for inner in predicates {
+                offsets.extend(predicate_payload_offsets(inner));
+            }
+        }
+        _ => {}
+    }
+    offsets.into_iter().collect()
 }
 
 fn classify_rule_tier(
     required_facts: &[FactKindTag],
     missing_facts: &[FactKindTag],
+    unsupported_payload_offsets: &[u16],
     fact_tiers: &BTreeMap<FactKindTag, EvidenceTier>,
 ) -> RuleTier {
-    if !missing_facts.is_empty() {
+    if !missing_facts.is_empty() || !unsupported_payload_offsets.is_empty() {
         return RuleTier::Unsupported;
     }
     if required_facts.iter().any(|fact| {
@@ -678,6 +766,7 @@ pub fn builtin_registry() -> FragmentRegistry {
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::TcpState],
+            sampled_payload_offsets: vec![],
             params: vec![],
         },
         FragmentDescriptor {
@@ -696,6 +785,7 @@ pub fn builtin_registry() -> FragmentRegistry {
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::PacketMeta],
+            sampled_payload_offsets: vec![0, 4, 13],
             params: vec![],
         },
         FragmentDescriptor {
@@ -714,6 +804,7 @@ pub fn builtin_registry() -> FragmentRegistry {
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::PacketMeta],
+            sampled_payload_offsets: vec![0, 4, 13],
             params: vec![FragmentParamSpec {
                 key: "min_len",
                 value_type: FragmentParamType::U64,
@@ -735,6 +826,7 @@ pub fn builtin_registry() -> FragmentRegistry {
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::RouteMeta],
+            sampled_payload_offsets: vec![],
             params: vec![],
         },
         FragmentDescriptor {
@@ -753,6 +845,7 @@ pub fn builtin_registry() -> FragmentRegistry {
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::SockLineage],
+            sampled_payload_offsets: vec![],
             params: vec![FragmentParamSpec {
                 key: "capture_comm",
                 value_type: FragmentParamType::Bool,

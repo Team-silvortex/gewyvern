@@ -1,5 +1,6 @@
-use gewyvern::dsl::{compile_file, compile_str, DslError};
+use gewyvern::dsl::{compile_file, compile_str, parse_str_unvalidated, DslError};
 use gewyvern::fragment::{RegistryError, RuleTier};
+use gewyvern::gewyc::collect_binding_diagnostics;
 use gewyvern::ledger::PacketDir;
 use gewyvern::flow::ProgramOperation;
 use gewyvern::reason::{KeyEventKind, ReasonProfile};
@@ -268,6 +269,7 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
             byte4_value: None,
             byte13_mask: None,
             byte13_value: None,
+            byte_matches: vec![],
         }
     );
     assert_eq!(datagram_rule.predicate, legacy_datagram_rule.predicate);
@@ -285,6 +287,7 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
             prefix4: None,
             byte13_mask: None,
             byte13_value: None,
+            byte_matches: vec![],
         }
     );
 }
@@ -321,6 +324,7 @@ rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_
             byte4_value: None,
             byte13_mask: None,
             byte13_value: None,
+            byte_matches: vec![],
         }
     );
     assert_eq!(
@@ -337,6 +341,7 @@ rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_
             byte4_value: None,
             byte13_mask: None,
             byte13_value: None,
+            byte_matches: vec![],
         }
     );
 }
@@ -371,6 +376,7 @@ rule=packet_observed:tcp:remote:53:remote_to_local:byte4_mask:0x80:0x80;packet_o
             byte4_value: Some(0x80),
             byte13_mask: None,
             byte13_value: None,
+            byte_matches: vec![],
         }
     );
 }
@@ -419,6 +425,7 @@ rule=datagram_observed:udp:dport:443:local_to_remote;datagram_observed;udp_datag
             prefix4: None,
             byte13_mask: None,
             byte13_value: None,
+            byte_matches: vec![],
         }
     );
 }
@@ -453,6 +460,7 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200;datagram_obs
             prefix4: None,
             byte13_mask: None,
             byte13_value: None,
+            byte_matches: vec![],
         }
     );
 }
@@ -487,6 +495,7 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0
             prefix4: None,
             byte13_mask: None,
             byte13_value: None,
+            byte_matches: vec![],
         }
     );
 }
@@ -521,12 +530,13 @@ rule=datagram_observed:udp:remote:mdns:remote_to_local:prefix4:0x00008400;datagr
             prefix4: Some(0x00008400),
             byte13_mask: None,
             byte13_value: None,
+            byte_matches: vec![],
         }
     );
 }
 
 #[test]
-fn dsl_accepts_datagram_byte13_mask_qualifier() {
+fn dsl_accepts_datagram_byte_at_qualifier() {
     let binding = compile_str(
         r#"
 template=snmp_byte13_match
@@ -535,7 +545,7 @@ reason=udp_datagram_l1
 fragment=udp_packet_meta_fragment
 program_model=snmp_byte13_match_model
 operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:byte13_mask:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+rule=datagram_observed:udp:remote:snmp:byte_at:13:0xff:0xa0;datagram_observed;udp_datagram_sent;true
 "#,
     )
     .unwrap();
@@ -545,10 +555,15 @@ rule=datagram_observed:udp:remote:snmp:byte13_mask:0xff:0xa0;datagram_observed;u
         &rule.predicate,
         gewyvern::ir::FlowPredicate::DatagramObserved {
             remote_port: Some(161),
-            byte13_mask: Some(0xff),
-            byte13_value: Some(0xa0),
+            byte13_mask: None,
+            byte13_value: None,
+            byte_matches,
             ..
-        }
+        } if byte_matches == &vec![gewyvern::ir::PayloadByteMatch {
+            offset: 13,
+            mask: 0xff,
+            value: 0xa0,
+        }]
     ));
 }
 
@@ -3038,6 +3053,29 @@ fn binding_diagnostics_report_rule_support_and_supporting_fragments() {
 }
 
 #[test]
+fn binding_diagnostics_reports_unsupported_payload_offsets() {
+    let binding = parse_str_unvalidated(
+        r#"
+template=unsupported_payload_offset
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+program_model=unsupported_payload_offset_model
+operation=snmp_get
+rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+"#,
+    )
+    .unwrap();
+
+    let diagnostics = collect_binding_diagnostics(&binding).unwrap();
+    let rule = &diagnostics.program_model.as_ref().unwrap().rules[0];
+    assert!(!rule.supported);
+    assert_eq!(rule.tier, RuleTier::Unsupported);
+    assert_eq!(rule.missing_facts, Vec::<gewyvern::ledger::FactKindTag>::new());
+    assert_eq!(rule.unsupported_payload_offsets, vec![9]);
+}
+
+#[test]
 fn dsl_can_override_evidence_tiers_per_template() {
     let binding = compile_str(
         r#"
@@ -3158,6 +3196,7 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0
             prefix4: None,
             byte13_mask: None,
             byte13_value: None,
+            byte_matches: vec![],
         }
     );
 }

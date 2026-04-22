@@ -90,6 +90,7 @@ pub struct RuleDiagnosticsReport {
     pub required_facts: Vec<String>,
     pub supporting_fragments: Vec<String>,
     pub missing_facts: Vec<String>,
+    pub unsupported_payload_offsets: Vec<u16>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -468,13 +469,14 @@ fn diagnostics_text(report: &DiagnosticsReport) -> String {
         lines.push(format!("program_model={}", model.model));
         for rule in &model.rules {
             lines.push(format!(
-                "  program_rule[{}]: tier={} supported={} required={:?} supporting={:?} missing={:?}",
+                "  program_rule[{}]: tier={} supported={} required={:?} supporting={:?} missing={:?} unsupported_offsets={:?}",
                 rule.rule_index,
                 rule.tier,
                 rule.supported,
                 rule.required_facts,
                 rule.supporting_fragments,
-                rule.missing_facts
+                rule.missing_facts,
+                rule.unsupported_payload_offsets,
             ));
         }
     }
@@ -483,13 +485,14 @@ fn diagnostics_text(report: &DiagnosticsReport) -> String {
         lines.push(format!("reason_model={}", model.model));
         for rule in &model.rules {
             lines.push(format!(
-                "  reason_rule[{}]: tier={} supported={} required={:?} supporting={:?} missing={:?}",
+                "  reason_rule[{}]: tier={} supported={} required={:?} supporting={:?} missing={:?} unsupported_offsets={:?}",
                 rule.rule_index,
                 rule.tier,
                 rule.supported,
                 rule.required_facts,
                 rule.supporting_fragments,
-                rule.missing_facts
+                rule.missing_facts,
+                rule.unsupported_payload_offsets,
             ));
         }
     }
@@ -618,13 +621,19 @@ fn model_diagnostics_json(model: &ModelDiagnosticsReport) -> String {
             .rules
             .iter()
             .map(|rule| format!(
-                "{{\"rule_index\":{},\"tier\":\"{}\",\"supported\":{},\"required_facts\":[{}],\"supporting_fragments\":[{}],\"missing_facts\":[{}]}}",
+                "{{\"rule_index\":{},\"tier\":\"{}\",\"supported\":{},\"required_facts\":[{}],\"supporting_fragments\":[{}],\"missing_facts\":[{}],\"unsupported_payload_offsets\":[{}]}}",
                 rule.rule_index,
                 rule.tier,
                 rule.supported,
                 string_json_list(&rule.required_facts),
                 string_json_list(&rule.supporting_fragments),
                 string_json_list(&rule.missing_facts),
+                rule
+                    .unsupported_payload_offsets
+                    .iter()
+                    .map(|offset| offset.to_string())
+                    .collect::<Vec<_>>()
+                    .join(","),
             ))
             .collect::<Vec<_>>()
             .join(",")
@@ -664,6 +673,7 @@ fn model_diagnostics_report(model: &ModelDiagnostics) -> ModelDiagnosticsReport 
                 required_facts: rule.required_facts.iter().map(|item| item.to_string()).collect(),
                 supporting_fragments: rule.supporting_fragments.clone(),
                 missing_facts: rule.missing_facts.iter().map(|item| item.to_string()).collect(),
+                unsupported_payload_offsets: rule.unsupported_payload_offsets.clone(),
             })
             .collect(),
     }

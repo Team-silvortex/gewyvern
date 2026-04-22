@@ -3,6 +3,7 @@ use crate::flow::{
     PathSegment, PathView, ProgramFinding, ProgramFindingCause, ProgramFlow, ProgramFlowId,
     ProgramOperation, ProgramStage,
 };
+use crate::ir::PayloadByteMatch;
 use crate::fragment::{
     AttachPlan, AttachReport, CapabilityFlag, CoverageReport, DependencyEdge, FactBinding,
     BindingDiagnostics, EvidenceClassSpec, EvidenceTier, FragmentDescriptor, FragmentParamSpec,
@@ -840,6 +841,16 @@ fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                                 ),
                             ),
                             (
+                                "sampled_payload_offsets".into(),
+                                JsonValue::Array(
+                                    fragment
+                                        .sampled_payload_offsets
+                                        .iter()
+                                        .map(|offset| JsonValue::Number(*offset as i64))
+                                        .collect(),
+                                ),
+                            ),
+                            (
                                 "params".into(),
                                 JsonValue::Array(
                                     fragment
@@ -1047,6 +1058,15 @@ fn rule_diagnostics_json(rule: &RuleDiagnostics) -> JsonValue {
                 rule.missing_facts
                     .iter()
                     .map(|fact| JsonValue::String(fact.to_string()))
+                    .collect(),
+            ),
+        ),
+        (
+            "unsupported_payload_offsets".into(),
+            JsonValue::Array(
+                rule.unsupported_payload_offsets
+                    .iter()
+                    .map(|offset| JsonValue::Number(*offset as i64))
                     .collect(),
             ),
         ),
@@ -1884,6 +1904,7 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             byte4_value,
             byte13_mask,
             byte13_value,
+            byte_matches,
         } => {
             let mut object = BTreeMap::from([
                 ("kind".into(), JsonValue::String("packet_observed".into())),
@@ -1925,6 +1946,17 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             if let Some(byte13_value) = byte13_value {
                 object.insert("byte13_value".into(), JsonValue::Number(*byte13_value as i64));
             }
+            if !byte_matches.is_empty() {
+                object.insert(
+                    "byte_matches".into(),
+                    JsonValue::Array(
+                        byte_matches
+                            .iter()
+                            .map(payload_byte_match_json)
+                            .collect(),
+                    ),
+                );
+            }
             JsonValue::Object(object)
         }
         ReasonPredicate::DatagramObserved {
@@ -1939,6 +1971,7 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             prefix4,
             byte13_mask,
             byte13_value,
+            byte_matches,
         } => {
             let mut object = BTreeMap::from([
                 ("kind".into(), JsonValue::String("datagram_observed".into())),
@@ -1980,6 +2013,17 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             if let Some(byte13_value) = byte13_value {
                 object.insert("byte13_value".into(), JsonValue::Number(*byte13_value as i64));
             }
+            if !byte_matches.is_empty() {
+                object.insert(
+                    "byte_matches".into(),
+                    JsonValue::Array(
+                        byte_matches
+                            .iter()
+                            .map(payload_byte_match_json)
+                            .collect(),
+                    ),
+                );
+            }
             JsonValue::Object(object)
         }
         ReasonPredicate::All(items) => JsonValue::Object(BTreeMap::from([
@@ -2001,6 +2045,14 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
 
 fn reason_key_event_id(event: &ReasonKeyEvent) -> &'static str {
     event.id()
+}
+
+fn payload_byte_match_json(value: &PayloadByteMatch) -> JsonValue {
+    JsonValue::Object(BTreeMap::from([
+        ("offset".into(), JsonValue::Number(value.offset as i64)),
+        ("mask".into(), JsonValue::Number(value.mask as i64)),
+        ("value".into(), JsonValue::Number(value.value as i64)),
+    ]))
 }
 
 fn reason_narrative_json(narrative: &ReasonNarrative) -> JsonValue {
@@ -2096,6 +2148,30 @@ fn parse_reason_rule(value: &JsonValue) -> Result<ReasonRule, ExportError> {
             value => Some(value.as_str()?.to_string()),
         },
     })
+}
+
+fn parse_payload_byte_matches(value: &JsonValue) -> Result<Vec<PayloadByteMatch>, ExportError> {
+    value
+        .as_array()?
+        .iter()
+        .map(|item| {
+            let object = item.as_object()?;
+            Ok(PayloadByteMatch {
+                offset: object
+                    .get("offset")
+                    .ok_or_else(|| ExportError::InvalidShape("payload_byte_match.offset".into()))?
+                    .as_i64()? as u16,
+                mask: object
+                    .get("mask")
+                    .ok_or_else(|| ExportError::InvalidShape("payload_byte_match.mask".into()))?
+                    .as_i64()? as u8,
+                value: object
+                    .get("value")
+                    .ok_or_else(|| ExportError::InvalidShape("payload_byte_match.value".into()))?
+                    .as_i64()? as u8,
+            })
+        })
+        .collect()
 }
 
 fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportError> {
@@ -2196,6 +2272,9 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                     JsonValue::Null => None,
                     value => Some(value.as_i64()? as u8),
                 },
+                byte_matches: parse_payload_byte_matches(
+                    object.get("byte_matches").unwrap_or(&JsonValue::Array(vec![])),
+                )?,
             }),
             "datagram_observed" => Ok(ReasonPredicate::DatagramObserved {
                 l4_proto: object
@@ -2256,6 +2335,9 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                     JsonValue::Null => None,
                     value => Some(value.as_i64()? as u8),
                 },
+                byte_matches: parse_payload_byte_matches(
+                    object.get("byte_matches").unwrap_or(&JsonValue::Array(vec![])),
+                )?,
             }),
             "all" => Ok(ReasonPredicate::All(
                 object
@@ -2482,6 +2564,13 @@ fn parse_rule_diagnostics(value: &JsonValue) -> Result<RuleDiagnostics, ExportEr
                 .get("missing_facts")
                 .ok_or_else(|| ExportError::InvalidShape("rule_diagnostics.missing_facts".into()))?,
         )?,
+        unsupported_payload_offsets: object
+            .get("unsupported_payload_offsets")
+            .unwrap_or(&JsonValue::Array(vec![]))
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_i64()? as u16))
+            .collect::<Result<Vec<_>, _>>()?,
         supported: object
             .get("supported")
             .ok_or_else(|| ExportError::InvalidShape("rule_diagnostics.supported".into()))?
@@ -2579,6 +2668,13 @@ fn parse_fragment_descriptor(value: &JsonValue) -> Result<FragmentDescriptor, Ex
                 "sock_lineage" => Ok(CapabilityFlag::SockLineage),
                 _ => Err(ExportError::InvalidValue("unknown capability".into())),
             })
+            .collect::<Result<Vec<_>, _>>()?,
+        sampled_payload_offsets: object
+            .get("sampled_payload_offsets")
+            .unwrap_or(&JsonValue::Array(Vec::new()))
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_i64()? as u16))
             .collect::<Result<Vec<_>, _>>()?,
         params: object
             .get("params")

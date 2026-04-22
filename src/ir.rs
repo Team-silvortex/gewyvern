@@ -2,6 +2,13 @@ use crate::flow::FlowSnapshot;
 use crate::ledger::{FactEnvelope, FactKind, PacketDir};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PayloadByteMatch {
+    pub offset: u16,
+    pub mask: u8,
+    pub value: u8,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FlowPredicate {
     ProcessBound,
     SocketStateObserved {
@@ -21,6 +28,7 @@ pub enum FlowPredicate {
         byte4_value: Option<u8>,
         byte13_mask: Option<u8>,
         byte13_value: Option<u8>,
+        byte_matches: Vec<PayloadByteMatch>,
     },
     DatagramObserved {
         l4_proto: u8,
@@ -34,6 +42,7 @@ pub enum FlowPredicate {
         prefix4: Option<u32>,
         byte13_mask: Option<u8>,
         byte13_value: Option<u8>,
+        byte_matches: Vec<PayloadByteMatch>,
     },
     RouteResolved,
     All(Vec<FlowPredicate>),
@@ -206,6 +215,7 @@ pub fn matches_flow_predicate(
             byte4_value,
             byte13_mask,
             byte13_value,
+            byte_matches,
         } => {
             if !flow.evidence.packet_facts.contains(&fact.id) {
                 return false;
@@ -242,6 +252,10 @@ pub fn matches_flow_predicate(
                                 .is_some_and(|byte| byte & *mask == *value),
                             _ => true,
                         }
+                        && byte_matches.iter().all(|matcher| {
+                            packet_payload_byte_at(packet, matcher.offset)
+                                .is_some_and(|byte| byte & matcher.mask == matcher.value)
+                        })
             )
         }
         FlowPredicate::DatagramObserved {
@@ -256,6 +270,7 @@ pub fn matches_flow_predicate(
             prefix4,
             byte13_mask,
             byte13_value,
+            byte_matches,
         } => {
             if !flow.evidence.packet_facts.contains(&fact.id) {
                 return false;
@@ -292,6 +307,10 @@ pub fn matches_flow_predicate(
                                 .is_some_and(|byte| byte & *mask == *value),
                             _ => true,
                         }
+                        && byte_matches.iter().all(|matcher| {
+                            packet_payload_byte_at(packet, matcher.offset)
+                                .is_some_and(|byte| byte & matcher.mask == matcher.value)
+                        })
             )
         }
         FlowPredicate::RouteResolved => flow.evidence.route_facts.contains(&fact.id),
@@ -304,6 +323,15 @@ pub fn matches_flow_predicate(
         FlowPredicate::Any(predicates) => predicates
             .iter()
             .any(|predicate| matches_flow_predicate(predicate, flow, fact, facts)),
+    }
+}
+
+fn packet_payload_byte_at(packet: &crate::ledger::PacketMetaFact, offset: u16) -> Option<u8> {
+    match offset {
+        0 => packet.payload_byte0,
+        4 => packet.payload_byte4,
+        13 => packet.payload_byte13,
+        _ => None,
     }
 }
 

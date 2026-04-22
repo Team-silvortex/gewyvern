@@ -1,6 +1,6 @@
 use crate::fragment::{builtin_registry, EvidenceTier, RegistryError};
 use crate::flow::{ProgramOperation, ProgramStageKind};
-use crate::ir::{FlowPredicate, NarrativeTemplate, SignalKind};
+use crate::ir::{FlowPredicate, NarrativeTemplate, PayloadByteMatch, SignalKind};
 use crate::ledger::{FactKindTag, PacketDir};
 use crate::program::{ProgramModel, ProgramNarrative, ProgramRule};
 use crate::reason::{
@@ -375,6 +375,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut prefix4 = None;
             let mut byte13_mask = None;
             let mut byte13_value = None;
+            let mut byte_matches = Vec::new();
             while let Some(part) = parts.next() {
                 match part {
                     "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
@@ -455,6 +456,26 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         byte13_value =
                             Some(parse_u8_literal(value, "datagram_observed", "byte13_value")?);
                     }
+                    "byte_at" => {
+                        let offset = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing datagram byte_at offset qualifier".into())
+                        })?;
+                        let mask = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing datagram byte_at mask qualifier".into())
+                        })?;
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing datagram byte_at value qualifier".into())
+                        })?;
+                        byte_matches.push(PayloadByteMatch {
+                            offset: offset.parse::<u16>().map_err(|_| {
+                                DslError::InvalidValue(format!(
+                                    "invalid datagram byte_at offset '{offset}'"
+                                ))
+                            })?,
+                            mask: parse_u8_literal(mask, "datagram_observed", "byte_at_mask")?,
+                            value: parse_u8_literal(value, "datagram_observed", "byte_at_value")?,
+                        });
+                    }
                     other => {
                         return Err(DslError::InvalidValue(format!(
                             "unknown datagram predicate suffix '{other}'"
@@ -474,6 +495,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 prefix4,
                 byte13_mask,
                 byte13_value,
+                byte_matches,
             })
         }
         other if other.starts_with("packet_observed:") => {
@@ -497,6 +519,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut byte4_value = None;
             let mut byte13_mask = None;
             let mut byte13_value = None;
+            let mut byte_matches = Vec::new();
             while let Some(part) = parts.next() {
                 match part {
                     "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
@@ -567,6 +590,26 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         byte13_value =
                             Some(parse_u8_literal(value, "packet_observed", "byte13_value")?);
                     }
+                    "byte_at" => {
+                        let offset = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing packet byte_at offset qualifier".into())
+                        })?;
+                        let mask = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing packet byte_at mask qualifier".into())
+                        })?;
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing packet byte_at value qualifier".into())
+                        })?;
+                        byte_matches.push(PayloadByteMatch {
+                            offset: offset.parse::<u16>().map_err(|_| {
+                                DslError::InvalidValue(format!(
+                                    "invalid packet byte_at offset '{offset}'"
+                                ))
+                            })?,
+                            mask: parse_u8_literal(mask, "packet_observed", "byte_at_mask")?,
+                            value: parse_u8_literal(value, "packet_observed", "byte_at_value")?,
+                        });
+                    }
                     other => {
                         return Err(DslError::InvalidValue(format!(
                             "unexpected packet predicate suffix '{other}'"
@@ -586,6 +629,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 byte4_value,
                 byte13_mask,
                 byte13_value,
+                byte_matches,
             })
         }
         other => Err(DslError::InvalidValue(format!("unknown predicate '{other}'"))),

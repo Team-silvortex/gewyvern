@@ -210,6 +210,7 @@ fn test_fragment(
             max_entries: 1024,
         }],
         capabilities: vec![CapabilityFlag::TcpState],
+        sampled_payload_offsets: vec![],
         params: vec![],
     }
 }

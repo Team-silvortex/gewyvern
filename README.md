@@ -159,9 +159,14 @@ can express:
 - template-local evidence tier overrides
 - datagram predicates over direction, local/remote ports, minimum payload
   length, masked first-byte checks, fixed two-byte/four-byte prefixes, and
-  masked byte-13 checks
+  generic `byte_at:<offset>:<mask>:<value>` checks over currently sampled
+  offsets
 - packet predicates over direction, local/remote ports, masked first-byte checks,
-  fixed four-byte prefixes, masked byte-4 checks, and masked byte-13 checks
+  fixed four-byte prefixes, masked byte-4 checks, and generic
+  `byte_at:<offset>:<mask>:<value>` checks over currently sampled offsets
+- binding diagnostics now surface unsupported payload offsets per rule, so a
+  `.gewy` can explain why a `byte_at` matcher is outside the current fragment
+  sampling surface
 
 The shared datagram predicate surface is what the current UDP-family protocol
 DSLs build on. In practice, the engine is already using the same IR layer to

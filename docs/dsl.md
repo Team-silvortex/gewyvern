@@ -250,13 +250,22 @@ protocol and direction:
 - `byte0_mask:<u8>:<u8>`
 - `prefix2:<u16>`
 - `prefix4:<u32>`
-- `byte13_mask:<u8>:<u8>`
+- `byte_at:<offset>:<u8>:<u8>`
 
 These qualifiers can be combined in suffix order. Example:
 
 ```text
-rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0xf0:0xc0:prefix2:0xc300;datagram_observed;udp_datagram_sent;true
+rule=datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa0;datagram_observed;udp_datagram_sent;true
 ```
+
+Current fragment sampling only exposes a small set of payload offsets to this
+generic matcher: `0`, `4`, and `13`. The DSL surface is now generic even
+though the underlying fragment templates still define which offsets are
+materialized.
+
+When a rule uses `byte_at` outside the currently sampled offsets, compiler
+diagnostics mark that rule as unsupported and include the unsupported offsets
+explicitly in the diagnostics report.
 
 Named ports currently include:
 
@@ -364,6 +373,7 @@ express a bounded protocol fingerprint over:
 - masked first-byte checks
 - fixed two-byte prefixes
 - fixed four-byte prefixes
+- generic byte-at-offset checks over sampled payload offsets
 
 That lets the DSL drive existing fragment templates into useful protocol-path
 models without turning the DSL into an eBPF code generator.
@@ -378,6 +388,7 @@ payload fingerprint surface:
 - `byte0_mask:<u8>:<u8>`
 - `prefix4:<u32>`
 - `byte4_mask:<u8>:<u8>`
+- `byte_at:<offset>:<u8>:<u8>`
 
 Example:
 
@@ -385,6 +396,7 @@ Example:
 rule=packet_observed:tcp:remote:redis:local_to_remote:byte0_mask:0xff:0x2a;packet_observed;transport_payload_sent;true
 rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_observed;transport_payload_received;true
 rule=packet_observed:tcp:remote:53:remote_to_local:byte4_mask:0x80:0x80;packet_observed;transport_payload_received;true
+rule=packet_observed:tcp:remote:53:remote_to_local:byte_at:4:0x80:0x80;packet_observed;transport_payload_received;true
 ```
 
 The DSL compiler also validates that the selected fragment set can actually

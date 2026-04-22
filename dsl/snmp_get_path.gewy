@@ -9,10 +9,10 @@ fragment=sock_lineage_fragment
 operation=snmp_get
 rule=process_bound;process_bound;process_bound;true;snmp_get_path;bind
 rule=route_resolved;route_resolved;static:program resolved an upstream route for this SNMP GET path;true;snmp_get_path;resolve_upstream
-rule=datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte13_mask:0xff:0xa0;datagram_observed;udp_datagram_sent;true;snmp_get_path;send_get_request
-rule=datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte13_mask:0xff:0xa2;datagram_observed;udp_datagram_received;true;snmp_get_path;receive_get_response
+rule=datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa0;datagram_observed;udp_datagram_sent;true;snmp_get_path;send_get_request
+rule=datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa2;datagram_observed;udp_datagram_received;true;snmp_get_path;receive_get_response
 reason.rule=process_bound;process_identified;process_bound;true;snmp_get_path;bind
 reason.rule=route_resolved;route_changed;route_changed;true;snmp_get_path;resolve_upstream
-reason.rule=datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte13_mask:0xff:0xa0;udp_datagram_seen;udp_datagram_sent;true;snmp_get_path;send_get_request
-reason.rule=datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte13_mask:0xff:0xa2;udp_datagram_seen;udp_datagram_received;true;snmp_get_path;receive_get_response
+reason.rule=datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa0;udp_datagram_seen;udp_datagram_sent;true;snmp_get_path;send_get_request
+reason.rule=datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa2;udp_datagram_seen;udp_datagram_received;true;snmp_get_path;receive_get_response
 param=sock_lineage_fragment.capture_comm=true
