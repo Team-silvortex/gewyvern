@@ -205,6 +205,12 @@ Main commands:
 - `cargo run -p gewyc -- stages <path.gewy> --json`
 - `cargo run -p gewyc -- <path.gewy> --emit diagnostics --json --out /tmp/gewyc.json`
 
+`gewyc stages` now includes a validation summary for payload-byte support:
+
+- `sampled_payload_offsets`: offsets currently exposed by the selected fragment set
+- `required_payload_offsets`: offsets referenced by the binding's offset-based DSL predicates
+- `unsupported_payload_offsets`: required offsets that current fragments do not sample
+
 Current test layers:
 
 - [tests/runtime_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/runtime_tdd.rs)

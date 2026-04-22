@@ -2,7 +2,10 @@ use crate::dsl::{
     DslError, compile_file, parse_file_unvalidated, parse_str_unvalidated, validate_compiled_binding,
 };
 use crate::flow::ProgramOperation;
-use crate::fragment::{BindingDiagnostics, EvidenceTier, ModelDiagnostics, RegistryError, RuleTier, builtin_registry};
+use crate::fragment::{
+    BindingDiagnostics, EvidenceTier, ModelDiagnostics, PayloadOffsetSupportSummary, RegistryError,
+    RuleTier, builtin_registry,
+};
 use crate::reason::ReasonProfile;
 use crate::template::{FragmentParamValue, TemplateBinding};
 
@@ -108,6 +111,9 @@ pub struct ValidationReport {
     pub program_rule_count: usize,
     pub reason_rule_count: usize,
     pub checks: Vec<String>,
+    pub sampled_payload_offsets: Vec<u16>,
+    pub required_payload_offsets: Vec<u16>,
+    pub unsupported_payload_offsets: Vec<u16>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -164,7 +170,7 @@ pub fn compile_stages_report_file(path: &str) -> Result<CompilerStagesReport, Co
     let diagnostics = collect_binding_diagnostics(&binding).map_err(CompileStagesError::Diagnostics)?;
     Ok(CompilerStagesReport {
         parsed_binding,
-        validation: validation_report(&binding),
+        validation: validation_report(&binding, &diagnostics),
         diagnostics: diagnostics_report(&binding, &diagnostics),
     })
 }
@@ -587,7 +593,7 @@ fn findings_json(report: &CompilerFindingsReport) -> String {
 
 fn stages_text(report: &CompilerStagesReport) -> String {
     format!(
-        "stage=parse\n{}\nstage=validation\nok={}\nregistry={}\nfragments={}\nprogram_rules={}\nreason_rules={}\nchecks={}\nstage=diagnostics\n{}",
+        "stage=parse\n{}\nstage=validation\nok={}\nregistry={}\nfragments={}\nprogram_rules={}\nreason_rules={}\nchecks={}\nsampled_payload_offsets={:?}\nrequired_payload_offsets={:?}\nunsupported_payload_offsets={:?}\nstage=diagnostics\n{}",
         binding_text(&report.parsed_binding),
         report.validation.ok,
         report.validation.registry,
@@ -595,13 +601,16 @@ fn stages_text(report: &CompilerStagesReport) -> String {
         report.validation.program_rule_count,
         report.validation.reason_rule_count,
         report.validation.checks.join(","),
+        report.validation.sampled_payload_offsets,
+        report.validation.required_payload_offsets,
+        report.validation.unsupported_payload_offsets,
         diagnostics_text(&report.diagnostics)
     )
 }
 
 fn stages_json(report: &CompilerStagesReport) -> String {
     format!(
-        "{{\"parse\":{},\"validation\":{{\"ok\":{},\"registry\":\"{}\",\"fragment_count\":{},\"program_rule_count\":{},\"reason_rule_count\":{},\"checks\":[{}]}},\"diagnostics\":{}}}",
+        "{{\"parse\":{},\"validation\":{{\"ok\":{},\"registry\":\"{}\",\"fragment_count\":{},\"program_rule_count\":{},\"reason_rule_count\":{},\"checks\":[{}],\"sampled_payload_offsets\":[{}],\"required_payload_offsets\":[{}],\"unsupported_payload_offsets\":[{}]}},\"diagnostics\":{}}}",
         binding_json(&report.parsed_binding),
         report.validation.ok,
         report.validation.registry,
@@ -609,6 +618,9 @@ fn stages_json(report: &CompilerStagesReport) -> String {
         report.validation.program_rule_count,
         report.validation.reason_rule_count,
         string_json_list(&report.validation.checks),
+        u16_json_list(&report.validation.sampled_payload_offsets),
+        u16_json_list(&report.validation.required_payload_offsets),
+        u16_json_list(&report.validation.unsupported_payload_offsets),
         diagnostics_json(&report.diagnostics),
     )
 }
@@ -648,6 +660,14 @@ fn string_json_list(items: &[String]) -> String {
         .join(",")
 }
 
+fn u16_json_list(items: &[u16]) -> String {
+    items
+        .iter()
+        .map(|item| item.to_string())
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 fn reason_profile_report(profile: &ReasonProfile) -> ReasonProfileReport {
     match profile {
         ReasonProfile::HandshakeL1 | ReasonProfile::UdpDatagramL1 => ReasonProfileReport::Builtin {
@@ -679,11 +699,16 @@ fn model_diagnostics_report(model: &ModelDiagnostics) -> ModelDiagnosticsReport 
     }
 }
 
-fn validation_report(binding: &TemplateBinding) -> ValidationReport {
+fn validation_report(binding: &TemplateBinding, diagnostics: &BindingDiagnostics) -> ValidationReport {
     let reason_rule_count = match binding.template.reason_profile.as_ref() {
         Some(ReasonProfile::Declarative(model)) => model.rules.len(),
         _ => 0,
     };
+    let PayloadOffsetSupportSummary {
+        sampled_offsets: sampled_payload_offsets,
+        required_offsets: required_payload_offsets,
+        unsupported_offsets: unsupported_payload_offsets,
+    } = builtin_registry().payload_offset_support_summary(binding, diagnostics);
     ValidationReport {
         ok: true,
         registry: "builtin".into(),
@@ -698,7 +723,11 @@ fn validation_report(binding: &TemplateBinding) -> ValidationReport {
             "binding_schema".into(),
             "fragment_params".into(),
             "rule_evidence".into(),
+            "payload_offsets".into(),
         ],
+        sampled_payload_offsets,
+        required_payload_offsets,
+        unsupported_payload_offsets,
     }
 }
 
@@ -822,6 +851,9 @@ fn registry_error_code(err: &RegistryError) -> &'static str {
         RegistryError::FactConflict(_) => "GEWYC-VALIDATE-FACT-CONFLICT",
         RegistryError::MissingCoverage { .. } => "GEWYC-VALIDATE-MISSING-COVERAGE",
         RegistryError::MissingRuleEvidence { .. } => "GEWYC-VALIDATE-MISSING-RULE-EVIDENCE",
+        RegistryError::UnsupportedRulePayloadOffsets { .. } => {
+            "GEWYC-VALIDATE-UNSUPPORTED-PAYLOAD-OFFSETS"
+        }
         RegistryError::UnknownFragmentParam { .. } => "GEWYC-VALIDATE-UNKNOWN-FRAGMENT-PARAM",
         RegistryError::InvalidFragmentParamType { .. } => "GEWYC-VALIDATE-INVALID-FRAGMENT-PARAM-TYPE",
     }
@@ -969,6 +1001,32 @@ rule=datagram_observed:udp;datagram_observed;static:udp seen;true
     }
 
     #[test]
+    fn compile_findings_report_str_surfaces_unsupported_payload_offset_failures() {
+        let report = compile_findings_report_str(
+            r#"
+template=broken_offset_validation
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+program_model=broken_offset_validation_model
+operation=snmp_get
+rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;static:snmp seen;true
+"#,
+        );
+        assert_eq!(report.findings.len(), 1);
+        assert_eq!(report.findings[0].stage, CompilerFindingStage::Validation);
+        assert_eq!(
+            report.findings[0].code,
+            "GEWYC-VALIDATE-UNSUPPORTED-PAYLOAD-OFFSETS"
+        );
+        assert_eq!(report.findings[0].severity, CompilerFindingSeverity::Error);
+        assert_eq!(report.findings[0].line, None);
+        assert!(report.findings[0]
+            .message
+            .contains("UnsupportedRulePayloadOffsets"));
+    }
+
+    #[test]
     fn compile_findings_report_str_is_empty_when_pipeline_succeeds() {
         let input = crate::dsl::read_file(
             "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
@@ -1005,8 +1063,24 @@ oops=true
         assert!(json.contains("\"parse\":"));
         assert!(json.contains("\"validation\":{\"ok\":true"));
         assert!(json.contains("\"registry\":\"builtin\""));
-        assert!(json.contains("\"checks\":[\"binding_schema\",\"fragment_params\",\"rule_evidence\"]"));
+        assert!(json.contains(
+            "\"checks\":[\"binding_schema\",\"fragment_params\",\"rule_evidence\",\"payload_offsets\"]"
+        ));
+        assert!(json.contains("\"sampled_payload_offsets\":[0,4,13]"));
+        assert!(json.contains("\"required_payload_offsets\":[]"));
+        assert!(json.contains("\"unsupported_payload_offsets\":[]"));
         assert!(json.contains("\"diagnostics\":"));
         assert!(json.contains("\"template_id\":\"udp_process_debug\""));
+    }
+
+    #[test]
+    fn stages_report_summarizes_payload_offset_support() {
+        let report = compile_stages_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy",
+        )
+        .unwrap();
+        assert_eq!(report.validation.sampled_payload_offsets, vec![0, 4, 13]);
+        assert_eq!(report.validation.required_payload_offsets, vec![13]);
+        assert_eq!(report.validation.unsupported_payload_offsets, Vec::<u16>::new());
     }
 }

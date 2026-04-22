@@ -3076,6 +3076,31 @@ rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;udp
 }
 
 #[test]
+fn dsl_validation_rejects_rules_with_unsupported_payload_offsets() {
+    let err = compile_str(
+        r#"
+template=unsupported_payload_offset_compile
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+program_model=unsupported_payload_offset_compile_model
+operation=snmp_get
+rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+"#,
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        err,
+        DslError::Registry(RegistryError::UnsupportedRulePayloadOffsets {
+            model: "program_model".into(),
+            rule_index: 0,
+            offsets: vec![9],
+        })
+    );
+}
+
+#[test]
 fn dsl_can_override_evidence_tiers_per_template() {
     let binding = compile_str(
         r#"

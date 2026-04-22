@@ -265,7 +265,9 @@ materialized.
 
 When a rule uses `byte_at` outside the currently sampled offsets, compiler
 diagnostics mark that rule as unsupported and include the unsupported offsets
-explicitly in the diagnostics report.
+explicitly in the diagnostics report. Validation/findings surfaces also
+distinguish this from generic missing-evidence failures, so unsupported offsets
+can be reported with a dedicated compiler-facing error code.
 
 Named ports currently include:
 
@@ -540,6 +542,13 @@ Inspect staged compiler output through the dedicated compiler surface:
 cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
 cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
 ```
+
+The `validation` section in `stages` now summarizes payload offset-matcher
+coverage for the selected fragment set:
+
+- `sampled_payload_offsets`
+- `required_payload_offsets`
+- `unsupported_payload_offsets`
 
 Run a socket session from a DSL file:
 

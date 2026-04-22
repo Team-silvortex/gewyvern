@@ -60,6 +60,9 @@ The `validation` section currently summarizes:
 - fragment count
 - program/reason rule counts
 - executed validation checks
+- sampled payload offsets exposed by the current fragment set
+- payload offsets required by the binding's offset-based predicates
+- unsupported payload offsets that fall outside the current fragment sampling surface
 
 That binding currently carries:
 

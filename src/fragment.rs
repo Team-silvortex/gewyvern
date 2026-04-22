@@ -199,6 +199,13 @@ pub struct RuleDiagnostics {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PayloadOffsetSupportSummary {
+    pub sampled_offsets: Vec<u16>,
+    pub required_offsets: Vec<u16>,
+    pub unsupported_offsets: Vec<u16>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RuleTier {
     CoreRequirement,
     OptionalEnhancement,
@@ -228,6 +235,11 @@ pub enum RegistryError {
         model: String,
         rule_index: usize,
         missing: Vec<FactKindTag>,
+    },
+    UnsupportedRulePayloadOffsets {
+        model: String,
+        rule_index: usize,
+        offsets: Vec<u16>,
     },
 }
 
@@ -457,6 +469,48 @@ impl FragmentRegistry {
         })
     }
 
+    pub fn payload_offset_support_summary(
+        &self,
+        binding: &TemplateBinding,
+        diagnostics: &BindingDiagnostics,
+    ) -> PayloadOffsetSupportSummary {
+        let sampled_offsets = binding
+            .template
+            .fragment_set
+            .iter()
+            .filter_map(|fragment_id| self.descriptor(fragment_id))
+            .flat_map(|descriptor| descriptor.sampled_payload_offsets.iter().copied())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let mut required_offsets = BTreeSet::new();
+        if let Some(model) = &binding.template.program_model {
+            for rule in &model.rules {
+                required_offsets.extend(predicate_payload_offsets(&rule.predicate));
+            }
+        }
+        if let Some(ReasonProfile::Declarative(model)) = &binding.template.reason_profile {
+            for rule in &model.rules {
+                required_offsets.extend(predicate_payload_offsets(&rule.predicate));
+            }
+        }
+        let unsupported_offsets = diagnostics
+            .program_model
+            .iter()
+            .chain(diagnostics.reason_model.iter())
+            .flat_map(|model| model.rules.iter())
+            .flat_map(|rule| rule.unsupported_payload_offsets.iter().copied())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        PayloadOffsetSupportSummary {
+            sampled_offsets,
+            required_offsets: required_offsets.into_iter().collect(),
+            unsupported_offsets,
+        }
+    }
+
     pub fn attach_report(&self, plan: &AttachPlan) -> AttachReport {
         self.attach_report_with_failures(plan, std::iter::empty::<String>())
     }
@@ -550,6 +604,13 @@ fn validate_model_diagnostics(model_name: &str, diagnostics: &ModelDiagnostics) 
     }
 
     let first = diagnostics.rules.first().expect("checked non-empty rules");
+    if !first.unsupported_payload_offsets.is_empty() && first.missing_facts.is_empty() {
+        return Err(RegistryError::UnsupportedRulePayloadOffsets {
+            model: model_name.into(),
+            rule_index: first.rule_index,
+            offsets: first.unsupported_payload_offsets.clone(),
+        });
+    }
     Err(RegistryError::MissingRuleEvidence {
         model: model_name.into(),
         rule_index: first.rule_index,
