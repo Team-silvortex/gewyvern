@@ -57,6 +57,12 @@ front-end outputs:
 - `findings`
 - `stages`
 
+The `gewyc` CLI now consumes this shared envelope and renders each subcommand as
+one view over the same underlying compiler result.
+
+It also now exposes `envelope` directly, so frontends can fetch all current
+compiler-facing surfaces in a single invocation.
+
 The staged frontend report now exposes explicit sections for:
 
 - `parse`

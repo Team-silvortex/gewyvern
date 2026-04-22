@@ -144,18 +144,19 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
         },
         SignalKind::PacketObserved => match phase {
             "send_request" | "send_response" | "send_client_hello" | "send_ping"
-            | "send_query" | "send_connect" | "send_ehlo" => {
+            | "send_query" | "send_connect" | "send_ehlo" | "send_bind" => {
                 Some("emit_payload")
             }
             "receive_request" | "receive_response" | "receive_pong" | "receive_connack"
-            | "receive_banner" => {
+            | "receive_banner" | "receive_bind_response" => {
                 Some("receive_payload")
             }
             _ => None,
         },
         SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {
             "send_request" | "send_initial" | "send_discover" | "send_initiation"
-            | "send_query" | "send_search" | "send_access_request" | "send_get_request" => {
+            | "send_query" | "send_search" | "send_access_request" | "send_get_request"
+            | "send_register" => {
                 Some("emit_datagram")
             }
             "receive_reply"
@@ -163,7 +164,8 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "receive_response"
             | "receive_offer"
             | "receive_access_accept"
-            | "receive_get_response" => {
+            | "receive_get_response"
+            | "receive_ok" => {
                 Some("receive_datagram")
             }
             _ => None,
@@ -330,6 +332,7 @@ fn packet_payload_byte_at(packet: &crate::ledger::PacketMetaFact, offset: u16) -
     match offset {
         0 => packet.payload_byte0,
         4 => packet.payload_byte4,
+        5 => packet.payload_byte5,
         13 => packet.payload_byte13,
         _ => None,
     }

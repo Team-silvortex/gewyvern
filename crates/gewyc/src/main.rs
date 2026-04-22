@@ -1,7 +1,7 @@
 use gewyvern::gewyc::{
-    RenderFormat, compile_binding_report_file, compile_diagnostics_report_file,
-    compile_findings_report_file, render_binding_report, render_diagnostics_report,
-    compile_stages_report_file, render_findings_report, render_stages_report,
+    CompilerEnvelope, RenderFormat, compile_envelope_file, render_binding_report,
+    render_diagnostics_report, render_envelope_report, render_findings_report,
+    render_stages_report,
 };
 use std::env;
 use std::fs;
@@ -18,6 +18,7 @@ enum Command {
     Diagnostics,
     Findings,
     Stages,
+    Envelope,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -26,6 +27,7 @@ enum EmitTarget {
     Diagnostics,
     Findings,
     Stages,
+    Envelope,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -58,12 +60,12 @@ impl UiLocale {
     fn usage(self) -> &'static str {
         match self {
             Self::Zh => {
-                "用法: gewyc <compile|diagnostics|findings|stages> <path.gewy> [--json] [--out path]\n\
-                 用法: gewyc <path.gewy> [--json] [--emit binding|diagnostics|findings|stages] [--out path]"
+                "用法: gewyc <compile|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
+                 用法: gewyc <path.gewy> [--json] [--emit binding|diagnostics|findings|stages|envelope] [--out path]"
             }
             Self::En => {
-                "usage: gewyc <compile|diagnostics|findings|stages> <path.gewy> [--json] [--out path]\n\
-                 usage: gewyc <path.gewy> [--json] [--emit binding|diagnostics|findings|stages] [--out path]"
+                "usage: gewyc <compile|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
+                 usage: gewyc <path.gewy> [--json] [--emit binding|diagnostics|findings|stages|envelope] [--out path]"
             }
         }
     }
@@ -75,7 +77,7 @@ impl UiLocale {
             (Self::Zh, "compile_failed") => "DSL 编译失败",
             (Self::Zh, "diagnostics_failed") => "binding 诊断失败",
             (Self::Zh, "stages_failed") => "compiler 阶段报告生成失败",
-            (Self::Zh, "missing_emit") => "缺少 --emit 的值，期望 binding、diagnostics、findings 或 stages",
+            (Self::Zh, "missing_emit") => "缺少 --emit 的值，期望 binding、diagnostics、findings、stages 或 envelope",
             (Self::Zh, "missing_out") => "缺少 --out 的值，期望输出路径",
             (Self::Zh, "write_failed") => "写入输出失败",
             (_, "missing_path") => "missing .gewy file path",
@@ -83,7 +85,7 @@ impl UiLocale {
             (_, "compile_failed") => "dsl compile failed",
             (_, "diagnostics_failed") => "binding diagnostics failed",
             (_, "stages_failed") => "compiler stages report failed",
-            (_, "missing_emit") => "missing value for --emit, expected binding, diagnostics, findings, or stages",
+            (_, "missing_emit") => "missing value for --emit, expected binding, diagnostics, findings, stages, or envelope",
             (_, "missing_out") => "missing value for --out, expected an output path",
             (_, "write_failed") => "failed to write output",
             _ => "error",
@@ -103,6 +105,7 @@ fn main() {
         EmitTarget::Diagnostics => run_diagnostics(cli, locale),
         EmitTarget::Findings => run_findings(cli, locale),
         EmitTarget::Stages => run_stages(cli, locale),
+        EmitTarget::Envelope => run_envelope(cli, locale),
     }
 }
 
@@ -126,6 +129,7 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
                     "diagnostics" => EmitTarget::Diagnostics,
                     "findings" => EmitTarget::Findings,
                     "stages" => EmitTarget::Stages,
+                    "envelope" => EmitTarget::Envelope,
                     _ => {
                         return Err(format!(
                             "{}: {value}\n{}",
@@ -157,6 +161,10 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
                 command = Command::Stages;
                 emit = EmitTarget::Stages;
             }
+            "envelope" if path.is_none() => {
+                command = Command::Envelope;
+                emit = EmitTarget::Envelope;
+            }
             value if value.starts_with('-') => {
                 return Err(format!("{}: {value}\n{}", locale.msg("unknown_arg"), locale.usage()))
             }
@@ -178,8 +186,9 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
 }
 
 fn run_compile(cli: Cli, locale: UiLocale) {
-    let report = compile_binding_report_file(&cli.path).unwrap_or_else(|err| {
-        eprintln!("{}: {err:?}", locale.msg("compile_failed"));
+    let envelope = compile_cli_envelope(&cli.path, locale, "compile_failed");
+    let report = envelope.binding.unwrap_or_else(|| {
+        eprintln!("{}", locale.msg("compile_failed"));
         std::process::exit(1);
     });
     let out = render_binding_report(&report, render_format(cli.output));
@@ -187,8 +196,15 @@ fn run_compile(cli: Cli, locale: UiLocale) {
 }
 
 fn run_diagnostics(cli: Cli, locale: UiLocale) {
-    let report = compile_diagnostics_report_file(&cli.path).unwrap_or_else(|err| {
-        eprintln!("{}: {err:?}", locale.msg("diagnostics_failed"));
+    let envelope = compile_cli_envelope(&cli.path, locale, "diagnostics_failed");
+    let report = envelope.diagnostics.unwrap_or_else(|| {
+        let err = envelope
+            .findings
+            .findings
+            .first()
+            .map(|finding| finding.message.clone())
+            .unwrap_or_else(|| locale.msg("diagnostics_failed").to_string());
+        eprintln!("{}: {err}", locale.msg("diagnostics_failed"));
         std::process::exit(1);
     });
     let out = render_diagnostics_report(&report, render_format(cli.output));
@@ -196,18 +212,28 @@ fn run_diagnostics(cli: Cli, locale: UiLocale) {
 }
 
 fn run_findings(cli: Cli, locale: UiLocale) {
-    let report = compile_findings_report_file(&cli.path);
-    let out = render_findings_report(&report, render_format(cli.output));
+    let envelope = compile_cli_envelope(&cli.path, locale, "compile_failed");
+    let out = render_findings_report(&envelope.findings, render_format(cli.output));
     emit_output(&out, cli.out.as_deref(), locale);
 }
 
 fn run_stages(cli: Cli, locale: UiLocale) {
-    let report = compile_stages_report_file(&cli.path).unwrap_or_else(|err| {
-        eprintln!("{}: {err:?}", locale.msg("stages_failed"));
-        std::process::exit(1);
-    });
-    let out = render_stages_report(&report, render_format(cli.output));
+    let envelope = compile_cli_envelope(&cli.path, locale, "stages_failed");
+    let out = render_stages_report(&envelope.stages, render_format(cli.output));
     emit_output(&out, cli.out.as_deref(), locale);
+}
+
+fn run_envelope(cli: Cli, locale: UiLocale) {
+    let envelope = compile_cli_envelope(&cli.path, locale, "compile_failed");
+    let out = render_envelope_report(&envelope, render_format(cli.output));
+    emit_output(&out, cli.out.as_deref(), locale);
+}
+
+fn compile_cli_envelope(path: &str, locale: UiLocale, error_key: &str) -> CompilerEnvelope {
+    compile_envelope_file(path).unwrap_or_else(|err| {
+        eprintln!("{}: {err:?}", locale.msg(error_key));
+        std::process::exit(1);
+    })
 }
 
 fn render_format(output: OutputMode) -> RenderFormat {
@@ -232,7 +258,8 @@ fn emit_output(rendered: &str, out: Option<&str>, locale: UiLocale) {
 mod tests {
     use super::*;
     use gewyvern::gewyc::{
-        RenderFormat, compile_binding_report_file, render_binding_report,
+        RenderFormat, compile_binding_report_file, compile_envelope_file, render_binding_report,
+        render_envelope_report,
     };
 
     #[test]
@@ -325,6 +352,23 @@ mod tests {
     }
 
     #[test]
+    fn parse_cli_accepts_envelope_command() {
+        let cli = parse_cli(
+            vec![
+                "gewyc".into(),
+                "envelope".into(),
+                "dsl/udp_process_debug.gewy".into(),
+                "--json".into(),
+            ],
+            UiLocale::En,
+        )
+        .unwrap();
+        assert_eq!(cli.command, Command::Envelope);
+        assert_eq!(cli.emit, EmitTarget::Envelope);
+        assert_eq!(cli.output, OutputMode::Json);
+    }
+
+    #[test]
     fn binding_json_mentions_template_id() {
         let report = compile_binding_report_file(
             "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
@@ -333,5 +377,30 @@ mod tests {
         let json = render_binding_report(&report, RenderFormat::Json);
         assert!(json.contains("\"template_id\":\"udp_process_debug\""));
         assert!(json.contains("\"program_model\""));
+    }
+
+    #[test]
+    fn cli_envelope_collects_binding_and_stages_from_shared_entrypoint() {
+        let envelope =
+            compile_envelope_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
+                .unwrap();
+        assert_eq!(
+            envelope.binding.as_ref().map(|report| report.template_id.as_str()),
+            Some("udp_process_debug")
+        );
+        assert!(envelope.stages.parse.ok);
+        assert!(envelope.stages.validation.ok);
+    }
+
+    #[test]
+    fn envelope_json_mentions_all_surfaces() {
+        let envelope =
+            compile_envelope_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
+                .unwrap();
+        let json = render_envelope_report(&envelope, RenderFormat::Json);
+        assert!(json.contains("\"binding\":"));
+        assert!(json.contains("\"diagnostics\":"));
+        assert!(json.contains("\"findings\":{\"findings\":[]}"));
+        assert!(json.contains("\"stages\":"));
     }
 }

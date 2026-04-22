@@ -353,6 +353,13 @@ pub fn render_stages_report(report: &CompilerStagesReport, format: RenderFormat)
     }
 }
 
+pub fn render_envelope_report(report: &CompilerEnvelope, format: RenderFormat) -> String {
+    match format {
+        RenderFormat::Text => envelope_text(report),
+        RenderFormat::Json => envelope_json(report),
+    }
+}
+
 pub fn binding_report(binding: &TemplateBinding) -> BindingReport {
     BindingReport {
         template_id: binding.template.id.to_string(),
@@ -629,6 +636,45 @@ fn findings_json(report: &CompilerFindingsReport) -> String {
             .map(finding_json_record)
             .collect::<Vec<_>>()
             .join(",")
+    )
+}
+
+fn envelope_text(report: &CompilerEnvelope) -> String {
+    let mut sections = Vec::new();
+    sections.push("surface=binding".to_string());
+    sections.push(
+        report
+            .binding
+            .as_ref()
+            .map_or_else(|| "binding=none".to_string(), binding_text),
+    );
+    sections.push("surface=diagnostics".to_string());
+    sections.push(
+        report
+            .diagnostics
+            .as_ref()
+            .map_or_else(|| "diagnostics=none".to_string(), diagnostics_text),
+    );
+    sections.push("surface=findings".to_string());
+    sections.push(findings_text(&report.findings));
+    sections.push("surface=stages".to_string());
+    sections.push(stages_text(&report.stages));
+    sections.join("\n")
+}
+
+fn envelope_json(report: &CompilerEnvelope) -> String {
+    format!(
+        "{{\"binding\":{},\"diagnostics\":{},\"findings\":{},\"stages\":{}}}",
+        report
+            .binding
+            .as_ref()
+            .map_or_else(|| "null".to_string(), binding_json),
+        report
+            .diagnostics
+            .as_ref()
+            .map_or_else(|| "null".to_string(), diagnostics_json),
+        findings_json(&report.findings),
+        stages_json(&report.stages),
     )
 }
 
@@ -1394,6 +1440,21 @@ oops=true
     }
 
     #[test]
+    fn envelope_json_contains_all_frontend_surfaces() {
+        let input = crate::dsl::read_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        let envelope = compile_envelope_str(&input);
+        let json = render_envelope_report(&envelope, RenderFormat::Json);
+        assert!(json.contains("\"binding\":"));
+        assert!(json.contains("\"diagnostics\":"));
+        assert!(json.contains("\"findings\":{\"findings\":[]}"));
+        assert!(json.contains("\"stages\":"));
+        assert!(json.contains("\"template_id\":\"udp_process_debug\""));
+    }
+
+    #[test]
     fn stages_json_includes_parse_and_diagnostics_sections() {
         let report = compile_stages_report_file(
             "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
@@ -1406,7 +1467,7 @@ oops=true
         assert!(json.contains(
             "\"checks\":[\"binding_schema\",\"fragment_params\",\"rule_evidence\",\"payload_offsets\"]"
         ));
-        assert!(json.contains("\"sampled_payload_offsets\":[0,4,13]"));
+        assert!(json.contains("\"sampled_payload_offsets\":[0,4,5,13]"));
         assert!(json.contains("\"required_payload_offsets\":[]"));
         assert!(json.contains("\"unsupported_payload_offsets\":[]"));
         assert!(json.contains("\"finding\":null"));
@@ -1421,7 +1482,7 @@ oops=true
             "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy",
         )
         .unwrap();
-        assert_eq!(report.validation.sampled_payload_offsets, vec![0, 4, 13]);
+        assert_eq!(report.validation.sampled_payload_offsets, vec![0, 4, 5, 13]);
         assert_eq!(report.validation.required_payload_offsets, vec![13]);
         assert_eq!(report.validation.unsupported_payload_offsets, Vec::<u16>::new());
     }

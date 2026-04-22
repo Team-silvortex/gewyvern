@@ -25,7 +25,7 @@ The long-term direction is:
 - project version: `0.1.0`
 - stage: working prototype
 - transport support: TCP + UDP
-- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, RADIUS, SMTP, SNMP, DNS-over-TCP
+- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, RADIUS, SMTP, SIP, LDAP, SNMP, DNS-over-TCP
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
 - replay: deterministic for exported sessions
@@ -60,6 +60,8 @@ The long-term direction is:
   - MQTT CONNECT/CONNACK exchanges
   - RADIUS Access-Request/Access-Accept exchanges
   - SMTP connect/banner/EHLO exchanges
+  - SIP REGISTER/200 OK exchanges
+  - LDAP bind request/response exchanges
   - SNMP GET/RESPONSE exchanges
   - DNS-over-TCP query/response exchanges
 - Export/replay JSON including:
@@ -145,6 +147,8 @@ The repository now includes first-class DSL files that compile into
 - [dsl/mqtt_connect_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy)
 - [dsl/radius_access_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy)
 - [dsl/smtp_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy)
+- [dsl/sip_register_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy)
+- [dsl/ldap_bind_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy)
 - [dsl/snmp_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy)
 - [dsl/dns_tcp_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy)
 
@@ -186,6 +190,8 @@ differentiate:
 - MQTT CONNECT/CONNACK pairs
 - RADIUS Access-Request/Access-Accept pairs
 - SMTP connect/banner/EHLO sequences
+- SIP REGISTER/200 OK pairs
+- LDAP bind request/response pairs
 - SNMP GET/RESPONSE pairs
 - DNS-over-TCP query/response pairs
 
@@ -203,7 +209,9 @@ Main commands:
 - `cargo run -p gewyc -- diagnostics <path.gewy> --json`
 - `cargo run -p gewyc -- findings <path.gewy> --json`
 - `cargo run -p gewyc -- stages <path.gewy> --json`
+- `cargo run -p gewyc -- envelope <path.gewy> --json`
 - `cargo run -p gewyc -- <path.gewy> --emit diagnostics --json --out /tmp/gewyc.json`
+- `cargo run -p gewyc -- <path.gewy> --emit envelope --json --out /tmp/gewyc-envelope.json`
 
 `gewyc stages` now includes a validation summary for payload-byte support:
 

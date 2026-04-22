@@ -58,6 +58,7 @@ mod support {
                 payload_prefix2: None,
                 payload_prefix4: None,
                 payload_byte4: None,
+                payload_byte5: None,
                 payload_byte13: None,
                 l3_proto: 0x0800,
                 l4_proto: 17,

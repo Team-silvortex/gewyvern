@@ -1,0 +1,17 @@
+template=sip_register_path
+window=default_5s
+reason=udp_datagram_l1
+reason_model=sip_register_path_reason
+fragment=udp_packet_meta_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+program_model=sip_register_path_model
+operation=sip_register
+rule=process_bound;process_bound;process_bound;true;sip_register_path;bind
+rule=route_resolved;route_resolved;static:program resolved a route for this SIP register path;true;sip_register_path;resolve_upstream
+rule=datagram_observed:udp:remote:sip:local_to_remote:prefix4:0x52454749;datagram_observed;udp_datagram_sent;true;sip_register_path;send_register
+rule=datagram_observed:udp:remote:sip:remote_to_local:prefix4:0x5349502f;datagram_observed;udp_datagram_received;true;sip_register_path;receive_ok
+reason.rule=process_bound;process_identified;process_bound;true;sip_register_path;bind
+reason.rule=route_resolved;route_changed;route_changed;true;sip_register_path;resolve_upstream
+reason.rule=datagram_observed:udp:remote:sip:local_to_remote:prefix4:0x52454749;udp_datagram_seen;udp_datagram_sent;true;sip_register_path;send_register
+reason.rule=datagram_observed:udp:remote:sip:remote_to_local:prefix4:0x5349502f;udp_datagram_seen;udp_datagram_received;true;sip_register_path;receive_ok
