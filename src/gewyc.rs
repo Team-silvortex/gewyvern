@@ -1537,7 +1537,10 @@ oops=true
         let report =
             compile_stages_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")
                 .unwrap();
-        assert_eq!(report.validation.sampled_payload_offsets, vec![0, 4, 5, 9, 13]);
+        assert_eq!(
+            report.validation.sampled_payload_offsets,
+            vec![0, 4, 5, 9, 13]
+        );
         assert_eq!(report.validation.required_payload_offsets, vec![13]);
         assert_eq!(
             report.validation.unsupported_payload_offsets,

@@ -155,7 +155,8 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "receive_bind_response"
             | "receive_search_result"
             | "receive_modify_response"
-            | "receive_modify_denied" => Some("receive_payload"),
+            | "receive_modify_denied"
+            | "receive_modify_constraint_violation" => Some("receive_payload"),
             _ => None,
         },
         SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {

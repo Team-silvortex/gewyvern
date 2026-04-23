@@ -12,8 +12,8 @@ mod support;
 use std::time::{Duration, SystemTime};
 use support::{
     packet_fact, packet_fact_with_dir, packet_fact_with_dir_and_payload,
-    packet_fact_with_dir_and_payload_and_byte4, packet_fact_with_dir_and_payload_and_bytes4_and5,
-    packet_fact_with_dir_and_payload_and_bytes4_5_and9, route_fact, sock_lineage_fact,
+    packet_fact_with_dir_and_payload_and_byte4, packet_fact_with_dir_and_payload_and_bytes4_5_and9,
+    packet_fact_with_dir_and_payload_and_bytes4_and5, route_fact, sock_lineage_fact,
     tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact, udp_packet_fact_with_dir,
     udp_packet_fact_with_dir_and_ports, udp_packet_fact_with_dir_and_ports_and_payload,
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4,
@@ -898,13 +898,29 @@ fn built_in_ldap_modify_path_dsl_compiles_into_template_binding() {
 #[test]
 fn built_in_ldap_modify_denied_path_dsl_compiles_into_template_binding() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "ldap_modify_denied_path");
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("ldap_modify_denied".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_ldap_modify_constraint_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_constraint_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "ldap_modify_constraint_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("ldap_modify_constraint_violation".into())
     );
     assert!(matches!(
         binding.template.reason_profile.as_ref().unwrap(),
@@ -3125,8 +3141,7 @@ fn ldap_modify_path_does_not_match_wrong_response_op_tag() {
 #[test]
 fn ldap_modify_denied_path_materializes_denied_modify_phase() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 842, 54028, "ldapmodify"));
@@ -3168,14 +3183,18 @@ fn ldap_modify_denied_path_materializes_denied_modify_phase() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("ldap_modify_denied".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_modify")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_modify_denied")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_modify"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_modify_denied"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -3189,8 +3208,7 @@ fn ldap_modify_denied_path_materializes_denied_modify_phase() {
 #[test]
 fn ldap_modify_denied_path_does_not_match_success_result_code() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 843, 54028, "ldapmodify"));
@@ -3228,10 +3246,130 @@ fn ldap_modify_denied_path_does_not_match_success_result_code() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_modify_denied"))
+    );
+}
+
+#[test]
+fn ldap_modify_constraint_path_materializes_constraint_violation_phase() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_constraint_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 844, 54029, "ldapmodify"));
+    session.ingest(route_fact(2, 844, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 844, 1, 2, 54029, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 844, 2, 3, 54029, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        5,
+        844,
+        0x18,
+        PacketDir::Egress,
+        Some(54029),
+        Some(389),
+        Some(0x30),
+        Some(0x3012),
+        Some(0x30120201),
+        Some(0x01),
+        Some(0x66),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        6,
+        844,
+        0x18,
+        PacketDir::Ingress,
+        Some(54029),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x67),
+        Some(0x13),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("ldap_modify_constraint_violation".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_modify"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| { stage.phase.as_deref() == Some("receive_modify_constraint_violation") })
+    );
+    let phase_kinds = export.program_flows[0]
         .stages
         .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_modify_denied")));
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ldap_modify_constraint_path_does_not_match_access_denied_result_code() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_constraint_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 845, 54029, "ldapmodify"));
+    session.ingest(route_fact(2, 845, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 845, 1, 2, 54029, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 845, 2, 3, 54029, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        5,
+        845,
+        0x18,
+        PacketDir::Egress,
+        Some(54029),
+        Some(389),
+        Some(0x30),
+        Some(0x3012),
+        Some(0x30120201),
+        Some(0x01),
+        Some(0x66),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        6,
+        845,
+        0x18,
+        PacketDir::Ingress,
+        Some(54029),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x67),
+        Some(0x32),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| { stage.phase.as_deref() != Some("receive_modify_constraint_violation") })
+    );
 }
 
 #[test]
@@ -3715,10 +3853,12 @@ fn ldap_directory_sync_session_failed_modify_response_produces_modify_transition
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(120));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_modify_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_modify_response"))
+    );
     assert!(export.program_findings.iter().any(|finding| {
         finding.module_label == "ldap_directory_sync_session"
             && finding.phase.as_deref() == Some("receive_modify_response")
