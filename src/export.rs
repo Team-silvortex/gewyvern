@@ -1291,6 +1291,12 @@ fn fact_json(fact: &FactEnvelope) -> JsonValue {
                     .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             (
+                "payload_byte9".into(),
+                value
+                    .payload_byte9
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+            ),
+            (
                 "payload_byte13".into(),
                 value
                     .payload_byte13
@@ -3132,6 +3138,10 @@ fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError> {
                 value => Some(value.as_i64()? as u8),
             },
             payload_byte5: match kind.get("payload_byte5").unwrap_or(&JsonValue::Null) {
+                JsonValue::Null => None,
+                value => Some(value.as_i64()? as u8),
+            },
+            payload_byte9: match kind.get("payload_byte9").unwrap_or(&JsonValue::Null) {
                 JsonValue::Null => None,
                 value => Some(value.as_i64()? as u8),
             },

@@ -1353,7 +1353,7 @@ reason=udp_datagram_l1
 fragment=udp_packet_meta_fragment
 program_model=broken_offset_validation_model
 operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;static:snmp seen;true
+rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;static:snmp seen;true
 "#,
         )
         .unwrap();
@@ -1370,7 +1370,7 @@ rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;sta
         assert!(report.diagnostics.ok);
         let diagnostics = report.diagnostics.report.as_ref().unwrap();
         let program_model = diagnostics.program_model.as_ref().unwrap();
-        assert_eq!(program_model.rules[0].unsupported_payload_offsets, vec![9]);
+        assert_eq!(program_model.rules[0].unsupported_payload_offsets, vec![8]);
     }
 
     #[test]
@@ -1426,7 +1426,7 @@ reason=udp_datagram_l1
 fragment=udp_packet_meta_fragment
 program_model=broken_offset_validation_model
 operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;static:snmp seen;true
+rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;static:snmp seen;true
 "#,
         );
         assert_eq!(report.findings.len(), 1);
@@ -1523,7 +1523,7 @@ oops=true
         assert!(json.contains(
             "\"checks\":[\"binding_schema\",\"fragment_params\",\"rule_evidence\",\"payload_offsets\"]"
         ));
-        assert!(json.contains("\"sampled_payload_offsets\":[0,4,5,13]"));
+        assert!(json.contains("\"sampled_payload_offsets\":[0,4,5,9,13]"));
         assert!(json.contains("\"required_payload_offsets\":[]"));
         assert!(json.contains("\"unsupported_payload_offsets\":[]"));
         assert!(json.contains("\"finding\":null"));
@@ -1537,7 +1537,7 @@ oops=true
         let report =
             compile_stages_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")
                 .unwrap();
-        assert_eq!(report.validation.sampled_payload_offsets, vec![0, 4, 5, 13]);
+        assert_eq!(report.validation.sampled_payload_offsets, vec![0, 4, 5, 9, 13]);
         assert_eq!(report.validation.required_payload_offsets, vec![13]);
         assert_eq!(
             report.validation.unsupported_payload_offsets,

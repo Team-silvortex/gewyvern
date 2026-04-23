@@ -860,7 +860,7 @@ pub fn builtin_registry() -> FragmentRegistry {
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::PacketMeta],
-            sampled_payload_offsets: vec![0, 4, 5, 13],
+            sampled_payload_offsets: vec![0, 4, 5, 9, 13],
             params: vec![],
         },
         FragmentDescriptor {
@@ -879,7 +879,7 @@ pub fn builtin_registry() -> FragmentRegistry {
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::PacketMeta],
-            sampled_payload_offsets: vec![0, 4, 5, 13],
+            sampled_payload_offsets: vec![0, 4, 5, 9, 13],
             params: vec![FragmentParamSpec {
                 key: "min_len",
                 value_type: FragmentParamType::U64,

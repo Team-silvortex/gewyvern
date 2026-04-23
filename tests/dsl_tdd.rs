@@ -13,9 +13,9 @@ use std::time::{Duration, SystemTime};
 use support::{
     packet_fact, packet_fact_with_dir, packet_fact_with_dir_and_payload,
     packet_fact_with_dir_and_payload_and_byte4, packet_fact_with_dir_and_payload_and_bytes4_and5,
-    route_fact, sock_lineage_fact, tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact,
-    udp_packet_fact_with_dir, udp_packet_fact_with_dir_and_ports,
-    udp_packet_fact_with_dir_and_ports_and_payload,
+    packet_fact_with_dir_and_payload_and_bytes4_5_and9, route_fact, sock_lineage_fact,
+    tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact, udp_packet_fact_with_dir,
+    udp_packet_fact_with_dir_and_ports, udp_packet_fact_with_dir_and_ports_and_payload,
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4,
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13,
 };
@@ -888,6 +888,23 @@ fn built_in_ldap_modify_path_dsl_compiles_into_template_binding() {
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("ldap_modify".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_ldap_modify_denied_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "ldap_modify_denied_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("ldap_modify_denied".into())
     );
     assert!(matches!(
         binding.template.reason_profile.as_ref().unwrap(),
@@ -2985,7 +3002,7 @@ fn ldap_modify_path_materializes_connect_modify_and_response_phases() {
     session.ingest(route_fact(2, 836, 7));
     session.ingest(tcp_state_fact_with_ports(3, 836, 1, 2, 54023, 389));
     session.ingest(tcp_state_fact_with_ports(4, 836, 2, 3, 54023, 389));
-    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
         5,
         836,
         0x18,
@@ -2997,8 +3014,9 @@ fn ldap_modify_path_materializes_connect_modify_and_response_phases() {
         Some(0x30120201),
         Some(0x01),
         Some(0x66),
+        None,
     ));
-    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
         6,
         836,
         0x18,
@@ -3010,6 +3028,7 @@ fn ldap_modify_path_materializes_connect_modify_and_response_phases() {
         Some(0x300c0201),
         Some(0x01),
         Some(0x67),
+        Some(0x00),
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
 
@@ -3064,7 +3083,7 @@ fn ldap_modify_path_does_not_match_wrong_response_op_tag() {
     session.ingest(route_fact(2, 837, 7));
     session.ingest(tcp_state_fact_with_ports(3, 837, 1, 2, 54023, 389));
     session.ingest(tcp_state_fact_with_ports(4, 837, 2, 3, 54023, 389));
-    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
         5,
         837,
         0x18,
@@ -3076,8 +3095,9 @@ fn ldap_modify_path_does_not_match_wrong_response_op_tag() {
         Some(0x30120201),
         Some(0x01),
         Some(0x66),
+        None,
     ));
-    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
         6,
         837,
         0x18,
@@ -3088,7 +3108,8 @@ fn ldap_modify_path_does_not_match_wrong_response_op_tag() {
         Some(0x300c),
         Some(0x300c0201),
         Some(0x01),
-        Some(0x65),
+        Some(0x67),
+        Some(0x31),
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
 
@@ -3099,6 +3120,118 @@ fn ldap_modify_path_does_not_match_wrong_response_op_tag() {
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_modify_response"))
     );
+}
+
+#[test]
+fn ldap_modify_denied_path_materializes_denied_modify_phase() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 842, 54028, "ldapmodify"));
+    session.ingest(route_fact(2, 842, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 842, 1, 2, 54028, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 842, 2, 3, 54028, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        5,
+        842,
+        0x18,
+        PacketDir::Egress,
+        Some(54028),
+        Some(389),
+        Some(0x30),
+        Some(0x3012),
+        Some(0x30120201),
+        Some(0x01),
+        Some(0x66),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        6,
+        842,
+        0x18,
+        PacketDir::Ingress,
+        Some(54028),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x67),
+        Some(0x32),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("ldap_modify_denied".into())
+    );
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("send_modify")));
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some("receive_modify_denied")));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ldap_modify_denied_path_does_not_match_success_result_code() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 843, 54028, "ldapmodify"));
+    session.ingest(route_fact(2, 843, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 843, 1, 2, 54028, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 843, 2, 3, 54028, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        5,
+        843,
+        0x18,
+        PacketDir::Egress,
+        Some(54028),
+        Some(389),
+        Some(0x30),
+        Some(0x3012),
+        Some(0x30120201),
+        Some(0x01),
+        Some(0x66),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        6,
+        843,
+        0x18,
+        PacketDir::Ingress,
+        Some(54028),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x67),
+        Some(0x00),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("receive_modify_denied")));
 }
 
 #[test]
@@ -3243,7 +3376,7 @@ fn ldap_directory_write_session_can_span_bind_and_modify_in_one_module() {
         Some(0x01),
         Some(0x66),
     ));
-    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
         8,
         838,
         0x18,
@@ -3255,6 +3388,7 @@ fn ldap_directory_write_session_can_span_bind_and_modify_in_one_module() {
         Some(0x300c0201),
         Some(0x01),
         Some(0x67),
+        Some(0x00),
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(100));
 
@@ -3349,7 +3483,7 @@ fn ldap_directory_sync_session_can_span_bind_search_and_modify_in_one_module() {
         Some(0x01),
         Some(0x65),
     ));
-    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
         9,
         839,
         0x18,
@@ -3361,8 +3495,9 @@ fn ldap_directory_sync_session_can_span_bind_search_and_modify_in_one_module() {
         Some(0x30120201),
         Some(0x01),
         Some(0x66),
+        None,
     ));
-    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
         10,
         839,
         0x18,
@@ -3374,6 +3509,7 @@ fn ldap_directory_sync_session_can_span_bind_search_and_modify_in_one_module() {
         Some(0x300c0201),
         Some(0x01),
         Some(0x67),
+        Some(0x00),
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(120));
 
@@ -3405,6 +3541,194 @@ fn ldap_directory_sync_session_can_span_bind_search_and_modify_in_one_module() {
     assert!(phase_kinds.contains(&"emit_payload".to_string()));
     assert!(phase_kinds.contains(&"receive_payload".to_string()));
     assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ldap_directory_sync_session_missing_modify_produces_search_to_modify_transition() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 840, 54026, "ldap-directory-sync"));
+    session.ingest(route_fact(2, 840, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 840, 1, 2, 54026, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 840, 2, 3, 54026, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        5,
+        840,
+        0x18,
+        PacketDir::Egress,
+        Some(54026),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x60),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        6,
+        840,
+        0x18,
+        PacketDir::Ingress,
+        Some(54026),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x61),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        7,
+        840,
+        0x18,
+        PacketDir::Egress,
+        Some(54026),
+        Some(389),
+        Some(0x30),
+        Some(0x3010),
+        Some(0x30100201),
+        Some(0x01),
+        Some(0x63),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        8,
+        840,
+        0x18,
+        PacketDir::Ingress,
+        Some(54026),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x65),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(100));
+
+    let export = session.export_bundle();
+    assert!(export.program_findings.iter().any(|finding| {
+        finding.module_label == "ldap_directory_sync_session"
+            && finding.phase.as_deref() == Some("send_modify")
+            && finding.phase_transition.as_deref() == Some("receive_search_result->send_modify")
+    }));
+    assert!(export.module_findings.iter().any(|finding| {
+        finding
+            .phase_transitions
+            .contains(&"receive_search_result->send_modify".to_string())
+    }));
+}
+
+#[test]
+fn ldap_directory_sync_session_failed_modify_response_produces_modify_transition() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 841, 54027, "ldap-directory-sync"));
+    session.ingest(route_fact(2, 841, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 841, 1, 2, 54027, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 841, 2, 3, 54027, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        5,
+        841,
+        0x18,
+        PacketDir::Egress,
+        Some(54027),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x60),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        6,
+        841,
+        0x18,
+        PacketDir::Ingress,
+        Some(54027),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x61),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        7,
+        841,
+        0x18,
+        PacketDir::Egress,
+        Some(54027),
+        Some(389),
+        Some(0x30),
+        Some(0x3010),
+        Some(0x30100201),
+        Some(0x01),
+        Some(0x63),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        8,
+        841,
+        0x18,
+        PacketDir::Ingress,
+        Some(54027),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x65),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        9,
+        841,
+        0x18,
+        PacketDir::Egress,
+        Some(54027),
+        Some(389),
+        Some(0x30),
+        Some(0x3012),
+        Some(0x30120201),
+        Some(0x01),
+        Some(0x66),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        10,
+        841,
+        0x18,
+        PacketDir::Ingress,
+        Some(54027),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x67),
+        Some(0x31),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(120));
+
+    let export = session.export_bundle();
+    assert!(export.program_flows[0]
+        .stages
+        .iter()
+        .all(|stage| stage.phase.as_deref() != Some("receive_modify_response")));
+    assert!(export.program_findings.iter().any(|finding| {
+        finding.module_label == "ldap_directory_sync_session"
+            && finding.phase.as_deref() == Some("receive_modify_response")
+            && finding.phase_transition.as_deref() == Some("send_modify->receive_modify_response")
+    }));
+    assert!(export.module_findings.iter().any(|finding| {
+        finding
+            .phase_transitions
+            .contains(&"send_modify->receive_modify_response".to_string())
+    }));
 }
 
 #[test]
@@ -4185,7 +4509,7 @@ reason=udp_datagram_l1
 fragment=udp_packet_meta_fragment
 program_model=unsupported_payload_offset_model
 operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;udp_datagram_sent;true
 "#,
     )
     .unwrap();
@@ -4198,7 +4522,7 @@ rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;udp
         rule.missing_facts,
         Vec::<gewyvern::ledger::FactKindTag>::new()
     );
-    assert_eq!(rule.unsupported_payload_offsets, vec![9]);
+    assert_eq!(rule.unsupported_payload_offsets, vec![8]);
 }
 
 #[test]
@@ -4211,7 +4535,7 @@ reason=udp_datagram_l1
 fragment=udp_packet_meta_fragment
 program_model=unsupported_payload_offset_compile_model
 operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;udp_datagram_sent;true
 "#,
     )
     .unwrap_err();
@@ -4221,7 +4545,7 @@ rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;udp
         DslError::Registry(RegistryError::UnsupportedRulePayloadOffsets {
             model: "program_model".into(),
             rule_index: 0,
-            offsets: vec![9],
+            offsets: vec![8],
         })
     );
 }

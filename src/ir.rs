@@ -154,7 +154,8 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "receive_banner"
             | "receive_bind_response"
             | "receive_search_result"
-            | "receive_modify_response" => Some("receive_payload"),
+            | "receive_modify_response"
+            | "receive_modify_denied" => Some("receive_payload"),
             _ => None,
         },
         SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {
@@ -341,6 +342,7 @@ fn packet_payload_byte_at(packet: &crate::ledger::PacketMetaFact, offset: u16) -
         0 => packet.payload_byte0,
         4 => packet.payload_byte4,
         5 => packet.payload_byte5,
+        9 => packet.payload_byte9,
         13 => packet.payload_byte13,
         _ => None,
     }
