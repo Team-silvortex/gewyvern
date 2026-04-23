@@ -1,8 +1,11 @@
-use crate::fragment::EvidenceTier;
 use crate::flow::{ProgramOperation, ProgramStageKind};
+use crate::fragment::EvidenceTier;
 use crate::ledger::FactKindTag;
 use crate::program::{ProgramModel, ProgramNarrative, ProgramPredicate, ProgramRule};
-use crate::reason::{ReasonProfile, ReasonProfile::{HandshakeL1, UdpDatagramL1}};
+use crate::reason::{
+    ReasonProfile,
+    ReasonProfile::{HandshakeL1, UdpDatagramL1},
+};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -87,11 +90,7 @@ impl TemplateBinding {
         self
     }
 
-    pub fn with_evidence_tier(
-        mut self,
-        fact_kind: FactKindTag,
-        tier: EvidenceTier,
-    ) -> Self {
+    pub fn with_evidence_tier(mut self, fact_kind: FactKindTag, tier: EvidenceTier) -> Self {
         self.evidence_overrides.insert(fact_kind, tier);
         self
     }
@@ -125,7 +124,9 @@ pub fn connect_flow_model() -> ProgramModel {
             ProgramRule {
                 predicate: ProgramPredicate::RouteResolved,
                 signal: Some(ProgramStageKind::RouteResolved),
-                narrative: ProgramNarrative::Static("program resolved a route for this network flow"),
+                narrative: ProgramNarrative::Static(
+                    "program resolved a route for this network flow",
+                ),
                 dedupe: true,
                 module: None,
                 phase: None,
@@ -171,7 +172,9 @@ pub fn datagram_exchange_model() -> ProgramModel {
             ProgramRule {
                 predicate: ProgramPredicate::RouteResolved,
                 signal: Some(ProgramStageKind::RouteResolved),
-                narrative: ProgramNarrative::Static("program resolved a route for this network flow"),
+                narrative: ProgramNarrative::Static(
+                    "program resolved a route for this network flow",
+                ),
                 dedupe: true,
                 module: None,
                 phase: None,
@@ -217,10 +220,7 @@ pub fn handshake_debug_template() -> Template {
 pub fn udp_debug_template() -> Template {
     Template {
         id: "udp_debug",
-        fragment_set: vec![
-            "udp_packet_meta_fragment",
-            "route_meta_fragment",
-        ],
+        fragment_set: vec!["udp_packet_meta_fragment", "route_meta_fragment"],
         window_profile: Some(default_5s_window()),
         reason_profile: Some(UdpDatagramL1),
         program_model: Some(datagram_exchange_model()),

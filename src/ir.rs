@@ -143,31 +143,37 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             _ => None,
         },
         SignalKind::PacketObserved => match phase {
-            "send_request" | "send_response" | "send_client_hello" | "send_ping"
-            | "send_query" | "send_connect" | "send_ehlo" | "send_bind" => {
+            "send_request" | "send_response" | "send_client_hello" | "send_ping" | "send_query"
+            | "send_connect" | "send_ehlo" | "send_bind" | "send_search" | "send_modify" => {
                 Some("emit_payload")
             }
-            "receive_request" | "receive_response" | "receive_pong" | "receive_connack"
-            | "receive_banner" | "receive_bind_response" => {
-                Some("receive_payload")
-            }
+            "receive_request"
+            | "receive_response"
+            | "receive_pong"
+            | "receive_connack"
+            | "receive_banner"
+            | "receive_bind_response"
+            | "receive_search_result"
+            | "receive_modify_response" => Some("receive_payload"),
             _ => None,
         },
         SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {
-            "send_request" | "send_initial" | "send_discover" | "send_initiation"
-            | "send_query" | "send_search" | "send_access_request" | "send_get_request"
-            | "send_register" => {
-                Some("emit_datagram")
-            }
+            "send_request"
+            | "send_initial"
+            | "send_discover"
+            | "send_initiation"
+            | "send_query"
+            | "send_search"
+            | "send_access_request"
+            | "send_get_request"
+            | "send_register" => Some("emit_datagram"),
             "receive_reply"
             | "receive_handshake"
             | "receive_response"
             | "receive_offer"
             | "receive_access_accept"
             | "receive_get_response"
-            | "receive_ok" => {
-                Some("receive_datagram")
-            }
+            | "receive_ok" => Some("receive_datagram"),
             _ => None,
         },
         SignalKind::SynSeen => Some("initiate_connection"),
@@ -316,12 +322,14 @@ pub fn matches_flow_predicate(
             )
         }
         FlowPredicate::RouteResolved => flow.evidence.route_facts.contains(&fact.id),
-        FlowPredicate::All(predicates) => predicates
-            .iter()
-            .all(|predicate| flow_predicate_satisfied_in_flow(predicate, flow, facts))
-            && predicates
+        FlowPredicate::All(predicates) => {
+            predicates
                 .iter()
-                .any(|predicate| matches_flow_predicate(predicate, flow, fact, facts)),
+                .all(|predicate| flow_predicate_satisfied_in_flow(predicate, flow, facts))
+                && predicates
+                    .iter()
+                    .any(|predicate| matches_flow_predicate(predicate, flow, fact, facts))
+        }
         FlowPredicate::Any(predicates) => predicates
             .iter()
             .any(|predicate| matches_flow_predicate(predicate, flow, fact, facts)),
@@ -359,10 +367,16 @@ pub fn render_narrative_template(
         NarrativeTemplate::Static(line) => Some((*line).into()),
         NarrativeTemplate::ProcessBound => flow.process.as_ref().map(|process| match surface {
             NarrativeSurface::Program => {
-                format!("process {} (pid={}) bound this network flow", process.comm, process.pid)
+                format!(
+                    "process {} (pid={}) bound this network flow",
+                    process.comm, process.pid
+                )
             }
             NarrativeSurface::Reason => {
-                format!("flow bound to process {} (pid={})", process.comm, process.pid)
+                format!(
+                    "flow bound to process {} (pid={})",
+                    process.comm, process.pid
+                )
             }
         }),
         NarrativeTemplate::PacketObserved => Some(match surface {

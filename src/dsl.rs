@@ -1,23 +1,18 @@
-use crate::fragment::{builtin_registry, EvidenceTier, RegistryError};
 use crate::flow::{ProgramOperation, ProgramStageKind};
+use crate::fragment::{EvidenceTier, RegistryError, builtin_registry};
 use crate::ir::{FlowPredicate, NarrativeTemplate, PayloadByteMatch, SignalKind};
 use crate::ledger::{FactKindTag, PacketDir};
 use crate::program::{ProgramModel, ProgramNarrative, ProgramRule};
-use crate::reason::{
-    ReasonKeyEvent, ReasonModel, ReasonNarrative, ReasonProfile, ReasonRule,
-};
+use crate::reason::{ReasonKeyEvent, ReasonModel, ReasonNarrative, ReasonProfile, ReasonRule};
 use crate::template::{
-    default_5s_window, default_program_model_for_reason_profile, FragmentParamValue, Template,
-    TemplateBinding, WindowProfile,
+    FragmentParamValue, Template, TemplateBinding, WindowProfile, default_5s_window,
+    default_program_model_for_reason_profile,
 };
 use std::fs;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum DslError {
-    Located {
-        line: usize,
-        inner: Box<DslError>,
-    },
+    Located { line: usize, inner: Box<DslError> },
     InvalidLine(String),
     MissingField(&'static str),
     InvalidValue(String),
@@ -69,30 +64,42 @@ pub fn parse_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError> {
 
         match key {
             "template" => template_id = Some(value.to_string()),
-            "window" => window_profile = Some(parse_window_profile(value).map_err(|err| err.at_line(line_no))?),
+            "window" => {
+                window_profile =
+                    Some(parse_window_profile(value).map_err(|err| err.at_line(line_no))?)
+            }
             "window.duration_ms" => {
-                inline_window_duration_ms = Some(parse_u64(value, key).map_err(|err| err.at_line(line_no))?);
+                inline_window_duration_ms =
+                    Some(parse_u64(value, key).map_err(|err| err.at_line(line_no))?);
             }
             "window.lateness_ms" => {
-                inline_window_lateness_ms = Some(parse_u64(value, key).map_err(|err| err.at_line(line_no))?);
+                inline_window_lateness_ms =
+                    Some(parse_u64(value, key).map_err(|err| err.at_line(line_no))?);
             }
             "reason" => {
-                reason_profile = Some(
-                    ReasonProfile::from_id(value)
-                        .ok_or_else(|| DslError::InvalidValue(format!("unknown reason profile '{value}'")).at_line(line_no))?,
-                )
+                reason_profile = Some(ReasonProfile::from_id(value).ok_or_else(|| {
+                    DslError::InvalidValue(format!("unknown reason profile '{value}'"))
+                        .at_line(line_no)
+                })?)
             }
             "reason_model" => reason_model_id = Some(value.to_string()),
-            "reason.rule" => reason_rules.push(parse_reason_rule(value).map_err(|err| err.at_line(line_no))?),
+            "reason.rule" => {
+                reason_rules.push(parse_reason_rule(value).map_err(|err| err.at_line(line_no))?)
+            }
             "fragment" => fragment_set.push(value.to_string()),
             "program_model" => program_model_id = Some(value.to_string()),
             "operation" => operation = Some(parse_operation(value)),
             "rule" => rules.push(parse_rule(value).map_err(|err| err.at_line(line_no))?),
-            "param" => fragment_params.push(parse_param_entry(value).map_err(|err| err.at_line(line_no))?),
-            "evidence" => {
-                evidence_overrides.push(parse_evidence_override(value).map_err(|err| err.at_line(line_no))?)
+            "param" => {
+                fragment_params.push(parse_param_entry(value).map_err(|err| err.at_line(line_no))?)
             }
-            other => return Err(DslError::InvalidValue(format!("unknown DSL key '{other}'")).at_line(line_no)),
+            "evidence" => evidence_overrides
+                .push(parse_evidence_override(value).map_err(|err| err.at_line(line_no))?),
+            other => {
+                return Err(
+                    DslError::InvalidValue(format!("unknown DSL key '{other}'")).at_line(line_no)
+                );
+            }
         }
     }
 
@@ -102,12 +109,8 @@ pub fn parse_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError> {
         inline_window_duration_ms,
         inline_window_lateness_ms,
     )?;
-    let reason_profile = build_reason_profile(
-        &template_id,
-        reason_profile,
-        reason_model_id,
-        reason_rules,
-    )?;
+    let reason_profile =
+        build_reason_profile(&template_id, reason_profile, reason_model_id, reason_rules)?;
     let program_model = build_program_model(
         &template_id,
         &reason_profile,
@@ -176,7 +179,9 @@ impl DslError {
 fn parse_window_profile(value: &str) -> Result<WindowProfile, DslError> {
     match value {
         "default_5s" => Ok(default_5s_window()),
-        other => Err(DslError::InvalidValue(format!("unknown window profile '{other}'"))),
+        other => Err(DslError::InvalidValue(format!(
+            "unknown window profile '{other}'"
+        ))),
     }
 }
 
@@ -265,7 +270,9 @@ fn parse_rule(value: &str) -> Result<ProgramRule, DslError> {
 fn parse_reason_rule(value: &str) -> Result<ReasonRule, DslError> {
     let parts = split_top_level(value, ';');
     if !(4..=6).contains(&parts.len()) {
-        return Err(DslError::InvalidValue(format!("invalid reason rule '{value}'")));
+        return Err(DslError::InvalidValue(format!(
+            "invalid reason rule '{value}'"
+        )));
     }
 
     Ok(ReasonRule {
@@ -339,7 +346,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 Some(other) => {
                     return Err(DslError::InvalidValue(format!(
                         "unknown socket_state_observed state qualifier '{other}'"
-                    )))
+                    )));
                 }
             };
             if let Some(extra) = parts.next() {
@@ -361,9 +368,9 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let l4_proto = match proto {
                 "udp" => 17,
                 "tcp" => 6,
-                _ => proto
-                    .parse::<u8>()
-                    .map_err(|_| DslError::InvalidValue(format!("unknown datagram proto '{proto}'")))?,
+                _ => proto.parse::<u8>().map_err(|_| {
+                    DslError::InvalidValue(format!("unknown datagram proto '{proto}'"))
+                })?,
             };
             let mut dir = None;
             let mut local_port = None;
@@ -394,14 +401,10 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                     }
                     "min_len" => {
                         let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing datagram min_len qualifier".into(),
-                            )
+                            DslError::InvalidValue("missing datagram min_len qualifier".into())
                         })?;
                         min_len = Some(value.parse::<u32>().map_err(|_| {
-                            DslError::InvalidValue(format!(
-                                "invalid datagram min_len '{value}'"
-                            ))
+                            DslError::InvalidValue(format!("invalid datagram min_len '{value}'"))
                         })?);
                     }
                     "byte0_mask" => {
@@ -424,21 +427,13 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         let value = parts.next().ok_or_else(|| {
                             DslError::InvalidValue("missing datagram prefix2 qualifier".into())
                         })?;
-                        prefix2 = Some(parse_u16_literal(
-                            value,
-                            "datagram_observed",
-                            "prefix2",
-                        )?);
+                        prefix2 = Some(parse_u16_literal(value, "datagram_observed", "prefix2")?);
                     }
                     "prefix4" => {
                         let value = parts.next().ok_or_else(|| {
                             DslError::InvalidValue("missing datagram prefix4 qualifier".into())
                         })?;
-                        prefix4 = Some(parse_u32_literal(
-                            value,
-                            "datagram_observed",
-                            "prefix4",
-                        )?);
+                        prefix4 = Some(parse_u32_literal(value, "datagram_observed", "prefix4")?);
                     }
                     "byte13_mask" => {
                         let mask = parts.next().ok_or_else(|| {
@@ -453,18 +448,25 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         })?;
                         byte13_mask =
                             Some(parse_u8_literal(mask, "datagram_observed", "byte13_mask")?);
-                        byte13_value =
-                            Some(parse_u8_literal(value, "datagram_observed", "byte13_value")?);
+                        byte13_value = Some(parse_u8_literal(
+                            value,
+                            "datagram_observed",
+                            "byte13_value",
+                        )?);
                     }
                     "byte_at" => {
                         let offset = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing datagram byte_at offset qualifier".into())
+                            DslError::InvalidValue(
+                                "missing datagram byte_at offset qualifier".into(),
+                            )
                         })?;
                         let mask = parts.next().ok_or_else(|| {
                             DslError::InvalidValue("missing datagram byte_at mask qualifier".into())
                         })?;
                         let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing datagram byte_at value qualifier".into())
+                            DslError::InvalidValue(
+                                "missing datagram byte_at value qualifier".into(),
+                            )
                         })?;
                         byte_matches.push(PayloadByteMatch {
                             offset: offset.parse::<u16>().map_err(|_| {
@@ -479,7 +481,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                     other => {
                         return Err(DslError::InvalidValue(format!(
                             "unknown datagram predicate suffix '{other}'"
-                        )))
+                        )));
                     }
                 }
             }
@@ -505,9 +507,9 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let l4_proto = match proto {
                 "udp" => 17,
                 "tcp" => 6,
-                _ => proto
-                    .parse::<u8>()
-                    .map_err(|_| DslError::InvalidValue(format!("unknown packet proto '{proto}'")))?,
+                _ => proto.parse::<u8>().map_err(|_| {
+                    DslError::InvalidValue(format!("unknown packet proto '{proto}'"))
+                })?,
             };
             let mut dir = None;
             let mut local_port = None;
@@ -569,8 +571,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                                 "missing packet byte4_mask value qualifier".into(),
                             )
                         })?;
-                        byte4_mask =
-                            Some(parse_u8_literal(mask, "packet_observed", "byte4_mask")?);
+                        byte4_mask = Some(parse_u8_literal(mask, "packet_observed", "byte4_mask")?);
                         byte4_value =
                             Some(parse_u8_literal(value, "packet_observed", "byte4_value")?);
                     }
@@ -613,7 +614,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                     other => {
                         return Err(DslError::InvalidValue(format!(
                             "unexpected packet predicate suffix '{other}'"
-                        )))
+                        )));
                     }
                 }
             }
@@ -632,18 +633,18 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 byte_matches,
             })
         }
-        other => Err(DslError::InvalidValue(format!("unknown predicate '{other}'"))),
+        other => Err(DslError::InvalidValue(format!(
+            "unknown predicate '{other}'"
+        ))),
     }
 }
 
 fn parse_reason_key_event(value: &str) -> Result<Option<ReasonKeyEvent>, DslError> {
     Ok(match value {
         "none" => None,
-        other => Some(
-            SignalKind::from_id(other).ok_or_else(|| {
-                DslError::InvalidValue(format!("unknown reason key event '{other}'"))
-            })?,
-        ),
+        other => Some(SignalKind::from_id(other).ok_or_else(|| {
+            DslError::InvalidValue(format!("unknown reason key event '{other}'"))
+        })?),
     })
 }
 
@@ -684,9 +685,7 @@ fn parse_u8_literal(value: &str, predicate: &str, field: &str) -> Result<u8, Dsl
     } else {
         value.parse::<u8>()
     };
-    parsed.map_err(|_| {
-        DslError::InvalidValue(format!("invalid {predicate} {field} '{value}'"))
-    })
+    parsed.map_err(|_| DslError::InvalidValue(format!("invalid {predicate} {field} '{value}'")))
 }
 
 fn parse_u16_literal(value: &str, predicate: &str, field: &str) -> Result<u16, DslError> {
@@ -695,9 +694,7 @@ fn parse_u16_literal(value: &str, predicate: &str, field: &str) -> Result<u16, D
     } else {
         value.parse::<u16>()
     };
-    parsed.map_err(|_| {
-        DslError::InvalidValue(format!("invalid {predicate} {field} '{value}'"))
-    })
+    parsed.map_err(|_| DslError::InvalidValue(format!("invalid {predicate} {field} '{value}'")))
 }
 
 fn parse_u32_literal(value: &str, predicate: &str, field: &str) -> Result<u32, DslError> {
@@ -706,9 +703,7 @@ fn parse_u32_literal(value: &str, predicate: &str, field: &str) -> Result<u32, D
     } else {
         value.parse::<u32>()
     };
-    parsed.map_err(|_| {
-        DslError::InvalidValue(format!("invalid {predicate} {field} '{value}'"))
-    })
+    parsed.map_err(|_| DslError::InvalidValue(format!("invalid {predicate} {field} '{value}'")))
 }
 
 fn parse_narrative_template(value: &str) -> NarrativeTemplate {
@@ -760,7 +755,7 @@ fn parse_evidence_override(value: &str) -> Result<(FactKindTag, EvidenceTier), D
         other => {
             return Err(DslError::InvalidValue(format!(
                 "unknown evidence tier '{other}'"
-            )))
+            )));
         }
     };
     Ok((fact_kind, tier))
@@ -773,7 +768,9 @@ fn parse_param_value(value: &str) -> Result<FragmentParamValue, DslError> {
     if let Ok(value) = value.parse::<u64>() {
         return Ok(FragmentParamValue::U64(value));
     }
-    Ok(FragmentParamValue::String(value.trim_matches('"').to_string()))
+    Ok(FragmentParamValue::String(
+        value.trim_matches('"').to_string(),
+    ))
 }
 
 fn parse_bool(value: &str) -> Result<bool, DslError> {

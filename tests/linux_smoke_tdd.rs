@@ -1,18 +1,19 @@
 #[cfg(target_os = "linux")]
-use gewyvern::runtime::{RuntimeSession, SessionConfig};
-#[cfg(target_os = "linux")]
-use gewyvern::template::{default_5s_window, handshake_debug_template, udp_debug_template, Template};
+use gewyvern::loader::{LINUX_SMOKE_FRAGMENT_ID, linux_tracepoint_smoke_failures};
 #[cfg(target_os = "linux")]
 use gewyvern::reason::ReasonProfile;
 #[cfg(target_os = "linux")]
-use gewyvern::loader::{linux_tracepoint_smoke_failures, LINUX_SMOKE_FRAGMENT_ID};
+use gewyvern::runtime::{RuntimeSession, SessionConfig};
+#[cfg(target_os = "linux")]
+use gewyvern::template::{
+    Template, default_5s_window, handshake_debug_template, udp_debug_template,
+};
 
 #[cfg(target_os = "linux")]
 #[test]
 #[ignore = "requires a Linux eBPF-capable environment"]
 fn linux_tracepoint_attach_smoke() {
-    let failures =
-        linux_tracepoint_smoke_failures("syscalls/sys_enter_nanosleep").unwrap();
+    let failures = linux_tracepoint_smoke_failures("syscalls/sys_enter_nanosleep").unwrap();
     assert!(failures.is_empty(), "linux attach smoke should succeed");
 }
 
@@ -25,7 +26,10 @@ fn linux_tracepoint_attach_failure_becomes_structured_record() {
 
     assert_eq!(failures.len(), 1);
     assert_eq!(failures[0].fragment_id, LINUX_SMOKE_FRAGMENT_ID);
-    assert_eq!(failures[0].hookpoint.label(), "tracepoint:syscalls/definitely_missing_smoke_event");
+    assert_eq!(
+        failures[0].hookpoint.label(),
+        "tracepoint:syscalls/definitely_missing_smoke_event"
+    );
     assert!(!failures[0].error.is_empty());
 }
 
@@ -34,11 +38,9 @@ fn linux_tracepoint_attach_failure_becomes_structured_record() {
 #[ignore = "requires a Linux eBPF-capable environment"]
 fn runtime_session_start_can_probe_linux_loader_success() {
     let config = SessionConfig::for_template(handshake_debug_template()).unwrap();
-    let session = RuntimeSession::start_with_linux_tracepoint_smoke(
-        config,
-        "syscalls/sys_enter_nanosleep",
-    )
-    .unwrap();
+    let session =
+        RuntimeSession::start_with_linux_tracepoint_smoke(config, "syscalls/sys_enter_nanosleep")
+            .unwrap();
 
     let export = session.export_bundle();
     assert!(export.attach_report.hookpoints_failed.is_empty());
@@ -58,12 +60,17 @@ fn runtime_session_start_can_probe_linux_loader_failure() {
     let export = session.export_bundle();
     assert_eq!(
         export.attach_report.hookpoints_failed,
-        vec!["linux_tracepoint_smoke_fragment@tracepoint:syscalls/definitely_missing_smoke_event".to_string()]
+        vec![
+            "linux_tracepoint_smoke_fragment@tracepoint:syscalls/definitely_missing_smoke_event"
+                .to_string()
+        ]
     );
-    assert!(export
-        .attach_report
-        .hookpoints_attached
-        .contains(&"tcp_state_fragment@tracepoint:sock/inet_sock_set_state".to_string()));
+    assert!(
+        export
+            .attach_report
+            .hookpoints_attached
+            .contains(&"tcp_state_fragment@tracepoint:sock/inet_sock_set_state".to_string())
+    );
 }
 
 #[cfg(target_os = "linux")]
@@ -109,7 +116,10 @@ fn runtime_session_can_probe_real_route_meta_fragment_attach() {
     );
     assert_eq!(
         export.attach_report.fragments_loaded,
-        vec!["tcp_state_fragment".to_string(), "route_meta_fragment".to_string()]
+        vec![
+            "tcp_state_fragment".to_string(),
+            "route_meta_fragment".to_string()
+        ]
     );
 }
 

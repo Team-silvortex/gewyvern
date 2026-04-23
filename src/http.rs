@@ -62,13 +62,11 @@ struct BundleView<'a> {
 }
 
 pub fn compose_http_transactions(exports: &[ExportBundle]) -> Vec<HttpTransactionView> {
-    let mut views = exports
-        .iter()
-        .filter_map(bundle_view)
-        .collect::<Vec<_>>();
+    let mut views = exports.iter().filter_map(bundle_view).collect::<Vec<_>>();
     views.sort_by_key(|view| (view.start, view.end));
 
-    views.into_iter()
+    views
+        .into_iter()
         .filter(|view| view.kind == HttpComponentKind::ClientRequest)
         .enumerate()
         .map(|(idx, request)| {
@@ -87,7 +85,11 @@ pub fn compose_http_transactions(exports: &[ExportBundle]) -> Vec<HttpTransactio
                 .bundle
                 .program_flows
                 .iter()
-                .flat_map(|flow| flow.stages.iter().filter_map(|stage| stage.phase_kind.clone()))
+                .flat_map(|flow| {
+                    flow.stages
+                        .iter()
+                        .filter_map(|stage| stage.phase_kind.clone())
+                })
                 .collect::<Vec<_>>();
             phases.sort();
             phases.dedup();
@@ -133,15 +135,16 @@ pub fn compose_http_transactions(exports: &[ExportBundle]) -> Vec<HttpTransactio
                 });
                 extend_unique(
                     &mut phases,
-                    dns.bundle
-                        .program_flows
-                        .iter()
-                        .flat_map(|flow| flow.stages.iter().filter_map(|stage| stage.phase.clone())),
+                    dns.bundle.program_flows.iter().flat_map(|flow| {
+                        flow.stages.iter().filter_map(|stage| stage.phase.clone())
+                    }),
                 );
                 extend_unique(
                     &mut phase_kinds,
                     dns.bundle.program_flows.iter().flat_map(|flow| {
-                        flow.stages.iter().filter_map(|stage| stage.phase_kind.clone())
+                        flow.stages
+                            .iter()
+                            .filter_map(|stage| stage.phase_kind.clone())
                     }),
                 );
                 degraded |= dns.bundle.debug_summary.degraded;
@@ -165,7 +168,8 @@ pub fn compose_http_transactions(exports: &[ExportBundle]) -> Vec<HttpTransactio
             }
 
             let server_views = views_for_server(exports);
-            let server_process = if let Some(server) = find_related_server(&server_views, &request) {
+            let server_process = if let Some(server) = find_related_server(&server_views, &request)
+            {
                 components.push(HttpComponentRef {
                     template_id: server.bundle.template_id.clone(),
                     kind: server.kind.clone(),
@@ -173,16 +177,16 @@ pub fn compose_http_transactions(exports: &[ExportBundle]) -> Vec<HttpTransactio
                 });
                 extend_unique(
                     &mut phases,
-                    server
-                        .bundle
-                        .program_flows
-                        .iter()
-                        .flat_map(|flow| flow.stages.iter().filter_map(|stage| stage.phase.clone())),
+                    server.bundle.program_flows.iter().flat_map(|flow| {
+                        flow.stages.iter().filter_map(|stage| stage.phase.clone())
+                    }),
                 );
                 extend_unique(
                     &mut phase_kinds,
                     server.bundle.program_flows.iter().flat_map(|flow| {
-                        flow.stages.iter().filter_map(|stage| stage.phase_kind.clone())
+                        flow.stages
+                            .iter()
+                            .filter_map(|stage| stage.phase_kind.clone())
                     }),
                 );
                 degraded |= server.bundle.debug_summary.degraded;
@@ -249,7 +253,10 @@ fn views_for_server(exports: &[ExportBundle]) -> Vec<BundleView<'_>> {
         .collect()
 }
 
-fn find_related_dns<'a>(dns_views: &'a [BundleView<'a>], request: &BundleView<'a>) -> Option<&'a BundleView<'a>> {
+fn find_related_dns<'a>(
+    dns_views: &'a [BundleView<'a>],
+    request: &BundleView<'a>,
+) -> Option<&'a BundleView<'a>> {
     dns_views.iter().find(|dns| {
         same_process(dns.process.as_ref(), request.process.as_ref()) && near_precedes(dns, request)
     })
@@ -259,7 +266,9 @@ fn find_related_server<'a>(
     server_views: &'a [BundleView<'a>],
     request: &BundleView<'a>,
 ) -> Option<&'a BundleView<'a>> {
-    server_views.iter().find(|server| near_precedes(request, server) || overlaps(server, request))
+    server_views
+        .iter()
+        .find(|server| near_precedes(request, server) || overlaps(server, request))
 }
 
 fn overlaps(lhs: &BundleView<'_>, rhs: &BundleView<'_>) -> bool {
@@ -284,7 +293,9 @@ fn bundle_view(bundle: &ExportBundle) -> Option<BundleView<'_>> {
     let flow = bundle.program_flows.first()?;
     let kind = match &flow.operation {
         ProgramOperation::Custom(value) if value == "dns_lookup" => HttpComponentKind::DnsLookup,
-        ProgramOperation::Custom(value) if value == "http_request" => HttpComponentKind::ClientRequest,
+        ProgramOperation::Custom(value) if value == "http_request" => {
+            HttpComponentKind::ClientRequest
+        }
         ProgramOperation::Custom(value) if value == "http_server_response" => {
             HttpComponentKind::ServerResponse
         }

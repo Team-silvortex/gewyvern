@@ -16,14 +16,20 @@ fn template_requires_fragment_set() {
 fn template_requires_window_profile() {
     let mut template = handshake_debug_template();
     template.window_profile = None;
-    assert_eq!(template.validate(), Err(TemplateError::MissingWindowProfile));
+    assert_eq!(
+        template.validate(),
+        Err(TemplateError::MissingWindowProfile)
+    );
 }
 
 #[test]
 fn template_requires_reason_profile() {
     let mut template = handshake_debug_template();
     template.reason_profile = None;
-    assert_eq!(template.validate(), Err(TemplateError::MissingReasonProfile));
+    assert_eq!(
+        template.validate(),
+        Err(TemplateError::MissingReasonProfile)
+    );
 }
 
 #[test]
@@ -81,10 +87,7 @@ fn template_can_compile_into_binding_with_fragment_params() {
 fn template_binding_can_override_evidence_tiers() {
     let binding = udp_process_debug_template()
         .bind()
-        .with_evidence_tier(
-            FactKindTag::SockLineage,
-            EvidenceTier::CoreRequirement,
-        );
+        .with_evidence_tier(FactKindTag::SockLineage, EvidenceTier::CoreRequirement);
 
     assert_eq!(binding.validate(), Ok(()));
     assert_eq!(

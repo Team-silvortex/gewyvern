@@ -14,9 +14,8 @@ impl InterventionGate {
     pub fn can_drop(
         scope_complete: bool,
         evidence_count: usize,
-        terminated: bool
+        terminated: bool,
     ) -> Result<(), GateRefuse> {
-
         if !scope_complete {
             return Err(GateRefuse::IncompleteObservation);
         }

@@ -1,20 +1,20 @@
 mod support;
 
 use gewyvern::export::ExportBundle;
-use gewyvern::fragment::{AttachFailure, HookPoint};
 use gewyvern::flow::{ModuleSeverity, ProgramFindingCause, ProgramOperation};
+use gewyvern::fragment::{AttachFailure, HookPoint};
 use gewyvern::ledger::FactKind;
 use gewyvern::loader::StaticFailureLoader;
 use gewyvern::program::{ProgramModel, ProgramNarrative, ProgramPredicate, ProgramRule};
-use gewyvern::runtime::{build_flow_snapshots, RuntimeSession, SessionConfig};
+use gewyvern::runtime::{RuntimeSession, SessionConfig, build_flow_snapshots};
 use gewyvern::template::{
     FragmentParamValue, handshake_debug_template, udp_debug_template, udp_process_debug_template,
 };
+use std::time::{Duration, SystemTime};
 use support::{
     packet_fact, route_fact, run_handshake_session, run_udp_process_session, run_udp_session,
     sock_lineage_fact, tcp_state_fact, udp_packet_fact,
 };
-use std::time::{Duration, SystemTime};
 
 #[test]
 fn handshake_template_exports_attach_plan_and_replays() {
@@ -45,7 +45,10 @@ fn syn_ack_missing_still_produces_deterministic_l1() {
     assert_eq!(export.reasons.len(), 1);
     assert_eq!(export.reasons[0].flow.0, export.flows[0].id.0);
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.reasons, replay.reasons);
 }
 
@@ -87,13 +90,23 @@ fn freeze_excludes_facts_beyond_lateness_cutoff() {
 
     let export = session.export_bundle();
     assert_eq!(export.facts.len(), 2);
-    assert!(export
-        .facts
-        .iter()
-        .all(|fact| fact.fragment_id != "route_meta_fragment"));
-    assert!(export.flows.iter().all(|flow| flow.path.current_oif.is_none()));
+    assert!(
+        export
+            .facts
+            .iter()
+            .all(|fact| fact.fragment_id != "route_meta_fragment")
+    );
+    assert!(
+        export
+            .flows
+            .iter()
+            .all(|flow| flow.path.current_oif.is_none())
+    );
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.facts, replay.facts);
     assert_eq!(export.reasons, replay.reasons);
 }
@@ -123,7 +136,11 @@ fn freeze_materializes_only_the_active_window_plus_lateness() {
     session.ingest(too_late);
 
     let export = session.export_bundle();
-    let exported_ids = export.facts.iter().map(|fact| fact.id.0).collect::<Vec<_>>();
+    let exported_ids = export
+        .facts
+        .iter()
+        .map(|fact| fact.id.0)
+        .collect::<Vec<_>>();
 
     assert_eq!(exported_ids, vec![2, 3]);
     assert_eq!(export.flows.len(), 1);
@@ -131,7 +148,10 @@ fn freeze_materializes_only_the_active_window_plus_lateness() {
     assert_eq!(export.flows[0].evidence.packet_facts.len(), 1);
     assert_eq!(export.flows[0].path.current_oif, Some(4));
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.facts, replay.facts);
     assert_eq!(export.reasons, replay.reasons);
 }
@@ -154,12 +174,17 @@ fn session_start_can_materialize_attach_failures_into_export() {
     );
     assert_eq!(export.attach_report.hookpoints_attached.len(), 2);
     assert_eq!(export.attach_report.fragments_loaded.len(), 2);
-    assert!(!export
-        .attach_report
-        .fragments_loaded
-        .contains(&"route_meta_fragment".to_string()));
+    assert!(
+        !export
+            .attach_report
+            .fragments_loaded
+            .contains(&"route_meta_fragment".to_string())
+    );
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(replay.attach_report.hookpoints_failed, Vec::<String>::new());
 }
 
@@ -209,8 +234,14 @@ fn session_rejects_facts_from_fragments_that_failed_to_attach() {
     assert_eq!(export.rejected_facts.len(), 1);
     assert_eq!(export.rejected_facts[0].fragment_id, "route_meta_fragment");
     assert_eq!(export.rejected_fact_summary.len(), 1);
-    assert_eq!(export.rejected_fact_summary[0].fragment_id, "route_meta_fragment");
-    assert_eq!(export.rejected_fact_summary[0].reason, "fragment_not_loaded");
+    assert_eq!(
+        export.rejected_fact_summary[0].fragment_id,
+        "route_meta_fragment"
+    );
+    assert_eq!(
+        export.rejected_fact_summary[0].reason,
+        "fragment_not_loaded"
+    );
     assert_eq!(export.rejected_fact_summary[0].count, 1);
     assert_eq!(export.debug_summary.fragments_loaded, 2);
     assert_eq!(export.debug_summary.hookpoints_failed, 1);
@@ -221,12 +252,17 @@ fn session_rejects_facts_from_fragments_that_failed_to_attach() {
     assert_eq!(export.debug_summary.module_findings, 1);
     assert_eq!(export.debug_summary.reasons, 1);
     assert!(export.debug_summary.degraded);
-    assert!(export
-        .facts
-        .iter()
-        .all(|fact| fact.fragment_id != "route_meta_fragment"));
+    assert!(
+        export
+            .facts
+            .iter()
+            .all(|fact| fact.fragment_id != "route_meta_fragment")
+    );
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.rejected_facts, replay.rejected_facts);
     assert_eq!(export.rejected_fact_summary, replay.rejected_fact_summary);
     assert_eq!(export.debug_summary, replay.debug_summary);
@@ -259,14 +295,29 @@ fn rejected_fact_summary_groups_multiple_drops_by_fragment_and_reason() {
     let export = session.export_bundle();
     assert_eq!(export.rejected_facts.len(), 3);
     assert_eq!(export.rejected_fact_summary.len(), 2);
-    assert_eq!(export.rejected_fact_summary[0].fragment_id, "route_meta_fragment");
-    assert_eq!(export.rejected_fact_summary[0].reason, "fragment_not_loaded");
+    assert_eq!(
+        export.rejected_fact_summary[0].fragment_id,
+        "route_meta_fragment"
+    );
+    assert_eq!(
+        export.rejected_fact_summary[0].reason,
+        "fragment_not_loaded"
+    );
     assert_eq!(export.rejected_fact_summary[0].count, 2);
-    assert_eq!(export.rejected_fact_summary[1].fragment_id, "tcp_packet_meta_fragment");
-    assert_eq!(export.rejected_fact_summary[1].reason, "fragment_not_loaded");
+    assert_eq!(
+        export.rejected_fact_summary[1].fragment_id,
+        "tcp_packet_meta_fragment"
+    );
+    assert_eq!(
+        export.rejected_fact_summary[1].reason,
+        "fragment_not_loaded"
+    );
     assert_eq!(export.rejected_fact_summary[1].count, 1);
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.rejected_fact_summary, replay.rejected_fact_summary);
 }
 
@@ -300,12 +351,21 @@ fn attach_failure_summary_groups_failures_by_hookpoint_kind() {
     assert_eq!(export.attach_failure_summary.len(), 3);
     assert_eq!(export.attach_failure_summary[0].hookpoint_kind, "kprobe");
     assert_eq!(export.attach_failure_summary[0].count, 1);
-    assert_eq!(export.attach_failure_summary[1].hookpoint_kind, "tc_ingress");
+    assert_eq!(
+        export.attach_failure_summary[1].hookpoint_kind,
+        "tc_ingress"
+    );
     assert_eq!(export.attach_failure_summary[1].count, 1);
-    assert_eq!(export.attach_failure_summary[2].hookpoint_kind, "tracepoint");
+    assert_eq!(
+        export.attach_failure_summary[2].hookpoint_kind,
+        "tracepoint"
+    );
     assert_eq!(export.attach_failure_summary[2].count, 1);
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.attach_failure_summary, replay.attach_failure_summary);
 }
 
@@ -328,31 +388,43 @@ fn debug_summary_stays_clean_when_session_has_no_loader_or_ingest_degradation() 
     assert_eq!(export.debug_summary.reasons, 1);
     assert!(!export.debug_summary.degraded);
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.debug_summary, replay.debug_summary);
 }
 
 #[test]
 fn udp_template_exports_deterministic_datagram_reason_chain() {
-    let export = run_udp_session(vec![
-        udp_packet_fact(1, 90, 72),
-        route_fact(2, 90, 3),
-    ]);
+    let export = run_udp_session(vec![udp_packet_fact(1, 90, 72), route_fact(2, 90, 3)]);
 
     assert_eq!(export.template_id, "udp_debug");
     assert_eq!(export.facts.len(), 2);
     assert_eq!(export.flows.len(), 1);
     assert_eq!(export.reasons.len(), 1);
     assert_eq!(export.reasons[0].l1.tcp_state_timeline.len(), 0);
-    assert_eq!(export.reasons[0].l1.path_segments, vec![gewyvern::ledger::FactId(2)]);
-    assert_eq!(export.reasons[0].l3.narrative[0].text, "udp datagram observed");
-    assert_eq!(export.reasons[0].l3.narrative[1].text, "route fingerprint updated");
+    assert_eq!(
+        export.reasons[0].l1.path_segments,
+        vec![gewyvern::ledger::FactId(2)]
+    );
+    assert_eq!(
+        export.reasons[0].l3.narrative[0].text,
+        "udp datagram observed"
+    );
+    assert_eq!(
+        export.reasons[0].l3.narrative[1].text,
+        "route fingerprint updated"
+    );
     assert_eq!(export.debug_summary.fragments_loaded, 2);
     assert_eq!(export.debug_summary.program_findings, 0);
     assert_eq!(export.debug_summary.module_findings, 0);
     assert!(!export.debug_summary.degraded);
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.reasons, replay.reasons);
     assert_eq!(export.debug_summary, replay.debug_summary);
 }
@@ -385,7 +457,10 @@ fn udp_process_template_binds_flow_to_process_identity() {
     assert_eq!(export.program_flows.len(), 1);
     assert_eq!(export.flows[0].process.as_ref().unwrap().pid, 4242);
     assert_eq!(export.flows[0].process.as_ref().unwrap().comm, "curl");
-    assert_eq!(export.flows[0].evidence.lineage_facts, vec![gewyvern::ledger::FactId(1)]);
+    assert_eq!(
+        export.flows[0].evidence.lineage_facts,
+        vec![gewyvern::ledger::FactId(1)]
+    );
     assert_eq!(
         export.program_flows[0].operation,
         gewyvern::flow::ProgramOperation::DatagramExchange
@@ -394,30 +469,40 @@ fn udp_process_template_binds_flow_to_process_identity() {
         export.program_flows[0].transport_flows,
         vec![export.flows[0].id]
     );
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "process curl (pid=4242) bound this network flow"));
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "program emitted or received a UDP datagram"));
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "program resolved a route for this network flow"));
-    assert!(export.reasons[0]
-        .l3
-        .narrative
-        .iter()
-        .any(|line| line.text == "flow bound to process curl (pid=4242)"));
-    assert!(export.reasons[0]
-        .l1
-        .key_events
-        .iter()
-        .any(|event| matches!(event.kind, gewyvern::reason::KeyEventKind::ProcessIdentified)));
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "process curl (pid=4242) bound this network flow")
+    );
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "program emitted or received a UDP datagram")
+    );
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "program resolved a route for this network flow")
+    );
+    assert!(
+        export.reasons[0]
+            .l3
+            .narrative
+            .iter()
+            .any(|line| line.text == "flow bound to process curl (pid=4242)")
+    );
+    assert!(export.reasons[0].l1.key_events.iter().any(|event| matches!(
+        event.kind,
+        gewyvern::reason::KeyEventKind::ProcessIdentified
+    )));
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.flows, replay.flows);
     assert_eq!(export.program_flows, replay.program_flows);
     assert_eq!(export.program_findings, replay.program_findings);
@@ -508,12 +593,17 @@ fn program_flow_operation_supports_custom_model_ids() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("dns_lookup".into())
     );
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "program emitted a DNS-style datagram"));
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "program emitted a DNS-style datagram")
+    );
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.program_flows, replay.program_flows);
     assert_eq!(export.program_findings, replay.program_findings);
 }
@@ -545,9 +635,7 @@ fn program_model_supports_all_and_any_predicates() {
                     },
                 ]),
                 signal: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),
-                narrative: ProgramNarrative::Static(
-                    "process-owned UDP activity observed"
-                ),
+                narrative: ProgramNarrative::Static("process-owned UDP activity observed"),
                 dedupe: true,
                 module: None,
                 phase: None,
@@ -563,7 +651,7 @@ fn program_model_supports_all_and_any_predicates() {
                 ]),
                 signal: Some(gewyvern::flow::ProgramStageKind::RouteResolved),
                 narrative: ProgramNarrative::Static(
-                    "program observed either route or socket progress"
+                    "program observed either route or socket progress",
                 ),
                 dedupe: true,
                 module: None,
@@ -586,14 +674,16 @@ fn program_model_supports_all_and_any_predicates() {
         flow.operation,
         ProgramOperation::Custom("compound_udp_activity".into())
     );
-    assert!(flow
-        .narrative
-        .iter()
-        .any(|line| line == "process-owned UDP activity observed"));
-    assert!(flow
-        .narrative
-        .iter()
-        .any(|line| line == "program observed either route or socket progress"));
+    assert!(
+        flow.narrative
+            .iter()
+            .any(|line| line == "process-owned UDP activity observed")
+    );
+    assert!(
+        flow.narrative
+            .iter()
+            .any(|line| line == "program observed either route or socket progress")
+    );
     assert_eq!(
         flow.stages
             .iter()
@@ -602,7 +692,10 @@ fn program_model_supports_all_and_any_predicates() {
         1
     );
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.program_flows, replay.program_flows);
 }
 
@@ -612,10 +705,12 @@ fn udp_process_template_loads_sock_lineage_fragment() {
     let session = RuntimeSession::start(config).unwrap();
     let export = session.export_bundle();
 
-    assert!(export
-        .attach_report
-        .fragments_loaded
-        .contains(&"sock_lineage_fragment".to_string()));
+    assert!(
+        export
+            .attach_report
+            .fragments_loaded
+            .contains(&"sock_lineage_fragment".to_string())
+    );
 }
 
 #[test]
@@ -638,21 +733,21 @@ fn session_config_accepts_template_binding_compile_target() {
     let export = session.export_bundle();
 
     assert_eq!(export.template_id, "udp_process_debug");
-    assert!(export
-        .attach_report
-        .fragments_loaded
-        .contains(&"udp_packet_meta_fragment".to_string()));
+    assert!(
+        export
+            .attach_report
+            .fragments_loaded
+            .contains(&"udp_packet_meta_fragment".to_string())
+    );
 }
 
 #[test]
 fn capture_comm_fragment_param_redacts_process_name_across_runtime_and_replay() {
-    let binding = udp_process_debug_template()
-        .bind()
-        .with_fragment_param(
-            "sock_lineage_fragment",
-            "capture_comm",
-            FragmentParamValue::Bool(false),
-        );
+    let binding = udp_process_debug_template().bind().with_fragment_param(
+        "sock_lineage_fragment",
+        "capture_comm",
+        FragmentParamValue::Bool(false),
+    );
 
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
@@ -672,17 +767,24 @@ fn capture_comm_fragment_param_redacts_process_name_across_runtime_and_replay() 
         &export.facts[0].kind,
         FactKind::SockLineage(lineage) if lineage.comm == [0; 16]
     ));
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "process <redacted> (pid=4242) bound this network flow"));
-    assert!(export.reasons[0]
-        .l3
-        .narrative
-        .iter()
-        .any(|line| line.text == "flow bound to process <redacted> (pid=4242)"));
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "process <redacted> (pid=4242) bound this network flow")
+    );
+    assert!(
+        export.reasons[0]
+            .l3
+            .narrative
+            .iter()
+            .any(|line| line.text == "flow bound to process <redacted> (pid=4242)")
+    );
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.fragment_params, replay.fragment_params);
     assert_eq!(export.flows, replay.flows);
     assert_eq!(export.program_flows, replay.program_flows);
@@ -691,13 +793,11 @@ fn capture_comm_fragment_param_redacts_process_name_across_runtime_and_replay() 
 
 #[test]
 fn udp_packet_min_len_fragment_param_filters_small_packets_with_audit_trail() {
-    let binding = udp_process_debug_template()
-        .bind()
-        .with_fragment_param(
-            "udp_packet_meta_fragment",
-            "min_len",
-            FragmentParamValue::U64(80),
-        );
+    let binding = udp_process_debug_template().bind().with_fragment_param(
+        "udp_packet_meta_fragment",
+        "min_len",
+        FragmentParamValue::U64(80),
+    );
 
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
@@ -709,10 +809,12 @@ fn udp_packet_min_len_fragment_param_filters_small_packets_with_audit_trail() {
     let export = session.export_bundle();
 
     assert_eq!(export.facts.len(), 2);
-    assert!(export
-        .facts
-        .iter()
-        .all(|fact| fact.id != gewyvern::ledger::FactId(2)));
+    assert!(
+        export
+            .facts
+            .iter()
+            .all(|fact| fact.id != gewyvern::ledger::FactId(2))
+    );
     assert_eq!(export.rejected_facts.len(), 1);
     assert_eq!(export.rejected_facts[0].id, gewyvern::ledger::FactId(2));
     assert_eq!(
@@ -720,14 +822,22 @@ fn udp_packet_min_len_fragment_param_filters_small_packets_with_audit_trail() {
         gewyvern::runtime::RejectedFactReason::FilteredByFragmentParam
     );
     assert_eq!(export.rejected_fact_summary.len(), 1);
-    assert_eq!(export.rejected_fact_summary[0].reason, "filtered_by_fragment_param");
+    assert_eq!(
+        export.rejected_fact_summary[0].reason,
+        "filtered_by_fragment_param"
+    );
     assert_eq!(export.rejected_fact_summary[0].count, 1);
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .all(|line| line != "program emitted or received a UDP datagram"));
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .all(|line| line != "program emitted or received a UDP datagram")
+    );
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.rejected_facts, replay.rejected_facts);
     assert_eq!(export.rejected_fact_summary, replay.rejected_fact_summary);
     assert_eq!(export.program_flows, replay.program_flows);
@@ -762,30 +872,43 @@ fn attach_failures_are_lifted_into_program_findings_for_suspect_module_areas() {
         "datagram_exchange::route_resolution::route_meta_fragment"
     );
     assert_eq!(export.program_findings[0].suspect_area, "route_resolution");
-    assert_eq!(export.program_findings[0].cause, ProgramFindingCause::AttachFailure);
+    assert_eq!(
+        export.program_findings[0].cause,
+        ProgramFindingCause::AttachFailure
+    );
     assert_eq!(
         export.program_findings[0].supporting_fragments,
         vec!["route_meta_fragment".to_string()]
     );
-    assert!(export.program_findings[0]
-        .evidence_trace
-        .iter()
-        .any(|item| item == "missing_signal:route_resolved"));
-    assert!(export.program_findings[0]
-        .evidence_trace
-        .iter()
-        .any(|item| item == "observed_stage:process_bound@1"));
-    assert!(export.program_findings[0]
-        .evidence_trace
-        .iter()
-        .any(|item| item == "observed_stage:datagram_observed@2"));
-    assert!(export.program_findings[0]
-        .evidence_trace
-        .iter()
-        .any(|item| item == "failed_hookpoint:route_meta_fragment@kprobe:ip_route_output_flow"));
-    assert!(export.program_findings[0]
-        .summary
-        .contains("process curl (pid=4242)"));
+    assert!(
+        export.program_findings[0]
+            .evidence_trace
+            .iter()
+            .any(|item| item == "missing_signal:route_resolved")
+    );
+    assert!(
+        export.program_findings[0]
+            .evidence_trace
+            .iter()
+            .any(|item| item == "observed_stage:process_bound@1")
+    );
+    assert!(
+        export.program_findings[0]
+            .evidence_trace
+            .iter()
+            .any(|item| item == "observed_stage:datagram_observed@2")
+    );
+    assert!(
+        export.program_findings[0]
+            .evidence_trace
+            .iter()
+            .any(|item| item == "failed_hookpoint:route_meta_fragment@kprobe:ip_route_output_flow")
+    );
+    assert!(
+        export.program_findings[0]
+            .summary
+            .contains("process curl (pid=4242)")
+    );
     assert_eq!(
         export.module_findings[0].module_label,
         "datagram_exchange::route_resolution::route_meta_fragment"
@@ -800,20 +923,21 @@ fn attach_failures_are_lifted_into_program_findings_for_suspect_module_areas() {
         vec![export.program_findings[0].program_flow]
     );
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.program_findings, replay.program_findings);
     assert_eq!(export.module_findings, replay.module_findings);
 }
 
 #[test]
 fn rejected_core_packet_evidence_points_to_datagram_io_as_suspect_area() {
-    let binding = udp_process_debug_template()
-        .bind()
-        .with_fragment_param(
-            "udp_packet_meta_fragment",
-            "min_len",
-            FragmentParamValue::U64(80),
-        );
+    let binding = udp_process_debug_template().bind().with_fragment_param(
+        "udp_packet_meta_fragment",
+        "min_len",
+        FragmentParamValue::U64(80),
+    );
 
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
@@ -841,22 +965,31 @@ fn rejected_core_packet_evidence_points_to_datagram_io_as_suspect_area() {
         export.program_findings[0].supporting_fragments,
         vec!["udp_packet_meta_fragment".to_string()]
     );
-    assert!(export.program_findings[0]
-        .evidence_trace
-        .iter()
-        .any(|item| item == "missing_signal:datagram_observed"));
-    assert!(export.program_findings[0]
-        .evidence_trace
-        .iter()
-        .any(|item| item == "observed_stage:process_bound@1"));
-    assert!(export.program_findings[0]
-        .evidence_trace
-        .iter()
-        .any(|item| item == "observed_stage:route_resolved@3"));
-    assert!(export.program_findings[0]
-        .evidence_trace
-        .iter()
-        .any(|item| item == "rejected_fact:2:udp_packet_meta_fragment:filtered_by_fragment_param"));
+    assert!(
+        export.program_findings[0]
+            .evidence_trace
+            .iter()
+            .any(|item| item == "missing_signal:datagram_observed")
+    );
+    assert!(
+        export.program_findings[0]
+            .evidence_trace
+            .iter()
+            .any(|item| item == "observed_stage:process_bound@1")
+    );
+    assert!(
+        export.program_findings[0]
+            .evidence_trace
+            .iter()
+            .any(|item| item == "observed_stage:route_resolved@3")
+    );
+    assert!(
+        export.program_findings[0]
+            .evidence_trace
+            .iter()
+            .any(|item| item
+                == "rejected_fact:2:udp_packet_meta_fragment:filtered_by_fragment_param")
+    );
     assert_eq!(
         export.module_findings[0].module_label,
         "datagram_exchange::datagram_io::udp_packet_meta_fragment"
@@ -867,7 +1000,10 @@ fn rejected_core_packet_evidence_points_to_datagram_io_as_suspect_area() {
         vec!["datagram_io".to_string()]
     );
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.program_findings, replay.program_findings);
     assert_eq!(export.module_findings, replay.module_findings);
 }
@@ -906,7 +1042,10 @@ param=udp_packet_meta_fragment.min_len=80
     assert_eq!(export.module_findings[0].module_label, "udp_request_path");
     assert_eq!(export.module_findings[0].severity, ModuleSeverity::Medium);
 
-    let replay = ExportBundle::from_json(&export.to_json()).unwrap().replay().unwrap();
+    let replay = ExportBundle::from_json(&export.to_json())
+        .unwrap()
+        .replay()
+        .unwrap();
     assert_eq!(export.program_findings, replay.program_findings);
     assert_eq!(export.module_findings, replay.module_findings);
 }

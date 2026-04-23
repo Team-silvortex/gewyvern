@@ -111,8 +111,9 @@ impl Cli {
         }
 
         Ok(Self {
-            socket_target: socket_target
-                .ok_or_else(|| "missing required --socket <path> or --tcp-socket <host:port>".to_string())?,
+            socket_target: socket_target.ok_or_else(|| {
+                "missing required --socket <path> or --tcp-socket <host:port>".to_string()
+            })?,
             template_mode,
         })
     }

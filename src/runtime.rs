@@ -4,17 +4,17 @@ use crate::flow::{
     PathSegment, PathView, ProcessView, ProgramFinding, ProgramFindingCause, ProgramFlow,
 };
 use crate::fragment::{
-    builtin_registry, summarize_attach_failures, AttachFailure, AttachPlan, AttachReport,
-    BindingDiagnostics, EvidenceTier, FragmentRegistry, RegistryError, RuleTier,
+    AttachFailure, AttachPlan, AttachReport, BindingDiagnostics, EvidenceTier, FragmentRegistry,
+    RegistryError, RuleTier, builtin_registry, summarize_attach_failures,
 };
 use crate::ir::phase_kind;
 use crate::ledger::{FactEnvelope, FactId, FactKind, FactKindTag};
-use crate::loader::{
-    LinuxProbeLoader, Loader, LoaderError,
-};
+use crate::loader::{LinuxProbeLoader, Loader, LoaderError};
 use crate::program::build_program_flows;
-use crate::reason::{build_reason_chains, ReasonChain, ReasonProfile};
-use crate::template::{FragmentParamValue, Template, TemplateBinding, TemplateError, WindowProfile};
+use crate::reason::{ReasonChain, ReasonProfile, build_reason_chains};
+use crate::template::{
+    FragmentParamValue, Template, TemplateBinding, TemplateError, WindowProfile,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{Duration, SystemTime};
 
@@ -72,7 +72,9 @@ impl RejectedFactReason {
     }
 }
 
-pub fn summarize_rejected_facts(rejected_facts: &[RejectedFact]) -> Vec<crate::export::RejectedFactSummaryItem> {
+pub fn summarize_rejected_facts(
+    rejected_facts: &[RejectedFact],
+) -> Vec<crate::export::RejectedFactSummaryItem> {
     let mut counts = BTreeMap::<(String, &'static str), u64>::new();
 
     for rejected in rejected_facts {
@@ -83,11 +85,13 @@ pub fn summarize_rejected_facts(rejected_facts: &[RejectedFact]) -> Vec<crate::e
 
     counts
         .into_iter()
-        .map(|((fragment_id, reason), count)| crate::export::RejectedFactSummaryItem {
-            fragment_id,
-            reason: reason.into(),
-            count,
-        })
+        .map(
+            |((fragment_id, reason), count)| crate::export::RejectedFactSummaryItem {
+                fragment_id,
+                reason: reason.into(),
+                count,
+            },
+        )
         .collect()
 }
 
@@ -163,7 +167,10 @@ impl RuntimeSession {
         config: SessionConfig,
         hookpoint_name: &'static str,
     ) -> Result<Self, RuntimeError> {
-        Self::start_with_loader(config, &LinuxProbeLoader::single_tracepoint_smoke(hookpoint_name))
+        Self::start_with_loader(
+            config,
+            &LinuxProbeLoader::single_tracepoint_smoke(hookpoint_name),
+        )
     }
 
     pub fn start(config: SessionConfig) -> Result<Self, RuntimeError> {
@@ -223,13 +230,12 @@ impl RuntimeSession {
             });
             return;
         }
-        if self
-            .frozen_at
-            .is_some_and(|freeze_at| fact.ts > freeze_at)
-        {
+        if self.frozen_at.is_some_and(|freeze_at| fact.ts > freeze_at) {
             return;
         }
-        if fact.fragment_id == "sock_lineage_fragment" && !self.capture_comm_enabled(&fact.fragment_id) {
+        if fact.fragment_id == "sock_lineage_fragment"
+            && !self.capture_comm_enabled(&fact.fragment_id)
+        {
             if let FactKind::SockLineage(lineage) = &mut fact.kind {
                 lineage.comm = [0; 16];
             }
@@ -260,11 +266,7 @@ impl RuntimeSession {
     pub fn reasons(&self) -> Vec<ReasonChain> {
         let facts = self.materialized_facts();
         let flows = build_flow_snapshots(&facts);
-        build_reason_chains(
-            &self.reason_profile,
-            &flows,
-            &facts,
-        )
+        build_reason_chains(&self.reason_profile, &flows, &facts)
     }
 
     pub fn export_bundle(&self) -> ExportBundle {
@@ -414,9 +416,11 @@ fn build_program_findings(
                 }
                 let rule = model.rules.get(rule_diag.rule_index)?;
                 let signal = rule.signal.as_ref()?;
-                if flow.stages.iter().any(|stage| {
-                    &stage.kind == signal && stage.phase == rule.phase
-                }) {
+                if flow
+                    .stages
+                    .iter()
+                    .any(|stage| &stage.kind == signal && stage.phase == rule.phase)
+                {
                     return None;
                 }
                 if !prior_phase_requirements_satisfied(model, rule_diag.rule_index, flow) {
@@ -443,11 +447,8 @@ fn build_program_findings(
                 let suspect_area = suspect_area_for_signal(signal).to_string();
                 let phase = rule.phase.clone();
                 let phase_kind = phase_kind(signal, phase.as_deref()).map(str::to_string);
-                let (phase_transition, phase_transition_kind) = phase_transition_for_rule(
-                    model,
-                    rule_diag.rule_index,
-                    flow,
-                );
+                let (phase_transition, phase_transition_kind) =
+                    phase_transition_for_rule(model, rule_diag.rule_index, flow);
                 let module_label = module_label(
                     model.rules.get(rule_diag.rule_index)?.module.as_deref(),
                     &flow.operation,
@@ -590,10 +591,9 @@ fn prior_phase_requirements_satisfied(
         None => return false,
     };
     let current_module = rule.module.as_deref();
-    let prior_rule = model.rules[..rule_index]
-        .iter()
-        .rev()
-        .find(|candidate| candidate.phase.is_some() && candidate.module.as_deref() == current_module);
+    let prior_rule = model.rules[..rule_index].iter().rev().find(|candidate| {
+        candidate.phase.is_some() && candidate.module.as_deref() == current_module
+    });
     let Some(prior_rule) = prior_rule else {
         return true;
     };
@@ -647,7 +647,12 @@ fn build_evidence_trace(
 
     for stage in &flow.stages {
         trace.push(match &stage.phase {
-            Some(phase) => format!("observed_stage:{}:{}@{}", phase, stage.kind.id(), stage.at.0),
+            Some(phase) => format!(
+                "observed_stage:{}:{}@{}",
+                phase,
+                stage.kind.id(),
+                stage.at.0
+            ),
             None => format!("observed_stage:{}@{}", stage.kind.id(), stage.at.0),
         });
     }
@@ -679,7 +684,10 @@ fn build_evidence_trace(
 }
 
 fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleFinding> {
-    let mut grouped = BTreeMap::<(String, Option<ProcessView>, crate::flow::ProgramOperation), ModuleFinding>::new();
+    let mut grouped = BTreeMap::<
+        (String, Option<ProcessView>, crate::flow::ProgramOperation),
+        ModuleFinding,
+    >::new();
 
     for finding in program_findings {
         let key = (
@@ -718,7 +726,9 @@ fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleF
         }
         entry.suspect_areas.push(finding.suspect_area.clone());
         entry.causes.push(finding.cause.clone());
-        entry.supporting_fragments.extend(finding.supporting_fragments.clone());
+        entry
+            .supporting_fragments
+            .extend(finding.supporting_fragments.clone());
         entry.program_flows.push(finding.program_flow);
         entry.summaries.push(finding.summary.clone());
         entry.evidence_trace.extend(finding.evidence_trace.clone());
@@ -930,7 +940,10 @@ impl FlowAccumulatorView for EvidenceIndex {
 }
 
 fn decode_comm_or_redacted(comm: &[u8; 16]) -> String {
-    let end = comm.iter().position(|byte| *byte == 0).unwrap_or(comm.len());
+    let end = comm
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(comm.len());
     if end == 0 {
         "<redacted>".into()
     } else {

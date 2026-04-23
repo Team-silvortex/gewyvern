@@ -47,6 +47,11 @@ Examples in this repository:
 - [dsl/smtp_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy)
 - [dsl/sip_register_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy)
 - [dsl/ldap_bind_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy)
+- [dsl/ldap_search_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_search_path.gewy)
+- [dsl/ldap_modify_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_path.gewy)
+- [dsl/ldap_directory_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_session.gewy)
+- [dsl/ldap_directory_write_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_write_session.gewy)
+- [dsl/ldap_directory_sync_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy)
 - [dsl/snmp_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy)
 - [dsl/dns_tcp_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy)
 

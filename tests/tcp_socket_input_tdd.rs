@@ -12,7 +12,8 @@ fn tcp_socket_session_ingests_fact_json_lines_and_exports_udp_session() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
 
-    let handle = thread::spawn(move || run_tcp_socket_session_on_listener(&listener, udp_debug_template()));
+    let handle =
+        thread::spawn(move || run_tcp_socket_session_on_listener(&listener, udp_debug_template()));
 
     thread::sleep(Duration::from_millis(25));
 

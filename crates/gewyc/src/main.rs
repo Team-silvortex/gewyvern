@@ -77,7 +77,9 @@ impl UiLocale {
             (Self::Zh, "compile_failed") => "DSL 编译失败",
             (Self::Zh, "diagnostics_failed") => "binding 诊断失败",
             (Self::Zh, "stages_failed") => "compiler 阶段报告生成失败",
-            (Self::Zh, "missing_emit") => "缺少 --emit 的值，期望 binding、diagnostics、findings、stages 或 envelope",
+            (Self::Zh, "missing_emit") => {
+                "缺少 --emit 的值，期望 binding、diagnostics、findings、stages 或 envelope"
+            }
             (Self::Zh, "missing_out") => "缺少 --out 的值，期望输出路径",
             (Self::Zh, "write_failed") => "写入输出失败",
             (_, "missing_path") => "missing .gewy file path",
@@ -85,7 +87,9 @@ impl UiLocale {
             (_, "compile_failed") => "dsl compile failed",
             (_, "diagnostics_failed") => "binding diagnostics failed",
             (_, "stages_failed") => "compiler stages report failed",
-            (_, "missing_emit") => "missing value for --emit, expected binding, diagnostics, findings, stages, or envelope",
+            (_, "missing_emit") => {
+                "missing value for --emit, expected binding, diagnostics, findings, stages, or envelope"
+            }
             (_, "missing_out") => "missing value for --out, expected an output path",
             (_, "write_failed") => "failed to write output",
             _ => "error",
@@ -135,15 +139,15 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
                             "{}: {value}\n{}",
                             locale.msg("unknown_arg"),
                             locale.usage()
-                        ))
+                        ));
                     }
                 };
             }
             "--out" => {
-                out = Some(
-                    iter.next()
-                        .ok_or_else(|| format!("{}\n{}", locale.msg("missing_out"), locale.usage()))?,
-                );
+                out =
+                    Some(iter.next().ok_or_else(|| {
+                        format!("{}\n{}", locale.msg("missing_out"), locale.usage())
+                    })?);
             }
             "compile" if path.is_none() => {
                 command = Command::Compile;
@@ -166,11 +170,19 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
                 emit = EmitTarget::Envelope;
             }
             value if value.starts_with('-') => {
-                return Err(format!("{}: {value}\n{}", locale.msg("unknown_arg"), locale.usage()))
+                return Err(format!(
+                    "{}: {value}\n{}",
+                    locale.msg("unknown_arg"),
+                    locale.usage()
+                ));
             }
             value if path.is_none() => path = Some(value.to_string()),
             value => {
-                return Err(format!("{}: {value}\n{}", locale.msg("unknown_arg"), locale.usage()))
+                return Err(format!(
+                    "{}: {value}\n{}",
+                    locale.msg("unknown_arg"),
+                    locale.usage()
+                ));
             }
         }
     }
@@ -385,7 +397,10 @@ mod tests {
             compile_envelope_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
                 .unwrap();
         assert_eq!(
-            envelope.binding.as_ref().map(|report| report.template_id.as_str()),
+            envelope
+                .binding
+                .as_ref()
+                .map(|report| report.template_id.as_str()),
             Some("udp_process_debug")
         );
         assert!(envelope.stages.parse.ok);

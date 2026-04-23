@@ -1,17 +1,17 @@
 use gewyvern::dsl::compile_file;
 use gewyvern::http::{
-    compose_http_transactions, HttpComponentKind, HttpSuspectSide, HttpTransactionVerdict,
+    HttpComponentKind, HttpSuspectSide, HttpTransactionVerdict, compose_http_transactions,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 
 mod support;
 
+use gewyvern::ledger::PacketDir;
+use std::time::{Duration, SystemTime};
 use support::{
     packet_fact_with_dir, route_fact, sock_lineage_fact, tcp_state_fact_with_ports,
     udp_packet_fact_with_dir,
 };
-use gewyvern::ledger::PacketDir;
-use std::time::{Duration, SystemTime};
 
 #[test]
 fn http_transaction_composes_dns_and_client_request_for_same_process() {
@@ -20,7 +20,8 @@ fn http_transaction_composes_dns_and_client_request_for_same_process() {
     let http_binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
 
-    let mut dns_session = RuntimeSession::start(SessionConfig::for_binding(dns_binding).unwrap()).unwrap();
+    let mut dns_session =
+        RuntimeSession::start(SessionConfig::for_binding(dns_binding).unwrap()).unwrap();
     dns_session.ingest(sock_lineage_fact(1, 901, 4242, "curl"));
     dns_session.ingest(route_fact(2, 901, 7));
     dns_session.ingest(udp_packet_fact_with_dir(3, 901, 80, PacketDir::Egress));
@@ -37,28 +38,46 @@ fn http_transaction_composes_dns_and_client_request_for_same_process() {
     http_session.ingest(packet_fact_with_dir(15, 902, 0x18, PacketDir::Ingress));
     http_session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(160));
 
-    let transactions = compose_http_transactions(&[dns_session.export_bundle(), http_session.export_bundle()]);
+    let transactions =
+        compose_http_transactions(&[dns_session.export_bundle(), http_session.export_bundle()]);
     assert_eq!(transactions.len(), 1);
-    assert_eq!(transactions[0].client_process.as_ref().unwrap().comm, "curl");
-    assert!(transactions[0]
-        .components
-        .iter()
-        .any(|component| component.kind == HttpComponentKind::DnsLookup));
-    assert!(transactions[0]
-        .components
-        .iter()
-        .any(|component| component.kind == HttpComponentKind::ClientRequest));
+    assert_eq!(
+        transactions[0].client_process.as_ref().unwrap().comm,
+        "curl"
+    );
+    assert!(
+        transactions[0]
+            .components
+            .iter()
+            .any(|component| component.kind == HttpComponentKind::DnsLookup)
+    );
+    assert!(
+        transactions[0]
+            .components
+            .iter()
+            .any(|component| component.kind == HttpComponentKind::ClientRequest)
+    );
     assert!(transactions[0].phases.contains(&"send_request".to_string()));
-    assert!(transactions[0].phases.contains(&"receive_response".to_string()));
-    assert!(transactions[0]
-        .phase_kinds
-        .contains(&"emit_datagram".to_string()));
-    assert!(transactions[0]
-        .phase_kinds
-        .contains(&"emit_payload".to_string()));
-    assert!(transactions[0]
-        .phase_kinds
-        .contains(&"receive_payload".to_string()));
+    assert!(
+        transactions[0]
+            .phases
+            .contains(&"receive_response".to_string())
+    );
+    assert!(
+        transactions[0]
+            .phase_kinds
+            .contains(&"emit_datagram".to_string())
+    );
+    assert!(
+        transactions[0]
+            .phase_kinds
+            .contains(&"emit_payload".to_string())
+    );
+    assert!(
+        transactions[0]
+            .phase_kinds
+            .contains(&"receive_payload".to_string())
+    );
     assert_eq!(
         transactions[0].verdict,
         HttpTransactionVerdict::HealthyRequestResponsePath
@@ -99,18 +118,32 @@ fn http_transaction_can_attach_overlapping_server_response_component() {
         transactions[0].server_process.as_ref().unwrap().comm,
         "nginx"
     );
-    assert!(transactions[0]
-        .components
-        .iter()
-        .any(|component| component.kind == HttpComponentKind::ServerResponse));
-    assert!(transactions[0].phases.contains(&"receive_request".to_string()));
-    assert!(transactions[0].phases.contains(&"send_response".to_string()));
-    assert!(transactions[0]
-        .phase_kinds
-        .contains(&"receive_payload".to_string()));
-    assert!(transactions[0]
-        .phase_kinds
-        .contains(&"emit_payload".to_string()));
+    assert!(
+        transactions[0]
+            .components
+            .iter()
+            .any(|component| component.kind == HttpComponentKind::ServerResponse)
+    );
+    assert!(
+        transactions[0]
+            .phases
+            .contains(&"receive_request".to_string())
+    );
+    assert!(
+        transactions[0]
+            .phases
+            .contains(&"send_response".to_string())
+    );
+    assert!(
+        transactions[0]
+            .phase_kinds
+            .contains(&"receive_payload".to_string())
+    );
+    assert!(
+        transactions[0]
+            .phase_kinds
+            .contains(&"emit_payload".to_string())
+    );
 }
 
 #[test]
@@ -129,14 +162,21 @@ fn http_transaction_lifts_client_findings_into_transaction_summary() {
 
     let transactions = compose_http_transactions(&[http_session.export_bundle()]);
     assert_eq!(transactions.len(), 1);
-    assert_eq!(transactions[0].severity, Some(gewyvern::flow::ModuleSeverity::Low));
-    assert!(transactions[0]
-        .suspect_sides
-        .contains(&HttpSuspectSide::Client));
-    assert!(transactions[0]
-        .finding_summaries
-        .iter()
-        .any(|summary| summary.contains("receive_response")));
+    assert_eq!(
+        transactions[0].severity,
+        Some(gewyvern::flow::ModuleSeverity::Low)
+    );
+    assert!(
+        transactions[0]
+            .suspect_sides
+            .contains(&HttpSuspectSide::Client)
+    );
+    assert!(
+        transactions[0]
+            .finding_summaries
+            .iter()
+            .any(|summary| summary.contains("receive_response"))
+    );
     assert_eq!(
         transactions[0].verdict,
         HttpTransactionVerdict::SuspectClientResponseGap
@@ -172,13 +212,17 @@ fn http_transaction_lifts_server_findings_into_transaction_summary() {
     let transactions =
         compose_http_transactions(&[http_session.export_bundle(), server_session.export_bundle()]);
     assert_eq!(transactions.len(), 1);
-    assert!(transactions[0]
-        .suspect_sides
-        .contains(&HttpSuspectSide::Server));
-    assert!(transactions[0]
-        .finding_summaries
-        .iter()
-        .any(|summary| summary.contains("send_response")));
+    assert!(
+        transactions[0]
+            .suspect_sides
+            .contains(&HttpSuspectSide::Server)
+    );
+    assert!(
+        transactions[0]
+            .finding_summaries
+            .iter()
+            .any(|summary| summary.contains("send_response"))
+    );
     assert_eq!(
         transactions[0].verdict,
         HttpTransactionVerdict::SuspectServerResponseGap
@@ -212,13 +256,17 @@ fn http_transaction_lifts_dns_findings_into_transaction_verdict() {
     let transactions =
         compose_http_transactions(&[dns_session.export_bundle(), http_session.export_bundle()]);
     assert_eq!(transactions.len(), 1);
-    assert!(transactions[0]
-        .suspect_sides
-        .contains(&HttpSuspectSide::Dns));
-    assert!(transactions[0]
-        .finding_summaries
-        .iter()
-        .any(|summary| summary.contains("receive_reply")));
+    assert!(
+        transactions[0]
+            .suspect_sides
+            .contains(&HttpSuspectSide::Dns)
+    );
+    assert!(
+        transactions[0]
+            .finding_summaries
+            .iter()
+            .any(|summary| summary.contains("receive_reply"))
+    );
     assert_eq!(
         transactions[0].verdict,
         HttpTransactionVerdict::SuspectDnsResolutionGap

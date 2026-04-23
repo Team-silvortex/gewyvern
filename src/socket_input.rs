@@ -1,4 +1,4 @@
-use crate::export::{fact_from_json, ExportBundle, ExportError};
+use crate::export::{ExportBundle, ExportError, fact_from_json};
 use crate::runtime::{RuntimeError, RuntimeSession, SessionConfig};
 use crate::template::{Template, TemplateBinding};
 use std::io::{BufRead, BufReader, Read};
@@ -84,8 +84,8 @@ pub fn run_tcp_socket_session(
     bind_addr: &str,
     template: Template,
 ) -> Result<ExportBundle, SocketInputError> {
-    let listener =
-        TcpListener::bind(bind_addr).map_err(|err| SocketInputError::BindFailed(err.to_string()))?;
+    let listener = TcpListener::bind(bind_addr)
+        .map_err(|err| SocketInputError::BindFailed(err.to_string()))?;
     run_tcp_socket_session_on_listener(&listener, template)
 }
 
@@ -93,8 +93,8 @@ pub fn run_tcp_socket_session_with_binding(
     bind_addr: &str,
     binding: TemplateBinding,
 ) -> Result<ExportBundle, SocketInputError> {
-    let listener =
-        TcpListener::bind(bind_addr).map_err(|err| SocketInputError::BindFailed(err.to_string()))?;
+    let listener = TcpListener::bind(bind_addr)
+        .map_err(|err| SocketInputError::BindFailed(err.to_string()))?;
     run_tcp_socket_session_on_listener_with_binding(&listener, binding)
 }
 

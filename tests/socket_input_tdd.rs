@@ -23,10 +23,13 @@ mod unix_socket_tests {
         let listener = bind_unix_socket_listener(&socket_path).unwrap();
         assert!(fs::metadata(&socket_path).is_ok());
 
-        let handle = thread::spawn(move || run_unix_socket_session_on_listener(&listener, udp_debug_template()));
+        let handle = thread::spawn(move || {
+            run_unix_socket_session_on_listener(&listener, udp_debug_template())
+        });
 
         thread::sleep(Duration::from_millis(25));
-        let mut client = UnixStream::connect(&socket_path).expect("unix socket listener should accept a client");
+        let mut client =
+            UnixStream::connect(&socket_path).expect("unix socket listener should accept a client");
         let packet = super::support::udp_packet_fact(1, 123, 88);
         let route = super::support::route_fact(2, 123, 5);
 

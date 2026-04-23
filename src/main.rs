@@ -1,12 +1,10 @@
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
-use gewyvern::gewyc::{
-    RenderFormat, compile_diagnostics_report_file, render_diagnostics_report,
-};
-use gewyvern::http::{compose_http_transactions, HttpSuspectSide, HttpTransactionView};
+use gewyvern::gewyc::{RenderFormat, compile_diagnostics_report_file, render_diagnostics_report};
+use gewyvern::http::{HttpSuspectSide, HttpTransactionView, compose_http_transactions};
 use gewyvern::ledger::{
-    CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact,
-    SessionId, SockLineageFact, TcpStateFact,
+    CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact, SessionId,
+    SockLineageFact, TcpStateFact,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::socket_input::{
@@ -15,7 +13,7 @@ use gewyvern::socket_input::{
     run_unix_socket_session, run_unix_socket_session_on_listener,
     run_unix_socket_session_on_listener_with_binding, run_unix_socket_session_with_binding,
 };
-use gewyvern::template::{handshake_debug_template, udp_debug_template, TemplateBinding};
+use gewyvern::template::{TemplateBinding, handshake_debug_template, udp_debug_template};
 use std::env;
 use std::fs;
 use std::net::TcpListener;
@@ -84,15 +82,33 @@ impl UiLocale {
 
     fn usage(self) -> &'static str {
         match self {
-            Self::Zh => "用法: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::Ja => "使い方: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::Ko => "사용법: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::Fr => "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::De => "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::Es => "Uso: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::Pt => "Uso: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::Ru => "Использование: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
-            Self::En => "usage: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]",
+            Self::Zh => {
+                "用法: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+            }
+            Self::Ja => {
+                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+            }
+            Self::Ko => {
+                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+            }
+            Self::Fr => {
+                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+            }
+            Self::De => {
+                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+            }
+            Self::Es => {
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+            }
+            Self::Pt => {
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+            }
+            Self::Ru => {
+                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+            }
+            Self::En => {
+                "usage: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+            }
         }
     }
 
@@ -371,101 +387,183 @@ impl UiLocale {
         match (self, key) {
             (Self::Zh, "diagnostics_requires_dsl") => "--diagnostics 需要配合 --dsl",
             (Self::Zh, "summary_only_requires_json") => "--summary-only 需要配合 --json",
-            (Self::Zh, "diagnostics_socket_conflict") => "--diagnostics 不能和 socket 监听模式一起使用",
+            (Self::Zh, "diagnostics_socket_conflict") => {
+                "--diagnostics 不能和 socket 监听模式一起使用"
+            }
             (Self::Zh, "diagnostics_serve_conflict") => "--diagnostics 不能和 --serve 一起使用",
             (Self::Zh, "dsl_demo_conflict") => "--dsl 不能和 --demo 一起使用",
             (Self::Zh, "demo_socket_conflict") => "--demo 不能和 socket 监听模式一起使用",
             (Self::Zh, "serve_requires_socket") => "--serve 需要 --unix-socket 或 --tcp-socket",
             (Self::Zh, "unsupported_fragment_combo") => "不支持的片段组合",
             (Self::Zh, "unix_only") => "unix socket 服务仅支持 unix 平台",
-            (Self::Zh, "findings_diagnostics_conflict") => "--findings 不能和 --diagnostics 一起使用",
+            (Self::Zh, "findings_diagnostics_conflict") => {
+                "--findings 不能和 --diagnostics 一起使用"
+            }
             (Self::Ja, "diagnostics_requires_dsl") => "--diagnostics には --dsl が必要です",
             (Self::Ja, "summary_only_requires_json") => "--summary-only には --json が必要です",
-            (Self::Ja, "diagnostics_socket_conflict") => "--diagnostics はソケット待受モードと併用できません",
+            (Self::Ja, "diagnostics_socket_conflict") => {
+                "--diagnostics はソケット待受モードと併用できません"
+            }
             (Self::Ja, "diagnostics_serve_conflict") => "--diagnostics は --serve と併用できません",
             (Self::Ja, "dsl_demo_conflict") => "--dsl は --demo と併用できません",
             (Self::Ja, "demo_socket_conflict") => "--demo はソケット待受モードと併用できません",
-            (Self::Ja, "serve_requires_socket") => "--serve には --unix-socket または --tcp-socket が必要です",
+            (Self::Ja, "serve_requires_socket") => {
+                "--serve には --unix-socket または --tcp-socket が必要です"
+            }
             (Self::Ja, "unsupported_fragment_combo") => "サポートされていないフラグメント構成です",
-            (Self::Ja, "unix_only") => "unix ソケットサービスは unix プラットフォームでのみ利用できます",
-            (Self::Ja, "findings_diagnostics_conflict") => "--findings は --diagnostics と併用できません",
+            (Self::Ja, "unix_only") => {
+                "unix ソケットサービスは unix プラットフォームでのみ利用できます"
+            }
+            (Self::Ja, "findings_diagnostics_conflict") => {
+                "--findings は --diagnostics と併用できません"
+            }
             (Self::Ko, "diagnostics_requires_dsl") => "--diagnostics에는 --dsl이 필요합니다",
             (Self::Ko, "summary_only_requires_json") => "--summary-only에는 --json이 필요합니다",
-            (Self::Ko, "diagnostics_socket_conflict") => "--diagnostics는 소켓 리스너 모드와 함께 사용할 수 없습니다",
-            (Self::Ko, "diagnostics_serve_conflict") => "--diagnostics는 --serve와 함께 사용할 수 없습니다",
+            (Self::Ko, "diagnostics_socket_conflict") => {
+                "--diagnostics는 소켓 리스너 모드와 함께 사용할 수 없습니다"
+            }
+            (Self::Ko, "diagnostics_serve_conflict") => {
+                "--diagnostics는 --serve와 함께 사용할 수 없습니다"
+            }
             (Self::Ko, "dsl_demo_conflict") => "--dsl은 --demo와 함께 사용할 수 없습니다",
-            (Self::Ko, "demo_socket_conflict") => "--demo는 소켓 리스너 모드와 함께 사용할 수 없습니다",
-            (Self::Ko, "serve_requires_socket") => "--serve에는 --unix-socket 또는 --tcp-socket이 필요합니다",
+            (Self::Ko, "demo_socket_conflict") => {
+                "--demo는 소켓 리스너 모드와 함께 사용할 수 없습니다"
+            }
+            (Self::Ko, "serve_requires_socket") => {
+                "--serve에는 --unix-socket 또는 --tcp-socket이 필요합니다"
+            }
             (Self::Ko, "unsupported_fragment_combo") => "지원되지 않는 프래그먼트 조합입니다",
             (Self::Ko, "unix_only") => "unix 소켓 서비스는 unix 플랫폼에서만 지원됩니다",
-            (Self::Ko, "findings_diagnostics_conflict") => "--findings는 --diagnostics와 함께 사용할 수 없습니다",
+            (Self::Ko, "findings_diagnostics_conflict") => {
+                "--findings는 --diagnostics와 함께 사용할 수 없습니다"
+            }
             (Self::Fr, "diagnostics_requires_dsl") => "--diagnostics nécessite --dsl",
             (Self::Fr, "summary_only_requires_json") => "--summary-only nécessite --json",
-            (Self::Fr, "diagnostics_socket_conflict") => "--diagnostics ne peut pas être combiné avec le mode écoute socket",
-            (Self::Fr, "diagnostics_serve_conflict") => "--diagnostics ne peut pas être combiné avec --serve",
+            (Self::Fr, "diagnostics_socket_conflict") => {
+                "--diagnostics ne peut pas être combiné avec le mode écoute socket"
+            }
+            (Self::Fr, "diagnostics_serve_conflict") => {
+                "--diagnostics ne peut pas être combiné avec --serve"
+            }
             (Self::Fr, "dsl_demo_conflict") => "--dsl ne peut pas être combiné avec --demo",
-            (Self::Fr, "demo_socket_conflict") => "--demo ne peut pas être combiné avec le mode écoute socket",
-            (Self::Fr, "serve_requires_socket") => "--serve nécessite --unix-socket ou --tcp-socket",
-            (Self::Fr, "unsupported_fragment_combo") => "combinaison de fragments non prise en charge",
-            (Self::Fr, "unix_only") => "le service socket unix n'est pris en charge que sur les plateformes unix",
-            (Self::Fr, "findings_diagnostics_conflict") => "--findings ne peut pas être combiné avec --diagnostics",
+            (Self::Fr, "demo_socket_conflict") => {
+                "--demo ne peut pas être combiné avec le mode écoute socket"
+            }
+            (Self::Fr, "serve_requires_socket") => {
+                "--serve nécessite --unix-socket ou --tcp-socket"
+            }
+            (Self::Fr, "unsupported_fragment_combo") => {
+                "combinaison de fragments non prise en charge"
+            }
+            (Self::Fr, "unix_only") => {
+                "le service socket unix n'est pris en charge que sur les plateformes unix"
+            }
+            (Self::Fr, "findings_diagnostics_conflict") => {
+                "--findings ne peut pas être combiné avec --diagnostics"
+            }
             (Self::De, "diagnostics_requires_dsl") => "--diagnostics erfordert --dsl",
             (Self::De, "summary_only_requires_json") => "--summary-only erfordert --json",
-            (Self::De, "diagnostics_socket_conflict") => "--diagnostics kann nicht mit dem Socket-Listener-Modus kombiniert werden",
-            (Self::De, "diagnostics_serve_conflict") => "--diagnostics kann nicht mit --serve kombiniert werden",
+            (Self::De, "diagnostics_socket_conflict") => {
+                "--diagnostics kann nicht mit dem Socket-Listener-Modus kombiniert werden"
+            }
+            (Self::De, "diagnostics_serve_conflict") => {
+                "--diagnostics kann nicht mit --serve kombiniert werden"
+            }
             (Self::De, "dsl_demo_conflict") => "--dsl kann nicht mit --demo kombiniert werden",
-            (Self::De, "demo_socket_conflict") => "--demo kann nicht mit dem Socket-Listener-Modus kombiniert werden",
-            (Self::De, "serve_requires_socket") => "--serve erfordert --unix-socket oder --tcp-socket",
+            (Self::De, "demo_socket_conflict") => {
+                "--demo kann nicht mit dem Socket-Listener-Modus kombiniert werden"
+            }
+            (Self::De, "serve_requires_socket") => {
+                "--serve erfordert --unix-socket oder --tcp-socket"
+            }
             (Self::De, "unsupported_fragment_combo") => "nicht unterstützte Fragment-Kombination",
-            (Self::De, "unix_only") => "Unix-Socket-Dienst wird nur auf Unix-Plattformen unterstützt",
-            (Self::De, "findings_diagnostics_conflict") => "--findings kann nicht mit --diagnostics kombiniert werden",
+            (Self::De, "unix_only") => {
+                "Unix-Socket-Dienst wird nur auf Unix-Plattformen unterstützt"
+            }
+            (Self::De, "findings_diagnostics_conflict") => {
+                "--findings kann nicht mit --diagnostics kombiniert werden"
+            }
             (Self::Es, "diagnostics_requires_dsl") => "--diagnostics requiere --dsl",
             (Self::Es, "summary_only_requires_json") => "--summary-only requiere --json",
-            (Self::Es, "diagnostics_socket_conflict") => "--diagnostics no se puede combinar con el modo de escucha por socket",
-            (Self::Es, "diagnostics_serve_conflict") => "--diagnostics no se puede combinar con --serve",
+            (Self::Es, "diagnostics_socket_conflict") => {
+                "--diagnostics no se puede combinar con el modo de escucha por socket"
+            }
+            (Self::Es, "diagnostics_serve_conflict") => {
+                "--diagnostics no se puede combinar con --serve"
+            }
             (Self::Es, "dsl_demo_conflict") => "--dsl no se puede combinar con --demo",
-            (Self::Es, "demo_socket_conflict") => "--demo no se puede combinar con el modo de escucha por socket",
+            (Self::Es, "demo_socket_conflict") => {
+                "--demo no se puede combinar con el modo de escucha por socket"
+            }
             (Self::Es, "serve_requires_socket") => "--serve requiere --unix-socket o --tcp-socket",
             (Self::Es, "unsupported_fragment_combo") => "combinación de fragmentos no compatible",
-            (Self::Es, "unix_only") => "el servicio de socket unix solo es compatible en plataformas unix",
-            (Self::Es, "findings_diagnostics_conflict") => "--findings no se puede combinar con --diagnostics",
+            (Self::Es, "unix_only") => {
+                "el servicio de socket unix solo es compatible en plataformas unix"
+            }
+            (Self::Es, "findings_diagnostics_conflict") => {
+                "--findings no se puede combinar con --diagnostics"
+            }
             (Self::Pt, "diagnostics_requires_dsl") => "--diagnostics requer --dsl",
             (Self::Pt, "summary_only_requires_json") => "--summary-only requer --json",
-            (Self::Pt, "diagnostics_socket_conflict") => "--diagnostics não pode ser combinado com o modo de escuta por socket",
-            (Self::Pt, "diagnostics_serve_conflict") => "--diagnostics não pode ser combinado com --serve",
+            (Self::Pt, "diagnostics_socket_conflict") => {
+                "--diagnostics não pode ser combinado com o modo de escuta por socket"
+            }
+            (Self::Pt, "diagnostics_serve_conflict") => {
+                "--diagnostics não pode ser combinado com --serve"
+            }
             (Self::Pt, "dsl_demo_conflict") => "--dsl não pode ser combinado com --demo",
-            (Self::Pt, "demo_socket_conflict") => "--demo não pode ser combinado com o modo de escuta por socket",
+            (Self::Pt, "demo_socket_conflict") => {
+                "--demo não pode ser combinado com o modo de escuta por socket"
+            }
             (Self::Pt, "serve_requires_socket") => "--serve requer --unix-socket ou --tcp-socket",
             (Self::Pt, "unsupported_fragment_combo") => "combinação de fragmentos não suportada",
-            (Self::Pt, "unix_only") => "o serviço de socket unix só é suportado em plataformas unix",
-            (Self::Pt, "findings_diagnostics_conflict") => "--findings não pode ser combinado com --diagnostics",
+            (Self::Pt, "unix_only") => {
+                "o serviço de socket unix só é suportado em plataformas unix"
+            }
+            (Self::Pt, "findings_diagnostics_conflict") => {
+                "--findings não pode ser combinado com --diagnostics"
+            }
             (Self::Ru, "diagnostics_requires_dsl") => "для --diagnostics требуется --dsl",
             (Self::Ru, "summary_only_requires_json") => "для --summary-only требуется --json",
-            (Self::Ru, "diagnostics_socket_conflict") => "--diagnostics нельзя сочетать с режимом сокет-сервера",
+            (Self::Ru, "diagnostics_socket_conflict") => {
+                "--diagnostics нельзя сочетать с режимом сокет-сервера"
+            }
             (Self::Ru, "diagnostics_serve_conflict") => "--diagnostics нельзя сочетать с --serve",
             (Self::Ru, "dsl_demo_conflict") => "--dsl нельзя сочетать с --demo",
             (Self::Ru, "demo_socket_conflict") => "--demo нельзя сочетать с режимом сокет-сервера",
-            (Self::Ru, "serve_requires_socket") => "для --serve требуется --unix-socket или --tcp-socket",
+            (Self::Ru, "serve_requires_socket") => {
+                "для --serve требуется --unix-socket или --tcp-socket"
+            }
             (Self::Ru, "unsupported_fragment_combo") => "неподдерживаемая комбинация фрагментов",
-            (Self::Ru, "unix_only") => "служба unix socket поддерживается только на unix-платформах",
-            (Self::Ru, "findings_diagnostics_conflict") => "--findings нельзя сочетать с --diagnostics",
+            (Self::Ru, "unix_only") => {
+                "служба unix socket поддерживается только на unix-платформах"
+            }
+            (Self::Ru, "findings_diagnostics_conflict") => {
+                "--findings нельзя сочетать с --diagnostics"
+            }
             (_, "diagnostics_requires_dsl") => "--diagnostics requires --dsl",
             (_, "summary_only_requires_json") => "--summary-only requires --json",
-            (_, "diagnostics_socket_conflict") => "--diagnostics cannot be combined with socket listener mode",
+            (_, "diagnostics_socket_conflict") => {
+                "--diagnostics cannot be combined with socket listener mode"
+            }
             (_, "diagnostics_serve_conflict") => "--diagnostics cannot be combined with --serve",
             (_, "dsl_demo_conflict") => "--dsl cannot be combined with --demo",
             (_, "demo_socket_conflict") => "--demo cannot be combined with socket listener mode",
             (_, "serve_requires_socket") => "--serve requires --unix-socket or --tcp-socket",
             (_, "unsupported_fragment_combo") => "unsupported fragment combination",
             (_, "unix_only") => "unix socket service is only supported on unix platforms",
-            (_, "findings_diagnostics_conflict") => "--findings cannot be combined with --diagnostics",
+            (_, "findings_diagnostics_conflict") => {
+                "--findings cannot be combined with --diagnostics"
+            }
             _ => key,
         }
     }
 
     fn msgf(self, key: &'static str, a: &str, b: Option<&str>) -> String {
         match (self, key) {
-            (Self::Zh, "unsupported_demo") => format!("不支持的 demo 模式 '{a}'，期望 tcp、udp 或 both"),
+            (Self::Zh, "unsupported_demo") => {
+                format!("不支持的 demo 模式 '{a}'，期望 tcp、udp 或 both")
+            }
             (Self::Zh, "unsupported_template") => format!("不支持的模板 '{a}'，期望 tcp 或 udp"),
             (Self::Zh, "dsl_compile_failed") => format!("DSL 编译失败: {a}"),
             (Self::Zh, "binding_diagnostics_failed") => format!("binding 诊断失败: {a}"),
@@ -481,8 +579,12 @@ impl UiLocale {
             (Self::Zh, "missing_unix_socket") => "缺少 --unix-socket 的值，期望文件路径".into(),
             (Self::Zh, "missing_tcp_socket") => "缺少 --tcp-socket 的值，期望 host:port".into(),
             (Self::Zh, "missing_out") => "缺少 --out 的值，期望可写文件路径".into(),
-            (_, "unsupported_demo") => format!("unsupported demo mode '{a}', expected tcp, udp, or both"),
-            (_, "unsupported_template") => format!("unsupported template '{a}', expected tcp or udp"),
+            (_, "unsupported_demo") => {
+                format!("unsupported demo mode '{a}', expected tcp, udp, or both")
+            }
+            (_, "unsupported_template") => {
+                format!("unsupported template '{a}', expected tcp or udp")
+            }
             (_, "dsl_compile_failed") => format!("dsl compile failed: {a}"),
             (_, "binding_diagnostics_failed") => format!("binding diagnostics failed: {a}"),
             (_, "socket_session_failed") => format!("socket session failed: {a}"),
@@ -490,12 +592,18 @@ impl UiLocale {
             (_, "write_failed") => format!("failed to write output to {a}: {}", b.unwrap_or("")),
             (_, "unknown_argument") => format!("unknown argument '{a}'\n{}", self.usage()),
             (_, "missing_demo") => "missing value for --demo, expected tcp, udp, or both".into(),
-            (_, "missing_max_sessions") => "missing value for --max-sessions, expected a positive integer".into(),
+            (_, "missing_max_sessions") => {
+                "missing value for --max-sessions, expected a positive integer".into()
+            }
             (_, "invalid_max_sessions") => "--max-sessions must be a positive integer".into(),
             (_, "missing_template") => "missing value for --template, expected tcp or udp".into(),
             (_, "missing_dsl") => "missing value for --dsl, expected a DSL file path".into(),
-            (_, "missing_unix_socket") => "missing value for --unix-socket, expected a filesystem path".into(),
-            (_, "missing_tcp_socket") => "missing value for --tcp-socket, expected host:port".into(),
+            (_, "missing_unix_socket") => {
+                "missing value for --unix-socket, expected a filesystem path".into()
+            }
+            (_, "missing_tcp_socket") => {
+                "missing value for --tcp-socket, expected host:port".into()
+            }
             (_, "missing_out") => "missing value for --out, expected a writable file path".into(),
             _ => key.into(),
         }
@@ -517,7 +625,10 @@ fn main() {
             std::process::exit(2);
         });
         let report = compile_diagnostics_report_file(path).unwrap_or_else(|err| {
-            eprintln!("{}", locale.msgf("binding_diagnostics_failed", &format!("{err:?}"), None));
+            eprintln!(
+                "{}",
+                locale.msgf("binding_diagnostics_failed", &format!("{err:?}"), None)
+            );
             std::process::exit(2);
         });
         let rendered = if cli.json {
@@ -527,7 +638,10 @@ fn main() {
         };
         if let Some(path) = cli.out_path.as_deref() {
             fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
-                eprintln!("{}", locale.msgf("write_failed", path, Some(&err.to_string())));
+                eprintln!(
+                    "{}",
+                    locale.msgf("write_failed", path, Some(&err.to_string()))
+                );
                 std::process::exit(1);
             });
         } else {
@@ -543,13 +657,24 @@ fn main() {
         }
 
         let export = match (socket_target, cli.dsl_binding()) {
-            (SocketTarget::Unix(path), Some(binding)) => run_unix_socket_session_with_binding(path, binding),
-            (SocketTarget::Tcp(addr), Some(binding)) => run_tcp_socket_session_with_binding(addr, binding),
-            (SocketTarget::Unix(path), None) => run_unix_socket_session(path, cli.template_mode.template()),
-            (SocketTarget::Tcp(addr), None) => run_tcp_socket_session(addr, cli.template_mode.template()),
+            (SocketTarget::Unix(path), Some(binding)) => {
+                run_unix_socket_session_with_binding(path, binding)
+            }
+            (SocketTarget::Tcp(addr), Some(binding)) => {
+                run_tcp_socket_session_with_binding(addr, binding)
+            }
+            (SocketTarget::Unix(path), None) => {
+                run_unix_socket_session(path, cli.template_mode.template())
+            }
+            (SocketTarget::Tcp(addr), None) => {
+                run_tcp_socket_session(addr, cli.template_mode.template())
+            }
         }
         .unwrap_or_else(|err| {
-            eprintln!("{}", locale.msgf("socket_session_failed", &format!("{err:?}"), None));
+            eprintln!(
+                "{}",
+                locale.msgf("socket_session_failed", &format!("{err:?}"), None)
+            );
             std::process::exit(1);
         });
         outputs.push(("socket_session", export));
@@ -719,7 +844,10 @@ fn main() {
 
     if let Some(path) = cli.out_path.as_deref() {
         fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
-            eprintln!("{}", locale.msgf("write_failed", path, Some(&err.to_string())));
+            eprintln!(
+                "{}",
+                locale.msgf("write_failed", path, Some(&err.to_string()))
+            );
             std::process::exit(1);
         });
     } else {
@@ -763,8 +891,7 @@ enum SocketTarget {
 }
 
 impl DemoMode {
-    fn from_str(value: &str) -> Result<Self, String>
-    {
+    fn from_str(value: &str) -> Result<Self, String> {
         let locale = UiLocale::detect();
         match value {
             "tcp" => Ok(Self::Tcp),
@@ -804,12 +931,15 @@ impl TemplateMode {
 impl Cli {
     fn dsl_binding(&self) -> Option<TemplateBinding> {
         let locale = UiLocale::detect();
-        self.dsl_path
-            .as_deref()
-            .map(|path| compile_file(path).unwrap_or_else(|err| {
-                eprintln!("{}", locale.msgf("dsl_compile_failed", &format!("{err:?}"), None));
+        self.dsl_path.as_deref().map(|path| {
+            compile_file(path).unwrap_or_else(|err| {
+                eprintln!(
+                    "{}",
+                    locale.msgf("dsl_compile_failed", &format!("{err:?}"), None)
+                );
                 std::process::exit(2);
-            }))
+            })
+        })
     }
 
     fn from_args<I>(args: I) -> Result<Self, String>
@@ -834,7 +964,9 @@ impl Cli {
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--demo" => {
-                    let value = args.next().ok_or_else(|| locale.msgf("missing_demo", "", None))?;
+                    let value = args
+                        .next()
+                        .ok_or_else(|| locale.msgf("missing_demo", "", None))?;
                     demo_mode = DemoMode::from_str(&value)?;
                 }
                 "--json" => json = true,
@@ -842,7 +974,9 @@ impl Cli {
                 "--findings" => findings = true,
                 "--http-transactions" => http_transactions = true,
                 "--max-sessions" => {
-                    let value = args.next().ok_or_else(|| locale.msgf("missing_max_sessions", "", None))?;
+                    let value = args
+                        .next()
+                        .ok_or_else(|| locale.msgf("missing_max_sessions", "", None))?;
                     max_sessions = Some(
                         value
                             .parse::<usize>()
@@ -851,21 +985,35 @@ impl Cli {
                 }
                 "--summary-only" => summary_only = true,
                 "--template" => {
-                    let value = args.next().ok_or_else(|| locale.msgf("missing_template", "", None))?;
+                    let value = args
+                        .next()
+                        .ok_or_else(|| locale.msgf("missing_template", "", None))?;
                     template_mode = TemplateMode::from_str(&value)?;
                 }
                 "--dsl" => {
-                    dsl_path = Some(args.next().ok_or_else(|| locale.msgf("missing_dsl", "", None))?);
+                    dsl_path = Some(
+                        args.next()
+                            .ok_or_else(|| locale.msgf("missing_dsl", "", None))?,
+                    );
                 }
                 "--diagnostics" => diagnostics = true,
                 "--unix-socket" => {
-                    socket_target = Some(SocketTarget::Unix(args.next().ok_or_else(|| locale.msgf("missing_unix_socket", "", None))?));
+                    socket_target =
+                        Some(SocketTarget::Unix(args.next().ok_or_else(|| {
+                            locale.msgf("missing_unix_socket", "", None)
+                        })?));
                 }
                 "--tcp-socket" => {
-                    socket_target = Some(SocketTarget::Tcp(args.next().ok_or_else(|| locale.msgf("missing_tcp_socket", "", None))?));
+                    socket_target =
+                        Some(SocketTarget::Tcp(args.next().ok_or_else(|| {
+                            locale.msgf("missing_tcp_socket", "", None)
+                        })?));
                 }
                 "--out" => {
-                    out_path = Some(args.next().ok_or_else(|| locale.msgf("missing_out", "", None))?);
+                    out_path = Some(
+                        args.next()
+                            .ok_or_else(|| locale.msgf("missing_out", "", None))?,
+                    );
                 }
                 "--help" | "-h" => return Err(usage().into()),
                 other => return Err(locale.msgf("unknown_argument", other, None)),
@@ -917,10 +1065,7 @@ impl Cli {
     }
 }
 
-fn run_session(
-    template: gewyvern::template::Template,
-    facts: Vec<FactEnvelope>,
-) -> ExportBundle {
+fn run_session(template: gewyvern::template::Template, facts: Vec<FactEnvelope>) -> ExportBundle {
     let config = SessionConfig::for_template(template).expect("builtin template should be valid");
     let mut session = RuntimeSession::start(config).expect("session startup should succeed");
     let window_end = facts
@@ -940,7 +1085,10 @@ fn run_session(
         .replay()
         .expect("export should replay");
 
-    assert_eq!(export.reasons, replay.reasons, "replay should stay deterministic");
+    assert_eq!(
+        export.reasons, replay.reasons,
+        "replay should stay deterministic"
+    );
     export
 }
 
@@ -962,34 +1110,42 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
         .template
         .program_model
         .as_ref()
-        .is_some_and(|model| matches!(
-            &model.operation,
-            gewyvern::flow::ProgramOperation::Custom(value) if value == "dns_lookup"
-        ));
+        .is_some_and(|model| {
+            matches!(
+                &model.operation,
+                gewyvern::flow::ProgramOperation::Custom(value) if value == "dns_lookup"
+            )
+        });
     let is_http_request = binding
         .template
         .program_model
         .as_ref()
-        .is_some_and(|model| matches!(
-            &model.operation,
-            gewyvern::flow::ProgramOperation::Custom(value) if value == "http_request"
-        ));
+        .is_some_and(|model| {
+            matches!(
+                &model.operation,
+                gewyvern::flow::ProgramOperation::Custom(value) if value == "http_request"
+            )
+        });
     let is_tls_client = binding
         .template
         .program_model
         .as_ref()
-        .is_some_and(|model| matches!(
-            &model.operation,
-            gewyvern::flow::ProgramOperation::Custom(value) if value == "tls_client"
-        ));
+        .is_some_and(|model| {
+            matches!(
+                &model.operation,
+                gewyvern::flow::ProgramOperation::Custom(value) if value == "tls_client"
+            )
+        });
     let is_http_server_response = binding
         .template
         .program_model
         .as_ref()
-        .is_some_and(|model| matches!(
-            &model.operation,
-            gewyvern::flow::ProgramOperation::Custom(value) if value == "http_server_response"
-        ));
+        .is_some_and(|model| {
+            matches!(
+                &model.operation,
+                gewyvern::flow::ProgramOperation::Custom(value) if value == "http_server_response"
+            )
+        });
     let facts = if fragments.contains(&"tcp_state_fragment")
         && fragments.contains(&"tcp_packet_meta_fragment")
         && fragments.contains(&"sock_lineage_fragment")
@@ -1116,30 +1272,34 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
         && fragments.contains(&"sock_lineage_fragment")
         && is_http_request
     {
-        let mut facts = vec![
-            FactEnvelope {
-                id: FactId(1),
-                ts: base,
-                cpu: CpuId(0),
-                ifindex: Some(2),
-                session: SessionId(2),
-                fragment_id: "sock_lineage_fragment".into(),
-                kind: FactKind::SockLineage(SockLineageFact {
-                    netns: 1,
-                    sk_cookie: 99,
-                    pid: 4242,
-                    tid: 4242,
-                    cgroup_id: 4242,
-                    comm: {
-                        let mut comm = [0u8; 16];
-                        comm[..4].copy_from_slice(b"curl");
-                        comm
-                    },
-                }),
-            },
-        ];
+        let mut facts = vec![FactEnvelope {
+            id: FactId(1),
+            ts: base,
+            cpu: CpuId(0),
+            ifindex: Some(2),
+            session: SessionId(2),
+            fragment_id: "sock_lineage_fragment".into(),
+            kind: FactKind::SockLineage(SockLineageFact {
+                netns: 1,
+                sk_cookie: 99,
+                pid: 4242,
+                tid: 4242,
+                cgroup_id: 4242,
+                comm: {
+                    let mut comm = [0u8; 16];
+                    comm[..4].copy_from_slice(b"curl");
+                    comm
+                },
+            }),
+        }];
         if fragments.contains(&"route_meta_fragment") {
-            facts.push(route_fact(2, base + Duration::from_millis(10), 99, 2, SessionId(2)));
+            facts.push(route_fact(
+                2,
+                base + Duration::from_millis(10),
+                99,
+                2,
+                SessionId(2),
+            ));
         }
         let offset = facts.len() as u64 + 1;
         facts.extend([
@@ -1244,30 +1404,34 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
         && fragments.contains(&"sock_lineage_fragment")
         && is_tls_client
     {
-        let mut facts = vec![
-            FactEnvelope {
-                id: FactId(1),
-                ts: base,
-                cpu: CpuId(0),
-                ifindex: Some(2),
-                session: SessionId(2),
-                fragment_id: "sock_lineage_fragment".into(),
-                kind: FactKind::SockLineage(SockLineageFact {
-                    netns: 1,
-                    sk_cookie: 88,
-                    pid: 4242,
-                    tid: 4242,
-                    cgroup_id: 4242,
-                    comm: {
-                        let mut comm = [0u8; 16];
-                        comm[..4].copy_from_slice(b"curl");
-                        comm
-                    },
-                }),
-            },
-        ];
+        let mut facts = vec![FactEnvelope {
+            id: FactId(1),
+            ts: base,
+            cpu: CpuId(0),
+            ifindex: Some(2),
+            session: SessionId(2),
+            fragment_id: "sock_lineage_fragment".into(),
+            kind: FactKind::SockLineage(SockLineageFact {
+                netns: 1,
+                sk_cookie: 88,
+                pid: 4242,
+                tid: 4242,
+                cgroup_id: 4242,
+                comm: {
+                    let mut comm = [0u8; 16];
+                    comm[..4].copy_from_slice(b"curl");
+                    comm
+                },
+            }),
+        }];
         if fragments.contains(&"route_meta_fragment") {
-            facts.push(route_fact(2, base + Duration::from_millis(10), 88, 2, SessionId(2)));
+            facts.push(route_fact(
+                2,
+                base + Duration::from_millis(10),
+                88,
+                2,
+                SessionId(2),
+            ));
         }
         let offset = facts.len() as u64 + 1;
         facts.extend([
@@ -1437,7 +1601,9 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
             },
             route_fact(3, base + Duration::from_millis(20), 42, 2, SessionId(1)),
         ]
-    } else if fragments.contains(&"udp_packet_meta_fragment") && fragments.contains(&"sock_lineage_fragment") {
+    } else if fragments.contains(&"udp_packet_meta_fragment")
+        && fragments.contains(&"sock_lineage_fragment")
+    {
         if is_dns_lookup {
             vec![
                 FactEnvelope {
@@ -1627,7 +1793,10 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
         .replay()
         .expect("export should replay");
 
-    assert_eq!(export.reasons, replay.reasons, "replay should stay deterministic");
+    assert_eq!(
+        export.reasons, replay.reasons,
+        "replay should stay deterministic"
+    );
     export
 }
 
@@ -1639,22 +1808,25 @@ mod tests {
 
     #[test]
     fn http_request_demo_produces_healthy_cross_transport_path() {
-        let binding =
-            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
-                .expect("http_request_path DSL should compile");
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
         let bundle = run_binding_demo(binding);
         assert_eq!(bundle.debug_summary.accepted_facts, 6);
         assert_eq!(bundle.program_findings.len(), 0);
         assert_eq!(bundle.module_findings.len(), 0);
         assert_eq!(bundle.program_flows.len(), 1);
-        assert!(bundle.program_flows[0]
-            .stages
-            .iter()
-            .any(|stage| stage.phase.as_deref() == Some("send_request")));
-        assert!(bundle.program_flows[0]
-            .stages
-            .iter()
-            .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("send_request"))
+        );
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("receive_response"))
+        );
         assert_eq!(
             bundle.program_flows[0].operation,
             ProgramOperation::Custom("http_request".into())
@@ -1668,10 +1840,12 @@ mod tests {
         let bundle = run_binding_demo(binding);
         assert_eq!(bundle.program_findings.len(), 0);
         assert_eq!(bundle.module_findings.len(), 0);
-        assert!(bundle.program_flows[0]
-            .stages
-            .iter()
-            .any(|stage| stage.phase.as_deref() == Some("send_client_hello")));
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("send_client_hello"))
+        );
         assert_eq!(
             bundle.program_flows[0].operation,
             ProgramOperation::Custom("tls_client".into())
@@ -1686,14 +1860,18 @@ mod tests {
         let bundle = run_binding_demo(binding);
         assert_eq!(bundle.program_findings.len(), 0);
         assert_eq!(bundle.module_findings.len(), 0);
-        assert!(bundle.program_flows[0]
-            .stages
-            .iter()
-            .any(|stage| stage.phase.as_deref() == Some("receive_request")));
-        assert!(bundle.program_flows[0]
-            .stages
-            .iter()
-            .any(|stage| stage.phase.as_deref() == Some("send_response")));
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("receive_request"))
+        );
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("send_response"))
+        );
         assert_eq!(
             bundle.program_flows[0].operation,
             ProgramOperation::Custom("http_server_response".into())
@@ -2035,8 +2213,17 @@ fn program_finding_json(finding: &gewyvern::flow::ProgramFinding) -> String {
         "{{\"program_flow\":{},\"module_label\":\"{}\",\"phase\":{},\"phase_transition\":{},\"suspect_area\":\"{}\",\"cause\":\"{}\",\"process\":{},\"operation\":\"{}\",\"summary\":\"{}\",\"supporting_fragments\":{},\"evidence_trace\":{}}}",
         finding.program_flow.0,
         finding.module_label,
-        finding.phase.as_ref().map_or("null".to_string(), |phase| format!("\"{}\"", phase)),
-        finding.phase_transition.as_ref().map_or("null".to_string(), |transition| format!("\"{}\"", transition)),
+        finding
+            .phase
+            .as_ref()
+            .map_or("null".to_string(), |phase| format!("\"{}\"", phase)),
+        finding
+            .phase_transition
+            .as_ref()
+            .map_or("null".to_string(), |transition| format!(
+                "\"{}\"",
+                transition
+            )),
         finding.suspect_area,
         finding_cause_label(&finding.cause),
         process_json(finding.process.as_ref()),
@@ -2079,9 +2266,7 @@ fn http_transaction_verdict_label(
         gewyvern::http::HttpTransactionVerdict::SuspectServerResponseGap => {
             "suspect_server_response_gap"
         }
-        gewyvern::http::HttpTransactionVerdict::SuspectMultiSidedGap => {
-            "suspect_multi_sided_gap"
-        }
+        gewyvern::http::HttpTransactionVerdict::SuspectMultiSidedGap => "suspect_multi_sided_gap",
     }
 }
 
@@ -2098,7 +2283,8 @@ fn process_json(process: Option<&gewyvern::flow::ProcessView>) -> String {
 fn string_list_json(items: &[String]) -> String {
     format!(
         "[{}]",
-        items.iter()
+        items
+            .iter()
             .map(|item| format!("\"{}\"", item))
             .collect::<Vec<_>>()
             .join(",")
@@ -2143,7 +2329,10 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
     {
         let _ = fs::remove_file(path);
         let listener = bind_unix_socket_listener(path).unwrap_or_else(|err| {
-            eprintln!("{}", locale.msgf("socket_service_failed", &format!("{err:?}"), None));
+            eprintln!(
+                "{}",
+                locale.msgf("socket_service_failed", &format!("{err:?}"), None)
+            );
             std::process::exit(1);
         });
         let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
@@ -2154,10 +2343,13 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
             } else {
                 run_unix_socket_session_on_listener(&listener, cli.template_mode.template())
             }
-                .unwrap_or_else(|err| {
-                    eprintln!("{}", locale.msgf("socket_service_failed", &format!("{err:?}"), None));
-                    std::process::exit(1);
-                });
+            .unwrap_or_else(|err| {
+                eprintln!(
+                    "{}",
+                    locale.msgf("socket_service_failed", &format!("{err:?}"), None)
+                );
+                std::process::exit(1);
+            });
             emit_rendered(cli, "socket_session", &export, true);
         }
 
@@ -2176,7 +2368,10 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
 fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
     let locale = UiLocale::detect();
     let listener = TcpListener::bind(addr).unwrap_or_else(|err| {
-        eprintln!("{}", locale.msgf("socket_service_failed", &err.to_string(), None));
+        eprintln!(
+            "{}",
+            locale.msgf("socket_service_failed", &err.to_string(), None)
+        );
         std::process::exit(1);
     });
     let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
@@ -2187,10 +2382,13 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
         } else {
             run_tcp_socket_session_on_listener(&listener, cli.template_mode.template())
         }
-            .unwrap_or_else(|err| {
-                eprintln!("{}", locale.msgf("socket_service_failed", &format!("{err:?}"), None));
-                std::process::exit(1);
-            });
+        .unwrap_or_else(|err| {
+            eprintln!(
+                "{}",
+                locale.msgf("socket_service_failed", &format!("{err:?}"), None)
+            );
+            std::process::exit(1);
+        });
         emit_rendered(cli, "socket_session", &export, true);
     }
 }
@@ -2219,12 +2417,18 @@ fn emit_rendered(cli: &Cli, name: &str, export: &ExportBundle, append: bool) {
             existing.push_str(&rendered);
             existing.push('\n');
             fs::write(path, existing).unwrap_or_else(|err| {
-                eprintln!("{}", locale.msgf("write_failed", path, Some(&err.to_string())));
+                eprintln!(
+                    "{}",
+                    locale.msgf("write_failed", path, Some(&err.to_string()))
+                );
                 std::process::exit(1);
             });
         } else {
             fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
-                eprintln!("{}", locale.msgf("write_failed", path, Some(&err.to_string())));
+                eprintln!(
+                    "{}",
+                    locale.msgf("write_failed", path, Some(&err.to_string()))
+                );
                 std::process::exit(1);
             });
         }

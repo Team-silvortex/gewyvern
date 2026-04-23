@@ -1,9 +1,7 @@
-use crate::flow::{
-    FlowSnapshot, ProgramFlow, ProgramFlowId, ProgramOperation, ProgramStage,
-};
+use crate::flow::{FlowSnapshot, ProgramFlow, ProgramFlowId, ProgramOperation, ProgramStage};
 use crate::ir::{
-    matches_flow_predicate, phase_kind, render_narrative_template, FlowPredicate,
-    NarrativeSurface, NarrativeTemplate, RuleTemplate,
+    FlowPredicate, NarrativeSurface, NarrativeTemplate, RuleTemplate, matches_flow_predicate,
+    phase_kind, render_narrative_template,
 };
 use crate::ledger::FactEnvelope;
 

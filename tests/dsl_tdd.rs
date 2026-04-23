@@ -1,30 +1,29 @@
-use gewyvern::dsl::{compile_file, compile_str, parse_str_unvalidated, DslError};
+use gewyvern::dsl::{DslError, compile_file, compile_str, parse_str_unvalidated};
+use gewyvern::flow::ProgramOperation;
 use gewyvern::fragment::{RegistryError, RuleTier};
 use gewyvern::gewyc::collect_binding_diagnostics;
 use gewyvern::ledger::PacketDir;
-use gewyvern::flow::ProgramOperation;
 use gewyvern::reason::{KeyEventKind, ReasonProfile};
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::template::FragmentParamValue;
 
 mod support;
 
+use std::time::{Duration, SystemTime};
 use support::{
     packet_fact, packet_fact_with_dir, packet_fact_with_dir_and_payload,
-    packet_fact_with_dir_and_payload_and_byte4,
-    packet_fact_with_dir_and_payload_and_bytes4_and5, route_fact, sock_lineage_fact,
-    tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact, udp_packet_fact_with_dir,
-    udp_packet_fact_with_dir_and_ports,
+    packet_fact_with_dir_and_payload_and_byte4, packet_fact_with_dir_and_payload_and_bytes4_and5,
+    route_fact, sock_lineage_fact, tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact,
+    udp_packet_fact_with_dir, udp_packet_fact_with_dir_and_ports,
     udp_packet_fact_with_dir_and_ports_and_payload,
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4,
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13,
 };
-use std::time::{Duration, SystemTime};
 
 #[test]
 fn built_in_udp_process_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy").unwrap();
 
     assert_eq!(binding.template.id, "udp_process_debug");
     assert_eq!(
@@ -40,11 +39,21 @@ fn built_in_udp_process_dsl_compiles_into_template_binding() {
         ProgramOperation::DatagramExchange
     );
     assert_eq!(
-        binding.template.window_profile.as_ref().unwrap().duration_ms,
+        binding
+            .template
+            .window_profile
+            .as_ref()
+            .unwrap()
+            .duration_ms,
         5_000
     );
     assert_eq!(
-        binding.template.window_profile.as_ref().unwrap().lateness_ms,
+        binding
+            .template
+            .window_profile
+            .as_ref()
+            .unwrap()
+            .lateness_ms,
         200
     );
     assert_eq!(
@@ -55,8 +64,8 @@ fn built_in_udp_process_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_dns_udp_process_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy").unwrap();
 
     assert_eq!(binding.template.id, "dns_udp_process");
     assert_eq!(
@@ -95,10 +104,9 @@ fn built_in_https_connect_process_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_postgres_connect_process_dsl_compiles_into_template_binding() {
-    let binding = compile_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy",
-    )
-    .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy")
+            .unwrap();
 
     assert_eq!(binding.template.id, "postgres_connect_process");
     assert_eq!(
@@ -184,8 +192,18 @@ rule=socket_state_observed:remote:https;socket_state_transition;static:remote ht
     .unwrap();
 
     let local_rule = &local_binding.template.program_model.as_ref().unwrap().rules[0];
-    let legacy_rule = &legacy_binding.template.program_model.as_ref().unwrap().rules[0];
-    let remote_rule = &remote_binding.template.program_model.as_ref().unwrap().rules[0];
+    let legacy_rule = &legacy_binding
+        .template
+        .program_model
+        .as_ref()
+        .unwrap()
+        .rules[0];
+    let remote_rule = &remote_binding
+        .template
+        .program_model
+        .as_ref()
+        .unwrap()
+        .rules[0];
 
     assert_eq!(local_rule.predicate, legacy_rule.predicate);
     assert_eq!(
@@ -249,11 +267,30 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
     )
     .unwrap();
 
-    let packet_rule = &packet_binding.template.program_model.as_ref().unwrap().rules[0];
-    let legacy_packet_rule = &legacy_packet_binding.template.program_model.as_ref().unwrap().rules[0];
-    let datagram_rule = &datagram_binding.template.program_model.as_ref().unwrap().rules[0];
-    let legacy_datagram_rule =
-        &legacy_datagram_binding.template.program_model.as_ref().unwrap().rules[0];
+    let packet_rule = &packet_binding
+        .template
+        .program_model
+        .as_ref()
+        .unwrap()
+        .rules[0];
+    let legacy_packet_rule = &legacy_packet_binding
+        .template
+        .program_model
+        .as_ref()
+        .unwrap()
+        .rules[0];
+    let datagram_rule = &datagram_binding
+        .template
+        .program_model
+        .as_ref()
+        .unwrap()
+        .rules[0];
+    let legacy_datagram_rule = &legacy_datagram_binding
+        .template
+        .program_model
+        .as_ref()
+        .unwrap()
+        .rules[0];
 
     assert_eq!(packet_rule.predicate, legacy_packet_rule.predicate);
     assert_eq!(
@@ -409,8 +446,18 @@ rule=datagram_observed:udp:dport:443:local_to_remote;datagram_observed;udp_datag
     )
     .unwrap();
 
-    let rule = &remote_quic_binding.template.program_model.as_ref().unwrap().rules[0];
-    let legacy_rule = &legacy_remote_binding.template.program_model.as_ref().unwrap().rules[0];
+    let rule = &remote_quic_binding
+        .template
+        .program_model
+        .as_ref()
+        .unwrap()
+        .rules[0];
+    let legacy_rule = &legacy_remote_binding
+        .template
+        .program_model
+        .as_ref()
+        .unwrap()
+        .rules[0];
     assert_eq!(rule.predicate, legacy_rule.predicate);
     assert_eq!(
         rule.predicate,
@@ -593,15 +640,19 @@ reason.rule=datagram_observed:udp:remote_to_local;udp_datagram_seen;udp_datagram
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "program received a UDP datagram"));
-    assert!(export.reasons[0]
-        .l3
-        .narrative
-        .iter()
-        .any(|line| line.text == "udp datagram received"));
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "program received a UDP datagram")
+    );
+    assert!(
+        export.reasons[0]
+            .l3
+            .narrative
+            .iter()
+            .any(|line| line.text == "udp datagram received")
+    );
 
     let replay = gewyvern::export::ExportBundle::from_json(&export.to_json())
         .unwrap()
@@ -613,8 +664,8 @@ reason.rule=datagram_observed:udp:remote_to_local;udp_datagram_seen;udp_datagram
 
 #[test]
 fn built_in_tls_client_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "tls_client_path");
     assert_eq!(
@@ -638,8 +689,8 @@ fn built_in_quic_client_initial_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_stun_binding_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "stun_binding_path");
     assert_eq!(
@@ -650,8 +701,7 @@ fn built_in_stun_binding_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_coap_get_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy")
-        .unwrap();
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "coap_get_path");
     assert_eq!(
@@ -662,8 +712,8 @@ fn built_in_coap_get_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ntp_client_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "ntp_client_path");
     assert_eq!(
@@ -674,8 +724,8 @@ fn built_in_ntp_client_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_dhcp_client_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "dhcp_client_path");
     assert_eq!(
@@ -699,8 +749,8 @@ fn built_in_wireguard_handshake_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_mdns_query_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "mdns_query_path");
     assert_eq!(
@@ -711,8 +761,8 @@ fn built_in_mdns_query_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ssdp_discovery_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "ssdp_discovery_path");
     assert_eq!(
@@ -723,8 +773,8 @@ fn built_in_ssdp_discovery_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_redis_ping_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "redis_ping_path");
     assert_eq!(
@@ -735,8 +785,8 @@ fn built_in_redis_ping_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_mqtt_connect_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "mqtt_connect_path");
     assert_eq!(
@@ -751,8 +801,8 @@ fn built_in_mqtt_connect_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_radius_access_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "radius_access_path");
     assert_eq!(
@@ -767,8 +817,8 @@ fn built_in_radius_access_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_smtp_session_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "smtp_session_path");
     assert_eq!(
@@ -783,8 +833,8 @@ fn built_in_smtp_session_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_sip_register_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "sip_register_path");
     assert_eq!(
@@ -799,8 +849,8 @@ fn built_in_sip_register_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ldap_bind_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "ldap_bind_path");
     assert_eq!(
@@ -814,9 +864,90 @@ fn built_in_ldap_bind_path_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn built_in_ldap_search_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_search_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "ldap_search_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("ldap_search".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_ldap_modify_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "ldap_modify_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("ldap_modify".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_ldap_directory_session_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_session.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "ldap_directory_session");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("ldap_directory_session".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_ldap_directory_write_session_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_write_session.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "ldap_directory_write_session");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("ldap_directory_write_session".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_ldap_directory_sync_session_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "ldap_directory_sync_session");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("ldap_directory_sync_session".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
 fn built_in_snmp_get_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")
-        .unwrap();
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "snmp_get_path");
     assert_eq!(
@@ -831,8 +962,8 @@ fn built_in_snmp_get_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_dns_tcp_query_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "dns_tcp_query_path");
     assert_eq!(
@@ -843,8 +974,8 @@ fn built_in_dns_tcp_query_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn udp_process_dsl_binding_drives_runtime_session() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 201, 4242, "curl"));
@@ -892,13 +1023,16 @@ param=udp_packet_meta_fragment.min_len=80
     );
     assert_eq!(export.flows[0].process.as_ref().unwrap().comm, "<redacted>");
     assert_eq!(export.rejected_facts.len(), 1);
-    assert_eq!(export.rejected_fact_summary[0].reason, "filtered_by_fragment_param");
+    assert_eq!(
+        export.rejected_fact_summary[0].reason,
+        "filtered_by_fragment_param"
+    );
 }
 
 #[test]
 fn dns_dsl_uses_egress_direction_to_model_lookup_requests() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 303, 5353, "dig"));
@@ -912,18 +1046,24 @@ fn dns_dsl_uses_egress_direction_to_model_lookup_requests() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("dns_lookup".into())
     );
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "program emitted a UDP datagram"));
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "program received a UDP datagram"));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_reply")));
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "program emitted a UDP datagram")
+    );
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "program received a UDP datagram")
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_reply"))
+    );
     assert_eq!(export.module_findings.len(), 0);
     assert_eq!(
         export.reasons[0]
@@ -938,8 +1078,8 @@ fn dns_dsl_uses_egress_direction_to_model_lookup_requests() {
 
 #[test]
 fn dns_dsl_does_not_treat_ingress_udp_as_lookup_request() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 304, 5353, "dig"));
@@ -948,18 +1088,24 @@ fn dns_dsl_does_not_treat_ingress_udp_as_lookup_request() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("send_request")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_reply")));
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .all(|line| line != "program emitted a UDP datagram"));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("send_request"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_reply"))
+    );
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .all(|line| line != "program emitted a UDP datagram")
+    );
     assert!(export.program_findings.iter().any(|finding| {
         finding.phase.as_deref() == Some("send_request")
             && finding.phase_transition.as_deref() == Some("resolve->send_request")
@@ -968,8 +1114,8 @@ fn dns_dsl_does_not_treat_ingress_udp_as_lookup_request() {
 
 #[test]
 fn dns_dsl_missing_reply_produces_send_request_to_receive_reply_transition() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 305, 5353, "dig"));
@@ -1122,8 +1268,8 @@ fn http_server_response_path_missing_response_produces_request_to_response_trans
 
 #[test]
 fn tls_client_path_materializes_transport_packet_phase() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 801, 4242, "curl"));
@@ -1138,21 +1284,25 @@ fn tls_client_path_materializes_transport_packet_phase() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("tls_client".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_client_hello")));
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "program sent transport payload on this network flow"));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_client_hello"))
+    );
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "program sent transport payload on this network flow")
+    );
     assert_eq!(export.module_findings.len(), 0);
 }
 
 #[test]
 fn tls_client_path_missing_packet_phase_produces_establish_transition() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 802, 4242, "curl"));
@@ -1202,14 +1352,18 @@ fn quic_client_initial_path_materializes_initial_and_handshake_datagrams() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("quic_client_initial".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_initial")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_handshake")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_initial"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_handshake"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -1217,14 +1371,18 @@ fn quic_client_initial_path_materializes_initial_and_handshake_datagrams() {
         .collect::<Vec<_>>();
     assert!(phase_kinds.contains(&"emit_datagram".to_string()));
     assert!(phase_kinds.contains(&"receive_datagram".to_string()));
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "program emitted a UDP datagram"));
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "program received a UDP datagram"));
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "program emitted a UDP datagram")
+    );
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "program received a UDP datagram")
+    );
     assert_eq!(export.module_findings.len(), 0);
 }
 
@@ -1287,14 +1445,18 @@ fn quic_client_initial_path_does_not_match_non_quic_udp_ports() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("send_initial")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_handshake")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("send_initial"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_handshake"))
+    );
 }
 
 #[test]
@@ -1327,14 +1489,18 @@ fn quic_client_initial_path_does_not_treat_small_quic_port_datagrams_as_initial(
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("send_initial")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_handshake")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("send_initial"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_handshake"))
+    );
 }
 
 #[test]
@@ -1367,10 +1533,12 @@ fn quic_client_initial_path_does_not_treat_wrong_first_byte_as_initial() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("send_initial")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("send_initial"))
+    );
 }
 
 #[test]
@@ -1403,16 +1571,18 @@ fn quic_client_initial_path_does_not_treat_wrong_prefix2_as_initial() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("send_initial")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("send_initial"))
+    );
 }
 
 #[test]
 fn stun_binding_path_materializes_request_and_response_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 809, 5000, "webrtc-app"));
@@ -1444,14 +1614,18 @@ fn stun_binding_path_materializes_request_and_response_datagrams() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("stun_binding".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_request")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_request"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_response"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -1464,8 +1638,8 @@ fn stun_binding_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn stun_binding_path_does_not_match_wrong_message_type() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 810, 5000, "webrtc-app"));
@@ -1493,16 +1667,17 @@ fn stun_binding_path_does_not_match_wrong_message_type() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("send_request")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("send_request"))
+    );
 }
 
 #[test]
 fn coap_get_path_materializes_request_and_response_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy")
-        .unwrap();
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 811, 6000, "coap-client"));
@@ -1534,14 +1709,18 @@ fn coap_get_path_materializes_request_and_response_datagrams() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("coap_get".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_request")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_request"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_response"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -1554,8 +1733,7 @@ fn coap_get_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn coap_get_path_does_not_match_wrong_response_code() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy")
-        .unwrap();
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 812, 6000, "coap-client"));
@@ -1583,16 +1761,18 @@ fn coap_get_path_does_not_match_wrong_response_code() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_response"))
+    );
 }
 
 #[test]
 fn ntp_client_path_materializes_request_and_response_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 813, 7000, "chrony-client"));
@@ -1624,14 +1804,18 @@ fn ntp_client_path_materializes_request_and_response_datagrams() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("ntp_client".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_request")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_request"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_response"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -1644,8 +1828,8 @@ fn ntp_client_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn ntp_client_path_does_not_match_wrong_response_mode() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 814, 7000, "chrony-client"));
@@ -1673,16 +1857,18 @@ fn ntp_client_path_does_not_match_wrong_response_mode() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_response"))
+    );
 }
 
 #[test]
 fn dhcp_client_path_materializes_request_and_response_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 815, 68, "dhclient"));
@@ -1714,14 +1900,18 @@ fn dhcp_client_path_materializes_request_and_response_datagrams() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("dhcp_client".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_discover")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_offer")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_discover"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_offer"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -1734,8 +1924,8 @@ fn dhcp_client_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn dhcp_client_path_does_not_match_wrong_reply_opcode() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 816, 68, "dhclient"));
@@ -1763,10 +1953,12 @@ fn dhcp_client_path_does_not_match_wrong_reply_opcode() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_offer")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_offer"))
+    );
 }
 
 #[test]
@@ -1805,14 +1997,18 @@ fn wireguard_handshake_path_materializes_initiation_and_response_datagrams() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("wireguard_handshake".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_initiation")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_initiation"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_response"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -1855,16 +2051,18 @@ fn wireguard_handshake_path_does_not_match_wrong_response_type() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_response"))
+    );
 }
 
 #[test]
 fn mdns_query_path_materializes_query_and_response_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 819, 5353, "avahi-daemon"));
@@ -1898,14 +2096,18 @@ fn mdns_query_path_materializes_query_and_response_datagrams() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("mdns_query".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_query")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_query"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_response"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -1918,8 +2120,8 @@ fn mdns_query_path_materializes_query_and_response_datagrams() {
 
 #[test]
 fn mdns_query_path_does_not_match_wrong_response_flags() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 820, 5353, "avahi-daemon"));
@@ -1949,16 +2151,18 @@ fn mdns_query_path_does_not_match_wrong_response_flags() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_response"))
+    );
 }
 
 #[test]
 fn ssdp_discovery_path_materializes_search_and_response_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 821, 1900, "ssdp-client"));
@@ -1992,14 +2196,18 @@ fn ssdp_discovery_path_materializes_search_and_response_datagrams() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("ssdp_discovery".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_search")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_search"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_response"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -2012,8 +2220,8 @@ fn ssdp_discovery_path_materializes_search_and_response_datagrams() {
 
 #[test]
 fn ssdp_discovery_path_does_not_match_wrong_response_prefix() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 822, 1900, "ssdp-client"));
@@ -2043,16 +2251,18 @@ fn ssdp_discovery_path_does_not_match_wrong_response_prefix() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_response"))
+    );
 }
 
 #[test]
 fn redis_ping_path_materializes_request_and_response_payload_phases() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 823, 53001, "redis-cli"));
@@ -2086,14 +2296,18 @@ fn redis_ping_path_materializes_request_and_response_payload_phases() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("redis_ping".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_ping")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_pong")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_ping"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_pong"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -2106,8 +2320,8 @@ fn redis_ping_path_materializes_request_and_response_payload_phases() {
 
 #[test]
 fn redis_ping_path_does_not_match_wrong_response_prefix() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 824, 53001, "redis-cli"));
@@ -2137,16 +2351,18 @@ fn redis_ping_path_does_not_match_wrong_response_prefix() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_pong")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_pong"))
+    );
 }
 
 #[test]
 fn mqtt_connect_path_materializes_connect_and_connack_payload_phases() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 824, 53002, "mosquitto-pub"));
@@ -2180,14 +2396,18 @@ fn mqtt_connect_path_materializes_connect_and_connack_payload_phases() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("mqtt_connect".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_connect")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_connack")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_connect"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_connack"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -2200,8 +2420,8 @@ fn mqtt_connect_path_materializes_connect_and_connack_payload_phases() {
 
 #[test]
 fn radius_access_path_materializes_request_and_accept_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 825, 53000, "wpa_supplicant"));
@@ -2233,14 +2453,18 @@ fn radius_access_path_materializes_request_and_accept_datagrams() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("radius_access".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_access_request")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_access_accept")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_access_request"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_access_accept"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -2253,8 +2477,8 @@ fn radius_access_path_materializes_request_and_accept_datagrams() {
 
 #[test]
 fn radius_access_path_does_not_match_wrong_response_code() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 826, 53000, "wpa_supplicant"));
@@ -2282,16 +2506,18 @@ fn radius_access_path_does_not_match_wrong_response_code() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_access_accept")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_access_accept"))
+    );
 }
 
 #[test]
 fn smtp_session_path_materializes_connect_banner_and_ehlo_phases() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 827, 53010, "postfix-client"));
@@ -2326,18 +2552,24 @@ fn smtp_session_path_materializes_connect_banner_and_ehlo_phases() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("smtp_session".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("connect")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_banner")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_ehlo")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("connect"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_banner"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_ehlo"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -2351,8 +2583,8 @@ fn smtp_session_path_materializes_connect_banner_and_ehlo_phases() {
 
 #[test]
 fn smtp_session_path_does_not_match_wrong_banner_prefix() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 828, 53010, "postfix-client"));
@@ -2383,16 +2615,18 @@ fn smtp_session_path_does_not_match_wrong_banner_prefix() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_banner")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_banner"))
+    );
 }
 
 #[test]
 fn sip_register_path_materializes_register_and_ok_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 829, 54010, "sip-client"));
@@ -2426,14 +2660,18 @@ fn sip_register_path_materializes_register_and_ok_datagrams() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("sip_register".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_register")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_ok")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_register"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_ok"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -2446,8 +2684,8 @@ fn sip_register_path_materializes_register_and_ok_datagrams() {
 
 #[test]
 fn sip_register_path_does_not_match_wrong_response_prefix() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 830, 54010, "sip-client"));
@@ -2477,16 +2715,18 @@ fn sip_register_path_does_not_match_wrong_response_prefix() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_ok")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_ok"))
+    );
 }
 
 #[test]
 fn ldap_bind_path_materializes_connect_bind_and_response_phases() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 831, 54020, "ldap-client"));
@@ -2526,22 +2766,30 @@ fn ldap_bind_path_materializes_connect_bind_and_response_phases() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("ldap_bind".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("connect")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("establish")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_bind")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_bind_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("connect"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("establish"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_bind"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_bind_response"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -2556,8 +2804,8 @@ fn ldap_bind_path_materializes_connect_bind_and_response_phases() {
 
 #[test]
 fn ldap_bind_path_does_not_match_wrong_response_op_tag() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 832, 54020, "ldap-client"));
@@ -2593,44 +2841,607 @@ fn ldap_bind_path_does_not_match_wrong_response_op_tag() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_bind_response"))
+    );
+}
+
+#[test]
+fn ldap_search_path_materializes_connect_search_and_result_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_search_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 833, 54021, "ldapsearch"));
+    session.ingest(route_fact(2, 833, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 833, 1, 2, 54021, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 833, 2, 3, 54021, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        5,
+        833,
+        0x18,
+        PacketDir::Egress,
+        Some(54021),
+        Some(389),
+        Some(0x30),
+        Some(0x3010),
+        Some(0x30100201),
+        Some(0x01),
+        Some(0x63),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        6,
+        833,
+        0x18,
+        PacketDir::Ingress,
+        Some(54021),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x65),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("ldap_search".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("connect"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("establish"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_search"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_search_result"))
+    );
+    let phase_kinds = export.program_flows[0]
         .stages
         .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_bind_response")));
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"establish_connection".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ldap_search_path_does_not_match_wrong_response_op_tag() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_search_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 834, 54021, "ldapsearch"));
+    session.ingest(route_fact(2, 834, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 834, 1, 2, 54021, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 834, 2, 3, 54021, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        5,
+        834,
+        0x18,
+        PacketDir::Egress,
+        Some(54021),
+        Some(389),
+        Some(0x30),
+        Some(0x3010),
+        Some(0x30100201),
+        Some(0x01),
+        Some(0x63),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        6,
+        834,
+        0x18,
+        PacketDir::Ingress,
+        Some(54021),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x64),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_search_result"))
+    );
+}
+
+#[test]
+fn ldap_modify_path_materializes_connect_modify_and_response_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 836, 54023, "ldapmodify"));
+    session.ingest(route_fact(2, 836, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 836, 1, 2, 54023, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 836, 2, 3, 54023, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        5,
+        836,
+        0x18,
+        PacketDir::Egress,
+        Some(54023),
+        Some(389),
+        Some(0x30),
+        Some(0x3012),
+        Some(0x30120201),
+        Some(0x01),
+        Some(0x66),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        6,
+        836,
+        0x18,
+        PacketDir::Ingress,
+        Some(54023),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x67),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("ldap_modify".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("connect"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("establish"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_modify"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_modify_response"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"establish_connection".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ldap_modify_path_does_not_match_wrong_response_op_tag() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 837, 54023, "ldapmodify"));
+    session.ingest(route_fact(2, 837, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 837, 1, 2, 54023, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 837, 2, 3, 54023, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        5,
+        837,
+        0x18,
+        PacketDir::Egress,
+        Some(54023),
+        Some(389),
+        Some(0x30),
+        Some(0x3012),
+        Some(0x30120201),
+        Some(0x01),
+        Some(0x66),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        6,
+        837,
+        0x18,
+        PacketDir::Ingress,
+        Some(54023),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x65),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_modify_response"))
+    );
+}
+
+#[test]
+fn ldap_directory_session_can_span_bind_and_search_in_one_module() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_session.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 835, 54022, "ldap-directory-client"));
+    session.ingest(route_fact(2, 835, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 835, 1, 2, 54022, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 835, 2, 3, 54022, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        5,
+        835,
+        0x18,
+        PacketDir::Egress,
+        Some(54022),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x60),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        6,
+        835,
+        0x18,
+        PacketDir::Ingress,
+        Some(54022),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x61),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        7,
+        835,
+        0x18,
+        PacketDir::Egress,
+        Some(54022),
+        Some(389),
+        Some(0x30),
+        Some(0x3010),
+        Some(0x30100201),
+        Some(0x01),
+        Some(0x63),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        8,
+        835,
+        0x18,
+        PacketDir::Ingress,
+        Some(54022),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x65),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(100));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("ldap_directory_session".into())
+    );
+    let phases = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase.clone())
+        .collect::<Vec<_>>();
+    assert!(phases.contains(&"connect".to_string()));
+    assert!(phases.contains(&"establish".to_string()));
+    assert!(phases.contains(&"send_bind".to_string()));
+    assert!(phases.contains(&"receive_bind_response".to_string()));
+    assert!(phases.contains(&"send_search".to_string()));
+    assert!(phases.contains(&"receive_search_result".to_string()));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"establish_connection".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ldap_directory_write_session_can_span_bind_and_modify_in_one_module() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_write_session.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 838, 54024, "ldap-directory-writer"));
+    session.ingest(route_fact(2, 838, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 838, 1, 2, 54024, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 838, 2, 3, 54024, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        5,
+        838,
+        0x18,
+        PacketDir::Egress,
+        Some(54024),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x60),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        6,
+        838,
+        0x18,
+        PacketDir::Ingress,
+        Some(54024),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x61),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        7,
+        838,
+        0x18,
+        PacketDir::Egress,
+        Some(54024),
+        Some(389),
+        Some(0x30),
+        Some(0x3012),
+        Some(0x30120201),
+        Some(0x01),
+        Some(0x66),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        8,
+        838,
+        0x18,
+        PacketDir::Ingress,
+        Some(54024),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x67),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(100));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("ldap_directory_write_session".into())
+    );
+    let phases = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase.clone())
+        .collect::<Vec<_>>();
+    assert!(phases.contains(&"connect".to_string()));
+    assert!(phases.contains(&"establish".to_string()));
+    assert!(phases.contains(&"send_bind".to_string()));
+    assert!(phases.contains(&"receive_bind_response".to_string()));
+    assert!(phases.contains(&"send_modify".to_string()));
+    assert!(phases.contains(&"receive_modify_response".to_string()));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"establish_connection".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ldap_directory_sync_session_can_span_bind_search_and_modify_in_one_module() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 839, 54025, "ldap-directory-sync"));
+    session.ingest(route_fact(2, 839, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 839, 1, 2, 54025, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 839, 2, 3, 54025, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        5,
+        839,
+        0x18,
+        PacketDir::Egress,
+        Some(54025),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x60),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        6,
+        839,
+        0x18,
+        PacketDir::Ingress,
+        Some(54025),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x61),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        7,
+        839,
+        0x18,
+        PacketDir::Egress,
+        Some(54025),
+        Some(389),
+        Some(0x30),
+        Some(0x3010),
+        Some(0x30100201),
+        Some(0x01),
+        Some(0x63),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        8,
+        839,
+        0x18,
+        PacketDir::Ingress,
+        Some(54025),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x65),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        9,
+        839,
+        0x18,
+        PacketDir::Egress,
+        Some(54025),
+        Some(389),
+        Some(0x30),
+        Some(0x3012),
+        Some(0x30120201),
+        Some(0x01),
+        Some(0x66),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        10,
+        839,
+        0x18,
+        PacketDir::Ingress,
+        Some(54025),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x67),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(120));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("ldap_directory_sync_session".into())
+    );
+    let phases = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase.clone())
+        .collect::<Vec<_>>();
+    assert!(phases.contains(&"connect".to_string()));
+    assert!(phases.contains(&"establish".to_string()));
+    assert!(phases.contains(&"send_bind".to_string()));
+    assert!(phases.contains(&"receive_bind_response".to_string()));
+    assert!(phases.contains(&"send_search".to_string()));
+    assert!(phases.contains(&"receive_search_result".to_string()));
+    assert!(phases.contains(&"send_modify".to_string()));
+    assert!(phases.contains(&"receive_modify_response".to_string()));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"establish_connection".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
 }
 
 #[test]
 fn snmp_get_path_materializes_request_and_response_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")
-        .unwrap();
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 829, 54000, "snmpwalk"));
     session.ingest(route_fact(2, 829, 7));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-        3,
-        829,
-        96,
-        PacketDir::Egress,
-        Some(54000),
-        Some(161),
-        Some(0x30),
-        Some(0x3026),
-        Some(0x30260201),
-        Some(0xa0),
-    ));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-        4,
-        829,
-        104,
-        PacketDir::Ingress,
-        Some(54000),
-        Some(161),
-        Some(0x30),
-        Some(0x3028),
-        Some(0x30280201),
-        Some(0xa2),
-    ));
+    session.ingest(
+        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
+            3,
+            829,
+            96,
+            PacketDir::Egress,
+            Some(54000),
+            Some(161),
+            Some(0x30),
+            Some(0x3026),
+            Some(0x30260201),
+            Some(0xa0),
+        ),
+    );
+    session.ingest(
+        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
+            4,
+            829,
+            104,
+            PacketDir::Ingress,
+            Some(54000),
+            Some(161),
+            Some(0x30),
+            Some(0x3028),
+            Some(0x30280201),
+            Some(0xa2),
+        ),
+    );
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
@@ -2638,14 +3449,18 @@ fn snmp_get_path_materializes_request_and_response_datagrams() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("snmp_get".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_get_request")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_get_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_get_request"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_get_response"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -2658,49 +3473,54 @@ fn snmp_get_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn snmp_get_path_does_not_match_wrong_response_pdu_type() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")
-        .unwrap();
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 830, 54000, "snmpwalk"));
     session.ingest(route_fact(2, 830, 7));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-        3,
-        830,
-        96,
-        PacketDir::Egress,
-        Some(54000),
-        Some(161),
-        Some(0x30),
-        Some(0x3026),
-        Some(0x30260201),
-        Some(0xa0),
-    ));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-        4,
-        830,
-        104,
-        PacketDir::Ingress,
-        Some(54000),
-        Some(161),
-        Some(0x30),
-        Some(0x3028),
-        Some(0x30280201),
-        Some(0xa1),
-    ));
+    session.ingest(
+        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
+            3,
+            830,
+            96,
+            PacketDir::Egress,
+            Some(54000),
+            Some(161),
+            Some(0x30),
+            Some(0x3026),
+            Some(0x30260201),
+            Some(0xa0),
+        ),
+    );
+    session.ingest(
+        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
+            4,
+            830,
+            104,
+            PacketDir::Ingress,
+            Some(54000),
+            Some(161),
+            Some(0x30),
+            Some(0x3028),
+            Some(0x30280201),
+            Some(0xa1),
+        ),
+    );
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_get_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_get_response"))
+    );
 }
 
 #[test]
 fn mqtt_connect_path_does_not_match_wrong_connack_prefix() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 825, 53002, "mosquitto-pub"));
@@ -2730,16 +3550,18 @@ fn mqtt_connect_path_does_not_match_wrong_connack_prefix() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_connack")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_connack"))
+    );
 }
 
 #[test]
 fn dns_tcp_query_path_materializes_request_and_response_payload_phases() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 825, 53053, "dig"));
@@ -2775,14 +3597,18 @@ fn dns_tcp_query_path_materializes_request_and_response_payload_phases() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("dns_tcp_query".into())
     );
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("send_query")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("receive_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_query"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_response"))
+    );
     let phase_kinds = export.program_flows[0]
         .stages
         .iter()
@@ -2795,8 +3621,8 @@ fn dns_tcp_query_path_materializes_request_and_response_payload_phases() {
 
 #[test]
 fn dns_tcp_query_path_does_not_match_wrong_response_qr_bit() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 826, 53053, "dig"));
@@ -2828,10 +3654,12 @@ fn dns_tcp_query_path_does_not_match_wrong_response_qr_bit() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .all(|stage| stage.phase.as_deref() != Some("receive_response")));
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_response"))
+    );
 }
 
 #[test]
@@ -2850,15 +3678,19 @@ fn https_connect_dsl_uses_destination_port_to_model_connect_path() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("https_connect".into())
     );
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line.contains("HTTPS socket state transition")));
-    assert!(export.reasons[0]
-        .l3
-        .narrative
-        .iter()
-        .any(|line| line.text.contains("tcp state 1 -> 2")));
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line.contains("HTTPS socket state transition"))
+    );
+    assert!(
+        export.reasons[0]
+            .l3
+            .narrative
+            .iter()
+            .any(|line| line.text.contains("tcp state 1 -> 2"))
+    );
 }
 
 #[test]
@@ -2873,23 +3705,26 @@ fn https_connect_dsl_does_not_treat_other_ports_as_https_connect() {
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .all(|line| !line.contains("HTTPS socket state transition")));
-    assert!(export.reasons[0]
-        .l3
-        .narrative
-        .iter()
-        .all(|line| !line.text.contains("tcp state 1 -> 2")));
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .all(|line| !line.contains("HTTPS socket state transition"))
+    );
+    assert!(
+        export.reasons[0]
+            .l3
+            .narrative
+            .iter()
+            .all(|line| !line.text.contains("tcp state 1 -> 2"))
+    );
 }
 
 #[test]
 fn postgres_connect_dsl_uses_named_port_alias() {
-    let binding = compile_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy",
-    )
-    .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy")
+            .unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 501, 7777, "psql"));
@@ -2903,22 +3738,30 @@ fn postgres_connect_dsl_uses_named_port_alias() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("postgres_connect".into())
     );
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line.contains("PostgreSQL socket state transition")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("connect")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("establish")));
-    assert!(export.program_flows[0]
-        .stages
-        .iter()
-        .any(|stage| stage.phase.as_deref() == Some("resolve")));
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line.contains("PostgreSQL socket state transition"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("connect"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("establish"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("resolve"))
+    );
     assert_eq!(export.module_findings.len(), 0);
 }
 
@@ -2938,18 +3781,19 @@ fn redis_connect_dsl_uses_named_port_alias() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("redis_connect".into())
     );
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line.contains("Redis socket state transition")));
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line.contains("Redis socket state transition"))
+    );
 }
 
 #[test]
 fn declarative_module_phases_are_preserved_in_export_and_replay() {
-    let binding = compile_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy",
-    )
-    .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy")
+            .unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 503, 7778, "psql"));
@@ -2976,10 +3820,9 @@ fn declarative_module_phases_are_preserved_in_export_and_replay() {
 
 #[test]
 fn missing_connect_phase_produces_bind_to_connect_transition_finding() {
-    let binding = compile_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy",
-    )
-    .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy")
+            .unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 504, 7779, "psql"));
@@ -2997,9 +3840,7 @@ fn missing_connect_phase_produces_bind_to_connect_transition_finding() {
         export.program_findings[0].phase_transition_kind.as_deref(),
         Some("bind_process->initiate_connection")
     );
-    assert!(export.program_findings[0]
-        .summary
-        .contains("bind->connect"));
+    assert!(export.program_findings[0].summary.contains("bind->connect"));
     assert_eq!(
         export.module_findings[0].phase_transitions,
         vec!["bind->connect".to_string()]
@@ -3015,10 +3856,9 @@ fn missing_connect_phase_produces_bind_to_connect_transition_finding() {
 
 #[test]
 fn missing_establish_phase_produces_connect_to_establish_transition_finding() {
-    let binding = compile_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy",
-    )
-    .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy")
+            .unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 505, 7780, "psql"));
@@ -3040,8 +3880,8 @@ fn missing_establish_phase_produces_connect_to_establish_transition_finding() {
 
 #[test]
 fn handshake_dsl_compiles_and_preserves_tcp_shape() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(tcp_state_fact(1, 203, 1, 2));
@@ -3072,13 +3912,26 @@ rule=datagram_observed:udp;datagram_observed;static:inline udp activity observed
     )
     .unwrap();
 
-    assert_eq!(binding.template.window_profile.as_ref().unwrap().id, "inline");
     assert_eq!(
-        binding.template.window_profile.as_ref().unwrap().duration_ms,
+        binding.template.window_profile.as_ref().unwrap().id,
+        "inline"
+    );
+    assert_eq!(
+        binding
+            .template
+            .window_profile
+            .as_ref()
+            .unwrap()
+            .duration_ms,
         9_000
     );
     assert_eq!(
-        binding.template.window_profile.as_ref().unwrap().lateness_ms,
+        binding
+            .template
+            .window_profile
+            .as_ref()
+            .unwrap()
+            .lateness_ms,
         450
     );
     assert_eq!(
@@ -3149,9 +4002,18 @@ reason.rule=route_resolved;route_changed;route_changed;true
     let export = session.export_bundle();
     assert_eq!(export.reason_profile.id(), "udp_reason_inline_reason_model");
     assert_eq!(export.reasons[0].l1.key_events.len(), 3);
-    assert_eq!(export.reasons[0].l1.key_events[0].kind, KeyEventKind::ProcessIdentified);
-    assert_eq!(export.reasons[0].l1.key_events[1].kind, KeyEventKind::UdpDatagramSeen);
-    assert_eq!(export.reasons[0].l1.key_events[2].kind, KeyEventKind::RouteChanged);
+    assert_eq!(
+        export.reasons[0].l1.key_events[0].kind,
+        KeyEventKind::ProcessIdentified
+    );
+    assert_eq!(
+        export.reasons[0].l1.key_events[1].kind,
+        KeyEventKind::UdpDatagramSeen
+    );
+    assert_eq!(
+        export.reasons[0].l1.key_events[2].kind,
+        KeyEventKind::RouteChanged
+    );
 
     let replay = gewyvern::export::ExportBundle::from_json(&export.to_json())
         .unwrap()
@@ -3188,18 +4050,24 @@ rule=route_resolved;route_resolved;route_changed;true
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
 
     let export = session.export_bundle();
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "process dig (pid=5353) bound this network flow"));
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "program emitted or received a UDP datagram"));
-    assert!(export.program_flows[0]
-        .narrative
-        .iter()
-        .any(|line| line == "program resolved a route for this network flow"));
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "process dig (pid=5353) bound this network flow")
+    );
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "program emitted or received a UDP datagram")
+    );
+    assert!(
+        export.program_flows[0]
+            .narrative
+            .iter()
+            .any(|line| line == "program resolved a route for this network flow")
+    );
 }
 
 #[test]
@@ -3229,9 +4097,18 @@ reason.rule=route_resolved;route_resolved;route_changed;true
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
 
     let export = session.export_bundle();
-    assert_eq!(export.reasons[0].l1.key_events[0].kind, KeyEventKind::ProcessIdentified);
-    assert_eq!(export.reasons[0].l1.key_events[1].kind, KeyEventKind::UdpDatagramSeen);
-    assert_eq!(export.reasons[0].l1.key_events[2].kind, KeyEventKind::RouteChanged);
+    assert_eq!(
+        export.reasons[0].l1.key_events[0].kind,
+        KeyEventKind::ProcessIdentified
+    );
+    assert_eq!(
+        export.reasons[0].l1.key_events[1].kind,
+        KeyEventKind::UdpDatagramSeen
+    );
+    assert_eq!(
+        export.reasons[0].l1.key_events[2].kind,
+        KeyEventKind::RouteChanged
+    );
 }
 
 #[test]
@@ -3261,8 +4138,8 @@ rule=process_bound;process_bound;process_bound;true
 
 #[test]
 fn binding_diagnostics_report_rule_support_and_supporting_fragments() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let session = RuntimeSession::start(config).unwrap();
     let export = session.export_bundle();
@@ -3274,7 +4151,10 @@ fn binding_diagnostics_report_rule_support_and_supporting_fragments() {
     assert_eq!(diagnostics.rules[0].tier, RuleTier::OptionalEnhancement);
     assert_eq!(diagnostics.rules[1].tier, RuleTier::CoreRequirement);
     assert_eq!(diagnostics.rules[2].tier, RuleTier::CoreRequirement);
-    assert_eq!(diagnostics.rules[0].required_facts, vec![gewyvern::ledger::FactKindTag::SockLineage]);
+    assert_eq!(
+        diagnostics.rules[0].required_facts,
+        vec![gewyvern::ledger::FactKindTag::SockLineage]
+    );
     assert_eq!(
         diagnostics.rules[0].supporting_fragments,
         vec!["sock_lineage_fragment".to_string()]
@@ -3314,7 +4194,10 @@ rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;udp
     let rule = &diagnostics.program_model.as_ref().unwrap().rules[0];
     assert!(!rule.supported);
     assert_eq!(rule.tier, RuleTier::Unsupported);
-    assert_eq!(rule.missing_facts, Vec::<gewyvern::ledger::FactKindTag>::new());
+    assert_eq!(
+        rule.missing_facts,
+        Vec::<gewyvern::ledger::FactKindTag>::new()
+    );
     assert_eq!(rule.unsupported_payload_offsets, vec![9]);
 }
 

@@ -258,9 +258,7 @@ pub fn linux_probe_tracepoint_hooks(plan: &AttachPlan) -> Result<Vec<AttachFailu
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn linux_probe_tracepoint_hooks(
-    _plan: &AttachPlan,
-) -> Result<Vec<AttachFailure>, LoaderError> {
+pub fn linux_probe_tracepoint_hooks(_plan: &AttachPlan) -> Result<Vec<AttachFailure>, LoaderError> {
     Err(LoaderError::UnsupportedPlatform)
 }
 
@@ -289,8 +287,6 @@ pub fn linux_probe_kernel_hooks(plan: &AttachPlan) -> Result<Vec<AttachFailure>,
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn linux_probe_kernel_hooks(
-    _plan: &AttachPlan,
-) -> Result<Vec<AttachFailure>, LoaderError> {
+pub fn linux_probe_kernel_hooks(_plan: &AttachPlan) -> Result<Vec<AttachFailure>, LoaderError> {
     Err(LoaderError::UnsupportedPlatform)
 }

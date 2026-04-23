@@ -1,7 +1,7 @@
 use crate::flow::{FlowId, FlowSnapshot};
 use crate::ir::{
-    matches_flow_predicate, render_narrative_template, FlowPredicate, NarrativeSurface,
-    NarrativeTemplate, RuleTemplate, SignalKind,
+    FlowPredicate, NarrativeSurface, NarrativeTemplate, RuleTemplate, SignalKind,
+    matches_flow_predicate, render_narrative_template,
 };
 use crate::ledger::{FactEnvelope, FactId, FactKind, PacketDir};
 
@@ -108,12 +108,18 @@ pub fn build_reason_chains(
         ReasonProfile::Declarative(model) => flows
             .iter()
             .enumerate()
-            .map(|(idx, flow)| build_declarative_reason(model, ReasonId((idx + 1) as u64), flow, facts))
+            .map(|(idx, flow)| {
+                build_declarative_reason(model, ReasonId((idx + 1) as u64), flow, facts)
+            })
             .collect(),
     }
 }
 
-fn build_handshake_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[FactEnvelope]) -> ReasonChain {
+fn build_handshake_reason(
+    id: ReasonId,
+    flow: &FlowSnapshot,
+    facts: &[FactEnvelope],
+) -> ReasonChain {
     let mut l0_facts = Vec::new();
     let mut timeline = Vec::new();
     let mut path_segments = Vec::new();
@@ -191,7 +197,10 @@ fn build_handshake_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[FactEnvelo
             if let Some(process) = &flow.process {
                 narrative.push(NarrLine {
                     at: fact.id,
-                    text: format!("flow bound to process {} (pid={})", process.comm, process.pid),
+                    text: format!(
+                        "flow bound to process {} (pid={})",
+                        process.comm, process.pid
+                    ),
                 });
             }
         }
@@ -262,7 +271,10 @@ fn build_udp_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[FactEnvelope]) -
             if let Some(process) = &flow.process {
                 narrative.push(NarrLine {
                     at: fact.id,
-                    text: format!("flow bound to process {} (pid={})", process.comm, process.pid),
+                    text: format!(
+                        "flow bound to process {} (pid={})",
+                        process.comm, process.pid
+                    ),
                 });
             }
         }

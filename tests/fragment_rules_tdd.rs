@@ -1,8 +1,8 @@
+use gewyvern::flow::{ProgramOperation, ProgramStageKind};
 use gewyvern::fragment::{
     AttachFailure, CapabilityFlag, EvidenceClassSpec, EvidenceTier, FragmentDescriptor,
     FragmentRegistry, HookPoint, MapKind, MapSpec, RegistryError, builtin_registry,
 };
-use gewyvern::flow::{ProgramOperation, ProgramStageKind};
 use gewyvern::ledger::FactKindTag;
 use gewyvern::program::{ProgramModel, ProgramNarrative, ProgramPredicate, ProgramRule};
 use gewyvern::template::{
@@ -77,13 +77,17 @@ fn attach_report_tracks_failed_hookpoints_separately() {
         vec!["route_meta_fragment@kprobe:ip_route_output_flow".to_string()]
     );
     assert_eq!(report.hookpoints_attached.len(), 2);
-    assert!(!report
-        .hookpoints_attached
-        .contains(&"route_meta_fragment@kprobe:ip_route_output_flow".to_string()));
+    assert!(
+        !report
+            .hookpoints_attached
+            .contains(&"route_meta_fragment@kprobe:ip_route_output_flow".to_string())
+    );
     assert_eq!(report.fragments_loaded.len(), 2);
-    assert!(!report
-        .fragments_loaded
-        .contains(&"route_meta_fragment".to_string()));
+    assert!(
+        !report
+            .fragments_loaded
+            .contains(&"route_meta_fragment".to_string())
+    );
     assert_eq!(report.ringbuf_stats.maps, 2);
     assert_eq!(report.ringbuf_stats.total_max_entries, 8_192);
 }
@@ -137,7 +141,10 @@ fn attach_report_keeps_failures_that_are_outside_the_plan() {
 
     assert_eq!(
         report.hookpoints_failed,
-        vec!["linux_tracepoint_smoke_fragment@tracepoint:syscalls/definitely_missing_smoke_event".to_string()]
+        vec![
+            "linux_tracepoint_smoke_fragment@tracepoint:syscalls/definitely_missing_smoke_event"
+                .to_string()
+        ]
     );
     assert_eq!(report.fragments_loaded.len(), 3);
 }
@@ -145,13 +152,11 @@ fn attach_report_keeps_failures_that_are_outside_the_plan() {
 #[test]
 fn registry_validates_binding_params_against_fragment_schema() {
     let registry = builtin_registry();
-    let binding = udp_process_debug_template()
-        .bind()
-        .with_fragment_param(
-            "sock_lineage_fragment",
-            "capture_comm",
-            FragmentParamValue::Bool(true),
-        );
+    let binding = udp_process_debug_template().bind().with_fragment_param(
+        "sock_lineage_fragment",
+        "capture_comm",
+        FragmentParamValue::Bool(true),
+    );
 
     assert_eq!(registry.validate_binding_params(&binding), Ok(()));
 }

@@ -3,28 +3,30 @@ use crate::flow::{
     PathSegment, PathView, ProgramFinding, ProgramFindingCause, ProgramFlow, ProgramFlowId,
     ProgramOperation, ProgramStage,
 };
-use crate::ir::PayloadByteMatch;
 use crate::fragment::{
-    AttachPlan, AttachReport, CapabilityFlag, CoverageReport, DependencyEdge, FactBinding,
-    BindingDiagnostics, EvidenceClassSpec, EvidenceTier, FragmentDescriptor, FragmentParamSpec,
+    AttachPlan, AttachReport, BindingDiagnostics, CapabilityFlag, CoverageReport, DependencyEdge,
+    EvidenceClassSpec, EvidenceTier, FactBinding, FragmentDescriptor, FragmentParamSpec,
     FragmentParamType, HookBinding, HookPoint, MapKind, MapSpec, ModelDiagnostics, RingBufStats,
     RuleDiagnostics, RuleTier,
 };
+use crate::ir::PayloadByteMatch;
 use crate::ir::{NarrativeTemplate, SignalKind};
 use crate::ledger::{
-    millis_to_system_time, system_time_to_millis, AttachScopeFact, CpuId, DropActionFact,
-    DropVerdict, FactEnvelope, FactId, FactKind, FactKindTag, PacketDir, PacketMetaFact,
-    RouteDecisionFact, SessionId, SockLineageFact, TcpStateFact,
+    AttachScopeFact, CpuId, DropActionFact, DropVerdict, FactEnvelope, FactId, FactKind,
+    FactKindTag, PacketDir, PacketMetaFact, RouteDecisionFact, SessionId, SockLineageFact,
+    TcpStateFact, millis_to_system_time, system_time_to_millis,
 };
 use crate::reason::{
     KeyEvent, KeyEventKind, NarrLine, ReasonChain, ReasonId, ReasonKeyEvent, ReasonL1, ReasonL3,
     ReasonModel, ReasonNarrative, ReasonPredicate, ReasonProfile, ReasonRule,
 };
 use crate::runtime::{
-    summarize_rejected_facts, RejectedFact, RejectedFactReason, RuntimeError, RuntimeSession,
-    SessionConfig,
+    RejectedFact, RejectedFactReason, RuntimeError, RuntimeSession, SessionConfig,
+    summarize_rejected_facts,
 };
-use crate::template::{default_program_model_for_reason_profile, FragmentParamValue, Template, WindowProfile};
+use crate::template::{
+    FragmentParamValue, Template, WindowProfile, default_program_model_for_reason_profile,
+};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -131,7 +133,10 @@ impl ExportBundle {
 
     pub fn to_json(&self) -> String {
         let root = JsonValue::Object(BTreeMap::from([
-            ("template_id".into(), JsonValue::String(self.template_id.clone())),
+            (
+                "template_id".into(),
+                JsonValue::String(self.template_id.clone()),
+            ),
             (
                 "fragment_inventory".into(),
                 JsonValue::Array(
@@ -147,7 +152,10 @@ impl ExportBundle {
                 ),
             ),
             ("attach_plan".into(), attach_plan_json(&self.attach_plan)),
-            ("attach_report".into(), attach_report_json(&self.attach_report)),
+            (
+                "attach_report".into(),
+                attach_report_json(&self.attach_report),
+            ),
             (
                 "binding_diagnostics".into(),
                 binding_diagnostics_json(&self.binding_diagnostics),
@@ -161,11 +169,17 @@ impl ExportBundle {
                         .collect(),
                 ),
             ),
-            ("debug_summary".into(), debug_summary_json(&self.debug_summary)),
+            (
+                "debug_summary".into(),
+                debug_summary_json(&self.debug_summary),
+            ),
             (
                 "window_profile".into(),
                 JsonValue::Object(BTreeMap::from([
-                    ("id".into(), JsonValue::String(self.window_profile.id.into())),
+                    (
+                        "id".into(),
+                        JsonValue::String(self.window_profile.id.into()),
+                    ),
                     (
                         "duration_ms".into(),
                         JsonValue::Number(self.window_profile.duration_ms as i64),
@@ -269,8 +283,9 @@ impl ExportBundle {
                     .ok_or_else(|| ExportError::InvalidShape("missing attach_report".into()))?,
             )?,
             binding_diagnostics: parse_binding_diagnostics(
-                root.get("binding_diagnostics")
-                    .ok_or_else(|| ExportError::InvalidShape("missing binding_diagnostics".into()))?,
+                root.get("binding_diagnostics").ok_or_else(|| {
+                    ExportError::InvalidShape("missing binding_diagnostics".into())
+                })?,
             )?,
             attach_failure_summary: root
                 .get("attach_failure_summary")
@@ -382,33 +397,35 @@ pub fn fact_from_json(input: &str) -> Result<FactEnvelope, ExportError> {
 fn fragment_params_json(
     fragment_params: &BTreeMap<String, BTreeMap<String, FragmentParamValue>>,
 ) -> JsonValue {
-    JsonValue::Object(BTreeMap::from_iter(fragment_params.iter().map(|(fragment_id, params)| {
-        (
-            fragment_id.clone(),
-            JsonValue::Object(BTreeMap::from_iter(params.iter().map(|(key, value)| {
-                let json = match value {
-                    FragmentParamValue::Bool(value) => JsonValue::Bool(*value),
-                    FragmentParamValue::U64(value) => JsonValue::Number(*value as i64),
-                    FragmentParamValue::String(value) => JsonValue::String(value.clone()),
-                };
-                (key.clone(), json)
-            }))),
-        )
-    })))
+    JsonValue::Object(BTreeMap::from_iter(fragment_params.iter().map(
+        |(fragment_id, params)| {
+            (
+                fragment_id.clone(),
+                JsonValue::Object(BTreeMap::from_iter(params.iter().map(|(key, value)| {
+                    let json = match value {
+                        FragmentParamValue::Bool(value) => JsonValue::Bool(*value),
+                        FragmentParamValue::U64(value) => JsonValue::Number(*value as i64),
+                        FragmentParamValue::String(value) => JsonValue::String(value.clone()),
+                    };
+                    (key.clone(), json)
+                }))),
+            )
+        },
+    )))
 }
 
-fn evidence_overrides_json(
-    evidence_overrides: &BTreeMap<FactKindTag, EvidenceTier>,
-) -> JsonValue {
-    JsonValue::Object(BTreeMap::from_iter(evidence_overrides.iter().map(|(fact_kind, tier)| {
-        (
-            fact_kind.to_string(),
-            JsonValue::String(match tier {
-                EvidenceTier::CoreRequirement => "core_requirement".into(),
-                EvidenceTier::OptionalEnhancement => "optional_enhancement".into(),
-            }),
-        )
-    })))
+fn evidence_overrides_json(evidence_overrides: &BTreeMap<FactKindTag, EvidenceTier>) -> JsonValue {
+    JsonValue::Object(BTreeMap::from_iter(evidence_overrides.iter().map(
+        |(fact_kind, tier)| {
+            (
+                fact_kind.to_string(),
+                JsonValue::String(match tier {
+                    EvidenceTier::CoreRequirement => "core_requirement".into(),
+                    EvidenceTier::OptionalEnhancement => "optional_enhancement".into(),
+                }),
+            )
+        },
+    )))
 }
 
 fn parse_fragment_params(
@@ -429,7 +446,7 @@ fn parse_fragment_params(
                         _ => {
                             return Err(ExportError::InvalidShape(format!(
                                 "fragment_params.{fragment_id}.{key}"
-                            )))
+                            )));
                         }
                     };
                     Ok((key.clone(), value))
@@ -456,7 +473,7 @@ fn parse_evidence_overrides(
                 other => {
                     return Err(ExportError::InvalidValue(format!(
                         "unknown evidence tier '{other}'"
-                    )))
+                    )));
                 }
             };
             Ok((fact_kind, tier))
@@ -482,7 +499,11 @@ impl JsonValue {
             Self::Number(value) => value.to_string(),
             Self::String(value) => format!("\"{}\"", escape_json(value)),
             Self::Array(items) => {
-                let inner = items.iter().map(JsonValue::render).collect::<Vec<_>>().join(",");
+                let inner = items
+                    .iter()
+                    .map(JsonValue::render)
+                    .collect::<Vec<_>>()
+                    .join(",");
                 format!("[{inner}]")
             }
             Self::Object(map) => {
@@ -563,7 +584,9 @@ impl<'a> JsonParser<'a> {
 
     fn parse_value(&mut self) -> Result<JsonValue, ExportError> {
         self.skip_ws();
-        let ch = self.peek().ok_or_else(|| ExportError::InvalidJson("unexpected eof".into()))?;
+        let ch = self
+            .peek()
+            .ok_or_else(|| ExportError::InvalidJson("unexpected eof".into()))?;
         match ch {
             b'n' => {
                 self.expect_bytes(b"null")?;
@@ -633,7 +656,9 @@ impl<'a> JsonParser<'a> {
             match ch {
                 b'"' => return Ok(value),
                 b'\\' => {
-                    let escaped = self.peek().ok_or_else(|| ExportError::InvalidJson("bad escape".into()))?;
+                    let escaped = self
+                        .peek()
+                        .ok_or_else(|| ExportError::InvalidJson("bad escape".into()))?;
                     self.pos += 1;
                     match escaped {
                         b'"' => value.push('"'),
@@ -713,7 +738,10 @@ fn escape_json(input: &str) -> String {
 }
 
 fn comm_to_string(comm: &[u8; 16]) -> String {
-    let end = comm.iter().position(|byte| *byte == 0).unwrap_or(comm.len());
+    let end = comm
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(comm.len());
     String::from_utf8_lossy(&comm[..end]).to_string()
 }
 
@@ -780,15 +808,17 @@ fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                                                 ),
                                                 (
                                                     "tier".into(),
-                                                    JsonValue::String(match spec.tier {
-                                                        EvidenceTier::CoreRequirement => {
-                                                            "core_requirement"
+                                                    JsonValue::String(
+                                                        match spec.tier {
+                                                            EvidenceTier::CoreRequirement => {
+                                                                "core_requirement"
+                                                            }
+                                                            EvidenceTier::OptionalEnhancement => {
+                                                                "optional_enhancement"
+                                                            }
                                                         }
-                                                        EvidenceTier::OptionalEnhancement => {
-                                                            "optional_enhancement"
-                                                        }
-                                                    }
-                                                    .into()),
+                                                        .into(),
+                                                    ),
                                                 ),
                                             ]))
                                         })
@@ -806,12 +836,14 @@ fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                                                 ("name".into(), JsonValue::String(map.name.into())),
                                                 (
                                                     "kind".into(),
-                                                    JsonValue::String(match map.kind {
-                                                        MapKind::RingBuf => "ringbuf",
-                                                        MapKind::Hash => "hash",
-                                                        MapKind::LruHash => "lru_hash",
-                                                    }
-                                                    .into()),
+                                                    JsonValue::String(
+                                                        match map.kind {
+                                                            MapKind::RingBuf => "ringbuf",
+                                                            MapKind::Hash => "hash",
+                                                            MapKind::LruHash => "lru_hash",
+                                                        }
+                                                        .into(),
+                                                    ),
                                                 ),
                                                 (
                                                     "max_entries".into(),
@@ -829,13 +861,15 @@ fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                                         .capabilities
                                         .iter()
                                         .map(|cap| {
-                                            JsonValue::String(match cap {
-                                                CapabilityFlag::TcpState => "tcp_state",
-                                                CapabilityFlag::PacketMeta => "packet_meta",
-                                                CapabilityFlag::RouteMeta => "route_meta",
-                                                CapabilityFlag::SockLineage => "sock_lineage",
-                                            }
-                                            .into())
+                                            JsonValue::String(
+                                                match cap {
+                                                    CapabilityFlag::TcpState => "tcp_state",
+                                                    CapabilityFlag::PacketMeta => "packet_meta",
+                                                    CapabilityFlag::RouteMeta => "route_meta",
+                                                    CapabilityFlag::SockLineage => "sock_lineage",
+                                                }
+                                                .into(),
+                                            )
                                         })
                                         .collect(),
                                 ),
@@ -861,12 +895,14 @@ fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                                                 ("key".into(), JsonValue::String(param.key.into())),
                                                 (
                                                     "value_type".into(),
-                                                    JsonValue::String(match param.value_type {
-                                                        FragmentParamType::Bool => "bool",
-                                                        FragmentParamType::U64 => "u64",
-                                                        FragmentParamType::String => "string",
-                                                    }
-                                                    .into()),
+                                                    JsonValue::String(
+                                                        match param.value_type {
+                                                            FragmentParamType::Bool => "bool",
+                                                            FragmentParamType::U64 => "u64",
+                                                            FragmentParamType::String => "string",
+                                                        }
+                                                        .into(),
+                                                    ),
                                                 ),
                                             ]))
                                         })
@@ -885,7 +921,10 @@ fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                     .iter()
                     .map(|binding| {
                         JsonValue::Object(BTreeMap::from([
-                            ("fragment_id".into(), JsonValue::String(binding.fragment_id.into())),
+                            (
+                                "fragment_id".into(),
+                                JsonValue::String(binding.fragment_id.into()),
+                            ),
                             (
                                 "hookpoint".into(),
                                 JsonValue::String(binding.hookpoint.label()),
@@ -902,7 +941,10 @@ fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                     .iter()
                     .map(|binding| {
                         JsonValue::Object(BTreeMap::from([
-                            ("fragment_id".into(), JsonValue::String(binding.fragment_id.into())),
+                            (
+                                "fragment_id".into(),
+                                JsonValue::String(binding.fragment_id.into()),
+                            ),
                             (
                                 "emits".into(),
                                 JsonValue::Array(
@@ -935,8 +977,14 @@ fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                     .iter()
                     .map(|edge| {
                         JsonValue::Object(BTreeMap::from([
-                            ("fragment_id".into(), JsonValue::String(edge.fragment_id.into())),
-                            ("depends_on".into(), JsonValue::String(edge.depends_on.into())),
+                            (
+                                "fragment_id".into(),
+                                JsonValue::String(edge.fragment_id.into()),
+                            ),
+                            (
+                                "depends_on".into(),
+                                JsonValue::String(edge.depends_on.into()),
+                            ),
                             (
                                 "fact_kind".into(),
                                 JsonValue::String(edge.fact_kind.to_string()),
@@ -989,7 +1037,10 @@ fn attach_report_json(report: &AttachReport) -> JsonValue {
         (
             "ringbuf_stats".into(),
             JsonValue::Object(BTreeMap::from([
-                ("maps".into(), JsonValue::Number(report.ringbuf_stats.maps as i64)),
+                (
+                    "maps".into(),
+                    JsonValue::Number(report.ringbuf_stats.maps as i64),
+                ),
                 (
                     "total_max_entries".into(),
                     JsonValue::Number(report.ringbuf_stats.total_max_entries as i64),
@@ -1003,11 +1054,17 @@ fn binding_diagnostics_json(diagnostics: &BindingDiagnostics) -> JsonValue {
     JsonValue::Object(BTreeMap::from([
         (
             "program_model".into(),
-            diagnostics.program_model.as_ref().map_or(JsonValue::Null, model_diagnostics_json),
+            diagnostics
+                .program_model
+                .as_ref()
+                .map_or(JsonValue::Null, model_diagnostics_json),
         ),
         (
             "reason_model".into(),
-            diagnostics.reason_model.as_ref().map_or(JsonValue::Null, model_diagnostics_json),
+            diagnostics
+                .reason_model
+                .as_ref()
+                .map_or(JsonValue::Null, model_diagnostics_json),
         ),
     ]))
 }
@@ -1024,15 +1081,20 @@ fn model_diagnostics_json(model: &ModelDiagnostics) -> JsonValue {
 
 fn rule_diagnostics_json(rule: &RuleDiagnostics) -> JsonValue {
     JsonValue::Object(BTreeMap::from([
-        ("rule_index".into(), JsonValue::Number(rule.rule_index as i64)),
+        (
+            "rule_index".into(),
+            JsonValue::Number(rule.rule_index as i64),
+        ),
         (
             "tier".into(),
-            JsonValue::String(match rule.tier {
-                RuleTier::CoreRequirement => "core_requirement",
-                RuleTier::OptionalEnhancement => "optional_enhancement",
-                RuleTier::Unsupported => "unsupported",
-            }
-            .into()),
+            JsonValue::String(
+                match rule.tier {
+                    RuleTier::CoreRequirement => "core_requirement",
+                    RuleTier::OptionalEnhancement => "optional_enhancement",
+                    RuleTier::Unsupported => "unsupported",
+                }
+                .into(),
+            ),
         ),
         (
             "required_facts".into(),
@@ -1158,9 +1220,15 @@ fn coverage_json(coverage: &CoverageReport) -> JsonValue {
 fn fact_json(fact: &FactEnvelope) -> JsonValue {
     let kind = match &fact.kind {
         FactKind::TcpState(value) => JsonValue::Object(BTreeMap::from([
-            ("tag".into(), JsonValue::String(FactKindTag::TcpState.to_string())),
+            (
+                "tag".into(),
+                JsonValue::String(FactKindTag::TcpState.to_string()),
+            ),
             ("netns".into(), JsonValue::Number(value.netns as i64)),
-            ("sk_cookie".into(), JsonValue::Number(value.sk_cookie as i64)),
+            (
+                "sk_cookie".into(),
+                JsonValue::Number(value.sk_cookie as i64),
+            ),
             ("sport".into(), JsonValue::Number(value.sport as i64)),
             ("dport".into(), JsonValue::Number(value.dport as i64)),
             ("family".into(), JsonValue::Number(value.family as i64)),
@@ -1168,88 +1236,143 @@ fn fact_json(fact: &FactEnvelope) -> JsonValue {
             ("new".into(), JsonValue::Number(value.new as i64)),
         ])),
         FactKind::PacketMeta(value) => JsonValue::Object(BTreeMap::from([
-            ("tag".into(), JsonValue::String(FactKindTag::PacketMeta.to_string())),
+            (
+                "tag".into(),
+                JsonValue::String(FactKindTag::PacketMeta.to_string()),
+            ),
             ("netns".into(), JsonValue::Number(value.netns as i64)),
             (
                 "sk_cookie".into(),
-                value.sk_cookie.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .sk_cookie
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             ("dir".into(), JsonValue::String(value.dir.as_str().into())),
             (
                 "local_port".into(),
-                value.local_port.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .local_port
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             (
                 "remote_port".into(),
-                value.remote_port.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .remote_port
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             (
                 "payload_byte0".into(),
-                value.payload_byte0.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .payload_byte0
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             (
                 "payload_prefix2".into(),
-                value.payload_prefix2.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .payload_prefix2
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             (
                 "payload_prefix4".into(),
-                value.payload_prefix4.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .payload_prefix4
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             (
                 "payload_byte4".into(),
-                value.payload_byte4.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .payload_byte4
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             (
                 "payload_byte5".into(),
-                value.payload_byte5.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .payload_byte5
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             (
                 "payload_byte13".into(),
-                value.payload_byte13.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .payload_byte13
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             ("l3_proto".into(), JsonValue::Number(value.l3_proto as i64)),
             ("l4_proto".into(), JsonValue::Number(value.l4_proto as i64)),
             ("tot_len".into(), JsonValue::Number(value.tot_len as i64)),
-            ("tcp_flags".into(), JsonValue::Number(value.tcp_flags as i64)),
+            (
+                "tcp_flags".into(),
+                JsonValue::Number(value.tcp_flags as i64),
+            ),
             (
                 "seq".into(),
-                value.seq.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .seq
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             (
                 "ack".into(),
-                value.ack.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .ack
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             (
                 "window".into(),
-                value.window.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .window
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
         ])),
         FactKind::RouteDecision(value) => JsonValue::Object(BTreeMap::from([
-            ("tag".into(), JsonValue::String(FactKindTag::RouteDecision.to_string())),
+            (
+                "tag".into(),
+                JsonValue::String(FactKindTag::RouteDecision.to_string()),
+            ),
             ("netns".into(), JsonValue::Number(value.netns as i64)),
             (
                 "sk_cookie".into(),
-                value.sk_cookie.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .sk_cookie
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             (
                 "fib_table".into(),
-                value.fib_table.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                value
+                    .fib_table
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
             ("oif".into(), JsonValue::Number(value.oif as i64)),
         ])),
         FactKind::SockLineage(value) => JsonValue::Object(BTreeMap::from([
-            ("tag".into(), JsonValue::String(FactKindTag::SockLineage.to_string())),
+            (
+                "tag".into(),
+                JsonValue::String(FactKindTag::SockLineage.to_string()),
+            ),
             ("netns".into(), JsonValue::Number(value.netns as i64)),
-            ("sk_cookie".into(), JsonValue::Number(value.sk_cookie as i64)),
+            (
+                "sk_cookie".into(),
+                JsonValue::Number(value.sk_cookie as i64),
+            ),
             ("pid".into(), JsonValue::Number(value.pid as i64)),
             ("tid".into(), JsonValue::Number(value.tid as i64)),
-            ("cgroup_id".into(), JsonValue::Number(value.cgroup_id as i64)),
-            ("comm".into(), JsonValue::String(comm_to_string(&value.comm))),
+            (
+                "cgroup_id".into(),
+                JsonValue::Number(value.cgroup_id as i64),
+            ),
+            (
+                "comm".into(),
+                JsonValue::String(comm_to_string(&value.comm)),
+            ),
         ])),
         FactKind::DropAction(value) => JsonValue::Object(BTreeMap::from([
-            ("tag".into(), JsonValue::String(FactKindTag::DropAction.to_string())),
+            (
+                "tag".into(),
+                JsonValue::String(FactKindTag::DropAction.to_string()),
+            ),
             ("flow".into(), JsonValue::Number(value.flow as i64)),
-            ("reason_id".into(), JsonValue::Number(value.reason_id as i64)),
+            (
+                "reason_id".into(),
+                JsonValue::Number(value.reason_id as i64),
+            ),
             (
                 "packet_fact".into(),
                 JsonValue::Number(value.packet_fact.0 as i64),
@@ -1260,8 +1383,14 @@ fn fact_json(fact: &FactEnvelope) -> JsonValue {
             ),
         ])),
         FactKind::AttachScope(value) => JsonValue::Object(BTreeMap::from([
-            ("tag".into(), JsonValue::String(FactKindTag::AttachScope.to_string())),
-            ("scope_hash".into(), JsonValue::Number(value.scope_hash as i64)),
+            (
+                "tag".into(),
+                JsonValue::String(FactKindTag::AttachScope.to_string()),
+            ),
+            (
+                "scope_hash".into(),
+                JsonValue::Number(value.scope_hash as i64),
+            ),
             ("complete".into(), JsonValue::Bool(value.complete)),
         ])),
     };
@@ -1275,7 +1404,8 @@ fn fact_json(fact: &FactEnvelope) -> JsonValue {
         ("cpu".into(), JsonValue::Number(fact.cpu.0 as i64)),
         (
             "ifindex".into(),
-            fact.ifindex.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+            fact.ifindex
+                .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
         ),
         ("session".into(), JsonValue::Number(fact.session.0 as i64)),
         (
@@ -1327,7 +1457,9 @@ fn flow_json(flow: &FlowSnapshot) -> JsonValue {
                 ),
                 (
                     "tcp_state_now".into(),
-                    flow.lifecycle.tcp_state_now.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                    flow.lifecycle
+                        .tcp_state_now
+                        .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
                 ),
                 (
                     "terminated".into(),
@@ -1346,7 +1478,9 @@ fn flow_json(flow: &FlowSnapshot) -> JsonValue {
             JsonValue::Object(BTreeMap::from([
                 (
                     "current_oif".into(),
-                    flow.path.current_oif.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                    flow.path
+                        .current_oif
+                        .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
                 ),
                 (
                     "segments".into(),
@@ -1362,7 +1496,9 @@ fn flow_json(flow: &FlowSnapshot) -> JsonValue {
                                     ),
                                     (
                                         "oif".into(),
-                                        segment.oif.map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+                                        segment.oif.map_or(JsonValue::Null, |v| {
+                                            JsonValue::Number(v as i64)
+                                        }),
                                     ),
                                 ]))
                             })
@@ -1377,7 +1513,10 @@ fn flow_json(flow: &FlowSnapshot) -> JsonValue {
                 JsonValue::Object(BTreeMap::from([
                     ("pid".into(), JsonValue::Number(process.pid as i64)),
                     ("tid".into(), JsonValue::Number(process.tid as i64)),
-                    ("cgroup_id".into(), JsonValue::Number(process.cgroup_id as i64)),
+                    (
+                        "cgroup_id".into(),
+                        JsonValue::Number(process.cgroup_id as i64),
+                    ),
                     ("comm".into(), JsonValue::String(process.comm.clone())),
                 ]))
             }),
@@ -1389,9 +1528,18 @@ fn flow_json(flow: &FlowSnapshot) -> JsonValue {
                     "tcp_state_facts".into(),
                     fact_id_array(&flow.evidence.tcp_state_facts),
                 ),
-                ("packet_facts".into(), fact_id_array(&flow.evidence.packet_facts)),
-                ("route_facts".into(), fact_id_array(&flow.evidence.route_facts)),
-                ("lineage_facts".into(), fact_id_array(&flow.evidence.lineage_facts)),
+                (
+                    "packet_facts".into(),
+                    fact_id_array(&flow.evidence.packet_facts),
+                ),
+                (
+                    "route_facts".into(),
+                    fact_id_array(&flow.evidence.route_facts),
+                ),
+                (
+                    "lineage_facts".into(),
+                    fact_id_array(&flow.evidence.lineage_facts),
+                ),
             ])),
         ),
         (
@@ -1419,7 +1567,10 @@ fn program_flow_json(flow: &ProgramFlow) -> JsonValue {
                 JsonValue::Object(BTreeMap::from([
                     ("pid".into(), JsonValue::Number(process.pid as i64)),
                     ("tid".into(), JsonValue::Number(process.tid as i64)),
-                    ("cgroup_id".into(), JsonValue::Number(process.cgroup_id as i64)),
+                    (
+                        "cgroup_id".into(),
+                        JsonValue::Number(process.cgroup_id as i64),
+                    ),
                     ("comm".into(), JsonValue::String(process.comm.clone())),
                 ]))
             }),
@@ -1445,22 +1596,23 @@ fn program_flow_json(flow: &ProgramFlow) -> JsonValue {
                     .map(|stage| {
                         let mut object = BTreeMap::from([
                             ("at".into(), JsonValue::Number(stage.at.0 as i64)),
-                            (
-                                "kind".into(),
-                                JsonValue::String(stage.kind.id().into()),
-                            ),
+                            ("kind".into(), JsonValue::String(stage.kind.id().into())),
                         ]);
                         object.insert(
                             "phase".into(),
-                            stage.phase.as_ref().map_or(JsonValue::Null, |phase| {
-                                JsonValue::String(phase.clone())
-                            }),
+                            stage
+                                .phase
+                                .as_ref()
+                                .map_or(JsonValue::Null, |phase| JsonValue::String(phase.clone())),
                         );
                         object.insert(
                             "phase_kind".into(),
-                            stage.phase_kind.as_ref().map_or(JsonValue::Null, |phase_kind| {
-                                JsonValue::String(phase_kind.clone())
-                            }),
+                            stage
+                                .phase_kind
+                                .as_ref()
+                                .map_or(JsonValue::Null, |phase_kind| {
+                                    JsonValue::String(phase_kind.clone())
+                                }),
                         );
                         JsonValue::Object(object)
                     })
@@ -1491,7 +1643,10 @@ fn program_finding_json(finding: &ProgramFinding) -> JsonValue {
                 JsonValue::Object(BTreeMap::from([
                     ("pid".into(), JsonValue::Number(process.pid as i64)),
                     ("tid".into(), JsonValue::Number(process.tid as i64)),
-                    ("cgroup_id".into(), JsonValue::Number(process.cgroup_id as i64)),
+                    (
+                        "cgroup_id".into(),
+                        JsonValue::Number(process.cgroup_id as i64),
+                    ),
                     ("comm".into(), JsonValue::String(process.comm.clone())),
                 ]))
             }),
@@ -1506,15 +1661,19 @@ fn program_finding_json(finding: &ProgramFinding) -> JsonValue {
         ),
         (
             "phase".into(),
-            finding.phase.as_ref().map_or(JsonValue::Null, |phase| {
-                JsonValue::String(phase.clone())
-            }),
+            finding
+                .phase
+                .as_ref()
+                .map_or(JsonValue::Null, |phase| JsonValue::String(phase.clone())),
         ),
         (
             "phase_kind".into(),
-            finding.phase_kind.as_ref().map_or(JsonValue::Null, |phase_kind| {
-                JsonValue::String(phase_kind.clone())
-            }),
+            finding
+                .phase_kind
+                .as_ref()
+                .map_or(JsonValue::Null, |phase_kind| {
+                    JsonValue::String(phase_kind.clone())
+                }),
         ),
         (
             "phase_transition".into(),
@@ -1527,10 +1686,12 @@ fn program_finding_json(finding: &ProgramFinding) -> JsonValue {
         ),
         (
             "phase_transition_kind".into(),
-            finding.phase_transition_kind.as_ref().map_or(
-                JsonValue::Null,
-                |transition_kind| JsonValue::String(transition_kind.clone()),
-            ),
+            finding
+                .phase_transition_kind
+                .as_ref()
+                .map_or(JsonValue::Null, |transition_kind| {
+                    JsonValue::String(transition_kind.clone())
+                }),
         ),
         (
             "suspect_area".into(),
@@ -1580,7 +1741,10 @@ fn module_finding_json(finding: &ModuleFinding) -> JsonValue {
                 JsonValue::Object(BTreeMap::from([
                     ("pid".into(), JsonValue::Number(process.pid as i64)),
                     ("tid".into(), JsonValue::Number(process.tid as i64)),
-                    ("cgroup_id".into(), JsonValue::Number(process.cgroup_id as i64)),
+                    (
+                        "cgroup_id".into(),
+                        JsonValue::Number(process.cgroup_id as i64),
+                    ),
                     ("comm".into(), JsonValue::String(process.comm.clone())),
                 ]))
             }),
@@ -1734,17 +1898,25 @@ fn reason_json(reason: &ReasonChain) -> JsonValue {
                                     ("at".into(), JsonValue::Number(event.at.0 as i64)),
                                     (
                                         "kind".into(),
-                                        JsonValue::String(match &event.kind {
-                                            KeyEventKind::SynSeen => "syn_seen",
-                                            KeyEventKind::PacketObserved => "packet_observed",
-                                            KeyEventKind::UdpDatagramSeen => "udp_datagram_seen",
-                                            KeyEventKind::ProcessIdentified => "process_identified",
-                                            KeyEventKind::RetransSuspected => "retrans_suspected",
-                                            KeyEventKind::RouteChanged => "route_changed",
-                                            KeyEventKind::FinOrRst => "fin_or_rst",
-                                            KeyEventKind::StateChange { .. } => "state_change",
-                                        }
-                                        .into()),
+                                        JsonValue::String(
+                                            match &event.kind {
+                                                KeyEventKind::SynSeen => "syn_seen",
+                                                KeyEventKind::PacketObserved => "packet_observed",
+                                                KeyEventKind::UdpDatagramSeen => {
+                                                    "udp_datagram_seen"
+                                                }
+                                                KeyEventKind::ProcessIdentified => {
+                                                    "process_identified"
+                                                }
+                                                KeyEventKind::RetransSuspected => {
+                                                    "retrans_suspected"
+                                                }
+                                                KeyEventKind::RouteChanged => "route_changed",
+                                                KeyEventKind::FinOrRst => "fin_or_rst",
+                                                KeyEventKind::StateChange { .. } => "state_change",
+                                            }
+                                            .into(),
+                                        ),
                                     ),
                                 ]);
                                 if let KeyEventKind::StateChange { old, new } = event.kind {
@@ -1781,7 +1953,11 @@ fn reason_json(reason: &ReasonChain) -> JsonValue {
 }
 
 fn fact_id_array(ids: &[FactId]) -> JsonValue {
-    JsonValue::Array(ids.iter().map(|id| JsonValue::Number(id.0 as i64)).collect())
+    JsonValue::Array(
+        ids.iter()
+            .map(|id| JsonValue::Number(id.0 as i64))
+            .collect(),
+    )
 }
 
 fn parse_fragment_inventory(value: &JsonValue) -> Result<FragmentInventoryItem, ExportError> {
@@ -1842,14 +2018,11 @@ fn reason_rule_json(rule: &ReasonRule) -> JsonValue {
         ("predicate".into(), reason_predicate_json(&rule.predicate)),
         (
             "key_event".into(),
-            rule.signal
-                .as_ref()
-                .map_or(JsonValue::Null, |event| JsonValue::String(reason_key_event_id(event).into())),
+            rule.signal.as_ref().map_or(JsonValue::Null, |event| {
+                JsonValue::String(reason_key_event_id(event).into())
+            }),
         ),
-        (
-            "narrative".into(),
-            reason_narrative_json(&rule.narrative),
-        ),
+        ("narrative".into(), reason_narrative_json(&rule.narrative)),
         ("dedupe".into(), JsonValue::Bool(rule.dedupe)),
         (
             "module".into(),
@@ -1948,17 +2121,15 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
                 object.insert("byte13_mask".into(), JsonValue::Number(*byte13_mask as i64));
             }
             if let Some(byte13_value) = byte13_value {
-                object.insert("byte13_value".into(), JsonValue::Number(*byte13_value as i64));
+                object.insert(
+                    "byte13_value".into(),
+                    JsonValue::Number(*byte13_value as i64),
+                );
             }
             if !byte_matches.is_empty() {
                 object.insert(
                     "byte_matches".into(),
-                    JsonValue::Array(
-                        byte_matches
-                            .iter()
-                            .map(payload_byte_match_json)
-                            .collect(),
-                    ),
+                    JsonValue::Array(byte_matches.iter().map(payload_byte_match_json).collect()),
                 );
             }
             JsonValue::Object(object)
@@ -2015,17 +2186,15 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
                 object.insert("byte13_mask".into(), JsonValue::Number(*byte13_mask as i64));
             }
             if let Some(byte13_value) = byte13_value {
-                object.insert("byte13_value".into(), JsonValue::Number(*byte13_value as i64));
+                object.insert(
+                    "byte13_value".into(),
+                    JsonValue::Number(*byte13_value as i64),
+                );
             }
             if !byte_matches.is_empty() {
                 object.insert(
                     "byte_matches".into(),
-                    JsonValue::Array(
-                        byte_matches
-                            .iter()
-                            .map(payload_byte_match_json)
-                            .collect(),
-                    ),
+                    JsonValue::Array(byte_matches.iter().map(payload_byte_match_json).collect()),
                 );
             }
             JsonValue::Object(object)
@@ -2078,9 +2247,7 @@ fn narrative_template_json(narrative: &NarrativeTemplate) -> JsonValue {
         NarrativeTemplate::RouteChanged => JsonValue::String("route_changed".into()),
         NarrativeTemplate::UdpDatagramObserved => JsonValue::String("udp_datagram_observed".into()),
         NarrativeTemplate::UdpDatagramSent => JsonValue::String("udp_datagram_sent".into()),
-        NarrativeTemplate::UdpDatagramReceived => {
-            JsonValue::String("udp_datagram_received".into())
-        }
+        NarrativeTemplate::UdpDatagramReceived => JsonValue::String("udp_datagram_received".into()),
         NarrativeTemplate::Static(text) => JsonValue::Object(BTreeMap::from([
             ("kind".into(), JsonValue::String("static".into())),
             ("text".into(), JsonValue::String((*text).into())),
@@ -2115,7 +2282,9 @@ fn parse_reason_profile(value: &JsonValue) -> Result<ReasonProfile, ExportError>
                         .map(parse_reason_rule)
                         .collect::<Result<Vec<_>, _>>()?,
                 })),
-                _ => Err(ExportError::InvalidValue("unknown reason profile kind".into())),
+                _ => Err(ExportError::InvalidValue(
+                    "unknown reason profile kind".into(),
+                )),
             }
         }
         _ => Err(ExportError::InvalidShape("reason_profile".into())),
@@ -2224,9 +2393,11 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                     .as_i64()? as u8,
                 dir: match object.get("dir").unwrap_or(&JsonValue::Null) {
                     JsonValue::Null => None,
-                    JsonValue::String(value) => Some(PacketDir::from_str(value).ok_or_else(|| {
-                        ExportError::InvalidValue("unknown reason predicate packet dir".into())
-                    })?),
+                    JsonValue::String(value) => {
+                        Some(PacketDir::from_str(value).ok_or_else(|| {
+                            ExportError::InvalidValue("unknown reason predicate packet dir".into())
+                        })?)
+                    }
                     _ => return Err(ExportError::InvalidShape("reason_predicate.dir".into())),
                 },
                 local_port: match object
@@ -2249,10 +2420,7 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                     JsonValue::Null => None,
                     value => Some(value.as_i64()? as u8),
                 },
-                first_byte_value: match object
-                    .get("first_byte_value")
-                    .unwrap_or(&JsonValue::Null)
-                {
+                first_byte_value: match object.get("first_byte_value").unwrap_or(&JsonValue::Null) {
                     JsonValue::Null => None,
                     value => Some(value.as_i64()? as u8),
                 },
@@ -2277,7 +2445,9 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                     value => Some(value.as_i64()? as u8),
                 },
                 byte_matches: parse_payload_byte_matches(
-                    object.get("byte_matches").unwrap_or(&JsonValue::Array(vec![])),
+                    object
+                        .get("byte_matches")
+                        .unwrap_or(&JsonValue::Array(vec![])),
                 )?,
             }),
             "datagram_observed" => Ok(ReasonPredicate::DatagramObserved {
@@ -2287,9 +2457,13 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                     .as_i64()? as u8,
                 dir: match object.get("dir").unwrap_or(&JsonValue::Null) {
                     JsonValue::Null => None,
-                    JsonValue::String(value) => Some(PacketDir::from_str(value).ok_or_else(|| {
-                        ExportError::InvalidValue("unknown reason predicate datagram dir".into())
-                    })?),
+                    JsonValue::String(value) => {
+                        Some(PacketDir::from_str(value).ok_or_else(|| {
+                            ExportError::InvalidValue(
+                                "unknown reason predicate datagram dir".into(),
+                            )
+                        })?)
+                    }
                     _ => return Err(ExportError::InvalidShape("reason_predicate.dir".into())),
                 },
                 local_port: match object
@@ -2316,10 +2490,7 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                     JsonValue::Null => None,
                     value => Some(value.as_i64()? as u8),
                 },
-                first_byte_value: match object
-                    .get("first_byte_value")
-                    .unwrap_or(&JsonValue::Null)
-                {
+                first_byte_value: match object.get("first_byte_value").unwrap_or(&JsonValue::Null) {
                     JsonValue::Null => None,
                     value => Some(value.as_i64()? as u8),
                 },
@@ -2340,7 +2511,9 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                     value => Some(value.as_i64()? as u8),
                 },
                 byte_matches: parse_payload_byte_matches(
-                    object.get("byte_matches").unwrap_or(&JsonValue::Array(vec![])),
+                    object
+                        .get("byte_matches")
+                        .unwrap_or(&JsonValue::Array(vec![])),
                 )?,
             }),
             "all" => Ok(ReasonPredicate::All(
@@ -2361,14 +2534,17 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                     .map(parse_reason_predicate)
                     .collect::<Result<Vec<_>, _>>()?,
             )),
-            _ => Err(ExportError::InvalidValue("unknown reason predicate kind".into())),
+            _ => Err(ExportError::InvalidValue(
+                "unknown reason predicate kind".into(),
+            )),
         },
         _ => Err(ExportError::InvalidShape("reason_predicate".into())),
     }
 }
 
 fn parse_reason_key_event(value: &str) -> Result<ReasonKeyEvent, ExportError> {
-    SignalKind::from_id(value).ok_or_else(|| ExportError::InvalidValue("unknown reason key event".into()))
+    SignalKind::from_id(value)
+        .ok_or_else(|| ExportError::InvalidValue("unknown reason key event".into()))
 }
 
 fn parse_reason_narrative(value: &JsonValue) -> Result<ReasonNarrative, ExportError> {
@@ -2403,7 +2579,9 @@ fn parse_narrative_template(value: &JsonValue) -> Result<NarrativeTemplate, Expo
                     .to_string()
                     .into_boxed_str(),
             ))),
-            _ => Err(ExportError::InvalidValue("unknown reason narrative kind".into())),
+            _ => Err(ExportError::InvalidValue(
+                "unknown reason narrative kind".into(),
+            )),
         },
         _ => Err(ExportError::InvalidShape("reason_narrative".into())),
     }
@@ -2485,7 +2663,9 @@ fn parse_attach_report(value: &JsonValue) -> Result<AttachReport, ExportError> {
             RingBufStats {
                 maps: stats
                     .get("maps")
-                    .ok_or_else(|| ExportError::InvalidShape("attach_report.ringbuf_stats.maps".into()))?
+                    .ok_or_else(|| {
+                        ExportError::InvalidShape("attach_report.ringbuf_stats.maps".into())
+                    })?
                     .as_i64()? as usize,
                 total_max_entries: stats
                     .get("total_max_entries")
@@ -2547,12 +2727,16 @@ fn parse_rule_diagnostics(value: &JsonValue) -> Result<RuleDiagnostics, ExportEr
             "core_requirement" => RuleTier::CoreRequirement,
             "optional_enhancement" => RuleTier::OptionalEnhancement,
             "unsupported" => RuleTier::Unsupported,
-            _ => return Err(ExportError::InvalidValue("unknown rule diagnostics tier".into())),
+            _ => {
+                return Err(ExportError::InvalidValue(
+                    "unknown rule diagnostics tier".into(),
+                ));
+            }
         },
         required_facts: parse_fact_kind_list(
-            object
-                .get("required_facts")
-                .ok_or_else(|| ExportError::InvalidShape("rule_diagnostics.required_facts".into()))?,
+            object.get("required_facts").ok_or_else(|| {
+                ExportError::InvalidShape("rule_diagnostics.required_facts".into())
+            })?,
         )?,
         supporting_fragments: object
             .get("supporting_fragments")
@@ -2564,9 +2748,9 @@ fn parse_rule_diagnostics(value: &JsonValue) -> Result<RuleDiagnostics, ExportEr
             .map(|item| Ok(item.as_str()?.to_string()))
             .collect::<Result<Vec<_>, _>>()?,
         missing_facts: parse_fact_kind_list(
-            object
-                .get("missing_facts")
-                .ok_or_else(|| ExportError::InvalidShape("rule_diagnostics.missing_facts".into()))?,
+            object.get("missing_facts").ok_or_else(|| {
+                ExportError::InvalidShape("rule_diagnostics.missing_facts".into())
+            })?,
         )?,
         unsupported_payload_offsets: object
             .get("unsupported_payload_offsets")
@@ -2696,7 +2880,9 @@ fn parse_evidence_class_spec(value: &JsonValue) -> Result<EvidenceClassSpec, Exp
         fact_kind: FactKindTag::from_str(
             object
                 .get("fact_kind")
-                .ok_or_else(|| ExportError::InvalidShape("fragment.evidence_class.fact_kind".into()))?
+                .ok_or_else(|| {
+                    ExportError::InvalidShape("fragment.evidence_class.fact_kind".into())
+                })?
                 .as_str()?,
         )
         .ok_or_else(|| ExportError::InvalidValue("unknown fact kind".into()))?,
@@ -2731,7 +2917,11 @@ fn parse_fragment_param_spec(value: &JsonValue) -> Result<FragmentParamSpec, Exp
             "bool" => FragmentParamType::Bool,
             "u64" => FragmentParamType::U64,
             "string" => FragmentParamType::String,
-            _ => return Err(ExportError::InvalidValue("unknown fragment param type".into())),
+            _ => {
+                return Err(ExportError::InvalidValue(
+                    "unknown fragment param type".into(),
+                ));
+            }
         },
     })
 }
@@ -2742,10 +2932,14 @@ fn parse_hookpoint_value(value: &JsonValue) -> Result<HookPoint, ExportError> {
 
 fn parse_hookpoint(input: &str) -> Result<HookPoint, ExportError> {
     if let Some(value) = input.strip_prefix("tracepoint:") {
-        return Ok(HookPoint::TracePoint(Box::leak(value.to_string().into_boxed_str())));
+        return Ok(HookPoint::TracePoint(Box::leak(
+            value.to_string().into_boxed_str(),
+        )));
     }
     if let Some(value) = input.strip_prefix("kprobe:") {
-        return Ok(HookPoint::KProbe(Box::leak(value.to_string().into_boxed_str())));
+        return Ok(HookPoint::KProbe(Box::leak(
+            value.to_string().into_boxed_str(),
+        )));
     }
     match input {
         "tc:ingress" => Ok(HookPoint::TCIngress),
@@ -3016,7 +3210,9 @@ fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError> {
                 .as_i64()? as u64,
             packet_fact: FactId(
                 kind.get("packet_fact")
-                    .ok_or_else(|| ExportError::InvalidShape("fact.drop_action.packet_fact".into()))?
+                    .ok_or_else(|| {
+                        ExportError::InvalidShape("fact.drop_action.packet_fact".into())
+                    })?
                     .as_i64()? as u64,
             ),
             verdict: DropVerdict::from_str(
@@ -3110,13 +3306,17 @@ fn parse_flow(value: &JsonValue) -> Result<FlowSnapshot, ExportError> {
                     .ok_or_else(|| ExportError::InvalidShape("flow.lifecycle.last_seen_at".into()))?
                     .as_i64()? as u64,
             ),
-            tcp_state_now: parse_optional_u8(lifecycle.get("tcp_state_now").unwrap_or(&JsonValue::Null))?,
+            tcp_state_now: parse_optional_u8(
+                lifecycle.get("tcp_state_now").unwrap_or(&JsonValue::Null),
+            )?,
             terminated: lifecycle
                 .get("terminated")
                 .ok_or_else(|| ExportError::InvalidShape("flow.lifecycle.terminated".into()))?
                 .as_bool()?,
             termination_fact: parse_optional_fact_id(
-                lifecycle.get("termination_fact").unwrap_or(&JsonValue::Null),
+                lifecycle
+                    .get("termination_fact")
+                    .unwrap_or(&JsonValue::Null),
             )?,
         },
         path: PathView {
@@ -3147,16 +3347,24 @@ fn parse_flow(value: &JsonValue) -> Result<FlowSnapshot, ExportError> {
         process: parse_process_view(process)?,
         evidence: EvidenceIndex {
             tcp_state_facts: parse_fact_ids(
-                evidence.get("tcp_state_facts").unwrap_or(&JsonValue::Array(vec![])),
+                evidence
+                    .get("tcp_state_facts")
+                    .unwrap_or(&JsonValue::Array(vec![])),
             )?,
             packet_facts: parse_fact_ids(
-                evidence.get("packet_facts").unwrap_or(&JsonValue::Array(vec![])),
+                evidence
+                    .get("packet_facts")
+                    .unwrap_or(&JsonValue::Array(vec![])),
             )?,
             route_facts: parse_fact_ids(
-                evidence.get("route_facts").unwrap_or(&JsonValue::Array(vec![])),
+                evidence
+                    .get("route_facts")
+                    .unwrap_or(&JsonValue::Array(vec![])),
             )?,
             lineage_facts: parse_fact_ids(
-                evidence.get("lineage_facts").unwrap_or(&JsonValue::Array(vec![])),
+                evidence
+                    .get("lineage_facts")
+                    .unwrap_or(&JsonValue::Array(vec![])),
             )?,
         },
         confidence: object
@@ -3203,10 +3411,9 @@ fn parse_reason(value: &JsonValue) -> Result<ReasonChain, ExportError> {
                 .ok_or_else(|| ExportError::InvalidShape("reason.l0_facts".into()))?,
         )?,
         l1: ReasonL1 {
-            tcp_state_timeline: parse_fact_ids(
-                l1.get("tcp_state_timeline")
-                    .ok_or_else(|| ExportError::InvalidShape("reason.l1.tcp_state_timeline".into()))?,
-            )?,
+            tcp_state_timeline: parse_fact_ids(l1.get("tcp_state_timeline").ok_or_else(|| {
+                ExportError::InvalidShape("reason.l1.tcp_state_timeline".into())
+            })?)?,
             path_segments: parse_fact_ids(
                 l1.get("path_segments")
                     .ok_or_else(|| ExportError::InvalidShape("reason.l1.path_segments".into()))?,
@@ -3231,12 +3438,16 @@ fn parse_reason(value: &JsonValue) -> Result<ReasonChain, ExportError> {
                         at: FactId(
                             object
                                 .get("at")
-                                .ok_or_else(|| ExportError::InvalidShape("reason.narrative.at".into()))?
+                                .ok_or_else(|| {
+                                    ExportError::InvalidShape("reason.narrative.at".into())
+                                })?
                                 .as_i64()? as u64,
                         ),
                         text: object
                             .get("text")
-                            .ok_or_else(|| ExportError::InvalidShape("reason.narrative.text".into()))?
+                            .ok_or_else(|| {
+                                ExportError::InvalidShape("reason.narrative.text".into())
+                            })?
                             .as_str()?
                             .to_string(),
                     })
@@ -3295,7 +3506,7 @@ fn parse_rejected_fact(value: &JsonValue) -> Result<RejectedFact, ExportError> {
         other => {
             return Err(ExportError::InvalidValue(format!(
                 "unknown rejected fact reason: {other}"
-            )))
+            )));
         }
     };
 
@@ -3335,12 +3546,16 @@ fn parse_rejected_fact_summary(value: &JsonValue) -> Result<RejectedFactSummaryI
     })
 }
 
-fn parse_attach_failure_summary(value: &JsonValue) -> Result<AttachFailureSummaryItem, ExportError> {
+fn parse_attach_failure_summary(
+    value: &JsonValue,
+) -> Result<AttachFailureSummaryItem, ExportError> {
     let object = value.as_object()?;
     Ok(AttachFailureSummaryItem {
         hookpoint_kind: object
             .get("hookpoint_kind")
-            .ok_or_else(|| ExportError::InvalidShape("attach_failure_summary.hookpoint_kind".into()))?
+            .ok_or_else(|| {
+                ExportError::InvalidShape("attach_failure_summary.hookpoint_kind".into())
+            })?
             .as_str()?
             .to_string(),
         count: object
@@ -3467,9 +3682,7 @@ fn parse_program_flow(value: &JsonValue) -> Result<ProgramFlow, ExportError> {
                     ),
                     kind: match object
                         .get("kind")
-                        .ok_or_else(|| {
-                            ExportError::InvalidShape("program_flow.stage.kind".into())
-                        })?
+                        .ok_or_else(|| ExportError::InvalidShape("program_flow.stage.kind".into()))?
                         .as_str()?
                     {
                         other => SignalKind::from_id(other).ok_or_else(|| {
@@ -3512,7 +3725,7 @@ fn parse_program_finding(value: &JsonValue) -> Result<ProgramFinding, ExportErro
         other => {
             return Err(ExportError::InvalidValue(format!(
                 "unknown program finding cause: {other}"
-            )))
+            )));
         }
     };
 
@@ -3618,7 +3831,7 @@ fn parse_module_finding(value: &JsonValue) -> Result<ModuleFinding, ExportError>
             other => {
                 return Err(ExportError::InvalidValue(format!(
                     "unknown module severity: {other}"
-                )))
+                )));
             }
         },
         phases: object
@@ -3672,9 +3885,7 @@ fn parse_module_finding(value: &JsonValue) -> Result<ModuleFinding, ExportError>
             .collect::<Result<Vec<_>, _>>()?,
         supporting_fragments: object
             .get("supporting_fragments")
-            .ok_or_else(|| {
-                ExportError::InvalidShape("module_finding.supporting_fragments".into())
-            })?
+            .ok_or_else(|| ExportError::InvalidShape("module_finding.supporting_fragments".into()))?
             .as_array()?
             .iter()
             .map(|item| Ok(item.as_str()?.to_string()))

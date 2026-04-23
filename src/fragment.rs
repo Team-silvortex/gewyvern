@@ -138,10 +138,12 @@ pub fn summarize_attach_failures(
 
     counts
         .into_iter()
-        .map(|(hookpoint_kind, count)| crate::export::AttachFailureSummaryItem {
-            hookpoint_kind: hookpoint_kind.into(),
-            count,
-        })
+        .map(
+            |(hookpoint_kind, count)| crate::export::AttachFailureSummaryItem {
+                hookpoint_kind: hookpoint_kind.into(),
+                count,
+            },
+        )
         .collect()
 }
 
@@ -225,7 +227,10 @@ pub enum RegistryError {
     HookConflict(String),
     FactConflict(String),
     MissingCoverage(Vec<FactKindTag>),
-    UnknownFragmentParam { fragment_id: String, key: String },
+    UnknownFragmentParam {
+        fragment_id: String,
+        key: String,
+    },
     InvalidFragmentParamType {
         fragment_id: String,
         key: String,
@@ -325,10 +330,12 @@ impl FragmentRegistry {
         let mut dependency_graph = Vec::new();
         for fragment in &fragments {
             for requirement in &fragment.requires {
-                if let Some((producer, _)) = fragments
-                    .iter()
-                    .find_map(|candidate| candidate.emits.contains(requirement).then_some((candidate.id, requirement)))
-                {
+                if let Some((producer, _)) = fragments.iter().find_map(|candidate| {
+                    candidate
+                        .emits
+                        .contains(requirement)
+                        .then_some((candidate.id, requirement))
+                }) {
                     dependency_graph.push(DependencyEdge {
                         fragment_id: fragment.id,
                         depends_on: producer,
@@ -582,7 +589,10 @@ impl FragmentRegistry {
 }
 
 impl FragmentRegistry {
-    fn validate_binding_rule_coverage(&self, binding: &TemplateBinding) -> Result<(), RegistryError> {
+    fn validate_binding_rule_coverage(
+        &self,
+        binding: &TemplateBinding,
+    ) -> Result<(), RegistryError> {
         let diagnostics = self.binding_diagnostics(binding)?;
         if let Some(model) = diagnostics.program_model {
             validate_model_diagnostics("program_model", &model)?;
@@ -594,7 +604,10 @@ impl FragmentRegistry {
     }
 }
 
-fn validate_model_diagnostics(model_name: &str, diagnostics: &ModelDiagnostics) -> Result<(), RegistryError> {
+fn validate_model_diagnostics(
+    model_name: &str,
+    diagnostics: &ModelDiagnostics,
+) -> Result<(), RegistryError> {
     if diagnostics.rules.is_empty() {
         return Ok(());
     }
@@ -735,9 +748,10 @@ fn classify_rule_tier(
     if !missing_facts.is_empty() || !unsupported_payload_offsets.is_empty() {
         return RuleTier::Unsupported;
     }
-    if required_facts.iter().any(|fact| {
-        fact_tiers.get(fact) == Some(&EvidenceTier::OptionalEnhancement)
-    }) {
+    if required_facts
+        .iter()
+        .any(|fact| fact_tiers.get(fact) == Some(&EvidenceTier::OptionalEnhancement))
+    {
         return RuleTier::OptionalEnhancement;
     }
     RuleTier::CoreRequirement

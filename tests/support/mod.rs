@@ -1,9 +1,11 @@
 use gewyvern::ledger::{
-    CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact,
-    SessionId, SockLineageFact, TcpStateFact,
+    CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact, SessionId,
+    SockLineageFact, TcpStateFact,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
-use gewyvern::template::{handshake_debug_template, udp_debug_template, udp_process_debug_template};
+use gewyvern::template::{
+    handshake_debug_template, udp_debug_template, udp_process_debug_template,
+};
 use std::time::{Duration, SystemTime};
 
 pub fn run_handshake_session(facts: Vec<FactEnvelope>) -> gewyvern::export::ExportBundle {
@@ -88,12 +90,7 @@ pub fn packet_fact(id: u64, cookie: u64, tcp_flags: u16) -> FactEnvelope {
     packet_fact_with_dir(id, cookie, tcp_flags, PacketDir::Egress)
 }
 
-pub fn packet_fact_with_dir(
-    id: u64,
-    cookie: u64,
-    tcp_flags: u16,
-    dir: PacketDir,
-) -> FactEnvelope {
+pub fn packet_fact_with_dir(id: u64, cookie: u64, tcp_flags: u16, dir: PacketDir) -> FactEnvelope {
     packet_fact_with_dir_and_payload(id, cookie, tcp_flags, dir, None, None, None, None, None)
 }
 
@@ -217,9 +214,7 @@ pub fn udp_packet_fact_with_dir(
     tot_len: u32,
     dir: PacketDir,
 ) -> FactEnvelope {
-    udp_packet_fact_with_dir_and_ports_and_payload(
-        id, cookie, tot_len, dir, None, None, None, None,
-    )
+    udp_packet_fact_with_dir_and_ports_and_payload(id, cookie, tot_len, dir, None, None, None, None)
 }
 
 pub fn udp_packet_fact_with_dir_and_ports(

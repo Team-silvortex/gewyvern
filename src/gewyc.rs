@@ -1,6 +1,4 @@
-use crate::dsl::{
-    DslError, compile_file, parse_str_unvalidated, validate_compiled_binding,
-};
+use crate::dsl::{DslError, compile_file, parse_str_unvalidated, validate_compiled_binding};
 use crate::flow::ProgramOperation;
 use crate::fragment::{
     BindingDiagnostics, EvidenceTier, ModelDiagnostics, PayloadOffsetSupportSummary, RegistryError,
@@ -35,13 +33,8 @@ pub struct WindowReport {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReasonProfileReport {
-    Builtin {
-        id: String,
-    },
-    Declarative {
-        id: String,
-        rules: usize,
-    },
+    Builtin { id: String },
+    Declarative { id: String, rules: usize },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -184,19 +177,19 @@ pub fn collect_binding_diagnostics(
     builtin_registry().binding_diagnostics(binding)
 }
 
-pub fn compile_diagnostics_report_file(path: &str) -> Result<DiagnosticsReport, CompileDiagnosticsError> {
+pub fn compile_diagnostics_report_file(
+    path: &str,
+) -> Result<DiagnosticsReport, CompileDiagnosticsError> {
     let envelope = compile_envelope_file(path)?;
-    envelope
-        .diagnostics
-        .ok_or_else(|| {
-            let finding = envelope
-                .findings
-                .findings
-                .first()
-                .map(|finding| finding.message.clone())
-                .unwrap_or_else(|| "diagnostics report unavailable".into());
-            CompileDiagnosticsError::Dsl(DslError::InvalidValue(finding))
-        })
+    envelope.diagnostics.ok_or_else(|| {
+        let finding = envelope
+            .findings
+            .findings
+            .first()
+            .map(|finding| finding.message.clone())
+            .unwrap_or_else(|| "diagnostics report unavailable".into());
+        CompileDiagnosticsError::Dsl(DslError::InvalidValue(finding))
+    })
 }
 
 pub fn compile_stages_report_file(path: &str) -> Result<CompilerStagesReport, CompileStagesError> {
@@ -211,9 +204,11 @@ pub fn compile_stages_report_str(input: &str) -> CompilerStagesReport {
 pub fn compile_findings_report_file(path: &str) -> CompilerFindingsReport {
     let input = match crate::dsl::read_file(path) {
         Ok(input) => input,
-        Err(err) => return CompilerFindingsReport {
-            findings: vec![finding_from_dsl_error(&err)],
-        },
+        Err(err) => {
+            return CompilerFindingsReport {
+                findings: vec![finding_from_dsl_error(&err)],
+            };
+        }
     };
     compile_findings_report_str(&input)
 }
@@ -369,11 +364,15 @@ pub fn binding_report(binding: &TemplateBinding) -> BindingReport {
             .iter()
             .map(|fragment| (*fragment).to_string())
             .collect(),
-        window: binding.template.window_profile.as_ref().map(|window| WindowReport {
-            id: window.id.to_string(),
-            duration_ms: window.duration_ms,
-            lateness_ms: window.lateness_ms,
-        }),
+        window: binding
+            .template
+            .window_profile
+            .as_ref()
+            .map(|window| WindowReport {
+                id: window.id.to_string(),
+                duration_ms: window.duration_ms,
+                lateness_ms: window.lateness_ms,
+            }),
         reason_profile: binding
             .template
             .reason_profile
@@ -422,8 +421,14 @@ pub fn diagnostics_report(
             .iter()
             .map(|fragment| (*fragment).to_string())
             .collect(),
-        program_model: diagnostics.program_model.as_ref().map(model_diagnostics_report),
-        reason_model: diagnostics.reason_model.as_ref().map(model_diagnostics_report),
+        program_model: diagnostics
+            .program_model
+            .as_ref()
+            .map(model_diagnostics_report),
+        reason_model: diagnostics
+            .reason_model
+            .as_ref()
+            .map(model_diagnostics_report),
     }
 }
 
@@ -472,7 +477,9 @@ fn binding_json(report: &BindingReport) -> String {
         .fragment_params
         .iter()
         .fold(Vec::<(String, Vec<String>)>::new(), |mut acc, param| {
-            if let Some((_, entries)) = acc.iter_mut().find(|(fragment, _)| fragment == &param.fragment)
+            if let Some((_, entries)) = acc
+                .iter_mut()
+                .find(|(fragment, _)| fragment == &param.fragment)
             {
                 entries.push(format!(
                     "\"{}\":{}",
@@ -857,9 +864,17 @@ fn model_diagnostics_report(model: &ModelDiagnostics) -> ModelDiagnosticsReport 
                 rule_index: rule.rule_index,
                 tier: rule_tier_text(&rule.tier).to_string(),
                 supported: rule.supported,
-                required_facts: rule.required_facts.iter().map(|item| item.to_string()).collect(),
+                required_facts: rule
+                    .required_facts
+                    .iter()
+                    .map(|item| item.to_string())
+                    .collect(),
                 supporting_fragments: rule.supporting_fragments.clone(),
-                missing_facts: rule.missing_facts.iter().map(|item| item.to_string()).collect(),
+                missing_facts: rule
+                    .missing_facts
+                    .iter()
+                    .map(|item| item.to_string())
+                    .collect(),
                 unsupported_payload_offsets: rule.unsupported_payload_offsets.clone(),
             })
             .collect(),
@@ -880,7 +895,9 @@ fn validation_report(
         required_offsets: required_payload_offsets,
         unsupported_offsets: unsupported_payload_offsets,
     } = match diagnostics {
-        Some(diagnostics) => builtin_registry().payload_offset_support_summary(binding, diagnostics),
+        Some(diagnostics) => {
+            builtin_registry().payload_offset_support_summary(binding, diagnostics)
+        }
         None => {
             let registry = builtin_registry();
             PayloadOffsetSupportSummary {
@@ -1059,7 +1076,10 @@ fn finding_from_dsl_error(err: &DslError) -> CompilerFinding {
     }
 }
 
-fn finding_from_registry_error(stage: CompilerFindingStage, err: &RegistryError) -> CompilerFinding {
+fn finding_from_registry_error(
+    stage: CompilerFindingStage,
+    err: &RegistryError,
+) -> CompilerFinding {
     CompilerFinding {
         stage,
         code: registry_error_code(err).to_string(),
@@ -1103,7 +1123,9 @@ fn registry_error_code(err: &RegistryError) -> &'static str {
             "GEWYC-VALIDATE-UNSUPPORTED-PAYLOAD-OFFSETS"
         }
         RegistryError::UnknownFragmentParam { .. } => "GEWYC-VALIDATE-UNKNOWN-FRAGMENT-PARAM",
-        RegistryError::InvalidFragmentParamType { .. } => "GEWYC-VALIDATE-INVALID-FRAGMENT-PARAM-TYPE",
+        RegistryError::InvalidFragmentParamType { .. } => {
+            "GEWYC-VALIDATE-INVALID-FRAGMENT-PARAM-TYPE"
+        }
     }
 }
 
@@ -1142,10 +1164,9 @@ mod tests {
 
     #[test]
     fn binding_json_mentions_template_id() {
-        let binding = compile_binding_file(
-            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
-        )
-        .unwrap();
+        let binding =
+            compile_binding_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
+                .unwrap();
         let json = render_binding(&binding, RenderFormat::Json);
         assert!(json.contains("\"template_id\":\"udp_process_debug\""));
         assert!(json.contains("\"program_model\""));
@@ -1153,10 +1174,9 @@ mod tests {
 
     #[test]
     fn diagnostics_text_mentions_program_rule() {
-        let binding = compile_binding_file(
-            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
-        )
-        .unwrap();
+        let binding =
+            compile_binding_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
+                .unwrap();
         let diagnostics = collect_binding_diagnostics(&binding).unwrap();
         let text = render_diagnostics(&binding, &diagnostics, RenderFormat::Text);
         assert!(text.contains("program_model="));
@@ -1165,18 +1185,22 @@ mod tests {
 
     #[test]
     fn binding_report_is_owned_and_stable() {
-        let binding = compile_binding_file(
-            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
-        )
-        .unwrap();
+        let binding =
+            compile_binding_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
+                .unwrap();
         let report = binding_report(&binding);
         assert_eq!(report.template_id, "udp_process_debug");
-        assert!(report.fragments.contains(&"udp_packet_meta_fragment".to_string()));
+        assert!(
+            report
+                .fragments
+                .contains(&"udp_packet_meta_fragment".to_string())
+        );
         assert!(
             report
                 .fragment_params
                 .iter()
-                .any(|param| param.fragment == "sock_lineage_fragment" && param.key == "capture_comm")
+                .any(|param| param.fragment == "sock_lineage_fragment"
+                    && param.key == "capture_comm")
         );
     }
 
@@ -1187,19 +1211,25 @@ mod tests {
         )
         .unwrap();
         assert_eq!(report.template_id, "udp_process_debug");
-        assert!(report.fragments.contains(&"udp_packet_meta_fragment".to_string()));
+        assert!(
+            report
+                .fragments
+                .contains(&"udp_packet_meta_fragment".to_string())
+        );
         assert!(report.program_model.is_some());
     }
 
     #[test]
     fn compile_envelope_str_collects_all_frontend_surfaces() {
-        let input = crate::dsl::read_file(
-            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
-        )
-        .unwrap();
+        let input =
+            crate::dsl::read_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
+                .unwrap();
         let envelope = compile_envelope_str(&input);
         assert_eq!(
-            envelope.binding.as_ref().map(|report| report.template_id.as_str()),
+            envelope
+                .binding
+                .as_ref()
+                .map(|report| report.template_id.as_str()),
             Some("udp_process_debug")
         );
         assert_eq!(
@@ -1258,15 +1288,30 @@ oops=true
         assert_eq!(report.validation.registry, "builtin");
         assert_eq!(report.validation.fragment_count, 3);
         assert!(report.validation.program_rule_count > 0);
-        assert!(report.validation.checks.contains(&"rule_evidence".to_string()));
-        assert!(report.parse.report.as_ref().unwrap().program_model.is_some());
-        assert!(report
-            .diagnostics
-            .report
-            .as_ref()
-            .unwrap()
-            .program_model
-            .is_some());
+        assert!(
+            report
+                .validation
+                .checks
+                .contains(&"rule_evidence".to_string())
+        );
+        assert!(
+            report
+                .parse
+                .report
+                .as_ref()
+                .unwrap()
+                .program_model
+                .is_some()
+        );
+        assert!(
+            report
+                .diagnostics
+                .report
+                .as_ref()
+                .unwrap()
+                .program_model
+                .is_some()
+        );
     }
 
     #[test]
@@ -1283,7 +1328,11 @@ oops=true
         assert!(!report.parse.ok);
         assert!(report.parse.report.is_none());
         assert_eq!(
-            report.parse.finding.as_ref().map(|finding| finding.code.as_str()),
+            report
+                .parse
+                .finding
+                .as_ref()
+                .map(|finding| finding.code.as_str()),
             Some("GEWYC-PARSE-INVALID-VALUE")
         );
         assert!(!report.validation.ok);
@@ -1311,7 +1360,11 @@ rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;sta
         let report = compile_stages_report_file(path).unwrap();
         assert!(!report.validation.ok);
         assert_eq!(
-            report.validation.finding.as_ref().map(|finding| finding.code.as_str()),
+            report
+                .validation
+                .finding
+                .as_ref()
+                .map(|finding| finding.code.as_str()),
             Some("GEWYC-VALIDATE-UNSUPPORTED-PAYLOAD-OFFSETS")
         );
         assert!(report.diagnostics.ok);
@@ -1354,7 +1407,10 @@ rule=datagram_observed:udp;datagram_observed;static:udp seen;true
         );
         assert_eq!(report.findings.len(), 1);
         assert_eq!(report.findings[0].stage, CompilerFindingStage::Validation);
-        assert_eq!(report.findings[0].code, "GEWYC-VALIDATE-MISSING-RULE-EVIDENCE");
+        assert_eq!(
+            report.findings[0].code,
+            "GEWYC-VALIDATE-MISSING-RULE-EVIDENCE"
+        );
         assert_eq!(report.findings[0].severity, CompilerFindingSeverity::Error);
         assert_eq!(report.findings[0].line, None);
         assert!(report.findings[0].message.contains("MissingRuleEvidence"));
@@ -1381,17 +1437,18 @@ rule=datagram_observed:udp:remote:snmp:byte_at:9:0xff:0xa0;datagram_observed;sta
         );
         assert_eq!(report.findings[0].severity, CompilerFindingSeverity::Error);
         assert_eq!(report.findings[0].line, None);
-        assert!(report.findings[0]
-            .message
-            .contains("UnsupportedRulePayloadOffsets"));
+        assert!(
+            report.findings[0]
+                .message
+                .contains("UnsupportedRulePayloadOffsets")
+        );
     }
 
     #[test]
     fn compile_findings_report_str_is_empty_when_pipeline_succeeds() {
-        let input = crate::dsl::read_file(
-            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
-        )
-        .unwrap();
+        let input =
+            crate::dsl::read_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
+                .unwrap();
         let report = compile_findings_report_str(&input);
         assert!(report.findings.is_empty());
     }
@@ -1441,10 +1498,9 @@ oops=true
 
     #[test]
     fn envelope_json_contains_all_frontend_surfaces() {
-        let input = crate::dsl::read_file(
-            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
-        )
-        .unwrap();
+        let input =
+            crate::dsl::read_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
+                .unwrap();
         let envelope = compile_envelope_str(&input);
         let json = render_envelope_report(&envelope, RenderFormat::Json);
         assert!(json.contains("\"binding\":"));
@@ -1478,12 +1534,14 @@ oops=true
 
     #[test]
     fn stages_report_summarizes_payload_offset_support() {
-        let report = compile_stages_report_file(
-            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy",
-        )
-        .unwrap();
+        let report =
+            compile_stages_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")
+                .unwrap();
         assert_eq!(report.validation.sampled_payload_offsets, vec![0, 4, 5, 13]);
         assert_eq!(report.validation.required_payload_offsets, vec![13]);
-        assert_eq!(report.validation.unsupported_payload_offsets, Vec::<u16>::new());
+        assert_eq!(
+            report.validation.unsupported_payload_offsets,
+            Vec::<u16>::new()
+        );
     }
 }
