@@ -28,6 +28,7 @@ Examples in this repository:
 - [dsl/handshake_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy)
 - [dsl/udp_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_debug.gewy)
 - [dsl/udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy)
+- [dsl/structured_udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/structured_udp_process_debug.gewy)
 - [dsl/dns_udp_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy)
 - [dsl/https_connect_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy)
 - [dsl/http_request_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy)
@@ -59,9 +60,105 @@ Examples in this repository:
 
 ## Current Shape
 
-Each non-empty, non-comment line is a single `key=value` pair.
+The preferred shape is now a structured block syntax. The older `key=value`
+shape is still supported for compatibility and all existing protocol DSL files
+continue to compile.
 
 Comments start with `#`.
+
+Example:
+
+```text
+template structured_udp_process_debug {
+  window default_5s
+  reason udp_datagram_l1
+
+  fragments {
+    udp_packet_meta_fragment
+    route_meta_fragment
+    sock_lineage_fragment
+  }
+
+  program_model structured_udp_process_debug_model {
+    operation datagram_exchange
+
+    rule {
+      predicate process_bound
+      stage process_bound
+      narrative process_bound
+      dedupe true
+      module structured_udp_process_debug
+      phase bind
+    }
+  }
+}
+```
+
+The structured parser lowers these blocks into the same compiler IR as the
+legacy form; it does not generate eBPF bytecode directly.
+
+## Structured Blocks
+
+Top-level structured files start with:
+
+```text
+template <template_id> {
+  ...
+}
+```
+
+Supported top-level fields and blocks:
+
+- `window <profile>` or `window.duration_ms <n>` plus `window.lateness_ms <n>`
+- `reason <built_in_reason_profile>`
+- `fragment <fragment_id>` or a `fragments { ... }` block
+- `param <fragment>.<key> <value>`
+- `evidence <fact_kind>:<tier>`
+- `program_model <id> { ... }`
+- `reason_model <id> { ... }`
+
+Structured program rules use named fields instead of positional semicolons:
+
+```text
+program_model example_model {
+  operation datagram_exchange
+
+  rule {
+    predicate datagram_observed:udp:local_to_remote
+    stage datagram_observed
+    narrative udp_datagram_sent
+    dedupe true
+    module example_module
+    phase send_request
+  }
+}
+```
+
+Structured reason rules use the same predicate vocabulary but name the reason
+key event explicitly:
+
+```text
+reason_model example_reason {
+  rule {
+    predicate datagram_observed:udp:local_to_remote
+    key_event udp_datagram_seen
+    narrative udp_datagram_sent
+    dedupe true
+    module example_module
+    phase send_request
+  }
+}
+```
+
+The `predicate`, `stage`/`key_event`, `narrative`, and `dedupe` fields are
+required inside each structured rule. `module` and `phase` remain optional, but
+`phase` requires `module` so transition findings can stay module-scoped.
+
+## Legacy Key/Value Shape
+
+Each non-empty, non-comment line in the legacy form is a single `key=value`
+pair. This remains fully supported so older `.gewy` files do not need to move
+all at once.
 
 Example:
 
@@ -82,7 +179,7 @@ param=sock_lineage_fragment.capture_comm=true
 
 ## Top-Level Keys
 
-Current supported keys are:
+Legacy supported keys are:
 
 - `template`
 - `window`

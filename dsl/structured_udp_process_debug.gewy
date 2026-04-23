@@ -1,0 +1,41 @@
+template structured_udp_process_debug {
+  window default_5s
+  reason udp_datagram_l1
+
+  fragments {
+    udp_packet_meta_fragment
+    route_meta_fragment
+    sock_lineage_fragment
+  }
+
+  program_model structured_udp_process_debug_model {
+    operation datagram_exchange
+
+    rule {
+      predicate process_bound
+      stage process_bound
+      narrative process_bound
+      dedupe true
+      module structured_udp_process_debug
+      phase bind
+    }
+
+    rule {
+      predicate datagram_observed:udp
+      stage datagram_observed
+      narrative udp_datagram_observed
+      dedupe true
+      module structured_udp_process_debug
+      phase observe_datagram
+    }
+
+    rule {
+      predicate route_resolved
+      stage route_resolved
+      narrative route_changed
+      dedupe true
+      module structured_udp_process_debug
+      phase resolve_route
+    }
+  }
+}

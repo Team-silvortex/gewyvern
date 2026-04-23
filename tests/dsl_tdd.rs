@@ -63,6 +63,23 @@ fn built_in_udp_process_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn built_in_structured_udp_process_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/structured_udp_process_debug.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "structured_udp_process_debug");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::DatagramExchange
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().rules.len(),
+        3
+    );
+}
+
+#[test]
 fn built_in_dns_udp_process_dsl_compiles_into_template_binding() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy").unwrap();
@@ -4402,6 +4419,111 @@ rule=datagram_observed:udp;datagram_observed;static:inline udp activity observed
         binding.template.program_model.as_ref().unwrap().id,
         "udp_inline_debug_dsl_model"
     );
+}
+
+#[test]
+fn dsl_accepts_structured_template_blocks() {
+    let binding = compile_str(
+        r#"
+template structured_udp_debug {
+  window default_5s
+  reason udp_datagram_l1
+
+  fragments {
+    udp_packet_meta_fragment
+    route_meta_fragment
+    sock_lineage_fragment
+  }
+
+  program_model structured_udp_debug_model {
+    operation datagram_exchange
+
+    rule {
+      predicate process_bound
+      stage process_bound
+      narrative process_bound
+      dedupe true
+      module structured_udp_debug
+      phase bind
+    }
+
+    rule {
+      predicate datagram_observed:udp:local_to_remote
+      stage datagram_observed
+      narrative udp_datagram_sent
+      dedupe true
+      module structured_udp_debug
+      phase send_request
+    }
+  }
+}
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "structured_udp_debug");
+    assert_eq!(
+        binding.template.fragment_set,
+        vec![
+            "udp_packet_meta_fragment",
+            "route_meta_fragment",
+            "sock_lineage_fragment"
+        ]
+    );
+    let model = binding.template.program_model.as_ref().unwrap();
+    assert_eq!(model.id, "structured_udp_debug_model");
+    assert_eq!(model.operation, ProgramOperation::DatagramExchange);
+    assert_eq!(model.rules.len(), 2);
+    assert_eq!(
+        model.rules[1].module.as_deref(),
+        Some("structured_udp_debug")
+    );
+    assert_eq!(model.rules[1].phase.as_deref(), Some("send_request"));
+}
+
+#[test]
+fn dsl_accepts_structured_reason_model_blocks() {
+    let binding = compile_str(
+        r#"
+template structured_reason_udp {
+  window default_5s
+  fragments {
+    udp_packet_meta_fragment
+    route_meta_fragment
+    sock_lineage_fragment
+  }
+
+  program_model structured_reason_udp_model {
+    operation datagram_exchange
+    rule {
+      predicate process_bound
+      stage process_bound
+      narrative process_bound
+      dedupe true
+      module structured_reason_udp
+      phase bind
+    }
+  }
+
+  reason_model structured_reason_udp_reason {
+    rule {
+      predicate process_bound
+      key_event process_identified
+      narrative process_bound
+      dedupe true
+      module structured_reason_udp
+      phase bind
+    }
+  }
+}
+"#,
+    )
+    .unwrap();
+
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(reason) if reason.id == "structured_reason_udp_reason"
+    ));
 }
 
 #[test]
