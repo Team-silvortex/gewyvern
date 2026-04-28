@@ -2,7 +2,6 @@ pub mod dsl;
 pub mod export;
 pub mod flow;
 pub mod fragment;
-pub mod gate;
 pub mod gewyc;
 pub mod http;
 pub mod ir;

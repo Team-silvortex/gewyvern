@@ -149,6 +149,7 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             }
             "receive_request"
             | "receive_response"
+            | "receive_ready"
             | "receive_pong"
             | "receive_connack"
             | "receive_banner"
@@ -164,6 +165,7 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "send_initial"
             | "send_discover"
             | "send_initiation"
+            | "send_echo_request"
             | "send_query"
             | "send_search"
             | "send_access_request"
@@ -171,6 +173,7 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "send_register" => Some("emit_datagram"),
             "receive_reply"
             | "receive_handshake"
+            | "receive_echo_response"
             | "receive_response"
             | "receive_offer"
             | "receive_access_accept"

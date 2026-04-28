@@ -1,4 +1,4 @@
-# gewyvern v0.1
+# gewyvern v0.4
 
 Protocol-agnostic network debugging runtime driven by eBPF fragments.
 
@@ -22,15 +22,59 @@ The long-term direction is:
 
 ## Status
 
-- project version: `0.1.0`
-- stage: working prototype
+- project version: `0.4.0`
+- stage: working prototype with a stabilized internal workspace layout
 - transport support: TCP + UDP
-- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, RADIUS, SMTP, SIP, LDAP, SNMP, DNS-over-TCP
+- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, RADIUS, GTP-U, SMTP, SIP, LDAP, SNMP, DNS-over-TCP
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
 - replay: deterministic for exported sessions
+- DSL shape: structured block syntax preferred, legacy key/value syntax still supported
+- workspace shape: `gewyvern` runtime crate + `gewyc` compiler CLI crate
 
-## What Works In v0.1
+## Workspace Layout
+
+This repository is now easier to read as a workspace with clear responsibility
+boundaries:
+
+- [Cargo.toml](/Users/Shared/chroot/dev/gewyvern/Cargo.toml)
+  Root workspace manifest. The `gewyvern` runtime crate lives at the workspace
+  root and `crates/gewyc` is a separate compiler-facing CLI crate.
+- [src](/Users/Shared/chroot/dev/gewyvern/src)
+  Runtime, IR, DSL compiler front-end, export/replay, loader, and built-in CLI.
+- [src/bin](/Users/Shared/chroot/dev/gewyvern/src/bin)
+  Helper binaries such as socket senders used by local/runtime demos.
+- [crates/gewyc](/Users/Shared/chroot/dev/gewyvern/crates/gewyc)
+  Dedicated `.gewy` compiler CLI surface for binding, diagnostics, findings,
+  stages, and envelope output.
+- [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
+  Built-in protocol and debugging DSL files. This is now the clearest place to
+  see supported network-module behaviors.
+- [tests](/Users/Shared/chroot/dev/gewyvern/tests)
+  TDD coverage for DSL compilation, runtime behavior, fragments, templates,
+  socket input, and Linux smoke paths.
+- [tests/support](/Users/Shared/chroot/dev/gewyvern/tests/support)
+  Shared fact builders and test harness helpers.
+- [docs](/Users/Shared/chroot/dev/gewyvern/docs)
+  System, architecture, DSL, fragment, export, and development guides.
+- [ebpf](/Users/Shared/chroot/dev/gewyvern/ebpf)
+  Current hand-written eBPF fragment sources and smoke assets.
+- [docker](/Users/Shared/chroot/dev/gewyvern/docker)
+  Headless Linux dev/smoke environment support.
+- [scripts](/Users/Shared/chroot/dev/gewyvern/scripts)
+  Small helper scripts for demos and roundtrips.
+
+## Main Entrypoints
+
+- `cargo run -- ...`
+  Start the main `gewyvern` runtime CLI for demos, DSL-driven sessions, socket
+  ingest, findings, and JSON export.
+- `cargo run -p gewyc -- ...`
+  Compile or inspect `.gewy` files without starting a runtime session.
+- `cargo test --workspace`
+  Main regression path for the whole workspace.
+
+## What Works In v0.4
 
 - Fragment registry, attach planning, and attach reporting
 - TDD-first runtime and rule specs
@@ -57,8 +101,10 @@ The long-term direction is:
   - mDNS query/response exchanges
   - SSDP discovery search/response exchanges
   - Redis RESP ping/pong exchanges
+  - PostgreSQL connect and simple-query/ready exchanges
   - MQTT CONNECT/CONNACK exchanges
   - RADIUS Access-Request/Access-Accept exchanges
+  - GTP-U Echo Request/Response exchanges
   - SMTP connect/banner/EHLO exchanges
   - SIP REGISTER/200 OK exchanges
   - LDAP bind request/response exchanges
@@ -79,6 +125,9 @@ The long-term direction is:
   - `route_meta_fragment`
   - `tcp_packet_meta_fragment`
   - UDP template attach path through `route_meta_fragment` + `udp_packet_meta_fragment`
+- Structured `.gewy` block syntax lowered into the same compiler IR as the
+  legacy key/value DSL shape
+- `gewyc` as a separate workspace crate for compiler-facing workflows
 
 ## Core Model
 
@@ -124,6 +173,27 @@ Template
   - `route_meta_fragment`
   - `sock_lineage_fragment`
 
+## Repository Map
+
+If you are orienting in the codebase, these files are the shortest path:
+
+- [src/runtime.rs](/Users/Shared/chroot/dev/gewyvern/src/runtime.rs)
+  Session lifecycle, ingest gating, finding synthesis, export assembly.
+- [src/dsl.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl.rs)
+  `.gewy` parser/compiler front-end, including structured block syntax lowering.
+- [src/fragment.rs](/Users/Shared/chroot/dev/gewyvern/src/fragment.rs)
+  Fragment registry, capability surface, attach planning, and validation.
+- [src/ir.rs](/Users/Shared/chroot/dev/gewyvern/src/ir.rs)
+  Shared flow predicate and phase-kind logic that protocol DSLs compile onto.
+- [src/export.rs](/Users/Shared/chroot/dev/gewyvern/src/export.rs)
+  Replayable JSON bundle format and replay path.
+- [src/gewyc.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc.rs)
+  Shared compiler-facing report/envelope surface used by both CLIs.
+- [crates/gewyc/src/main.rs](/Users/Shared/chroot/dev/gewyvern/crates/gewyc/src/main.rs)
+  Dedicated compiler CLI.
+- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+  Best high-level system map after the README.
+
 ## DSL Files
 
 The repository now includes first-class DSL files that compile into
@@ -146,9 +216,12 @@ The repository now includes first-class DSL files that compile into
 - [dsl/wireguard_handshake_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_path.gewy)
 - [dsl/mdns_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy)
 - [dsl/ssdp_discovery_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy)
+- [dsl/postgres_connect_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy)
+- [dsl/postgres_simple_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_simple_query_path.gewy)
 - [dsl/redis_ping_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy)
 - [dsl/mqtt_connect_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy)
 - [dsl/radius_access_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy)
+- [dsl/gtpu_echo_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy)
 - [dsl/smtp_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy)
 - [dsl/sip_register_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy)
 - [dsl/ldap_bind_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy)
@@ -190,6 +263,7 @@ differentiate:
 - DNS request/reply paths
 - QUIC initial and handshake traffic
 - STUN binding request/response pairs
+- GTP-U echo request/response pairs
 - CoAP request/response pairs
 - NTP client request/response pairs
 - DHCP client discover/offer pairs
@@ -420,7 +494,7 @@ cargo linux-smoke
 
 ## Near-Term Direction
 
-The next meaningful step after `v0.1` is not “more protocol branches”.
-It is pushing `ProgramModel` from embedded Rust rules toward a more explicit,
-protocol-agnostic DSL over fragment/attach/fact IR so the engine can model
-network functionality as program behavior rather than just protocol lifecycle.
+The next meaningful step after `v0.4` is not only “more protocol branches”.
+It is continuing to make the DSL and IR more explicit, so protocol behavior is
+described as program-network-module structure rather than as a pile of
+protocol-specific special cases.

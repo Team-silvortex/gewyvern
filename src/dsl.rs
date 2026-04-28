@@ -932,6 +932,7 @@ fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslError> {
         "redis" => Ok(6379),
         "mqtt" => Ok(1883),
         "radius" => Ok(1812),
+        "gtpu" => Ok(2152),
         "sip" => Ok(5060),
         "smtp" => Ok(25),
         "snmp" => Ok(161),

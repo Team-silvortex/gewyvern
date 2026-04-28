@@ -133,6 +133,23 @@ fn built_in_postgres_connect_process_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn built_in_postgres_simple_query_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_simple_query_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "postgres_simple_query_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("postgres_simple_query".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
 fn built_in_redis_connect_process_dsl_compiles_into_template_binding() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_connect_process.gewy").unwrap();
@@ -142,6 +159,22 @@ fn built_in_redis_connect_process_dsl_compiles_into_template_binding() {
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("redis_connect".into())
     );
+}
+
+#[test]
+fn built_in_gtpu_echo_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "gtpu_echo_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("gtpu_echo".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
 }
 
 #[test]
@@ -1912,6 +1945,102 @@ fn ntp_client_path_does_not_match_wrong_response_mode() {
             .stages
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_response"))
+    );
+}
+
+#[test]
+fn gtpu_echo_path_materializes_request_and_response_datagrams() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 813, 6001, "upf-agent"));
+    session.ingest(route_fact(2, 813, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        813,
+        64,
+        PacketDir::Egress,
+        Some(2152),
+        Some(2152),
+        Some(0x30),
+        Some(0x3001),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        813,
+        64,
+        PacketDir::Ingress,
+        Some(2152),
+        Some(2152),
+        Some(0x30),
+        Some(0x3002),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("gtpu_echo".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_echo_request"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_echo_response"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_datagram".to_string()));
+    assert!(phase_kinds.contains(&"receive_datagram".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn gtpu_echo_path_does_not_match_wrong_response_type() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 814, 6002, "upf-agent"));
+    session.ingest(route_fact(2, 814, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        814,
+        64,
+        PacketDir::Egress,
+        Some(2152),
+        Some(2152),
+        Some(0x30),
+        Some(0x3001),
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        814,
+        64,
+        PacketDir::Ingress,
+        Some(2152),
+        Some(2152),
+        Some(0x30),
+        Some(0x3003),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_echo_response"))
     );
 }
 
@@ -4244,6 +4373,126 @@ fn postgres_connect_dsl_uses_named_port_alias() {
             .any(|stage| stage.phase.as_deref() == Some("resolve"))
     );
     assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn postgres_simple_query_path_materializes_connect_query_and_ready_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_simple_query_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 506, 7781, "psql"));
+    session.ingest(tcp_state_fact_with_ports(2, 506, 1, 2, 43125, 5432));
+    session.ingest(tcp_state_fact_with_ports(3, 506, 2, 3, 43125, 5432));
+    session.ingest(route_fact(4, 506, 6));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        506,
+        0,
+        PacketDir::Egress,
+        Some(43125),
+        Some(5432),
+        Some(0x51),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        506,
+        0,
+        PacketDir::Ingress,
+        Some(43125),
+        Some(5432),
+        Some(0x5a),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("postgres_simple_query".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("connect"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("establish"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_query"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_ready"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"establish_connection".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn postgres_simple_query_path_does_not_match_wrong_server_message_type() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_simple_query_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 507, 7782, "psql"));
+    session.ingest(tcp_state_fact_with_ports(2, 507, 1, 2, 43126, 5432));
+    session.ingest(tcp_state_fact_with_ports(3, 507, 2, 3, 43126, 5432));
+    session.ingest(route_fact(4, 507, 6));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        507,
+        0,
+        PacketDir::Egress,
+        Some(43126),
+        Some(5432),
+        Some(0x51),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        507,
+        0,
+        PacketDir::Ingress,
+        Some(43126),
+        Some(5432),
+        Some(0x45),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_ready"))
+    );
 }
 
 #[test]
