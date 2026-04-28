@@ -80,6 +80,23 @@ fn built_in_structured_udp_process_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn built_in_pipeline_udp_process_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/pipeline_udp_process_debug.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "pipeline_udp_process_debug");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::DatagramExchange
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().rules.len(),
+        3
+    );
+}
+
+#[test]
 fn built_in_dns_udp_process_dsl_compiles_into_template_binding() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy").unwrap();
@@ -142,6 +159,39 @@ fn built_in_postgres_simple_query_path_dsl_compiles_into_template_binding() {
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("postgres_simple_query".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_postgres_auth_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "postgres_auth_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("postgres_auth".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_postgres_query_error_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_error_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "postgres_query_error_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("postgres_query_error".into())
     );
     assert!(matches!(
         binding.template.reason_profile.as_ref().unwrap(),
@@ -4496,6 +4546,244 @@ fn postgres_simple_query_path_does_not_match_wrong_server_message_type() {
 }
 
 #[test]
+fn postgres_auth_path_materializes_auth_password_and_ready_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 508, 7783, "psql"));
+    session.ingest(tcp_state_fact_with_ports(2, 508, 1, 2, 43127, 5432));
+    session.ingest(tcp_state_fact_with_ports(3, 508, 2, 3, 43127, 5432));
+    session.ingest(route_fact(4, 508, 6));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        508,
+        0,
+        PacketDir::Ingress,
+        Some(43127),
+        Some(5432),
+        Some(0x52),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        508,
+        0,
+        PacketDir::Egress,
+        Some(43127),
+        Some(5432),
+        Some(0x70),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        7,
+        508,
+        0,
+        PacketDir::Ingress,
+        Some(43127),
+        Some(5432),
+        Some(0x5a),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("postgres_auth".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_auth"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_password"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_ready"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn postgres_auth_path_does_not_match_wrong_auth_message_type() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 509, 7784, "psql"));
+    session.ingest(tcp_state_fact_with_ports(2, 509, 1, 2, 43128, 5432));
+    session.ingest(tcp_state_fact_with_ports(3, 509, 2, 3, 43128, 5432));
+    session.ingest(route_fact(4, 509, 6));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        509,
+        0,
+        PacketDir::Ingress,
+        Some(43128),
+        Some(5432),
+        Some(0x45),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        509,
+        0,
+        PacketDir::Egress,
+        Some(43128),
+        Some(5432),
+        Some(0x70),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        7,
+        509,
+        0,
+        PacketDir::Ingress,
+        Some(43128),
+        Some(5432),
+        Some(0x5a),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_auth"))
+    );
+}
+
+#[test]
+fn postgres_query_error_path_materializes_query_and_error_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_error_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 510, 7785, "psql"));
+    session.ingest(tcp_state_fact_with_ports(2, 510, 1, 2, 43129, 5432));
+    session.ingest(tcp_state_fact_with_ports(3, 510, 2, 3, 43129, 5432));
+    session.ingest(route_fact(4, 510, 6));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        510,
+        0,
+        PacketDir::Egress,
+        Some(43129),
+        Some(5432),
+        Some(0x51),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        510,
+        0,
+        PacketDir::Ingress,
+        Some(43129),
+        Some(5432),
+        Some(0x45),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("postgres_query_error".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_query"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_error"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn postgres_query_error_path_does_not_match_ready_message() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_error_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 511, 7786, "psql"));
+    session.ingest(tcp_state_fact_with_ports(2, 511, 1, 2, 43130, 5432));
+    session.ingest(tcp_state_fact_with_ports(3, 511, 2, 3, 43130, 5432));
+    session.ingest(route_fact(4, 511, 6));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        511,
+        0,
+        PacketDir::Egress,
+        Some(43130),
+        Some(5432),
+        Some(0x51),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        511,
+        0,
+        PacketDir::Ingress,
+        Some(43130),
+        Some(5432),
+        Some(0x5a),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_error"))
+    );
+}
+
+#[test]
 fn redis_connect_dsl_uses_named_port_alias() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_connect_process.gewy").unwrap();
@@ -4772,6 +5060,65 @@ template structured_reason_udp {
     assert!(matches!(
         binding.template.reason_profile.as_ref().unwrap(),
         ReasonProfile::Declarative(reason) if reason.id == "structured_reason_udp_reason"
+    ));
+}
+
+#[test]
+fn dsl_accepts_pipeline_template_calls() {
+    let binding = compile_str(
+        r#"
+template(:pipeline_udp_debug)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:pipeline_udp_debug_model)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :pipeline_udp_debug, phase: :bind)
+|> program_rule(predicate: "datagram_observed:udp:local_to_remote", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: :pipeline_udp_debug, phase: :send_request)
+|> param(:sock_lineage_fragment.capture_comm, true)
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "pipeline_udp_debug");
+    assert_eq!(
+        binding.template.fragment_set,
+        vec![
+            "udp_packet_meta_fragment",
+            "route_meta_fragment",
+            "sock_lineage_fragment"
+        ]
+    );
+    let model = binding.template.program_model.as_ref().unwrap();
+    assert_eq!(model.id, "pipeline_udp_debug_model");
+    assert_eq!(model.operation, ProgramOperation::DatagramExchange);
+    assert_eq!(model.rules.len(), 2);
+    assert_eq!(binding.fragment_params["sock_lineage_fragment"]["capture_comm"], FragmentParamValue::Bool(true));
+}
+
+#[test]
+fn dsl_accepts_pipeline_reason_rule_calls() {
+    let binding = compile_str(
+        r#"
+template(:pipeline_reason_udp)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:pipeline_reason_udp_model)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :pipeline_reason_udp, phase: :bind)
+|> reason_model(:pipeline_reason_udp_reason)
+|> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: :pipeline_reason_udp, phase: :bind)
+"#,
+    )
+    .unwrap();
+
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(reason) if reason.id == "pipeline_reason_udp_reason"
     ));
 }
 

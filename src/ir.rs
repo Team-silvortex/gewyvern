@@ -144,11 +144,14 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
         },
         SignalKind::PacketObserved => match phase {
             "send_request" | "send_response" | "send_client_hello" | "send_ping" | "send_query"
-            | "send_connect" | "send_ehlo" | "send_bind" | "send_search" | "send_modify" => {
+            | "send_connect" | "send_ehlo" | "send_bind" | "send_search" | "send_modify"
+            | "send_password" => {
                 Some("emit_payload")
             }
             "receive_request"
+            | "receive_error"
             | "receive_response"
+            | "receive_auth"
             | "receive_ready"
             | "receive_pong"
             | "receive_connack"

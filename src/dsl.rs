@@ -8,6 +8,7 @@ use crate::template::{
     FragmentParamValue, Template, TemplateBinding, WindowProfile, default_5s_window,
     default_program_model_for_reason_profile,
 };
+use std::collections::BTreeMap;
 use std::fs;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -36,6 +37,10 @@ pub fn compile_file(path: &str) -> Result<TemplateBinding, DslError> {
 }
 
 pub fn parse_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError> {
+    if looks_like_pipeline_dsl(input) {
+        let legacy = pipeline_to_legacy(input)?;
+        return parse_legacy_str_unvalidated(&legacy);
+    }
     if looks_like_structured_dsl(input) {
         let legacy = structured_to_legacy(input)?;
         return parse_legacy_str_unvalidated(&legacy);
@@ -175,6 +180,275 @@ fn looks_like_structured_dsl(input: &str) -> bool {
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .next()
         .is_some_and(|line| line.starts_with("template ") && line.ends_with('{'))
+}
+
+fn looks_like_pipeline_dsl(input: &str) -> bool {
+    input
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .next()
+        .is_some_and(|line| line.starts_with("template(") && line.ends_with(')'))
+}
+
+fn pipeline_to_legacy(input: &str) -> Result<String, DslError> {
+    let mut output = Vec::<String>::new();
+    let mut saw_template = false;
+
+    for (line_no, raw_line) in input.lines().enumerate() {
+        let line_no = line_no + 1;
+        let line = raw_line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        let call = if saw_template {
+            line.strip_prefix("|>")
+                .ok_or_else(|| {
+                    DslError::InvalidValue(
+                        "pipeline DSL steps after template must start with '|>'".into(),
+                    )
+                    .at_line(line_no)
+                })?
+                .trim()
+        } else {
+            line
+        };
+
+        let (name, args) = parse_pipeline_call(call).map_err(|err| err.at_line(line_no))?;
+        match name.as_str() {
+            "template" => {
+                if saw_template {
+                    return Err(DslError::InvalidValue(
+                        "pipeline DSL supports exactly one template() head".into(),
+                    )
+                    .at_line(line_no));
+                }
+                output.push(format!(
+                    "template={}",
+                    parse_pipeline_single_arg(&args, "template")?
+                ));
+                saw_template = true;
+            }
+            "window" => lower_pipeline_window(&args, &mut output).map_err(|err| err.at_line(line_no))?,
+            "reason" => output.push(format!(
+                "reason={}",
+                parse_pipeline_single_arg(&args, "reason")?
+            )),
+            "reason_model" => output.push(format!(
+                "reason_model={}",
+                parse_pipeline_single_arg(&args, "reason_model")?
+            )),
+            "fragment" => output.push(format!(
+                "fragment={}",
+                parse_pipeline_single_arg(&args, "fragment")?
+            )),
+            "program_model" => output.push(format!(
+                "program_model={}",
+                parse_pipeline_single_arg(&args, "program_model")?
+            )),
+            "operation" => output.push(format!(
+                "operation={}",
+                parse_pipeline_single_arg(&args, "operation")?
+            )),
+            "param" => output.push(format!(
+                "param={}",
+                lower_pipeline_param(&args).map_err(|err| err.at_line(line_no))?
+            )),
+            "evidence" => output.push(format!(
+                "evidence={}",
+                lower_pipeline_evidence(&args).map_err(|err| err.at_line(line_no))?
+            )),
+            "program_rule" => output.push(
+                lower_pipeline_rule(&args, false).map_err(|err| err.at_line(line_no))?,
+            ),
+            "reason_rule" => output.push(
+                lower_pipeline_rule(&args, true).map_err(|err| err.at_line(line_no))?,
+            ),
+            other => {
+                return Err(DslError::InvalidValue(format!(
+                    "unknown pipeline DSL step '{other}'"
+                ))
+                .at_line(line_no));
+            }
+        }
+    }
+
+    if !saw_template {
+        return Err(DslError::InvalidValue(
+            "pipeline DSL must start with template(...)".into(),
+        ));
+    }
+
+    Ok(output.join("\n"))
+}
+
+fn parse_pipeline_call(line: &str) -> Result<(String, Vec<String>), DslError> {
+    let open = line
+        .find('(')
+        .ok_or_else(|| DslError::InvalidValue(format!("invalid pipeline call '{line}'")))?;
+    let name = line[..open].trim();
+    let inner = line[open + 1..]
+        .strip_suffix(')')
+        .ok_or_else(|| DslError::InvalidValue(format!("invalid pipeline call '{line}'")))?;
+    if name.is_empty() {
+        return Err(DslError::InvalidValue(format!(
+            "invalid pipeline call '{line}'"
+        )));
+    }
+    Ok((name.to_string(), split_pipeline_args(inner)))
+}
+
+fn split_pipeline_args(input: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut start = 0usize;
+    let mut in_string = false;
+    let chars = input.char_indices().peekable();
+    for (idx, ch) in chars {
+        match ch {
+            '"' => in_string = !in_string,
+            ',' if !in_string => {
+                parts.push(input[start..idx].trim().to_string());
+                start = idx + 1;
+            }
+            _ => {}
+        }
+    }
+    let tail = input[start..].trim();
+    if !tail.is_empty() {
+        parts.push(tail.to_string());
+    }
+    parts
+}
+
+fn parse_pipeline_literal(value: &str) -> String {
+    let value = value.trim();
+    if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
+        value[1..value.len() - 1].to_string()
+    } else if let Some(atom) = value.strip_prefix(':') {
+        atom.trim().to_string()
+    } else {
+        value.to_string()
+    }
+}
+
+fn parse_pipeline_single_arg(args: &[String], step: &str) -> Result<String, DslError> {
+    if args.len() != 1 {
+        return Err(DslError::InvalidValue(format!(
+            "pipeline step '{step}' expects exactly one argument"
+        )));
+    }
+    Ok(parse_pipeline_literal(&args[0]))
+}
+
+fn looks_like_pipeline_keyword_arg(arg: &str) -> bool {
+    let arg = arg.trim();
+    if arg.starts_with(':') || arg.starts_with('"') {
+        return false;
+    }
+    arg.split_once(':')
+        .is_some_and(|(key, _)| !key.trim().is_empty())
+}
+
+fn parse_pipeline_keywords(
+    args: &[String],
+    step: &str,
+) -> Result<BTreeMap<String, String>, DslError> {
+    let mut keywords = BTreeMap::new();
+    for arg in args {
+        let (key, value) = arg.split_once(':').ok_or_else(|| {
+            DslError::InvalidValue(format!(
+                "pipeline step '{step}' expected keyword argument, got '{arg}'"
+            ))
+        })?;
+        keywords.insert(key.trim().to_string(), parse_pipeline_literal(value));
+    }
+    Ok(keywords)
+}
+
+fn lower_pipeline_window(args: &[String], output: &mut Vec<String>) -> Result<(), DslError> {
+    if args.len() == 1 && !looks_like_pipeline_keyword_arg(&args[0]) {
+        output.push(format!("window={}", parse_pipeline_literal(&args[0])));
+        return Ok(());
+    }
+    let keywords = parse_pipeline_keywords(args, "window")?;
+    let duration_ms = keywords
+        .get("duration_ms")
+        .ok_or(DslError::MissingField("duration_ms"))?;
+    let lateness_ms = keywords
+        .get("lateness_ms")
+        .ok_or(DslError::MissingField("lateness_ms"))?;
+    output.push(format!("window.duration_ms={duration_ms}"));
+    output.push(format!("window.lateness_ms={lateness_ms}"));
+    Ok(())
+}
+
+fn lower_pipeline_param(args: &[String]) -> Result<String, DslError> {
+    if args.len() != 2 {
+        return Err(DslError::InvalidValue(
+            "pipeline step 'param' expects target and value".into(),
+        ));
+    }
+    Ok(format!(
+        "{}={}",
+        parse_pipeline_literal(&args[0]),
+        parse_pipeline_literal(&args[1])
+    ))
+}
+
+fn lower_pipeline_evidence(args: &[String]) -> Result<String, DslError> {
+    if args.len() != 2 {
+        return Err(DslError::InvalidValue(
+            "pipeline step 'evidence' expects fact kind and tier".into(),
+        ));
+    }
+    Ok(format!(
+        "{}:{}",
+        parse_pipeline_literal(&args[0]),
+        parse_pipeline_literal(&args[1])
+    ))
+}
+
+fn lower_pipeline_rule(args: &[String], reason_rule: bool) -> Result<String, DslError> {
+    let keywords = parse_pipeline_keywords(
+        args,
+        if reason_rule {
+            "reason_rule"
+        } else {
+            "program_rule"
+        },
+    )?;
+    let predicate = keywords
+        .get("predicate")
+        .ok_or(DslError::MissingField("predicate"))?;
+    let signal_key = if reason_rule { "key_event" } else { "stage" };
+    let signal = keywords
+        .get(signal_key)
+        .ok_or(DslError::MissingField(signal_key))?;
+    let narrative = keywords
+        .get("narrative")
+        .ok_or(DslError::MissingField("narrative"))?;
+    let dedupe = keywords
+        .get("dedupe")
+        .ok_or(DslError::MissingField("dedupe"))?;
+    let mut value = format!("{predicate};{signal};{narrative};{dedupe}");
+    if let Some(module) = keywords.get("module") {
+        value.push(';');
+        value.push_str(module);
+        if let Some(phase) = keywords.get("phase") {
+            value.push(';');
+            value.push_str(phase);
+        }
+    } else if let Some(phase) = keywords.get("phase") {
+        return Err(DslError::InvalidValue(format!(
+            "pipeline rule phase '{phase}' requires module"
+        )));
+    }
+    Ok(if reason_rule {
+        format!("reason.rule={value}")
+    } else {
+        format!("rule={value}")
+    })
 }
 
 fn structured_to_legacy(input: &str) -> Result<String, DslError> {

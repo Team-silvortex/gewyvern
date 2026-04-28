@@ -29,7 +29,7 @@ The long-term direction is:
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
 - replay: deterministic for exported sessions
-- DSL shape: structured block syntax preferred, legacy key/value syntax still supported
+- DSL shape: pipeline-driven syntax preferred, structured and legacy key/value syntax still supported
 - workspace shape: `gewyvern` runtime crate + `gewyc` compiler CLI crate
 
 ## Workspace Layout
@@ -101,7 +101,7 @@ boundaries:
   - mDNS query/response exchanges
   - SSDP discovery search/response exchanges
   - Redis RESP ping/pong exchanges
-  - PostgreSQL connect and simple-query/ready exchanges
+  - PostgreSQL connect, auth, simple-query/ready, and query-error exchanges
   - MQTT CONNECT/CONNACK exchanges
   - RADIUS Access-Request/Access-Accept exchanges
   - GTP-U Echo Request/Response exchanges
@@ -202,6 +202,7 @@ The repository now includes first-class DSL files that compile into
 - [dsl/handshake_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy)
 - [dsl/udp_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_debug.gewy)
 - [dsl/udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy)
+- [dsl/pipeline_udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/pipeline_udp_process_debug.gewy)
 - [dsl/structured_udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/structured_udp_process_debug.gewy)
 - [dsl/dns_udp_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy)
 - [dsl/https_connect_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy)
@@ -217,7 +218,9 @@ The repository now includes first-class DSL files that compile into
 - [dsl/mdns_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy)
 - [dsl/ssdp_discovery_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy)
 - [dsl/postgres_connect_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy)
+- [dsl/postgres_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy)
 - [dsl/postgres_simple_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_simple_query_path.gewy)
+- [dsl/postgres_query_error_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_error_path.gewy)
 - [dsl/redis_ping_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy)
 - [dsl/mqtt_connect_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy)
 - [dsl/radius_access_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy)

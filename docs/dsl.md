@@ -28,6 +28,7 @@ Examples in this repository:
 - [dsl/handshake_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy)
 - [dsl/udp_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_debug.gewy)
 - [dsl/udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy)
+- [dsl/pipeline_udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/pipeline_udp_process_debug.gewy)
 - [dsl/structured_udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/structured_udp_process_debug.gewy)
 - [dsl/dns_udp_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy)
 - [dsl/https_connect_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy)
@@ -43,7 +44,9 @@ Examples in this repository:
 - [dsl/mdns_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy)
 - [dsl/ssdp_discovery_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy)
 - [dsl/postgres_connect_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy)
+- [dsl/postgres_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy)
 - [dsl/postgres_simple_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_simple_query_path.gewy)
+- [dsl/postgres_query_error_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_error_path.gewy)
 - [dsl/redis_ping_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy)
 - [dsl/mqtt_connect_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy)
 - [dsl/radius_access_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy)
@@ -63,44 +66,72 @@ Examples in this repository:
 
 ## Current Shape
 
-The preferred shape is now a structured block syntax. The older `key=value`
-shape is still supported for compatibility and all existing protocol DSL files
-continue to compile.
+The preferred shape is now a pipeline-driven syntax inspired by Elixir. The
+older structured block syntax and legacy `key=value` shape are both still
+supported for compatibility and all existing protocol DSL files continue to
+compile.
 
 Comments start with `#`.
 
 Example:
 
 ```text
-template structured_udp_process_debug {
-  window default_5s
-  reason udp_datagram_l1
-
-  fragments {
-    udp_packet_meta_fragment
-    route_meta_fragment
-    sock_lineage_fragment
-  }
-
-  program_model structured_udp_process_debug_model {
-    operation datagram_exchange
-
-    rule {
-      predicate process_bound
-      stage process_bound
-      narrative process_bound
-      dedupe true
-      module structured_udp_process_debug
-      phase bind
-    }
-  }
-}
+template(:structured_udp_process_debug)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:structured_udp_process_debug_model)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :structured_udp_process_debug, phase: :bind)
 ```
 
-The structured parser lowers these blocks into the same compiler IR as the
-legacy form; it does not generate eBPF bytecode directly.
+The pipeline parser lowers these calls into the same compiler IR as the
+structured and legacy forms; it does not generate eBPF bytecode directly.
+
+## Pipeline Shape
+
+Top-level pipeline files start with:
+
+```text
+template(:template_id)
+```
+
+Then extend the binding with Elixir-style pipeline steps:
+
+- `|> window(:default_5s)`
+- `|> window(duration_ms: 5000, lateness_ms: 200)`
+- `|> reason(:udp_datagram_l1)`
+- `|> fragment(:udp_packet_meta_fragment)`
+- `|> program_model(:example_model)`
+- `|> reason_model(:example_reason)`
+- `|> operation(:datagram_exchange)`
+- `|> param(:sock_lineage_fragment.capture_comm, true)`
+- `|> evidence(:sock_lineage, :core_requirement)`
+- `|> program_rule(...)`
+- `|> reason_rule(...)`
+
+Current parser rule: one pipeline call per line.
+
+Pipeline program rules use keyword arguments:
+
+```text
+|> program_rule(predicate: "datagram_observed:udp:local_to_remote", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: :example_module, phase: :send_request)
+```
+
+Pipeline reason rules use `key_event:` instead of `stage:`:
+
+```text
+|> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: :example_module, phase: :bind)
+```
+
+Atoms like `:udp_datagram_l1` lower to plain DSL identifiers, while quoted
+strings are kept for values that contain punctuation or spaces.
 
 ## Structured Blocks
+
+Structured blocks remain supported as a compatibility layer.
 
 Top-level structured files start with:
 
