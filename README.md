@@ -30,6 +30,9 @@ The long-term direction is:
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
 - replay: deterministic for exported sessions
 - DSL shape: pipeline-driven syntax preferred, structured and legacy key/value syntax still supported
+- package shape: `gewy.pkg` manifest + `main.gewy` entry + pipeline `include(...)` expansion
+- package deps: local path dependencies via `dep.<name>=...` and `include("dep:file.gewy")`
+- language semantics: single-entry, function-unit DSL with no cross-file global mutable state
 - workspace shape: `gewyvern` runtime crate + `gewyc` compiler CLI crate
 
 ## Workspace Layout
@@ -50,6 +53,9 @@ boundaries:
 - [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
   Built-in protocol and debugging DSL files. This is now the clearest place to
   see supported network-module behaviors.
+- `gewy.pkg`
+  Package manifest for single-entry gewy projects; `gewyc` resolves this to the
+  package `main.gewy` entry file.
 - [tests](/Users/Shared/chroot/dev/gewyvern/tests)
   TDD coverage for DSL compilation, runtime behavior, fragments, templates,
   socket input, and Linux smoke paths.
@@ -71,6 +77,9 @@ boundaries:
   ingest, findings, and JSON export.
 - `cargo run -p gewyc -- ...`
   Compile or inspect `.gewy` files without starting a runtime session.
+- `cargo run -p gewyc -- init my_app`
+  Scaffold a minimal gewy package with `gewy.pkg`, `main.gewy`, and an included
+  module file built around pure function-unit composition.
 - `cargo test --workspace`
   Main regression path for the whole workspace.
 
@@ -180,7 +189,8 @@ If you are orienting in the codebase, these files are the shortest path:
 - [src/runtime.rs](/Users/Shared/chroot/dev/gewyvern/src/runtime.rs)
   Session lifecycle, ingest gating, finding synthesis, export assembly.
 - [src/dsl.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl.rs)
-  `.gewy` parser/compiler front-end, including structured block syntax lowering.
+  `.gewy` parser/compiler front-end, including pipeline/function lowering,
+  package entry resolution, and structured compatibility syntax.
 - [src/fragment.rs](/Users/Shared/chroot/dev/gewyvern/src/fragment.rs)
   Fragment registry, capability surface, attach planning, and validation.
 - [src/ir.rs](/Users/Shared/chroot/dev/gewyvern/src/ir.rs)
@@ -257,6 +267,12 @@ can express:
 - binding diagnostics now surface unsupported payload offsets per rule, so a
   `.gewy` can explain why a `byte_at` matcher is outside the current fragment
   sampling surface
+- package entry resolution through `gewy.pkg`
+- single-entry pipeline projects that merge included module files into the
+  package entry compile path
+- function-unit pipeline composition through `fn ...() { ... }` plus `|> use(:fn_name)`
+- no cross-file global mutable state; included files contribute pure DSL functions
+- pipeline packages are merged into a single front-end module IR before lowering into `TemplateBinding`
 
 The shared datagram predicate surface is what the current UDP-family protocol
 DSLs build on. In practice, the engine is already using the same IR layer to

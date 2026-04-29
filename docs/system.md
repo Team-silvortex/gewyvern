@@ -44,7 +44,7 @@ The compiler-facing surface now also materializes owned reports for frontends:
 
 The compiler pipeline is now exposed as distinct stages:
 
-- parse into an unvalidated `TemplateBinding`
+- parse into a merged pipeline/module front-end representation and then an unvalidated `TemplateBinding`
 - validate the compiled binding against the fragment registry
 - materialize owned frontend reports from the validated result
 - surface parse/validation failures as structured compiler findings
@@ -56,6 +56,10 @@ front-end outputs:
 - `diagnostics`
 - `findings`
 - `stages`
+
+The `stages.parse` section now also carries a front-end module summary for
+pipeline-based gewy packages, including DSL kind, merged step count, function
+count, and resolved include sources.
 
 The `gewyc` CLI now consumes this shared envelope and renders each subcommand as
 one view over the same underlying compiler result.

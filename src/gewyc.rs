@@ -1,4 +1,8 @@
-use crate::dsl::{DslError, compile_file, parse_str_unvalidated, validate_compiled_binding};
+use crate::dsl::{
+    DslError, FrontendDslKind, FrontendModuleSummary, compile_file, parse_file_unvalidated,
+    parse_str_unvalidated, summarize_frontend_file, summarize_frontend_str,
+    validate_compiled_binding,
+};
 use crate::flow::ProgramOperation;
 use crate::fragment::{
     BindingDiagnostics, EvidenceTier, ModelDiagnostics, PayloadOffsetSupportSummary, RegistryError,
@@ -107,8 +111,17 @@ pub struct CompilerEnvelope {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParseStageReport {
     pub ok: bool,
+    pub frontend: Option<FrontendReport>,
     pub report: Option<BindingReport>,
     pub finding: Option<CompilerFinding>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendReport {
+    pub kind: String,
+    pub function_count: usize,
+    pub merged_step_count: usize,
+    pub include_sources: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -218,12 +231,23 @@ pub fn compile_findings_report_str(input: &str) -> CompilerFindingsReport {
 }
 
 pub fn compile_envelope_file(path: &str) -> Result<CompilerEnvelope, DslError> {
-    let input = crate::dsl::read_file(path)?;
-    Ok(compile_envelope_str(&input))
+    let frontend = summarize_frontend_file(path).ok().map(frontend_report);
+    Ok(compile_envelope_from_parse_result(
+        parse_file_unvalidated(path),
+        frontend,
+    ))
 }
 
 pub fn compile_envelope_str(input: &str) -> CompilerEnvelope {
-    match parse_str_unvalidated(input) {
+    let frontend = summarize_frontend_str(input).ok().map(frontend_report);
+    compile_envelope_from_parse_result(parse_str_unvalidated(input), frontend)
+}
+
+fn compile_envelope_from_parse_result(
+    parsed: Result<TemplateBinding, DslError>,
+    frontend: Option<FrontendReport>,
+) -> CompilerEnvelope {
+    match parsed {
         Ok(binding) => {
             let binding_report = binding_report(&binding);
             let diagnostics_result = collect_binding_diagnostics(&binding);
@@ -237,6 +261,7 @@ pub fn compile_envelope_str(input: &str) -> CompilerEnvelope {
             let diagnostics = diagnostics_stage.report.clone();
             let parse = ParseStageReport {
                 ok: true,
+                frontend,
                 report: Some(binding_report.clone()),
                 finding: None,
             };
@@ -256,6 +281,7 @@ pub fn compile_envelope_str(input: &str) -> CompilerEnvelope {
         Err(err) => {
             let parse = ParseStageReport {
                 ok: false,
+                frontend,
                 report: None,
                 finding: Some(finding_from_dsl_error(&err)),
             };
@@ -687,8 +713,9 @@ fn envelope_json(report: &CompilerEnvelope) -> String {
 
 fn stages_text(report: &CompilerStagesReport) -> String {
     format!(
-        "stage=parse\nok={}\nparse_finding={}\n{}\nstage=validation\nok={}\nregistry={}\nfragments={}\nprogram_rules={}\nreason_rules={}\nchecks={}\nsampled_payload_offsets={:?}\nrequired_payload_offsets={:?}\nunsupported_payload_offsets={:?}\nvalidation_finding={}\nstage=diagnostics\nok={}\ndiagnostics_finding={}\n{}",
+        "stage=parse\nok={}\nfrontend={}\nparse_finding={}\n{}\nstage=validation\nok={}\nregistry={}\nfragments={}\nprogram_rules={}\nreason_rules={}\nchecks={}\nsampled_payload_offsets={:?}\nrequired_payload_offsets={:?}\nunsupported_payload_offsets={:?}\nvalidation_finding={}\nstage=diagnostics\nok={}\ndiagnostics_finding={}\n{}",
         report.parse.ok,
+        frontend_text(report.parse.frontend.as_ref()),
         finding_text(report.parse.finding.as_ref()),
         report
             .parse
@@ -717,8 +744,9 @@ fn stages_text(report: &CompilerStagesReport) -> String {
 
 fn stages_json(report: &CompilerStagesReport) -> String {
     format!(
-        "{{\"parse\":{{\"ok\":{},\"finding\":{},\"report\":{}}},\"validation\":{{\"ok\":{},\"registry\":\"{}\",\"fragment_count\":{},\"program_rule_count\":{},\"reason_rule_count\":{},\"checks\":[{}],\"sampled_payload_offsets\":[{}],\"required_payload_offsets\":[{}],\"unsupported_payload_offsets\":[{}],\"finding\":{}}},\"diagnostics\":{{\"ok\":{},\"finding\":{},\"report\":{}}}}}",
+        "{{\"parse\":{{\"ok\":{},\"frontend\":{},\"finding\":{},\"report\":{}}},\"validation\":{{\"ok\":{},\"registry\":\"{}\",\"fragment_count\":{},\"program_rule_count\":{},\"reason_rule_count\":{},\"checks\":[{}],\"sampled_payload_offsets\":[{}],\"required_payload_offsets\":[{}],\"unsupported_payload_offsets\":[{}],\"finding\":{}}},\"diagnostics\":{{\"ok\":{},\"finding\":{},\"report\":{}}}}}",
         report.parse.ok,
+        frontend_json(report.parse.frontend.as_ref()),
         finding_json(report.parse.finding.as_ref()),
         report
             .parse
@@ -786,6 +814,49 @@ fn u16_json_list(items: &[u16]) -> String {
         .map(|item| item.to_string())
         .collect::<Vec<_>>()
         .join(",")
+}
+
+fn frontend_report(summary: FrontendModuleSummary) -> FrontendReport {
+    FrontendReport {
+        kind: frontend_kind_text(summary.kind).to_string(),
+        function_count: summary.function_count,
+        merged_step_count: summary.merged_step_count,
+        include_sources: summary.include_sources,
+    }
+}
+
+fn frontend_kind_text(kind: FrontendDslKind) -> &'static str {
+    match kind {
+        FrontendDslKind::Pipeline => "pipeline",
+        FrontendDslKind::Structured => "structured",
+        FrontendDslKind::Legacy => "legacy",
+    }
+}
+
+fn frontend_text(frontend: Option<&FrontendReport>) -> String {
+    match frontend {
+        Some(frontend) => format!(
+            "kind={} functions={} merged_steps={} include_sources={}",
+            frontend.kind,
+            frontend.function_count,
+            frontend.merged_step_count,
+            frontend.include_sources.join(",")
+        ),
+        None => "none".into(),
+    }
+}
+
+fn frontend_json(frontend: Option<&FrontendReport>) -> String {
+    match frontend {
+        Some(frontend) => format!(
+            "{{\"kind\":\"{}\",\"function_count\":{},\"merged_step_count\":{},\"include_sources\":[{}]}}",
+            frontend.kind,
+            frontend.function_count,
+            frontend.merged_step_count,
+            string_json_list(&frontend.include_sources)
+        ),
+        None => "null".into(),
+    }
 }
 
 fn finding_text(finding: Option<&CompilerFinding>) -> String {
@@ -1518,6 +1589,7 @@ oops=true
         .unwrap();
         let json = render_stages_report(&report, RenderFormat::Json);
         assert!(json.contains("\"parse\":{\"ok\":true"));
+        assert!(json.contains("\"frontend\":"));
         assert!(json.contains("\"validation\":{\"ok\":true"));
         assert!(json.contains("\"registry\":\"builtin\""));
         assert!(json.contains(
@@ -1530,6 +1602,79 @@ oops=true
         assert!(json.contains("\"diagnostics\":{\"ok\":true"));
         assert!(json.contains("\"report\":"));
         assert!(json.contains("\"template_id\":\"udp_process_debug\""));
+    }
+
+    #[test]
+    fn stages_report_includes_pipeline_frontend_summary() {
+        let report = compile_stages_report_str(
+            r#"
+fn udp_rules() {
+  |> operation(:datagram_exchange)
+  |> program_model(:frontend_summary_model)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :frontend_summary, phase: :bind)
+}
+
+fn udp_core() {
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> use(:udp_rules)
+}
+
+template(:frontend_summary)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core)
+"#,
+        );
+        let frontend = report.parse.frontend.as_ref().unwrap();
+        assert_eq!(frontend.kind, "pipeline");
+        assert_eq!(frontend.function_count, 2);
+        assert_eq!(frontend.merged_step_count, 9);
+    }
+
+    #[test]
+    fn stages_report_lists_include_sources_in_parse_frontend_summary() {
+        let package_dir = std::env::temp_dir().join(format!(
+            "gewyc-frontend-summary-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&package_dir).unwrap();
+        std::fs::write(
+            package_dir.join("gewy.pkg"),
+            "name=frontend_summary_pkg\nversion=0.1.0\nentry=main.gewy\n",
+        )
+        .unwrap();
+        std::fs::write(
+            package_dir.join("main.gewy"),
+            r#"
+template(:frontend_summary_pkg)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> include("./module.gewy")
+|> use(:udp_core)
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            package_dir.join("module.gewy"),
+            r#"
+fn udp_core() {
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:datagram_exchange)
+  |> program_model(:frontend_summary_pkg_model)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :frontend_summary_pkg, phase: :bind)
+}
+"#,
+        )
+        .unwrap();
+
+        let report = compile_stages_report_file(package_dir.to_str().unwrap()).unwrap();
+        let frontend = report.parse.frontend.as_ref().unwrap();
+        assert_eq!(frontend.kind, "pipeline");
+        assert_eq!(frontend.function_count, 1);
+        assert_eq!(frontend.include_sources.len(), 1);
+        assert!(frontend.include_sources[0].ends_with("module.gewy"));
     }
 
     #[test]

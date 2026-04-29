@@ -19,6 +19,7 @@ enum Command {
     Findings,
     Stages,
     Envelope,
+    Init,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -61,10 +62,12 @@ impl UiLocale {
         match self {
             Self::Zh => {
                 "用法: gewyc <compile|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
+                 用法: gewyc init [dir]\n\
                  用法: gewyc <path.gewy> [--json] [--emit binding|diagnostics|findings|stages|envelope] [--out path]"
             }
             Self::En => {
                 "usage: gewyc <compile|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
+                 usage: gewyc init [dir]\n\
                  usage: gewyc <path.gewy> [--json] [--emit binding|diagnostics|findings|stages|envelope] [--out path]"
             }
         }
@@ -82,6 +85,7 @@ impl UiLocale {
             }
             (Self::Zh, "missing_out") => "缺少 --out 的值，期望输出路径",
             (Self::Zh, "write_failed") => "写入输出失败",
+            (Self::Zh, "init_failed") => "初始化 gewy package 失败",
             (_, "missing_path") => "missing .gewy file path",
             (_, "unknown_arg") => "unknown argument",
             (_, "compile_failed") => "dsl compile failed",
@@ -92,6 +96,7 @@ impl UiLocale {
             }
             (_, "missing_out") => "missing value for --out, expected an output path",
             (_, "write_failed") => "failed to write output",
+            (_, "init_failed") => "failed to initialize gewy package",
             _ => "error",
         }
     }
@@ -105,6 +110,7 @@ fn main() {
     });
 
     match cli.emit {
+        _ if cli.command == Command::Init => run_init(cli, locale),
         EmitTarget::Binding => run_compile(cli, locale),
         EmitTarget::Diagnostics => run_diagnostics(cli, locale),
         EmitTarget::Findings => run_findings(cli, locale),
@@ -169,6 +175,9 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
                 command = Command::Envelope;
                 emit = EmitTarget::Envelope;
             }
+            "init" if path.is_none() => {
+                command = Command::Init;
+            }
             value if value.starts_with('-') => {
                 return Err(format!(
                     "{}: {value}\n{}",
@@ -187,7 +196,11 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
         }
     }
 
-    let path = path.ok_or_else(|| format!("{}\n{}", locale.msg("missing_path"), locale.usage()))?;
+    let path = if command == Command::Init {
+        path.unwrap_or_else(|| ".".into())
+    } else {
+        path.ok_or_else(|| format!("{}\n{}", locale.msg("missing_path"), locale.usage()))?
+    };
     Ok(Cli {
         command,
         emit,
@@ -239,6 +252,58 @@ fn run_envelope(cli: Cli, locale: UiLocale) {
     let envelope = compile_cli_envelope(&cli.path, locale, "compile_failed");
     let out = render_envelope_report(&envelope, render_format(cli.output));
     emit_output(&out, cli.out.as_deref(), locale);
+}
+
+fn run_init(cli: Cli, locale: UiLocale) {
+    initialize_package(&cli.path).unwrap_or_else(|err| {
+        eprintln!("{}: {err}", locale.msg("init_failed"));
+        std::process::exit(1);
+    });
+}
+
+fn initialize_package(dir: &str) -> Result<(), String> {
+    let root = std::path::Path::new(dir);
+    fs::create_dir_all(root).map_err(|err| err.to_string())?;
+    let package_name = root
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty() && *name != ".")
+        .unwrap_or("gewy_app");
+
+    let manifest_path = root.join("gewy.pkg");
+    if !manifest_path.exists() {
+        fs::write(&manifest_path, render_init_manifest(package_name)).map_err(|err| err.to_string())?;
+    }
+
+    let entry_path = root.join("main.gewy");
+    if !entry_path.exists() {
+        fs::write(&entry_path, render_init_entry(package_name)).map_err(|err| err.to_string())?;
+    }
+
+    let module_path = root.join("module.gewy");
+    if !module_path.exists() {
+        fs::write(&module_path, render_init_module(package_name)).map_err(|err| err.to_string())?;
+    }
+
+    Ok(())
+}
+
+fn render_init_manifest(package_name: &str) -> String {
+    format!(
+        "name={package_name}\nversion=0.1.0\nentry=main.gewy\n# local deps: dep.std=../stdlib\n"
+    )
+}
+
+fn render_init_entry(package_name: &str) -> String {
+    format!(
+        "template(:{package_name})\n|> window(:default_5s)\n|> reason(:udp_datagram_l1)\n|> include(\"./module.gewy\")\n|> use(:network_module)\n"
+    )
+}
+
+fn render_init_module(package_name: &str) -> String {
+    format!(
+        "fn network_module() {{\n|> fragment(:udp_packet_meta_fragment)\n|> fragment(:route_meta_fragment)\n|> fragment(:sock_lineage_fragment)\n|> operation(:datagram_exchange)\n|> program_model(:{package_name}_model)\n|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :{package_name}, phase: :bind)\n|> program_rule(predicate: \"datagram_observed:udp\", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: :{package_name}, phase: :send_request)\n|> param(:sock_lineage_fragment.capture_comm, true)\n}}\n"
+    )
 }
 
 fn compile_cli_envelope(path: &str, locale: UiLocale, error_key: &str) -> CompilerEnvelope {
@@ -381,6 +446,13 @@ mod tests {
     }
 
     #[test]
+    fn parse_cli_accepts_init_without_path() {
+        let cli = parse_cli(vec!["gewyc".into(), "init".into()], UiLocale::En).unwrap();
+        assert_eq!(cli.command, Command::Init);
+        assert_eq!(cli.path, ".");
+    }
+
+    #[test]
     fn binding_json_mentions_template_id() {
         let report = compile_binding_report_file(
             "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
@@ -417,5 +489,14 @@ mod tests {
         assert!(json.contains("\"diagnostics\":"));
         assert!(json.contains("\"findings\":{\"findings\":[]}"));
         assert!(json.contains("\"stages\":"));
+    }
+
+    #[test]
+    fn init_templates_include_manifest_and_main_entry() {
+        assert!(render_init_manifest("demo").contains("entry=main.gewy"));
+        assert!(render_init_entry("demo").contains("|> include(\"./module.gewy\")"));
+        assert!(render_init_entry("demo").contains("|> use(:network_module)"));
+        assert!(render_init_module("demo").contains("fn network_module() {"));
+        assert!(render_init_module("demo").contains("program_model(:demo_model)"));
     }
 }

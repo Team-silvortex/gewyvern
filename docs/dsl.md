@@ -71,6 +71,14 @@ older structured block syntax and legacy `key=value` shape are both still
 supported for compatibility and all existing protocol DSL files continue to
 compile.
 
+The language direction is intentionally functional:
+
+- one package has one main entry file
+- included files do not carry global mutable state
+- reusable behavior is expressed as pure function units
+- the final compile target is the entry file's merged AST/binding, not
+  independently executed modules
+
 Comments start with `#`.
 
 Example:
@@ -87,8 +95,15 @@ template(:structured_udp_process_debug)
 |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :structured_udp_process_debug, phase: :bind)
 ```
 
-The pipeline parser lowers these calls into the same compiler IR as the
+The pipeline parser now first merges files and function units into a single
+pipeline module IR, then lowers that IR into the same compiler surface as the
 structured and legacy forms; it does not generate eBPF bytecode directly.
+
+That merged front-end IR is now also reflected in compiler-facing reports, so
+`gewyc stages` can surface function counts, merged step counts, and resolved
+`include(...)` sources for a package entry.
+Pipeline projects can also resolve through a `gewy.pkg` manifest with one
+`main.gewy` entry and `include("...")` expansion.
 
 ## Pipeline Shape
 
@@ -111,8 +126,39 @@ Then extend the binding with Elixir-style pipeline steps:
 - `|> evidence(:sock_lineage, :core_requirement)`
 - `|> program_rule(...)`
 - `|> reason_rule(...)`
+- `|> include("./module.gewy")`
+- `|> use(:network_module)`
 
 Current parser rule: one pipeline call per line.
+
+Function units are declared with zero-argument blocks:
+
+```text
+fn network_module() {
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> operation(:datagram_exchange)
+}
+```
+
+And then applied from the entry pipeline:
+
+```text
+template(:demo_app)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> include("./module.gewy")
+|> use(:network_module)
+```
+
+Current semantics:
+
+- functions are pure DSL composition units
+- they may not define `template(...)`
+- `include(...)` merges function definitions and steps into the single package
+  entry compile path
+- nested `use(:other_function)` composition is supported
+- there is no cross-file global variable state
 
 Pipeline program rules use keyword arguments:
 
@@ -128,6 +174,60 @@ Pipeline reason rules use `key_event:` instead of `stage:`:
 
 Atoms like `:udp_datagram_l1` lower to plain DSL identifiers, while quoted
 strings are kept for values that contain punctuation or spaces.
+
+## Package Shape
+
+Minimal gewy packages use:
+
+```text
+gewy.pkg
+main.gewy
+module.gewy
+```
+
+Example `gewy.pkg`:
+
+```text
+name=demo_app
+version=0.1.0
+entry=main.gewy
+dep.std=../stdlib
+```
+
+Example `main.gewy`:
+
+```text
+template(:demo_app)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> include("./module.gewy")
+|> use(:network_module)
+```
+
+Example `module.gewy`:
+
+```text
+fn network_module() {
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:demo_app_model)
+}
+```
+
+Included files are merged into the package entry compile path before final
+lowering. Current expected shape for included files is pure pipeline function
+definitions or pipeline steps, without their own `template(...)` head.
+
+Dependency packages are currently local-path based. A package can include files
+from a dependency with:
+
+```text
+|> include("std:udp_module.gewy")
+```
+
+Where `dep.std=../stdlib` is declared in `gewy.pkg`.
 
 ## Structured Blocks
 

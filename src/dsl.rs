@@ -10,6 +10,24 @@ use crate::template::{
 };
 use std::collections::BTreeMap;
 use std::fs;
+use std::path::{Path, PathBuf};
+
+pub const PACKAGE_MANIFEST_FILE: &str = "gewy.pkg";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FrontendDslKind {
+    Pipeline,
+    Structured,
+    Legacy,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendModuleSummary {
+    pub kind: FrontendDslKind,
+    pub function_count: usize,
+    pub merged_step_count: usize,
+    pub include_sources: Vec<String>,
+}
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum DslError {
@@ -26,8 +44,10 @@ pub fn read_file(path: &str) -> Result<String, DslError> {
 }
 
 pub fn parse_file_unvalidated(path: &str) -> Result<TemplateBinding, DslError> {
-    let input = read_file(path)?;
-    parse_str_unvalidated(&input)
+    let package = resolve_package_context(path)?;
+    let resolved = package.entry_file.clone();
+    let input = read_file(&resolved)?;
+    parse_str_unvalidated_with_base(&input, Some(&package))
 }
 
 pub fn compile_file(path: &str) -> Result<TemplateBinding, DslError> {
@@ -37,8 +57,26 @@ pub fn compile_file(path: &str) -> Result<TemplateBinding, DslError> {
 }
 
 pub fn parse_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError> {
+    parse_str_unvalidated_with_base(input, None)
+}
+
+pub fn summarize_frontend_file(path: &str) -> Result<FrontendModuleSummary, DslError> {
+    let package = resolve_package_context(path)?;
+    let resolved = package.entry_file.clone();
+    let input = read_file(&resolved)?;
+    summarize_frontend_str_with_base(&input, Some(&package))
+}
+
+pub fn summarize_frontend_str(input: &str) -> Result<FrontendModuleSummary, DslError> {
+    summarize_frontend_str_with_base(input, None)
+}
+
+fn parse_str_unvalidated_with_base(
+    input: &str,
+    package: Option<&PackageContext>,
+) -> Result<TemplateBinding, DslError> {
     if looks_like_pipeline_dsl(input) {
-        let legacy = pipeline_to_legacy(input)?;
+        let legacy = pipeline_to_legacy(input, package)?;
         return parse_legacy_str_unvalidated(&legacy);
     }
     if looks_like_structured_dsl(input) {
@@ -46,6 +84,155 @@ pub fn parse_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError> {
         return parse_legacy_str_unvalidated(&legacy);
     }
     parse_legacy_str_unvalidated(input)
+}
+
+fn summarize_frontend_str_with_base(
+    input: &str,
+    package: Option<&PackageContext>,
+) -> Result<FrontendModuleSummary, DslError> {
+    if looks_like_pipeline_dsl(input) {
+        let module = parse_pipeline_module(input, package, true)?;
+        return Ok(FrontendModuleSummary {
+            kind: FrontendDslKind::Pipeline,
+            function_count: module.functions.len(),
+            merged_step_count: module.body.len()
+                + module
+                    .functions
+                    .values()
+                    .map(|function| function.body.len())
+                    .sum::<usize>(),
+            include_sources: module.include_sources,
+        });
+    }
+    if looks_like_structured_dsl(input) {
+        return Ok(FrontendModuleSummary {
+            kind: FrontendDslKind::Structured,
+            function_count: 0,
+            merged_step_count: input
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty() && !line.starts_with('#') && *line != "}")
+                .count(),
+            include_sources: Vec::new(),
+        });
+    }
+    Ok(FrontendModuleSummary {
+        kind: FrontendDslKind::Legacy,
+        function_count: 0,
+        merged_step_count: input
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .count(),
+        include_sources: Vec::new(),
+    })
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PackageContext {
+    root_dir: PathBuf,
+    entry_file: String,
+    dependencies: BTreeMap<String, PathBuf>,
+}
+
+fn resolve_package_context(path: &str) -> Result<PackageContext, DslError> {
+    let path = Path::new(path);
+    if path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext == "gewy")
+    {
+        let entry_file = path.to_string_lossy().into_owned();
+        let root_dir = path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
+        return Ok(PackageContext {
+            root_dir,
+            entry_file,
+            dependencies: BTreeMap::new(),
+        });
+    }
+
+    let manifest_path = if path.is_dir() {
+        path.join(PACKAGE_MANIFEST_FILE)
+    } else if path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name == PACKAGE_MANIFEST_FILE)
+    {
+        path.to_path_buf()
+    } else {
+        return Ok(PackageContext {
+            entry_file: path.to_string_lossy().into_owned(),
+            root_dir: path
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| PathBuf::from(".")),
+            dependencies: BTreeMap::new(),
+        });
+    };
+
+    let manifest = read_package_manifest(&manifest_path)?;
+    let package_root = manifest_path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    Ok(PackageContext {
+        entry_file: package_root.join(manifest.entry).to_string_lossy().into_owned(),
+        root_dir: package_root,
+        dependencies: manifest.dependencies,
+    })
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PackageManifest {
+    name: String,
+    version: String,
+    entry: String,
+    dependencies: BTreeMap<String, PathBuf>,
+}
+
+fn read_package_manifest(path: &Path) -> Result<PackageManifest, DslError> {
+    let input = fs::read_to_string(path).map_err(|err| DslError::Io(err.to_string()))?;
+    let mut name = None;
+    let mut version = None;
+    let mut entry = None;
+    let mut dependencies = BTreeMap::new();
+    let manifest_root = path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+
+    for raw_line in input.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (key, value) = line
+            .split_once('=')
+            .ok_or_else(|| DslError::InvalidLine(line.into()))?;
+        let value = value.trim().trim_matches('"').to_string();
+        match key.trim() {
+            "name" => name = Some(value),
+            "version" => version = Some(value),
+            "entry" => entry = Some(value),
+            dep if dep.starts_with("dep.") => {
+                dependencies.insert(
+                    dep["dep.".len()..].trim().to_string(),
+                    manifest_root.join(value),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    Ok(PackageManifest {
+        name: name.ok_or(DslError::MissingField("name"))?,
+        version: version.ok_or(DslError::MissingField("version"))?,
+        entry: entry.ok_or(DslError::MissingField("entry"))?,
+        dependencies,
+    })
 }
 
 fn parse_legacy_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError> {
@@ -188,21 +375,129 @@ fn looks_like_pipeline_dsl(input: &str) -> bool {
         .map(str::trim)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .next()
-        .is_some_and(|line| line.starts_with("template(") && line.ends_with(')'))
+        .is_some_and(|line| {
+            (line.starts_with("template(") && line.ends_with(')'))
+                || (line.starts_with("fn ") && line.ends_with('{'))
+        })
 }
 
-fn pipeline_to_legacy(input: &str) -> Result<String, DslError> {
-    let mut output = Vec::<String>::new();
-    let mut saw_template = false;
+fn pipeline_to_legacy(input: &str, package: Option<&PackageContext>) -> Result<String, DslError> {
+    let module = parse_pipeline_module(input, package, true)?;
+    lower_pipeline_module_to_legacy(&module, true)
+}
 
-    for (line_no, raw_line) in input.lines().enumerate() {
-        let line_no = line_no + 1;
-        let line = raw_line.trim();
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PipelineModule {
+    template: Option<PipelineCall>,
+    body: Vec<PipelineCall>,
+    functions: BTreeMap<String, PipelineFunction>,
+    include_sources: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PipelineFunction {
+    body: Vec<PipelineCall>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PipelineCall {
+    line_no: usize,
+    name: String,
+    args: Vec<String>,
+}
+
+fn parse_pipeline_module(
+    input: &str,
+    package: Option<&PackageContext>,
+    allow_template_head: bool,
+) -> Result<PipelineModule, DslError> {
+    let mut module = PipelineModule {
+        template: None,
+        body: Vec::new(),
+        functions: BTreeMap::new(),
+        include_sources: Vec::new(),
+    };
+    parse_pipeline_module_into(
+        input,
+        package,
+        allow_template_head,
+        &mut module,
+        None,
+    )?;
+
+    if allow_template_head && module.template.is_none() {
+        return Err(DslError::InvalidValue(
+            "pipeline DSL must start with template(...)".into(),
+        ));
+    }
+
+    Ok(module)
+}
+
+fn parse_pipeline_module_into(
+    input: &str,
+    package: Option<&PackageContext>,
+    allow_template_head: bool,
+    module: &mut PipelineModule,
+    function_name: Option<&str>,
+) -> Result<(), DslError> {
+    let lines = input.lines().collect::<Vec<_>>();
+    let mut index = 0usize;
+
+    while index < lines.len() {
+        let line_no = index + 1;
+        let line = lines[index].trim();
         if line.is_empty() || line.starts_with('#') {
+            index += 1;
             continue;
         }
 
-        let call = if saw_template {
+        if let Some(header) = line.strip_suffix('{') {
+            let header = header.trim();
+            if let Some(name) = header
+                .strip_prefix("fn ")
+                .and_then(|rest| rest.strip_suffix("()"))
+            {
+                let mut body = Vec::new();
+                index += 1;
+                while index < lines.len() {
+                    let body_line = lines[index].trim();
+                    if body_line == "}" {
+                        break;
+                    }
+                    if !body_line.is_empty() && !body_line.starts_with('#') {
+                        let nested_call = body_line.strip_prefix("|>").ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "pipeline function bodies must contain '|>' steps".into(),
+                            )
+                            .at_line(index + 1)
+                        })?;
+                        let (nested_name, nested_args) =
+                            parse_pipeline_call(nested_call.trim())
+                                .map_err(|err| err.at_line(index + 1))?;
+                        body.push(PipelineCall {
+                            line_no: index + 1,
+                            name: nested_name,
+                            args: nested_args,
+                        });
+                    }
+                    index += 1;
+                }
+                if index == lines.len() {
+                    return Err(DslError::InvalidValue(
+                        "unclosed pipeline function block".into(),
+                    )
+                    .at_line(line_no));
+                }
+                module
+                    .functions
+                    .insert(name.trim().to_string(), PipelineFunction { body });
+                index += 1;
+                continue;
+            }
+        }
+
+        let call = if module.template.is_some() || !allow_template_head {
             line.strip_prefix("|>")
                 .ok_or_else(|| {
                     DslError::InvalidValue(
@@ -218,69 +513,189 @@ fn pipeline_to_legacy(input: &str) -> Result<String, DslError> {
         let (name, args) = parse_pipeline_call(call).map_err(|err| err.at_line(line_no))?;
         match name.as_str() {
             "template" => {
-                if saw_template {
+                if module.template.is_some() || !allow_template_head {
                     return Err(DslError::InvalidValue(
                         "pipeline DSL supports exactly one template() head".into(),
                     )
                     .at_line(line_no));
                 }
-                output.push(format!(
-                    "template={}",
-                    parse_pipeline_single_arg(&args, "template")?
-                ));
-                saw_template = true;
+                module.template = Some(PipelineCall { line_no, name, args });
             }
-            "window" => lower_pipeline_window(&args, &mut output).map_err(|err| err.at_line(line_no))?,
-            "reason" => output.push(format!(
-                "reason={}",
-                parse_pipeline_single_arg(&args, "reason")?
-            )),
-            "reason_model" => output.push(format!(
-                "reason_model={}",
-                parse_pipeline_single_arg(&args, "reason_model")?
-            )),
-            "fragment" => output.push(format!(
-                "fragment={}",
-                parse_pipeline_single_arg(&args, "fragment")?
-            )),
-            "program_model" => output.push(format!(
-                "program_model={}",
-                parse_pipeline_single_arg(&args, "program_model")?
-            )),
-            "operation" => output.push(format!(
-                "operation={}",
-                parse_pipeline_single_arg(&args, "operation")?
-            )),
-            "param" => output.push(format!(
-                "param={}",
-                lower_pipeline_param(&args).map_err(|err| err.at_line(line_no))?
-            )),
-            "evidence" => output.push(format!(
-                "evidence={}",
-                lower_pipeline_evidence(&args).map_err(|err| err.at_line(line_no))?
-            )),
-            "program_rule" => output.push(
-                lower_pipeline_rule(&args, false).map_err(|err| err.at_line(line_no))?,
-            ),
-            "reason_rule" => output.push(
-                lower_pipeline_rule(&args, true).map_err(|err| err.at_line(line_no))?,
-            ),
+            "include" => {
+                let include = parse_pipeline_single_arg(&args, "include")?;
+                let package = package.ok_or_else(|| {
+                    DslError::InvalidValue(
+                        "pipeline include() requires a filesystem-backed entry file".into(),
+                    )
+                    .at_line(line_no)
+                })?;
+                let include_path = resolve_include_path(package, &include)
+                    .map_err(|err| err.at_line(line_no))?;
+                module
+                    .include_sources
+                    .push(include_path.to_string_lossy().into_owned());
+                let include_input = fs::read_to_string(&include_path)
+                    .map_err(|err| DslError::Io(err.to_string()).at_line(line_no))?;
+                let include_root = include_path
+                    .parent()
+                    .map(Path::to_path_buf)
+                    .unwrap_or_else(|| package.root_dir.clone());
+                let include_package = PackageContext {
+                    root_dir: include_root,
+                    entry_file: include_path.to_string_lossy().into_owned(),
+                    dependencies: package.dependencies.clone(),
+                };
+                parse_pipeline_module_into(
+                    &include_input,
+                    Some(&include_package),
+                    false,
+                    module,
+                    function_name,
+                )
+                .map_err(|err| err.at_line(line_no))?;
+            }
             other => {
-                return Err(DslError::InvalidValue(format!(
-                    "unknown pipeline DSL step '{other}'"
-                ))
-                .at_line(line_no));
+                let target = if let Some(function_name) = function_name {
+                    &mut module
+                        .functions
+                        .get_mut(function_name)
+                        .expect("function exists while parsing")
+                        .body
+                } else {
+                    &mut module.body
+                };
+                target.push(PipelineCall {
+                    line_no,
+                    name: other.to_string(),
+                    args,
+                });
             }
         }
+        index += 1;
     }
 
-    if !saw_template {
+    Ok(())
+}
+
+fn lower_pipeline_module_to_legacy(
+    module: &PipelineModule,
+    allow_template_head: bool,
+) -> Result<String, DslError> {
+    let mut output = Vec::<String>::new();
+    if let Some(template) = &module.template {
+        output.push(format!(
+            "template={}",
+            parse_pipeline_single_arg(&template.args, "template").map_err(|err| err.at_line(template.line_no))?
+        ));
+    } else if allow_template_head {
         return Err(DslError::InvalidValue(
             "pipeline DSL must start with template(...)".into(),
         ));
     }
 
+    lower_pipeline_calls(&module.body, module, &mut output, allow_template_head)?;
     Ok(output.join("\n"))
+}
+
+fn lower_pipeline_calls(
+    calls: &[PipelineCall],
+    module: &PipelineModule,
+    output: &mut Vec<String>,
+    allow_template_head: bool,
+) -> Result<(), DslError> {
+    for call in calls {
+        lower_pipeline_call(call, module, output, allow_template_head)?;
+    }
+    Ok(())
+}
+
+fn lower_pipeline_call(
+    call: &PipelineCall,
+    module: &PipelineModule,
+    output: &mut Vec<String>,
+    allow_template_head: bool,
+) -> Result<(), DslError> {
+    let line_no = call.line_no;
+    match call.name.as_str() {
+        "template" => {
+            if !allow_template_head {
+                return Err(DslError::InvalidValue(
+                    "pipeline DSL supports exactly one template() head".into(),
+                )
+                .at_line(line_no));
+            }
+            output.push(format!(
+                "template={}",
+                parse_pipeline_single_arg(&call.args, "template")?
+            ));
+        }
+        "use" => {
+            let function_name = parse_pipeline_single_arg(&call.args, "use")?;
+            let function = module.functions.get(&function_name).ok_or_else(|| {
+                DslError::InvalidValue(format!("unknown pipeline function '{function_name}'"))
+                    .at_line(line_no)
+            })?;
+            lower_pipeline_calls(&function.body, module, output, false)?;
+        }
+        "include" => {
+            return Err(DslError::InvalidValue(
+                "pipeline include() should be resolved before lowering".into(),
+            )
+            .at_line(line_no));
+        }
+        "window" => lower_pipeline_window(&call.args, output).map_err(|err| err.at_line(line_no))?,
+        "reason" => output.push(format!(
+            "reason={}",
+            parse_pipeline_single_arg(&call.args, "reason")?
+        )),
+        "reason_model" => output.push(format!(
+            "reason_model={}",
+            parse_pipeline_single_arg(&call.args, "reason_model")?
+        )),
+        "fragment" => output.push(format!(
+            "fragment={}",
+            parse_pipeline_single_arg(&call.args, "fragment")?
+        )),
+        "program_model" => output.push(format!(
+            "program_model={}",
+            parse_pipeline_single_arg(&call.args, "program_model")?
+        )),
+        "operation" => output.push(format!(
+            "operation={}",
+            parse_pipeline_single_arg(&call.args, "operation")?
+        )),
+        "param" => output.push(format!(
+            "param={}",
+            lower_pipeline_param(&call.args).map_err(|err| err.at_line(line_no))?
+        )),
+        "evidence" => output.push(format!(
+            "evidence={}",
+            lower_pipeline_evidence(&call.args).map_err(|err| err.at_line(line_no))?
+        )),
+        "program_rule" => output.push(
+            lower_pipeline_rule(&call.args, false).map_err(|err| err.at_line(line_no))?,
+        ),
+        "reason_rule" => output.push(
+            lower_pipeline_rule(&call.args, true).map_err(|err| err.at_line(line_no))?,
+        ),
+        other => {
+            return Err(DslError::InvalidValue(format!(
+                "unknown pipeline DSL step '{other}'"
+            ))
+            .at_line(line_no));
+        }
+    }
+    Ok(())
+}
+
+fn resolve_include_path(package: &PackageContext, include: &str) -> Result<PathBuf, DslError> {
+    if let Some((dep, file)) = include.split_once(':') {
+        let dep_root = package.dependencies.get(dep).ok_or_else(|| {
+            DslError::InvalidValue(format!("unknown package dependency '{dep}'"))
+        })?;
+        return Ok(dep_root.join(file));
+    }
+    Ok(package.root_dir.join(include))
 }
 
 fn parse_pipeline_call(line: &str) -> Result<(String, Vec<String>), DslError> {

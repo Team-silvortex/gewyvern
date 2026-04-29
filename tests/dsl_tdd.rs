@@ -9,6 +9,7 @@ use gewyvern::template::FragmentParamValue;
 
 mod support;
 
+use std::fs;
 use std::time::{Duration, SystemTime};
 use support::{
     packet_fact, packet_fact_with_dir, packet_fact_with_dir_and_payload,
@@ -5120,6 +5121,236 @@ template(:pipeline_reason_udp)
         binding.template.reason_profile.as_ref().unwrap(),
         ReasonProfile::Declarative(reason) if reason.id == "pipeline_reason_udp_reason"
     ));
+}
+
+#[test]
+fn dsl_accepts_pipeline_function_units_without_global_state() {
+    let binding = compile_str(
+        r#"
+fn udp_core() {
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:datagram_exchange)
+  |> program_model(:pipeline_function_udp_model)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :pipeline_function_udp, phase: :bind)
+}
+
+template(:pipeline_function_udp)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core)
+|> param(:sock_lineage_fragment.capture_comm, true)
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "pipeline_function_udp");
+    assert_eq!(
+        binding.template.fragment_set,
+        vec![
+            "udp_packet_meta_fragment",
+            "route_meta_fragment",
+            "sock_lineage_fragment"
+        ]
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "pipeline_function_udp_model"
+    );
+    assert_eq!(
+        binding.fragment_params["sock_lineage_fragment"]["capture_comm"],
+        FragmentParamValue::Bool(true)
+    );
+}
+
+#[test]
+fn dsl_accepts_nested_pipeline_function_use_units() {
+    let binding = compile_str(
+        r#"
+fn udp_rules() {
+  |> operation(:datagram_exchange)
+  |> program_model(:pipeline_nested_fn_udp_model)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :pipeline_nested_fn_udp, phase: :bind)
+}
+
+fn udp_core() {
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> use(:udp_rules)
+}
+
+template(:pipeline_nested_fn_udp)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core)
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "pipeline_nested_fn_udp");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "pipeline_nested_fn_udp_model"
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::DatagramExchange
+    );
+}
+
+#[test]
+fn dsl_package_entry_compiles_from_manifest_directory_and_merges_pipeline_includes() {
+    let package_dir = std::env::temp_dir().join(format!(
+        "gewy-package-{}-manifest-dir",
+        std::process::id()
+    ));
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(
+        package_dir.join("gewy.pkg"),
+        "name=package_udp_debug\nversion=0.1.0\nentry=main.gewy\n",
+    )
+    .unwrap();
+    fs::write(
+        package_dir.join("main.gewy"),
+        r#"
+template(:package_udp_debug)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> include("./partials.gewy")
+"#,
+    )
+    .unwrap();
+    fs::write(
+        package_dir.join("partials.gewy"),
+        r#"
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:package_udp_debug_model)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :package_udp_debug, phase: :bind)
+|> param(:sock_lineage_fragment.capture_comm, true)
+"#,
+    )
+    .unwrap();
+
+    let binding = compile_file(package_dir.to_str().unwrap()).unwrap();
+    assert_eq!(binding.template.id, "package_udp_debug");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "package_udp_debug_model"
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::DatagramExchange
+    );
+    assert_eq!(
+        binding.fragment_params["sock_lineage_fragment"]["capture_comm"],
+        FragmentParamValue::Bool(true)
+    );
+}
+
+#[test]
+fn dsl_package_entry_can_include_pipeline_module_from_local_dependency() {
+    let root = std::env::temp_dir().join(format!("gewy-package-{}-deps", std::process::id()));
+    let app_dir = root.join("app");
+    let dep_dir = root.join("udp_stdlib");
+    fs::create_dir_all(&app_dir).unwrap();
+    fs::create_dir_all(&dep_dir).unwrap();
+
+    fs::write(
+        app_dir.join("gewy.pkg"),
+        format!(
+            "name=app_with_dep\nversion=0.1.0\nentry=main.gewy\ndep.std={}\n",
+            dep_dir.to_string_lossy()
+        ),
+    )
+    .unwrap();
+    fs::write(
+        app_dir.join("main.gewy"),
+        r#"
+template(:app_with_dep)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> include("std:udp_module.gewy")
+"#,
+    )
+    .unwrap();
+    fs::write(
+        dep_dir.join("udp_module.gewy"),
+        r#"
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:app_with_dep_model)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :app_with_dep, phase: :bind)
+"#,
+    )
+    .unwrap();
+
+    let binding = compile_file(app_dir.to_str().unwrap()).unwrap();
+    assert_eq!(binding.template.id, "app_with_dep");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "app_with_dep_model"
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::DatagramExchange
+    );
+}
+
+#[test]
+fn dsl_package_entry_can_use_function_defined_in_included_module() {
+    let package_dir = std::env::temp_dir().join(format!(
+        "gewy-package-{}-functions",
+        std::process::id()
+    ));
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(
+        package_dir.join("gewy.pkg"),
+        "name=package_fn_udp\nversion=0.1.0\nentry=main.gewy\n",
+    )
+    .unwrap();
+    fs::write(
+        package_dir.join("main.gewy"),
+        r#"
+template(:package_fn_udp)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> include("./module.gewy")
+|> use(:udp_core)
+"#,
+    )
+    .unwrap();
+    fs::write(
+        package_dir.join("module.gewy"),
+        r#"
+fn udp_core() {
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:datagram_exchange)
+  |> program_model(:package_fn_udp_model)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :package_fn_udp, phase: :bind)
+}
+"#,
+    )
+    .unwrap();
+
+    let binding = compile_file(package_dir.to_str().unwrap()).unwrap();
+    assert_eq!(binding.template.id, "package_fn_udp");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "package_fn_udp_model"
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::DatagramExchange
+    );
 }
 
 #[test]
