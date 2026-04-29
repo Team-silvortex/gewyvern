@@ -79,6 +79,13 @@ For parse/validation/diagnostics failures, the staged report now preserves
 stage-local findings and any already-materialized stage output instead of
 collapsing immediately into a single top-level error.
 
+Parse findings now also carry front-end specific codes for common pipeline and
+package-entry failures, including unknown `use()` targets, unknown package
+dependencies, non-filesystem `include()` calls, invalid function bodies, and
+unclosed function blocks. Those findings continue to preserve the DSL source
+line, so frontends can anchor them to concrete `include()` and `use()`
+statements.
+
 The `validation` section currently summarizes:
 
 - registry source

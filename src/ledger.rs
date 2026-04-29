@@ -103,6 +103,7 @@ pub struct PacketMetaFact {
     pub local_port: Option<u16>,
     pub remote_port: Option<u16>,
     pub payload_byte0: Option<u8>,
+    pub payload_byte1: Option<u8>,
     pub payload_prefix2: Option<u16>,
     pub payload_prefix4: Option<u32>,
     pub payload_byte4: Option<u8>,

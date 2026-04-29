@@ -145,10 +145,11 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
         SignalKind::PacketObserved => match phase {
             "send_request" | "send_response" | "send_client_hello" | "send_ping" | "send_query"
             | "send_connect" | "send_ehlo" | "send_bind" | "send_search" | "send_modify"
-            | "send_password" => {
+            | "send_password" | "send_get" | "send_set" => {
                 Some("emit_payload")
             }
             "receive_request"
+            | "receive_ok"
             | "receive_error"
             | "receive_response"
             | "receive_auth"
@@ -160,7 +161,9 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "receive_search_result"
             | "receive_modify_response"
             | "receive_modify_denied"
-            | "receive_modify_constraint_violation" => Some("receive_payload"),
+            | "receive_modify_constraint_violation"
+            | "receive_value"
+            | "receive_stored" => Some("receive_payload"),
             _ => None,
         },
         SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {
@@ -347,6 +350,7 @@ pub fn matches_flow_predicate(
 fn packet_payload_byte_at(packet: &crate::ledger::PacketMetaFact, offset: u16) -> Option<u8> {
     match offset {
         0 => packet.payload_byte0,
+        1 => packet.payload_byte1,
         4 => packet.payload_byte4,
         5 => packet.payload_byte5,
         9 => packet.payload_byte9,

@@ -248,15 +248,12 @@ pub fn compile_stages_report_str(input: &str) -> CompilerStagesReport {
 }
 
 pub fn compile_findings_report_file(path: &str) -> CompilerFindingsReport {
-    let input = match crate::dsl::read_file(path) {
-        Ok(input) => input,
-        Err(err) => {
-            return CompilerFindingsReport {
-                findings: vec![finding_from_dsl_error(&err)],
-            };
-        }
-    };
-    compile_findings_report_str(&input)
+    match compile_envelope_file(path) {
+        Ok(envelope) => envelope.findings,
+        Err(err) => CompilerFindingsReport {
+            findings: vec![finding_from_dsl_error(&err)],
+        },
+    }
 }
 
 pub fn compile_findings_report_str(input: &str) -> CompilerFindingsReport {
@@ -1341,9 +1338,25 @@ fn dsl_error_code(err: &DslError) -> &'static str {
         DslError::Located { inner, .. } => dsl_error_code(inner),
         DslError::InvalidLine(_) => "GEWYC-PARSE-INVALID-LINE",
         DslError::MissingField(_) => "GEWYC-PARSE-MISSING-FIELD",
-        DslError::InvalidValue(_) => "GEWYC-PARSE-INVALID-VALUE",
+        DslError::InvalidValue(value) => dsl_invalid_value_code(value),
         DslError::Registry(_) => "GEWYC-PARSE-REGISTRY",
         DslError::Io(_) => "GEWYC-PARSE-IO",
+    }
+}
+
+fn dsl_invalid_value_code(value: &str) -> &'static str {
+    if value.starts_with("unknown pipeline function '") {
+        "GEWYC-PARSE-UNKNOWN-PIPELINE-FUNCTION"
+    } else if value.starts_with("unknown package dependency '") {
+        "GEWYC-PARSE-UNKNOWN-PACKAGE-DEPENDENCY"
+    } else if value == "pipeline include() requires a filesystem-backed entry file" {
+        "GEWYC-PARSE-INCLUDE-NONFILESYSTEM-ENTRY"
+    } else if value == "pipeline function bodies must contain '|>' steps" {
+        "GEWYC-PARSE-INVALID-FUNCTION-BODY"
+    } else if value == "unclosed pipeline function block" {
+        "GEWYC-PARSE-UNCLOSED-FUNCTION-BLOCK"
+    } else {
+        "GEWYC-PARSE-INVALID-VALUE"
     }
 }
 
@@ -1690,6 +1703,122 @@ rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;sta
     }
 
     #[test]
+    fn compile_findings_report_str_uses_specific_code_for_unknown_pipeline_function() {
+        let report = compile_findings_report_str(
+            r#"
+template(:broken_pipeline_use)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:missing_core)
+"#,
+        );
+        assert_eq!(report.findings.len(), 1);
+        assert_eq!(
+            report.findings[0].code,
+            "GEWYC-PARSE-UNKNOWN-PIPELINE-FUNCTION"
+        );
+        assert_eq!(report.findings[0].line, Some(5));
+        assert!(
+            report.findings[0]
+                .message
+                .contains("unknown pipeline function 'missing_core'")
+        );
+    }
+
+    #[test]
+    fn compile_findings_report_file_uses_specific_code_for_unknown_package_dependency() {
+        let package_dir = std::env::temp_dir().join(format!(
+            "gewyc-missing-dependency-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&package_dir).unwrap();
+        std::fs::write(
+            package_dir.join("gewy.pkg"),
+            "name=missing_dependency_pkg\nversion=0.1.0\nentry=main.gewy\n",
+        )
+        .unwrap();
+        std::fs::write(
+            package_dir.join("main.gewy"),
+            r#"
+template(:missing_dependency_pkg)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> include("missing_dep:module.gewy")
+"#,
+        )
+        .unwrap();
+
+        let report = compile_findings_report_file(package_dir.to_str().unwrap());
+        assert_eq!(report.findings.len(), 1);
+        assert_eq!(
+            report.findings[0].code,
+            "GEWYC-PARSE-UNKNOWN-PACKAGE-DEPENDENCY"
+        );
+        assert_eq!(report.findings[0].line, Some(5));
+        assert!(
+            report.findings[0]
+                .message
+                .contains("unknown package dependency 'missing_dep'")
+        );
+    }
+
+    #[test]
+    fn compile_findings_report_str_uses_specific_code_for_nonfilesystem_include() {
+        let report = compile_findings_report_str(
+            r#"
+template(:include_without_package)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> include("./module.gewy")
+"#,
+        );
+        assert_eq!(report.findings.len(), 1);
+        assert_eq!(
+            report.findings[0].code,
+            "GEWYC-PARSE-INCLUDE-NONFILESYSTEM-ENTRY"
+        );
+        assert_eq!(report.findings[0].line, Some(5));
+    }
+
+    #[test]
+    fn compile_findings_report_str_uses_specific_code_for_invalid_function_body() {
+        let report = compile_findings_report_str(
+            r#"
+fn udp_core() {
+  fragment(:udp_packet_meta_fragment)
+}
+
+template(:invalid_function_body)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core)
+"#,
+        );
+        assert_eq!(report.findings.len(), 1);
+        assert_eq!(
+            report.findings[0].code,
+            "GEWYC-PARSE-INVALID-FUNCTION-BODY"
+        );
+        assert_eq!(report.findings[0].line, Some(3));
+    }
+
+    #[test]
+    fn compile_findings_report_str_uses_specific_code_for_unclosed_function_block() {
+        let report = compile_findings_report_str(
+            r#"
+fn udp_core() {
+  |> fragment(:udp_packet_meta_fragment)
+"#,
+        );
+        assert_eq!(report.findings.len(), 1);
+        assert_eq!(
+            report.findings[0].code,
+            "GEWYC-PARSE-UNCLOSED-FUNCTION-BLOCK"
+        );
+        assert_eq!(report.findings[0].line, Some(2));
+    }
+
+    #[test]
     fn findings_json_includes_code_severity_and_line() {
         let report = compile_findings_report_str(
             r#"
@@ -1733,6 +1862,34 @@ oops=true
     }
 
     #[test]
+    fn stage_local_finding_keeps_specific_frontend_parse_code() {
+        let stages = compile_stages_report_str(
+            r#"
+template(:broken_pipeline_use)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:missing_core)
+"#,
+        );
+        assert_eq!(
+            stages
+                .parse
+                .finding
+                .as_ref()
+                .map(|finding| finding.code.as_str()),
+            Some("GEWYC-PARSE-UNKNOWN-PIPELINE-FUNCTION")
+        );
+        assert_eq!(
+            stages
+                .parse
+                .finding
+                .as_ref()
+                .and_then(|finding| finding.line),
+            Some(5)
+        );
+    }
+
+    #[test]
     fn envelope_json_contains_all_frontend_surfaces() {
         let input =
             crate::dsl::read_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
@@ -1764,7 +1921,7 @@ oops=true
         assert!(json.contains(
             "\"checks\":[\"binding_schema\",\"fragment_params\",\"rule_evidence\",\"payload_offsets\"]"
         ));
-        assert!(json.contains("\"sampled_payload_offsets\":[0,4,5,9,13]"));
+        assert!(json.contains("\"sampled_payload_offsets\":[0,1,4,5,9,13]"));
         assert!(json.contains("\"required_payload_offsets\":[]"));
         assert!(json.contains("\"unsupported_payload_offsets\":[]"));
         assert!(json.contains("\"finding\":null"));
@@ -1941,7 +2098,7 @@ fn udp_core() {
                 .unwrap();
         assert_eq!(
             report.validation.sampled_payload_offsets,
-            vec![0, 4, 5, 9, 13]
+            vec![0, 1, 4, 5, 9, 13]
         );
         assert_eq!(report.validation.required_payload_offsets, vec![13]);
         assert_eq!(

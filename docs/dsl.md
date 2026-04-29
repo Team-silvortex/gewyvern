@@ -47,6 +47,10 @@ Examples in this repository:
 - [dsl/postgres_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy)
 - [dsl/postgres_simple_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_simple_query_path.gewy)
 - [dsl/postgres_query_error_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_error_path.gewy)
+- [dsl/mysql_simple_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy)
+- [dsl/mysql_query_error_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy)
+- [dsl/memcached_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy)
+- [dsl/memcached_set_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy)
 - [dsl/redis_ping_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy)
 - [dsl/mqtt_connect_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy)
 - [dsl/radius_access_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy)
@@ -107,6 +111,12 @@ edges capture both `include()` and `use()` relationships, including the source
 line that produced each edge.
 Pipeline projects can also resolve through a `gewy.pkg` manifest with one
 `main.gewy` entry and `include("...")` expansion.
+
+When pipeline/package parsing fails, `gewyc findings` and `gewyc stages` now
+surface more specific parse codes for front-end errors such as unknown
+`use(:fn)` targets, unknown package dependencies, invalid function bodies,
+unclosed function blocks, and `include(...)` calls that are not backed by a
+filesystem package entry.
 
 ## Pipeline Shape
 
@@ -530,6 +540,7 @@ Named ports currently include:
 - `ssdp`
 - `postgres`
 - `mysql`
+- `memcached`
 - `redis`
 - `mqtt`
 - `radius`

@@ -56,6 +56,7 @@ mod support {
                 local_port: None,
                 remote_port: None,
                 payload_byte0: None,
+                payload_byte1: None,
                 payload_prefix2: None,
                 payload_prefix4: None,
                 payload_byte4: None,

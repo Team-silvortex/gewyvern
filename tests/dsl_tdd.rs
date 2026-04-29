@@ -13,6 +13,7 @@ use std::fs;
 use std::time::{Duration, SystemTime};
 use support::{
     packet_fact, packet_fact_with_dir, packet_fact_with_dir_and_payload,
+    packet_fact_with_dir_and_payload_and_byte1,
     packet_fact_with_dir_and_payload_and_byte4, packet_fact_with_dir_and_payload_and_bytes4_5_and9,
     packet_fact_with_dir_and_payload_and_bytes4_and5, route_fact, sock_lineage_fact,
     tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact, udp_packet_fact_with_dir,
@@ -198,6 +199,58 @@ fn built_in_postgres_query_error_path_dsl_compiles_into_template_binding() {
         binding.template.reason_profile.as_ref().unwrap(),
         ReasonProfile::Declarative(_)
     ));
+}
+
+#[test]
+fn built_in_mysql_simple_query_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "mysql_simple_query_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("mysql_simple_query".into())
+    );
+}
+
+#[test]
+fn built_in_mysql_query_error_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "mysql_query_error_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("mysql_query_error".into())
+    );
+}
+
+#[test]
+fn built_in_memcached_get_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "memcached_get_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("memcached_get".into())
+    );
+}
+
+#[test]
+fn built_in_memcached_set_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "memcached_set_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("memcached_set".into())
+    );
 }
 
 #[test]
@@ -4781,6 +4834,456 @@ fn postgres_query_error_path_does_not_match_ready_message() {
             .stages
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_error"))
+    );
+}
+
+#[test]
+fn mysql_simple_query_path_materializes_connect_query_and_ok_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 512, 7787, "mysql"));
+    session.ingest(tcp_state_fact_with_ports(2, 512, 1, 2, 43131, 3306));
+    session.ingest(tcp_state_fact_with_ports(3, 512, 2, 3, 43131, 3306));
+    session.ingest(route_fact(4, 512, 6));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        5,
+        512,
+        0,
+        PacketDir::Egress,
+        Some(43131),
+        Some(3306),
+        None,
+        None,
+        None,
+        Some(0x03),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        6,
+        512,
+        0,
+        PacketDir::Ingress,
+        Some(43131),
+        Some(3306),
+        None,
+        None,
+        None,
+        Some(0x00),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("mysql_simple_query".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("connect"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("establish"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_query"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_ok"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"establish_connection".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn mysql_simple_query_path_does_not_match_error_packet_as_ok() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 513, 7788, "mysql"));
+    session.ingest(tcp_state_fact_with_ports(2, 513, 1, 2, 43132, 3306));
+    session.ingest(tcp_state_fact_with_ports(3, 513, 2, 3, 43132, 3306));
+    session.ingest(route_fact(4, 513, 6));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        5,
+        513,
+        0,
+        PacketDir::Egress,
+        Some(43132),
+        Some(3306),
+        None,
+        None,
+        None,
+        Some(0x03),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        6,
+        513,
+        0,
+        PacketDir::Ingress,
+        Some(43132),
+        Some(3306),
+        None,
+        None,
+        None,
+        Some(0xff),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_ok"))
+    );
+}
+
+#[test]
+fn mysql_query_error_path_materializes_query_and_error_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 514, 7789, "mysql"));
+    session.ingest(tcp_state_fact_with_ports(2, 514, 1, 2, 43133, 3306));
+    session.ingest(tcp_state_fact_with_ports(3, 514, 2, 3, 43133, 3306));
+    session.ingest(route_fact(4, 514, 6));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        5,
+        514,
+        0,
+        PacketDir::Egress,
+        Some(43133),
+        Some(3306),
+        None,
+        None,
+        None,
+        Some(0x03),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        6,
+        514,
+        0,
+        PacketDir::Ingress,
+        Some(43133),
+        Some(3306),
+        None,
+        None,
+        None,
+        Some(0xff),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("mysql_query_error".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_query"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_error"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn mysql_query_error_path_does_not_match_ok_packet() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 515, 7790, "mysql"));
+    session.ingest(tcp_state_fact_with_ports(2, 515, 1, 2, 43134, 3306));
+    session.ingest(tcp_state_fact_with_ports(3, 515, 2, 3, 43134, 3306));
+    session.ingest(route_fact(4, 515, 6));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        5,
+        515,
+        0,
+        PacketDir::Egress,
+        Some(43134),
+        Some(3306),
+        None,
+        None,
+        None,
+        Some(0x03),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        6,
+        515,
+        0,
+        PacketDir::Ingress,
+        Some(43134),
+        Some(3306),
+        None,
+        None,
+        None,
+        Some(0x00),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_error"))
+    );
+}
+
+#[test]
+fn memcached_get_path_materializes_connect_get_and_value_phases() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 516, 7791, "memcached-client"));
+    session.ingest(tcp_state_fact_with_ports(2, 516, 1, 2, 43135, 11211));
+    session.ingest(tcp_state_fact_with_ports(3, 516, 2, 3, 43135, 11211));
+    session.ingest(route_fact(4, 516, 6));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte1(
+        5,
+        516,
+        0,
+        PacketDir::Egress,
+        Some(43135),
+        Some(11211),
+        Some(0x80),
+        Some(0x00),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte1(
+        6,
+        516,
+        0,
+        PacketDir::Ingress,
+        Some(43135),
+        Some(11211),
+        Some(0x81),
+        Some(0x00),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("memcached_get".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_get"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_value"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn memcached_get_path_does_not_match_set_opcode() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 517, 7792, "memcached-client"));
+    session.ingest(tcp_state_fact_with_ports(2, 517, 1, 2, 43136, 11211));
+    session.ingest(tcp_state_fact_with_ports(3, 517, 2, 3, 43136, 11211));
+    session.ingest(route_fact(4, 517, 6));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte1(
+        5,
+        517,
+        0,
+        PacketDir::Egress,
+        Some(43136),
+        Some(11211),
+        Some(0x80),
+        Some(0x01),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte1(
+        6,
+        517,
+        0,
+        PacketDir::Ingress,
+        Some(43136),
+        Some(11211),
+        Some(0x81),
+        Some(0x01),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_value"))
+    );
+}
+
+#[test]
+fn memcached_set_path_materializes_connect_set_and_stored_phases() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 518, 7793, "memcached-client"));
+    session.ingest(tcp_state_fact_with_ports(2, 518, 1, 2, 43137, 11211));
+    session.ingest(tcp_state_fact_with_ports(3, 518, 2, 3, 43137, 11211));
+    session.ingest(route_fact(4, 518, 6));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte1(
+        5,
+        518,
+        0,
+        PacketDir::Egress,
+        Some(43137),
+        Some(11211),
+        Some(0x80),
+        Some(0x01),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte1(
+        6,
+        518,
+        0,
+        PacketDir::Ingress,
+        Some(43137),
+        Some(11211),
+        Some(0x81),
+        Some(0x01),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("memcached_set".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_set"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_stored"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn memcached_set_path_does_not_match_get_opcode() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 519, 7794, "memcached-client"));
+    session.ingest(tcp_state_fact_with_ports(2, 519, 1, 2, 43138, 11211));
+    session.ingest(tcp_state_fact_with_ports(3, 519, 2, 3, 43138, 11211));
+    session.ingest(route_fact(4, 519, 6));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte1(
+        5,
+        519,
+        0,
+        PacketDir::Egress,
+        Some(43138),
+        Some(11211),
+        Some(0x80),
+        Some(0x00),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte1(
+        6,
+        519,
+        0,
+        PacketDir::Ingress,
+        Some(43138),
+        Some(11211),
+        Some(0x81),
+        Some(0x00),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_stored"))
     );
 }
 
