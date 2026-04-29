@@ -25,8 +25,53 @@ pub enum FrontendDslKind {
 pub struct FrontendModuleSummary {
     pub kind: FrontendDslKind,
     pub function_count: usize,
+    pub function_nodes: Vec<FrontendFunctionNode>,
     pub merged_step_count: usize,
     pub include_sources: Vec<String>,
+    pub use_edges: Vec<FrontendUseEdge>,
+    pub graph_nodes: Vec<FrontendGraphNode>,
+    pub graph_edges: Vec<FrontendGraphEdge>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendFunctionNode {
+    pub name: String,
+    pub step_count: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendUseEdge {
+    pub from: String,
+    pub to: String,
+    pub line: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FrontendGraphNodeKind {
+    Entry,
+    File,
+    Function,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendGraphNode {
+    pub id: String,
+    pub kind: FrontendGraphNodeKind,
+    pub step_count: Option<usize>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FrontendGraphEdgeKind {
+    Include,
+    Use,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendGraphEdge {
+    pub from: String,
+    pub to: String,
+    pub kind: FrontendGraphEdgeKind,
+    pub line: usize,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -92,40 +137,145 @@ fn summarize_frontend_str_with_base(
 ) -> Result<FrontendModuleSummary, DslError> {
     if looks_like_pipeline_dsl(input) {
         let module = parse_pipeline_module(input, package, true)?;
+        let function_nodes = module
+            .functions
+            .iter()
+            .map(|(name, function)| FrontendFunctionNode {
+                name: name.clone(),
+                step_count: function.body.len(),
+            })
+            .collect();
+        let merged_step_count = module.body.len()
+            + module
+                .functions
+                .values()
+                .map(|function| function.body.len())
+                .sum::<usize>();
+        let use_edges = pipeline_use_edges(&module);
+        let graph_nodes = pipeline_graph_nodes(&module);
+        let graph_edges = pipeline_graph_edges(&module);
         return Ok(FrontendModuleSummary {
             kind: FrontendDslKind::Pipeline,
             function_count: module.functions.len(),
-            merged_step_count: module.body.len()
-                + module
-                    .functions
-                    .values()
-                    .map(|function| function.body.len())
-                    .sum::<usize>(),
+            function_nodes,
+            merged_step_count,
             include_sources: module.include_sources,
+            use_edges,
+            graph_nodes,
+            graph_edges,
         });
     }
     if looks_like_structured_dsl(input) {
         return Ok(FrontendModuleSummary {
             kind: FrontendDslKind::Structured,
             function_count: 0,
+            function_nodes: Vec::new(),
             merged_step_count: input
                 .lines()
                 .map(str::trim)
                 .filter(|line| !line.is_empty() && !line.starts_with('#') && *line != "}")
                 .count(),
             include_sources: Vec::new(),
+            use_edges: Vec::new(),
+            graph_nodes: Vec::new(),
+            graph_edges: Vec::new(),
         });
     }
     Ok(FrontendModuleSummary {
         kind: FrontendDslKind::Legacy,
         function_count: 0,
+        function_nodes: Vec::new(),
         merged_step_count: input
             .lines()
             .map(str::trim)
             .filter(|line| !line.is_empty() && !line.starts_with('#'))
             .count(),
         include_sources: Vec::new(),
+        use_edges: Vec::new(),
+        graph_nodes: Vec::new(),
+        graph_edges: Vec::new(),
     })
+}
+
+fn pipeline_use_edges(module: &PipelineModule) -> Vec<FrontendUseEdge> {
+    let mut edges = Vec::new();
+    append_use_edges("entry", &module.body, &mut edges);
+    for (function_name, function) in &module.functions {
+        append_use_edges(function_name, &function.body, &mut edges);
+    }
+    edges
+}
+
+fn append_use_edges(scope: &str, calls: &[PipelineCall], output: &mut Vec<FrontendUseEdge>) {
+    for call in calls {
+        if call.name == "use" {
+            if let Ok(target) = parse_pipeline_single_arg(&call.args, "use") {
+                output.push(FrontendUseEdge {
+                    from: scope.to_string(),
+                    to: target,
+                    line: call.line_no,
+                });
+            }
+        }
+    }
+}
+
+fn pipeline_graph_nodes(module: &PipelineModule) -> Vec<FrontendGraphNode> {
+    let mut nodes = Vec::new();
+    nodes.push(FrontendGraphNode {
+        id: "entry".to_string(),
+        kind: FrontendGraphNodeKind::Entry,
+        step_count: Some(module.body.len()),
+    });
+    for source in &module.include_sources {
+        nodes.push(FrontendGraphNode {
+            id: format!("file:{source}"),
+            kind: FrontendGraphNodeKind::File,
+            step_count: None,
+        });
+    }
+    for (name, function) in &module.functions {
+        nodes.push(FrontendGraphNode {
+            id: format!("fn:{name}"),
+            kind: FrontendGraphNodeKind::Function,
+            step_count: Some(function.body.len()),
+        });
+    }
+    nodes
+}
+
+fn pipeline_graph_edges(module: &PipelineModule) -> Vec<FrontendGraphEdge> {
+    let mut edges = module.include_edges.clone();
+    for edge in &module.use_edges {
+        edges.push(FrontendGraphEdge {
+            from: scope_graph_id(&edge.from),
+            to: format!("fn:{}", edge.to),
+            kind: FrontendGraphEdgeKind::Use,
+            line: edge.line,
+        });
+    }
+    edges.sort_by(|left, right| {
+        left.from
+            .cmp(&right.from)
+            .then(left.to.cmp(&right.to))
+            .then(frontend_graph_edge_kind_rank(left.kind).cmp(&frontend_graph_edge_kind_rank(right.kind)))
+    });
+    edges
+}
+
+fn scope_graph_id(scope: &str) -> String {
+    if scope == "entry" {
+        "entry".to_string()
+    } else {
+        format!("fn:{scope}")
+    }
+}
+
+fn frontend_graph_edge_kind_rank(kind: FrontendGraphEdgeKind) -> u8 {
+    match kind {
+        FrontendGraphEdgeKind::Include => 0,
+        FrontendGraphEdgeKind::Use => 1,
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -392,6 +542,8 @@ struct PipelineModule {
     body: Vec<PipelineCall>,
     functions: BTreeMap<String, PipelineFunction>,
     include_sources: Vec<String>,
+    include_edges: Vec<FrontendGraphEdge>,
+    use_edges: Vec<FrontendUseEdge>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -416,6 +568,8 @@ fn parse_pipeline_module(
         body: Vec::new(),
         functions: BTreeMap::new(),
         include_sources: Vec::new(),
+        include_edges: Vec::new(),
+        use_edges: Vec::new(),
     };
     parse_pipeline_module_into(
         input,
@@ -423,6 +577,7 @@ fn parse_pipeline_module(
         allow_template_head,
         &mut module,
         None,
+        "entry",
     )?;
 
     if allow_template_head && module.template.is_none() {
@@ -440,6 +595,7 @@ fn parse_pipeline_module_into(
     allow_template_head: bool,
     module: &mut PipelineModule,
     function_name: Option<&str>,
+    source_graph_id: &str,
 ) -> Result<(), DslError> {
     let lines = input.lines().collect::<Vec<_>>();
     let mut index = 0usize;
@@ -475,6 +631,17 @@ fn parse_pipeline_module_into(
                         let (nested_name, nested_args) =
                             parse_pipeline_call(nested_call.trim())
                                 .map_err(|err| err.at_line(index + 1))?;
+                        if nested_name == "use" {
+                            if let Ok(target_name) =
+                                parse_pipeline_single_arg(&nested_args, "use")
+                            {
+                                module.use_edges.push(FrontendUseEdge {
+                                    from: name.trim().to_string(),
+                                    to: target_name,
+                                    line: index + 1,
+                                });
+                            }
+                        }
                         body.push(PipelineCall {
                             line_no: index + 1,
                             name: nested_name,
@@ -534,6 +701,12 @@ fn parse_pipeline_module_into(
                 module
                     .include_sources
                     .push(include_path.to_string_lossy().into_owned());
+                module.include_edges.push(FrontendGraphEdge {
+                    from: source_graph_id.to_string(),
+                    to: format!("file:{}", include_path.to_string_lossy()),
+                    kind: FrontendGraphEdgeKind::Include,
+                    line: line_no,
+                });
                 let include_input = fs::read_to_string(&include_path)
                     .map_err(|err| DslError::Io(err.to_string()).at_line(line_no))?;
                 let include_root = include_path
@@ -551,6 +724,7 @@ fn parse_pipeline_module_into(
                     false,
                     module,
                     function_name,
+                    &format!("file:{}", include_path.to_string_lossy()),
                 )
                 .map_err(|err| err.at_line(line_no))?;
             }
@@ -569,6 +743,17 @@ fn parse_pipeline_module_into(
                     name: other.to_string(),
                     args,
                 });
+                if other == "use" {
+                    if let Ok(target_name) =
+                        parse_pipeline_single_arg(&target.last().unwrap().args, "use")
+                    {
+                        module.use_edges.push(FrontendUseEdge {
+                            from: function_name.unwrap_or("entry").to_string(),
+                            to: target_name,
+                            line: line_no,
+                        });
+                    }
+                }
             }
         }
         index += 1;

@@ -59,7 +59,9 @@ front-end outputs:
 
 The `stages.parse` section now also carries a front-end module summary for
 pipeline-based gewy packages, including DSL kind, merged step count, function
-count, and resolved include sources.
+count, structured function nodes with per-function step counts, a unified graph
+of entry/file/function nodes plus `include`/`use` edges, source line metadata
+for those edges, and resolved include sources.
 
 The `gewyc` CLI now consumes this shared envelope and renders each subcommand as
 one view over the same underlying compiler result.

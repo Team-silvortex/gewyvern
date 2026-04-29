@@ -101,7 +101,10 @@ structured and legacy forms; it does not generate eBPF bytecode directly.
 
 That merged front-end IR is now also reflected in compiler-facing reports, so
 `gewyc stages` can surface function counts, merged step counts, and resolved
-`include(...)` sources for a package entry.
+`include(...)` sources for a package entry, along with a minimal structured
+front-end graph whose nodes cover entry/file/function identities and whose
+edges capture both `include()` and `use()` relationships, including the source
+line that produced each edge.
 Pipeline projects can also resolve through a `gewy.pkg` manifest with one
 `main.gewy` entry and `include("...")` expansion.
 

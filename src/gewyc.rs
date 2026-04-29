@@ -1,7 +1,8 @@
 use crate::dsl::{
-    DslError, FrontendDslKind, FrontendModuleSummary, compile_file, parse_file_unvalidated,
-    parse_str_unvalidated, summarize_frontend_file, summarize_frontend_str,
-    validate_compiled_binding,
+    DslError, FrontendDslKind, FrontendFunctionNode, FrontendGraphEdge, FrontendGraphEdgeKind,
+    FrontendGraphNode, FrontendGraphNodeKind, FrontendModuleSummary, FrontendUseEdge, compile_file,
+    parse_file_unvalidated, parse_str_unvalidated, summarize_frontend_file,
+    summarize_frontend_str, validate_compiled_binding,
 };
 use crate::flow::ProgramOperation;
 use crate::fragment::{
@@ -120,8 +121,40 @@ pub struct ParseStageReport {
 pub struct FrontendReport {
     pub kind: String,
     pub function_count: usize,
+    pub function_nodes: Vec<FrontendFunctionReport>,
     pub merged_step_count: usize,
     pub include_sources: Vec<String>,
+    pub use_edges: Vec<FrontendUseEdgeReport>,
+    pub graph_nodes: Vec<FrontendGraphNodeReport>,
+    pub graph_edges: Vec<FrontendGraphEdgeReport>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendFunctionReport {
+    pub name: String,
+    pub step_count: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendUseEdgeReport {
+    pub from: String,
+    pub to: String,
+    pub line: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendGraphNodeReport {
+    pub id: String,
+    pub kind: String,
+    pub step_count: Option<usize>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendGraphEdgeReport {
+    pub from: String,
+    pub to: String,
+    pub kind: String,
+    pub line: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -820,8 +853,56 @@ fn frontend_report(summary: FrontendModuleSummary) -> FrontendReport {
     FrontendReport {
         kind: frontend_kind_text(summary.kind).to_string(),
         function_count: summary.function_count,
+        function_nodes: summary
+            .function_nodes
+            .into_iter()
+            .map(frontend_function_report)
+            .collect(),
         merged_step_count: summary.merged_step_count,
         include_sources: summary.include_sources,
+        use_edges: summary.use_edges.into_iter().map(frontend_use_edge_report).collect(),
+        graph_nodes: summary
+            .graph_nodes
+            .into_iter()
+            .map(frontend_graph_node_report)
+            .collect(),
+        graph_edges: summary
+            .graph_edges
+            .into_iter()
+            .map(frontend_graph_edge_report)
+            .collect(),
+    }
+}
+
+fn frontend_function_report(node: FrontendFunctionNode) -> FrontendFunctionReport {
+    FrontendFunctionReport {
+        name: node.name,
+        step_count: node.step_count,
+    }
+}
+
+fn frontend_use_edge_report(edge: FrontendUseEdge) -> FrontendUseEdgeReport {
+    FrontendUseEdgeReport {
+        from: edge.from,
+        to: edge.to,
+        line: edge.line,
+    }
+}
+
+fn frontend_graph_node_report(node: FrontendGraphNode) -> FrontendGraphNodeReport {
+    FrontendGraphNodeReport {
+        id: node.id,
+        kind: frontend_graph_node_kind_text(node.kind).to_string(),
+        step_count: node.step_count,
+    }
+}
+
+fn frontend_graph_edge_report(edge: FrontendGraphEdge) -> FrontendGraphEdgeReport {
+    FrontendGraphEdgeReport {
+        from: edge.from,
+        to: edge.to,
+        kind: frontend_graph_edge_kind_text(edge.kind).to_string(),
+        line: edge.line,
     }
 }
 
@@ -833,14 +914,56 @@ fn frontend_kind_text(kind: FrontendDslKind) -> &'static str {
     }
 }
 
+fn frontend_graph_node_kind_text(kind: FrontendGraphNodeKind) -> &'static str {
+    match kind {
+        FrontendGraphNodeKind::Entry => "entry",
+        FrontendGraphNodeKind::File => "file",
+        FrontendGraphNodeKind::Function => "function",
+    }
+}
+
+fn frontend_graph_edge_kind_text(kind: FrontendGraphEdgeKind) -> &'static str {
+    match kind {
+        FrontendGraphEdgeKind::Include => "include",
+        FrontendGraphEdgeKind::Use => "use",
+    }
+}
+
 fn frontend_text(frontend: Option<&FrontendReport>) -> String {
     match frontend {
         Some(frontend) => format!(
-            "kind={} functions={} merged_steps={} include_sources={}",
+            "kind={} functions={} function_nodes={} merged_steps={} include_sources={} use_edges={} graph_nodes={} graph_edges={}",
             frontend.kind,
             frontend.function_count,
+            frontend
+                .function_nodes
+                .iter()
+                .map(|node| format!("{}:{}", node.name, node.step_count))
+                .collect::<Vec<_>>()
+                .join(","),
             frontend.merged_step_count,
-            frontend.include_sources.join(",")
+            frontend.include_sources.join(","),
+            frontend
+                .use_edges
+                .iter()
+                .map(|edge| format!("{}->{}@{}", edge.from, edge.to, edge.line))
+                .collect::<Vec<_>>()
+                .join(","),
+            frontend
+                .graph_nodes
+                .iter()
+                .map(|node| match node.step_count {
+                    Some(step_count) => format!("{}:{}:{}", node.id, node.kind, step_count),
+                    None => format!("{}:{}", node.id, node.kind),
+                })
+                .collect::<Vec<_>>()
+                .join(","),
+            frontend
+                .graph_edges
+                .iter()
+                .map(|edge| format!("{}-{}->{}@{}", edge.from, edge.kind, edge.to, edge.line))
+                .collect::<Vec<_>>()
+                .join(",")
         ),
         None => "none".into(),
     }
@@ -849,11 +972,53 @@ fn frontend_text(frontend: Option<&FrontendReport>) -> String {
 fn frontend_json(frontend: Option<&FrontendReport>) -> String {
     match frontend {
         Some(frontend) => format!(
-            "{{\"kind\":\"{}\",\"function_count\":{},\"merged_step_count\":{},\"include_sources\":[{}]}}",
+            "{{\"kind\":\"{}\",\"function_count\":{},\"function_nodes\":[{}],\"merged_step_count\":{},\"include_sources\":[{}],\"use_edges\":[{}],\"graph_nodes\":[{}],\"graph_edges\":[{}]}}",
             frontend.kind,
             frontend.function_count,
+            frontend
+                .function_nodes
+                .iter()
+                .map(|node| format!(
+                    "{{\"name\":\"{}\",\"step_count\":{}}}",
+                    node.name, node.step_count
+                ))
+                .collect::<Vec<_>>()
+                .join(","),
             frontend.merged_step_count,
-            string_json_list(&frontend.include_sources)
+            string_json_list(&frontend.include_sources),
+            frontend
+                .use_edges
+                .iter()
+                .map(|edge| format!(
+                    "{{\"from\":\"{}\",\"to\":\"{}\",\"line\":{}}}",
+                    edge.from, edge.to, edge.line
+                ))
+                .collect::<Vec<_>>()
+                .join(","),
+            frontend
+                .graph_nodes
+                .iter()
+                .map(|node| match node.step_count {
+                    Some(step_count) => format!(
+                        "{{\"id\":\"{}\",\"kind\":\"{}\",\"step_count\":{}}}",
+                        node.id, node.kind, step_count
+                    ),
+                    None => format!(
+                        "{{\"id\":\"{}\",\"kind\":\"{}\",\"step_count\":null}}",
+                        node.id, node.kind
+                    ),
+                })
+                .collect::<Vec<_>>()
+                .join(","),
+            frontend
+                .graph_edges
+                .iter()
+                .map(|edge| format!(
+                    "{{\"from\":\"{}\",\"to\":\"{}\",\"kind\":\"{}\",\"line\":{}}}",
+                    edge.from, edge.to, edge.kind, edge.line
+                ))
+                .collect::<Vec<_>>()
+                .join(",")
         ),
         None => "null".into(),
     }
@@ -1590,6 +1755,10 @@ oops=true
         let json = render_stages_report(&report, RenderFormat::Json);
         assert!(json.contains("\"parse\":{\"ok\":true"));
         assert!(json.contains("\"frontend\":"));
+        assert!(json.contains("\"function_nodes\""));
+        assert!(json.contains("\"use_edges\""));
+        assert!(json.contains("\"graph_nodes\""));
+        assert!(json.contains("\"graph_edges\""));
         assert!(json.contains("\"validation\":{\"ok\":true"));
         assert!(json.contains("\"registry\":\"builtin\""));
         assert!(json.contains(
@@ -1629,7 +1798,72 @@ template(:frontend_summary)
         let frontend = report.parse.frontend.as_ref().unwrap();
         assert_eq!(frontend.kind, "pipeline");
         assert_eq!(frontend.function_count, 2);
+        assert_eq!(
+            frontend.function_nodes,
+            vec![
+                FrontendFunctionReport {
+                    name: "udp_core".to_string(),
+                    step_count: 3,
+                },
+                FrontendFunctionReport {
+                    name: "udp_rules".to_string(),
+                    step_count: 3,
+                }
+            ]
+        );
         assert_eq!(frontend.merged_step_count, 9);
+        assert_eq!(
+            frontend.use_edges,
+            vec![
+                FrontendUseEdgeReport {
+                    from: "entry".to_string(),
+                    to: "udp_core".to_string(),
+                    line: 17,
+                },
+                FrontendUseEdgeReport {
+                    from: "udp_core".to_string(),
+                    to: "udp_rules".to_string(),
+                    line: 11,
+                }
+            ]
+        );
+        assert_eq!(
+            frontend.graph_nodes,
+            vec![
+                FrontendGraphNodeReport {
+                    id: "entry".to_string(),
+                    kind: "entry".to_string(),
+                    step_count: Some(3),
+                },
+                FrontendGraphNodeReport {
+                    id: "fn:udp_core".to_string(),
+                    kind: "function".to_string(),
+                    step_count: Some(3),
+                },
+                FrontendGraphNodeReport {
+                    id: "fn:udp_rules".to_string(),
+                    kind: "function".to_string(),
+                    step_count: Some(3),
+                }
+            ]
+        );
+        assert_eq!(
+            frontend.graph_edges,
+            vec![
+                FrontendGraphEdgeReport {
+                    from: "entry".to_string(),
+                    to: "fn:udp_core".to_string(),
+                    kind: "use".to_string(),
+                    line: 17,
+                },
+                FrontendGraphEdgeReport {
+                    from: "fn:udp_core".to_string(),
+                    to: "fn:udp_rules".to_string(),
+                    kind: "use".to_string(),
+                    line: 11,
+                }
+            ]
+        );
     }
 
     #[test]
@@ -1673,8 +1907,31 @@ fn udp_core() {
         let frontend = report.parse.frontend.as_ref().unwrap();
         assert_eq!(frontend.kind, "pipeline");
         assert_eq!(frontend.function_count, 1);
+        assert_eq!(
+            frontend.function_nodes,
+            vec![FrontendFunctionReport {
+                name: "udp_core".to_string(),
+                step_count: 5,
+            }]
+        );
         assert_eq!(frontend.include_sources.len(), 1);
         assert!(frontend.include_sources[0].ends_with("module.gewy"));
+        assert_eq!(
+            frontend.use_edges,
+            vec![FrontendUseEdgeReport {
+                from: "entry".to_string(),
+                to: "udp_core".to_string(),
+                line: 6,
+            }]
+        );
+        assert!(frontend.graph_nodes.iter().any(|node| node.kind == "entry"));
+        assert!(frontend.graph_nodes.iter().any(|node| node.kind == "file"));
+        assert!(
+            frontend
+                .graph_edges
+                .iter()
+                .any(|edge| edge.kind == "include" && edge.line == 5)
+        );
     }
 
     #[test]
