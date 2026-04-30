@@ -1921,7 +1921,7 @@ template(:broken_pipeline_use)
         assert!(json.contains(
             "\"checks\":[\"binding_schema\",\"fragment_params\",\"rule_evidence\",\"payload_offsets\"]"
         ));
-        assert!(json.contains("\"sampled_payload_offsets\":[0,1,4,5,9,13]"));
+        assert!(json.contains("\"sampled_payload_offsets\":[0,1,4,5,9,10,13]"));
         assert!(json.contains("\"required_payload_offsets\":[]"));
         assert!(json.contains("\"unsupported_payload_offsets\":[]"));
         assert!(json.contains("\"finding\":null"));
@@ -2098,7 +2098,7 @@ fn udp_core() {
                 .unwrap();
         assert_eq!(
             report.validation.sampled_payload_offsets,
-            vec![0, 1, 4, 5, 9, 13]
+            vec![0, 1, 4, 5, 9, 10, 13]
         );
         assert_eq!(report.validation.required_payload_offsets, vec![13]);
         assert_eq!(

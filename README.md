@@ -25,7 +25,7 @@ The long-term direction is:
 - project version: `0.4.0`
 - stage: working prototype with a stabilized internal workspace layout
 - transport support: TCP + UDP
-- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, RADIUS, GTP-U, SMTP, SIP, LDAP, SNMP, DNS-over-TCP
+- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP, RADIUS, GTP-U, SMTP, SIP, LDAP, SNMP, DNS-over-TCP
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
 - replay: deterministic for exported sessions
@@ -235,6 +235,8 @@ The repository now includes first-class DSL files that compile into
 - [dsl/mysql_query_error_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy)
 - [dsl/memcached_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy)
 - [dsl/memcached_set_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy)
+- [dsl/amqp_connection_start_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy)
+- [dsl/amqp_basic_publish_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy)
 - [dsl/redis_ping_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy)
 - [dsl/mqtt_connect_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy)
 - [dsl/radius_access_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy)
@@ -371,6 +373,8 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy --
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy --json --summary-only

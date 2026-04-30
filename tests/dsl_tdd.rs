@@ -14,6 +14,7 @@ use std::time::{Duration, SystemTime};
 use support::{
     packet_fact, packet_fact_with_dir, packet_fact_with_dir_and_payload,
     packet_fact_with_dir_and_payload_and_byte1,
+    packet_fact_with_dir_and_payload_and_byte10,
     packet_fact_with_dir_and_payload_and_byte4, packet_fact_with_dir_and_payload_and_bytes4_5_and9,
     packet_fact_with_dir_and_payload_and_bytes4_and5, route_fact, sock_lineage_fact,
     tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact, udp_packet_fact_with_dir,
@@ -250,6 +251,32 @@ fn built_in_memcached_set_path_dsl_compiles_into_template_binding() {
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("memcached_set".into())
+    );
+}
+
+#[test]
+fn built_in_amqp_connection_start_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "amqp_connection_start_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("amqp_connection_start".into())
+    );
+}
+
+#[test]
+fn built_in_amqp_basic_publish_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "amqp_basic_publish_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("amqp_basic_publish".into())
     );
 }
 
@@ -5284,6 +5311,254 @@ fn memcached_set_path_does_not_match_get_opcode() {
             .stages
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_stored"))
+    );
+}
+
+#[test]
+fn amqp_connection_start_path_materializes_header_start_and_start_ok_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 520, 7795, "amqp-client"));
+    session.ingest(tcp_state_fact_with_ports(2, 520, 1, 2, 43139, 5672));
+    session.ingest(tcp_state_fact_with_ports(3, 520, 2, 3, 43139, 5672));
+    session.ingest(route_fact(4, 520, 6));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        520,
+        0,
+        PacketDir::Egress,
+        Some(43139),
+        Some(5672),
+        None,
+        None,
+        Some(0x414d5150),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        6,
+        520,
+        0,
+        PacketDir::Ingress,
+        Some(43139),
+        Some(5672),
+        Some(0x01),
+        Some(0x0a),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        7,
+        520,
+        0,
+        PacketDir::Egress,
+        Some(43139),
+        Some(5672),
+        Some(0x01),
+        Some(0x0b),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("amqp_connection_start".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_protocol_header"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_start"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_start_ok"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn amqp_connection_start_path_does_not_match_wrong_server_method_id() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 521, 7796, "amqp-client"));
+    session.ingest(tcp_state_fact_with_ports(2, 521, 1, 2, 43140, 5672));
+    session.ingest(tcp_state_fact_with_ports(3, 521, 2, 3, 43140, 5672));
+    session.ingest(route_fact(4, 521, 6));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        521,
+        0,
+        PacketDir::Egress,
+        Some(43140),
+        Some(5672),
+        None,
+        None,
+        Some(0x414d5150),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        6,
+        521,
+        0,
+        PacketDir::Ingress,
+        Some(43140),
+        Some(5672),
+        Some(0x01),
+        Some(0x14),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        7,
+        521,
+        0,
+        PacketDir::Egress,
+        Some(43140),
+        Some(5672),
+        Some(0x01),
+        Some(0x0b),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_start"))
+    );
+}
+
+#[test]
+fn amqp_basic_publish_path_materializes_publish_and_ack_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 522, 7797, "amqp-publisher"));
+    session.ingest(tcp_state_fact_with_ports(2, 522, 1, 2, 43141, 5672));
+    session.ingest(tcp_state_fact_with_ports(3, 522, 2, 3, 43141, 5672));
+    session.ingest(route_fact(4, 522, 6));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        5,
+        522,
+        0,
+        PacketDir::Egress,
+        Some(43141),
+        Some(5672),
+        Some(0x01),
+        Some(0x28),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        6,
+        522,
+        0,
+        PacketDir::Ingress,
+        Some(43141),
+        Some(5672),
+        Some(0x01),
+        Some(0x50),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("amqp_basic_publish".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_publish"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_ack"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn amqp_basic_publish_path_does_not_match_wrong_ack_method_id() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 523, 7798, "amqp-publisher"));
+    session.ingest(tcp_state_fact_with_ports(2, 523, 1, 2, 43142, 5672));
+    session.ingest(tcp_state_fact_with_ports(3, 523, 2, 3, 43142, 5672));
+    session.ingest(route_fact(4, 523, 6));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        5,
+        523,
+        0,
+        PacketDir::Egress,
+        Some(43142),
+        Some(5672),
+        Some(0x01),
+        Some(0x28),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        6,
+        523,
+        0,
+        PacketDir::Ingress,
+        Some(43142),
+        Some(5672),
+        Some(0x01),
+        Some(0x0a),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_ack"))
     );
 }
 

@@ -1803,6 +1803,7 @@ fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslError> {
         "postgres" => Ok(5432),
         "mysql" => Ok(3306),
         "memcached" => Ok(11211),
+        "amqp" => Ok(5672),
         "ldap" => Ok(389),
         "redis" => Ok(6379),
         "mqtt" => Ok(1883),

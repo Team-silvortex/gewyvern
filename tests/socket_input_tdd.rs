@@ -76,6 +76,7 @@ mod support {
                 payload_byte4: None,
                 payload_byte5: None,
                 payload_byte9: None,
+                payload_byte10: None,
                 payload_byte13: None,
                 l3_proto: 0x0800,
                 l4_proto: 17,

@@ -51,6 +51,8 @@ Examples in this repository:
 - [dsl/mysql_query_error_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy)
 - [dsl/memcached_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy)
 - [dsl/memcached_set_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy)
+- [dsl/amqp_connection_start_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy)
+- [dsl/amqp_basic_publish_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy)
 - [dsl/redis_ping_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy)
 - [dsl/mqtt_connect_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy)
 - [dsl/radius_access_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy)
@@ -541,6 +543,7 @@ Named ports currently include:
 - `postgres`
 - `mysql`
 - `memcached`
+- `amqp`
 - `redis`
 - `mqtt`
 - `radius`
