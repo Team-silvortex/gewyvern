@@ -272,7 +272,8 @@ fn initialize_package(dir: &str) -> Result<(), String> {
 
     let manifest_path = root.join("gewy.pkg");
     if !manifest_path.exists() {
-        fs::write(&manifest_path, render_init_manifest(package_name)).map_err(|err| err.to_string())?;
+        fs::write(&manifest_path, render_init_manifest(package_name))
+            .map_err(|err| err.to_string())?;
     }
 
     let entry_path = root.join("main.gewy");

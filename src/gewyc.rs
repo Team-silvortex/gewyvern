@@ -1,8 +1,8 @@
 use crate::dsl::{
     DslError, FrontendDslKind, FrontendFunctionNode, FrontendGraphEdge, FrontendGraphEdgeKind,
     FrontendGraphNode, FrontendGraphNodeKind, FrontendModuleSummary, FrontendUseEdge, compile_file,
-    parse_file_unvalidated, parse_str_unvalidated, summarize_frontend_file,
-    summarize_frontend_str, validate_compiled_binding,
+    parse_file_unvalidated, parse_str_unvalidated, summarize_frontend_file, summarize_frontend_str,
+    validate_compiled_binding,
 };
 use crate::flow::ProgramOperation;
 use crate::fragment::{
@@ -857,7 +857,11 @@ fn frontend_report(summary: FrontendModuleSummary) -> FrontendReport {
             .collect(),
         merged_step_count: summary.merged_step_count,
         include_sources: summary.include_sources,
-        use_edges: summary.use_edges.into_iter().map(frontend_use_edge_report).collect(),
+        use_edges: summary
+            .use_edges
+            .into_iter()
+            .map(frontend_use_edge_report)
+            .collect(),
         graph_nodes: summary
             .graph_nodes
             .into_iter()
@@ -1727,10 +1731,8 @@ template(:broken_pipeline_use)
 
     #[test]
     fn compile_findings_report_file_uses_specific_code_for_unknown_package_dependency() {
-        let package_dir = std::env::temp_dir().join(format!(
-            "gewyc-missing-dependency-{}",
-            std::process::id()
-        ));
+        let package_dir =
+            std::env::temp_dir().join(format!("gewyc-missing-dependency-{}", std::process::id()));
         std::fs::create_dir_all(&package_dir).unwrap();
         std::fs::write(
             package_dir.join("gewy.pkg"),
@@ -1795,10 +1797,7 @@ template(:invalid_function_body)
 "#,
         );
         assert_eq!(report.findings.len(), 1);
-        assert_eq!(
-            report.findings[0].code,
-            "GEWYC-PARSE-INVALID-FUNCTION-BODY"
-        );
+        assert_eq!(report.findings[0].code, "GEWYC-PARSE-INVALID-FUNCTION-BODY");
         assert_eq!(report.findings[0].line, Some(3));
     }
 
@@ -2025,10 +2024,8 @@ template(:frontend_summary)
 
     #[test]
     fn stages_report_lists_include_sources_in_parse_frontend_summary() {
-        let package_dir = std::env::temp_dir().join(format!(
-            "gewyc-frontend-summary-{}",
-            std::process::id()
-        ));
+        let package_dir =
+            std::env::temp_dir().join(format!("gewyc-frontend-summary-{}", std::process::id()));
         std::fs::create_dir_all(&package_dir).unwrap();
         std::fs::write(
             package_dir.join("gewy.pkg"),

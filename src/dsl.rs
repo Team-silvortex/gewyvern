@@ -258,7 +258,10 @@ fn pipeline_graph_edges(module: &PipelineModule) -> Vec<FrontendGraphEdge> {
         left.from
             .cmp(&right.from)
             .then(left.to.cmp(&right.to))
-            .then(frontend_graph_edge_kind_rank(left.kind).cmp(&frontend_graph_edge_kind_rank(right.kind)))
+            .then(
+                frontend_graph_edge_kind_rank(left.kind)
+                    .cmp(&frontend_graph_edge_kind_rank(right.kind)),
+            )
     });
     edges
 }
@@ -328,8 +331,11 @@ fn resolve_package_context(path: &str) -> Result<PackageContext, DslError> {
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
+    let package_root = canonicalize_existing_path(&package_root)?;
+    let entry_path = canonicalize_existing_path(&package_root.join(manifest.entry))?;
+    ensure_within_root(&entry_path, &package_root)?;
     Ok(PackageContext {
-        entry_file: package_root.join(manifest.entry).to_string_lossy().into_owned(),
+        entry_file: entry_path.to_string_lossy().into_owned(),
         root_dir: package_root,
         dependencies: manifest.dependencies,
     })
@@ -368,10 +374,8 @@ fn read_package_manifest(path: &Path) -> Result<PackageManifest, DslError> {
             "version" => version = Some(value),
             "entry" => entry = Some(value),
             dep if dep.starts_with("dep.") => {
-                dependencies.insert(
-                    dep["dep.".len()..].trim().to_string(),
-                    manifest_root.join(value),
-                );
+                let dep_path = canonicalize_existing_path(&manifest_root.join(value))?;
+                dependencies.insert(dep["dep.".len()..].trim().to_string(), dep_path);
             }
             _ => {}
         }
@@ -571,6 +575,9 @@ fn parse_pipeline_module(
         include_edges: Vec::new(),
         use_edges: Vec::new(),
     };
+    let mut include_stack = package
+        .map(|package| vec![PathBuf::from(&package.entry_file)])
+        .unwrap_or_default();
     parse_pipeline_module_into(
         input,
         package,
@@ -578,6 +585,7 @@ fn parse_pipeline_module(
         &mut module,
         None,
         "entry",
+        &mut include_stack,
     )?;
 
     if allow_template_head && module.template.is_none() {
@@ -596,6 +604,7 @@ fn parse_pipeline_module_into(
     module: &mut PipelineModule,
     function_name: Option<&str>,
     source_graph_id: &str,
+    include_stack: &mut Vec<PathBuf>,
 ) -> Result<(), DslError> {
     let lines = input.lines().collect::<Vec<_>>();
     let mut index = 0usize;
@@ -628,12 +637,10 @@ fn parse_pipeline_module_into(
                             )
                             .at_line(index + 1)
                         })?;
-                        let (nested_name, nested_args) =
-                            parse_pipeline_call(nested_call.trim())
-                                .map_err(|err| err.at_line(index + 1))?;
+                        let (nested_name, nested_args) = parse_pipeline_call(nested_call.trim())
+                            .map_err(|err| err.at_line(index + 1))?;
                         if nested_name == "use" {
-                            if let Ok(target_name) =
-                                parse_pipeline_single_arg(&nested_args, "use")
+                            if let Ok(target_name) = parse_pipeline_single_arg(&nested_args, "use")
                             {
                                 module.use_edges.push(FrontendUseEdge {
                                     from: name.trim().to_string(),
@@ -651,10 +658,10 @@ fn parse_pipeline_module_into(
                     index += 1;
                 }
                 if index == lines.len() {
-                    return Err(DslError::InvalidValue(
-                        "unclosed pipeline function block".into(),
-                    )
-                    .at_line(line_no));
+                    return Err(
+                        DslError::InvalidValue("unclosed pipeline function block".into())
+                            .at_line(line_no),
+                    );
                 }
                 module
                     .functions
@@ -686,7 +693,11 @@ fn parse_pipeline_module_into(
                     )
                     .at_line(line_no));
                 }
-                module.template = Some(PipelineCall { line_no, name, args });
+                module.template = Some(PipelineCall {
+                    line_no,
+                    name,
+                    args,
+                });
             }
             "include" => {
                 let include = parse_pipeline_single_arg(&args, "include")?;
@@ -696,8 +707,15 @@ fn parse_pipeline_module_into(
                     )
                     .at_line(line_no)
                 })?;
-                let include_path = resolve_include_path(package, &include)
-                    .map_err(|err| err.at_line(line_no))?;
+                let include_path =
+                    resolve_include_path(package, &include).map_err(|err| err.at_line(line_no))?;
+                if include_stack.contains(&include_path) {
+                    return Err(DslError::InvalidValue(format!(
+                        "pipeline include cycle detected at '{}'",
+                        include_path.to_string_lossy()
+                    ))
+                    .at_line(line_no));
+                }
                 module
                     .include_sources
                     .push(include_path.to_string_lossy().into_owned());
@@ -718,6 +736,7 @@ fn parse_pipeline_module_into(
                     entry_file: include_path.to_string_lossy().into_owned(),
                     dependencies: package.dependencies.clone(),
                 };
+                include_stack.push(include_path.clone());
                 parse_pipeline_module_into(
                     &include_input,
                     Some(&include_package),
@@ -725,8 +744,10 @@ fn parse_pipeline_module_into(
                     module,
                     function_name,
                     &format!("file:{}", include_path.to_string_lossy()),
+                    include_stack,
                 )
                 .map_err(|err| err.at_line(line_no))?;
+                include_stack.pop();
             }
             other => {
                 let target = if let Some(function_name) = function_name {
@@ -770,7 +791,8 @@ fn lower_pipeline_module_to_legacy(
     if let Some(template) = &module.template {
         output.push(format!(
             "template={}",
-            parse_pipeline_single_arg(&template.args, "template").map_err(|err| err.at_line(template.line_no))?
+            parse_pipeline_single_arg(&template.args, "template")
+                .map_err(|err| err.at_line(template.line_no))?
         ));
     } else if allow_template_head {
         return Err(DslError::InvalidValue(
@@ -778,7 +800,13 @@ fn lower_pipeline_module_to_legacy(
         ));
     }
 
-    lower_pipeline_calls(&module.body, module, &mut output, allow_template_head)?;
+    lower_pipeline_calls(
+        &module.body,
+        module,
+        &mut output,
+        allow_template_head,
+        &mut Vec::new(),
+    )?;
     Ok(output.join("\n"))
 }
 
@@ -787,9 +815,10 @@ fn lower_pipeline_calls(
     module: &PipelineModule,
     output: &mut Vec<String>,
     allow_template_head: bool,
+    use_stack: &mut Vec<String>,
 ) -> Result<(), DslError> {
     for call in calls {
-        lower_pipeline_call(call, module, output, allow_template_head)?;
+        lower_pipeline_call(call, module, output, allow_template_head, use_stack)?;
     }
     Ok(())
 }
@@ -799,6 +828,7 @@ fn lower_pipeline_call(
     module: &PipelineModule,
     output: &mut Vec<String>,
     allow_template_head: bool,
+    use_stack: &mut Vec<String>,
 ) -> Result<(), DslError> {
     let line_no = call.line_no;
     match call.name.as_str() {
@@ -816,11 +846,19 @@ fn lower_pipeline_call(
         }
         "use" => {
             let function_name = parse_pipeline_single_arg(&call.args, "use")?;
+            if use_stack.contains(&function_name) {
+                return Err(DslError::InvalidValue(format!(
+                    "pipeline use cycle detected at function '{function_name}'"
+                ))
+                .at_line(line_no));
+            }
             let function = module.functions.get(&function_name).ok_or_else(|| {
                 DslError::InvalidValue(format!("unknown pipeline function '{function_name}'"))
                     .at_line(line_no)
             })?;
-            lower_pipeline_calls(&function.body, module, output, false)?;
+            use_stack.push(function_name.clone());
+            lower_pipeline_calls(&function.body, module, output, false, use_stack)?;
+            use_stack.pop();
         }
         "include" => {
             return Err(DslError::InvalidValue(
@@ -828,7 +866,9 @@ fn lower_pipeline_call(
             )
             .at_line(line_no));
         }
-        "window" => lower_pipeline_window(&call.args, output).map_err(|err| err.at_line(line_no))?,
+        "window" => {
+            lower_pipeline_window(&call.args, output).map_err(|err| err.at_line(line_no))?
+        }
         "reason" => output.push(format!(
             "reason={}",
             parse_pipeline_single_arg(&call.args, "reason")?
@@ -857,17 +897,17 @@ fn lower_pipeline_call(
             "evidence={}",
             lower_pipeline_evidence(&call.args).map_err(|err| err.at_line(line_no))?
         )),
-        "program_rule" => output.push(
-            lower_pipeline_rule(&call.args, false).map_err(|err| err.at_line(line_no))?,
-        ),
-        "reason_rule" => output.push(
-            lower_pipeline_rule(&call.args, true).map_err(|err| err.at_line(line_no))?,
-        ),
+        "program_rule" => {
+            output.push(lower_pipeline_rule(&call.args, false).map_err(|err| err.at_line(line_no))?)
+        }
+        "reason_rule" => {
+            output.push(lower_pipeline_rule(&call.args, true).map_err(|err| err.at_line(line_no))?)
+        }
         other => {
-            return Err(DslError::InvalidValue(format!(
-                "unknown pipeline DSL step '{other}'"
-            ))
-            .at_line(line_no));
+            return Err(
+                DslError::InvalidValue(format!("unknown pipeline DSL step '{other}'"))
+                    .at_line(line_no),
+            );
         }
     }
     Ok(())
@@ -875,12 +915,33 @@ fn lower_pipeline_call(
 
 fn resolve_include_path(package: &PackageContext, include: &str) -> Result<PathBuf, DslError> {
     if let Some((dep, file)) = include.split_once(':') {
-        let dep_root = package.dependencies.get(dep).ok_or_else(|| {
-            DslError::InvalidValue(format!("unknown package dependency '{dep}'"))
-        })?;
-        return Ok(dep_root.join(file));
+        let dep_root = package
+            .dependencies
+            .get(dep)
+            .ok_or_else(|| DslError::InvalidValue(format!("unknown package dependency '{dep}'")))?;
+        let resolved = canonicalize_existing_path(&dep_root.join(file))?;
+        ensure_within_root(&resolved, dep_root)?;
+        return Ok(resolved);
     }
-    Ok(package.root_dir.join(include))
+    let resolved = canonicalize_existing_path(&package.root_dir.join(include))?;
+    ensure_within_root(&resolved, &package.root_dir)?;
+    Ok(resolved)
+}
+
+fn canonicalize_existing_path(path: &Path) -> Result<PathBuf, DslError> {
+    fs::canonicalize(path).map_err(|err| DslError::Io(err.to_string()))
+}
+
+fn ensure_within_root(path: &Path, root: &Path) -> Result<(), DslError> {
+    if path.starts_with(root) {
+        Ok(())
+    } else {
+        Err(DslError::InvalidValue(format!(
+            "path '{}' escapes package root '{}'",
+            path.to_string_lossy(),
+            root.to_string_lossy()
+        )))
+    }
 }
 
 fn parse_pipeline_call(line: &str) -> Result<(String, Vec<String>), DslError> {

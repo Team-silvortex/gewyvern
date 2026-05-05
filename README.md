@@ -392,6 +392,10 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy
 Lock onto a built-in protocol model directly:
 
 ```bash
+cargo run -- --list-protocols
+cargo run -- --list-protocols --json
+cargo run -- --list-entries mysql
+cargo run -- --list-entries ldap --json
 cargo run -- --protocol mysql --json --summary-only
 cargo run -- --protocol amqp --findings --json
 ```
@@ -493,6 +497,12 @@ Socket session locked to a built-in protocol and PID:
 
 ```bash
 cargo run -- --protocol mysql --entry session --pid 4242 --tcp-socket 127.0.0.1:9000 --json
+```
+
+Remote TCP listeners are now opt-in:
+
+```bash
+cargo run -- --protocol mysql --entry session --tcp-socket 0.0.0.0:9000 --allow-remote-socket --json
 ```
 
 Serve multiple sessions:

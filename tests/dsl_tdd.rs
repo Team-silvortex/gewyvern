@@ -13,9 +13,9 @@ use std::fs;
 use std::time::{Duration, SystemTime};
 use support::{
     packet_fact, packet_fact_with_dir, packet_fact_with_dir_and_payload,
-    packet_fact_with_dir_and_payload_and_byte1,
+    packet_fact_with_dir_and_payload_and_byte1, packet_fact_with_dir_and_payload_and_byte4,
     packet_fact_with_dir_and_payload_and_byte10,
-    packet_fact_with_dir_and_payload_and_byte4, packet_fact_with_dir_and_payload_and_bytes4_5_and9,
+    packet_fact_with_dir_and_payload_and_bytes4_5_and9,
     packet_fact_with_dir_and_payload_and_bytes4_and5, route_fact, sock_lineage_fact,
     tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact, udp_packet_fact_with_dir,
     udp_packet_fact_with_dir_and_ports, udp_packet_fact_with_dir_and_ports_and_payload,
@@ -205,8 +205,7 @@ fn built_in_postgres_query_error_path_dsl_compiles_into_template_binding() {
 #[test]
 fn built_in_mysql_connect_process_dsl_compiles_into_template_binding() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_connect_process.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_connect_process.gewy").unwrap();
 
     assert_eq!(binding.template.id, "mysql_connect_process");
     assert_eq!(
@@ -218,8 +217,7 @@ fn built_in_mysql_connect_process_dsl_compiles_into_template_binding() {
 #[test]
 fn built_in_mysql_simple_query_path_dsl_compiles_into_template_binding() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "mysql_simple_query_path");
     assert_eq!(
@@ -230,8 +228,8 @@ fn built_in_mysql_simple_query_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_mysql_query_session_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy").unwrap();
 
     assert_eq!(binding.template.id, "mysql_query_session");
     assert_eq!(
@@ -243,8 +241,7 @@ fn built_in_mysql_query_session_dsl_compiles_into_template_binding() {
 #[test]
 fn built_in_mysql_query_error_path_dsl_compiles_into_template_binding() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "mysql_query_error_path");
     assert_eq!(
@@ -256,8 +253,7 @@ fn built_in_mysql_query_error_path_dsl_compiles_into_template_binding() {
 #[test]
 fn built_in_memcached_get_path_dsl_compiles_into_template_binding() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "memcached_get_path");
     assert_eq!(
@@ -269,8 +265,7 @@ fn built_in_memcached_get_path_dsl_compiles_into_template_binding() {
 #[test]
 fn built_in_memcached_set_path_dsl_compiles_into_template_binding() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "memcached_set_path");
     assert_eq!(
@@ -295,8 +290,7 @@ fn built_in_amqp_connection_start_path_dsl_compiles_into_template_binding() {
 #[test]
 fn built_in_amqp_basic_publish_path_dsl_compiles_into_template_binding() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "amqp_basic_publish_path");
     assert_eq!(
@@ -331,8 +325,8 @@ fn built_in_redis_connect_process_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_gtpu_echo_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "gtpu_echo_path");
     assert_eq!(
@@ -2118,8 +2112,8 @@ fn ntp_client_path_does_not_match_wrong_response_mode() {
 
 #[test]
 fn gtpu_echo_path_materializes_request_and_response_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 813, 6001, "upf-agent"));
@@ -2175,8 +2169,8 @@ fn gtpu_echo_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn gtpu_echo_path_does_not_match_wrong_response_type() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 814, 6002, "upf-agent"));
@@ -4904,8 +4898,7 @@ fn postgres_query_error_path_does_not_match_ready_message() {
 #[test]
 fn mysql_simple_query_path_materializes_connect_query_and_ok_phases() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 512, 7787, "mysql"));
@@ -4982,8 +4975,7 @@ fn mysql_simple_query_path_materializes_connect_query_and_ok_phases() {
 #[test]
 fn mysql_simple_query_path_does_not_match_error_packet_as_ok() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 513, 7788, "mysql"));
@@ -5027,8 +5019,8 @@ fn mysql_simple_query_path_does_not_match_error_packet_as_ok() {
 
 #[test]
 fn mysql_query_session_can_span_connect_query_and_ok_in_one_module() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 514, 7789, "mysql-session"));
@@ -5089,8 +5081,8 @@ fn mysql_query_session_can_span_connect_query_and_ok_in_one_module() {
 
 #[test]
 fn mysql_query_session_missing_response_produces_query_to_ok_transition() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 515, 7790, "mysql-session"));
@@ -5127,8 +5119,7 @@ fn mysql_query_session_missing_response_produces_query_to_ok_transition() {
 #[test]
 fn mysql_query_error_path_materializes_query_and_error_phases() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 514, 7789, "mysql"));
@@ -5191,8 +5182,7 @@ fn mysql_query_error_path_materializes_query_and_error_phases() {
 #[test]
 fn mysql_query_error_path_does_not_match_ok_packet() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 515, 7790, "mysql"));
@@ -5236,8 +5226,8 @@ fn mysql_query_error_path_does_not_match_ok_packet() {
 
 #[test]
 fn memcached_get_path_materializes_connect_get_and_value_phases() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 516, 7791, "memcached-client"));
@@ -5299,8 +5289,8 @@ fn memcached_get_path_materializes_connect_get_and_value_phases() {
 
 #[test]
 fn memcached_get_path_does_not_match_set_opcode() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 517, 7792, "memcached-client"));
@@ -5344,8 +5334,8 @@ fn memcached_get_path_does_not_match_set_opcode() {
 
 #[test]
 fn memcached_set_path_materializes_connect_set_and_stored_phases() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 518, 7793, "memcached-client"));
@@ -5407,8 +5397,8 @@ fn memcached_set_path_materializes_connect_set_and_stored_phases() {
 
 #[test]
 fn memcached_set_path_does_not_match_get_opcode() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 519, 7794, "memcached-client"));
@@ -5591,8 +5581,7 @@ fn amqp_connection_start_path_does_not_match_wrong_server_method_id() {
 #[test]
 fn amqp_basic_publish_path_materializes_publish_and_ack_phases() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 522, 7797, "amqp-publisher"));
@@ -5655,8 +5644,7 @@ fn amqp_basic_publish_path_materializes_publish_and_ack_phases() {
 #[test]
 fn amqp_basic_publish_path_does_not_match_wrong_ack_method_id() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 523, 7798, "amqp-publisher"));
@@ -6170,7 +6158,10 @@ template(:pipeline_udp_debug)
     assert_eq!(model.id, "pipeline_udp_debug_model");
     assert_eq!(model.operation, ProgramOperation::DatagramExchange);
     assert_eq!(model.rules.len(), 2);
-    assert_eq!(binding.fragment_params["sock_lineage_fragment"]["capture_comm"], FragmentParamValue::Bool(true));
+    assert_eq!(
+        binding.fragment_params["sock_lineage_fragment"]["capture_comm"],
+        FragmentParamValue::Bool(true)
+    );
 }
 
 #[test]
@@ -6276,10 +6267,8 @@ template(:pipeline_nested_fn_udp)
 
 #[test]
 fn dsl_package_entry_compiles_from_manifest_directory_and_merges_pipeline_includes() {
-    let package_dir = std::env::temp_dir().join(format!(
-        "gewy-package-{}-manifest-dir",
-        std::process::id()
-    ));
+    let package_dir =
+        std::env::temp_dir().join(format!("gewy-package-{}-manifest-dir", std::process::id()));
     fs::create_dir_all(&package_dir).unwrap();
     fs::write(
         package_dir.join("gewy.pkg"),
@@ -6379,10 +6368,8 @@ template(:app_with_dep)
 
 #[test]
 fn dsl_package_entry_can_use_function_defined_in_included_module() {
-    let package_dir = std::env::temp_dir().join(format!(
-        "gewy-package-{}-functions",
-        std::process::id()
-    ));
+    let package_dir =
+        std::env::temp_dir().join(format!("gewy-package-{}-functions", std::process::id()));
     fs::create_dir_all(&package_dir).unwrap();
     fs::write(
         package_dir.join("gewy.pkg"),
@@ -6424,6 +6411,137 @@ fn udp_core() {
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::DatagramExchange
+    );
+}
+
+#[test]
+fn dsl_package_entry_rejects_include_that_escapes_package_root() {
+    let root = std::env::temp_dir().join(format!("gewy-package-{}-escape", std::process::id()));
+    let package_dir = root.join("app");
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(
+        package_dir.join("gewy.pkg"),
+        "name=escape_guard\nversion=0.1.0\nentry=main.gewy\n",
+    )
+    .unwrap();
+    fs::write(
+        package_dir.join("main.gewy"),
+        r#"
+template(:escape_guard)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> include("../outside.gewy")
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("outside.gewy"),
+        "|> fragment(:udp_packet_meta_fragment)\n",
+    )
+    .unwrap();
+
+    let err = compile_file(package_dir.to_str().unwrap()).unwrap_err();
+    assert!(
+        format!("{err:?}").contains("escapes package root"),
+        "unexpected error: {err:?}"
+    );
+}
+
+#[test]
+fn dsl_package_dependency_include_rejects_escape_from_dependency_root() {
+    let root = std::env::temp_dir().join(format!("gewy-package-{}-dep-escape", std::process::id()));
+    let app_dir = root.join("app");
+    let dep_dir = root.join("dep");
+    fs::create_dir_all(&app_dir).unwrap();
+    fs::create_dir_all(&dep_dir).unwrap();
+    fs::write(
+        app_dir.join("gewy.pkg"),
+        format!(
+            "name=dep_escape_guard\nversion=0.1.0\nentry=main.gewy\ndep.std={}\n",
+            dep_dir.to_string_lossy()
+        ),
+    )
+    .unwrap();
+    fs::write(
+        app_dir.join("main.gewy"),
+        r#"
+template(:dep_escape_guard)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> include("std:../outside.gewy")
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("outside.gewy"),
+        "|> fragment(:udp_packet_meta_fragment)\n",
+    )
+    .unwrap();
+
+    let err = compile_file(app_dir.to_str().unwrap()).unwrap_err();
+    assert!(
+        format!("{err:?}").contains("escapes package root"),
+        "unexpected error: {err:?}"
+    );
+}
+
+#[test]
+fn dsl_rejects_pipeline_include_cycles() {
+    let package_dir =
+        std::env::temp_dir().join(format!("gewy-package-{}-include-cycle", std::process::id()));
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(
+        package_dir.join("gewy.pkg"),
+        "name=include_cycle\nversion=0.1.0\nentry=main.gewy\n",
+    )
+    .unwrap();
+    fs::write(
+        package_dir.join("main.gewy"),
+        r#"
+template(:include_cycle)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> include("./module.gewy")
+"#,
+    )
+    .unwrap();
+    fs::write(
+        package_dir.join("module.gewy"),
+        r#"
+|> include("./main.gewy")
+"#,
+    )
+    .unwrap();
+
+    let err = compile_file(package_dir.to_str().unwrap()).unwrap_err();
+    assert!(
+        format!("{err:?}").contains("include cycle detected"),
+        "unexpected error: {err:?}"
+    );
+}
+
+#[test]
+fn dsl_rejects_pipeline_use_cycles() {
+    let err = compile_str(
+        r#"
+fn alpha() {
+  |> use(:beta)
+}
+
+fn beta() {
+  |> use(:alpha)
+}
+
+template(:use_cycle)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:alpha)
+"#,
+    )
+    .unwrap_err();
+    assert!(
+        format!("{err:?}").contains("use cycle detected"),
+        "unexpected error: {err:?}"
     );
 }
 

@@ -7,19 +7,22 @@ use gewyvern::ledger::{
     CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact, SessionId,
     SockLineageFact, TcpStateFact,
 };
-use gewyvern::protocol_profiles::protocol_dsl_path;
+use gewyvern::protocol_profiles::{
+    protocol_default_entry, protocol_dsl_path, protocol_entries, protocol_names,
+};
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::socket_input::{
-    bind_unix_socket_listener, run_tcp_socket_session, run_tcp_socket_session_on_listener,
-    run_tcp_socket_session_on_listener_with_binding, run_tcp_socket_session_with_binding,
-    run_unix_socket_session, run_unix_socket_session_on_listener,
-    run_unix_socket_session_on_listener_with_binding, run_unix_socket_session_with_binding,
+    bind_unix_socket_listener, remove_unix_socket_file, run_tcp_socket_session,
+    run_tcp_socket_session_on_listener, run_tcp_socket_session_on_listener_with_binding,
+    run_tcp_socket_session_with_binding, run_unix_socket_session,
+    run_unix_socket_session_on_listener, run_unix_socket_session_on_listener_with_binding,
+    run_unix_socket_session_with_binding,
 };
 use gewyvern::template::{TemplateBinding, handshake_debug_template, udp_debug_template};
 use std::collections::HashSet;
 use std::env;
 use std::fs;
-use std::net::TcpListener;
+use std::net::{TcpListener, ToSocketAddrs};
 use std::time::{Duration, SystemTime};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -86,31 +89,31 @@ impl UiLocale {
     fn usage(self) -> &'static str {
         match self {
             Self::Zh => {
-                "用法: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "用法: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ja => {
-                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ko => {
-                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Fr => {
-                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::De => {
-                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Es => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Pt => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ru => {
-                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::En => {
-                "usage: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "usage: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
         }
     }
@@ -399,6 +402,10 @@ impl UiLocale {
             (Self::Zh, "dsl_protocol_conflict") => "--dsl 不能和 --protocol 一起使用",
             (Self::Zh, "dsl_entry_conflict") => "--dsl 不能和 --entry 一起使用",
             (Self::Zh, "entry_requires_protocol") => "--entry 需要和 --protocol 一起使用",
+            (Self::Zh, "list_conflict") => "--list-protocols 不能和 --list-entries 一起使用",
+            (Self::Zh, "remote_socket_requires_flag") => {
+                "远程 TCP 监听需要显式加上 --allow-remote-socket"
+            }
             (Self::Zh, "serve_requires_socket") => "--serve 需要 --unix-socket 或 --tcp-socket",
             (Self::Zh, "unsupported_fragment_combo") => "不支持的片段组合",
             (Self::Zh, "unix_only") => "unix socket 服务仅支持 unix 平台",
@@ -488,7 +495,9 @@ impl UiLocale {
             (Self::De, "demo_socket_conflict") => {
                 "--demo kann nicht mit dem Socket-Listener-Modus kombiniert werden"
             }
-            (Self::De, "dsl_protocol_conflict") => "--dsl kann nicht mit --protocol kombiniert werden",
+            (Self::De, "dsl_protocol_conflict") => {
+                "--dsl kann nicht mit --protocol kombiniert werden"
+            }
             (Self::De, "dsl_entry_conflict") => "--dsl kann nicht mit --entry kombiniert werden",
             (Self::De, "entry_requires_protocol") => "--entry erfordert --protocol",
             (Self::De, "serve_requires_socket") => {
@@ -579,6 +588,10 @@ impl UiLocale {
             (_, "dsl_protocol_conflict") => "--dsl cannot be combined with --protocol",
             (_, "dsl_entry_conflict") => "--dsl cannot be combined with --entry",
             (_, "entry_requires_protocol") => "--entry requires --protocol",
+            (_, "list_conflict") => "--list-protocols cannot be combined with --list-entries",
+            (_, "remote_socket_requires_flag") => {
+                "remote TCP listeners require explicit --allow-remote-socket"
+            }
             (_, "serve_requires_socket") => "--serve requires --unix-socket or --tcp-socket",
             (_, "unsupported_fragment_combo") => "unsupported fragment combination",
             (_, "unix_only") => "unix socket service is only supported on unix platforms",
@@ -636,9 +649,7 @@ impl UiLocale {
             (_, "missing_protocol") => {
                 "missing value for --protocol, expected a built-in protocol name".into()
             }
-            (_, "missing_entry") => {
-                "missing value for --entry, expected a gewy entry mode".into()
-            }
+            (_, "missing_entry") => "missing value for --entry, expected a gewy entry mode".into(),
             (_, "missing_pid") => "missing value for --pid, expected a process pid".into(),
             (_, "invalid_pid") => "--pid must be a positive integer".into(),
             (_, "missing_unix_socket") => {
@@ -660,6 +671,33 @@ fn main() {
         eprintln!("{message}");
         std::process::exit(2);
     });
+
+    if cli.list_protocols {
+        let rendered = if cli.json {
+            list_protocols_json()
+        } else {
+            list_protocols_text()
+        };
+        write_or_print(&rendered, cli.out_path.as_deref(), locale);
+        return;
+    }
+
+    if let Some(protocol) = cli.list_entries.as_deref() {
+        let rendered = if cli.json {
+            list_entries_json(protocol).unwrap_or_else(|| {
+                eprintln!("{}", locale.msgf("unsupported_protocol", protocol, None));
+                std::process::exit(2);
+            })
+        } else {
+            list_entries_text(protocol).unwrap_or_else(|| {
+                eprintln!("{}", locale.msgf("unsupported_protocol", protocol, None));
+                std::process::exit(2);
+            })
+        };
+        write_or_print(&rendered, cli.out_path.as_deref(), locale);
+        return;
+    }
+
     let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_000);
     let mut outputs = Vec::new();
 
@@ -680,17 +718,7 @@ fn main() {
         } else {
             render_diagnostics_report(&report, RenderFormat::Text)
         };
-        if let Some(path) = cli.out_path.as_deref() {
-            fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
-                eprintln!(
-                    "{}",
-                    locale.msgf("write_failed", path, Some(&err.to_string()))
-                );
-                std::process::exit(1);
-            });
-        } else {
-            println!("{rendered}");
-        }
+        write_or_print(&rendered, cli.out_path.as_deref(), locale);
         return;
     }
 
@@ -929,6 +957,9 @@ struct Cli {
     dsl_path: Option<String>,
     protocol: Option<String>,
     entry: Option<String>,
+    list_protocols: bool,
+    list_entries: Option<String>,
+    allow_remote_socket: bool,
     pid: Option<u32>,
     diagnostics: bool,
     findings: bool,
@@ -1022,6 +1053,9 @@ impl Cli {
         let mut dsl_path = None;
         let mut protocol = None;
         let mut entry = None;
+        let mut list_protocols = false;
+        let mut list_entries = None;
+        let mut allow_remote_socket = false;
         let mut pid = None;
         let mut diagnostics = false;
         let mut findings = false;
@@ -1079,6 +1113,14 @@ impl Cli {
                     entry = Some(
                         args.next()
                             .ok_or_else(|| locale.msgf("missing_entry", "", None))?,
+                    );
+                }
+                "--list-protocols" => list_protocols = true,
+                "--allow-remote-socket" => allow_remote_socket = true,
+                "--list-entries" => {
+                    list_entries = Some(
+                        args.next()
+                            .ok_or_else(|| locale.msgf("missing_protocol", "", None))?,
                     );
                 }
                 "--pid" => {
@@ -1141,6 +1183,9 @@ impl Cli {
         if dsl_path.is_some() && entry.is_some() {
             return Err(locale.msg("dsl_entry_conflict").into());
         }
+        if list_protocols && list_entries.is_some() {
+            return Err(locale.msg("list_conflict").into());
+        }
         if entry.is_some() && protocol.is_none() {
             return Err(locale.msg("entry_requires_protocol").into());
         }
@@ -1152,6 +1197,14 @@ impl Cli {
         }
         if serve && socket_target.is_none() {
             return Err(locale.msg("serve_requires_socket").into());
+        }
+        if matches!(socket_target, Some(SocketTarget::Tcp(_)))
+            && !allow_remote_socket
+            && socket_target
+                .as_ref()
+                .is_some_and(|target| !socket_target_is_local(target))
+        {
+            return Err(locale.msg("remote_socket_requires_flag").into());
         }
 
         if let Some(protocol_name) = protocol.as_deref() {
@@ -1166,6 +1219,9 @@ impl Cli {
             dsl_path,
             protocol,
             entry,
+            list_protocols,
+            list_entries,
+            allow_remote_socket,
             pid,
             diagnostics,
             findings,
@@ -1182,6 +1238,19 @@ impl Cli {
 
 fn process_matches_pid(process: Option<&ProcessView>, pid: u32) -> bool {
     process.is_some_and(|process| process.pid == pid)
+}
+
+fn socket_target_is_local(target: &SocketTarget) -> bool {
+    match target {
+        SocketTarget::Unix(_) => true,
+        SocketTarget::Tcp(addr) => tcp_bind_addr_is_local(addr),
+    }
+}
+
+fn tcp_bind_addr_is_local(addr: &str) -> bool {
+    addr.to_socket_addrs()
+        .map(|resolved| resolved.into_iter().all(|addr| addr.ip().is_loopback()))
+        .unwrap_or_else(|_| addr.starts_with("localhost:"))
 }
 
 fn filter_export_by_pid(export: &ExportBundle, pid: u32) -> ExportBundle {
@@ -1248,7 +1317,8 @@ fn filter_export_by_pid(export: &ExportBundle, pid: u32) -> ExportBundle {
         .filter(|fact| accepted_fact_ids.contains(&fact.id))
         .cloned()
         .collect();
-    filtered.rejected_fact_summary = gewyvern::runtime::summarize_rejected_facts(&filtered.rejected_facts);
+    filtered.rejected_fact_summary =
+        gewyvern::runtime::summarize_rejected_facts(&filtered.rejected_facts);
     filtered.flows = export
         .flows
         .iter()
@@ -2059,7 +2129,10 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
 
 #[cfg(test)]
 mod tests {
-    use super::{Cli, filter_export_by_pid, protocol_dsl_path, run_binding_demo};
+    use super::{
+        Cli, filter_export_by_pid, list_entries_json, list_entries_text, list_protocols_json,
+        list_protocols_text, protocol_dsl_path, run_binding_demo,
+    };
     use gewyvern::dsl::compile_file;
     use gewyvern::flow::ProgramOperation;
 
@@ -2205,6 +2278,78 @@ mod tests {
     }
 
     #[test]
+    fn cli_accepts_list_protocols_mode() {
+        let cli = Cli::from_args(["--list-protocols".to_string(), "--json".to_string()]).unwrap();
+        assert!(cli.list_protocols);
+        assert_eq!(cli.list_entries, None);
+    }
+
+    #[test]
+    fn cli_accepts_list_entries_mode() {
+        let cli = Cli::from_args(["--list-entries".to_string(), "mysql".to_string()]).unwrap();
+        assert!(!cli.list_protocols);
+        assert_eq!(cli.list_entries.as_deref(), Some("mysql"));
+    }
+
+    #[test]
+    fn cli_rejects_combined_list_modes() {
+        let err = Cli::from_args([
+            "--list-protocols".to_string(),
+            "--list-entries".to_string(),
+            "mysql".to_string(),
+        ])
+        .unwrap_err();
+        assert!(err.contains("--list-protocols"));
+        assert!(err.contains("--list-entries"));
+    }
+
+    #[test]
+    fn list_protocols_output_includes_mysql_default_entry() {
+        let text = list_protocols_text();
+        assert!(text.contains("mysql (default: session)"));
+
+        let json = list_protocols_json();
+        assert!(json.contains("\"protocol\":\"mysql\""));
+        assert!(json.contains("\"default_entry\":\"session\""));
+    }
+
+    #[test]
+    fn list_entries_output_marks_default_entry() {
+        let text = list_entries_text("ldap").expect("ldap should be present");
+        assert!(text.contains("sync (default)"));
+        assert!(text.contains("bind"));
+
+        let json = list_entries_json("mysql").expect("mysql should be present");
+        assert!(json.contains("\"protocol\":\"mysql\""));
+        assert!(json.contains("\"mode\":\"session\",\"default\":true"));
+    }
+
+    #[test]
+    fn cli_rejects_remote_tcp_socket_without_explicit_flag() {
+        let err =
+            Cli::from_args(["--tcp-socket".to_string(), "0.0.0.0:9000".to_string()]).unwrap_err();
+        assert!(err.contains("--allow-remote-socket"));
+    }
+
+    #[test]
+    fn cli_accepts_remote_tcp_socket_with_explicit_flag() {
+        let cli = Cli::from_args([
+            "--tcp-socket".to_string(),
+            "0.0.0.0:9000".to_string(),
+            "--allow-remote-socket".to_string(),
+        ])
+        .unwrap();
+        assert!(cli.allow_remote_socket);
+    }
+
+    #[test]
+    fn cli_accepts_loopback_tcp_socket_without_remote_flag() {
+        let cli =
+            Cli::from_args(["--tcp-socket".to_string(), "127.0.0.1:9000".to_string()]).unwrap();
+        assert!(!cli.allow_remote_socket);
+    }
+
+    #[test]
     fn pid_filter_keeps_only_target_process_view() {
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
             .expect("http_request_path DSL should compile");
@@ -2294,6 +2439,80 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
         locale.label("suspect_modules"),
         suspect_modules,
     )
+}
+
+fn write_or_print(rendered: &str, out_path: Option<&str>, locale: UiLocale) {
+    if let Some(path) = out_path {
+        fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
+            eprintln!(
+                "{}",
+                locale.msgf("write_failed", path, Some(&err.to_string()))
+            );
+            std::process::exit(1);
+        });
+    } else {
+        println!("{rendered}");
+    }
+}
+
+fn list_protocols_text() -> String {
+    protocol_names()
+        .into_iter()
+        .filter_map(|protocol| {
+            protocol_default_entry(protocol)
+                .map(|default_entry| format!("{protocol} (default: {default_entry})"))
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn list_protocols_json() -> String {
+    let items = protocol_names()
+        .into_iter()
+        .filter_map(|protocol| {
+            protocol_default_entry(protocol).map(|default_entry| {
+                format!("{{\"protocol\":\"{protocol}\",\"default_entry\":\"{default_entry}\"}}")
+            })
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("[{items}]")
+}
+
+fn list_entries_text(protocol: &str) -> Option<String> {
+    let default_entry = protocol_default_entry(protocol)?;
+    let lines = protocol_entries(protocol)?
+        .into_iter()
+        .map(|entry| {
+            if entry == default_entry {
+                format!("{entry} (default)")
+            } else {
+                entry.to_string()
+            }
+        })
+        .collect::<Vec<_>>();
+    Some(lines.join("\n"))
+}
+
+fn list_entries_json(protocol: &str) -> Option<String> {
+    let default_entry = protocol_default_entry(protocol)?;
+    let entries = protocol_entries(protocol)?
+        .into_iter()
+        .map(|entry| {
+            format!(
+                "{{\"mode\":\"{entry}\",\"default\":{}}}",
+                if entry == default_entry {
+                    "true"
+                } else {
+                    "false"
+                }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    Some(format!(
+        "{{\"protocol\":\"{protocol}\",\"default_entry\":\"{default_entry}\",\"entries\":[{entries}]}}"
+    ))
 }
 
 fn usage() -> &'static str {
@@ -2675,7 +2894,13 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
     let locale = UiLocale::detect();
     #[cfg(target_family = "unix")]
     {
-        let _ = fs::remove_file(path);
+        remove_unix_socket_file(path).unwrap_or_else(|err| {
+            eprintln!(
+                "{}",
+                locale.msgf("socket_service_failed", &format!("{err:?}"), None)
+            );
+            std::process::exit(1);
+        });
         let listener = bind_unix_socket_listener(path).unwrap_or_else(|err| {
             eprintln!(
                 "{}",
@@ -2705,7 +2930,13 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
             emit_rendered(cli, "socket_session", &export, true);
         }
 
-        let _ = fs::remove_file(path);
+        remove_unix_socket_file(path).unwrap_or_else(|err| {
+            eprintln!(
+                "{}",
+                locale.msgf("socket_service_failed", &format!("{err:?}"), None)
+            );
+            std::process::exit(1);
+        });
         return;
     }
 

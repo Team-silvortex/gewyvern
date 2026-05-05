@@ -55,13 +55,11 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
             },
             ProtocolEntryProfile {
                 mode: "server",
-                dsl_path:
-                    "/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy",
             },
             ProtocolEntryProfile {
                 mode: "response",
-                dsl_path:
-                    "/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy",
             },
         ],
     },
@@ -201,8 +199,7 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
         entries: &[
             ProtocolEntryProfile {
                 mode: "start",
-                dsl_path:
-                    "/Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy",
             },
             ProtocolEntryProfile {
                 mode: "publish",
@@ -284,23 +281,19 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
             },
             ProtocolEntryProfile {
                 mode: "constraint",
-                dsl_path:
-                    "/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_constraint_path.gewy",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_constraint_path.gewy",
             },
             ProtocolEntryProfile {
                 mode: "session",
-                dsl_path:
-                    "/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_session.gewy",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_session.gewy",
             },
             ProtocolEntryProfile {
                 mode: "write",
-                dsl_path:
-                    "/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_write_session.gewy",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_write_session.gewy",
             },
             ProtocolEntryProfile {
                 mode: "sync",
-                dsl_path:
-                    "/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy",
             },
         ],
     },
@@ -315,60 +308,276 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
 ];
 
 const PROTOCOL_ALIASES: &[ProtocolAlias] = &[
-    ProtocolAlias { alias: "dns-tcp", protocol: "dns", entry: Some("tcp") },
-    ProtocolAlias { alias: "dns_tcp", protocol: "dns", entry: Some("tcp") },
-    ProtocolAlias { alias: "http-request", protocol: "http", entry: Some("request") },
-    ProtocolAlias { alias: "http_request", protocol: "http", entry: Some("request") },
-    ProtocolAlias { alias: "http-client", protocol: "http", entry: Some("request") },
-    ProtocolAlias { alias: "http_client", protocol: "http", entry: Some("request") },
-    ProtocolAlias { alias: "http-server", protocol: "http", entry: Some("server") },
-    ProtocolAlias { alias: "http_server", protocol: "http", entry: Some("server") },
-    ProtocolAlias { alias: "postgres-connect", protocol: "postgres", entry: Some("connect") },
-    ProtocolAlias { alias: "postgres_connect", protocol: "postgres", entry: Some("connect") },
-    ProtocolAlias { alias: "postgres-auth", protocol: "postgres", entry: Some("auth") },
-    ProtocolAlias { alias: "postgres_auth", protocol: "postgres", entry: Some("auth") },
-    ProtocolAlias { alias: "postgres-query", protocol: "postgres", entry: Some("query") },
-    ProtocolAlias { alias: "postgres_query", protocol: "postgres", entry: Some("query") },
-    ProtocolAlias { alias: "postgres-error", protocol: "postgres", entry: Some("error") },
-    ProtocolAlias { alias: "postgres_error", protocol: "postgres", entry: Some("error") },
-    ProtocolAlias { alias: "mysql-connect", protocol: "mysql", entry: Some("connect") },
-    ProtocolAlias { alias: "mysql_connect", protocol: "mysql", entry: Some("connect") },
-    ProtocolAlias { alias: "mysql-query", protocol: "mysql", entry: Some("query") },
-    ProtocolAlias { alias: "mysql_query", protocol: "mysql", entry: Some("query") },
-    ProtocolAlias { alias: "mysql-session", protocol: "mysql", entry: Some("session") },
-    ProtocolAlias { alias: "mysql_session", protocol: "mysql", entry: Some("session") },
-    ProtocolAlias { alias: "mysql-error", protocol: "mysql", entry: Some("error") },
-    ProtocolAlias { alias: "mysql_error", protocol: "mysql", entry: Some("error") },
-    ProtocolAlias { alias: "memcached-get", protocol: "memcached", entry: Some("get") },
-    ProtocolAlias { alias: "memcached_get", protocol: "memcached", entry: Some("get") },
-    ProtocolAlias { alias: "memcached-set", protocol: "memcached", entry: Some("set") },
-    ProtocolAlias { alias: "memcached_set", protocol: "memcached", entry: Some("set") },
-    ProtocolAlias { alias: "amqp-start", protocol: "amqp", entry: Some("start") },
-    ProtocolAlias { alias: "amqp_start", protocol: "amqp", entry: Some("start") },
-    ProtocolAlias { alias: "amqp-publish", protocol: "amqp", entry: Some("publish") },
-    ProtocolAlias { alias: "amqp_publish", protocol: "amqp", entry: Some("publish") },
-    ProtocolAlias { alias: "amqp-session", protocol: "amqp", entry: Some("session") },
-    ProtocolAlias { alias: "amqp_session", protocol: "amqp", entry: Some("session") },
-    ProtocolAlias { alias: "redis-ping", protocol: "redis", entry: Some("ping") },
-    ProtocolAlias { alias: "redis_ping", protocol: "redis", entry: Some("ping") },
-    ProtocolAlias { alias: "gtp-u", protocol: "gtpu", entry: Some("echo") },
-    ProtocolAlias { alias: "gtp_u", protocol: "gtpu", entry: Some("echo") },
-    ProtocolAlias { alias: "ldap-bind", protocol: "ldap", entry: Some("bind") },
-    ProtocolAlias { alias: "ldap_bind", protocol: "ldap", entry: Some("bind") },
-    ProtocolAlias { alias: "ldap-search", protocol: "ldap", entry: Some("search") },
-    ProtocolAlias { alias: "ldap_search", protocol: "ldap", entry: Some("search") },
-    ProtocolAlias { alias: "ldap-modify", protocol: "ldap", entry: Some("modify") },
-    ProtocolAlias { alias: "ldap_modify", protocol: "ldap", entry: Some("modify") },
-    ProtocolAlias { alias: "ldap-denied", protocol: "ldap", entry: Some("denied") },
-    ProtocolAlias { alias: "ldap_denied", protocol: "ldap", entry: Some("denied") },
-    ProtocolAlias { alias: "ldap-constraint", protocol: "ldap", entry: Some("constraint") },
-    ProtocolAlias { alias: "ldap_constraint", protocol: "ldap", entry: Some("constraint") },
-    ProtocolAlias { alias: "ldap-session", protocol: "ldap", entry: Some("session") },
-    ProtocolAlias { alias: "ldap_session", protocol: "ldap", entry: Some("session") },
-    ProtocolAlias { alias: "ldap-write", protocol: "ldap", entry: Some("write") },
-    ProtocolAlias { alias: "ldap_write", protocol: "ldap", entry: Some("write") },
-    ProtocolAlias { alias: "ldap-sync", protocol: "ldap", entry: Some("sync") },
-    ProtocolAlias { alias: "ldap_sync", protocol: "ldap", entry: Some("sync") },
+    ProtocolAlias {
+        alias: "dns-tcp",
+        protocol: "dns",
+        entry: Some("tcp"),
+    },
+    ProtocolAlias {
+        alias: "dns_tcp",
+        protocol: "dns",
+        entry: Some("tcp"),
+    },
+    ProtocolAlias {
+        alias: "http-request",
+        protocol: "http",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "http_request",
+        protocol: "http",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "http-client",
+        protocol: "http",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "http_client",
+        protocol: "http",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "http-server",
+        protocol: "http",
+        entry: Some("server"),
+    },
+    ProtocolAlias {
+        alias: "http_server",
+        protocol: "http",
+        entry: Some("server"),
+    },
+    ProtocolAlias {
+        alias: "postgres-connect",
+        protocol: "postgres",
+        entry: Some("connect"),
+    },
+    ProtocolAlias {
+        alias: "postgres_connect",
+        protocol: "postgres",
+        entry: Some("connect"),
+    },
+    ProtocolAlias {
+        alias: "postgres-auth",
+        protocol: "postgres",
+        entry: Some("auth"),
+    },
+    ProtocolAlias {
+        alias: "postgres_auth",
+        protocol: "postgres",
+        entry: Some("auth"),
+    },
+    ProtocolAlias {
+        alias: "postgres-query",
+        protocol: "postgres",
+        entry: Some("query"),
+    },
+    ProtocolAlias {
+        alias: "postgres_query",
+        protocol: "postgres",
+        entry: Some("query"),
+    },
+    ProtocolAlias {
+        alias: "postgres-error",
+        protocol: "postgres",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "postgres_error",
+        protocol: "postgres",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "mysql-connect",
+        protocol: "mysql",
+        entry: Some("connect"),
+    },
+    ProtocolAlias {
+        alias: "mysql_connect",
+        protocol: "mysql",
+        entry: Some("connect"),
+    },
+    ProtocolAlias {
+        alias: "mysql-query",
+        protocol: "mysql",
+        entry: Some("query"),
+    },
+    ProtocolAlias {
+        alias: "mysql_query",
+        protocol: "mysql",
+        entry: Some("query"),
+    },
+    ProtocolAlias {
+        alias: "mysql-session",
+        protocol: "mysql",
+        entry: Some("session"),
+    },
+    ProtocolAlias {
+        alias: "mysql_session",
+        protocol: "mysql",
+        entry: Some("session"),
+    },
+    ProtocolAlias {
+        alias: "mysql-error",
+        protocol: "mysql",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "mysql_error",
+        protocol: "mysql",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "memcached-get",
+        protocol: "memcached",
+        entry: Some("get"),
+    },
+    ProtocolAlias {
+        alias: "memcached_get",
+        protocol: "memcached",
+        entry: Some("get"),
+    },
+    ProtocolAlias {
+        alias: "memcached-set",
+        protocol: "memcached",
+        entry: Some("set"),
+    },
+    ProtocolAlias {
+        alias: "memcached_set",
+        protocol: "memcached",
+        entry: Some("set"),
+    },
+    ProtocolAlias {
+        alias: "amqp-start",
+        protocol: "amqp",
+        entry: Some("start"),
+    },
+    ProtocolAlias {
+        alias: "amqp_start",
+        protocol: "amqp",
+        entry: Some("start"),
+    },
+    ProtocolAlias {
+        alias: "amqp-publish",
+        protocol: "amqp",
+        entry: Some("publish"),
+    },
+    ProtocolAlias {
+        alias: "amqp_publish",
+        protocol: "amqp",
+        entry: Some("publish"),
+    },
+    ProtocolAlias {
+        alias: "amqp-session",
+        protocol: "amqp",
+        entry: Some("session"),
+    },
+    ProtocolAlias {
+        alias: "amqp_session",
+        protocol: "amqp",
+        entry: Some("session"),
+    },
+    ProtocolAlias {
+        alias: "redis-ping",
+        protocol: "redis",
+        entry: Some("ping"),
+    },
+    ProtocolAlias {
+        alias: "redis_ping",
+        protocol: "redis",
+        entry: Some("ping"),
+    },
+    ProtocolAlias {
+        alias: "gtp-u",
+        protocol: "gtpu",
+        entry: Some("echo"),
+    },
+    ProtocolAlias {
+        alias: "gtp_u",
+        protocol: "gtpu",
+        entry: Some("echo"),
+    },
+    ProtocolAlias {
+        alias: "ldap-bind",
+        protocol: "ldap",
+        entry: Some("bind"),
+    },
+    ProtocolAlias {
+        alias: "ldap_bind",
+        protocol: "ldap",
+        entry: Some("bind"),
+    },
+    ProtocolAlias {
+        alias: "ldap-search",
+        protocol: "ldap",
+        entry: Some("search"),
+    },
+    ProtocolAlias {
+        alias: "ldap_search",
+        protocol: "ldap",
+        entry: Some("search"),
+    },
+    ProtocolAlias {
+        alias: "ldap-modify",
+        protocol: "ldap",
+        entry: Some("modify"),
+    },
+    ProtocolAlias {
+        alias: "ldap_modify",
+        protocol: "ldap",
+        entry: Some("modify"),
+    },
+    ProtocolAlias {
+        alias: "ldap-denied",
+        protocol: "ldap",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "ldap_denied",
+        protocol: "ldap",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "ldap-constraint",
+        protocol: "ldap",
+        entry: Some("constraint"),
+    },
+    ProtocolAlias {
+        alias: "ldap_constraint",
+        protocol: "ldap",
+        entry: Some("constraint"),
+    },
+    ProtocolAlias {
+        alias: "ldap-session",
+        protocol: "ldap",
+        entry: Some("session"),
+    },
+    ProtocolAlias {
+        alias: "ldap_session",
+        protocol: "ldap",
+        entry: Some("session"),
+    },
+    ProtocolAlias {
+        alias: "ldap-write",
+        protocol: "ldap",
+        entry: Some("write"),
+    },
+    ProtocolAlias {
+        alias: "ldap_write",
+        protocol: "ldap",
+        entry: Some("write"),
+    },
+    ProtocolAlias {
+        alias: "ldap-sync",
+        protocol: "ldap",
+        entry: Some("sync"),
+    },
+    ProtocolAlias {
+        alias: "ldap_sync",
+        protocol: "ldap",
+        entry: Some("sync"),
+    },
 ];
 
 pub fn protocol_dsl_path(protocol: &str, entry: Option<&str>) -> Option<&'static str> {
@@ -382,8 +591,33 @@ pub fn protocol_dsl_path(protocol: &str, entry: Option<&str>) -> Option<&'static
         .map(|item| item.dsl_path)
 }
 
+pub fn protocol_names() -> Vec<&'static str> {
+    PROTOCOL_PROFILES
+        .iter()
+        .map(|profile| profile.name)
+        .collect()
+}
+
+pub fn protocol_default_entry(protocol: &str) -> Option<&'static str> {
+    let (protocol_name, _) = split_protocol_alias(protocol);
+    find_protocol_profile(protocol_name).map(|profile| profile.default_entry)
+}
+
+pub fn protocol_entries(protocol: &str) -> Option<Vec<&'static str>> {
+    let (protocol_name, _) = split_protocol_alias(protocol);
+    find_protocol_profile(protocol_name).map(|profile| {
+        profile
+            .entries
+            .iter()
+            .map(|entry| entry.mode)
+            .collect::<Vec<_>>()
+    })
+}
+
 fn find_protocol_profile(protocol: &str) -> Option<&'static ProtocolProfile> {
-    PROTOCOL_PROFILES.iter().find(|profile| profile.name == protocol)
+    PROTOCOL_PROFILES
+        .iter()
+        .find(|profile| profile.name == protocol)
 }
 
 fn split_protocol_alias(protocol: &str) -> (&str, Option<&str>) {
