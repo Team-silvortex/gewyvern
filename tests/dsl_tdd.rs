@@ -203,6 +203,19 @@ fn built_in_postgres_query_error_path_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn built_in_mysql_connect_process_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_connect_process.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "mysql_connect_process");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("mysql_connect".into())
+    );
+}
+
+#[test]
 fn built_in_mysql_simple_query_path_dsl_compiles_into_template_binding() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy")
@@ -212,6 +225,18 @@ fn built_in_mysql_simple_query_path_dsl_compiles_into_template_binding() {
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("mysql_simple_query".into())
+    );
+}
+
+#[test]
+fn built_in_mysql_query_session_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "mysql_query_session");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("mysql_query_session".into())
     );
 }
 
@@ -277,6 +302,18 @@ fn built_in_amqp_basic_publish_path_dsl_compiles_into_template_binding() {
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("amqp_basic_publish".into())
+    );
+}
+
+#[test]
+fn built_in_amqp_publish_session_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_publish_session.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "amqp_publish_session");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("amqp_publish_session".into())
     );
 }
 
@@ -4989,6 +5026,105 @@ fn mysql_simple_query_path_does_not_match_error_packet_as_ok() {
 }
 
 #[test]
+fn mysql_query_session_can_span_connect_query_and_ok_in_one_module() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 514, 7789, "mysql-session"));
+    session.ingest(route_fact(2, 514, 6));
+    session.ingest(tcp_state_fact_with_ports(3, 514, 1, 2, 43133, 3306));
+    session.ingest(tcp_state_fact_with_ports(4, 514, 2, 3, 43133, 3306));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        5,
+        514,
+        0,
+        PacketDir::Egress,
+        Some(43133),
+        Some(3306),
+        None,
+        None,
+        None,
+        Some(0x03),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        6,
+        514,
+        0,
+        PacketDir::Ingress,
+        Some(43133),
+        Some(3306),
+        None,
+        None,
+        None,
+        Some(0x00),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("mysql_query_session".into())
+    );
+    let phases = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase.clone())
+        .collect::<Vec<_>>();
+    assert!(phases.contains(&"connect".to_string()));
+    assert!(phases.contains(&"establish".to_string()));
+    assert!(phases.contains(&"send_query".to_string()));
+    assert!(phases.contains(&"receive_ok".to_string()));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"establish_connection".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn mysql_query_session_missing_response_produces_query_to_ok_transition() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+        .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 515, 7790, "mysql-session"));
+    session.ingest(route_fact(2, 515, 6));
+    session.ingest(tcp_state_fact_with_ports(3, 515, 1, 2, 43134, 3306));
+    session.ingest(tcp_state_fact_with_ports(4, 515, 2, 3, 43134, 3306));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+        5,
+        515,
+        0,
+        PacketDir::Egress,
+        Some(43134),
+        Some(3306),
+        None,
+        None,
+        None,
+        Some(0x03),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(export.program_findings.iter().any(|finding| {
+        finding.module_label == "mysql_query_session"
+            && finding.phase.as_deref() == Some("receive_ok")
+            && finding.phase_transition.as_deref() == Some("send_query->receive_ok")
+    }));
+    assert!(export.module_findings.iter().any(|finding| {
+        finding
+            .phase_transitions
+            .contains(&"send_query->receive_ok".to_string())
+    }));
+}
+
+#[test]
 fn mysql_query_error_path_materializes_query_and_error_phases() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy")
@@ -5560,6 +5696,166 @@ fn amqp_basic_publish_path_does_not_match_wrong_ack_method_id() {
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_ack"))
     );
+}
+
+#[test]
+fn amqp_publish_session_can_span_startup_and_publish_in_one_module() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_publish_session.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 524, 7799, "amqp-publisher"));
+    session.ingest(route_fact(2, 524, 6));
+    session.ingest(tcp_state_fact_with_ports(3, 524, 1, 2, 43143, 5672));
+    session.ingest(tcp_state_fact_with_ports(4, 524, 2, 3, 43143, 5672));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        524,
+        0,
+        PacketDir::Egress,
+        Some(43143),
+        Some(5672),
+        None,
+        None,
+        Some(0x414d5150),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        6,
+        524,
+        0,
+        PacketDir::Ingress,
+        Some(43143),
+        Some(5672),
+        Some(0x01),
+        Some(0x0a),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        7,
+        524,
+        0,
+        PacketDir::Egress,
+        Some(43143),
+        Some(5672),
+        Some(0x01),
+        Some(0x0b),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        8,
+        524,
+        0,
+        PacketDir::Egress,
+        Some(43143),
+        Some(5672),
+        Some(0x01),
+        Some(0x28),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        9,
+        524,
+        0,
+        PacketDir::Ingress,
+        Some(43143),
+        Some(5672),
+        Some(0x01),
+        Some(0x50),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(100));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("amqp_publish_session".into())
+    );
+    let phases = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase.clone())
+        .collect::<Vec<_>>();
+    assert!(phases.contains(&"connect".to_string()));
+    assert!(phases.contains(&"establish".to_string()));
+    assert!(phases.contains(&"send_protocol_header".to_string()));
+    assert!(phases.contains(&"receive_start".to_string()));
+    assert!(phases.contains(&"send_start_ok".to_string()));
+    assert!(phases.contains(&"send_publish".to_string()));
+    assert!(phases.contains(&"receive_ack".to_string()));
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"establish_connection".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn amqp_publish_session_missing_publish_produces_start_ok_to_publish_transition() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_publish_session.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 525, 7800, "amqp-publisher"));
+    session.ingest(route_fact(2, 525, 6));
+    session.ingest(tcp_state_fact_with_ports(3, 525, 1, 2, 43144, 5672));
+    session.ingest(tcp_state_fact_with_ports(4, 525, 2, 3, 43144, 5672));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        525,
+        0,
+        PacketDir::Egress,
+        Some(43144),
+        Some(5672),
+        None,
+        None,
+        Some(0x414d5150),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        6,
+        525,
+        0,
+        PacketDir::Ingress,
+        Some(43144),
+        Some(5672),
+        Some(0x01),
+        Some(0x0a),
+        None,
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_byte10(
+        7,
+        525,
+        0,
+        PacketDir::Egress,
+        Some(43144),
+        Some(5672),
+        Some(0x01),
+        Some(0x0b),
+        None,
+        None,
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(90));
+
+    let export = session.export_bundle();
+    assert!(export.program_findings.iter().any(|finding| {
+        finding.module_label == "amqp_publish_session"
+            && finding.phase.as_deref() == Some("send_publish")
+            && finding.phase_transition.as_deref() == Some("send_start_ok->send_publish")
+    }));
+    assert!(export.module_findings.iter().any(|finding| {
+        finding
+            .phase_transitions
+            .contains(&"send_start_ok->send_publish".to_string())
+    }));
 }
 
 #[test]
