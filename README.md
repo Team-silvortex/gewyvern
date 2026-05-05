@@ -389,6 +389,29 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy --js
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json --summary-only
 ```
 
+Lock onto a built-in protocol model directly:
+
+```bash
+cargo run -- --protocol mysql --json --summary-only
+cargo run -- --protocol amqp --findings --json
+```
+
+Lock output to one process PID:
+
+```bash
+cargo run -- --protocol mysql --pid 4242 --json
+cargo run -- --protocol ldap --entry sync --pid 4242 --findings --json
+```
+
+Select a specific gewy entry mode for one protocol:
+
+```bash
+cargo run -- --protocol mysql --entry connect --json
+cargo run -- --protocol mysql --entry session --json
+cargo run -- --protocol amqp --entry start --json
+cargo run -- --protocol amqp --entry session --findings --json
+```
+
 Inspect binding diagnostics without starting a runtime session:
 
 ```bash
@@ -464,6 +487,12 @@ Socket session from a DSL file:
 
 ```bash
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --unix-socket /tmp/gewyvern.sock --json
+```
+
+Socket session locked to a built-in protocol and PID:
+
+```bash
+cargo run -- --protocol mysql --entry session --pid 4242 --tcp-socket 127.0.0.1:9000 --json
 ```
 
 Serve multiple sessions:

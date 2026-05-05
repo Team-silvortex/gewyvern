@@ -8,6 +8,7 @@ pub mod ir;
 pub mod ledger;
 pub mod loader;
 pub mod program;
+pub mod protocol_profiles;
 pub mod reason;
 pub mod runtime;
 pub mod socket_input;

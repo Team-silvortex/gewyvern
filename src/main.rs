@@ -1,11 +1,13 @@
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
+use gewyvern::flow::{FlowId, ProcessView, ProgramFlowId};
 use gewyvern::gewyc::{RenderFormat, compile_diagnostics_report_file, render_diagnostics_report};
 use gewyvern::http::{HttpSuspectSide, HttpTransactionView, compose_http_transactions};
 use gewyvern::ledger::{
     CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact, SessionId,
     SockLineageFact, TcpStateFact,
 };
+use gewyvern::protocol_profiles::protocol_dsl_path;
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::socket_input::{
     bind_unix_socket_listener, run_tcp_socket_session, run_tcp_socket_session_on_listener,
@@ -14,6 +16,7 @@ use gewyvern::socket_input::{
     run_unix_socket_session_on_listener_with_binding, run_unix_socket_session_with_binding,
 };
 use gewyvern::template::{TemplateBinding, handshake_debug_template, udp_debug_template};
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::net::TcpListener;
@@ -83,31 +86,31 @@ impl UiLocale {
     fn usage(self) -> &'static str {
         match self {
             Self::Zh => {
-                "用法: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "用法: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ja => {
-                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ko => {
-                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Fr => {
-                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::De => {
-                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Es => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Pt => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ru => {
-                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::En => {
-                "usage: gewyvern [--demo tcp|udp|both] [--dsl path] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "usage: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
         }
     }
@@ -393,6 +396,9 @@ impl UiLocale {
             (Self::Zh, "diagnostics_serve_conflict") => "--diagnostics 不能和 --serve 一起使用",
             (Self::Zh, "dsl_demo_conflict") => "--dsl 不能和 --demo 一起使用",
             (Self::Zh, "demo_socket_conflict") => "--demo 不能和 socket 监听模式一起使用",
+            (Self::Zh, "dsl_protocol_conflict") => "--dsl 不能和 --protocol 一起使用",
+            (Self::Zh, "dsl_entry_conflict") => "--dsl 不能和 --entry 一起使用",
+            (Self::Zh, "entry_requires_protocol") => "--entry 需要和 --protocol 一起使用",
             (Self::Zh, "serve_requires_socket") => "--serve 需要 --unix-socket 或 --tcp-socket",
             (Self::Zh, "unsupported_fragment_combo") => "不支持的片段组合",
             (Self::Zh, "unix_only") => "unix socket 服务仅支持 unix 平台",
@@ -407,6 +413,9 @@ impl UiLocale {
             (Self::Ja, "diagnostics_serve_conflict") => "--diagnostics は --serve と併用できません",
             (Self::Ja, "dsl_demo_conflict") => "--dsl は --demo と併用できません",
             (Self::Ja, "demo_socket_conflict") => "--demo はソケット待受モードと併用できません",
+            (Self::Ja, "dsl_protocol_conflict") => "--dsl は --protocol と併用できません",
+            (Self::Ja, "dsl_entry_conflict") => "--dsl は --entry と併用できません",
+            (Self::Ja, "entry_requires_protocol") => "--entry には --protocol が必要です",
             (Self::Ja, "serve_requires_socket") => {
                 "--serve には --unix-socket または --tcp-socket が必要です"
             }
@@ -429,6 +438,9 @@ impl UiLocale {
             (Self::Ko, "demo_socket_conflict") => {
                 "--demo는 소켓 리스너 모드와 함께 사용할 수 없습니다"
             }
+            (Self::Ko, "dsl_protocol_conflict") => "--dsl은 --protocol과 함께 사용할 수 없습니다",
+            (Self::Ko, "dsl_entry_conflict") => "--dsl은 --entry와 함께 사용할 수 없습니다",
+            (Self::Ko, "entry_requires_protocol") => "--entry에는 --protocol이 필요합니다",
             (Self::Ko, "serve_requires_socket") => {
                 "--serve에는 --unix-socket 또는 --tcp-socket이 필요합니다"
             }
@@ -449,6 +461,9 @@ impl UiLocale {
             (Self::Fr, "demo_socket_conflict") => {
                 "--demo ne peut pas être combiné avec le mode écoute socket"
             }
+            (Self::Fr, "dsl_protocol_conflict") => "--dsl ne peut pas être combiné avec --protocol",
+            (Self::Fr, "dsl_entry_conflict") => "--dsl ne peut pas être combiné avec --entry",
+            (Self::Fr, "entry_requires_protocol") => "--entry nécessite --protocol",
             (Self::Fr, "serve_requires_socket") => {
                 "--serve nécessite --unix-socket ou --tcp-socket"
             }
@@ -473,6 +488,9 @@ impl UiLocale {
             (Self::De, "demo_socket_conflict") => {
                 "--demo kann nicht mit dem Socket-Listener-Modus kombiniert werden"
             }
+            (Self::De, "dsl_protocol_conflict") => "--dsl kann nicht mit --protocol kombiniert werden",
+            (Self::De, "dsl_entry_conflict") => "--dsl kann nicht mit --entry kombiniert werden",
+            (Self::De, "entry_requires_protocol") => "--entry erfordert --protocol",
             (Self::De, "serve_requires_socket") => {
                 "--serve erfordert --unix-socket oder --tcp-socket"
             }
@@ -495,6 +513,9 @@ impl UiLocale {
             (Self::Es, "demo_socket_conflict") => {
                 "--demo no se puede combinar con el modo de escucha por socket"
             }
+            (Self::Es, "dsl_protocol_conflict") => "--dsl no se puede combinar con --protocol",
+            (Self::Es, "dsl_entry_conflict") => "--dsl no se puede combinar con --entry",
+            (Self::Es, "entry_requires_protocol") => "--entry requiere --protocol",
             (Self::Es, "serve_requires_socket") => "--serve requiere --unix-socket o --tcp-socket",
             (Self::Es, "unsupported_fragment_combo") => "combinación de fragmentos no compatible",
             (Self::Es, "unix_only") => {
@@ -515,6 +536,9 @@ impl UiLocale {
             (Self::Pt, "demo_socket_conflict") => {
                 "--demo não pode ser combinado com o modo de escuta por socket"
             }
+            (Self::Pt, "dsl_protocol_conflict") => "--dsl não pode ser combinado com --protocol",
+            (Self::Pt, "dsl_entry_conflict") => "--dsl não pode ser combinado com --entry",
+            (Self::Pt, "entry_requires_protocol") => "--entry requer --protocol",
             (Self::Pt, "serve_requires_socket") => "--serve requer --unix-socket ou --tcp-socket",
             (Self::Pt, "unsupported_fragment_combo") => "combinação de fragmentos não suportada",
             (Self::Pt, "unix_only") => {
@@ -531,6 +555,9 @@ impl UiLocale {
             (Self::Ru, "diagnostics_serve_conflict") => "--diagnostics нельзя сочетать с --serve",
             (Self::Ru, "dsl_demo_conflict") => "--dsl нельзя сочетать с --demo",
             (Self::Ru, "demo_socket_conflict") => "--demo нельзя сочетать с режимом сокет-сервера",
+            (Self::Ru, "dsl_protocol_conflict") => "--dsl нельзя сочетать с --protocol",
+            (Self::Ru, "dsl_entry_conflict") => "--dsl нельзя сочетать с --entry",
+            (Self::Ru, "entry_requires_protocol") => "для --entry требуется --protocol",
             (Self::Ru, "serve_requires_socket") => {
                 "для --serve требуется --unix-socket или --tcp-socket"
             }
@@ -549,6 +576,9 @@ impl UiLocale {
             (_, "diagnostics_serve_conflict") => "--diagnostics cannot be combined with --serve",
             (_, "dsl_demo_conflict") => "--dsl cannot be combined with --demo",
             (_, "demo_socket_conflict") => "--demo cannot be combined with socket listener mode",
+            (_, "dsl_protocol_conflict") => "--dsl cannot be combined with --protocol",
+            (_, "dsl_entry_conflict") => "--dsl cannot be combined with --entry",
+            (_, "entry_requires_protocol") => "--entry requires --protocol",
             (_, "serve_requires_socket") => "--serve requires --unix-socket or --tcp-socket",
             (_, "unsupported_fragment_combo") => "unsupported fragment combination",
             (_, "unix_only") => "unix socket service is only supported on unix platforms",
@@ -576,9 +606,14 @@ impl UiLocale {
             (Self::Zh, "invalid_max_sessions") => "--max-sessions 必须是正整数".into(),
             (Self::Zh, "missing_template") => "缺少 --template 的值，期望 tcp 或 udp".into(),
             (Self::Zh, "missing_dsl") => "缺少 --dsl 的值，期望 DSL 文件路径".into(),
+            (Self::Zh, "missing_protocol") => "缺少 --protocol 的值，期望协议名称".into(),
+            (Self::Zh, "missing_entry") => "缺少 --entry 的值，期望 gewy 入口模式".into(),
+            (Self::Zh, "missing_pid") => "缺少 --pid 的值，期望进程 PID".into(),
+            (Self::Zh, "invalid_pid") => "--pid 必须是正整数".into(),
             (Self::Zh, "missing_unix_socket") => "缺少 --unix-socket 的值，期望文件路径".into(),
             (Self::Zh, "missing_tcp_socket") => "缺少 --tcp-socket 的值，期望 host:port".into(),
             (Self::Zh, "missing_out") => "缺少 --out 的值，期望可写文件路径".into(),
+            (Self::Zh, "unsupported_protocol") => format!("不支持的协议 '{a}'"),
             (_, "unsupported_demo") => {
                 format!("unsupported demo mode '{a}', expected tcp, udp, or both")
             }
@@ -598,6 +633,14 @@ impl UiLocale {
             (_, "invalid_max_sessions") => "--max-sessions must be a positive integer".into(),
             (_, "missing_template") => "missing value for --template, expected tcp or udp".into(),
             (_, "missing_dsl") => "missing value for --dsl, expected a DSL file path".into(),
+            (_, "missing_protocol") => {
+                "missing value for --protocol, expected a built-in protocol name".into()
+            }
+            (_, "missing_entry") => {
+                "missing value for --entry, expected a gewy entry mode".into()
+            }
+            (_, "missing_pid") => "missing value for --pid, expected a process pid".into(),
+            (_, "invalid_pid") => "--pid must be a positive integer".into(),
             (_, "missing_unix_socket") => {
                 "missing value for --unix-socket, expected a filesystem path".into()
             }
@@ -605,6 +648,7 @@ impl UiLocale {
                 "missing value for --tcp-socket, expected host:port".into()
             }
             (_, "missing_out") => "missing value for --out, expected a writable file path".into(),
+            (_, "unsupported_protocol") => format!("unsupported protocol '{a}'"),
             _ => key.into(),
         }
     }
@@ -677,10 +721,19 @@ fn main() {
             );
             std::process::exit(1);
         });
+        let export = cli
+            .pid
+            .map(|pid| filter_export_by_pid(&export, pid))
+            .unwrap_or(export);
         outputs.push(("socket_session", export));
     } else {
         if let Some(binding) = cli.dsl_binding() {
-            outputs.push(("dsl_demo", run_binding_demo(binding)));
+            let export = run_binding_demo(binding);
+            let export = cli
+                .pid
+                .map(|pid| filter_export_by_pid(&export, pid))
+                .unwrap_or(export);
+            outputs.push(("dsl_demo", export));
         } else {
             if cli.demo_mode.includes_tcp() {
                 let tcp_export = run_session(
@@ -740,6 +793,10 @@ fn main() {
                     ],
                 );
 
+                let tcp_export = cli
+                    .pid
+                    .map(|pid| filter_export_by_pid(&tcp_export, pid))
+                    .unwrap_or(tcp_export);
                 outputs.push(("tcp_demo", tcp_export));
             }
 
@@ -782,6 +839,10 @@ fn main() {
                     ],
                 );
 
+                let udp_export = cli
+                    .pid
+                    .map(|pid| filter_export_by_pid(&udp_export, pid))
+                    .unwrap_or(udp_export);
                 outputs.push(("udp_demo", udp_export));
             }
         }
@@ -866,6 +927,9 @@ struct Cli {
     demo_mode: DemoMode,
     template_mode: TemplateMode,
     dsl_path: Option<String>,
+    protocol: Option<String>,
+    entry: Option<String>,
+    pid: Option<u32>,
     diagnostics: bool,
     findings: bool,
     http_transactions: bool,
@@ -956,6 +1020,9 @@ impl Cli {
         let mut demo_mode = DemoMode::Both;
         let mut template_mode = TemplateMode::Tcp;
         let mut dsl_path = None;
+        let mut protocol = None;
+        let mut entry = None;
+        let mut pid = None;
         let mut diagnostics = false;
         let mut findings = false;
         let mut http_transactions = false;
@@ -1002,6 +1069,30 @@ impl Cli {
                             .ok_or_else(|| locale.msgf("missing_dsl", "", None))?,
                     );
                 }
+                "--protocol" => {
+                    protocol = Some(
+                        args.next()
+                            .ok_or_else(|| locale.msgf("missing_protocol", "", None))?,
+                    );
+                }
+                "--entry" => {
+                    entry = Some(
+                        args.next()
+                            .ok_or_else(|| locale.msgf("missing_entry", "", None))?,
+                    );
+                }
+                "--pid" => {
+                    let value = args
+                        .next()
+                        .ok_or_else(|| locale.msgf("missing_pid", "", None))?;
+                    pid = Some(
+                        value
+                            .parse::<u32>()
+                            .ok()
+                            .filter(|pid| *pid > 0)
+                            .ok_or_else(|| locale.msgf("invalid_pid", "", None))?,
+                    );
+                }
                 "--diagnostics" => diagnostics = true,
                 "--unix-socket" => {
                     socket_target =
@@ -1044,6 +1135,15 @@ impl Cli {
         if diagnostics && http_transactions {
             return Err(locale.msg("findings_diagnostics_conflict").into());
         }
+        if dsl_path.is_some() && protocol.is_some() {
+            return Err(locale.msg("dsl_protocol_conflict").into());
+        }
+        if dsl_path.is_some() && entry.is_some() {
+            return Err(locale.msg("dsl_entry_conflict").into());
+        }
+        if entry.is_some() && protocol.is_none() {
+            return Err(locale.msg("entry_requires_protocol").into());
+        }
         if dsl_path.is_some() && demo_mode != DemoMode::Both {
             return Err(locale.msg("dsl_demo_conflict").into());
         }
@@ -1054,10 +1154,19 @@ impl Cli {
             return Err(locale.msg("serve_requires_socket").into());
         }
 
+        if let Some(protocol_name) = protocol.as_deref() {
+            let built_in_path = protocol_dsl_path(protocol_name, entry.as_deref())
+                .ok_or_else(|| locale.msgf("unsupported_protocol", protocol_name, None))?;
+            dsl_path = Some(built_in_path.to_string());
+        }
+
         Ok(Self {
             demo_mode,
             template_mode,
             dsl_path,
+            protocol,
+            entry,
+            pid,
             diagnostics,
             findings,
             http_transactions,
@@ -1069,6 +1178,118 @@ impl Cli {
             socket_target,
         })
     }
+}
+
+fn process_matches_pid(process: Option<&ProcessView>, pid: u32) -> bool {
+    process.is_some_and(|process| process.pid == pid)
+}
+
+fn filter_export_by_pid(export: &ExportBundle, pid: u32) -> ExportBundle {
+    let sessions = export
+        .facts
+        .iter()
+        .filter_map(|fact| match &fact.kind {
+            FactKind::SockLineage(lineage) if lineage.pid == pid => Some(fact.session),
+            _ => None,
+        })
+        .collect::<HashSet<_>>();
+    let cookies = export
+        .facts
+        .iter()
+        .filter_map(|fact| match &fact.kind {
+            FactKind::SockLineage(lineage) if lineage.pid == pid => Some(lineage.sk_cookie),
+            _ => None,
+        })
+        .collect::<HashSet<_>>();
+    let flow_ids = export
+        .flows
+        .iter()
+        .filter(|flow| process_matches_pid(flow.process.as_ref(), pid))
+        .map(|flow| flow.id)
+        .collect::<HashSet<FlowId>>();
+    let program_flow_ids = export
+        .program_flows
+        .iter()
+        .filter(|flow| process_matches_pid(flow.process.as_ref(), pid))
+        .map(|flow| flow.id)
+        .collect::<HashSet<ProgramFlowId>>();
+    let fact_matches = |fact: &FactEnvelope| {
+        if sessions.contains(&fact.session) {
+            return true;
+        }
+        match &fact.kind {
+            FactKind::SockLineage(lineage) => lineage.pid == pid,
+            FactKind::TcpState(state) => cookies.contains(&state.sk_cookie),
+            FactKind::PacketMeta(packet) => packet
+                .sk_cookie
+                .is_some_and(|cookie| cookies.contains(&cookie)),
+            FactKind::RouteDecision(route) => route
+                .sk_cookie
+                .is_some_and(|cookie| cookies.contains(&cookie)),
+            FactKind::DropAction(_) | FactKind::AttachScope(_) => false,
+        }
+    };
+
+    let mut filtered = export.clone();
+    filtered.facts = export
+        .facts
+        .iter()
+        .filter(|fact| fact_matches(fact))
+        .cloned()
+        .collect();
+    let accepted_fact_ids = filtered
+        .facts
+        .iter()
+        .map(|fact| fact.id)
+        .collect::<HashSet<_>>();
+    filtered.rejected_facts = export
+        .rejected_facts
+        .iter()
+        .filter(|fact| accepted_fact_ids.contains(&fact.id))
+        .cloned()
+        .collect();
+    filtered.rejected_fact_summary = gewyvern::runtime::summarize_rejected_facts(&filtered.rejected_facts);
+    filtered.flows = export
+        .flows
+        .iter()
+        .filter(|flow| process_matches_pid(flow.process.as_ref(), pid))
+        .cloned()
+        .collect();
+    filtered.program_flows = export
+        .program_flows
+        .iter()
+        .filter(|flow| process_matches_pid(flow.process.as_ref(), pid))
+        .cloned()
+        .collect();
+    filtered.program_findings = export
+        .program_findings
+        .iter()
+        .filter(|finding| {
+            process_matches_pid(finding.process.as_ref(), pid)
+                || program_flow_ids.contains(&finding.program_flow)
+        })
+        .cloned()
+        .collect();
+    filtered.module_findings = export
+        .module_findings
+        .iter()
+        .filter(|finding| process_matches_pid(finding.process.as_ref(), pid))
+        .cloned()
+        .collect();
+    filtered.reasons = export
+        .reasons
+        .iter()
+        .filter(|reason| flow_ids.contains(&reason.flow))
+        .cloned()
+        .collect();
+    filtered.debug_summary.accepted_facts = filtered.facts.len() as u64;
+    filtered.debug_summary.rejected_facts = filtered.rejected_facts.len() as u64;
+    filtered.debug_summary.flows = filtered.flows.len() as u64;
+    filtered.debug_summary.program_flows = filtered.program_flows.len() as u64;
+    filtered.debug_summary.program_findings = filtered.program_findings.len() as u64;
+    filtered.debug_summary.module_findings = filtered.module_findings.len() as u64;
+    filtered.debug_summary.reasons = filtered.reasons.len() as u64;
+    filtered
 }
 
 fn run_session(template: gewyvern::template::Template, facts: Vec<FactEnvelope>) -> ExportBundle {
@@ -1838,7 +2059,7 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
 
 #[cfg(test)]
 mod tests {
-    use super::run_binding_demo;
+    use super::{Cli, filter_export_by_pid, protocol_dsl_path, run_binding_demo};
     use gewyvern::dsl::compile_file;
     use gewyvern::flow::ProgramOperation;
 
@@ -1912,6 +2133,97 @@ mod tests {
             bundle.program_flows[0].operation,
             ProgramOperation::Custom("http_server_response".into())
         );
+    }
+
+    #[test]
+    fn cli_accepts_protocol_and_pid_and_resolves_built_in_dsl() {
+        let cli = Cli::from_args([
+            "--protocol".to_string(),
+            "mysql".to_string(),
+            "--entry".to_string(),
+            "session".to_string(),
+            "--pid".to_string(),
+            "4242".to_string(),
+            "--json".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(cli.protocol.as_deref(), Some("mysql"));
+        assert_eq!(cli.entry.as_deref(), Some("session"));
+        assert_eq!(
+            cli.dsl_path.as_deref(),
+            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+        );
+        assert_eq!(cli.pid, Some(4242));
+    }
+
+    #[test]
+    fn cli_rejects_combined_dsl_and_protocol() {
+        let err = Cli::from_args([
+            "--dsl".to_string(),
+            "/tmp/demo.gewy".to_string(),
+            "--protocol".to_string(),
+            "mysql-query".to_string(),
+        ])
+        .unwrap_err();
+        assert!(err.contains("--dsl"));
+        assert!(err.contains("--protocol"));
+    }
+
+    #[test]
+    fn protocol_lookup_covers_mysql_session() {
+        assert_eq!(
+            protocol_dsl_path("mysql", Some("session")),
+            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+        );
+    }
+
+    #[test]
+    fn protocol_lookup_uses_default_entry_when_none_is_provided() {
+        assert_eq!(
+            protocol_dsl_path("mysql", None),
+            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+        );
+        assert_eq!(
+            protocol_dsl_path("amqp", None),
+            Some("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_publish_session.gewy")
+        );
+    }
+
+    #[test]
+    fn cli_rejects_entry_without_protocol() {
+        let err = Cli::from_args(["--entry".to_string(), "session".to_string()]).unwrap_err();
+        assert!(err.contains("--entry"));
+        assert!(err.contains("--protocol"));
+    }
+
+    #[test]
+    fn legacy_protocol_alias_still_resolves() {
+        assert_eq!(
+            protocol_dsl_path("mysql-session", None),
+            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+        );
+    }
+
+    #[test]
+    fn pid_filter_keeps_only_target_process_view() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let bundle = run_binding_demo(binding);
+        let pid = bundle.program_flows[0]
+            .process
+            .as_ref()
+            .expect("demo should be process-bound")
+            .pid;
+        let filtered = filter_export_by_pid(&bundle, pid);
+        assert_eq!(filtered.program_flows.len(), 1);
+        assert_eq!(
+            filtered.program_flows[0].process.as_ref().map(|p| p.pid),
+            Some(pid)
+        );
+        let empty = filter_export_by_pid(&bundle, pid + 1);
+        assert_eq!(empty.program_flows.len(), 0);
+        assert_eq!(empty.program_findings.len(), 0);
+        assert_eq!(empty.module_findings.len(), 0);
     }
 }
 
@@ -2386,6 +2698,10 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
                 );
                 std::process::exit(1);
             });
+            let export = cli
+                .pid
+                .map(|pid| filter_export_by_pid(&export, pid))
+                .unwrap_or(export);
             emit_rendered(cli, "socket_session", &export, true);
         }
 
@@ -2425,6 +2741,10 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
             );
             std::process::exit(1);
         });
+        let export = cli
+            .pid
+            .map(|pid| filter_export_by_pid(&export, pid))
+            .unwrap_or(export);
         emit_rendered(cli, "socket_session", &export, true);
     }
 }
