@@ -18,7 +18,7 @@ use support::{
     packet_fact_with_dir_and_payload_and_bytes4_5_and9,
     packet_fact_with_dir_and_payload_and_bytes4_and5, route_fact, sock_lineage_fact,
     tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact, udp_packet_fact_with_dir,
-    udp_packet_fact_with_dir_and_ports, udp_packet_fact_with_dir_and_ports_and_payload,
+    udp_packet_fact_with_dir_and_ports_and_payload,
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4,
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13,
 };
@@ -520,6 +520,7 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
             byte13_mask: None,
             byte13_value: None,
             byte_matches: vec![],
+            byte_sequences: vec![],
         }
     );
     assert_eq!(datagram_rule.predicate, legacy_datagram_rule.predicate);
@@ -538,6 +539,7 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
             byte13_mask: None,
             byte13_value: None,
             byte_matches: vec![],
+            byte_sequences: vec![],
         }
     );
 }
@@ -575,6 +577,7 @@ rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_
             byte13_mask: None,
             byte13_value: None,
             byte_matches: vec![],
+            byte_sequences: vec![],
         }
     );
     assert_eq!(
@@ -592,6 +595,7 @@ rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_
             byte13_mask: None,
             byte13_value: None,
             byte_matches: vec![],
+            byte_sequences: vec![],
         }
     );
 }
@@ -627,6 +631,7 @@ rule=packet_observed:tcp:remote:53:remote_to_local:byte4_mask:0x80:0x80;packet_o
             byte13_mask: None,
             byte13_value: None,
             byte_matches: vec![],
+            byte_sequences: vec![],
         }
     );
 }
@@ -686,6 +691,36 @@ rule=datagram_observed:udp:dport:443:local_to_remote;datagram_observed;udp_datag
             byte13_mask: None,
             byte13_value: None,
             byte_matches: vec![],
+            byte_sequences: vec![],
+        }
+    );
+}
+
+#[test]
+fn dsl_accepts_quic_packet_observed_predicate() {
+    let binding = compile_str(
+        r#"
+template=quic_packet_match
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+program_model=quic_packet_match_model
+operation=quic_client_initial
+rule=quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial;datagram_observed;udp_datagram_sent;true
+"#,
+    )
+    .unwrap();
+
+    let rule = &binding.template.program_model.as_ref().unwrap().rules[0];
+    assert_eq!(
+        rule.predicate,
+        gewyvern::ir::FlowPredicate::QuicPacketObserved {
+            dir: Some(PacketDir::Egress),
+            local_port: None,
+            remote_port: Some(443),
+            min_len: Some(1200),
+            long_header: Some(true),
+            packet_type: Some(gewyvern::ir::QuicPacketType::Initial),
         }
     );
 }
@@ -721,6 +756,7 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200;datagram_obs
             byte13_mask: None,
             byte13_value: None,
             byte_matches: vec![],
+            byte_sequences: vec![],
         }
     );
 }
@@ -756,6 +792,7 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0
             byte13_mask: None,
             byte13_value: None,
             byte_matches: vec![],
+            byte_sequences: vec![],
         }
     );
 }
@@ -791,6 +828,7 @@ rule=datagram_observed:udp:remote:mdns:remote_to_local:prefix4:0x00008400;datagr
             byte13_mask: None,
             byte13_value: None,
             byte_matches: vec![],
+            byte_sequences: vec![],
         }
     );
 }
@@ -825,6 +863,63 @@ rule=datagram_observed:udp:remote:snmp:byte_at:13:0xff:0xa0;datagram_observed;ud
             value: 0xa0,
         }]
     ));
+}
+
+#[test]
+fn dsl_accepts_datagram_bytes_at_qualifier() {
+    let binding = compile_str(
+        r#"
+template=snmp_bytes_sequence_match
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+param=udp_packet_meta_fragment.sample_payload_offsets=8
+program_model=snmp_bytes_sequence_match_model
+operation=snmp_get
+rule=datagram_observed:udp:remote:snmp:bytes_at:8:0x30,0x82,0x01;datagram_observed;udp_datagram_sent;true
+"#,
+    )
+    .unwrap();
+
+    let rule = &binding.template.program_model.as_ref().unwrap().rules[0];
+    assert!(matches!(
+        &rule.predicate,
+        gewyvern::ir::FlowPredicate::DatagramObserved {
+            remote_port: Some(161),
+            byte_sequences,
+            ..
+        } if byte_sequences == &vec![gewyvern::ir::PayloadByteSequenceMatch {
+            offset: 8,
+            bytes: vec![0x30, 0x82, 0x01],
+        }]
+    ));
+}
+
+#[test]
+fn binding_diagnostics_accept_bytes_at_sequence_with_dynamic_offsets() {
+    let binding = compile_str(
+        r#"
+template=snmp_bytes_sequence_runtime
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+param=udp_packet_meta_fragment.sample_payload_offsets=8
+program_model=snmp_bytes_sequence_runtime_model
+operation=snmp_get
+rule=datagram_observed:udp:remote:snmp:local_to_remote:bytes_at:8:0x30,0x82,0x01;datagram_observed;udp_datagram_sent;true
+"#,
+    )
+    .unwrap();
+
+    let registry = builtin_registry();
+    let diagnostics = registry.binding_diagnostics(&binding).unwrap();
+    let rule = &diagnostics.program_model.as_ref().unwrap().rules[0];
+    assert!(rule.supported);
+    assert_eq!(rule.unsupported_payload_offsets, Vec::<u16>::new());
+
+    let summary = registry.payload_offset_support_summary(&binding, &diagnostics);
+    assert!(summary.sampled_offsets.contains(&8));
+    assert_eq!(summary.unsupported_offsets, Vec::<u16>::new());
 }
 
 #[test]
@@ -1582,13 +1677,15 @@ fn quic_client_initial_path_materializes_initial_and_handshake_datagrams() {
         Some(0xc3),
         Some(0xc300),
     ));
-    session.ingest(udp_packet_fact_with_dir_and_ports(
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
         4,
         803,
         220,
         PacketDir::Ingress,
         Some(42310),
         Some(443),
+        Some(0xe0),
+        None,
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
@@ -1679,13 +1776,15 @@ fn quic_client_initial_path_does_not_match_non_quic_udp_ports() {
         Some(0xc0),
         Some(0xc300),
     ));
-    session.ingest(udp_packet_fact_with_dir_and_ports(
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
         4,
         805,
         220,
         PacketDir::Ingress,
         Some(42310),
         Some(53),
+        Some(0xe0),
+        None,
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
@@ -1723,13 +1822,15 @@ fn quic_client_initial_path_does_not_treat_small_quic_port_datagrams_as_initial(
         Some(0xc0),
         Some(0xc300),
     ));
-    session.ingest(udp_packet_fact_with_dir_and_ports(
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
         4,
         806,
         220,
         PacketDir::Ingress,
         Some(42310),
         Some(443),
+        Some(0xe0),
+        None,
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
@@ -1767,13 +1868,15 @@ fn quic_client_initial_path_does_not_treat_wrong_first_byte_as_initial() {
         Some(0x40),
         Some(0x4000),
     ));
-    session.ingest(udp_packet_fact_with_dir_and_ports(
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
         4,
         807,
         220,
         PacketDir::Ingress,
         Some(42310),
         Some(443),
+        Some(0xe0),
+        None,
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
@@ -1787,7 +1890,7 @@ fn quic_client_initial_path_does_not_treat_wrong_first_byte_as_initial() {
 }
 
 #[test]
-fn quic_client_initial_path_does_not_treat_wrong_prefix2_as_initial() {
+fn quic_client_initial_path_does_not_treat_wrong_quic_packet_type_as_initial() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")
             .unwrap();
@@ -1802,16 +1905,18 @@ fn quic_client_initial_path_does_not_treat_wrong_prefix2_as_initial() {
         PacketDir::Egress,
         Some(42310),
         Some(443),
-        Some(0xc3),
-        Some(0xc301),
+        Some(0xd0),
+        None,
     ));
-    session.ingest(udp_packet_fact_with_dir_and_ports(
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
         4,
         808,
         220,
         PacketDir::Ingress,
         Some(42310),
         Some(443),
+        Some(0xe0),
+        None,
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
@@ -6888,6 +6993,27 @@ rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;udp
 }
 
 #[test]
+fn binding_diagnostics_reports_expanded_sequence_offsets() {
+    let binding = parse_str_unvalidated(
+        r#"
+template=unsupported_payload_sequence
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+program_model=unsupported_payload_sequence_model
+operation=snmp_get
+rule=datagram_observed:udp:remote:snmp:bytes_at:8:0x30,0x82,0x01,0x00;datagram_observed;udp_datagram_sent;true
+"#,
+    )
+    .unwrap();
+
+    let diagnostics = collect_binding_diagnostics(&binding).unwrap();
+    let rule = &diagnostics.program_model.as_ref().unwrap().rules[0];
+    assert!(!rule.supported);
+    assert_eq!(rule.unsupported_payload_offsets, vec![8, 11]);
+}
+
+#[test]
 fn binding_diagnostics_accept_dynamic_sample_payload_offsets_from_fragment_params() {
     let binding = parse_str_unvalidated(
         r#"
@@ -7061,6 +7187,7 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0
             byte13_mask: None,
             byte13_value: None,
             byte_matches: vec![],
+            byte_sequences: vec![],
         }
     );
 }

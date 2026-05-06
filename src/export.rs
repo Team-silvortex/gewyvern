@@ -9,8 +9,8 @@ use crate::fragment::{
     FragmentParamType, HookBinding, HookPoint, MapKind, MapSpec, ModelDiagnostics, RingBufStats,
     RuleDiagnostics, RuleTier,
 };
-use crate::ir::PayloadByteMatch;
 use crate::ir::{NarrativeTemplate, SignalKind};
+use crate::ir::{PayloadByteMatch, PayloadByteSequenceMatch, QuicPacketType};
 use crate::ledger::{
     AttachScopeFact, CpuId, DropActionFact, DropVerdict, FactEnvelope, FactId, FactKind,
     FactKindTag, PacketDir, PacketMetaFact, RouteDecisionFact, SessionId, SockLineageFact,
@@ -2114,6 +2114,41 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             }
         },
         ReasonPredicate::RouteResolved => JsonValue::String("route_resolved".into()),
+        ReasonPredicate::QuicPacketObserved {
+            dir,
+            local_port,
+            remote_port,
+            min_len,
+            long_header,
+            packet_type,
+        } => {
+            let mut object = BTreeMap::from([(
+                "kind".into(),
+                JsonValue::String("quic_packet_observed".into()),
+            )]);
+            if let Some(dir) = dir {
+                object.insert("dir".into(), JsonValue::String(dir.as_flow_str().into()));
+            }
+            if let Some(local_port) = local_port {
+                object.insert("local_port".into(), JsonValue::Number(*local_port as i64));
+            }
+            if let Some(remote_port) = remote_port {
+                object.insert("remote_port".into(), JsonValue::Number(*remote_port as i64));
+            }
+            if let Some(min_len) = min_len {
+                object.insert("min_len".into(), JsonValue::Number(*min_len as i64));
+            }
+            if let Some(long_header) = long_header {
+                object.insert("long_header".into(), JsonValue::Bool(*long_header));
+            }
+            if let Some(packet_type) = packet_type {
+                object.insert(
+                    "packet_type".into(),
+                    JsonValue::String(quic_packet_type_id(packet_type).into()),
+                );
+            }
+            JsonValue::Object(object)
+        }
         ReasonPredicate::PacketObserved {
             l4_proto,
             dir,
@@ -2127,6 +2162,7 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             byte13_mask,
             byte13_value,
             byte_matches,
+            byte_sequences,
         } => {
             let mut object = BTreeMap::from([
                 ("kind".into(), JsonValue::String("packet_observed".into())),
@@ -2177,6 +2213,17 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
                     JsonValue::Array(byte_matches.iter().map(payload_byte_match_json).collect()),
                 );
             }
+            if !byte_sequences.is_empty() {
+                object.insert(
+                    "byte_sequences".into(),
+                    JsonValue::Array(
+                        byte_sequences
+                            .iter()
+                            .map(payload_byte_sequence_match_json)
+                            .collect(),
+                    ),
+                );
+            }
             JsonValue::Object(object)
         }
         ReasonPredicate::DatagramObserved {
@@ -2192,6 +2239,7 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             byte13_mask,
             byte13_value,
             byte_matches,
+            byte_sequences,
         } => {
             let mut object = BTreeMap::from([
                 ("kind".into(), JsonValue::String("datagram_observed".into())),
@@ -2242,6 +2290,17 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
                     JsonValue::Array(byte_matches.iter().map(payload_byte_match_json).collect()),
                 );
             }
+            if !byte_sequences.is_empty() {
+                object.insert(
+                    "byte_sequences".into(),
+                    JsonValue::Array(
+                        byte_sequences
+                            .iter()
+                            .map(payload_byte_sequence_match_json)
+                            .collect(),
+                    ),
+                );
+            }
             JsonValue::Object(object)
         }
         ReasonPredicate::All(items) => JsonValue::Object(BTreeMap::from([
@@ -2265,11 +2324,48 @@ fn reason_key_event_id(event: &ReasonKeyEvent) -> &'static str {
     event.id()
 }
 
+fn quic_packet_type_id(value: &QuicPacketType) -> &'static str {
+    match value {
+        QuicPacketType::Initial => "initial",
+        QuicPacketType::ZeroRtt => "0rtt",
+        QuicPacketType::Handshake => "handshake",
+        QuicPacketType::Retry => "retry",
+    }
+}
+
+fn parse_quic_packet_type(value: &str) -> Result<QuicPacketType, ExportError> {
+    match value {
+        "initial" => Ok(QuicPacketType::Initial),
+        "0rtt" | "zero_rtt" => Ok(QuicPacketType::ZeroRtt),
+        "handshake" => Ok(QuicPacketType::Handshake),
+        "retry" => Ok(QuicPacketType::Retry),
+        _ => Err(ExportError::InvalidValue(
+            "unknown reason predicate QUIC packet type".into(),
+        )),
+    }
+}
+
 fn payload_byte_match_json(value: &PayloadByteMatch) -> JsonValue {
     JsonValue::Object(BTreeMap::from([
         ("offset".into(), JsonValue::Number(value.offset as i64)),
         ("mask".into(), JsonValue::Number(value.mask as i64)),
         ("value".into(), JsonValue::Number(value.value as i64)),
+    ]))
+}
+
+fn payload_byte_sequence_match_json(value: &PayloadByteSequenceMatch) -> JsonValue {
+    JsonValue::Object(BTreeMap::from([
+        ("offset".into(), JsonValue::Number(value.offset as i64)),
+        (
+            "bytes".into(),
+            JsonValue::Array(
+                value
+                    .bytes
+                    .iter()
+                    .map(|byte| JsonValue::Number(*byte as i64))
+                    .collect(),
+            ),
+        ),
     ]))
 }
 
@@ -2392,6 +2488,33 @@ fn parse_payload_byte_matches(value: &JsonValue) -> Result<Vec<PayloadByteMatch>
         .collect()
 }
 
+fn parse_payload_byte_sequence_matches(
+    value: &JsonValue,
+) -> Result<Vec<PayloadByteSequenceMatch>, ExportError> {
+    value
+        .as_array()?
+        .iter()
+        .map(|item| {
+            let object = item.as_object()?;
+            Ok(PayloadByteSequenceMatch {
+                offset: object
+                    .get("offset")
+                    .ok_or_else(|| {
+                        ExportError::InvalidShape("payload_byte_sequence.offset".into())
+                    })?
+                    .as_i64()? as u16,
+                bytes: object
+                    .get("bytes")
+                    .ok_or_else(|| ExportError::InvalidShape("payload_byte_sequence.bytes".into()))?
+                    .as_array()?
+                    .iter()
+                    .map(|byte| Ok(byte.as_i64()? as u8))
+                    .collect::<Result<Vec<_>, ExportError>>()?,
+            })
+        })
+        .collect()
+}
+
 fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportError> {
     match value {
         JsonValue::String(id) => match id.as_str() {
@@ -2494,6 +2617,60 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                         .get("byte_matches")
                         .unwrap_or(&JsonValue::Array(vec![])),
                 )?,
+                byte_sequences: parse_payload_byte_sequence_matches(
+                    object
+                        .get("byte_sequences")
+                        .unwrap_or(&JsonValue::Array(vec![])),
+                )?,
+            }),
+            "quic_packet_observed" => Ok(ReasonPredicate::QuicPacketObserved {
+                dir: match object.get("dir").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    JsonValue::String(value) => {
+                        Some(PacketDir::from_str(value).ok_or_else(|| {
+                            ExportError::InvalidValue("unknown reason predicate QUIC dir".into())
+                        })?)
+                    }
+                    _ => return Err(ExportError::InvalidShape("reason_predicate.dir".into())),
+                },
+                local_port: match object
+                    .get("local_port")
+                    .or_else(|| object.get("sport"))
+                    .unwrap_or(&JsonValue::Null)
+                {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u16),
+                },
+                remote_port: match object
+                    .get("remote_port")
+                    .or_else(|| object.get("dport"))
+                    .unwrap_or(&JsonValue::Null)
+                {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u16),
+                },
+                min_len: match object.get("min_len").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u32),
+                },
+                long_header: match object.get("long_header").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    JsonValue::Bool(value) => Some(*value),
+                    _ => {
+                        return Err(ExportError::InvalidShape(
+                            "reason_predicate.long_header".into(),
+                        ));
+                    }
+                },
+                packet_type: match object.get("packet_type").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    JsonValue::String(value) => Some(parse_quic_packet_type(value)?),
+                    _ => {
+                        return Err(ExportError::InvalidShape(
+                            "reason_predicate.packet_type".into(),
+                        ));
+                    }
+                },
             }),
             "datagram_observed" => Ok(ReasonPredicate::DatagramObserved {
                 l4_proto: object
@@ -2558,6 +2735,11 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                 byte_matches: parse_payload_byte_matches(
                     object
                         .get("byte_matches")
+                        .unwrap_or(&JsonValue::Array(vec![])),
+                )?,
+                byte_sequences: parse_payload_byte_sequence_matches(
+                    object
+                        .get("byte_sequences")
                         .unwrap_or(&JsonValue::Array(vec![])),
                 )?,
             }),

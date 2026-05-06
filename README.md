@@ -1,4 +1,4 @@
-# gewyvern v0.4
+# gewyvern v0.5
 
 Protocol-agnostic network debugging runtime driven by eBPF fragments.
 
@@ -22,8 +22,8 @@ The long-term direction is:
 
 ## Status
 
-- project version: `0.4.0`
-- stage: working prototype with a stabilized internal workspace layout
+- project version: `0.5.0`
+- stage: working prototype with a stabilized workspace, protocol registry, and package-driven DSL/compiler path
 - transport support: TCP + UDP
 - protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP, RADIUS, GTP-U, SMTP, SIP, LDAP, SNMP, DNS-over-TCP
 - input modes: demo facts, Unix socket, TCP socket
@@ -31,7 +31,8 @@ The long-term direction is:
 - replay: deterministic for exported sessions
 - DSL shape: pipeline-driven syntax preferred, structured and legacy key/value syntax still supported
 - package shape: `gewy.pkg` manifest + `main.gewy` entry + pipeline `include(...)` expansion
-- package deps: local path dependencies via `dep.<name>=...` and `include("dep:file.gewy")`
+- package deps: local path dependencies plus named sources via `dep.<name>=...`, `source.<name>=...`, and `include("std:file.gewy")`
+- package resolution: `gewyc lock` emits a resolved `gewy.lock` snapshot
 - language semantics: single-entry, function-unit DSL with no cross-file global mutable state
 - workspace shape: `gewyvern` runtime crate + `gewyc` compiler CLI crate
 - protocol registry shape: scanned gewy project packages under `protocols/`
@@ -60,6 +61,9 @@ boundaries:
 - `gewy.pkg`
   Package manifest for single-entry gewy projects; `gewyc` resolves this to the
   package `main.gewy` entry file.
+- `gewy.lock`
+  Resolved package snapshot emitted by `gewyc lock` for reproducible package
+  inputs.
 - [tests](/Users/Shared/chroot/dev/gewyvern/tests)
   TDD coverage for DSL compilation, runtime behavior, fragments, templates,
   socket input, and Linux smoke paths.
@@ -89,7 +93,7 @@ boundaries:
 - `cargo test --workspace`
   Main regression path for the whole workspace.
 
-## What Works In v0.4
+## What Works In v0.5
 
 - Fragment registry, attach planning, and attach reporting
 - TDD-first runtime and rule specs
@@ -143,6 +147,9 @@ boundaries:
 - Structured `.gewy` block syntax lowered into the same compiler IR as the
   legacy key/value DSL shape
 - `gewyc` as a separate workspace crate for compiler-facing workflows
+- parameterized pure pipeline functions via `fn ...(...) { ... }` and `|> use(:fn_name, ...)`
+- source-backed package dependency resolution and `gewy.lock` generation
+- dynamic sampled payload offset support through fragment params and exported payload-byte maps
 
 ## Core Model
 
@@ -273,15 +280,18 @@ can express:
 - fragment parameter bindings
 - template-local evidence tier overrides
 - datagram predicates over direction, local/remote ports, minimum payload
-  length, masked first-byte checks, fixed two-byte/four-byte prefixes, and
-  generic `byte_at:<offset>:<mask>:<value>` checks over currently sampled
-  offsets
+  length, masked first-byte checks, fixed two-byte/four-byte prefixes, generic
+  `byte_at:<offset>:<mask>:<value>` checks, and contiguous
+  `bytes_at:<offset>:<byte>,<byte>,...` checks over currently sampled offsets
+- a parallel QUIC packet predicate surface for `long_header` and QUIC packet
+  `type` matching without falling back to raw UDP offset rules
 - packet predicates over direction, local/remote ports, masked first-byte checks,
-  fixed four-byte prefixes, masked byte-4 checks, and generic
-  `byte_at:<offset>:<mask>:<value>` checks over currently sampled offsets
+  fixed four-byte prefixes, masked byte-4 checks, generic
+  `byte_at:<offset>:<mask>:<value>` checks, and contiguous
+  `bytes_at:<offset>:<byte>,<byte>,...` checks over currently sampled offsets
 - binding diagnostics now surface unsupported payload offsets per rule, so a
-  `.gewy` can explain why a `byte_at` matcher is outside the current fragment
-  sampling surface
+  `.gewy` can explain why a `byte_at` or `bytes_at` matcher is outside the
+  current fragment sampling surface
 - package entry resolution through `gewy.pkg`
 - single-entry pipeline projects that merge included module files into the
   package entry compile path
@@ -302,6 +312,7 @@ differentiate:
 - generic UDP process activity
 - DNS request/reply paths
 - QUIC initial and handshake traffic
+- QUIC packet-family modeling through a dedicated parallel IR surface
 - STUN binding request/response pairs
 - GTP-U echo request/response pairs
 - CoAP request/response pairs
@@ -446,7 +457,7 @@ Built-in protocol discovery now comes from scanning gewy project manifests in
 
 ```text
 name=mysql_session
-version=0.4.0
+version=0.5.0
 entry=main.gewy
 register.protocol=mysql
 register.entry=session
@@ -628,7 +639,7 @@ cargo linux-smoke
 
 ## Near-Term Direction
 
-The next meaningful step after `v0.4` is not only “more protocol branches”.
+The next meaningful step after `v0.5` is not only “more protocol branches”.
 It is continuing to make the DSL and IR more explicit, so protocol behavior is
 described as program-network-module structure rather than as a pile of
 protocol-specific special cases.

@@ -1,6 +1,9 @@
 use crate::flow::{ProgramOperation, ProgramStageKind};
 use crate::fragment::{EvidenceTier, RegistryError, builtin_registry};
-use crate::ir::{FlowPredicate, NarrativeTemplate, PayloadByteMatch, SignalKind};
+use crate::ir::{
+    FlowPredicate, NarrativeTemplate, PayloadByteMatch, PayloadByteSequenceMatch, QuicPacketType,
+    SignalKind,
+};
 use crate::ledger::{FactKindTag, PacketDir};
 use crate::program::{ProgramModel, ProgramNarrative, ProgramRule};
 use crate::reason::{ReasonKeyEvent, ReasonModel, ReasonNarrative, ReasonProfile, ReasonRule};
@@ -1728,6 +1731,67 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             })
         }
         "route_resolved" => Ok(FlowPredicate::RouteResolved),
+        other if other.starts_with("quic_packet_observed:") => {
+            let suffix = &other["quic_packet_observed:".len()..];
+            let mut parts = suffix.split(':');
+            let mut dir = None;
+            let mut local_port = None;
+            let mut remote_port = None;
+            let mut min_len = None;
+            let mut long_header = None;
+            let mut packet_type = None;
+            while let Some(part) = parts.next() {
+                match part {
+                    "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
+                    "ingress" | "remote_to_local" => dir = Some(PacketDir::Ingress),
+                    "local" | "sport" => {
+                        let port = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC local port qualifier".into())
+                        })?;
+                        local_port = Some(parse_named_port(port, "quic_packet_observed")?);
+                    }
+                    "remote" | "dport" => {
+                        let port = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC remote port qualifier".into())
+                        })?;
+                        remote_port = Some(parse_named_port(port, "quic_packet_observed")?);
+                    }
+                    "min_len" => {
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC min_len qualifier".into())
+                        })?;
+                        min_len = Some(value.parse::<u32>().map_err(|_| {
+                            DslError::InvalidValue(format!("invalid QUIC min_len '{value}'"))
+                        })?);
+                    }
+                    "long_header" => {
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC long_header qualifier".into())
+                        })?;
+                        long_header = Some(parse_bool(value)?);
+                    }
+                    "type" => {
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC type qualifier".into())
+                        })?;
+                        packet_type = Some(parse_quic_packet_type(value)?);
+                    }
+                    other => {
+                        return Err(DslError::InvalidValue(format!(
+                            "unexpected QUIC predicate suffix '{other}'"
+                        )));
+                    }
+                }
+            }
+            Ok(FlowPredicate::QuicPacketObserved {
+                dir,
+                local_port,
+                remote_port,
+                min_len,
+                long_header,
+                packet_type,
+            })
+        }
         other if other.starts_with("datagram_observed:") => {
             let suffix = &other["datagram_observed:".len()..];
             let mut parts = suffix.split(':');
@@ -1750,6 +1814,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut byte13_mask = None;
             let mut byte13_value = None;
             let mut byte_matches = Vec::new();
+            let mut byte_sequences = Vec::new();
             while let Some(part) = parts.next() {
                 match part {
                     "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
@@ -1845,6 +1910,30 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                             value: parse_u8_literal(value, "datagram_observed", "byte_at_value")?,
                         });
                     }
+                    "bytes_at" => {
+                        let offset = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing datagram bytes_at offset qualifier".into(),
+                            )
+                        })?;
+                        let bytes = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing datagram bytes_at byte sequence qualifier".into(),
+                            )
+                        })?;
+                        byte_sequences.push(PayloadByteSequenceMatch {
+                            offset: offset.parse::<u16>().map_err(|_| {
+                                DslError::InvalidValue(format!(
+                                    "invalid datagram bytes_at offset '{offset}'"
+                                ))
+                            })?,
+                            bytes: parse_u8_sequence_literal(
+                                bytes,
+                                "datagram_observed",
+                                "bytes_at",
+                            )?,
+                        });
+                    }
                     other => {
                         return Err(DslError::InvalidValue(format!(
                             "unknown datagram predicate suffix '{other}'"
@@ -1865,6 +1954,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 byte13_mask,
                 byte13_value,
                 byte_matches,
+                byte_sequences,
             })
         }
         other if other.starts_with("packet_observed:") => {
@@ -1889,6 +1979,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut byte13_mask = None;
             let mut byte13_value = None;
             let mut byte_matches = Vec::new();
+            let mut byte_sequences = Vec::new();
             while let Some(part) = parts.next() {
                 match part {
                     "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
@@ -1978,6 +2069,26 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                             value: parse_u8_literal(value, "packet_observed", "byte_at_value")?,
                         });
                     }
+                    "bytes_at" => {
+                        let offset = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing packet bytes_at offset qualifier".into(),
+                            )
+                        })?;
+                        let bytes = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue(
+                                "missing packet bytes_at byte sequence qualifier".into(),
+                            )
+                        })?;
+                        byte_sequences.push(PayloadByteSequenceMatch {
+                            offset: offset.parse::<u16>().map_err(|_| {
+                                DslError::InvalidValue(format!(
+                                    "invalid packet bytes_at offset '{offset}'"
+                                ))
+                            })?,
+                            bytes: parse_u8_sequence_literal(bytes, "packet_observed", "bytes_at")?,
+                        });
+                    }
                     other => {
                         return Err(DslError::InvalidValue(format!(
                             "unexpected packet predicate suffix '{other}'"
@@ -1998,6 +2109,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 byte13_mask,
                 byte13_value,
                 byte_matches,
+                byte_sequences,
             })
         }
         other => Err(DslError::InvalidValue(format!(
@@ -2056,6 +2168,23 @@ fn parse_u8_literal(value: &str, predicate: &str, field: &str) -> Result<u8, Dsl
         value.parse::<u8>()
     };
     parsed.map_err(|_| DslError::InvalidValue(format!("invalid {predicate} {field} '{value}'")))
+}
+
+fn parse_u8_sequence_literal(
+    value: &str,
+    predicate: &str,
+    field: &str,
+) -> Result<Vec<u8>, DslError> {
+    let bytes = value
+        .split(',')
+        .map(|byte| parse_u8_literal(byte.trim(), predicate, field))
+        .collect::<Result<Vec<_>, _>>()?;
+    if bytes.is_empty() {
+        return Err(DslError::InvalidValue(format!(
+            "invalid {predicate} {field} '{value}'"
+        )));
+    }
+    Ok(bytes)
 }
 
 fn parse_u16_literal(value: &str, predicate: &str, field: &str) -> Result<u16, DslError> {
@@ -2148,6 +2277,18 @@ fn parse_bool(value: &str) -> Result<bool, DslError> {
         "true" => Ok(true),
         "false" => Ok(false),
         other => Err(DslError::InvalidValue(format!("invalid bool '{other}'"))),
+    }
+}
+
+fn parse_quic_packet_type(value: &str) -> Result<QuicPacketType, DslError> {
+    match value {
+        "initial" => Ok(QuicPacketType::Initial),
+        "0rtt" | "zero_rtt" => Ok(QuicPacketType::ZeroRtt),
+        "handshake" => Ok(QuicPacketType::Handshake),
+        "retry" => Ok(QuicPacketType::Retry),
+        other => Err(DslError::InvalidValue(format!(
+            "unknown QUIC packet type '{other}'"
+        ))),
     }
 }
 

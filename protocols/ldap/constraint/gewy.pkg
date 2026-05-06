@@ -1,5 +1,5 @@
 name=ldap_constraint
-version=0.4.0
+version=0.5.0
 entry=main.gewy
 register.protocol=ldap
 register.entry=constraint

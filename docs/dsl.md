@@ -541,11 +541,18 @@ protocol and direction:
 - `prefix2:<u16>`
 - `prefix4:<u32>`
 - `byte_at:<offset>:<u8>:<u8>`
+- `bytes_at:<offset>:<u8>,<u8>,...`
 
 These qualifiers can be combined in suffix order. Example:
 
 ```text
 rule=datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+```
+
+Or with a contiguous byte sequence:
+
+```text
+rule=datagram_observed:udp:remote:snmp:bytes_at:8:0x30,0x82,0x01;datagram_observed;udp_datagram_sent;true
 ```
 
 Current fragment sampling exposes a small default set of payload offsets to
@@ -565,11 +572,31 @@ or:
 |> param(:udp_packet_meta_fragment.sample_payload_offsets, "8,12")
 ```
 
-When a rule uses `byte_at` outside the currently sampled offsets, compiler
-diagnostics mark that rule as unsupported and include the unsupported offsets
-explicitly in the diagnostics report. Validation/findings surfaces also
-distinguish this from generic missing-evidence failures, so unsupported offsets
-can be reported with a dedicated compiler-facing error code.
+When a rule uses `byte_at` or `bytes_at` outside the currently sampled
+offsets, compiler diagnostics mark that rule as unsupported and include the
+unsupported offsets explicitly in the diagnostics report. Validation/findings
+surfaces also distinguish this from generic missing-evidence failures, so
+unsupported offsets can be reported with a dedicated compiler-facing error
+code.
+
+QUIC now also has a parallel structured predicate surface:
+
+- `quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial`
+- `quic_packet_observed:remote:quic:remote_to_local:long_header:true:type:handshake`
+
+Supported QUIC qualifiers are:
+
+- `local:<port|name>`
+- `remote:<port|name>`
+- `sport:<port|name>`
+- `dport:<port|name>`
+- `min_len:<u32>`
+- `long_header:true|false`
+- `type:initial|0rtt|handshake|retry`
+
+This QUIC predicate family is intentionally parallel to the generic
+`datagram_observed` surface, so QUIC packet typing does not have to be modeled
+as ad hoc UDP byte-offset rules.
 
 Named ports currently include:
 

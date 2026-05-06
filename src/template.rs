@@ -162,6 +162,7 @@ pub fn datagram_exchange_model() -> ProgramModel {
                     byte13_mask: None,
                     byte13_value: None,
                     byte_matches: vec![],
+                    byte_sequences: vec![],
                 },
                 signal: Some(ProgramStageKind::DatagramObserved),
                 narrative: ProgramNarrative::Static("program emitted or received a UDP datagram"),

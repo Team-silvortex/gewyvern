@@ -9,6 +9,20 @@ pub struct PayloadByteMatch {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PayloadByteSequenceMatch {
+    pub offset: u16,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum QuicPacketType {
+    Initial,
+    ZeroRtt,
+    Handshake,
+    Retry,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FlowPredicate {
     ProcessBound,
     SocketStateObserved {
@@ -29,6 +43,7 @@ pub enum FlowPredicate {
         byte13_mask: Option<u8>,
         byte13_value: Option<u8>,
         byte_matches: Vec<PayloadByteMatch>,
+        byte_sequences: Vec<PayloadByteSequenceMatch>,
     },
     DatagramObserved {
         l4_proto: u8,
@@ -43,6 +58,15 @@ pub enum FlowPredicate {
         byte13_mask: Option<u8>,
         byte13_value: Option<u8>,
         byte_matches: Vec<PayloadByteMatch>,
+        byte_sequences: Vec<PayloadByteSequenceMatch>,
+    },
+    QuicPacketObserved {
+        dir: Option<PacketDir>,
+        local_port: Option<u16>,
+        remote_port: Option<u16>,
+        min_len: Option<u32>,
+        long_header: Option<bool>,
+        packet_type: Option<QuicPacketType>,
     },
     RouteResolved,
     All(Vec<FlowPredicate>),
@@ -248,6 +272,7 @@ pub fn matches_flow_predicate(
             byte13_mask,
             byte13_value,
             byte_matches,
+            byte_sequences,
         } => {
             if !flow.evidence.packet_facts.contains(&fact.id) {
                 return false;
@@ -288,6 +313,9 @@ pub fn matches_flow_predicate(
                             packet_payload_byte_at(packet, matcher.offset)
                                 .is_some_and(|byte| byte & matcher.mask == matcher.value)
                         })
+                        && byte_sequences
+                            .iter()
+                            .all(|matcher| packet_payload_sequence_at(packet, matcher))
             )
         }
         FlowPredicate::DatagramObserved {
@@ -303,6 +331,7 @@ pub fn matches_flow_predicate(
             byte13_mask,
             byte13_value,
             byte_matches,
+            byte_sequences,
         } => {
             if !flow.evidence.packet_facts.contains(&fact.id) {
                 return false;
@@ -343,9 +372,45 @@ pub fn matches_flow_predicate(
                             packet_payload_byte_at(packet, matcher.offset)
                                 .is_some_and(|byte| byte & matcher.mask == matcher.value)
                         })
+                        && byte_sequences
+                            .iter()
+                            .all(|matcher| packet_payload_sequence_at(packet, matcher))
             )
         }
         FlowPredicate::RouteResolved => flow.evidence.route_facts.contains(&fact.id),
+        FlowPredicate::QuicPacketObserved {
+            dir,
+            local_port,
+            remote_port,
+            min_len,
+            long_header,
+            packet_type,
+        } => {
+            if !flow.evidence.packet_facts.contains(&fact.id) {
+                return false;
+            }
+            matches!(
+                &fact.kind,
+                FactKind::PacketMeta(packet)
+                    if packet.l4_proto == 17
+                        && dir.as_ref().is_none_or(|expected| packet.dir == *expected)
+                        && local_port
+                            .as_ref()
+                            .is_none_or(|expected| packet.local_port == Some(*expected))
+                        && remote_port
+                            .as_ref()
+                            .is_none_or(|expected| packet.remote_port == Some(*expected))
+                        && min_len
+                            .as_ref()
+                            .is_none_or(|expected| packet.tot_len >= *expected)
+                        && long_header
+                            .as_ref()
+                            .is_none_or(|expected| quic_long_header(packet) == Some(*expected))
+                        && packet_type
+                            .as_ref()
+                            .is_none_or(|expected| quic_packet_type(packet) == Some(*expected))
+            )
+        }
         FlowPredicate::All(predicates) => {
             predicates
                 .iter()
@@ -371,6 +436,33 @@ fn packet_payload_byte_at(packet: &crate::ledger::PacketMetaFact, offset: u16) -
         13 => packet.payload_byte13,
         _ => packet.payload_bytes.get(&offset).copied(),
     }
+}
+
+fn quic_long_header(packet: &crate::ledger::PacketMetaFact) -> Option<bool> {
+    packet.payload_byte0.map(|byte| byte & 0x80 != 0)
+}
+
+fn quic_packet_type(packet: &crate::ledger::PacketMetaFact) -> Option<QuicPacketType> {
+    let byte = packet.payload_byte0?;
+    if byte & 0x80 == 0 {
+        return None;
+    }
+    match byte & 0x30 {
+        0x00 => Some(QuicPacketType::Initial),
+        0x10 => Some(QuicPacketType::ZeroRtt),
+        0x20 => Some(QuicPacketType::Handshake),
+        0x30 => Some(QuicPacketType::Retry),
+        _ => None,
+    }
+}
+
+fn packet_payload_sequence_at(
+    packet: &crate::ledger::PacketMetaFact,
+    matcher: &PayloadByteSequenceMatch,
+) -> bool {
+    matcher.bytes.iter().enumerate().all(|(index, expected)| {
+        packet_payload_byte_at(packet, matcher.offset + index as u16) == Some(*expected)
+    })
 }
 
 pub fn flow_predicate_satisfied_in_flow(

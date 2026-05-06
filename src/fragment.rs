@@ -761,6 +761,7 @@ fn predicate_payload_offsets(predicate: &FlowPredicate) -> Vec<u16> {
             byte4_mask,
             byte13_mask,
             byte_matches,
+            byte_sequences,
             ..
         } => {
             if byte4_mask.is_some() {
@@ -772,10 +773,16 @@ fn predicate_payload_offsets(predicate: &FlowPredicate) -> Vec<u16> {
             for matcher in byte_matches {
                 offsets.insert(matcher.offset);
             }
+            for matcher in byte_sequences {
+                for offset in matcher.offset..matcher.offset + matcher.bytes.len() as u16 {
+                    offsets.insert(offset);
+                }
+            }
         }
         FlowPredicate::DatagramObserved {
             byte13_mask,
             byte_matches,
+            byte_sequences,
             ..
         } => {
             if byte13_mask.is_some() {
@@ -783,6 +790,11 @@ fn predicate_payload_offsets(predicate: &FlowPredicate) -> Vec<u16> {
             }
             for matcher in byte_matches {
                 offsets.insert(matcher.offset);
+            }
+            for matcher in byte_sequences {
+                for offset in matcher.offset..matcher.offset + matcher.bytes.len() as u16 {
+                    offsets.insert(offset);
+                }
             }
         }
         FlowPredicate::All(predicates) | FlowPredicate::Any(predicates) => {
@@ -820,6 +832,7 @@ fn predicate_required_facts(predicate: &FlowPredicate) -> Vec<FactKindTag> {
         FlowPredicate::PacketObserved { .. } => vec![FactKindTag::PacketMeta],
         FlowPredicate::DatagramObserved { .. } => vec![FactKindTag::PacketMeta],
         FlowPredicate::RouteResolved => vec![FactKindTag::RouteDecision],
+        FlowPredicate::QuicPacketObserved { .. } => vec![FactKindTag::PacketMeta],
         FlowPredicate::All(predicates) => predicates
             .iter()
             .flat_map(predicate_required_facts)

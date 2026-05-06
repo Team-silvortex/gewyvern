@@ -9,10 +9,10 @@ fragment=sock_lineage_fragment
 operation=quic_client_initial
 rule=process_bound;process_bound;process_bound;true;quic_client_initial_path;bind
 rule=route_resolved;route_resolved;static:program resolved an upstream route for this QUIC client path;true;quic_client_initial_path;resolve_upstream
-rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0xf0:0xc0:prefix2:0xc300;datagram_observed;udp_datagram_sent;true;quic_client_initial_path;send_initial
-rule=datagram_observed:udp:remote:quic:remote_to_local;datagram_observed;udp_datagram_received;true;quic_client_initial_path;receive_handshake
+rule=quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial;datagram_observed;udp_datagram_sent;true;quic_client_initial_path;send_initial
+rule=quic_packet_observed:remote:quic:remote_to_local:long_header:true:type:handshake;datagram_observed;udp_datagram_received;true;quic_client_initial_path;receive_handshake
 reason.rule=process_bound;process_identified;process_bound;true;quic_client_initial_path;bind
 reason.rule=route_resolved;route_changed;route_changed;true;quic_client_initial_path;resolve_upstream
-reason.rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0xf0:0xc0:prefix2:0xc300;udp_datagram_seen;udp_datagram_sent;true;quic_client_initial_path;send_initial
-reason.rule=datagram_observed:udp:remote:quic:remote_to_local;udp_datagram_seen;udp_datagram_received;true;quic_client_initial_path;receive_handshake
+reason.rule=quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial;udp_datagram_seen;udp_datagram_sent;true;quic_client_initial_path;send_initial
+reason.rule=quic_packet_observed:remote:quic:remote_to_local:long_header:true:type:handshake;udp_datagram_seen;udp_datagram_received;true;quic_client_initial_path;receive_handshake
 param=sock_lineage_fragment.capture_comm=true
