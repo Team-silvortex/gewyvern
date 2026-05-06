@@ -18,6 +18,13 @@ struct ProtocolAlias {
     entry: Option<&'static str>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ResolvedProtocolProfile {
+    pub protocol: &'static str,
+    pub entry: &'static str,
+    pub dsl_path: &'static str,
+}
+
 const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
     ProtocolProfile {
         name: "dns",
@@ -581,14 +588,7 @@ const PROTOCOL_ALIASES: &[ProtocolAlias] = &[
 ];
 
 pub fn protocol_dsl_path(protocol: &str, entry: Option<&str>) -> Option<&'static str> {
-    let (protocol_name, alias_entry) = split_protocol_alias(protocol);
-    let profile = find_protocol_profile(protocol_name)?;
-    let resolved_entry = entry.or(alias_entry).unwrap_or(profile.default_entry);
-    profile
-        .entries
-        .iter()
-        .find(|item| item.mode == resolved_entry)
-        .map(|item| item.dsl_path)
+    resolve_protocol_profile(protocol, entry).map(|profile| profile.dsl_path)
 }
 
 pub fn protocol_names() -> Vec<&'static str> {
@@ -612,6 +612,31 @@ pub fn protocol_entries(protocol: &str) -> Option<Vec<&'static str>> {
             .map(|entry| entry.mode)
             .collect::<Vec<_>>()
     })
+}
+
+pub fn resolve_protocol_profile(
+    protocol: &str,
+    entry: Option<&str>,
+) -> Option<ResolvedProtocolProfile> {
+    let (protocol_name, alias_entry) = split_protocol_alias(protocol);
+    let profile = find_protocol_profile(protocol_name)?;
+    let resolved_entry = entry.or(alias_entry).unwrap_or(profile.default_entry);
+    profile
+        .entries
+        .iter()
+        .find(|item| item.mode == resolved_entry)
+        .map(|item| ResolvedProtocolProfile {
+            protocol: profile.name,
+            entry: item.mode,
+            dsl_path: item.dsl_path,
+        })
+}
+
+pub fn default_protocol_scan_set() -> Vec<ResolvedProtocolProfile> {
+    PROTOCOL_PROFILES
+        .iter()
+        .filter_map(|profile| resolve_protocol_profile(profile.name, None))
+        .collect()
 }
 
 fn find_protocol_profile(protocol: &str) -> Option<&'static ProtocolProfile> {

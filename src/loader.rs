@@ -6,6 +6,7 @@ pub const LINUX_SMOKE_FRAGMENT_ID: &str = "linux_tracepoint_smoke_fragment";
 #[derive(Debug, Eq, PartialEq)]
 pub enum LoaderError {
     UnsupportedPlatform,
+    InvalidProbeTarget(String),
     LaunchFailed(String),
 }
 
@@ -80,13 +81,8 @@ pub fn linux_tracepoint_smoke_failures(
     hookpoint_name: &'static str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     use crate::fragment::HookPoint;
-    use std::process::Command;
-
-    let output = Command::new("/bin/bash")
-        .arg("scripts/linux_attach_smoke.sh")
-        .arg(hookpoint_name)
-        .output()
-        .map_err(|err| LoaderError::LaunchFailed(err.to_string()))?;
+    validate_tracepoint_name(hookpoint_name)?;
+    let output = run_repo_script("linux_attach_smoke.sh", hookpoint_name)?;
 
     if output.status.success() {
         return Ok(Vec::new());
@@ -122,12 +118,8 @@ pub fn linux_probe_tracepoint_hook(
     hookpoint_name: &'static str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     use crate::fragment::HookPoint;
-
-    let output = std::process::Command::new("/bin/bash")
-        .arg("scripts/linux_attach_smoke.sh")
-        .arg(hookpoint_name)
-        .output()
-        .map_err(|err| LoaderError::LaunchFailed(err.to_string()))?;
+    validate_tracepoint_name(hookpoint_name)?;
+    let output = run_repo_script("linux_attach_smoke.sh", hookpoint_name)?;
 
     if output.status.success() {
         return Ok(Vec::new());
@@ -164,12 +156,8 @@ pub fn linux_probe_kprobe_hook(
     symbol_name: &'static str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     use crate::fragment::HookPoint;
-
-    let output = std::process::Command::new("/bin/bash")
-        .arg("scripts/linux_kprobe_smoke.sh")
-        .arg(symbol_name)
-        .output()
-        .map_err(|err| LoaderError::LaunchFailed(err.to_string()))?;
+    validate_symbol_name(symbol_name)?;
+    let output = run_repo_script("linux_kprobe_smoke.sh", symbol_name)?;
 
     if output.status.success() {
         return Ok(Vec::new());
@@ -206,12 +194,8 @@ pub fn linux_probe_tc_ingress_hook(
     dev_name: &'static str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     use crate::fragment::HookPoint;
-
-    let output = std::process::Command::new("/bin/bash")
-        .arg("scripts/linux_tc_smoke.sh")
-        .arg(dev_name)
-        .output()
-        .map_err(|err| LoaderError::LaunchFailed(err.to_string()))?;
+    validate_netdev_name(dev_name)?;
+    let output = run_repo_script("linux_tc_smoke.sh", dev_name)?;
 
     if output.status.success() {
         return Ok(Vec::new());
@@ -289,4 +273,100 @@ pub fn linux_probe_kernel_hooks(plan: &AttachPlan) -> Result<Vec<AttachFailure>,
 #[cfg(not(target_os = "linux"))]
 pub fn linux_probe_kernel_hooks(_plan: &AttachPlan) -> Result<Vec<AttachFailure>, LoaderError> {
     Err(LoaderError::UnsupportedPlatform)
+}
+
+#[cfg(target_os = "linux")]
+fn run_repo_script(
+    script_name: &'static str,
+    arg: &'static str,
+) -> Result<std::process::Output, LoaderError> {
+    let script_path = repo_script_path(script_name)?;
+    std::process::Command::new(script_path)
+        .arg(arg)
+        .output()
+        .map_err(|err| LoaderError::LaunchFailed(err.to_string()))
+}
+
+#[cfg(target_os = "linux")]
+fn repo_script_path(script_name: &'static str) -> Result<std::path::PathBuf, LoaderError> {
+    let script_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("scripts")
+        .join(script_name);
+    let canonical = std::fs::canonicalize(&script_path)
+        .map_err(|err| LoaderError::LaunchFailed(err.to_string()))?;
+    let scripts_root =
+        std::fs::canonicalize(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts"))
+            .map_err(|err| LoaderError::LaunchFailed(err.to_string()))?;
+    if !canonical.starts_with(&scripts_root) {
+        return Err(LoaderError::LaunchFailed(format!(
+            "refusing to execute script outside scripts root: {}",
+            canonical.display()
+        )));
+    }
+    Ok(canonical)
+}
+
+fn validate_tracepoint_name(name: &str) -> Result<(), LoaderError> {
+    validate_probe_target(
+        name,
+        |ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '/' | '-'),
+        "tracepoint",
+    )
+}
+
+fn validate_symbol_name(name: &str) -> Result<(), LoaderError> {
+    validate_probe_target(
+        name,
+        |ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.'),
+        "symbol",
+    )
+}
+
+fn validate_netdev_name(name: &str) -> Result<(), LoaderError> {
+    validate_probe_target(
+        name,
+        |ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.'),
+        "netdev",
+    )
+}
+
+fn validate_probe_target<F>(
+    value: &str,
+    is_allowed: F,
+    label: &'static str,
+) -> Result<(), LoaderError>
+where
+    F: Fn(char) -> bool,
+{
+    if value.is_empty() || value.len() > 128 || value.chars().any(|ch| !is_allowed(ch)) {
+        return Err(LoaderError::InvalidProbeTarget(format!(
+            "invalid {label} target '{value}'"
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        LoaderError, validate_netdev_name, validate_symbol_name, validate_tracepoint_name,
+    };
+
+    #[test]
+    fn tracepoint_validation_rejects_shell_metacharacters() {
+        let err = validate_tracepoint_name("syscalls/sys_enter_openat;touch").unwrap_err();
+        assert!(matches!(err, LoaderError::InvalidProbeTarget(_)));
+    }
+
+    #[test]
+    fn symbol_validation_rejects_path_characters() {
+        let err = validate_symbol_name("../tcp_v4_connect").unwrap_err();
+        assert!(matches!(err, LoaderError::InvalidProbeTarget(_)));
+    }
+
+    #[test]
+    fn netdev_validation_rejects_whitespace() {
+        let err = validate_netdev_name("eth0 prod").unwrap_err();
+        assert!(matches!(err, LoaderError::InvalidProbeTarget(_)));
+    }
 }

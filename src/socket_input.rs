@@ -1,4 +1,5 @@
 use crate::export::{ExportBundle, ExportError, fact_from_json};
+use crate::ledger::FactEnvelope;
 use crate::runtime::{RuntimeError, RuntimeSession, SessionConfig};
 use crate::template::{Template, TemplateBinding};
 use std::io::{BufRead, BufReader, Read};
@@ -74,12 +75,9 @@ pub fn run_unix_socket_session_on_listener(
     listener: &std::os::unix::net::UnixListener,
     template: Template,
 ) -> Result<ExportBundle, SocketInputError> {
-    let (stream, _) = listener
-        .accept()
-        .map_err(|err| SocketInputError::AcceptFailed(err.to_string()))?;
-    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
-    run_stream_session(
-        BufReader::new(stream),
+    let facts = collect_unix_socket_facts_on_listener(listener)?;
+    run_facts_session(
+        facts,
         SessionConfig::for_template(template).map_err(SocketInputError::Runtime)?,
     )
 }
@@ -89,14 +87,31 @@ pub fn run_unix_socket_session_on_listener_with_binding(
     listener: &std::os::unix::net::UnixListener,
     binding: TemplateBinding,
 ) -> Result<ExportBundle, SocketInputError> {
+    let facts = collect_unix_socket_facts_on_listener(listener)?;
+    run_facts_session(
+        facts,
+        SessionConfig::for_binding(binding).map_err(SocketInputError::Runtime)?,
+    )
+}
+
+#[cfg(target_family = "unix")]
+pub fn collect_unix_socket_facts(socket_path: &str) -> Result<Vec<FactEnvelope>, SocketInputError> {
+    remove_unix_socket_file(socket_path)?;
+    let listener = bind_unix_socket_listener(socket_path)?;
+    let facts = collect_unix_socket_facts_on_listener(&listener)?;
+    remove_unix_socket_file(socket_path)?;
+    Ok(facts)
+}
+
+#[cfg(target_family = "unix")]
+pub fn collect_unix_socket_facts_on_listener(
+    listener: &std::os::unix::net::UnixListener,
+) -> Result<Vec<FactEnvelope>, SocketInputError> {
     let (stream, _) = listener
         .accept()
         .map_err(|err| SocketInputError::AcceptFailed(err.to_string()))?;
     let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
-    run_stream_session(
-        BufReader::new(stream),
-        SessionConfig::for_binding(binding).map_err(SocketInputError::Runtime)?,
-    )
+    collect_stream_facts(BufReader::new(stream))
 }
 
 pub fn run_tcp_socket_session(
@@ -121,12 +136,9 @@ pub fn run_tcp_socket_session_on_listener(
     listener: &TcpListener,
     template: Template,
 ) -> Result<ExportBundle, SocketInputError> {
-    let (stream, _) = listener
-        .accept()
-        .map_err(|err| SocketInputError::AcceptFailed(err.to_string()))?;
-    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
-    run_stream_session(
-        BufReader::new(stream),
+    let facts = collect_tcp_socket_facts_on_listener(listener)?;
+    run_facts_session(
+        facts,
         SessionConfig::for_template(template).map_err(SocketInputError::Runtime)?,
     )
 }
@@ -135,24 +147,61 @@ pub fn run_tcp_socket_session_on_listener_with_binding(
     listener: &TcpListener,
     binding: TemplateBinding,
 ) -> Result<ExportBundle, SocketInputError> {
+    let facts = collect_tcp_socket_facts_on_listener(listener)?;
+    run_facts_session(
+        facts,
+        SessionConfig::for_binding(binding).map_err(SocketInputError::Runtime)?,
+    )
+}
+
+pub fn collect_tcp_socket_facts(bind_addr: &str) -> Result<Vec<FactEnvelope>, SocketInputError> {
+    let listener = TcpListener::bind(bind_addr)
+        .map_err(|err| SocketInputError::BindFailed(err.to_string()))?;
+    collect_tcp_socket_facts_on_listener(&listener)
+}
+
+pub fn collect_tcp_socket_facts_on_listener(
+    listener: &TcpListener,
+) -> Result<Vec<FactEnvelope>, SocketInputError> {
     let (stream, _) = listener
         .accept()
         .map_err(|err| SocketInputError::AcceptFailed(err.to_string()))?;
     let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
-    run_stream_session(
-        BufReader::new(stream),
-        SessionConfig::for_binding(binding).map_err(SocketInputError::Runtime)?,
-    )
+    collect_stream_facts(BufReader::new(stream))
 }
 
 fn run_stream_session<R: Read>(
     reader: BufReader<R>,
     config: SessionConfig,
 ) -> Result<ExportBundle, SocketInputError> {
+    let facts = collect_stream_facts(reader)?;
+    run_facts_session(facts, config)
+}
+
+fn run_facts_session(
+    facts: Vec<FactEnvelope>,
+    config: SessionConfig,
+) -> Result<ExportBundle, SocketInputError> {
     let mut session = RuntimeSession::start(config).map_err(SocketInputError::Runtime)?;
-    let mut window_end = SystemTime::UNIX_EPOCH;
+    let window_end = facts
+        .iter()
+        .map(|fact| fact.ts)
+        .max()
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+
+    for fact in facts {
+        session.ingest(fact);
+    }
+    session.freeze(window_end);
+    Ok(session.export_bundle())
+}
+
+fn collect_stream_facts<R: Read>(
+    reader: BufReader<R>,
+) -> Result<Vec<FactEnvelope>, SocketInputError> {
     let mut line = String::new();
     let mut fact_count = 0usize;
+    let mut facts = Vec::new();
 
     let mut reader = reader;
     loop {
@@ -181,12 +230,9 @@ fn run_stream_session<R: Read>(
             )));
         }
         let fact = fact_from_json(trimmed).map_err(SocketInputError::ParseFailed)?;
-        window_end = window_end.max(fact.ts);
-        session.ingest(fact);
+        facts.push(fact);
     }
-
-    session.freeze(window_end);
-    Ok(session.export_bundle())
+    Ok(facts)
 }
 
 #[cfg(not(target_family = "unix"))]
@@ -210,9 +256,19 @@ pub fn run_unix_socket_session_with_binding(
     Err(SocketInputError::UnsupportedPlatform)
 }
 
+#[cfg(not(target_family = "unix"))]
+pub fn collect_unix_socket_facts(
+    _socket_path: &str,
+) -> Result<Vec<FactEnvelope>, SocketInputError> {
+    Err(SocketInputError::UnsupportedPlatform)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{MAX_FACT_COUNT, MAX_FACT_LINE_BYTES, SocketInputError, run_stream_session};
+    use super::{
+        MAX_FACT_COUNT, MAX_FACT_LINE_BYTES, SocketInputError, collect_stream_facts,
+        run_stream_session,
+    };
     use crate::export::fact_to_json;
     use crate::ledger::{
         CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, SessionId,
@@ -284,5 +340,13 @@ mod tests {
         assert!(
             matches!(err, SocketInputError::LimitExceeded(message) if message.contains("fact count exceeded"))
         );
+    }
+
+    #[test]
+    fn collect_stream_facts_returns_all_valid_records() {
+        let input = format!("{}{}", valid_fact_line(), valid_fact_line());
+        let facts =
+            collect_stream_facts(BufReader::new(std::io::Cursor::new(input.into_bytes()))).unwrap();
+        assert_eq!(facts.len(), 2);
     }
 }

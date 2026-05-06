@@ -8,15 +8,17 @@ use gewyvern::ledger::{
     SockLineageFact, TcpStateFact,
 };
 use gewyvern::protocol_profiles::{
-    protocol_default_entry, protocol_dsl_path, protocol_entries, protocol_names,
+    ResolvedProtocolProfile, default_protocol_scan_set, protocol_default_entry, protocol_dsl_path,
+    protocol_entries, protocol_names, resolve_protocol_profile,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::socket_input::{
-    bind_unix_socket_listener, remove_unix_socket_file, run_tcp_socket_session,
-    run_tcp_socket_session_on_listener, run_tcp_socket_session_on_listener_with_binding,
-    run_tcp_socket_session_with_binding, run_unix_socket_session,
-    run_unix_socket_session_on_listener, run_unix_socket_session_on_listener_with_binding,
-    run_unix_socket_session_with_binding,
+    bind_unix_socket_listener, collect_tcp_socket_facts, collect_tcp_socket_facts_on_listener,
+    collect_unix_socket_facts, collect_unix_socket_facts_on_listener, remove_unix_socket_file,
+    run_tcp_socket_session, run_tcp_socket_session_on_listener,
+    run_tcp_socket_session_on_listener_with_binding, run_tcp_socket_session_with_binding,
+    run_unix_socket_session, run_unix_socket_session_on_listener,
+    run_unix_socket_session_on_listener_with_binding, run_unix_socket_session_with_binding,
 };
 use gewyvern::template::{TemplateBinding, handshake_debug_template, udp_debug_template};
 use std::collections::HashSet;
@@ -89,31 +91,31 @@ impl UiLocale {
     fn usage(self) -> &'static str {
         match self {
             Self::Zh => {
-                "用法: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "用法: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ja => {
-                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ko => {
-                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Fr => {
-                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::De => {
-                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Es => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Pt => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ru => {
-                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::En => {
-                "usage: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "usage: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
         }
     }
@@ -404,7 +406,7 @@ impl UiLocale {
             (Self::Zh, "entry_requires_protocol") => "--entry 需要和 --protocol 一起使用",
             (Self::Zh, "list_conflict") => "--list-protocols 不能和 --list-entries 一起使用",
             (Self::Zh, "remote_socket_requires_flag") => {
-                "远程 TCP 监听需要显式加上 --allow-remote-socket"
+                "远程 TCP 监听需要显式加上 --socket-trust unsafe-remote（或兼容的 --allow-remote-socket）"
             }
             (Self::Zh, "serve_requires_socket") => "--serve 需要 --unix-socket 或 --tcp-socket",
             (Self::Zh, "unsupported_fragment_combo") => "不支持的片段组合",
@@ -590,7 +592,7 @@ impl UiLocale {
             (_, "entry_requires_protocol") => "--entry requires --protocol",
             (_, "list_conflict") => "--list-protocols cannot be combined with --list-entries",
             (_, "remote_socket_requires_flag") => {
-                "remote TCP listeners require explicit --allow-remote-socket"
+                "remote TCP listeners require explicit --socket-trust unsafe-remote (or legacy --allow-remote-socket)"
             }
             (_, "serve_requires_socket") => "--serve requires --unix-socket or --tcp-socket",
             (_, "unsupported_fragment_combo") => "unsupported fragment combination",
@@ -625,8 +627,14 @@ impl UiLocale {
             (Self::Zh, "invalid_pid") => "--pid 必须是正整数".into(),
             (Self::Zh, "missing_unix_socket") => "缺少 --unix-socket 的值，期望文件路径".into(),
             (Self::Zh, "missing_tcp_socket") => "缺少 --tcp-socket 的值，期望 host:port".into(),
+            (Self::Zh, "missing_socket_trust") => {
+                "缺少 --socket-trust 的值，期望 trusted-local 或 unsafe-remote".into()
+            }
             (Self::Zh, "missing_out") => "缺少 --out 的值，期望可写文件路径".into(),
             (Self::Zh, "unsupported_protocol") => format!("不支持的协议 '{a}'"),
+            (Self::Zh, "unsupported_socket_trust") => {
+                format!("不支持的 socket 信任模式 '{a}'，期望 trusted-local 或 unsafe-remote")
+            }
             (_, "unsupported_demo") => {
                 format!("unsupported demo mode '{a}', expected tcp, udp, or both")
             }
@@ -658,8 +666,14 @@ impl UiLocale {
             (_, "missing_tcp_socket") => {
                 "missing value for --tcp-socket, expected host:port".into()
             }
+            (_, "missing_socket_trust") => {
+                "missing value for --socket-trust, expected trusted-local or unsafe-remote".into()
+            }
             (_, "missing_out") => "missing value for --out, expected a writable file path".into(),
             (_, "unsupported_protocol") => format!("unsupported protocol '{a}'"),
+            (_, "unsupported_socket_trust") => format!(
+                "unsupported socket trust mode '{a}', expected trusted-local or unsafe-remote"
+            ),
             _ => key.into(),
         }
     }
@@ -699,7 +713,11 @@ fn main() {
     }
 
     let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_000);
-    let mut outputs = Vec::new();
+    let scan_targets = scan_targets_for_cli(&cli).unwrap_or_else(|err| {
+        eprintln!("{err}");
+        std::process::exit(2);
+    });
+    let mut outputs: Vec<(String, ExportBundle)> = Vec::new();
 
     if cli.diagnostics {
         let path = cli.dsl_path.as_deref().unwrap_or_else(|| {
@@ -728,40 +746,74 @@ fn main() {
             return;
         }
 
-        let export = match (socket_target, cli.dsl_binding()) {
-            (SocketTarget::Unix(path), Some(binding)) => {
-                run_unix_socket_session_with_binding(path, binding)
+        if cli.scan_all {
+            let facts = match socket_target {
+                SocketTarget::Unix(path) => collect_unix_socket_facts(path),
+                SocketTarget::Tcp(addr) => collect_tcp_socket_facts(addr),
             }
-            (SocketTarget::Tcp(addr), Some(binding)) => {
-                run_tcp_socket_session_with_binding(addr, binding)
+            .unwrap_or_else(|err| {
+                eprintln!(
+                    "{}",
+                    locale.msgf("socket_session_failed", &format!("{err:?}"), None)
+                );
+                std::process::exit(1);
+            });
+            for target in &scan_targets {
+                let export = run_binding_session(target.binding(), &facts);
+                let export = cli
+                    .pid
+                    .map(|pid| filter_export_by_pid(&export, pid))
+                    .unwrap_or(export);
+                outputs.push((target.label(), annotate_export_trust(export, &cli)));
             }
-            (SocketTarget::Unix(path), None) => {
-                run_unix_socket_session(path, cli.template_mode.template())
+        } else {
+            let export = match (socket_target, cli.dsl_binding()) {
+                (SocketTarget::Unix(path), Some(binding)) => {
+                    run_unix_socket_session_with_binding(path, binding)
+                }
+                (SocketTarget::Tcp(addr), Some(binding)) => {
+                    run_tcp_socket_session_with_binding(addr, binding)
+                }
+                (SocketTarget::Unix(path), None) => {
+                    run_unix_socket_session(path, cli.template_mode.template())
+                }
+                (SocketTarget::Tcp(addr), None) => {
+                    run_tcp_socket_session(addr, cli.template_mode.template())
+                }
             }
-            (SocketTarget::Tcp(addr), None) => {
-                run_tcp_socket_session(addr, cli.template_mode.template())
-            }
+            .unwrap_or_else(|err| {
+                eprintln!(
+                    "{}",
+                    locale.msgf("socket_session_failed", &format!("{err:?}"), None)
+                );
+                std::process::exit(1);
+            });
+            let export = cli
+                .pid
+                .map(|pid| filter_export_by_pid(&export, pid))
+                .unwrap_or(export);
+            outputs.push((
+                "socket_session".to_string(),
+                annotate_export_trust(export, &cli),
+            ));
         }
-        .unwrap_or_else(|err| {
-            eprintln!(
-                "{}",
-                locale.msgf("socket_session_failed", &format!("{err:?}"), None)
-            );
-            std::process::exit(1);
-        });
-        let export = cli
-            .pid
-            .map(|pid| filter_export_by_pid(&export, pid))
-            .unwrap_or(export);
-        outputs.push(("socket_session", export));
     } else {
-        if let Some(binding) = cli.dsl_binding() {
+        if cli.scan_all {
+            for target in &scan_targets {
+                let export = run_binding_demo(target.binding());
+                let export = cli
+                    .pid
+                    .map(|pid| filter_export_by_pid(&export, pid))
+                    .unwrap_or(export);
+                outputs.push((target.label(), annotate_export_trust(export, &cli)));
+            }
+        } else if let Some(binding) = cli.dsl_binding() {
             let export = run_binding_demo(binding);
             let export = cli
                 .pid
                 .map(|pid| filter_export_by_pid(&export, pid))
                 .unwrap_or(export);
-            outputs.push(("dsl_demo", export));
+            outputs.push(("dsl_demo".to_string(), annotate_export_trust(export, &cli)));
         } else {
             if cli.demo_mode.includes_tcp() {
                 let tcp_export = run_session(
@@ -825,7 +877,10 @@ fn main() {
                     .pid
                     .map(|pid| filter_export_by_pid(&tcp_export, pid))
                     .unwrap_or(tcp_export);
-                outputs.push(("tcp_demo", tcp_export));
+                outputs.push((
+                    "tcp_demo".to_string(),
+                    annotate_export_trust(tcp_export, &cli),
+                ));
             }
 
             if cli.demo_mode.includes_udp() {
@@ -871,7 +926,10 @@ fn main() {
                     .pid
                     .map(|pid| filter_export_by_pid(&udp_export, pid))
                     .unwrap_or(udp_export);
-                outputs.push(("udp_demo", udp_export));
+                outputs.push((
+                    "udp_demo".to_string(),
+                    annotate_export_trust(udp_export, &cli),
+                ));
             }
         }
     }
@@ -910,9 +968,9 @@ fn main() {
             .into_iter()
             .map(|(name, export)| {
                 if cli.json {
-                    findings_json(name, &export)
+                    findings_json(&name, &export)
                 } else {
-                    findings_text(name, &export)
+                    findings_text(&name, &export)
                 }
             })
             .collect::<Vec<_>>()
@@ -922,7 +980,7 @@ fn main() {
             .into_iter()
             .map(|(name, export)| {
                 if cli.summary_only {
-                    summary_json(name, &export)
+                    summary_json(&name, &export)
                 } else {
                     export.to_json()
                 }
@@ -932,7 +990,7 @@ fn main() {
     } else {
         outputs
             .into_iter()
-            .map(|(name, export)| summary_line(name, &export))
+            .map(|(name, export)| summary_line(&name, &export))
             .collect::<Vec<_>>()
             .join("\n")
     };
@@ -957,9 +1015,11 @@ struct Cli {
     dsl_path: Option<String>,
     protocol: Option<String>,
     entry: Option<String>,
+    scan_all: bool,
+    protocol_set_path: Option<String>,
     list_protocols: bool,
     list_entries: Option<String>,
-    allow_remote_socket: bool,
+    socket_trust: SocketTrustMode,
     pid: Option<u32>,
     diagnostics: bool,
     findings: bool,
@@ -985,10 +1045,48 @@ enum TemplateMode {
     Udp,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SocketTrustMode {
+    TrustedLocal,
+    UnsafeRemote,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum SocketTarget {
     Unix(String),
     Tcp(String),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ScanTarget {
+    protocol: String,
+    entry: String,
+    dsl_path: String,
+}
+
+impl ScanTarget {
+    fn from_resolved(profile: ResolvedProtocolProfile) -> Self {
+        Self {
+            protocol: profile.protocol.to_string(),
+            entry: profile.entry.to_string(),
+            dsl_path: profile.dsl_path.to_string(),
+        }
+    }
+
+    fn label(&self) -> String {
+        format!("scan:{}:{}", self.protocol, self.entry)
+    }
+
+    fn binding(&self) -> TemplateBinding {
+        let locale = UiLocale::detect();
+        compile_file(&self.dsl_path).unwrap_or_else(|err| {
+            eprintln!(
+                "{}",
+                locale.msgf("dsl_compile_failed", &format!("{err:?}"), None)
+            );
+            std::process::exit(2);
+        })
+    }
 }
 
 impl DemoMode {
@@ -1029,6 +1127,24 @@ impl TemplateMode {
     }
 }
 
+impl SocketTrustMode {
+    fn from_str(value: &str) -> Result<Self, String> {
+        let locale = UiLocale::detect();
+        match value {
+            "trusted-local" | "local" => Ok(Self::TrustedLocal),
+            "unsafe-remote" | "remote" => Ok(Self::UnsafeRemote),
+            other => Err(locale.msgf("unsupported_socket_trust", other, None)),
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::TrustedLocal => "trusted-local",
+            Self::UnsafeRemote => "unsafe-remote",
+        }
+    }
+}
+
 impl Cli {
     fn dsl_binding(&self) -> Option<TemplateBinding> {
         let locale = UiLocale::detect();
@@ -1053,9 +1169,11 @@ impl Cli {
         let mut dsl_path = None;
         let mut protocol = None;
         let mut entry = None;
+        let mut scan_all = false;
+        let mut protocol_set_path = None;
         let mut list_protocols = false;
         let mut list_entries = None;
-        let mut allow_remote_socket = false;
+        let mut socket_trust = SocketTrustMode::TrustedLocal;
         let mut pid = None;
         let mut diagnostics = false;
         let mut findings = false;
@@ -1109,6 +1227,12 @@ impl Cli {
                             .ok_or_else(|| locale.msgf("missing_protocol", "", None))?,
                     );
                 }
+                "--scan-all" => scan_all = true,
+                "--protocol-set" => {
+                    protocol_set_path = Some(args.next().ok_or_else(|| {
+                        "--protocol-set requires a protocol set file path".to_string()
+                    })?);
+                }
                 "--entry" => {
                     entry = Some(
                         args.next()
@@ -1116,12 +1240,18 @@ impl Cli {
                     );
                 }
                 "--list-protocols" => list_protocols = true,
-                "--allow-remote-socket" => allow_remote_socket = true,
+                "--allow-remote-socket" => socket_trust = SocketTrustMode::UnsafeRemote,
                 "--list-entries" => {
                     list_entries = Some(
                         args.next()
                             .ok_or_else(|| locale.msgf("missing_protocol", "", None))?,
                     );
+                }
+                "--socket-trust" => {
+                    let value = args
+                        .next()
+                        .ok_or_else(|| locale.msgf("missing_socket_trust", "", None))?;
+                    socket_trust = SocketTrustMode::from_str(&value)?;
                 }
                 "--pid" => {
                     let value = args
@@ -1177,6 +1307,18 @@ impl Cli {
         if diagnostics && http_transactions {
             return Err(locale.msg("findings_diagnostics_conflict").into());
         }
+        if scan_all && dsl_path.is_some() {
+            return Err("--scan-all cannot be combined with --dsl".into());
+        }
+        if scan_all && protocol.is_some() {
+            return Err("--scan-all cannot be combined with --protocol".into());
+        }
+        if scan_all && entry.is_some() {
+            return Err("--scan-all cannot be combined with --entry".into());
+        }
+        if protocol_set_path.is_some() && !scan_all {
+            return Err("--protocol-set requires --scan-all".into());
+        }
         if dsl_path.is_some() && protocol.is_some() {
             return Err(locale.msg("dsl_protocol_conflict").into());
         }
@@ -1199,7 +1341,7 @@ impl Cli {
             return Err(locale.msg("serve_requires_socket").into());
         }
         if matches!(socket_target, Some(SocketTarget::Tcp(_)))
-            && !allow_remote_socket
+            && socket_trust != SocketTrustMode::UnsafeRemote
             && socket_target
                 .as_ref()
                 .is_some_and(|target| !socket_target_is_local(target))
@@ -1219,9 +1361,11 @@ impl Cli {
             dsl_path,
             protocol,
             entry,
+            scan_all,
+            protocol_set_path,
             list_protocols,
             list_entries,
-            allow_remote_socket,
+            socket_trust,
             pid,
             diagnostics,
             findings,
@@ -1238,6 +1382,18 @@ impl Cli {
 
 fn process_matches_pid(process: Option<&ProcessView>, pid: u32) -> bool {
     process.is_some_and(|process| process.pid == pid)
+}
+
+fn ingest_trust_mode_for_cli(cli: &Cli) -> &'static str {
+    match cli.socket_target {
+        Some(_) => cli.socket_trust.as_str(),
+        None => "synthetic-demo",
+    }
+}
+
+fn annotate_export_trust(mut export: ExportBundle, cli: &Cli) -> ExportBundle {
+    export.ingest_trust_mode = ingest_trust_mode_for_cli(cli).to_string();
+    export
 }
 
 fn socket_target_is_local(target: &SocketTarget) -> bool {
@@ -1387,6 +1543,22 @@ fn run_session(template: gewyvern::template::Template, facts: Vec<FactEnvelope>)
         "replay should stay deterministic"
     );
     export
+}
+
+fn run_binding_session(binding: TemplateBinding, facts: &[FactEnvelope]) -> ExportBundle {
+    let config = SessionConfig::for_binding(binding).expect("dsl binding should be valid");
+    let mut session = RuntimeSession::start(config).expect("dsl session startup should succeed");
+    let window_end = facts
+        .iter()
+        .map(|fact| fact.ts)
+        .max()
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+
+    for fact in facts {
+        session.ingest(fact.clone());
+    }
+    session.freeze(window_end);
+    session.export_bundle()
 }
 
 fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
@@ -2130,11 +2302,14 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
 #[cfg(test)]
 mod tests {
     use super::{
-        Cli, filter_export_by_pid, list_entries_json, list_entries_text, list_protocols_json,
-        list_protocols_text, protocol_dsl_path, run_binding_demo,
+        Cli, SocketTrustMode, annotate_export_trust, filter_export_by_pid, list_entries_json,
+        list_entries_text, list_protocols_json, list_protocols_text, protocol_dsl_path,
+        run_binding_demo, scan_targets_for_cli, scan_targets_from_set_file, summary_json,
     };
     use gewyvern::dsl::compile_file;
     use gewyvern::flow::ProgramOperation;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn http_request_demo_produces_healthy_cross_transport_path() {
@@ -2292,6 +2467,36 @@ mod tests {
     }
 
     #[test]
+    fn cli_accepts_scan_all_mode() {
+        let cli = Cli::from_args(["--scan-all".to_string(), "--json".to_string()]).unwrap();
+        assert!(cli.scan_all);
+        assert_eq!(cli.protocol_set_path, None);
+    }
+
+    #[test]
+    fn cli_rejects_protocol_set_without_scan_all() {
+        let err = Cli::from_args([
+            "--protocol-set".to_string(),
+            "/tmp/protocols.txt".to_string(),
+        ])
+        .unwrap_err();
+        assert!(err.contains("--protocol-set"));
+        assert!(err.contains("--scan-all"));
+    }
+
+    #[test]
+    fn cli_rejects_scan_all_with_protocol_selector() {
+        let err = Cli::from_args([
+            "--scan-all".to_string(),
+            "--protocol".to_string(),
+            "mysql".to_string(),
+        ])
+        .unwrap_err();
+        assert!(err.contains("--scan-all"));
+        assert!(err.contains("--protocol"));
+    }
+
+    #[test]
     fn cli_rejects_combined_list_modes() {
         let err = Cli::from_args([
             "--list-protocols".to_string(),
@@ -2325,6 +2530,44 @@ mod tests {
     }
 
     #[test]
+    fn default_scan_targets_include_protocol_defaults() {
+        let cli = Cli::from_args(["--scan-all".to_string()]).unwrap();
+        let targets = scan_targets_for_cli(&cli).unwrap();
+        assert!(
+            targets
+                .iter()
+                .any(|target| { target.protocol == "mysql" && target.entry == "session" })
+        );
+        assert!(
+            targets
+                .iter()
+                .any(|target| { target.protocol == "amqp" && target.entry == "session" })
+        );
+    }
+
+    #[test]
+    fn protocol_set_file_parses_comments_defaults_and_explicit_entries() {
+        let path = std::env::temp_dir().join(format!(
+            "gewyvern-protocol-set-{}.txt",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::write(&path, "# comment\nmysql\namqp:publish\nldap bind\nmysql\n").unwrap();
+        let targets = scan_targets_from_set_file(path.to_str().unwrap()).unwrap();
+        fs::remove_file(&path).unwrap();
+
+        assert_eq!(targets.len(), 3);
+        assert_eq!(targets[0].protocol, "mysql");
+        assert_eq!(targets[0].entry, "session");
+        assert_eq!(targets[1].protocol, "amqp");
+        assert_eq!(targets[1].entry, "publish");
+        assert_eq!(targets[2].protocol, "ldap");
+        assert_eq!(targets[2].entry, "bind");
+    }
+
+    #[test]
     fn cli_rejects_remote_tcp_socket_without_explicit_flag() {
         let err =
             Cli::from_args(["--tcp-socket".to_string(), "0.0.0.0:9000".to_string()]).unwrap_err();
@@ -2339,14 +2582,57 @@ mod tests {
             "--allow-remote-socket".to_string(),
         ])
         .unwrap();
-        assert!(cli.allow_remote_socket);
+        assert_eq!(cli.socket_trust, SocketTrustMode::UnsafeRemote);
     }
 
     #[test]
     fn cli_accepts_loopback_tcp_socket_without_remote_flag() {
         let cli =
             Cli::from_args(["--tcp-socket".to_string(), "127.0.0.1:9000".to_string()]).unwrap();
-        assert!(!cli.allow_remote_socket);
+        assert_eq!(cli.socket_trust, SocketTrustMode::TrustedLocal);
+    }
+
+    #[test]
+    fn cli_accepts_explicit_socket_trust_mode() {
+        let cli = Cli::from_args([
+            "--tcp-socket".to_string(),
+            "0.0.0.0:9000".to_string(),
+            "--socket-trust".to_string(),
+            "unsafe-remote".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(cli.socket_trust, SocketTrustMode::UnsafeRemote);
+    }
+
+    #[test]
+    fn cli_rejects_unknown_socket_trust_mode() {
+        let err =
+            Cli::from_args(["--socket-trust".to_string(), "mystery".to_string()]).unwrap_err();
+        assert!(err.contains("socket trust") || err.contains("信任模式"));
+    }
+
+    #[test]
+    fn export_json_carries_ingest_trust_mode() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = export.to_json();
+        assert!(json.contains("\"ingest_trust_mode\":\"synthetic-demo\""));
+    }
+
+    #[test]
+    fn summary_json_carries_ingest_trust_mode() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"ingest_trust_mode\":\"synthetic-demo\""));
     }
 
     #[test]
@@ -2413,9 +2699,11 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
             .join(",")
     };
     format!(
-        "{name}: {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={}",
+        "{name}: {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={}",
         locale.label("template"),
         export.template_id,
+        "ingest_trust_mode",
+        export.ingest_trust_mode,
         locale.label("fragments_loaded"),
         export.debug_summary.fragments_loaded,
         locale.label("hookpoints_failed"),
@@ -2515,6 +2803,78 @@ fn list_entries_json(protocol: &str) -> Option<String> {
     ))
 }
 
+fn scan_targets_for_cli(cli: &Cli) -> Result<Vec<ScanTarget>, String> {
+    if !cli.scan_all {
+        return Ok(Vec::new());
+    }
+    match cli.protocol_set_path.as_deref() {
+        Some(path) => scan_targets_from_set_file(path),
+        None => Ok(default_protocol_scan_set()
+            .into_iter()
+            .map(ScanTarget::from_resolved)
+            .collect()),
+    }
+}
+
+fn scan_targets_from_set_file(path: &str) -> Result<Vec<ScanTarget>, String> {
+    let contents = fs::read_to_string(path)
+        .map_err(|err| format!("failed to read protocol set '{path}': {err}"))?;
+    let mut targets = Vec::new();
+    let mut seen = HashSet::new();
+
+    for (index, raw_line) in contents.lines().enumerate() {
+        let line = raw_line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (protocol, entry) = parse_protocol_set_line(line)
+            .map_err(|err| format!("invalid protocol set line {}: {err}", index + 1))?;
+        let resolved = resolve_protocol_profile(protocol, entry).ok_or_else(|| {
+            format!(
+                "unsupported protocol target on line {}: {}",
+                index + 1,
+                line
+            )
+        })?;
+        let key = format!("{}:{}", resolved.protocol, resolved.entry);
+        if seen.insert(key) {
+            targets.push(ScanTarget::from_resolved(resolved));
+        }
+    }
+
+    if targets.is_empty() {
+        return Err(format!(
+            "protocol set '{}' did not resolve any scan targets",
+            path
+        ));
+    }
+
+    Ok(targets)
+}
+
+fn parse_protocol_set_line(line: &str) -> Result<(&str, Option<&str>), String> {
+    if let Some((protocol, entry)) = line.split_once(':') {
+        let protocol = protocol.trim();
+        let entry = entry.trim();
+        if protocol.is_empty() || entry.is_empty() {
+            return Err(format!("expected '<protocol>:<entry>', got '{line}'"));
+        }
+        return Ok((protocol, Some(entry)));
+    }
+
+    let mut parts = line.split_whitespace();
+    let protocol = parts
+        .next()
+        .ok_or_else(|| format!("expected '<protocol>' or '<protocol> <entry>', got '{line}'"))?;
+    let entry = parts.next();
+    if parts.next().is_some() {
+        return Err(format!(
+            "expected '<protocol>' or '<protocol> <entry>', got '{line}'"
+        ));
+    }
+    Ok((protocol, entry))
+}
+
 fn usage() -> &'static str {
     UiLocale::detect().usage()
 }
@@ -2530,8 +2890,9 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
             .join(",")
     );
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{}}}",
         export.template_id,
+        export.ingest_trust_mode,
         export.debug_summary.fragments_loaded,
         export.debug_summary.hookpoints_failed,
         export.debug_summary.accepted_facts,
@@ -2892,6 +3253,10 @@ fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {
 
 fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
     let locale = UiLocale::detect();
+    let scan_targets = scan_targets_for_cli(cli).unwrap_or_else(|err| {
+        eprintln!("{err}");
+        std::process::exit(2);
+    });
     #[cfg(target_family = "unix")]
     {
         remove_unix_socket_file(path).unwrap_or_else(|err| {
@@ -2911,6 +3276,27 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
         let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
 
         for _ in 0..max_sessions {
+            if cli.scan_all {
+                let facts =
+                    collect_unix_socket_facts_on_listener(&listener).unwrap_or_else(|err| {
+                        eprintln!(
+                            "{}",
+                            locale.msgf("socket_service_failed", &format!("{err:?}"), None)
+                        );
+                        std::process::exit(1);
+                    });
+                for target in &scan_targets {
+                    let export = run_binding_session(target.binding(), &facts);
+                    let export = cli
+                        .pid
+                        .map(|pid| filter_export_by_pid(&export, pid))
+                        .unwrap_or(export);
+                    let export = annotate_export_trust(export, cli);
+                    emit_rendered(cli, &target.label(), &export, true);
+                }
+                continue;
+            }
+
             let export = if let Some(binding) = cli.dsl_binding() {
                 run_unix_socket_session_on_listener_with_binding(&listener, binding)
             } else {
@@ -2927,6 +3313,7 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
                 .pid
                 .map(|pid| filter_export_by_pid(&export, pid))
                 .unwrap_or(export);
+            let export = annotate_export_trust(export, cli);
             emit_rendered(cli, "socket_session", &export, true);
         }
 
@@ -2950,6 +3337,10 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
 
 fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
     let locale = UiLocale::detect();
+    let scan_targets = scan_targets_for_cli(cli).unwrap_or_else(|err| {
+        eprintln!("{err}");
+        std::process::exit(2);
+    });
     let listener = TcpListener::bind(addr).unwrap_or_else(|err| {
         eprintln!(
             "{}",
@@ -2960,6 +3351,26 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
     let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
 
     for _ in 0..max_sessions {
+        if cli.scan_all {
+            let facts = collect_tcp_socket_facts_on_listener(&listener).unwrap_or_else(|err| {
+                eprintln!(
+                    "{}",
+                    locale.msgf("socket_service_failed", &format!("{err:?}"), None)
+                );
+                std::process::exit(1);
+            });
+            for target in &scan_targets {
+                let export = run_binding_session(target.binding(), &facts);
+                let export = cli
+                    .pid
+                    .map(|pid| filter_export_by_pid(&export, pid))
+                    .unwrap_or(export);
+                let export = annotate_export_trust(export, cli);
+                emit_rendered(cli, &target.label(), &export, true);
+            }
+            continue;
+        }
+
         let export = if let Some(binding) = cli.dsl_binding() {
             run_tcp_socket_session_on_listener_with_binding(&listener, binding)
         } else {
@@ -2976,6 +3387,7 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
             .pid
             .map(|pid| filter_export_by_pid(&export, pid))
             .unwrap_or(export);
+        let export = annotate_export_trust(export, cli);
         emit_rendered(cli, "socket_session", &export, true);
     }
 }

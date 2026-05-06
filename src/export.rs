@@ -38,6 +38,7 @@ pub struct FragmentInventoryItem {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExportBundle {
     pub template_id: String,
+    pub ingest_trust_mode: String,
     pub fragment_inventory: Vec<FragmentInventoryItem>,
     pub attach_plan: AttachPlan,
     pub attach_report: AttachReport,
@@ -121,6 +122,7 @@ impl ExportBundle {
         }
         session.seed_rejected_facts(self.rejected_facts.clone());
         let mut replay = session.export_bundle();
+        replay.ingest_trust_mode = self.ingest_trust_mode.clone();
         replay.binding_diagnostics = self.binding_diagnostics.clone();
         replay.attach_failure_summary = self.attach_failure_summary.clone();
         replay.debug_summary = self.debug_summary.clone();
@@ -136,6 +138,10 @@ impl ExportBundle {
             (
                 "template_id".into(),
                 JsonValue::String(self.template_id.clone()),
+            ),
+            (
+                "ingest_trust_mode".into(),
+                JsonValue::String(self.ingest_trust_mode.clone()),
             ),
             (
                 "fragment_inventory".into(),
@@ -266,6 +272,12 @@ impl ExportBundle {
                 .get("template_id")
                 .ok_or_else(|| ExportError::InvalidShape("missing template_id".into()))?
                 .as_str()?
+                .to_string(),
+            ingest_trust_mode: root
+                .get("ingest_trust_mode")
+                .map(|value| value.as_str())
+                .transpose()?
+                .unwrap_or("unspecified")
                 .to_string(),
             fragment_inventory: root
                 .get("fragment_inventory")

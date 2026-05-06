@@ -295,6 +295,7 @@ impl RuntimeSession {
 
         ExportBundle {
             template_id: self.template.id.into(),
+            ingest_trust_mode: "unspecified".into(),
             fragment_inventory: self
                 .attach_plan
                 .fragments

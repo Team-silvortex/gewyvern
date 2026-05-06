@@ -407,6 +407,26 @@ cargo run -- --protocol mysql --pid 4242 --json
 cargo run -- --protocol ldap --entry sync --pid 4242 --findings --json
 ```
 
+Run a full protocol sweep with the built-in default protocol set or a custom
+set file:
+
+```bash
+cargo run -- --scan-all --json --summary-only
+cargo run -- --scan-all --findings --json
+cargo run -- --scan-all --protocol-set /tmp/protocols.txt --json --summary-only
+```
+
+Example protocol set file:
+
+```text
+# default entry
+mysql
+
+# explicit entry
+amqp:publish
+ldap bind
+```
+
 Select a specific gewy entry mode for one protocol:
 
 ```bash
@@ -499,17 +519,30 @@ Socket session locked to a built-in protocol and PID:
 cargo run -- --protocol mysql --entry session --pid 4242 --tcp-socket 127.0.0.1:9000 --json
 ```
 
+Socket session scanned against the default protocol set or a custom set file:
+
+```bash
+cargo run -- --scan-all --pid 4242 --tcp-socket 127.0.0.1:9000 --json --summary-only
+cargo run -- --scan-all --protocol-set /tmp/protocols.txt --tcp-socket 127.0.0.1:9000 --findings --json
+```
+
 Remote TCP listeners are now opt-in:
 
 ```bash
+cargo run -- --protocol mysql --entry session --tcp-socket 0.0.0.0:9000 --socket-trust unsafe-remote --json
 cargo run -- --protocol mysql --entry session --tcp-socket 0.0.0.0:9000 --allow-remote-socket --json
 ```
+
+`--socket-trust trusted-local` is the default. `--allow-remote-socket` remains as a
+compatibility shorthand for `--socket-trust unsafe-remote`.
+Rendered summaries and full JSON exports carry this as `ingest_trust_mode`.
 
 Serve multiple sessions:
 
 ```bash
 cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --serve --json --summary-only
 cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --serve --max-sessions 2 --json
+cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --serve --max-sessions 2 --json --summary-only
 ```
 
 Roundtrip demo:
