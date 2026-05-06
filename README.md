@@ -34,6 +34,7 @@ The long-term direction is:
 - package deps: local path dependencies via `dep.<name>=...` and `include("dep:file.gewy")`
 - language semantics: single-entry, function-unit DSL with no cross-file global mutable state
 - workspace shape: `gewyvern` runtime crate + `gewyc` compiler CLI crate
+- protocol registry shape: scanned gewy project packages under `protocols/`
 
 ## Workspace Layout
 
@@ -53,6 +54,9 @@ boundaries:
 - [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
   Built-in protocol and debugging DSL files. This is now the clearest place to
   see supported network-module behaviors.
+- [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)
+  Registry-style gewy protocol packages. `gewyvern` scans `gewy.pkg` manifests
+  here to register built-in protocols, entries, defaults, and aliases.
 - `gewy.pkg`
   Package manifest for single-entry gewy projects; `gewyc` resolves this to the
   package `main.gewy` entry file.
@@ -80,6 +84,8 @@ boundaries:
 - `cargo run -p gewyc -- init my_app`
   Scaffold a minimal gewy package with `gewy.pkg`, `main.gewy`, and an included
   module file built around pure function-unit composition.
+- `cargo run -p gewyc -- lock my_app`
+  Resolve a gewy package manifest into a `gewy.lock` snapshot.
 - `cargo test --workspace`
   Main regression path for the whole workspace.
 
@@ -280,8 +286,14 @@ can express:
 - single-entry pipeline projects that merge included module files into the
   package entry compile path
 - function-unit pipeline composition through `fn ...() { ... }` plus `|> use(:fn_name)`
+- parameterized pure function units through `fn ...(... ) { ... }` plus
+  `|> use(:fn_name, ...)`
 - no cross-file global mutable state; included files contribute pure DSL functions
 - pipeline packages are merged into a single front-end module IR before lowering into `TemplateBinding`
+- named package sources and source-backed dependency resolution in `gewy.pkg`
+- resolved package lock snapshots through `gewyc lock`
+- dynamic sampled payload offsets via fragment params in addition to built-in
+  offset defaults
 
 The shared datagram predicate surface is what the current UDP-family protocol
 DSLs build on. In practice, the engine is already using the same IR layer to
@@ -408,12 +420,13 @@ cargo run -- --protocol ldap --entry sync --pid 4242 --findings --json
 ```
 
 Run a full protocol sweep with the built-in default protocol set or a custom
-set file:
+set file or registry directory:
 
 ```bash
 cargo run -- --scan-all --json --summary-only
 cargo run -- --scan-all --findings --json
 cargo run -- --scan-all --protocol-set /tmp/protocols.txt --json --summary-only
+cargo run -- --scan-all --protocol-set /Users/Shared/chroot/dev/gewyvern/protocols --json --summary-only
 ```
 
 Example protocol set file:
@@ -425,6 +438,20 @@ mysql
 # explicit entry
 amqp:publish
 ldap bind
+```
+
+Built-in protocol discovery now comes from scanning gewy project manifests in
+[protocols](/Users/Shared/chroot/dev/gewyvern/protocols). Each package uses a
+`gewy.pkg` like:
+
+```text
+name=mysql_session
+version=0.4.0
+entry=main.gewy
+register.protocol=mysql
+register.entry=session
+register.default=true
+register.aliases=mysql-session,mysql_session
 ```
 
 Select a specific gewy entry mode for one protocol:

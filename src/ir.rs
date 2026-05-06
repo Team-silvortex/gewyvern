@@ -369,7 +369,7 @@ fn packet_payload_byte_at(packet: &crate::ledger::PacketMetaFact, offset: u16) -
         9 => packet.payload_byte9,
         10 => packet.payload_byte10,
         13 => packet.payload_byte13,
-        _ => None,
+        _ => packet.payload_bytes.get(&offset).copied(),
     }
 }
 

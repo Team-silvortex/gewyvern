@@ -1,0 +1,16 @@
+template=mysql_connect_process
+window=default_5s
+reason_model=mysql_connect_process_reason
+fragment=tcp_state_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+operation=mysql_connect
+rule=process_bound;process_bound;process_bound;true;mysql_connect_process;bind
+rule=socket_state_observed:remote:mysql;socket_state_transition;static:program initiated or advanced a MySQL socket state transition;false;mysql_connect_process;connect
+rule=socket_state_observed:remote:mysql:established;socket_state_transition;static:program reached an established MySQL socket state;true;mysql_connect_process;establish
+rule=route_resolved;route_resolved;static:program resolved an upstream route for this MySQL connect path;true;mysql_connect_process;resolve
+reason.rule=process_bound;process_identified;process_bound;true;mysql_connect_process;bind
+reason.rule=socket_state_observed:remote:mysql;state_change;tcp_state_transition;false;mysql_connect_process;connect
+reason.rule=socket_state_observed:remote:mysql:established;state_change;tcp_state_transition;true;mysql_connect_process;establish
+reason.rule=route_resolved;route_changed;route_changed;true;mysql_connect_process;resolve
+param=sock_lineage_fragment.capture_comm=true

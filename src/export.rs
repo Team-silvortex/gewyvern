@@ -1326,6 +1326,21 @@ fn fact_json(fact: &FactEnvelope) -> JsonValue {
                     .payload_byte13
                     .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
+            (
+                "payload_bytes".into(),
+                JsonValue::Array(
+                    value
+                        .payload_bytes
+                        .iter()
+                        .map(|(offset, byte)| {
+                            JsonValue::Object(BTreeMap::from([
+                                ("offset".into(), JsonValue::Number(*offset as i64)),
+                                ("value".into(), JsonValue::Number(*byte as i64)),
+                            ]))
+                        })
+                        .collect(),
+                ),
+            ),
             ("l3_proto".into(), JsonValue::Number(value.l3_proto as i64)),
             ("l4_proto".into(), JsonValue::Number(value.l4_proto as i64)),
             ("tot_len".into(), JsonValue::Number(value.tot_len as i64)),
@@ -3180,6 +3195,42 @@ fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError> {
             payload_byte13: match kind.get("payload_byte13").unwrap_or(&JsonValue::Null) {
                 JsonValue::Null => None,
                 value => Some(value.as_i64()? as u8),
+            },
+            payload_bytes: match kind.get("payload_bytes").unwrap_or(&JsonValue::Null) {
+                JsonValue::Null => std::collections::BTreeMap::new(),
+                JsonValue::Array(items) => {
+                    let mut map = std::collections::BTreeMap::new();
+                    for item in items {
+                        let JsonValue::Object(object) = item else {
+                            return Err(ExportError::InvalidShape(
+                                "fact.packet_meta.payload_bytes".into(),
+                            ));
+                        };
+                        let offset = object
+                            .get("offset")
+                            .ok_or_else(|| {
+                                ExportError::InvalidShape(
+                                    "fact.packet_meta.payload_bytes.offset".into(),
+                                )
+                            })?
+                            .as_i64()? as u16;
+                        let value = object
+                            .get("value")
+                            .ok_or_else(|| {
+                                ExportError::InvalidShape(
+                                    "fact.packet_meta.payload_bytes.value".into(),
+                                )
+                            })?
+                            .as_i64()? as u8;
+                        map.insert(offset, value);
+                    }
+                    map
+                }
+                _ => {
+                    return Err(ExportError::InvalidShape(
+                        "fact.packet_meta.payload_bytes".into(),
+                    ));
+                }
             },
             l3_proto: kind
                 .get("l3_proto")

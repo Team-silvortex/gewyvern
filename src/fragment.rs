@@ -372,12 +372,7 @@ impl FragmentRegistry {
                         fragment_id: fragment_id.clone(),
                         key: key.clone(),
                     })?;
-                let type_matches = matches!(
-                    (&spec.value_type, value),
-                    (FragmentParamType::Bool, FragmentParamValue::Bool(_))
-                        | (FragmentParamType::U64, FragmentParamValue::U64(_))
-                        | (FragmentParamType::String, FragmentParamValue::String(_))
-                );
+                let type_matches = fragment_param_type_matches(spec, value);
                 if !type_matches {
                     return Err(RegistryError::InvalidFragmentParamType {
                         fragment_id: fragment_id.clone(),
@@ -444,6 +439,7 @@ impl FragmentRegistry {
                         .enumerate()
                         .map(|(rule_index, rule)| {
                             build_rule_diagnostics(
+                                binding,
                                 rule_index,
                                 rule,
                                 &fact_producers,
@@ -462,6 +458,7 @@ impl FragmentRegistry {
                         .enumerate()
                         .map(|(rule_index, rule)| {
                             build_rule_diagnostics(
+                                binding,
                                 rule_index,
                                 rule,
                                 &fact_producers,
@@ -486,7 +483,11 @@ impl FragmentRegistry {
             .fragment_set
             .iter()
             .filter_map(|fragment_id| self.descriptor(fragment_id))
-            .flat_map(|descriptor| descriptor.sampled_payload_offsets.iter().copied())
+            .flat_map(|descriptor| {
+                descriptor_sampled_payload_offsets(binding, descriptor)
+                    .into_iter()
+                    .collect::<Vec<_>>()
+            })
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
@@ -632,6 +633,7 @@ fn validate_model_diagnostics(
 }
 
 fn build_rule_diagnostics(
+    binding: &TemplateBinding,
     rule_index: usize,
     rule: &ReasonRule,
     fact_producers: &BTreeMap<FactKindTag, Vec<String>>,
@@ -657,7 +659,7 @@ fn build_rule_diagnostics(
     supporting_fragments.sort();
     supporting_fragments.dedup();
     let unsupported_payload_offsets =
-        unsupported_payload_offsets(&rule.predicate, descriptors, &required_facts);
+        unsupported_payload_offsets(binding, &rule.predicate, descriptors, &required_facts);
 
     RuleDiagnostics {
         rule_index,
@@ -676,6 +678,7 @@ fn build_rule_diagnostics(
 }
 
 fn unsupported_payload_offsets(
+    binding: &TemplateBinding,
     predicate: &FlowPredicate,
     descriptors: &[FragmentDescriptor],
     required_facts: &[FactKindTag],
@@ -690,11 +693,64 @@ fn unsupported_payload_offsets(
     let available_offsets = descriptors
         .iter()
         .filter(|descriptor| descriptor.emits.contains(&FactKindTag::PacketMeta))
-        .flat_map(|descriptor| descriptor.sampled_payload_offsets.iter().copied())
+        .flat_map(|descriptor| {
+            descriptor_sampled_payload_offsets(binding, descriptor)
+                .into_iter()
+                .collect::<Vec<_>>()
+        })
         .collect::<BTreeSet<_>>();
     required_offsets
         .into_iter()
         .filter(|offset| !available_offsets.contains(offset))
+        .collect()
+}
+
+fn descriptor_sampled_payload_offsets(
+    binding: &TemplateBinding,
+    descriptor: &FragmentDescriptor,
+) -> BTreeSet<u16> {
+    let mut offsets = descriptor
+        .sampled_payload_offsets
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    if let Some(params) = binding.fragment_params.get(descriptor.id) {
+        if let Some(value) = params.get("sample_payload_offsets") {
+            match value {
+                FragmentParamValue::String(extra) => {
+                    offsets.extend(parse_sample_payload_offsets(extra));
+                }
+                FragmentParamValue::U64(offset) => {
+                    if let Ok(offset) = u16::try_from(*offset) {
+                        offsets.insert(offset);
+                    }
+                }
+                FragmentParamValue::Bool(_) => {}
+            }
+        }
+    }
+    offsets
+}
+
+fn fragment_param_type_matches(spec: &FragmentParamSpec, value: &FragmentParamValue) -> bool {
+    if spec.key == "sample_payload_offsets" {
+        return matches!(
+            value,
+            FragmentParamValue::String(_) | FragmentParamValue::U64(_)
+        );
+    }
+    matches!(
+        (&spec.value_type, value),
+        (FragmentParamType::Bool, FragmentParamValue::Bool(_))
+            | (FragmentParamType::U64, FragmentParamValue::U64(_))
+            | (FragmentParamType::String, FragmentParamValue::String(_))
+    )
+}
+
+fn parse_sample_payload_offsets(value: &str) -> Vec<u16> {
+    value
+        .split(',')
+        .filter_map(|item| item.trim().parse::<u16>().ok())
         .collect()
 }
 
@@ -861,7 +917,10 @@ pub fn builtin_registry() -> FragmentRegistry {
             }],
             capabilities: vec![CapabilityFlag::PacketMeta],
             sampled_payload_offsets: vec![0, 1, 4, 5, 9, 10, 13],
-            params: vec![],
+            params: vec![FragmentParamSpec {
+                key: "sample_payload_offsets",
+                value_type: FragmentParamType::String,
+            }],
         },
         FragmentDescriptor {
             id: "udp_packet_meta_fragment",
@@ -880,10 +939,16 @@ pub fn builtin_registry() -> FragmentRegistry {
             }],
             capabilities: vec![CapabilityFlag::PacketMeta],
             sampled_payload_offsets: vec![0, 1, 4, 5, 9, 10, 13],
-            params: vec![FragmentParamSpec {
-                key: "min_len",
-                value_type: FragmentParamType::U64,
-            }],
+            params: vec![
+                FragmentParamSpec {
+                    key: "min_len",
+                    value_type: FragmentParamType::U64,
+                },
+                FragmentParamSpec {
+                    key: "sample_payload_offsets",
+                    value_type: FragmentParamType::String,
+                },
+            ],
         },
         FragmentDescriptor {
             id: "route_meta_fragment",

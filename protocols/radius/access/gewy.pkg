@@ -1,0 +1,6 @@
+name=radius_access
+version=0.4.0
+entry=main.gewy
+register.protocol=radius
+register.entry=access
+register.default=true

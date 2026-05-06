@@ -1,0 +1,6 @@
+name=stun_binding
+version=0.4.0
+entry=main.gewy
+register.protocol=stun
+register.entry=binding
+register.default=true

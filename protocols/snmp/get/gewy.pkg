@@ -1,0 +1,6 @@
+name=snmp_get
+version=0.4.0
+entry=main.gewy
+register.protocol=snmp
+register.entry=get
+register.default=true

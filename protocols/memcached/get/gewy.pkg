@@ -1,0 +1,7 @@
+name=memcached_get
+version=0.4.0
+entry=main.gewy
+register.protocol=memcached
+register.entry=get
+register.default=true
+register.aliases=memcached-get,memcached_get

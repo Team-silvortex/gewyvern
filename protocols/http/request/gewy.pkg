@@ -1,0 +1,7 @@
+name=http_request
+version=0.4.0
+entry=main.gewy
+register.protocol=http
+register.entry=request
+register.default=true
+register.aliases=http-client,http_client

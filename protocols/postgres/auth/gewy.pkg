@@ -1,0 +1,7 @@
+name=postgres_auth
+version=0.4.0
+entry=main.gewy
+register.protocol=postgres
+register.entry=auth
+register.default=false
+register.aliases=postgres-auth,postgres_auth

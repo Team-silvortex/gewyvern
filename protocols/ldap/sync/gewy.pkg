@@ -1,0 +1,7 @@
+name=ldap_sync
+version=0.4.0
+entry=main.gewy
+register.protocol=ldap
+register.entry=sync
+register.default=true
+register.aliases=ldap-sync,ldap_sync

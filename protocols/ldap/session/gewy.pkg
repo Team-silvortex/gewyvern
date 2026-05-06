@@ -1,0 +1,7 @@
+name=ldap_session
+version=0.4.0
+entry=main.gewy
+register.protocol=ldap
+register.entry=session
+register.default=false
+register.aliases=ldap-session,ldap_session

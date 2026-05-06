@@ -1,0 +1,17 @@
+template=mqtt_connect_path
+window=default_5s
+reason_model=mqtt_connect_path_reason
+fragment=tcp_packet_meta_fragment
+fragment=tcp_state_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+program_model=mqtt_connect_path_model
+operation=mqtt_connect
+rule=process_bound;process_bound;process_bound;true;mqtt_connect_path;bind
+rule=route_resolved;route_resolved;static:program resolved an upstream route for this MQTT path;true;mqtt_connect_path;resolve_upstream
+rule=packet_observed:tcp:remote:mqtt:local_to_remote:byte0_mask:0xf0:0x10;packet_observed;transport_payload_sent;true;mqtt_connect_path;send_connect
+rule=packet_observed:tcp:remote:mqtt:remote_to_local:prefix4:0x20020000;packet_observed;transport_payload_received;true;mqtt_connect_path;receive_connack
+reason.rule=process_bound;process_identified;process_bound;true;mqtt_connect_path;bind
+reason.rule=route_resolved;route_changed;route_changed;true;mqtt_connect_path;resolve_upstream
+reason.rule=packet_observed:tcp:remote:mqtt:local_to_remote:byte0_mask:0xf0:0x10;packet_observed;transport_payload_sent;true;mqtt_connect_path;send_connect
+reason.rule=packet_observed:tcp:remote:mqtt:remote_to_local:prefix4:0x20020000;packet_observed;transport_payload_received;true;mqtt_connect_path;receive_connack

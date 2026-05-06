@@ -1,0 +1,18 @@
+# gewyvern DSL v0
+template=postgres_connect_process
+window.duration_ms=5000
+window.lateness_ms=200
+reason_model=postgres_connect_process_reason
+fragment=tcp_state_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+operation=postgres_connect
+rule=process_bound;process_bound;process_bound;true;postgres_connect_path;bind
+rule=socket_state_observed:remote:postgres;socket_state_transition;static:program initiated or advanced a PostgreSQL socket state transition;false;postgres_connect_path;connect
+rule=socket_state_observed:remote:postgres:established;socket_state_transition;static:program reached an established PostgreSQL socket state;true;postgres_connect_path;establish
+rule=route_resolved;route_resolved;static:program resolved an upstream route for this PostgreSQL connect path;true;postgres_connect_path;resolve
+reason.rule=process_bound;process_identified;process_bound;true;postgres_connect_path;bind
+reason.rule=socket_state_observed:remote:postgres;state_change;tcp_state_transition;false;postgres_connect_path;connect
+reason.rule=socket_state_observed:remote:postgres:established;state_change;tcp_state_transition;true;postgres_connect_path;establish
+reason.rule=route_resolved;route_changed;route_changed;true;postgres_connect_path;resolve
+param=sock_lineage_fragment.capture_comm=true

@@ -1,0 +1,7 @@
+name=mysql_query
+version=0.4.0
+entry=main.gewy
+register.protocol=mysql
+register.entry=query
+register.default=false
+register.aliases=mysql-query,mysql_query

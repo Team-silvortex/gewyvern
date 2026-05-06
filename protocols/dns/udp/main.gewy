@@ -1,0 +1,18 @@
+# gewyvern DSL v0
+template=dns_udp_process
+window.duration_ms=5000
+window.lateness_ms=200
+reason_model=dns_udp_process_reason
+fragment=udp_packet_meta_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+operation=dns_lookup
+rule=process_bound;process_bound;process_bound;true;dns_lookup_path;bind
+rule=route_resolved;route_resolved;static:program resolved an upstream route for this DNS lookup;true;dns_lookup_path;resolve
+rule=datagram_observed:udp:local_to_remote;datagram_observed;udp_datagram_sent;true;dns_lookup_path;send_request
+rule=datagram_observed:udp:remote_to_local;datagram_observed;udp_datagram_received;true;dns_lookup_path;receive_reply
+reason.rule=process_bound;process_identified;process_bound;true;dns_lookup_path;bind
+reason.rule=route_resolved;route_changed;route_changed;true;dns_lookup_path;resolve
+reason.rule=datagram_observed:udp:local_to_remote;udp_datagram_seen;udp_datagram_sent;true;dns_lookup_path;send_request
+reason.rule=datagram_observed:udp:remote_to_local;udp_datagram_seen;udp_datagram_received;true;dns_lookup_path;receive_reply
+param=sock_lineage_fragment.capture_comm=true

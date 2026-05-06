@@ -1,0 +1,6 @@
+name=mdns_query
+version=0.4.0
+entry=main.gewy
+register.protocol=mdns
+register.entry=query
+register.default=true

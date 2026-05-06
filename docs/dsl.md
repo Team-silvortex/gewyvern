@@ -146,16 +146,27 @@ Then extend the binding with Elixir-style pipeline steps:
 - `|> reason_rule(...)`
 - `|> include("./module.gewy")`
 - `|> use(:network_module)`
+- `|> use(:network_module, :demo_app_model, :datagram_exchange)`
 
 Current parser rule: one pipeline call per line.
 
-Function units are declared with zero-argument blocks:
+Function units are declared with pure blocks:
 
 ```text
 fn network_module() {
 |> fragment(:udp_packet_meta_fragment)
 |> fragment(:route_meta_fragment)
 |> operation(:datagram_exchange)
+}
+```
+
+They can also be parameterized:
+
+```text
+fn network_module(model_name, op_name) {
+|> fragment(:udp_packet_meta_fragment)
+|> operation(${op_name})
+|> program_model(${model_name})
 }
 ```
 
@@ -176,6 +187,7 @@ Current semantics:
 - `include(...)` merges function definitions and steps into the single package
   entry compile path
 - nested `use(:other_function)` composition is supported
+- `use(:fn_name, ...)` supports positional arguments for parameterized function units
 - there is no cross-file global variable state
 
 Pipeline program rules use keyword arguments:
@@ -209,6 +221,7 @@ Example `gewy.pkg`:
 name=demo_app
 version=0.1.0
 entry=main.gewy
+source.local=../registry
 dep.std=../stdlib
 ```
 
@@ -238,14 +251,33 @@ Included files are merged into the package entry compile path before final
 lowering. Current expected shape for included files is pure pipeline function
 definitions or pipeline steps, without their own `template(...)` head.
 
-Dependency packages are currently local-path based. A package can include files
-from a dependency with:
+Dependency packages can be resolved from either a direct path or a named source
+root. A package can include files from a dependency with:
 
 ```text
 |> include("std:udp_module.gewy")
 ```
 
-Where `dep.std=../stdlib` is declared in `gewy.pkg`.
+Where either of these is declared in `gewy.pkg`:
+
+```text
+dep.std=../stdlib
+```
+
+or:
+
+```text
+source.local=../registry
+dep.std=source:local/udp_stdlib
+```
+
+`gewyc` can also materialize a resolved lock snapshot for a package:
+
+```text
+gewyc lock .
+```
+
+By default this writes `gewy.lock` next to the resolved package entry.
 
 ## Structured Blocks
 
@@ -516,10 +548,22 @@ These qualifiers can be combined in suffix order. Example:
 rule=datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa0;datagram_observed;udp_datagram_sent;true
 ```
 
-Current fragment sampling only exposes a small set of payload offsets to this
-generic matcher: `0`, `4`, and `13`. The DSL surface is now generic even
-though the underlying fragment templates still define which offsets are
-materialized.
+Current fragment sampling exposes a small default set of payload offsets to
+this generic matcher: `0`, `1`, `4`, `5`, `9`, `10`, and `13`. The DSL surface
+is now generic even though the underlying fragment templates still define which
+offsets are materialized.
+
+Templates can extend the sampled set for a fragment binding with:
+
+```text
+param=udp_packet_meta_fragment.sample_payload_offsets=8
+```
+
+or:
+
+```text
+|> param(:udp_packet_meta_fragment.sample_payload_offsets, "8,12")
+```
 
 When a rule uses `byte_at` outside the currently sampled offsets, compiler
 diagnostics mark that rule as unsupported and include the unsupported offsets

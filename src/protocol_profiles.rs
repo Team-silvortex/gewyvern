@@ -1,3 +1,7 @@
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::Path;
+
 #[derive(Clone, Copy)]
 struct ProtocolEntryProfile {
     mode: &'static str,
@@ -18,11 +22,22 @@ struct ProtocolAlias {
     entry: Option<&'static str>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+const PROTOCOL_REGISTRY_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/protocols");
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedProtocolProfile {
-    pub protocol: &'static str,
-    pub entry: &'static str,
-    pub dsl_path: &'static str,
+    pub protocol: String,
+    pub entry: String,
+    pub dsl_path: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct RegistryManifest {
+    protocol: String,
+    entry: String,
+    default: bool,
+    aliases: Vec<String>,
+    dsl_path: String,
 }
 
 const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
@@ -587,29 +602,91 @@ const PROTOCOL_ALIASES: &[ProtocolAlias] = &[
     },
 ];
 
-pub fn protocol_dsl_path(protocol: &str, entry: Option<&str>) -> Option<&'static str> {
+pub fn protocol_dsl_path(protocol: &str, entry: Option<&str>) -> Option<String> {
     resolve_protocol_profile(protocol, entry).map(|profile| profile.dsl_path)
 }
 
-pub fn protocol_names() -> Vec<&'static str> {
+pub fn protocol_names() -> Vec<String> {
+    if let Some(registry) = scan_protocol_registry() {
+        return registry
+            .into_iter()
+            .map(|manifest| manifest.protocol)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+    }
     PROTOCOL_PROFILES
         .iter()
-        .map(|profile| profile.name)
+        .map(|profile| profile.name.to_string())
         .collect()
 }
 
-pub fn protocol_default_entry(protocol: &str) -> Option<&'static str> {
+pub fn protocol_default_entry(protocol: &str) -> Option<String> {
+    if let Some(registry) = scan_protocol_registry() {
+        if let Some(manifest) = registry
+            .iter()
+            .find(|manifest| manifest.aliases.iter().any(|alias| alias == protocol))
+        {
+            return Some(manifest.entry.clone());
+        }
+        let canonical =
+            resolve_registry_alias(&registry, protocol).unwrap_or_else(|| protocol.to_string());
+        let mut candidates = registry
+            .into_iter()
+            .filter(|manifest| manifest.protocol == canonical)
+            .collect::<Vec<_>>();
+        candidates.sort_by(|left, right| left.entry.cmp(&right.entry));
+        if let Some(entry) = candidates
+            .iter()
+            .find(|manifest| manifest.default)
+            .or_else(|| candidates.first())
+            .map(|manifest| manifest.entry.clone())
+        {
+            return Some(entry);
+        }
+    }
     let (protocol_name, _) = split_protocol_alias(protocol);
-    find_protocol_profile(protocol_name).map(|profile| profile.default_entry)
+    find_protocol_profile(protocol_name).map(|profile| profile.default_entry.to_string())
 }
 
-pub fn protocol_entries(protocol: &str) -> Option<Vec<&'static str>> {
+pub fn protocol_entries(protocol: &str) -> Option<Vec<String>> {
+    if let Some(registry) = scan_protocol_registry() {
+        if let Some(manifest) = registry
+            .iter()
+            .find(|manifest| manifest.aliases.iter().any(|alias| alias == protocol))
+        {
+            let entries = registry
+                .iter()
+                .filter(|candidate| candidate.protocol == manifest.protocol)
+                .map(|candidate| candidate.entry.clone())
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+            return if entries.is_empty() {
+                None
+            } else {
+                Some(entries)
+            };
+        }
+        let canonical =
+            resolve_registry_alias(&registry, protocol).unwrap_or_else(|| protocol.to_string());
+        let entries = registry
+            .into_iter()
+            .filter(|manifest| manifest.protocol == canonical)
+            .map(|manifest| manifest.entry)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        if !entries.is_empty() {
+            return Some(entries);
+        }
+    }
     let (protocol_name, _) = split_protocol_alias(protocol);
     find_protocol_profile(protocol_name).map(|profile| {
         profile
             .entries
             .iter()
-            .map(|entry| entry.mode)
+            .map(|entry| entry.mode.to_string())
             .collect::<Vec<_>>()
     })
 }
@@ -618,6 +695,42 @@ pub fn resolve_protocol_profile(
     protocol: &str,
     entry: Option<&str>,
 ) -> Option<ResolvedProtocolProfile> {
+    if let Some(registry) = scan_protocol_registry() {
+        if entry.is_none() {
+            if let Some(manifest) = registry
+                .iter()
+                .find(|manifest| manifest.aliases.iter().any(|alias| alias == protocol))
+            {
+                return Some(ResolvedProtocolProfile {
+                    protocol: manifest.protocol.clone(),
+                    entry: manifest.entry.clone(),
+                    dsl_path: manifest.dsl_path.clone(),
+                });
+            }
+        }
+        let canonical =
+            resolve_registry_alias(&registry, protocol).unwrap_or_else(|| protocol.to_string());
+        let mut matches = registry
+            .into_iter()
+            .filter(|manifest| manifest.protocol == canonical)
+            .collect::<Vec<_>>();
+        matches.sort_by(|left, right| left.entry.cmp(&right.entry));
+        if let Some(selected) = if let Some(entry) = entry {
+            matches.into_iter().find(|manifest| manifest.entry == entry)
+        } else {
+            matches
+                .iter()
+                .find(|manifest| manifest.default)
+                .cloned()
+                .or_else(|| matches.into_iter().next())
+        } {
+            return Some(ResolvedProtocolProfile {
+                protocol: selected.protocol,
+                entry: selected.entry,
+                dsl_path: selected.dsl_path,
+            });
+        }
+    }
     let (protocol_name, alias_entry) = split_protocol_alias(protocol);
     let profile = find_protocol_profile(protocol_name)?;
     let resolved_entry = entry.or(alias_entry).unwrap_or(profile.default_entry);
@@ -626,17 +739,150 @@ pub fn resolve_protocol_profile(
         .iter()
         .find(|item| item.mode == resolved_entry)
         .map(|item| ResolvedProtocolProfile {
-            protocol: profile.name,
-            entry: item.mode,
-            dsl_path: item.dsl_path,
+            protocol: profile.name.to_string(),
+            entry: item.mode.to_string(),
+            dsl_path: item.dsl_path.to_string(),
         })
 }
 
 pub fn default_protocol_scan_set() -> Vec<ResolvedProtocolProfile> {
+    if let Some(registry) = scan_protocol_registry() {
+        return default_protocol_scan_set_from_registry(registry);
+    }
     PROTOCOL_PROFILES
         .iter()
         .filter_map(|profile| resolve_protocol_profile(profile.name, None))
         .collect()
+}
+
+pub fn default_protocol_scan_set_from_dir(dir: &str) -> Option<Vec<ResolvedProtocolProfile>> {
+    let registry = scan_protocol_registry_in(Path::new(dir))?;
+    Some(default_protocol_scan_set_from_registry(registry))
+}
+
+fn scan_protocol_registry() -> Option<Vec<RegistryManifest>> {
+    scan_protocol_registry_in(Path::new(PROTOCOL_REGISTRY_ROOT))
+}
+
+fn scan_protocol_registry_in(root: &Path) -> Option<Vec<RegistryManifest>> {
+    let mut manifests = Vec::new();
+    collect_registry_manifests(root, &mut manifests).ok()?;
+    if manifests.is_empty() {
+        None
+    } else {
+        Some(manifests)
+    }
+}
+
+fn default_protocol_scan_set_from_registry(
+    registry: Vec<RegistryManifest>,
+) -> Vec<ResolvedProtocolProfile> {
+    let mut by_protocol = BTreeMap::<String, RegistryManifest>::new();
+    for manifest in registry {
+        by_protocol
+            .entry(manifest.protocol.clone())
+            .and_modify(|current| {
+                if manifest.default || current.entry > manifest.entry {
+                    *current = manifest.clone();
+                }
+            })
+            .or_insert(manifest);
+    }
+    by_protocol
+        .into_values()
+        .map(|manifest| ResolvedProtocolProfile {
+            protocol: manifest.protocol,
+            entry: manifest.entry,
+            dsl_path: manifest.dsl_path,
+        })
+        .collect()
+}
+
+fn collect_registry_manifests(
+    dir: &Path,
+    manifests: &mut Vec<RegistryManifest>,
+) -> Result<(), String> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(dir).map_err(|err| err.to_string())? {
+        let entry = entry.map_err(|err| err.to_string())?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_registry_manifests(&path, manifests)?;
+            continue;
+        }
+        if path.file_name().and_then(|name| name.to_str()) != Some("gewy.pkg") {
+            continue;
+        }
+        manifests.push(read_registry_manifest(&path)?);
+    }
+    Ok(())
+}
+
+fn read_registry_manifest(path: &Path) -> Result<RegistryManifest, String> {
+    let input = fs::read_to_string(path).map_err(|err| err.to_string())?;
+    let root = path
+        .parent()
+        .ok_or_else(|| format!("manifest '{}' has no parent", path.display()))?;
+    let mut entry = None;
+    let mut protocol = None;
+    let mut protocol_entry = None;
+    let mut default = false;
+    let mut aliases = Vec::new();
+
+    for raw_line in input.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (key, value) = line
+            .split_once('=')
+            .ok_or_else(|| format!("invalid manifest line '{}'", line))?;
+        let key = key.trim();
+        let value = value.trim().trim_matches('"');
+        match key {
+            "entry" => entry = Some(value.to_string()),
+            "register.protocol" => protocol = Some(value.to_string()),
+            "register.entry" => protocol_entry = Some(value.to_string()),
+            "register.default" => default = matches!(value, "true" | "1" | "yes"),
+            "register.aliases" => {
+                aliases = value
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|item| !item.is_empty())
+                    .map(str::to_string)
+                    .collect();
+            }
+            _ => {}
+        }
+    }
+
+    let entry = entry.ok_or_else(|| format!("manifest '{}' missing entry", path.display()))?;
+    let protocol = protocol
+        .ok_or_else(|| format!("manifest '{}' missing register.protocol", path.display()))?;
+    let protocol_entry = protocol_entry
+        .ok_or_else(|| format!("manifest '{}' missing register.entry", path.display()))?;
+    let entry_path = root.join(&entry);
+    fs::canonicalize(&entry_path)
+        .map_err(|err| format!("failed to resolve '{}': {err}", entry_path.display()))?;
+    let dsl_path = fs::canonicalize(root)
+        .map_err(|err| format!("failed to resolve package root '{}': {err}", root.display()))?;
+
+    Ok(RegistryManifest {
+        protocol,
+        entry: protocol_entry,
+        default,
+        aliases,
+        dsl_path: dsl_path.to_string_lossy().into_owned(),
+    })
+}
+
+fn resolve_registry_alias(registry: &[RegistryManifest], protocol: &str) -> Option<String> {
+    registry
+        .iter()
+        .find(|manifest| manifest.aliases.iter().any(|alias| alias == protocol))
+        .map(|manifest| manifest.protocol.clone())
 }
 
 fn find_protocol_profile(protocol: &str) -> Option<&'static ProtocolProfile> {

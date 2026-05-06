@@ -1,6 +1,6 @@
 use gewyvern::dsl::{DslError, compile_file, compile_str, parse_str_unvalidated};
 use gewyvern::flow::ProgramOperation;
-use gewyvern::fragment::{RegistryError, RuleTier};
+use gewyvern::fragment::{RegistryError, RuleTier, builtin_registry};
 use gewyvern::gewyc::collect_binding_diagnostics;
 use gewyvern::ledger::PacketDir;
 use gewyvern::reason::{KeyEventKind, ReasonProfile};
@@ -6230,6 +6230,38 @@ template(:pipeline_function_udp)
 }
 
 #[test]
+fn dsl_accepts_parameterized_pipeline_function_units() {
+    let binding = compile_str(
+        r#"
+fn udp_core(model_name, op_name) {
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${model_name}, phase: :bind)
+}
+
+template(:pipeline_parameter_fn_udp)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core, :pipeline_parameter_fn_udp_model, :datagram_exchange)
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "pipeline_parameter_fn_udp");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "pipeline_parameter_fn_udp_model"
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::DatagramExchange
+    );
+}
+
+#[test]
 fn dsl_accepts_nested_pipeline_function_use_units() {
     let binding = compile_str(
         r#"
@@ -6363,6 +6395,55 @@ template(:app_with_dep)
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::DatagramExchange
+    );
+}
+
+#[test]
+fn dsl_package_entry_can_include_pipeline_module_from_named_source_dependency() {
+    let root =
+        std::env::temp_dir().join(format!("gewy-package-{}-source-deps", std::process::id()));
+    let app_dir = root.join("app");
+    let registry_dir = root.join("registry");
+    let dep_dir = registry_dir.join("udp_stdlib");
+    fs::create_dir_all(&app_dir).unwrap();
+    fs::create_dir_all(&dep_dir).unwrap();
+
+    fs::write(
+        app_dir.join("gewy.pkg"),
+        format!(
+            "name=app_with_source_dep\nversion=0.1.0\nentry=main.gewy\nsource.local={}\ndep.std=source:local/udp_stdlib\n",
+            registry_dir.to_string_lossy()
+        ),
+    )
+    .unwrap();
+    fs::write(
+        app_dir.join("main.gewy"),
+        r#"
+template(:app_with_source_dep)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> include("std:udp_module.gewy")
+"#,
+    )
+    .unwrap();
+    fs::write(
+        dep_dir.join("udp_module.gewy"),
+        r#"
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:app_with_source_dep_model)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :app_with_source_dep, phase: :bind)
+"#,
+    )
+    .unwrap();
+
+    let binding = compile_file(app_dir.to_str().unwrap()).unwrap();
+    assert_eq!(binding.template.id, "app_with_source_dep");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "app_with_source_dep_model"
     );
 }
 
@@ -6804,6 +6885,33 @@ rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;udp
         Vec::<gewyvern::ledger::FactKindTag>::new()
     );
     assert_eq!(rule.unsupported_payload_offsets, vec![8]);
+}
+
+#[test]
+fn binding_diagnostics_accept_dynamic_sample_payload_offsets_from_fragment_params() {
+    let binding = parse_str_unvalidated(
+        r#"
+template=dynamic_payload_offset_support
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+param=udp_packet_meta_fragment.sample_payload_offsets=8
+program_model=dynamic_payload_offset_support_model
+operation=snmp_get
+rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+"#,
+    )
+    .unwrap();
+
+    let registry = builtin_registry();
+    let diagnostics = registry.binding_diagnostics(&binding).unwrap();
+    let rule = &diagnostics.program_model.as_ref().unwrap().rules[0];
+    assert!(rule.supported);
+    assert_eq!(rule.unsupported_payload_offsets, Vec::<u16>::new());
+
+    let summary = registry.payload_offset_support_summary(&binding, &diagnostics);
+    assert!(summary.sampled_offsets.contains(&8));
+    assert_eq!(summary.unsupported_offsets, Vec::<u16>::new());
 }
 
 #[test]

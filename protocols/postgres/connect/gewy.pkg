@@ -1,0 +1,7 @@
+name=postgres_connect
+version=0.4.0
+entry=main.gewy
+register.protocol=postgres
+register.entry=connect
+register.default=false
+register.aliases=postgres-connect,postgres_connect

@@ -1,0 +1,6 @@
+name=https_connect
+version=0.4.0
+entry=main.gewy
+register.protocol=https
+register.entry=connect
+register.default=true

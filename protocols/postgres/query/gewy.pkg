@@ -1,0 +1,7 @@
+name=postgres_query
+version=0.4.0
+entry=main.gewy
+register.protocol=postgres
+register.entry=query
+register.default=true
+register.aliases=postgres-query,postgres_query

@@ -1,0 +1,7 @@
+name=memcached_set
+version=0.4.0
+entry=main.gewy
+register.protocol=memcached
+register.entry=set
+register.default=false
+register.aliases=memcached-set,memcached_set

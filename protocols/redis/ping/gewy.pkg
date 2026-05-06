@@ -1,0 +1,7 @@
+name=redis_ping
+version=0.4.0
+entry=main.gewy
+register.protocol=redis
+register.entry=ping
+register.default=true
+register.aliases=redis-ping,redis_ping

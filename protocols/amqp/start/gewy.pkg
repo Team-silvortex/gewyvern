@@ -1,0 +1,7 @@
+name=amqp_start
+version=0.4.0
+entry=main.gewy
+register.protocol=amqp
+register.entry=start
+register.default=false
+register.aliases=amqp-start,amqp_start

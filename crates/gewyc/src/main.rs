@@ -1,3 +1,4 @@
+use gewyvern::dsl::build_lockfile;
 use gewyvern::gewyc::{
     CompilerEnvelope, RenderFormat, compile_envelope_file, render_binding_report,
     render_diagnostics_report, render_envelope_report, render_findings_report,
@@ -20,6 +21,7 @@ enum Command {
     Stages,
     Envelope,
     Init,
+    Lock,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -62,11 +64,13 @@ impl UiLocale {
         match self {
             Self::Zh => {
                 "用法: gewyc <compile|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
+                 用法: gewyc lock [dir|gewy.pkg] [--out path]\n\
                  用法: gewyc init [dir]\n\
                  用法: gewyc <path.gewy> [--json] [--emit binding|diagnostics|findings|stages|envelope] [--out path]"
             }
             Self::En => {
                 "usage: gewyc <compile|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
+                 usage: gewyc lock [dir|gewy.pkg] [--out path]\n\
                  usage: gewyc init [dir]\n\
                  usage: gewyc <path.gewy> [--json] [--emit binding|diagnostics|findings|stages|envelope] [--out path]"
             }
@@ -86,6 +90,7 @@ impl UiLocale {
             (Self::Zh, "missing_out") => "缺少 --out 的值，期望输出路径",
             (Self::Zh, "write_failed") => "写入输出失败",
             (Self::Zh, "init_failed") => "初始化 gewy package 失败",
+            (Self::Zh, "lock_failed") => "生成 gewy.lock 失败",
             (_, "missing_path") => "missing .gewy file path",
             (_, "unknown_arg") => "unknown argument",
             (_, "compile_failed") => "dsl compile failed",
@@ -97,6 +102,7 @@ impl UiLocale {
             (_, "missing_out") => "missing value for --out, expected an output path",
             (_, "write_failed") => "failed to write output",
             (_, "init_failed") => "failed to initialize gewy package",
+            (_, "lock_failed") => "failed to build gewy.lock",
             _ => "error",
         }
     }
@@ -111,6 +117,7 @@ fn main() {
 
     match cli.emit {
         _ if cli.command == Command::Init => run_init(cli, locale),
+        _ if cli.command == Command::Lock => run_lock(cli, locale),
         EmitTarget::Binding => run_compile(cli, locale),
         EmitTarget::Diagnostics => run_diagnostics(cli, locale),
         EmitTarget::Findings => run_findings(cli, locale),
@@ -178,6 +185,9 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
             "init" if path.is_none() => {
                 command = Command::Init;
             }
+            "lock" if path.is_none() => {
+                command = Command::Lock;
+            }
             value if value.starts_with('-') => {
                 return Err(format!(
                     "{}: {value}\n{}",
@@ -196,7 +206,7 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
         }
     }
 
-    let path = if command == Command::Init {
+    let path = if matches!(command, Command::Init | Command::Lock) {
         path.unwrap_or_else(|| ".".into())
     } else {
         path.ok_or_else(|| format!("{}\n{}", locale.msg("missing_path"), locale.usage()))?
@@ -208,6 +218,29 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
         output,
         out,
     })
+}
+
+fn run_lock(cli: Cli, locale: UiLocale) {
+    let lock = build_lockfile(&cli.path).unwrap_or_else(|err| {
+        eprintln!("{}: {err:?}", locale.msg("lock_failed"));
+        std::process::exit(1);
+    });
+    let out_path = cli.out.unwrap_or_else(|| {
+        let root = std::path::Path::new(&cli.path);
+        if root.is_dir() {
+            root.join("gewy.lock").to_string_lossy().into_owned()
+        } else {
+            root.parent()
+                .unwrap_or_else(|| std::path::Path::new("."))
+                .join("gewy.lock")
+                .to_string_lossy()
+                .into_owned()
+        }
+    });
+    fs::write(&out_path, lock).unwrap_or_else(|err| {
+        eprintln!("{}: {err}", locale.msg("write_failed"));
+        std::process::exit(1);
+    });
 }
 
 fn run_compile(cli: Cli, locale: UiLocale) {
@@ -454,6 +487,13 @@ mod tests {
     }
 
     #[test]
+    fn parse_cli_accepts_lock_without_path() {
+        let cli = parse_cli(vec!["gewyc".into(), "lock".into()], UiLocale::En).unwrap();
+        assert_eq!(cli.command, Command::Lock);
+        assert_eq!(cli.path, ".");
+    }
+
+    #[test]
     fn binding_json_mentions_template_id() {
         let report = compile_binding_report_file(
             "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
@@ -499,5 +539,29 @@ mod tests {
         assert!(render_init_entry("demo").contains("|> use(:network_module)"));
         assert!(render_init_module("demo").contains("fn network_module() {"));
         assert!(render_init_module("demo").contains("program_model(:demo_model)"));
+    }
+
+    #[test]
+    fn lock_writes_resolved_dependency_and_source_entries() {
+        let root = std::env::temp_dir().join(format!("gewy-lock-{}", std::process::id()));
+        let app_dir = root.join("app");
+        let registry_dir = root.join("registry");
+        let dep_dir = registry_dir.join("udp_stdlib");
+        std::fs::create_dir_all(&app_dir).unwrap();
+        std::fs::create_dir_all(&dep_dir).unwrap();
+        std::fs::write(
+            app_dir.join("gewy.pkg"),
+            format!(
+                "name=lock_demo\nversion=0.1.0\nentry=main.gewy\nsource.local={}\ndep.std=source:local/udp_stdlib\n",
+                registry_dir.to_string_lossy()
+            ),
+        )
+        .unwrap();
+        std::fs::write(app_dir.join("main.gewy"), "template(:lock_demo)\n").unwrap();
+
+        let lock = gewyvern::dsl::build_lockfile(app_dir.to_str().unwrap()).unwrap();
+        assert!(lock.contains("name=lock_demo"));
+        assert!(lock.contains("source.local="));
+        assert!(lock.contains("dep.std="));
     }
 }

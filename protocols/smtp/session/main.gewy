@@ -1,0 +1,21 @@
+# gewyvern DSL v0
+template=smtp_session_path
+window.duration_ms=5000
+window.lateness_ms=200
+reason_model=smtp_session_path_reason
+fragment=tcp_packet_meta_fragment
+fragment=tcp_state_fragment
+fragment=route_meta_fragment
+fragment=sock_lineage_fragment
+operation=smtp_session
+rule=process_bound;process_bound;process_bound;true;smtp_session_path;bind
+rule=route_resolved;route_resolved;static:program resolved an upstream route for this SMTP session;true;smtp_session_path;resolve_upstream
+rule=socket_state_observed:remote:smtp;socket_state_transition;static:program initiated or advanced an SMTP socket state transition;false;smtp_session_path;connect
+rule=packet_observed:tcp:remote:smtp:remote_to_local:prefix4:0x32323020;packet_observed;transport_payload_received;true;smtp_session_path;receive_banner
+rule=packet_observed:tcp:remote:smtp:local_to_remote:prefix4:0x45484c4f;packet_observed;transport_payload_sent;true;smtp_session_path;send_ehlo
+reason.rule=process_bound;process_identified;process_bound;true;smtp_session_path;bind
+reason.rule=route_resolved;route_changed;route_changed;true;smtp_session_path;resolve_upstream
+reason.rule=socket_state_observed:remote:smtp;state_change;tcp_state_transition;false;smtp_session_path;connect
+reason.rule=packet_observed:tcp:remote:smtp:remote_to_local:prefix4:0x32323020;packet_observed;transport_payload_received;true;smtp_session_path;receive_banner
+reason.rule=packet_observed:tcp:remote:smtp:local_to_remote:prefix4:0x45484c4f;packet_observed;transport_payload_sent;true;smtp_session_path;send_ehlo
+param=sock_lineage_fragment.capture_comm=true

@@ -301,6 +301,7 @@ mod tests {
                 payload_byte9: None,
                 payload_byte10: None,
                 payload_byte13: None,
+                payload_bytes: std::collections::BTreeMap::new(),
                 l3_proto: 0x0800,
                 l4_proto: 17,
                 tot_len: 88,

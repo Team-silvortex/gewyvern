@@ -1,0 +1,6 @@
+name=dns_udp
+version=0.4.0
+entry=main.gewy
+register.protocol=dns
+register.entry=udp
+register.default=true

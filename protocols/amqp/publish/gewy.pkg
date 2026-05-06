@@ -1,0 +1,7 @@
+name=amqp_publish
+version=0.4.0
+entry=main.gewy
+register.protocol=amqp
+register.entry=publish
+register.default=false
+register.aliases=amqp-publish,amqp_publish

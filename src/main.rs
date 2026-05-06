@@ -8,8 +8,9 @@ use gewyvern::ledger::{
     SockLineageFact, TcpStateFact,
 };
 use gewyvern::protocol_profiles::{
-    ResolvedProtocolProfile, default_protocol_scan_set, protocol_default_entry, protocol_dsl_path,
-    protocol_entries, protocol_names, resolve_protocol_profile,
+    ResolvedProtocolProfile, default_protocol_scan_set, default_protocol_scan_set_from_dir,
+    protocol_default_entry, protocol_dsl_path, protocol_entries, protocol_names,
+    resolve_protocol_profile,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::socket_input::{
@@ -25,6 +26,7 @@ use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::net::{TcpListener, ToSocketAddrs};
+use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -860,6 +862,7 @@ fn main() {
                                 payload_byte9: None,
                                 payload_byte10: None,
                                 payload_byte13: None,
+                                payload_bytes: std::collections::BTreeMap::new(),
                                 l3_proto: 0x0800,
                                 l4_proto: 6,
                                 tot_len: 60,
@@ -909,6 +912,7 @@ fn main() {
                                 payload_byte9: None,
                                 payload_byte10: None,
                                 payload_byte13: None,
+                                payload_bytes: std::collections::BTreeMap::new(),
                                 l3_proto: 0x0800,
                                 l4_proto: 17,
                                 tot_len: 72,
@@ -1701,6 +1705,7 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
                     payload_byte9: None,
                     payload_byte10: None,
                     payload_byte13: None,
+                    payload_bytes: std::collections::BTreeMap::new(),
                     l3_proto: 0x0800,
                     l4_proto: 6,
                     tot_len: 140,
@@ -1732,6 +1737,7 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
                     payload_byte9: None,
                     payload_byte10: None,
                     payload_byte13: None,
+                    payload_bytes: std::collections::BTreeMap::new(),
                     l3_proto: 0x0800,
                     l4_proto: 6,
                     tot_len: 220,
@@ -1838,6 +1844,7 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
                     payload_byte9: None,
                     payload_byte10: None,
                     payload_byte13: None,
+                    payload_bytes: std::collections::BTreeMap::new(),
                     l3_proto: 0x0800,
                     l4_proto: 6,
                     tot_len: 120,
@@ -1869,6 +1876,7 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
                     payload_byte9: None,
                     payload_byte10: None,
                     payload_byte13: None,
+                    payload_bytes: std::collections::BTreeMap::new(),
                     l3_proto: 0x0800,
                     l4_proto: 6,
                     tot_len: 180,
@@ -1976,6 +1984,7 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
                     payload_byte9: None,
                     payload_byte10: None,
                     payload_byte13: None,
+                    payload_bytes: std::collections::BTreeMap::new(),
                     l3_proto: 0x0800,
                     l4_proto: 6,
                     tot_len: 96,
@@ -2032,6 +2041,7 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
                     payload_byte9: None,
                     payload_byte10: None,
                     payload_byte13: None,
+                    payload_bytes: std::collections::BTreeMap::new(),
                     l3_proto: 0x0800,
                     l4_proto: 6,
                     tot_len: 60,
@@ -2136,6 +2146,7 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
                         payload_byte9: None,
                         payload_byte10: None,
                         payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::new(),
                         l3_proto: 0x0800,
                         l4_proto: 17,
                         tot_len: 72,
@@ -2167,6 +2178,7 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
                         payload_byte9: None,
                         payload_byte10: None,
                         payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::new(),
                         l3_proto: 0x0800,
                         l4_proto: 17,
                         tot_len: 96,
@@ -2221,6 +2233,7 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
                         payload_byte9: None,
                         payload_byte10: None,
                         payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::new(),
                         l3_proto: 0x0800,
                         l4_proto: 17,
                         tot_len: 72,
@@ -2257,6 +2270,7 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
                     payload_byte9: None,
                     payload_byte10: None,
                     payload_byte13: None,
+                    payload_bytes: std::collections::BTreeMap::new(),
                     l3_proto: 0x0800,
                     l4_proto: 17,
                     tot_len: 72,
@@ -2399,7 +2413,7 @@ mod tests {
         assert_eq!(cli.entry.as_deref(), Some("session"));
         assert_eq!(
             cli.dsl_path.as_deref(),
-            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session")
         );
         assert_eq!(cli.pid, Some(4242));
     }
@@ -2421,7 +2435,7 @@ mod tests {
     fn protocol_lookup_covers_mysql_session() {
         assert_eq!(
             protocol_dsl_path("mysql", Some("session")),
-            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session".to_string())
         );
     }
 
@@ -2429,11 +2443,11 @@ mod tests {
     fn protocol_lookup_uses_default_entry_when_none_is_provided() {
         assert_eq!(
             protocol_dsl_path("mysql", None),
-            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session".to_string())
         );
         assert_eq!(
             protocol_dsl_path("amqp", None),
-            Some("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_publish_session.gewy")
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/session".to_string())
         );
     }
 
@@ -2448,7 +2462,7 @@ mod tests {
     fn legacy_protocol_alias_still_resolves() {
         assert_eq!(
             protocol_dsl_path("mysql-session", None),
-            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session".to_string())
         );
     }
 
@@ -2565,6 +2579,37 @@ mod tests {
         assert_eq!(targets[1].entry, "publish");
         assert_eq!(targets[2].protocol, "ldap");
         assert_eq!(targets[2].entry, "bind");
+    }
+
+    #[test]
+    fn protocol_set_directory_scans_registered_gewy_projects() {
+        let root = std::env::temp_dir().join(format!(
+            "gewyvern-protocol-registry-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let package_dir = root.join("mysql").join("session");
+        fs::create_dir_all(&package_dir).unwrap();
+        fs::write(
+            package_dir.join("gewy.pkg"),
+            "name=mysql_session\nversion=0.4.0\nentry=main.gewy\nregister.protocol=mysql\nregister.entry=session\nregister.default=true\n",
+        )
+        .unwrap();
+        fs::write(
+            package_dir.join("main.gewy"),
+            "template(:mysql_session)\n|> window(:default_5s)\n|> reason(:udp_datagram_l1)\n|> fragment(:udp_packet_meta_fragment)\n|> fragment(:route_meta_fragment)\n",
+        )
+        .unwrap();
+
+        let targets = scan_targets_from_set_file(root.to_str().unwrap()).unwrap();
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(targets.len(), 1);
+        assert_eq!(targets[0].protocol, "mysql");
+        assert_eq!(targets[0].entry, "session");
+        assert!(targets[0].dsl_path.ends_with("/mysql/session"));
     }
 
     #[test]
@@ -2747,7 +2792,7 @@ fn list_protocols_text() -> String {
     protocol_names()
         .into_iter()
         .filter_map(|protocol| {
-            protocol_default_entry(protocol)
+            protocol_default_entry(&protocol)
                 .map(|default_entry| format!("{protocol} (default: {default_entry})"))
         })
         .collect::<Vec<_>>()
@@ -2758,7 +2803,7 @@ fn list_protocols_json() -> String {
     let items = protocol_names()
         .into_iter()
         .filter_map(|protocol| {
-            protocol_default_entry(protocol).map(|default_entry| {
+            protocol_default_entry(&protocol).map(|default_entry| {
                 format!("{{\"protocol\":\"{protocol}\",\"default_entry\":\"{default_entry}\"}}")
             })
         })
@@ -2817,6 +2862,16 @@ fn scan_targets_for_cli(cli: &Cli) -> Result<Vec<ScanTarget>, String> {
 }
 
 fn scan_targets_from_set_file(path: &str) -> Result<Vec<ScanTarget>, String> {
+    if Path::new(path).is_dir() {
+        return default_protocol_scan_set_from_dir(path)
+            .map(|targets| targets.into_iter().map(ScanTarget::from_resolved).collect())
+            .ok_or_else(|| {
+                format!(
+                    "protocol registry directory '{}' did not resolve any scan targets",
+                    path
+                )
+            });
+    }
     let contents = fs::read_to_string(path)
         .map_err(|err| format!("failed to read protocol set '{path}': {err}"))?;
     let mut targets = Vec::new();

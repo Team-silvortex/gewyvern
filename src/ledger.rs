@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -111,6 +112,7 @@ pub struct PacketMetaFact {
     pub payload_byte9: Option<u8>,
     pub payload_byte10: Option<u8>,
     pub payload_byte13: Option<u8>,
+    pub payload_bytes: BTreeMap<u16, u8>,
     pub l3_proto: u16,
     pub l4_proto: u8,
     pub tot_len: u32,

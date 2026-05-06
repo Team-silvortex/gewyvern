@@ -1,0 +1,6 @@
+name=wireguard_handshake
+version=0.4.0
+entry=main.gewy
+register.protocol=wireguard
+register.entry=handshake
+register.default=true

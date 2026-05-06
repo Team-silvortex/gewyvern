@@ -1,0 +1,6 @@
+name=ntp_client
+version=0.4.0
+entry=main.gewy
+register.protocol=ntp
+register.entry=client
+register.default=true

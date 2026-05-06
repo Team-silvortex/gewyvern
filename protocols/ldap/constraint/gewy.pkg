@@ -1,0 +1,7 @@
+name=ldap_constraint
+version=0.4.0
+entry=main.gewy
+register.protocol=ldap
+register.entry=constraint
+register.default=false
+register.aliases=ldap-constraint,ldap_constraint
