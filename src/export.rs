@@ -10,11 +10,12 @@ use crate::fragment::{
     RuleDiagnostics, RuleTier,
 };
 use crate::ir::{NarrativeTemplate, SignalKind};
-use crate::ir::{PayloadByteMatch, PayloadByteSequenceMatch, QuicPacketType};
+use crate::ir::{PayloadByteMatch, PayloadByteSequenceMatch};
 use crate::ledger::{
     AttachScopeFact, CpuId, DropActionFact, DropVerdict, FactEnvelope, FactId, FactKind,
-    FactKindTag, PacketDir, PacketMetaFact, RouteDecisionFact, SessionId, SockLineageFact,
-    TcpStateFact, millis_to_system_time, system_time_to_millis,
+    FactKindTag, PacketDir, PacketMetaFact, QuicFrameType, QuicMetaFact, QuicPacketType,
+    RouteDecisionFact, SessionId, SockLineageFact, TcpStateFact, millis_to_system_time,
+    system_time_to_millis,
 };
 use crate::reason::{
     KeyEvent, KeyEventKind, NarrLine, ReasonChain, ReasonId, ReasonKeyEvent, ReasonL1, ReasonL3,
@@ -1367,6 +1368,49 @@ fn fact_json(fact: &FactEnvelope) -> JsonValue {
                     .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
             ),
         ])),
+        FactKind::QuicMeta(value) => JsonValue::Object(BTreeMap::from([
+            (
+                "tag".into(),
+                JsonValue::String(FactKindTag::QuicMeta.to_string()),
+            ),
+            ("netns".into(), JsonValue::Number(value.netns as i64)),
+            (
+                "sk_cookie".into(),
+                value
+                    .sk_cookie
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+            ),
+            ("dir".into(), JsonValue::String(value.dir.as_str().into())),
+            (
+                "local_port".into(),
+                value
+                    .local_port
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+            ),
+            (
+                "remote_port".into(),
+                value
+                    .remote_port
+                    .map_or(JsonValue::Null, |v| JsonValue::Number(v as i64)),
+            ),
+            ("long_header".into(), JsonValue::Bool(value.long_header)),
+            (
+                "packet_type".into(),
+                value.packet_type.map_or(JsonValue::Null, |packet_type| {
+                    JsonValue::String(quic_packet_type_id(&packet_type).into())
+                }),
+            ),
+            (
+                "frame_types".into(),
+                JsonValue::Array(
+                    value
+                        .frame_types
+                        .iter()
+                        .map(|frame_type| JsonValue::String(quic_frame_type_id(frame_type).into()))
+                        .collect(),
+                ),
+            ),
+        ])),
         FactKind::RouteDecision(value) => JsonValue::Object(BTreeMap::from([
             (
                 "tag".into(),
@@ -1576,6 +1620,10 @@ fn flow_json(flow: &FlowSnapshot) -> JsonValue {
                 (
                     "packet_facts".into(),
                     fact_id_array(&flow.evidence.packet_facts),
+                ),
+                (
+                    "quic_facts".into(),
+                    fact_id_array(&flow.evidence.quic_facts),
                 ),
                 (
                     "route_facts".into(),
@@ -2149,6 +2197,38 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             }
             JsonValue::Object(object)
         }
+        ReasonPredicate::QuicFrameObserved {
+            dir,
+            local_port,
+            remote_port,
+            packet_type,
+            frame_type,
+        } => {
+            let mut object = BTreeMap::from([(
+                "kind".into(),
+                JsonValue::String("quic_frame_observed".into()),
+            )]);
+            if let Some(dir) = dir {
+                object.insert("dir".into(), JsonValue::String(dir.as_flow_str().into()));
+            }
+            if let Some(local_port) = local_port {
+                object.insert("local_port".into(), JsonValue::Number(*local_port as i64));
+            }
+            if let Some(remote_port) = remote_port {
+                object.insert("remote_port".into(), JsonValue::Number(*remote_port as i64));
+            }
+            if let Some(packet_type) = packet_type {
+                object.insert(
+                    "packet_type".into(),
+                    JsonValue::String(quic_packet_type_id(packet_type).into()),
+                );
+            }
+            object.insert(
+                "frame_type".into(),
+                JsonValue::String(quic_frame_type_id(frame_type).into()),
+            );
+            JsonValue::Object(object)
+        }
         ReasonPredicate::PacketObserved {
             l4_proto,
             dir,
@@ -2341,6 +2421,27 @@ fn parse_quic_packet_type(value: &str) -> Result<QuicPacketType, ExportError> {
         "retry" => Ok(QuicPacketType::Retry),
         _ => Err(ExportError::InvalidValue(
             "unknown reason predicate QUIC packet type".into(),
+        )),
+    }
+}
+
+fn quic_frame_type_id(value: &QuicFrameType) -> &'static str {
+    match value {
+        QuicFrameType::Crypto => "crypto",
+        QuicFrameType::Ack => "ack",
+        QuicFrameType::Stream => "stream",
+        QuicFrameType::ConnectionClose => "connection_close",
+    }
+}
+
+fn parse_quic_frame_type(value: &str) -> Result<QuicFrameType, ExportError> {
+    match value {
+        "crypto" => Ok(QuicFrameType::Crypto),
+        "ack" => Ok(QuicFrameType::Ack),
+        "stream" => Ok(QuicFrameType::Stream),
+        "connection_close" | "close" => Ok(QuicFrameType::ConnectionClose),
+        _ => Err(ExportError::InvalidValue(
+            "unknown reason predicate QUIC frame type".into(),
         )),
     }
 }
@@ -2668,6 +2769,54 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                     _ => {
                         return Err(ExportError::InvalidShape(
                             "reason_predicate.packet_type".into(),
+                        ));
+                    }
+                },
+            }),
+            "quic_frame_observed" => Ok(ReasonPredicate::QuicFrameObserved {
+                dir: match object.get("dir").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    JsonValue::String(value) => {
+                        Some(PacketDir::from_str(value).ok_or_else(|| {
+                            ExportError::InvalidValue(
+                                "unknown reason predicate QUIC frame dir".into(),
+                            )
+                        })?)
+                    }
+                    _ => return Err(ExportError::InvalidShape("reason_predicate.dir".into())),
+                },
+                local_port: match object
+                    .get("local_port")
+                    .or_else(|| object.get("sport"))
+                    .unwrap_or(&JsonValue::Null)
+                {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u16),
+                },
+                remote_port: match object
+                    .get("remote_port")
+                    .or_else(|| object.get("dport"))
+                    .unwrap_or(&JsonValue::Null)
+                {
+                    JsonValue::Null => None,
+                    value => Some(value.as_i64()? as u16),
+                },
+                packet_type: match object.get("packet_type").unwrap_or(&JsonValue::Null) {
+                    JsonValue::Null => None,
+                    JsonValue::String(value) => Some(parse_quic_packet_type(value)?),
+                    _ => {
+                        return Err(ExportError::InvalidShape(
+                            "reason_predicate.packet_type".into(),
+                        ));
+                    }
+                },
+                frame_type: match object.get("frame_type").ok_or_else(|| {
+                    ExportError::InvalidShape("reason_predicate.frame_type".into())
+                })? {
+                    JsonValue::String(value) => parse_quic_frame_type(value)?,
+                    _ => {
+                        return Err(ExportError::InvalidShape(
+                            "reason_predicate.frame_type".into(),
                         ));
                     }
                 },
@@ -3434,6 +3583,51 @@ fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError> {
             ack: parse_optional_u32(kind.get("ack").unwrap_or(&JsonValue::Null))?,
             window: parse_optional_u16(kind.get("window").unwrap_or(&JsonValue::Null))?,
         }),
+        "quic_meta" => FactKind::QuicMeta(QuicMetaFact {
+            netns: kind
+                .get("netns")
+                .ok_or_else(|| ExportError::InvalidShape("fact.quic_meta.netns".into()))?
+                .as_i64()? as u32,
+            sk_cookie: parse_optional_u64(kind.get("sk_cookie").unwrap_or(&JsonValue::Null))?,
+            dir: PacketDir::from_str(
+                kind.get("dir")
+                    .ok_or_else(|| ExportError::InvalidShape("fact.quic_meta.dir".into()))?
+                    .as_str()?,
+            )
+            .ok_or_else(|| ExportError::InvalidValue("unknown quic packet dir".into()))?,
+            local_port: parse_optional_u16(kind.get("local_port").unwrap_or(&JsonValue::Null))?,
+            remote_port: parse_optional_u16(kind.get("remote_port").unwrap_or(&JsonValue::Null))?,
+            long_header: kind
+                .get("long_header")
+                .unwrap_or(&JsonValue::Bool(false))
+                .as_bool()?,
+            packet_type: match kind.get("packet_type").unwrap_or(&JsonValue::Null) {
+                JsonValue::Null => None,
+                JsonValue::String(value) => Some(parse_quic_packet_type(value)?),
+                _ => {
+                    return Err(ExportError::InvalidShape(
+                        "fact.quic_meta.packet_type".into(),
+                    ));
+                }
+            },
+            frame_types: match kind.get("frame_types").unwrap_or(&JsonValue::Null) {
+                JsonValue::Null => Vec::new(),
+                JsonValue::Array(items) => items
+                    .iter()
+                    .map(|item| match item {
+                        JsonValue::String(value) => parse_quic_frame_type(value),
+                        _ => Err(ExportError::InvalidShape(
+                            "fact.quic_meta.frame_types".into(),
+                        )),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                _ => {
+                    return Err(ExportError::InvalidShape(
+                        "fact.quic_meta.frame_types".into(),
+                    ));
+                }
+            },
+        }),
         "route_decision" => FactKind::RouteDecision(RouteDecisionFact {
             netns: kind
                 .get("netns")
@@ -3629,6 +3823,11 @@ fn parse_flow(value: &JsonValue) -> Result<FlowSnapshot, ExportError> {
             packet_facts: parse_fact_ids(
                 evidence
                     .get("packet_facts")
+                    .unwrap_or(&JsonValue::Array(vec![])),
+            )?,
+            quic_facts: parse_fact_ids(
+                evidence
+                    .get("quic_facts")
                     .unwrap_or(&JsonValue::Array(vec![])),
             )?,
             route_facts: parse_fact_ids(

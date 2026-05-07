@@ -1452,6 +1452,9 @@ fn filter_export_by_pid(export: &ExportBundle, pid: u32) -> ExportBundle {
             FactKind::PacketMeta(packet) => packet
                 .sk_cookie
                 .is_some_and(|cookie| cookies.contains(&cookie)),
+            FactKind::QuicMeta(quic) => quic
+                .sk_cookie
+                .is_some_and(|cookie| cookies.contains(&cookie)),
             FactKind::RouteDecision(route) => route
                 .sk_cookie
                 .is_some_and(|cookie| cookies.contains(&cookie)),

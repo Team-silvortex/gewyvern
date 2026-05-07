@@ -130,6 +130,7 @@ pub struct PathSegment {
 pub struct EvidenceIndex {
     pub tcp_state_facts: Vec<FactId>,
     pub packet_facts: Vec<FactId>,
+    pub quic_facts: Vec<FactId>,
     pub route_facts: Vec<FactId>,
     pub lineage_facts: Vec<FactId>,
 }

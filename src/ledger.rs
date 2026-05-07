@@ -26,6 +26,7 @@ pub struct FactEnvelope {
 pub enum FactKind {
     TcpState(TcpStateFact),
     PacketMeta(PacketMetaFact),
+    QuicMeta(QuicMetaFact),
     RouteDecision(RouteDecisionFact),
     SockLineage(SockLineageFact),
     DropAction(DropActionFact),
@@ -36,6 +37,7 @@ pub enum FactKind {
 pub enum FactKindTag {
     TcpState,
     PacketMeta,
+    QuicMeta,
     RouteDecision,
     SockLineage,
     DropAction,
@@ -47,6 +49,7 @@ impl FactKind {
         match self {
             Self::TcpState(_) => FactKindTag::TcpState,
             Self::PacketMeta(_) => FactKindTag::PacketMeta,
+            Self::QuicMeta(_) => FactKindTag::QuicMeta,
             Self::RouteDecision(_) => FactKindTag::RouteDecision,
             Self::SockLineage(_) => FactKindTag::SockLineage,
             Self::DropAction(_) => FactKindTag::DropAction,
@@ -60,6 +63,7 @@ impl fmt::Display for FactKindTag {
         let value = match self {
             Self::TcpState => "tcp_state",
             Self::PacketMeta => "packet_meta",
+            Self::QuicMeta => "quic_meta",
             Self::RouteDecision => "route_decision",
             Self::SockLineage => "sock_lineage",
             Self::DropAction => "drop_action",
@@ -74,6 +78,7 @@ impl FactKindTag {
         match value {
             "tcp_state" => Some(Self::TcpState),
             "packet_meta" => Some(Self::PacketMeta),
+            "quic_meta" => Some(Self::QuicMeta),
             "route_decision" => Some(Self::RouteDecision),
             "sock_lineage" => Some(Self::SockLineage),
             "drop_action" => Some(Self::DropAction),
@@ -120,6 +125,34 @@ pub struct PacketMetaFact {
     pub seq: Option<u32>,
     pub ack: Option<u32>,
     pub window: Option<u16>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum QuicPacketType {
+    Initial,
+    ZeroRtt,
+    Handshake,
+    Retry,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum QuicFrameType {
+    Crypto,
+    Ack,
+    Stream,
+    ConnectionClose,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QuicMetaFact {
+    pub netns: u32,
+    pub sk_cookie: Option<u64>,
+    pub dir: PacketDir,
+    pub local_port: Option<u16>,
+    pub remote_port: Option<u16>,
+    pub long_header: bool,
+    pub packet_type: Option<QuicPacketType>,
+    pub frame_types: Vec<QuicFrameType>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -36,6 +36,9 @@ Examples in this repository:
 - [dsl/http_server_response_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy)
 - [dsl/tls_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy)
 - [dsl/quic_client_initial_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy)
+- [dsl/quic_crypto_handshake_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_crypto_handshake_path.gewy)
+- [dsl/quic_stream_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_stream_session_path.gewy)
+- [dsl/quic_bidi_stream_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_bidi_stream_path.gewy)
 - [dsl/stun_binding_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy)
 - [dsl/coap_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy)
 - [dsl/ntp_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy)
@@ -583,6 +586,8 @@ QUIC now also has a parallel structured predicate surface:
 
 - `quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial`
 - `quic_packet_observed:remote:quic:remote_to_local:long_header:true:type:handshake`
+- `quic_frame_observed:remote:quic:local_to_remote:type:initial:frame:crypto`
+- `quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto`
 
 Supported QUIC qualifiers are:
 
@@ -593,10 +598,14 @@ Supported QUIC qualifiers are:
 - `min_len:<u32>`
 - `long_header:true|false`
 - `type:initial|0rtt|handshake|retry`
+- `frame:crypto|ack|stream|connection_close`
 
 This QUIC predicate family is intentionally parallel to the generic
 `datagram_observed` surface, so QUIC packet typing does not have to be modeled
-as ad hoc UDP byte-offset rules.
+as ad hoc UDP byte-offset rules. `quic_frame_observed` builds on a parallel
+`QuicMetaFact` surface rather than guessing frame positions from sampled packet
+offsets, which keeps QUIC frame matching structurally separate from generic
+payload-byte matching.
 
 Named ports currently include:
 

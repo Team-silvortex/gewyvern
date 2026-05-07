@@ -800,6 +800,7 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
         let cookie = match &fact.kind {
             FactKind::TcpState(state) => state.sk_cookie,
             FactKind::PacketMeta(packet) => packet.sk_cookie.unwrap_or(0),
+            FactKind::QuicMeta(quic) => quic.sk_cookie.unwrap_or(0),
             FactKind::RouteDecision(route) => route.sk_cookie.unwrap_or(0),
             FactKind::SockLineage(lineage) => lineage.sk_cookie,
             FactKind::DropAction(drop) => drop.flow,
@@ -837,6 +838,9 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
             }
             FactKind::PacketMeta(_) => {
                 acc.evidence.packet_facts.push(fact.id);
+            }
+            FactKind::QuicMeta(_) => {
+                acc.evidence.quic_facts.push(fact.id);
             }
             FactKind::RouteDecision(route) => {
                 acc.evidence.route_facts.push(fact.id);
@@ -906,6 +910,9 @@ fn confidence_for_flow(acc: &impl FlowAccumulatorView) -> f32 {
     if !acc.packet_facts().is_empty() {
         score += 0.3;
     }
+    if !acc.quic_facts().is_empty() {
+        score += 0.1;
+    }
     if !acc.route_facts().is_empty() {
         score += 0.3;
     }
@@ -918,6 +925,7 @@ fn confidence_for_flow(acc: &impl FlowAccumulatorView) -> f32 {
 trait FlowAccumulatorView {
     fn tcp_state_facts(&self) -> &[crate::ledger::FactId];
     fn packet_facts(&self) -> &[crate::ledger::FactId];
+    fn quic_facts(&self) -> &[crate::ledger::FactId];
     fn route_facts(&self) -> &[crate::ledger::FactId];
     fn lineage_facts(&self) -> &[crate::ledger::FactId];
 }
@@ -929,6 +937,10 @@ impl FlowAccumulatorView for EvidenceIndex {
 
     fn packet_facts(&self) -> &[crate::ledger::FactId] {
         &self.packet_facts
+    }
+
+    fn quic_facts(&self) -> &[crate::ledger::FactId] {
+        &self.quic_facts
     }
 
     fn route_facts(&self) -> &[crate::ledger::FactId] {

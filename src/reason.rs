@@ -175,6 +175,10 @@ fn build_handshake_reason(
             }
         }
 
+        if flow.evidence.quic_facts.contains(&fact.id) {
+            l0_facts.push(fact.id);
+        }
+
         if flow.evidence.route_facts.contains(&fact.id) {
             l0_facts.push(fact.id);
             path_segments.push(fact.id);
@@ -249,6 +253,10 @@ fn build_udp_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[FactEnvelope]) -
             }
         }
 
+        if flow.evidence.quic_facts.contains(&fact.id) {
+            l0_facts.push(fact.id);
+        }
+
         if flow.evidence.route_facts.contains(&fact.id) {
             l0_facts.push(fact.id);
             path_segments.push(fact.id);
@@ -314,6 +322,7 @@ fn build_declarative_reason(
     for fact in facts {
         if flow.evidence.tcp_state_facts.contains(&fact.id)
             || flow.evidence.packet_facts.contains(&fact.id)
+            || flow.evidence.quic_facts.contains(&fact.id)
             || flow.evidence.route_facts.contains(&fact.id)
             || flow.evidence.lineage_facts.contains(&fact.id)
         {

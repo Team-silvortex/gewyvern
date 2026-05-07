@@ -1,6 +1,6 @@
 use gewyvern::ledger::{
-    CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact, SessionId,
-    SockLineageFact, TcpStateFact,
+    CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, QuicFrameType, QuicMetaFact,
+    QuicPacketType, RouteDecisionFact, SessionId, SockLineageFact, TcpStateFact,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::template::{
@@ -518,6 +518,36 @@ pub fn udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
             seq: None,
             ack: None,
             window: None,
+        }),
+    }
+}
+
+pub fn udp_quic_meta_fact(
+    id: u64,
+    cookie: u64,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+    long_header: bool,
+    packet_type: Option<QuicPacketType>,
+    frame_types: Vec<QuicFrameType>,
+) -> FactEnvelope {
+    FactEnvelope {
+        id: FactId(id),
+        ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+        cpu: CpuId(0),
+        ifindex: Some(2),
+        session: SessionId(1),
+        fragment_id: "udp_packet_meta_fragment".into(),
+        kind: FactKind::QuicMeta(QuicMetaFact {
+            netns: 1,
+            sk_cookie: Some(cookie),
+            dir,
+            local_port,
+            remote_port,
+            long_header,
+            packet_type,
+            frame_types,
         }),
     }
 }

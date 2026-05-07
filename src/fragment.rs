@@ -833,6 +833,7 @@ fn predicate_required_facts(predicate: &FlowPredicate) -> Vec<FactKindTag> {
         FlowPredicate::DatagramObserved { .. } => vec![FactKindTag::PacketMeta],
         FlowPredicate::RouteResolved => vec![FactKindTag::RouteDecision],
         FlowPredicate::QuicPacketObserved { .. } => vec![FactKindTag::PacketMeta],
+        FlowPredicate::QuicFrameObserved { .. } => vec![FactKindTag::QuicMeta],
         FlowPredicate::All(predicates) => predicates
             .iter()
             .flat_map(predicate_required_facts)
@@ -917,11 +918,17 @@ pub fn builtin_registry() -> FragmentRegistry {
             id: "tcp_packet_meta_fragment",
             version: 1,
             hookpoints: vec![HookPoint::TCIngress],
-            emits: vec![FactKindTag::PacketMeta],
-            evidence_classes: vec![EvidenceClassSpec {
-                fact_kind: FactKindTag::PacketMeta,
-                tier: EvidenceTier::CoreRequirement,
-            }],
+            emits: vec![FactKindTag::PacketMeta, FactKindTag::QuicMeta],
+            evidence_classes: vec![
+                EvidenceClassSpec {
+                    fact_kind: FactKindTag::PacketMeta,
+                    tier: EvidenceTier::CoreRequirement,
+                },
+                EvidenceClassSpec {
+                    fact_kind: FactKindTag::QuicMeta,
+                    tier: EvidenceTier::OptionalEnhancement,
+                },
+            ],
             requires: vec![FactKindTag::TcpState],
             maps: vec![MapSpec {
                 name: "events",
@@ -939,11 +946,17 @@ pub fn builtin_registry() -> FragmentRegistry {
             id: "udp_packet_meta_fragment",
             version: 1,
             hookpoints: vec![HookPoint::TCIngress],
-            emits: vec![FactKindTag::PacketMeta],
-            evidence_classes: vec![EvidenceClassSpec {
-                fact_kind: FactKindTag::PacketMeta,
-                tier: EvidenceTier::CoreRequirement,
-            }],
+            emits: vec![FactKindTag::PacketMeta, FactKindTag::QuicMeta],
+            evidence_classes: vec![
+                EvidenceClassSpec {
+                    fact_kind: FactKindTag::PacketMeta,
+                    tier: EvidenceTier::CoreRequirement,
+                },
+                EvidenceClassSpec {
+                    fact_kind: FactKindTag::QuicMeta,
+                    tier: EvidenceTier::OptionalEnhancement,
+                },
+            ],
             requires: vec![],
             maps: vec![MapSpec {
                 name: "events",

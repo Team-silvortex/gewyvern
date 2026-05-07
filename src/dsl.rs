@@ -1,10 +1,9 @@
 use crate::flow::{ProgramOperation, ProgramStageKind};
 use crate::fragment::{EvidenceTier, RegistryError, builtin_registry};
 use crate::ir::{
-    FlowPredicate, NarrativeTemplate, PayloadByteMatch, PayloadByteSequenceMatch, QuicPacketType,
-    SignalKind,
+    FlowPredicate, NarrativeTemplate, PayloadByteMatch, PayloadByteSequenceMatch, SignalKind,
 };
-use crate::ledger::{FactKindTag, PacketDir};
+use crate::ledger::{FactKindTag, PacketDir, QuicFrameType, QuicPacketType};
 use crate::program::{ProgramModel, ProgramNarrative, ProgramRule};
 use crate::reason::{ReasonKeyEvent, ReasonModel, ReasonNarrative, ReasonProfile, ReasonRule};
 use crate::template::{
@@ -1792,6 +1791,61 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 packet_type,
             })
         }
+        other if other.starts_with("quic_frame_observed:") => {
+            let suffix = &other["quic_frame_observed:".len()..];
+            let mut parts = suffix.split(':');
+            let mut dir = None;
+            let mut local_port = None;
+            let mut remote_port = None;
+            let mut packet_type = None;
+            let mut frame_type = None;
+            while let Some(part) = parts.next() {
+                match part {
+                    "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
+                    "ingress" | "remote_to_local" => dir = Some(PacketDir::Ingress),
+                    "local" | "sport" => {
+                        let port = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC local port qualifier".into())
+                        })?;
+                        local_port = Some(parse_named_port(port, "quic_frame_observed")?);
+                    }
+                    "remote" | "dport" => {
+                        let port = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC remote port qualifier".into())
+                        })?;
+                        remote_port = Some(parse_named_port(port, "quic_frame_observed")?);
+                    }
+                    "type" => {
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC type qualifier".into())
+                        })?;
+                        packet_type = Some(parse_quic_packet_type(value)?);
+                    }
+                    "frame" => {
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC frame qualifier".into())
+                        })?;
+                        frame_type = Some(parse_quic_frame_type(value)?);
+                    }
+                    other => {
+                        return Err(DslError::InvalidValue(format!(
+                            "unexpected QUIC frame predicate suffix '{other}'"
+                        )));
+                    }
+                }
+            }
+            Ok(FlowPredicate::QuicFrameObserved {
+                dir,
+                local_port,
+                remote_port,
+                packet_type,
+                frame_type: frame_type.ok_or_else(|| {
+                    DslError::InvalidValue(
+                        "quic_frame_observed requires a frame:<type> qualifier".into(),
+                    )
+                })?,
+            })
+        }
         other if other.starts_with("datagram_observed:") => {
             let suffix = &other["datagram_observed:".len()..];
             let mut parts = suffix.split(':');
@@ -2288,6 +2342,18 @@ fn parse_quic_packet_type(value: &str) -> Result<QuicPacketType, DslError> {
         "retry" => Ok(QuicPacketType::Retry),
         other => Err(DslError::InvalidValue(format!(
             "unknown QUIC packet type '{other}'"
+        ))),
+    }
+}
+
+fn parse_quic_frame_type(value: &str) -> Result<QuicFrameType, DslError> {
+    match value {
+        "crypto" => Ok(QuicFrameType::Crypto),
+        "ack" => Ok(QuicFrameType::Ack),
+        "stream" => Ok(QuicFrameType::Stream),
+        "connection_close" | "close" => Ok(QuicFrameType::ConnectionClose),
+        other => Err(DslError::InvalidValue(format!(
+            "unknown QUIC frame type '{other}'"
         ))),
     }
 }

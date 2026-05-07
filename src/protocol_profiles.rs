@@ -96,10 +96,24 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
     ProtocolProfile {
         name: "quic",
         default_entry: "initial",
-        entries: &[ProtocolEntryProfile {
-            mode: "initial",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy",
-        }],
+        entries: &[
+            ProtocolEntryProfile {
+                mode: "initial",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "crypto",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_crypto_handshake_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "stream",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_stream_session_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "bidi",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_bidi_stream_path.gewy",
+            },
+        ],
     },
     ProtocolProfile {
         name: "stun",

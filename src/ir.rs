@@ -1,5 +1,6 @@
 use crate::flow::FlowSnapshot;
 use crate::ledger::{FactEnvelope, FactKind, PacketDir};
+pub use crate::ledger::{QuicFrameType, QuicPacketType};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PayloadByteMatch {
@@ -12,14 +13,6 @@ pub struct PayloadByteMatch {
 pub struct PayloadByteSequenceMatch {
     pub offset: u16,
     pub bytes: Vec<u8>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum QuicPacketType {
-    Initial,
-    ZeroRtt,
-    Handshake,
-    Retry,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -67,6 +60,13 @@ pub enum FlowPredicate {
         min_len: Option<u32>,
         long_header: Option<bool>,
         packet_type: Option<QuicPacketType>,
+    },
+    QuicFrameObserved {
+        dir: Option<PacketDir>,
+        local_port: Option<u16>,
+        remote_port: Option<u16>,
+        packet_type: Option<QuicPacketType>,
+        frame_type: QuicFrameType,
     },
     RouteResolved,
     All(Vec<FlowPredicate>),
@@ -182,7 +182,10 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "send_set"
             | "send_protocol_header"
             | "send_start_ok"
-            | "send_publish" => Some("emit_payload"),
+            | "send_publish"
+            | "send_crypto"
+            | "send_stream"
+            | "send_request_stream" => Some("emit_payload"),
             "receive_request"
             | "receive_ok"
             | "receive_error"
@@ -199,7 +202,10 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "receive_modify_constraint_violation"
             | "receive_value"
             | "receive_stored"
-            | "receive_start" => Some("receive_payload"),
+            | "receive_start"
+            | "receive_crypto"
+            | "receive_close"
+            | "receive_response_stream" => Some("receive_payload"),
             "receive_ack" => Some("receive_payload"),
             _ => None,
         },
@@ -409,6 +415,32 @@ pub fn matches_flow_predicate(
                         && packet_type
                             .as_ref()
                             .is_none_or(|expected| quic_packet_type(packet) == Some(*expected))
+            )
+        }
+        FlowPredicate::QuicFrameObserved {
+            dir,
+            local_port,
+            remote_port,
+            packet_type,
+            frame_type,
+        } => {
+            if !flow.evidence.quic_facts.contains(&fact.id) {
+                return false;
+            }
+            matches!(
+                &fact.kind,
+                FactKind::QuicMeta(quic)
+                    if dir.as_ref().is_none_or(|expected| quic.dir == *expected)
+                        && local_port
+                            .as_ref()
+                            .is_none_or(|expected| quic.local_port == Some(*expected))
+                        && remote_port
+                            .as_ref()
+                            .is_none_or(|expected| quic.remote_port == Some(*expected))
+                        && packet_type
+                            .as_ref()
+                            .is_none_or(|expected| quic.packet_type == Some(*expected))
+                        && quic.frame_types.contains(frame_type)
             )
         }
         FlowPredicate::All(predicates) => {
