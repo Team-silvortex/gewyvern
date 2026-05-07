@@ -365,6 +365,30 @@ fn built_in_http_server_response_path_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn built_in_http3_request_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "http3_request_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("http3_request".into())
+    );
+}
+
+#[test]
+fn built_in_http3_server_response_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
+        .unwrap();
+
+    assert_eq!(binding.template.id, "http3_server_response_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("http3_server_response".into())
+    );
+}
+
+#[test]
 fn dsl_accepts_local_remote_port_predicates_and_legacy_aliases() {
     let local_binding = compile_str(
         r#"
@@ -2285,6 +2309,366 @@ fn quic_bidi_stream_path_does_not_treat_close_as_response_stream() {
             .stages
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_response_stream"))
+    );
+}
+
+#[test]
+fn http3_request_path_materializes_request_response_and_close_stages() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 810, 4242, "curl"));
+    session.ingest(route_fact(2, 810, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        810,
+        1280,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        Some(0xc3),
+        Some(0xc300),
+    ));
+    session.ingest(udp_quic_meta_fact(
+        4,
+        810,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Initial),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        5,
+        810,
+        220,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        Some(0xe0),
+        None,
+    ));
+    session.ingest(udp_quic_meta_fact(
+        6,
+        810,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Handshake),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        7,
+        810,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        8,
+        810,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        9,
+        810,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::ConnectionClose],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(110));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("http3_request".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_request_stream"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_response_stream"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_close"))
+    );
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn http3_request_path_does_not_treat_close_as_response_stream() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 811, 4242, "curl"));
+    session.ingest(route_fact(2, 811, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        811,
+        1280,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        Some(0xc3),
+        Some(0xc300),
+    ));
+    session.ingest(udp_quic_meta_fact(
+        4,
+        811,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Initial),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        5,
+        811,
+        220,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        Some(0xe0),
+        None,
+    ));
+    session.ingest(udp_quic_meta_fact(
+        6,
+        811,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Handshake),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        7,
+        811,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        8,
+        811,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::ConnectionClose],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(100));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_response_stream"))
+    );
+}
+
+#[test]
+fn http3_server_response_path_materializes_request_response_and_close_stages() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 812, 8080, "nginx"));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        2,
+        812,
+        1280,
+        PacketDir::Ingress,
+        Some(443),
+        Some(53000),
+        Some(0xc3),
+        Some(0xc300),
+    ));
+    session.ingest(udp_quic_meta_fact(
+        3,
+        812,
+        PacketDir::Ingress,
+        Some(443),
+        Some(53000),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Initial),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        812,
+        220,
+        PacketDir::Egress,
+        Some(443),
+        Some(53000),
+        Some(0xe0),
+        None,
+    ));
+    session.ingest(udp_quic_meta_fact(
+        5,
+        812,
+        PacketDir::Egress,
+        Some(443),
+        Some(53000),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Handshake),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        6,
+        812,
+        PacketDir::Ingress,
+        Some(443),
+        Some(53000),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        7,
+        812,
+        PacketDir::Egress,
+        Some(443),
+        Some(53000),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        8,
+        812,
+        PacketDir::Egress,
+        Some(443),
+        Some(53000),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::ConnectionClose],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(100));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("http3_server_response".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_request_stream"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_response_stream"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_close"))
+    );
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn http3_server_response_path_does_not_treat_close_as_request_stream() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 813, 8080, "nginx"));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        2,
+        813,
+        1280,
+        PacketDir::Ingress,
+        Some(443),
+        Some(53000),
+        Some(0xc3),
+        Some(0xc300),
+    ));
+    session.ingest(udp_quic_meta_fact(
+        3,
+        813,
+        PacketDir::Ingress,
+        Some(443),
+        Some(53000),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Initial),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        4,
+        813,
+        220,
+        PacketDir::Egress,
+        Some(443),
+        Some(53000),
+        Some(0xe0),
+        None,
+    ));
+    session.ingest(udp_quic_meta_fact(
+        5,
+        813,
+        PacketDir::Egress,
+        Some(443),
+        Some(53000),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Handshake),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        6,
+        813,
+        PacketDir::Egress,
+        Some(443),
+        Some(53000),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::ConnectionClose],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(90));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_request_stream"))
     );
 }
 

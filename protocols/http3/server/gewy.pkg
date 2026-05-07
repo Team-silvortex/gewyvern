@@ -1,0 +1,6 @@
+name=http3_server_response
+version=0.5.0
+entry=main.gewy
+register.protocol=http3
+register.entry=server
+register.aliases=http3-server-response,h3-server,h3_server

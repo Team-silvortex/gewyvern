@@ -185,7 +185,9 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "send_publish"
             | "send_crypto"
             | "send_stream"
-            | "send_request_stream" => Some("emit_payload"),
+            | "send_request_stream"
+            | "send_response_stream"
+            | "send_close" => Some("emit_payload"),
             "receive_request"
             | "receive_ok"
             | "receive_error"
@@ -205,13 +207,15 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "receive_start"
             | "receive_crypto"
             | "receive_close"
-            | "receive_response_stream" => Some("receive_payload"),
+            | "receive_response_stream"
+            | "receive_request_stream" => Some("receive_payload"),
             "receive_ack" => Some("receive_payload"),
             _ => None,
         },
         SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {
             "send_request"
             | "send_initial"
+            | "send_handshake"
             | "send_discover"
             | "send_initiation"
             | "send_echo_request"
@@ -222,6 +226,7 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "send_register" => Some("emit_datagram"),
             "receive_reply"
             | "receive_handshake"
+            | "receive_initial"
             | "receive_echo_response"
             | "receive_response"
             | "receive_offer"

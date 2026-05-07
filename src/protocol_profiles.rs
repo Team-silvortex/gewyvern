@@ -86,6 +86,24 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
         ],
     },
     ProtocolProfile {
+        name: "http3",
+        default_entry: "request",
+        entries: &[
+            ProtocolEntryProfile {
+                mode: "request",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "server",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "response",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy",
+            },
+        ],
+    },
+    ProtocolProfile {
         name: "tls",
         default_entry: "client",
         entries: &[ProtocolEntryProfile {
