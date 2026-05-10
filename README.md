@@ -54,7 +54,7 @@ as a visual report.
 - project version: `0.5.6`
 - stage: working prototype with a stabilized workspace, protocol registry, and package-driven DSL/compiler path
 - transport support: TCP + UDP
-- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP, RADIUS, GTP-U, SMTP, SIP, LDAP, SNMP, DNS-over-TCP
+- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP, RADIUS, GTP-U, SMTP, SSH, SOCKS5, SIP, LDAP, SNMP, DNS-over-TCP
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
 - replay: deterministic for exported sessions
@@ -94,7 +94,7 @@ The detailed milestone plan lives in [ROADMAP.md](/Users/Shared/chroot/dev/gewyv
 - Data stores and brokers:
   Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP
 - Mail and directory services:
-  SMTP, LDAP
+  SMTP, SSH, SOCKS5, LDAP
 
 Most built-in packages model a concrete program-network path such as
 request/response, auth/query, or publish/ack, rather than only matching a port
@@ -188,6 +188,9 @@ boundaries:
   - RADIUS Access-Request/Access-Accept exchanges
   - GTP-U Echo Request/Response exchanges
   - SMTP connect/banner/EHLO exchanges
+  - SSH connect/banner/key-exchange-init exchanges
+  - SOCKS5 method negotiation/connect-request/connect-success exchanges
+  - HTTP CONNECT tunnel-request/tunnel-established exchanges
   - SIP REGISTER/200 OK exchanges
   - LDAP bind request/response exchanges
   - LDAP search request/result exchanges
@@ -329,6 +332,9 @@ The repository now includes first-class DSL files that compile into
 - [dsl/radius_access_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy)
 - [dsl/gtpu_echo_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy)
 - [dsl/smtp_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy)
+- [dsl/ssh_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy)
+- [dsl/socks5_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy)
+- [dsl/http_connect_tunnel_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy)
 - [dsl/sip_register_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy)
 - [dsl/ldap_bind_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy)
 - [dsl/ldap_search_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_search_path.gewy)
@@ -405,6 +411,9 @@ differentiate:
 - MQTT CONNECT/CONNACK pairs
 - RADIUS Access-Request/Access-Accept pairs
 - SMTP connect/banner/EHLO sequences
+- SSH connect/banner/key-exchange-init sequences
+- SOCKS5 method-selection/connect-request/connect-success sequences
+- HTTP CONNECT tunnel-request/tunnel-established sequences
 - SIP REGISTER/200 OK pairs
 - LDAP bind request/response pairs
 - LDAP search request/result pairs

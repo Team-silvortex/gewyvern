@@ -110,14 +110,14 @@ pub fn infer_network_module_kind(
         ProgramOperation::Unknown => "unknown",
     };
 
-    if matches!(
-        operation_id,
-        "dns_lookup" | "dns_tcp_query" | "mdns_query"
-    ) {
+    if matches!(operation_id, "dns_lookup" | "dns_tcp_query" | "mdns_query") {
         return "name_resolution";
     }
     if operation_id.starts_with("http3_") {
         return "http3_request_response";
+    }
+    if operation_id.starts_with("http_connect_") {
+        return "proxy_tunnel_establishment";
     }
     if operation_id.starts_with("http_") {
         return "http_request_response";
@@ -142,8 +142,7 @@ pub fn infer_network_module_kind(
     }
     if operation_id.starts_with("mysql_") || operation_id.starts_with("postgres_") {
         if operation_id.contains("auth")
-            || phase
-                .is_some_and(|value| value.contains("auth") || value.contains("password"))
+            || phase.is_some_and(|value| value.contains("auth") || value.contains("password"))
         {
             return "database_authentication";
         }
@@ -184,6 +183,12 @@ pub fn infer_network_module_kind(
     }
     if operation_id.starts_with("smtp_") {
         return "mail_session";
+    }
+    if operation_id.starts_with("ssh_") {
+        return "remote_access_session";
+    }
+    if operation_id.starts_with("socks5_") {
+        return "proxy_negotiation";
     }
     if operation_id.starts_with("radius_") {
         return "authentication_exchange";

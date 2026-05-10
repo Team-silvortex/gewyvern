@@ -83,6 +83,14 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
                 mode: "response",
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy",
             },
+            ProtocolEntryProfile {
+                mode: "connect",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "denied",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_denied_path.gewy",
+            },
         ],
     },
     ProtocolProfile {
@@ -322,6 +330,28 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
             mode: "session",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy",
         }],
+    },
+    ProtocolProfile {
+        name: "ssh",
+        default_entry: "session",
+        entries: &[ProtocolEntryProfile {
+            mode: "session",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy",
+        }],
+    },
+    ProtocolProfile {
+        name: "socks5",
+        default_entry: "session",
+        entries: &[
+            ProtocolEntryProfile {
+                mode: "session",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "denied",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/socks5_denied_path.gewy",
+            },
+        ],
     },
     ProtocolProfile {
         name: "sip",

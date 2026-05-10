@@ -354,6 +354,63 @@ pub fn packet_fact_with_dir_and_payload_and_bytes4_5_and9(
     }
 }
 
+pub fn packet_fact_with_dir_and_payload_bytes(
+    id: u64,
+    cookie: u64,
+    tcp_flags: u16,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+    payload_bytes: &[(u16, u8)],
+) -> FactEnvelope {
+    FactEnvelope {
+        id: FactId(id),
+        ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+        cpu: CpuId(0),
+        ifindex: Some(2),
+        session: SessionId(1),
+        fragment_id: "tcp_packet_meta_fragment".into(),
+        kind: FactKind::PacketMeta(PacketMetaFact {
+            netns: 1,
+            sk_cookie: Some(cookie),
+            dir,
+            local_port: local_port.or(Some(42310)),
+            remote_port: remote_port.or(Some(443)),
+            payload_byte0: payload_bytes
+                .iter()
+                .find_map(|(offset, value)| (*offset == 0).then_some(*value)),
+            payload_byte1: payload_bytes
+                .iter()
+                .find_map(|(offset, value)| (*offset == 1).then_some(*value)),
+            payload_prefix2: None,
+            payload_prefix4: None,
+            payload_byte4: payload_bytes
+                .iter()
+                .find_map(|(offset, value)| (*offset == 4).then_some(*value)),
+            payload_byte5: payload_bytes
+                .iter()
+                .find_map(|(offset, value)| (*offset == 5).then_some(*value)),
+            payload_byte9: payload_bytes
+                .iter()
+                .find_map(|(offset, value)| (*offset == 9).then_some(*value)),
+            payload_byte10: payload_bytes
+                .iter()
+                .find_map(|(offset, value)| (*offset == 10).then_some(*value)),
+            payload_byte13: payload_bytes
+                .iter()
+                .find_map(|(offset, value)| (*offset == 13).then_some(*value)),
+            payload_bytes: payload_bytes.iter().copied().collect(),
+            l3_proto: 0x0800,
+            l4_proto: 6,
+            tot_len: 60,
+            tcp_flags,
+            seq: Some(id as u32),
+            ack: None,
+            window: Some(65535),
+        }),
+    }
+}
+
 pub fn udp_packet_fact(id: u64, cookie: u64, tot_len: u32) -> FactEnvelope {
     udp_packet_fact_with_dir(id, cookie, tot_len, PacketDir::Egress)
 }

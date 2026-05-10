@@ -3353,11 +3353,11 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
 #[cfg(test)]
 mod tests {
     use super::{
-        Cli, SocketTrustMode, annotate_export_trust, filter_export_by_pid, list_entries_json,
-        list_entries_text, list_protocols_json, list_protocols_text, protocol_dsl_path,
-        run_binding_demo, render_report_outputs, scan_report_html, scan_report_json,
-        scan_targets_for_cli, scan_targets_from_set_file, summary_json, summary_line,
-        findings_json, ReportFormat,
+        Cli, ReportFormat, SocketTrustMode, annotate_export_trust, filter_export_by_pid,
+        findings_json, list_entries_json, list_entries_text, list_protocols_json,
+        list_protocols_text, protocol_dsl_path, render_report_outputs, run_binding_demo,
+        scan_report_html, scan_report_json, scan_targets_for_cli, scan_targets_from_set_file,
+        summary_json, summary_line,
     };
     use gewyvern::dsl::compile_file;
     use gewyvern::flow::{ProgramFinding, ProgramFindingCause, ProgramOperation};
@@ -4059,8 +4059,9 @@ mod tests {
 
     #[test]
     fn single_target_html_report_renders_visual_summary() {
-        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
-            .expect("mysql_query_session DSL should compile");
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+                .expect("mysql_query_session DSL should compile");
         let export = annotate_export_trust(
             run_binding_demo(binding),
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
@@ -4151,18 +4152,25 @@ mod tests {
             crate::primary_failure_stage_for_export(&export),
             "send_request->receive_response"
         );
-        assert_eq!(crate::primary_failure_mode_for_export(&export), "no_response");
+        assert_eq!(
+            crate::primary_failure_mode_for_export(&export),
+            "no_response"
+        );
         assert_eq!(
             crate::primary_failure_detail_for_export(&export),
             "request_sent_no_reply"
         );
-        assert_eq!(crate::suspect_modules_for_export(&export), "http_request_path");
+        assert_eq!(
+            crate::suspect_modules_for_export(&export),
+            "http_request_path"
+        );
     }
 
     #[test]
     fn single_target_json_report_wraps_protocol_result() {
-        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
-            .expect("mysql_query_session DSL should compile");
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+                .expect("mysql_query_session DSL should compile");
         let export = annotate_export_trust(
             run_binding_demo(binding),
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
@@ -4224,19 +4232,27 @@ mod tests {
     #[test]
     fn failure_mode_label_classifies_database_directory_quic_tls_http3_and_hy2_families() {
         assert_eq!(
-            crate::failure_mode_label(
-                "attention",
-                "database_error_handling",
-                "receive_error",
-                &[],
-            ),
+            crate::failure_mode_label("attention", "database_error_handling", "receive_error", &[],),
             "semantic_error"
+        );
+        assert_eq!(
+            crate::failure_mode_label("attention", "directory_write", "receive_modify_denied", &[],),
+            "server_denied"
         );
         assert_eq!(
             crate::failure_mode_label(
                 "attention",
-                "directory_write",
-                "receive_modify_denied",
+                "proxy_negotiation",
+                "receive_connect_denied",
+                &[],
+            ),
+            "server_denied"
+        );
+        assert_eq!(
+            crate::failure_mode_label(
+                "attention",
+                "proxy_tunnel_establishment",
+                "receive_connect_denied",
                 &[],
             ),
             "server_denied"
@@ -4255,6 +4271,24 @@ mod tests {
                 "attention",
                 "directory_write",
                 "receive_modify_denied",
+                &[],
+            ),
+            "access_denied"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "proxy_negotiation",
+                "receive_connect_denied",
+                &[],
+            ),
+            "access_denied"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "proxy_tunnel_establishment",
+                "receive_connect_denied",
                 &[],
             ),
             "access_denied"
@@ -4439,6 +4473,94 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"proxy_authentication\""));
         assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
         assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+    }
+
+    #[test]
+    fn summary_json_carries_hy2_tcp_relay_timeout_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy")
+            .expect("hy2_tcp_relay_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "hy2_tcp_relay_path",
+            "proxy_tcp_relay",
+            "receive_tcp_response_stream",
+            "receive_payload",
+            "send_tcp_request_stream->receive_tcp_response_stream",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing hy2 tcp response",
+            "quic_frame_meta_fragment",
+            "missing_signal:quic_frame_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"proxy_tcp_relay\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+    }
+
+    #[test]
+    fn summary_json_carries_http3_server_timeout_detail() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
+                .expect("http3_server_response_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "http3_server_response_path",
+            "http3_request_response",
+            "send_response_stream",
+            "emit_payload",
+            "receive_request_stream->send_response_stream",
+            "receive_payload->emit_payload",
+            "transport_io",
+            "synthetic missing http3 server response",
+            "quic_frame_meta_fragment",
+            "missing_signal:quic_frame_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"http3_request_response\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"followup_not_sent\""));
+    }
+
+    #[test]
+    fn summary_json_carries_tls_route_blocked_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+            .expect("tls_client_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "tls_client_path",
+            "tls_handshake",
+            "establish",
+            "establish_connection",
+            "connect->establish",
+            "initiate_connection->establish_connection",
+            "route_io",
+            "synthetic blocked tls route/connect",
+            "route_meta_fragment",
+            "missing_signal:route_resolution",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"tls_handshake\""));
+        assert!(json.contains("\"primary_failure_mode\":\"setup_incomplete\""));
+        assert!(json.contains("\"primary_failure_detail\":\"route_or_connect_blocked\""));
     }
 
     #[test]
@@ -4865,17 +4987,24 @@ fn module_family_label(module_kind: &str) -> &'static str {
             "request-response"
         }
         "database_query" | "database_error_handling" => "database",
-        "database_authentication" | "directory_bind" | "authentication_exchange"
-        | "proxy_authentication" => "auth",
+        "database_authentication"
+        | "directory_bind"
+        | "authentication_exchange"
+        | "proxy_authentication"
+        | "remote_access_session"
+        | "proxy_negotiation"
+        | "proxy_tunnel_establishment" => "auth",
         "directory_search" | "directory_write" | "directory_sync" => "directory",
-        "message_publish" | "message_session" | "mail_session" | "signaling_session" => {
-            "messaging"
-        }
+        "message_publish" | "message_session" | "mail_session" | "signaling_session" => "messaging",
         "proxy_udp_relay" | "proxy_tcp_relay" | "quic_stream_session" | "transport_session" => {
             "relay"
         }
-        "datagram_exchange" | "management_query" | "time_synchronization"
-        | "address_configuration" | "tunnel_control" | "cache_access" => "service",
+        "datagram_exchange"
+        | "management_query"
+        | "time_synchronization"
+        | "address_configuration"
+        | "tunnel_control"
+        | "cache_access" => "service",
         _ => "general",
     }
 }
@@ -4889,6 +5018,9 @@ fn stage_family_label(stage: &str) -> &'static str {
         || stage.contains("hello")
         || stage.contains("crypto")
         || stage.contains("handshake")
+        || stage.contains("banner")
+        || stage.contains("key_exchange")
+        || stage.contains("kex")
     {
         "handshake"
     } else if stage.contains("request")
@@ -4930,8 +5062,12 @@ fn failure_mode_label(
     if stage.contains("close") {
         return "peer_closed";
     }
-    if stage.contains("resolve") || stage.contains("dns") || stage.contains("connect")
-        || stage.contains("establish") || stage.contains("handshake") || stage.contains("crypto")
+    if stage.contains("resolve")
+        || stage.contains("dns")
+        || stage.contains("connect")
+        || stage.contains("establish")
+        || stage.contains("handshake")
+        || stage.contains("crypto")
     {
         return "setup_incomplete";
     }
@@ -4977,7 +5113,10 @@ fn failure_mode_label(
     {
         return "no_response";
     }
-    if suspect_areas.iter().any(|area| area == "route_io" || area == "transport_io") {
+    if suspect_areas
+        .iter()
+        .any(|area| area == "route_io" || area == "transport_io")
+    {
         return "no_response";
     }
     "attention"
@@ -5034,6 +5173,9 @@ fn failure_detail_label(
         || stage.contains("hello")
         || stage.contains("crypto")
         || stage.contains("handshake")
+        || stage.contains("banner")
+        || stage.contains("key_exchange")
+        || stage.contains("kex")
     {
         return "handshake_incomplete";
     }
@@ -5161,9 +5303,7 @@ fn protocol_flow_finding_summaries(
     summaries
 }
 
-fn protocol_flow_status(
-    finding_summary: Option<&ProtocolFlowFindingSummary>,
-) -> &'static str {
+fn protocol_flow_status(finding_summary: Option<&ProtocolFlowFindingSummary>) -> &'static str {
     if finding_summary.is_some_and(|summary| summary.has_findings) {
         "attention"
     } else {
@@ -5437,9 +5577,7 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
             });
         entry.status = "attention".into();
         if !entry.module_kinds.contains(&finding.network_module_kind) {
-            entry
-                .module_kinds
-                .push(finding.network_module_kind.clone());
+            entry.module_kinds.push(finding.network_module_kind.clone());
         }
         if !entry.suspect_areas.contains(&finding.suspect_area) {
             entry.suspect_areas.push(finding.suspect_area.clone());
@@ -5588,7 +5726,9 @@ fn process_network_profiles_text(export: &ExportBundle) -> String {
         .join(",")
 }
 
-fn primary_process_profile_for_export(export: &ExportBundle) -> Option<ProcessNetworkProfileSummary> {
+fn primary_process_profile_for_export(
+    export: &ExportBundle,
+) -> Option<ProcessNetworkProfileSummary> {
     let mut profiles = process_network_profile_summaries(export);
     profiles.sort_by(|left, right| {
         let left_rank = match left.status.as_str() {
@@ -5761,11 +5901,7 @@ fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
         .join(",");
     format!(
         "{{\"scan_all\":true,\"total_targets\":{},\"healthy_targets\":{},\"attention_targets\":{},\"idle_targets\":{},\"targets\":[{}]}}",
-        total_targets,
-        healthy_targets,
-        attention_targets,
-        idle_targets,
-        targets
+        total_targets, healthy_targets, attention_targets, idle_targets, targets
     )
 }
 
@@ -5802,9 +5938,7 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
         .map(|(family, count)| {
             format!(
                 "<div class=\"pill\"><span class=\"tag family-{}\">{}</span> {}</div>",
-                family,
-                family,
-                count
+                family, family, count
             )
         })
         .collect::<Vec<_>>()
@@ -5925,12 +6059,7 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
 
     format!(
         "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>gewyvern scan report</title><style>body{{font-family:ui-sans-serif,system-ui,sans-serif;background:#f6f7fb;color:#18202a;margin:0;padding:24px}}h1,h2,h3{{margin:0 0 12px}}.summary{{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 24px}}.summary-note{{margin:-10px 0 24px;color:#475569;font-size:14px}}.pill{{background:#fff;border:1px solid #d8dee9;border-radius:999px;padding:10px 14px;font-size:14px}}.tag{{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}}.family-dns{{background:#dbeafe;color:#1d4ed8}}.family-route{{background:#e0f2fe;color:#0369a1}}.family-connect{{background:#ede9fe;color:#6d28d9}}.family-handshake{{background:#fae8ff;color:#a21caf}}.family-request-response{{background:#dcfce7;color:#166534}}.family-database{{background:#fef3c7;color:#92400e}}.family-auth{{background:#fee2e2;color:#b91c1c}}.family-directory{{background:#ecfccb;color:#3f6212}}.family-messaging{{background:#ffedd5;color:#c2410c}}.family-relay{{background:#d1fae5;color:#047857}}.family-service{{background:#e2e8f0;color:#334155}}.family-general{{background:#f3f4f6;color:#374151}}.stage-dns{{background:#dbeafe;color:#1d4ed8}}.stage-connect{{background:#ede9fe;color:#6d28d9}}.stage-handshake{{background:#fae8ff;color:#a21caf}}.stage-request-response{{background:#dcfce7;color:#166534}}.stage-auth{{background:#fee2e2;color:#b91c1c}}.stage-general{{background:#f3f4f6;color:#374151}}.stage-none{{background:#e5e7eb;color:#6b7280}}.failure-blocked{{background:#fef3c7;color:#92400e}}.failure-timeout{{background:#fee2e2;color:#b91c1c}}.failure-setup{{background:#e0e7ff;color:#4338ca}}.failure-semantic{{background:#ffedd5;color:#c2410c}}.failure-denied{{background:#fce7f3;color:#be185d}}.failure-peer{{background:#d1fae5;color:#047857}}.failure-none{{background:#e5e7eb;color:#6b7280}}.failure-general{{background:#f3f4f6;color:#374151}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}}.card{{background:#fff;border:1px solid #d8dee9;border-radius:16px;padding:0;box-shadow:0 6px 24px rgba(15,23,42,0.06);overflow:hidden}}.card summary{{list-style:none;cursor:pointer;padding:18px}}.card summary::-webkit-details-marker{{display:none}}.card-title p{{margin:0}}.card-body{{padding:0 18px 18px}}.conclusion{{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 0}}.status-attention{{border-color:#f0b429}}.status-healthy{{border-color:#68b984}}.status-idle{{border-color:#cbd5e1}}ul{{padding-left:18px}}li{{margin:6px 0}}</style></head><body><h1>gewyvern Scan Report</h1><div class=\"summary\"><div class=\"pill\">total targets: {}</div><div class=\"pill\">healthy: {}</div><div class=\"pill\">attention: {}</div><div class=\"pill\">idle: {}</div></div><p class=\"summary-note\">attention targets are shown first and expanded by default so the highest-risk paths are easier to inspect.</p><div class=\"summary\">{}</div><div class=\"grid\">{}</div></body></html>",
-        total_targets,
-        healthy_targets,
-        attention_targets,
-        idle_targets,
-        family_summary,
-        cards
+        total_targets, healthy_targets, attention_targets, idle_targets, family_summary, cards
     )
 }
 

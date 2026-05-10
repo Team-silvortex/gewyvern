@@ -2243,7 +2243,9 @@ fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslError> {
         "radius" => Ok(1812),
         "gtpu" => Ok(2152),
         "sip" => Ok(5060),
+        "socks" | "socks5" => Ok(1080),
         "smtp" => Ok(25),
+        "ssh" => Ok(22),
         "snmp" => Ok(161),
         other => other
             .parse::<u16>()

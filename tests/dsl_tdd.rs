@@ -16,9 +16,9 @@ use support::{
     packet_fact_with_dir_and_payload_and_byte1, packet_fact_with_dir_and_payload_and_byte4,
     packet_fact_with_dir_and_payload_and_byte10,
     packet_fact_with_dir_and_payload_and_bytes4_5_and9,
-    packet_fact_with_dir_and_payload_and_bytes4_and5, route_fact, sock_lineage_fact,
-    tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact, udp_packet_fact_with_dir,
-    udp_packet_fact_with_dir_and_ports_and_payload,
+    packet_fact_with_dir_and_payload_and_bytes4_and5, packet_fact_with_dir_and_payload_bytes,
+    route_fact, sock_lineage_fact, tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact,
+    udp_packet_fact_with_dir, udp_packet_fact_with_dir_and_ports_and_payload,
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4,
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13, udp_quic_meta_fact,
     udp_quic_meta_fact_with_payload_bytes,
@@ -1260,6 +1260,88 @@ fn built_in_smtp_session_path_dsl_compiles_into_template_binding() {
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("smtp_session".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_ssh_session_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "ssh_session_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("ssh_session".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_socks5_session_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "socks5_session_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("socks5_session".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_socks5_denied_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_denied_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "socks5_denied_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("socks5_denied".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_http_connect_tunnel_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "http_connect_tunnel_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("http_connect_tunnel".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_http_connect_denied_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_denied_path.gewy")
+            .unwrap();
+
+    assert_eq!(binding.template.id, "http_connect_denied_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("http_connect_denied".into())
     );
     assert!(matches!(
         binding.template.reason_profile.as_ref().unwrap(),
@@ -2886,6 +2968,45 @@ fn hy2_auth_operation_maps_to_proxy_authentication_module_kind() {
             "transport_io",
         ),
         "proxy_authentication"
+    );
+}
+
+#[test]
+fn ssh_session_operation_maps_to_remote_access_session_module_kind() {
+    assert_eq!(
+        gewyvern::flow::infer_network_module_kind(
+            &ProgramOperation::Custom("ssh_session".into()),
+            Some("send_key_exchange_init"),
+            Some("receive_server_banner->send_key_exchange_init"),
+            "transport_io",
+        ),
+        "remote_access_session"
+    );
+}
+
+#[test]
+fn socks5_session_operation_maps_to_proxy_negotiation_module_kind() {
+    assert_eq!(
+        gewyvern::flow::infer_network_module_kind(
+            &ProgramOperation::Custom("socks5_session".into()),
+            Some("receive_connect_success"),
+            Some("send_connect_request->receive_connect_success"),
+            "transport_io",
+        ),
+        "proxy_negotiation"
+    );
+}
+
+#[test]
+fn http_connect_tunnel_operation_maps_to_proxy_tunnel_establishment_module_kind() {
+    assert_eq!(
+        gewyvern::flow::infer_network_module_kind(
+            &ProgramOperation::Custom("http_connect_tunnel".into()),
+            Some("receive_connect_established"),
+            Some("send_connect_request->receive_connect_established"),
+            "transport_io",
+        ),
+        "proxy_tunnel_establishment"
     );
 }
 
@@ -4624,6 +4745,643 @@ fn smtp_session_path_does_not_match_wrong_banner_prefix() {
             .stages
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_banner"))
+    );
+}
+
+#[test]
+fn ssh_session_path_materializes_banner_and_key_exchange_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8281, 53022, "ssh-client"));
+    session.ingest(route_fact(2, 8281, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8281, 1, 2, 53022, 22));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8281,
+        0x18,
+        PacketDir::Ingress,
+        Some(53022),
+        Some(22),
+        Some(0x53),
+        Some(0x5353),
+        Some(0x5353482d),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8281,
+        0x18,
+        PacketDir::Egress,
+        Some(53022),
+        Some(22),
+        Some(0x53),
+        Some(0x5353),
+        Some(0x5353482d),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        6,
+        8281,
+        0x18,
+        PacketDir::Egress,
+        Some(53022),
+        Some(22),
+        Some(0x00),
+        None,
+        None,
+        Some(0x10),
+        Some(0x14),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("ssh_session".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("connect"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_server_banner"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_client_banner"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_key_exchange_init"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ssh_session_path_does_not_treat_wrong_message_code_as_key_exchange_init() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8282, 53022, "ssh-client"));
+    session.ingest(route_fact(2, 8282, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8282, 1, 2, 53022, 22));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8282,
+        0x18,
+        PacketDir::Ingress,
+        Some(53022),
+        Some(22),
+        Some(0x53),
+        Some(0x5353),
+        Some(0x5353482d),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8282,
+        0x18,
+        PacketDir::Egress,
+        Some(53022),
+        Some(22),
+        Some(0x53),
+        Some(0x5353),
+        Some(0x5353482d),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_and5(
+        6,
+        8282,
+        0x18,
+        PacketDir::Egress,
+        Some(53022),
+        Some(22),
+        Some(0x00),
+        None,
+        None,
+        Some(0x10),
+        Some(0x15),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("send_key_exchange_init"))
+    );
+}
+
+#[test]
+fn socks5_session_path_materializes_method_and_connect_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8283, 53180, "proxy-client"));
+    session.ingest(route_fact(2, 8283, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8283, 1, 2, 53180, 1080));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8283,
+        0x18,
+        PacketDir::Egress,
+        Some(53180),
+        Some(1080),
+        Some(0x05),
+        Some(0x0501),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8283,
+        0x18,
+        PacketDir::Ingress,
+        Some(53180),
+        Some(1080),
+        Some(0x05),
+        Some(0x0500),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        6,
+        8283,
+        0x18,
+        PacketDir::Egress,
+        Some(53180),
+        Some(1080),
+        &[(0, 0x05), (1, 0x01), (2, 0x00), (3, 0x03)],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        7,
+        8283,
+        0x18,
+        PacketDir::Ingress,
+        Some(53180),
+        Some(1080),
+        &[(0, 0x05), (1, 0x00), (2, 0x00), (3, 0x01)],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(90));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("socks5_session".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("connect"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_method_greeting"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_method_selection"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_connect_request"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_connect_success"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn socks5_session_path_does_not_treat_failed_reply_as_connect_success() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8284, 53180, "proxy-client"));
+    session.ingest(route_fact(2, 8284, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8284, 1, 2, 53180, 1080));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8284,
+        0x18,
+        PacketDir::Egress,
+        Some(53180),
+        Some(1080),
+        Some(0x05),
+        Some(0x0501),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8284,
+        0x18,
+        PacketDir::Ingress,
+        Some(53180),
+        Some(1080),
+        Some(0x05),
+        Some(0x0500),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        6,
+        8284,
+        0x18,
+        PacketDir::Egress,
+        Some(53180),
+        Some(1080),
+        &[(0, 0x05), (1, 0x01), (2, 0x00), (3, 0x03)],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        7,
+        8284,
+        0x18,
+        PacketDir::Ingress,
+        Some(53180),
+        Some(1080),
+        &[(0, 0x05), (1, 0x05), (2, 0x00), (3, 0x01)],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(90));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_connect_success"))
+    );
+}
+
+#[test]
+fn socks5_denied_path_materializes_denied_connect_phase() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_denied_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8287, 53182, "proxy-client"));
+    session.ingest(route_fact(2, 8287, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8287, 1, 2, 53182, 1080));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8287,
+        0x18,
+        PacketDir::Egress,
+        Some(53182),
+        Some(1080),
+        Some(0x05),
+        Some(0x0501),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8287,
+        0x18,
+        PacketDir::Ingress,
+        Some(53182),
+        Some(1080),
+        Some(0x05),
+        Some(0x0500),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        6,
+        8287,
+        0x18,
+        PacketDir::Egress,
+        Some(53182),
+        Some(1080),
+        &[(0, 0x05), (1, 0x01), (2, 0x00), (3, 0x03)],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        7,
+        8287,
+        0x18,
+        PacketDir::Ingress,
+        Some(53182),
+        Some(1080),
+        &[(0, 0x05), (1, 0x05), (2, 0x00), (3, 0x01)],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(90));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("socks5_denied".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_connect_request"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_connect_denied"))
+    );
+    assert_eq!(export.module_findings.len(), 1);
+}
+
+#[test]
+fn socks5_denied_path_does_not_match_success_reply() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_denied_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8288, 53182, "proxy-client"));
+    session.ingest(route_fact(2, 8288, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8288, 1, 2, 53182, 1080));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8288,
+        0x18,
+        PacketDir::Egress,
+        Some(53182),
+        Some(1080),
+        Some(0x05),
+        Some(0x0501),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8288,
+        0x18,
+        PacketDir::Ingress,
+        Some(53182),
+        Some(1080),
+        Some(0x05),
+        Some(0x0500),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        6,
+        8288,
+        0x18,
+        PacketDir::Egress,
+        Some(53182),
+        Some(1080),
+        &[(0, 0x05), (1, 0x01), (2, 0x00), (3, 0x03)],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        7,
+        8288,
+        0x18,
+        PacketDir::Ingress,
+        Some(53182),
+        Some(1080),
+        &[(0, 0x05), (1, 0x00), (2, 0x00), (3, 0x01)],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(90));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_connect_denied"))
+    );
+}
+
+#[test]
+fn http_connect_tunnel_path_materializes_connect_request_and_established_response() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8285, 53181, "proxy-client"));
+    session.ingest(route_fact(2, 8285, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8285, 1, 2, 53181, 8080));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8285,
+        0x18,
+        PacketDir::Egress,
+        Some(53181),
+        Some(8080),
+        Some(0x43),
+        Some(0x434f),
+        Some(0x434f4e4e),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8285,
+        0x18,
+        PacketDir::Ingress,
+        Some(53181),
+        Some(8080),
+        Some(0x32),
+        Some(0x3230),
+        Some(0x32303020),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("http_connect_tunnel".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("connect"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_connect_request"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_connect_established"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"initiate_connection".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn http_connect_tunnel_path_does_not_treat_non_200_response_as_established() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8286, 53181, "proxy-client"));
+    session.ingest(route_fact(2, 8286, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8286, 1, 2, 53181, 8080));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8286,
+        0x18,
+        PacketDir::Egress,
+        Some(53181),
+        Some(8080),
+        Some(0x43),
+        Some(0x434f),
+        Some(0x434f4e4e),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8286,
+        0x18,
+        PacketDir::Ingress,
+        Some(53181),
+        Some(8080),
+        Some(0x34),
+        Some(0x3430),
+        Some(0x34303320),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_connect_established"))
+    );
+}
+
+#[test]
+fn http_connect_denied_path_materializes_denied_tunnel_phase() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_denied_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8289, 53183, "proxy-client"));
+    session.ingest(route_fact(2, 8289, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8289, 1, 2, 53183, 8080));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8289,
+        0x18,
+        PacketDir::Egress,
+        Some(53183),
+        Some(8080),
+        Some(0x43),
+        Some(0x434f),
+        Some(0x434f4e4e),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8289,
+        0x18,
+        PacketDir::Ingress,
+        Some(53183),
+        Some(8080),
+        Some(0x34),
+        Some(0x3430),
+        Some(0x34303320),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("http_connect_denied".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_connect_request"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_connect_denied"))
+    );
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn http_connect_denied_path_does_not_match_200_response() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_denied_path.gewy")
+            .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8290, 53183, "proxy-client"));
+    session.ingest(route_fact(2, 8290, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8290, 1, 2, 53183, 8080));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8290,
+        0x18,
+        PacketDir::Egress,
+        Some(53183),
+        Some(8080),
+        Some(0x43),
+        Some(0x434f),
+        Some(0x434f4e4e),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8290,
+        0x18,
+        PacketDir::Ingress,
+        Some(53183),
+        Some(8080),
+        Some(0x32),
+        Some(0x3230),
+        Some(0x32303020),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_connect_denied"))
     );
 }
 

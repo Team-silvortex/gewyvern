@@ -1,0 +1,6 @@
+name=ssh_session
+version=0.5.6
+entry=main.gewy
+register.protocol=ssh
+register.entry=session
+register.default=true
