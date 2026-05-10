@@ -548,6 +548,39 @@ pub fn udp_quic_meta_fact(
             long_header,
             packet_type,
             frame_types,
+            payload_bytes: std::collections::BTreeMap::new(),
+        }),
+    }
+}
+
+pub fn udp_quic_meta_fact_with_payload_bytes(
+    id: u64,
+    cookie: u64,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+    long_header: bool,
+    packet_type: Option<QuicPacketType>,
+    frame_types: Vec<QuicFrameType>,
+    payload_bytes: &[(u16, u8)],
+) -> FactEnvelope {
+    FactEnvelope {
+        id: FactId(id),
+        ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+        cpu: CpuId(0),
+        ifindex: Some(2),
+        session: SessionId(1),
+        fragment_id: "udp_packet_meta_fragment".into(),
+        kind: FactKind::QuicMeta(QuicMetaFact {
+            netns: 1,
+            sk_cookie: Some(cookie),
+            dir,
+            local_port,
+            remote_port,
+            long_header,
+            packet_type,
+            frame_types,
+            payload_bytes: payload_bytes.iter().copied().collect(),
         }),
     }
 }

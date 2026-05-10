@@ -1410,6 +1410,21 @@ fn fact_json(fact: &FactEnvelope) -> JsonValue {
                         .collect(),
                 ),
             ),
+            (
+                "payload_bytes".into(),
+                JsonValue::Array(
+                    value
+                        .payload_bytes
+                        .iter()
+                        .map(|(offset, byte)| {
+                            JsonValue::Object(BTreeMap::from([
+                                ("offset".into(), JsonValue::Number(*offset as i64)),
+                                ("value".into(), JsonValue::Number(*byte as i64)),
+                            ]))
+                        })
+                        .collect(),
+                ),
+            ),
         ])),
         FactKind::RouteDecision(value) => JsonValue::Object(BTreeMap::from([
             (
@@ -2203,6 +2218,8 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             remote_port,
             packet_type,
             frame_type,
+            byte_matches,
+            byte_sequences,
         } => {
             let mut object = BTreeMap::from([(
                 "kind".into(),
@@ -2227,6 +2244,48 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
                 "frame_type".into(),
                 JsonValue::String(quic_frame_type_id(frame_type).into()),
             );
+            if !byte_matches.is_empty() {
+                object.insert(
+                    "byte_matches".into(),
+                    JsonValue::Array(
+                        byte_matches
+                            .iter()
+                            .map(|matcher| {
+                                JsonValue::Object(BTreeMap::from([
+                                    ("offset".into(), JsonValue::Number(matcher.offset as i64)),
+                                    ("mask".into(), JsonValue::Number(matcher.mask as i64)),
+                                    ("value".into(), JsonValue::Number(matcher.value as i64)),
+                                ]))
+                            })
+                            .collect(),
+                    ),
+                );
+            }
+            if !byte_sequences.is_empty() {
+                object.insert(
+                    "byte_sequences".into(),
+                    JsonValue::Array(
+                        byte_sequences
+                            .iter()
+                            .map(|matcher| {
+                                JsonValue::Object(BTreeMap::from([
+                                    ("offset".into(), JsonValue::Number(matcher.offset as i64)),
+                                    (
+                                        "bytes".into(),
+                                        JsonValue::Array(
+                                            matcher
+                                                .bytes
+                                                .iter()
+                                                .map(|value| JsonValue::Number(*value as i64))
+                                                .collect(),
+                                        ),
+                                    ),
+                                ]))
+                            })
+                            .collect(),
+                    ),
+                );
+            }
             JsonValue::Object(object)
         }
         ReasonPredicate::PacketObserved {
@@ -2430,6 +2489,7 @@ fn quic_frame_type_id(value: &QuicFrameType) -> &'static str {
         QuicFrameType::Crypto => "crypto",
         QuicFrameType::Ack => "ack",
         QuicFrameType::Stream => "stream",
+        QuicFrameType::Datagram => "datagram",
         QuicFrameType::ConnectionClose => "connection_close",
     }
 }
@@ -2439,6 +2499,7 @@ fn parse_quic_frame_type(value: &str) -> Result<QuicFrameType, ExportError> {
         "crypto" => Ok(QuicFrameType::Crypto),
         "ack" => Ok(QuicFrameType::Ack),
         "stream" => Ok(QuicFrameType::Stream),
+        "datagram" => Ok(QuicFrameType::Datagram),
         "connection_close" | "close" => Ok(QuicFrameType::ConnectionClose),
         _ => Err(ExportError::InvalidValue(
             "unknown reason predicate QUIC frame type".into(),
@@ -2820,6 +2881,16 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                         ));
                     }
                 },
+                byte_matches: parse_payload_byte_matches(
+                    object
+                        .get("byte_matches")
+                        .unwrap_or(&JsonValue::Array(Vec::new())),
+                )?,
+                byte_sequences: parse_payload_byte_sequence_matches(
+                    object
+                        .get("byte_sequences")
+                        .unwrap_or(&JsonValue::Array(Vec::new())),
+                )?,
             }),
             "datagram_observed" => Ok(ReasonPredicate::DatagramObserved {
                 l4_proto: object
@@ -3624,6 +3695,38 @@ fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError> {
                 _ => {
                     return Err(ExportError::InvalidShape(
                         "fact.quic_meta.frame_types".into(),
+                    ));
+                }
+            },
+            payload_bytes: match kind.get("payload_bytes").unwrap_or(&JsonValue::Null) {
+                JsonValue::Null => BTreeMap::new(),
+                JsonValue::Array(items) => items
+                    .iter()
+                    .map(|item| {
+                        let object = item.as_object()?;
+                        Ok((
+                            object
+                                .get("offset")
+                                .ok_or_else(|| {
+                                    ExportError::InvalidShape(
+                                        "fact.quic_meta.payload_bytes.offset".into(),
+                                    )
+                                })?
+                                .as_i64()? as u16,
+                            object
+                                .get("value")
+                                .ok_or_else(|| {
+                                    ExportError::InvalidShape(
+                                        "fact.quic_meta.payload_bytes.value".into(),
+                                    )
+                                })?
+                                .as_i64()? as u8,
+                        ))
+                    })
+                    .collect::<Result<BTreeMap<_, _>, _>>()?,
+                _ => {
+                    return Err(ExportError::InvalidShape(
+                        "fact.quic_meta.payload_bytes".into(),
                     ));
                 }
             },

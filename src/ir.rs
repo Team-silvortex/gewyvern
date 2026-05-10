@@ -67,6 +67,8 @@ pub enum FlowPredicate {
         remote_port: Option<u16>,
         packet_type: Option<QuicPacketType>,
         frame_type: QuicFrameType,
+        byte_matches: Vec<PayloadByteMatch>,
+        byte_sequences: Vec<PayloadByteSequenceMatch>,
     },
     RouteResolved,
     All(Vec<FlowPredicate>),
@@ -187,6 +189,9 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "send_stream"
             | "send_request_stream"
             | "send_response_stream"
+            | "send_auth_request_stream"
+            | "send_auth_ok_stream"
+            | "send_tcp_request_stream"
             | "send_close" => Some("emit_payload"),
             "receive_request"
             | "receive_ok"
@@ -208,8 +213,12 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "receive_crypto"
             | "receive_close"
             | "receive_response_stream"
-            | "receive_request_stream" => Some("receive_payload"),
+            | "receive_request_stream"
+            | "receive_auth_ok_stream"
+            | "receive_tcp_response_stream" => Some("receive_payload"),
             "receive_ack" => Some("receive_payload"),
+            "send_udp_relay_datagram" => Some("emit_datagram"),
+            "receive_udp_relay_datagram" => Some("receive_datagram"),
             _ => None,
         },
         SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {
@@ -428,6 +437,8 @@ pub fn matches_flow_predicate(
             remote_port,
             packet_type,
             frame_type,
+            byte_matches,
+            byte_sequences,
         } => {
             if !flow.evidence.quic_facts.contains(&fact.id) {
                 return false;
@@ -446,6 +457,18 @@ pub fn matches_flow_predicate(
                             .as_ref()
                             .is_none_or(|expected| quic.packet_type == Some(*expected))
                         && quic.frame_types.contains(frame_type)
+                        && byte_matches.iter().all(|matcher| {
+                            quic.payload_bytes
+                                .get(&matcher.offset)
+                                .is_some_and(|byte| *byte & matcher.mask == matcher.value)
+                        })
+                        && byte_sequences.iter().all(|matcher| {
+                            matcher.bytes.iter().enumerate().all(|(idx, expected)| {
+                                quic.payload_bytes
+                                    .get(&(matcher.offset + idx as u16))
+                                    .is_some_and(|byte| byte == expected)
+                            })
+                        })
             )
         }
         FlowPredicate::All(predicates) => {

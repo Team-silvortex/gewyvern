@@ -21,6 +21,7 @@ use support::{
     udp_packet_fact_with_dir_and_ports_and_payload,
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4,
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13, udp_quic_meta_fact,
+    udp_quic_meta_fact_with_payload_bytes,
 };
 
 #[test]
@@ -378,13 +379,49 @@ fn built_in_http3_request_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_http3_server_response_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
+            .unwrap();
 
     assert_eq!(binding.template.id, "http3_server_response_path");
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("http3_server_response".into())
+    );
+}
+
+#[test]
+fn built_in_hy2_auth_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "hy2_auth_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("hy2_auth".into())
+    );
+}
+
+#[test]
+fn built_in_hy2_udp_relay_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_relay_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "hy2_udp_relay_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("hy2_udp_relay".into())
+    );
+}
+
+#[test]
+fn built_in_hy2_tcp_relay_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "hy2_tcp_relay_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("hy2_tcp_relay".into())
     );
 }
 
@@ -773,6 +810,8 @@ rule=quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto
             remote_port: Some(443),
             packet_type: Some(gewyvern::ir::QuicPacketType::Handshake),
             frame_type: gewyvern::ir::QuicFrameType::Crypto,
+            byte_matches: vec![],
+            byte_sequences: vec![],
         }
     );
 }
@@ -1075,8 +1114,7 @@ fn built_in_quic_stream_session_path_dsl_compiles_into_template_binding() {
 #[test]
 fn built_in_quic_bidi_stream_path_dsl_compiles_into_template_binding() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_bidi_stream_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_bidi_stream_path.gewy").unwrap();
 
     assert_eq!(binding.template.id, "quic_bidi_stream_path");
     assert_eq!(
@@ -2128,8 +2166,7 @@ fn quic_stream_session_path_does_not_treat_ack_as_stream() {
 #[test]
 fn quic_bidi_stream_path_materializes_request_response_and_close_stages() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_bidi_stream_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_bidi_stream_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 808, 4242, "curl"));
@@ -2235,8 +2272,7 @@ fn quic_bidi_stream_path_materializes_request_response_and_close_stages() {
 #[test]
 fn quic_bidi_stream_path_does_not_treat_close_as_response_stream() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_bidi_stream_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_bidi_stream_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 809, 4242, "curl"));
@@ -2669,6 +2705,570 @@ fn http3_server_response_path_does_not_treat_close_as_request_stream() {
             .stages
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_request_stream"))
+    );
+}
+
+#[test]
+fn hy2_auth_path_materializes_auth_request_and_ok_stages() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 814, 4242, "hysteria"));
+    session.ingest(route_fact(2, 814, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        814,
+        1280,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        Some(0xc3),
+        Some(0xc300),
+    ));
+    session.ingest(udp_quic_meta_fact(
+        4,
+        814,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Initial),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        5,
+        814,
+        220,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        Some(0xe0),
+        None,
+    ));
+    session.ingest(udp_quic_meta_fact(
+        6,
+        814,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Handshake),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        7,
+        814,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        8,
+        814,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(100));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("hy2_auth".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_auth_request_stream"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_auth_ok_stream"))
+    );
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn hy2_auth_path_does_not_treat_close_as_auth_ok_stream() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 815, 4242, "hysteria"));
+    session.ingest(route_fact(2, 815, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        815,
+        1280,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        Some(0xc3),
+        Some(0xc300),
+    ));
+    session.ingest(udp_quic_meta_fact(
+        4,
+        815,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Initial),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        5,
+        815,
+        220,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        Some(0xe0),
+        None,
+    ));
+    session.ingest(udp_quic_meta_fact(
+        6,
+        815,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Handshake),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        7,
+        815,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        8,
+        815,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::ConnectionClose],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(100));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_auth_ok_stream"))
+    );
+}
+
+#[test]
+fn hy2_udp_relay_path_materializes_auth_and_datagram_stages() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_relay_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 816, 4242, "hysteria"));
+    session.ingest(route_fact(2, 816, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        816,
+        1280,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        Some(0xc3),
+        Some(0xc300),
+    ));
+    session.ingest(udp_quic_meta_fact(
+        4,
+        816,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Initial),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        5,
+        816,
+        220,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        Some(0xe0),
+        None,
+    ));
+    session.ingest(udp_quic_meta_fact(
+        6,
+        816,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Handshake),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        7,
+        816,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        8,
+        816,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        9,
+        816,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Datagram],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        10,
+        816,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Datagram],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(120));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("hy2_udp_relay".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_udp_relay_datagram"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_udp_relay_datagram"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_datagram".to_string()));
+    assert!(phase_kinds.contains(&"receive_datagram".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn hy2_udp_relay_path_does_not_treat_stream_as_udp_datagram() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_relay_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 817, 4242, "hysteria"));
+    session.ingest(route_fact(2, 817, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        817,
+        1280,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        Some(0xc3),
+        Some(0xc300),
+    ));
+    session.ingest(udp_quic_meta_fact(
+        4,
+        817,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Initial),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        5,
+        817,
+        220,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        Some(0xe0),
+        None,
+    ));
+    session.ingest(udp_quic_meta_fact(
+        6,
+        817,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Handshake),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        7,
+        817,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        8,
+        817,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        9,
+        817,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(110));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_udp_relay_datagram"))
+    );
+}
+
+#[test]
+fn hy2_tcp_relay_path_materializes_auth_and_tcp_stream_stages() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 818, 4242, "hysteria"));
+    session.ingest(route_fact(2, 818, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        818,
+        1280,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        Some(0xc3),
+        Some(0xc300),
+    ));
+    session.ingest(udp_quic_meta_fact(
+        4,
+        818,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Initial),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        5,
+        818,
+        220,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        Some(0xe0),
+        None,
+    ));
+    session.ingest(udp_quic_meta_fact(
+        6,
+        818,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Handshake),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        7,
+        818,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        8,
+        818,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact_with_payload_bytes(
+        9,
+        818,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+        &[(0, 0x44), (1, 0x01)],
+    ));
+    session.ingest(udp_quic_meta_fact_with_payload_bytes(
+        10,
+        818,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+        &[(0, 0x00)],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(130));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("hy2_tcp_relay".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_tcp_request_stream"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_tcp_response_stream"))
+    );
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn hy2_tcp_relay_path_does_not_treat_auth_stream_as_tcp_request_stream() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 819, 4242, "hysteria"));
+    session.ingest(route_fact(2, 819, 7));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        819,
+        1280,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        Some(0xc3),
+        Some(0xc300),
+    ));
+    session.ingest(udp_quic_meta_fact(
+        4,
+        819,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Initial),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        5,
+        819,
+        220,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        Some(0xe0),
+        None,
+    ));
+    session.ingest(udp_quic_meta_fact(
+        6,
+        819,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        true,
+        Some(gewyvern::ir::QuicPacketType::Handshake),
+        vec![gewyvern::ir::QuicFrameType::Crypto],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        7,
+        819,
+        PacketDir::Egress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.ingest(udp_quic_meta_fact(
+        8,
+        819,
+        PacketDir::Ingress,
+        Some(42310),
+        Some(443),
+        false,
+        None,
+        vec![gewyvern::ir::QuicFrameType::Stream],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(100));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("send_tcp_request_stream"))
     );
 }
 

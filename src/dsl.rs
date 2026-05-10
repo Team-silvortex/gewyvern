@@ -1799,6 +1799,8 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut remote_port = None;
             let mut packet_type = None;
             let mut frame_type = None;
+            let mut byte_matches = Vec::new();
+            let mut byte_sequences = Vec::new();
             while let Some(part) = parts.next() {
                 match part {
                     "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
@@ -1827,6 +1829,38 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         })?;
                         frame_type = Some(parse_quic_frame_type(value)?);
                     }
+                    "byte_at" => {
+                        let offset = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC byte_at offset".into())
+                        })?;
+                        let mask = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC byte_at mask".into())
+                        })?;
+                        let value = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC byte_at value".into())
+                        })?;
+                        byte_matches.push(PayloadByteMatch {
+                            offset: parse_u16_literal(offset, "quic_frame_observed", "offset")?,
+                            mask: parse_u8_literal(mask, "quic_frame_observed", "mask")?,
+                            value: parse_u8_literal(value, "quic_frame_observed", "value")?,
+                        });
+                    }
+                    "bytes_at" => {
+                        let offset = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC bytes_at offset".into())
+                        })?;
+                        let bytes = parts.next().ok_or_else(|| {
+                            DslError::InvalidValue("missing QUIC bytes_at sequence".into())
+                        })?;
+                        byte_sequences.push(PayloadByteSequenceMatch {
+                            offset: parse_u16_literal(offset, "quic_frame_observed", "offset")?,
+                            bytes: parse_u8_sequence_literal(
+                                bytes,
+                                "quic_frame_observed",
+                                "bytes",
+                            )?,
+                        });
+                    }
                     other => {
                         return Err(DslError::InvalidValue(format!(
                             "unexpected QUIC frame predicate suffix '{other}'"
@@ -1844,6 +1878,8 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         "quic_frame_observed requires a frame:<type> qualifier".into(),
                     )
                 })?,
+                byte_matches,
+                byte_sequences,
             })
         }
         other if other.starts_with("datagram_observed:") => {
@@ -2187,7 +2223,7 @@ fn parse_reason_narrative(value: &str) -> ReasonNarrative {
 
 fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslError> {
     match value {
-        "quic" | "https" => Ok(443),
+        "quic" | "https" | "hy2" | "hysteria2" => Ok(443),
         "http" => Ok(80),
         "dhcp_client" | "bootpc" => Ok(68),
         "dhcp_server" | "bootps" | "dhcp" => Ok(67),
@@ -2351,6 +2387,7 @@ fn parse_quic_frame_type(value: &str) -> Result<QuicFrameType, DslError> {
         "crypto" => Ok(QuicFrameType::Crypto),
         "ack" => Ok(QuicFrameType::Ack),
         "stream" => Ok(QuicFrameType::Stream),
+        "datagram" => Ok(QuicFrameType::Datagram),
         "connection_close" | "close" => Ok(QuicFrameType::ConnectionClose),
         other => Err(DslError::InvalidValue(format!(
             "unknown QUIC frame type '{other}'"

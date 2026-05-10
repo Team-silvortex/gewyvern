@@ -104,6 +104,24 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
         ],
     },
     ProtocolProfile {
+        name: "hy2",
+        default_entry: "auth",
+        entries: &[
+            ProtocolEntryProfile {
+                mode: "auth",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "udp",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_relay_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "tcp",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy",
+            },
+        ],
+    },
+    ProtocolProfile {
         name: "tls",
         default_entry: "client",
         entries: &[ProtocolEntryProfile {

@@ -7,10 +7,11 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 mod support;
 
 use gewyvern::ledger::PacketDir;
+use gewyvern::ledger::{QuicFrameType, QuicPacketType};
 use std::time::{Duration, SystemTime};
 use support::{
     packet_fact_with_dir, route_fact, sock_lineage_fact, tcp_state_fact_with_ports,
-    udp_packet_fact_with_dir,
+    udp_packet_fact_with_dir, udp_packet_fact_with_dir_and_ports_and_payload, udp_quic_meta_fact,
 };
 
 #[test]
@@ -270,5 +271,212 @@ fn http_transaction_lifts_dns_findings_into_transaction_verdict() {
     assert_eq!(
         transactions[0].verdict,
         HttpTransactionVerdict::SuspectDnsResolutionGap
+    );
+}
+
+#[test]
+fn http3_transaction_composes_client_and_server_components() {
+    let client_binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy").unwrap();
+    let server_binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
+            .unwrap();
+
+    let mut client_session =
+        RuntimeSession::start(SessionConfig::for_binding(client_binding).unwrap()).unwrap();
+    client_session.ingest(sock_lineage_fact(1, 1101, 4242, "curl"));
+    client_session.ingest(route_fact(2, 1101, 7));
+    client_session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        3,
+        1101,
+        1300,
+        PacketDir::Egress,
+        Some(53000),
+        Some(443),
+        Some(0xc0),
+        Some(0xc300),
+    ));
+    client_session.ingest(udp_quic_meta_fact(
+        4,
+        1101,
+        PacketDir::Egress,
+        Some(53000),
+        Some(443),
+        true,
+        Some(QuicPacketType::Initial),
+        vec![],
+    ));
+    client_session.ingest(udp_quic_meta_fact(
+        5,
+        1101,
+        PacketDir::Egress,
+        Some(53000),
+        Some(443),
+        true,
+        None,
+        vec![QuicFrameType::Crypto],
+    ));
+    client_session.ingest(udp_quic_meta_fact(
+        6,
+        1101,
+        PacketDir::Egress,
+        Some(53000),
+        Some(443),
+        false,
+        None,
+        vec![QuicFrameType::Stream],
+    ));
+    client_session.ingest(udp_quic_meta_fact(
+        7,
+        1101,
+        PacketDir::Ingress,
+        Some(53000),
+        Some(443),
+        false,
+        None,
+        vec![QuicFrameType::Stream],
+    ));
+    client_session.ingest(udp_quic_meta_fact(
+        8,
+        1101,
+        PacketDir::Ingress,
+        Some(53000),
+        Some(443),
+        false,
+        None,
+        vec![QuicFrameType::ConnectionClose],
+    ));
+    client_session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(120));
+
+    let mut server_session =
+        RuntimeSession::start(SessionConfig::for_binding(server_binding).unwrap()).unwrap();
+    server_session.ingest(sock_lineage_fact(9, 2202, 8080, "nginx"));
+    server_session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+        10,
+        2202,
+        1300,
+        PacketDir::Ingress,
+        Some(443),
+        Some(53000),
+        Some(0xc0),
+        Some(0xc300),
+    ));
+    server_session.ingest(udp_quic_meta_fact(
+        11,
+        2202,
+        PacketDir::Ingress,
+        Some(443),
+        Some(53000),
+        true,
+        Some(QuicPacketType::Initial),
+        vec![],
+    ));
+    server_session.ingest(udp_quic_meta_fact(
+        12,
+        2202,
+        PacketDir::Ingress,
+        Some(443),
+        Some(53000),
+        true,
+        None,
+        vec![QuicFrameType::Crypto],
+    ));
+    server_session.ingest(udp_quic_meta_fact(
+        13,
+        2202,
+        PacketDir::Egress,
+        Some(443),
+        Some(53000),
+        true,
+        Some(QuicPacketType::Handshake),
+        vec![],
+    ));
+    server_session.ingest(udp_quic_meta_fact(
+        14,
+        2202,
+        PacketDir::Egress,
+        Some(443),
+        Some(53000),
+        true,
+        None,
+        vec![QuicFrameType::Crypto],
+    ));
+    server_session.ingest(udp_quic_meta_fact(
+        15,
+        2202,
+        PacketDir::Ingress,
+        Some(443),
+        Some(53000),
+        false,
+        None,
+        vec![QuicFrameType::Stream],
+    ));
+    server_session.ingest(udp_quic_meta_fact(
+        16,
+        2202,
+        PacketDir::Egress,
+        Some(443),
+        Some(53000),
+        false,
+        None,
+        vec![QuicFrameType::Stream],
+    ));
+    server_session.ingest(udp_quic_meta_fact(
+        17,
+        2202,
+        PacketDir::Egress,
+        Some(443),
+        Some(53000),
+        false,
+        None,
+        vec![QuicFrameType::ConnectionClose],
+    ));
+    server_session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(125));
+
+    let transactions = compose_http_transactions(&[
+        client_session.export_bundle(),
+        server_session.export_bundle(),
+    ]);
+    assert_eq!(transactions.len(), 1);
+    assert_eq!(
+        transactions[0].client_process.as_ref().unwrap().comm,
+        "curl"
+    );
+    assert_eq!(
+        transactions[0].server_process.as_ref().unwrap().comm,
+        "nginx"
+    );
+    assert!(
+        transactions[0]
+            .components
+            .iter()
+            .any(|component| component.operation
+                == gewyvern::flow::ProgramOperation::Custom("http3_request".into()))
+    );
+    assert!(
+        transactions[0]
+            .components
+            .iter()
+            .any(|component| component.operation
+                == gewyvern::flow::ProgramOperation::Custom("http3_server_response".into()))
+    );
+    assert!(
+        transactions[0]
+            .phases
+            .contains(&"send_request_stream".to_string())
+    );
+    assert!(
+        transactions[0]
+            .phases
+            .contains(&"receive_request_stream".to_string())
+    );
+    assert!(
+        transactions[0]
+            .phases
+            .contains(&"send_response_stream".to_string())
+    );
+    assert_eq!(
+        transactions[0].verdict,
+        HttpTransactionVerdict::HealthyRequestResponsePath
     );
 }

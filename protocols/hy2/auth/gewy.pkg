@@ -1,0 +1,7 @@
+name=hy2_auth
+version=0.5.0
+entry=main.gewy
+register.protocol=hy2
+register.entry=auth
+register.default=true
+register.aliases=hy2-auth,hysteria2-auth,hysteria2

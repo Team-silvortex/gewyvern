@@ -233,6 +233,9 @@ The repository now includes first-class DSL files that compile into
 - [dsl/http_server_response_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy)
 - [dsl/http3_request_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy)
 - [dsl/http3_server_response_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy)
+- [dsl/hy2_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy)
+- [dsl/hy2_tcp_relay_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy)
+- [dsl/hy2_udp_relay_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_relay_path.gewy)
 - [dsl/tls_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy)
 - [dsl/quic_client_initial_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy)
 - [dsl/quic_crypto_handshake_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_crypto_handshake_path.gewy)
@@ -290,6 +293,8 @@ can express:
   `bytes_at:<offset>:<byte>,<byte>,...` checks over currently sampled offsets
 - a parallel QUIC packet predicate surface for `long_header` and QUIC packet
   `type` matching without falling back to raw UDP offset rules
+- a parallel QUIC frame predicate surface for `crypto`, `ack`, `stream`,
+  `datagram`, and `connection_close` frame-family matching
 - packet predicates over direction, local/remote ports, masked first-byte checks,
   fixed four-byte prefixes, masked byte-4 checks, generic
   `byte_at:<offset>:<mask>:<value>` checks, and contiguous
@@ -318,6 +323,8 @@ differentiate:
 - DNS request/reply paths
 - QUIC initial and handshake traffic
 - QUIC packet-family modeling through a dedicated parallel IR surface
+- Hysteria 2 auth-shaped QUIC stream paths
+- Hysteria 2 UDP relay paths over QUIC datagram frames
 - STUN binding request/response pairs
 - GTP-U echo request/response pairs
 - CoAP request/response pairs
@@ -444,6 +451,11 @@ cargo run -- --scan-all --findings --json
 cargo run -- --scan-all --protocol-set /tmp/protocols.txt --json --summary-only
 cargo run -- --scan-all --protocol-set /Users/Shared/chroot/dev/gewyvern/protocols --json --summary-only
 ```
+
+`--summary-only --json` now includes a `protocol_flows` array for every matched
+program flow, so scan output can show which protocol path is healthy, which
+phases were observed, and which phase transition is currently missing when a
+flow needs attention.
 
 Example protocol set file:
 

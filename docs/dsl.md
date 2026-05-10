@@ -36,6 +36,9 @@ Examples in this repository:
 - [dsl/http_server_response_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy)
 - [dsl/http3_request_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy)
 - [dsl/http3_server_response_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy)
+- [dsl/hy2_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy)
+- [dsl/hy2_tcp_relay_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy)
+- [dsl/hy2_udp_relay_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_relay_path.gewy)
 - [dsl/tls_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy)
 - [dsl/quic_client_initial_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy)
 - [dsl/quic_crypto_handshake_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_crypto_handshake_path.gewy)
@@ -112,6 +115,13 @@ template(:structured_udp_process_debug)
 The pipeline parser now first merges files and function units into a single
 pipeline module IR, then lowers that IR into the same compiler surface as the
 structured and legacy forms; it does not generate eBPF bytecode directly.
+
+For QUIC-family protocols, `quic_frame_observed` now accepts
+`frame:crypto`, `frame:ack`, `frame:stream`, `frame:datagram`, and
+`frame:connection_close`. It also accepts `byte_at:<offset>:<mask>:<value>`
+and `bytes_at:<offset>:<byte>,<byte>,...`, which lets DSLs express both
+stream-oriented and datagram-oriented QUIC modules without falling back to raw
+UDP payload offsets.
 
 That merged front-end IR is now also reflected in compiler-facing reports, so
 `gewyc stages` can surface function counts, merged step counts, and resolved
@@ -600,7 +610,9 @@ Supported QUIC qualifiers are:
 - `min_len:<u32>`
 - `long_header:true|false`
 - `type:initial|0rtt|handshake|retry`
-- `frame:crypto|ack|stream|connection_close`
+- `frame:crypto|ack|stream|datagram|connection_close`
+- `byte_at:<offset>:<mask>:<value>`
+- `bytes_at:<offset>:<byte>,<byte>,...`
 
 This QUIC predicate family is intentionally parallel to the generic
 `datagram_observed` surface, so QUIC packet typing does not have to be modeled

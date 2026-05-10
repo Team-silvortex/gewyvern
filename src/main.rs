@@ -4,8 +4,8 @@ use gewyvern::flow::{FlowId, ProcessView, ProgramFlowId};
 use gewyvern::gewyc::{RenderFormat, compile_diagnostics_report_file, render_diagnostics_report};
 use gewyvern::http::{HttpSuspectSide, HttpTransactionView, compose_http_transactions};
 use gewyvern::ledger::{
-    CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact, SessionId,
-    SockLineageFact, TcpStateFact,
+    CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, QuicFrameType,
+    QuicPacketType, RouteDecisionFact, SessionId, SockLineageFact, TcpStateFact,
 };
 use gewyvern::protocol_profiles::{
     ResolvedProtocolProfile, default_protocol_scan_set, default_protocol_scan_set_from_dir,
@@ -22,7 +22,7 @@ use gewyvern::socket_input::{
     run_unix_socket_session_on_listener_with_binding, run_unix_socket_session_with_binding,
 };
 use gewyvern::template::{TemplateBinding, handshake_debug_template, udp_debug_template};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::net::{TcpListener, ToSocketAddrs};
@@ -942,16 +942,32 @@ fn main() {
         let transactions = if cli.dsl_path.is_some() {
             let mut composed_exports = Vec::new();
             composed_exports.extend(outputs.iter().map(|(_, export)| export.clone()));
-            composed_exports.push(run_binding_demo(
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
-                    .expect("dns dsl should compile"),
-            ));
-            composed_exports.push(run_binding_demo(
-                compile_file(
-                    "/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy",
-                )
-                .expect("http server dsl should compile"),
-            ));
+            if outputs
+                .iter()
+                .any(|(_, export)| export_has_operation(export, "http_request"))
+            {
+                composed_exports.push(run_binding_demo(
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
+                        .expect("dns dsl should compile"),
+                ));
+                composed_exports.push(run_binding_demo(
+                    compile_file(
+                        "/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy",
+                    )
+                    .expect("http server dsl should compile"),
+                ));
+            }
+            if outputs
+                .iter()
+                .any(|(_, export)| export_has_operation(export, "http3_request"))
+            {
+                composed_exports.push(run_binding_demo(
+                    compile_file(
+                        "/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy",
+                    )
+                    .expect("http3 server dsl should compile"),
+                ));
+            }
             compose_http_transactions(&composed_exports)
         } else {
             compose_http_transactions(
@@ -1400,6 +1416,15 @@ fn annotate_export_trust(mut export: ExportBundle, cli: &Cli) -> ExportBundle {
     export
 }
 
+fn export_has_operation(export: &ExportBundle, operation: &str) -> bool {
+    export.program_flows.iter().any(|flow| {
+        matches!(
+            &flow.operation,
+            gewyvern::flow::ProgramOperation::Custom(value) if value == operation
+        )
+    })
+}
+
 fn socket_target_is_local(target: &SocketTarget) -> bool {
     match target {
         SocketTarget::Unix(_) => true,
@@ -1620,6 +1645,56 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
             matches!(
                 &model.operation,
                 gewyvern::flow::ProgramOperation::Custom(value) if value == "http_server_response"
+            )
+        });
+    let is_http3_request = binding
+        .template
+        .program_model
+        .as_ref()
+        .is_some_and(|model| {
+            matches!(
+                &model.operation,
+                gewyvern::flow::ProgramOperation::Custom(value) if value == "http3_request"
+            )
+        });
+    let is_http3_server_response = binding
+        .template
+        .program_model
+        .as_ref()
+        .is_some_and(|model| {
+            matches!(
+                &model.operation,
+                gewyvern::flow::ProgramOperation::Custom(value) if value == "http3_server_response"
+            )
+        });
+    let is_hy2_auth = binding
+        .template
+        .program_model
+        .as_ref()
+        .is_some_and(|model| {
+            matches!(
+                &model.operation,
+                gewyvern::flow::ProgramOperation::Custom(value) if value == "hy2_auth"
+            )
+        });
+    let is_hy2_udp_relay = binding
+        .template
+        .program_model
+        .as_ref()
+        .is_some_and(|model| {
+            matches!(
+                &model.operation,
+                gewyvern::flow::ProgramOperation::Custom(value) if value == "hy2_udp_relay"
+            )
+        });
+    let is_hy2_tcp_relay = binding
+        .template
+        .program_model
+        .as_ref()
+        .is_some_and(|model| {
+            matches!(
+                &model.operation,
+                gewyvern::flow::ProgramOperation::Custom(value) if value == "hy2_tcp_relay"
             )
         });
     let facts = if fragments.contains(&"tcp_state_fragment")
@@ -2104,7 +2179,917 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
     } else if fragments.contains(&"udp_packet_meta_fragment")
         && fragments.contains(&"sock_lineage_fragment")
     {
-        if is_dns_lookup {
+        if is_http3_server_response {
+            vec![
+                FactEnvelope {
+                    id: FactId(1),
+                    ts: base,
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "sock_lineage_fragment".into(),
+                    kind: FactKind::SockLineage(SockLineageFact {
+                        netns: 1,
+                        sk_cookie: 177,
+                        pid: 8080,
+                        tid: 8080,
+                        cgroup_id: 8080,
+                        comm: {
+                            let mut comm = [0u8; 16];
+                            comm[..5].copy_from_slice(b"nginx");
+                            comm
+                        },
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(2),
+                    ts: base + Duration::from_millis(10),
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(177),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(443),
+                        remote_port: Some(53000),
+                        payload_byte0: Some(0xc0),
+                        payload_byte1: None,
+                        payload_prefix2: Some(0xc300),
+                        payload_prefix4: None,
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::new(),
+                        l3_proto: 0x0800,
+                        l4_proto: 17,
+                        tot_len: 1300,
+                        tcp_flags: 0,
+                        seq: None,
+                        ack: None,
+                        window: None,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(3),
+                    ts: base + Duration::from_millis(20),
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(177),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(443),
+                        remote_port: Some(53000),
+                        long_header: true,
+                        packet_type: Some(QuicPacketType::Initial),
+                        frame_types: vec![],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(4),
+                    ts: base + Duration::from_millis(30),
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(177),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(443),
+                        remote_port: Some(53000),
+                        long_header: true,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Crypto],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(5),
+                    ts: base + Duration::from_millis(40),
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(177),
+                        dir: PacketDir::Egress,
+                        local_port: Some(443),
+                        remote_port: Some(53000),
+                        long_header: true,
+                        packet_type: Some(QuicPacketType::Handshake),
+                        frame_types: vec![],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(6),
+                    ts: base + Duration::from_millis(50),
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(177),
+                        dir: PacketDir::Egress,
+                        local_port: Some(443),
+                        remote_port: Some(53000),
+                        long_header: true,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Crypto],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(7),
+                    ts: base + Duration::from_millis(60),
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(177),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(443),
+                        remote_port: Some(53000),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Stream],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(8),
+                    ts: base + Duration::from_millis(70),
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(177),
+                        dir: PacketDir::Egress,
+                        local_port: Some(443),
+                        remote_port: Some(53000),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Stream],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(9),
+                    ts: base + Duration::from_millis(80),
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(177),
+                        dir: PacketDir::Egress,
+                        local_port: Some(443),
+                        remote_port: Some(53000),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::ConnectionClose],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+            ]
+        } else if is_http3_request {
+            vec![
+                FactEnvelope {
+                    id: FactId(1),
+                    ts: base,
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "sock_lineage_fragment".into(),
+                    kind: FactKind::SockLineage(SockLineageFact {
+                        netns: 1,
+                        sk_cookie: 99,
+                        pid: 4242,
+                        tid: 4242,
+                        cgroup_id: 4242,
+                        comm: {
+                            let mut comm = [0u8; 16];
+                            comm[..4].copy_from_slice(b"curl");
+                            comm
+                        },
+                    }),
+                },
+                route_fact(2, base + Duration::from_millis(10), 99, 3, SessionId(2)),
+                FactEnvelope {
+                    id: FactId(3),
+                    ts: base + Duration::from_millis(20),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(99),
+                        dir: PacketDir::Egress,
+                        local_port: Some(53000),
+                        remote_port: Some(443),
+                        payload_byte0: Some(0xc0),
+                        payload_byte1: None,
+                        payload_prefix2: Some(0xc300),
+                        payload_prefix4: None,
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::new(),
+                        l3_proto: 0x0800,
+                        l4_proto: 17,
+                        tot_len: 1300,
+                        tcp_flags: 0,
+                        seq: None,
+                        ack: None,
+                        window: None,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(4),
+                    ts: base + Duration::from_millis(30),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(99),
+                        dir: PacketDir::Egress,
+                        local_port: Some(53000),
+                        remote_port: Some(443),
+                        long_header: true,
+                        packet_type: Some(QuicPacketType::Initial),
+                        frame_types: vec![],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(5),
+                    ts: base + Duration::from_millis(40),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(99),
+                        dir: PacketDir::Egress,
+                        local_port: Some(53000),
+                        remote_port: Some(443),
+                        long_header: true,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Crypto],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(6),
+                    ts: base + Duration::from_millis(50),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(99),
+                        dir: PacketDir::Egress,
+                        local_port: Some(53000),
+                        remote_port: Some(443),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Stream],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(7),
+                    ts: base + Duration::from_millis(60),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(99),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(53000),
+                        remote_port: Some(443),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Stream],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(8),
+                    ts: base + Duration::from_millis(70),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(99),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(53000),
+                        remote_port: Some(443),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::ConnectionClose],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+            ]
+        } else if is_hy2_tcp_relay {
+            vec![
+                FactEnvelope {
+                    id: FactId(1),
+                    ts: base,
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "sock_lineage_fragment".into(),
+                    kind: FactKind::SockLineage(SockLineageFact {
+                        netns: 1,
+                        sk_cookie: 211,
+                        pid: 4242,
+                        tid: 4242,
+                        cgroup_id: 4242,
+                        comm: {
+                            let mut comm = [0u8; 16];
+                            comm[..8].copy_from_slice(b"hysteria");
+                            comm
+                        },
+                    }),
+                },
+                route_fact(2, base + Duration::from_millis(10), 211, 3, SessionId(2)),
+                FactEnvelope {
+                    id: FactId(3),
+                    ts: base + Duration::from_millis(20),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(211),
+                        dir: PacketDir::Egress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        payload_byte0: Some(0xc0),
+                        payload_byte1: None,
+                        payload_prefix2: Some(0xc300),
+                        payload_prefix4: None,
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::new(),
+                        l3_proto: 0x0800,
+                        l4_proto: 17,
+                        tot_len: 1300,
+                        tcp_flags: 0,
+                        seq: None,
+                        ack: None,
+                        window: None,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(4),
+                    ts: base + Duration::from_millis(30),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(211),
+                        dir: PacketDir::Egress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: true,
+                        packet_type: Some(QuicPacketType::Initial),
+                        frame_types: vec![QuicFrameType::Crypto],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(5),
+                    ts: base + Duration::from_millis(40),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(211),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        payload_byte0: Some(0xe0),
+                        payload_byte1: None,
+                        payload_prefix2: None,
+                        payload_prefix4: None,
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::new(),
+                        l3_proto: 0x0800,
+                        l4_proto: 17,
+                        tot_len: 220,
+                        tcp_flags: 0,
+                        seq: None,
+                        ack: None,
+                        window: None,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(6),
+                    ts: base + Duration::from_millis(50),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(211),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: true,
+                        packet_type: Some(QuicPacketType::Handshake),
+                        frame_types: vec![QuicFrameType::Crypto],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(7),
+                    ts: base + Duration::from_millis(60),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(211),
+                        dir: PacketDir::Egress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Stream],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(8),
+                    ts: base + Duration::from_millis(70),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(211),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Stream],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(9),
+                    ts: base + Duration::from_millis(80),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(211),
+                        dir: PacketDir::Egress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Stream],
+                        payload_bytes: std::collections::BTreeMap::from([
+                            (0u16, 0x44),
+                            (1u16, 0x01),
+                        ]),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(10),
+                    ts: base + Duration::from_millis(90),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(211),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Stream],
+                        payload_bytes: std::collections::BTreeMap::from([(0u16, 0x00)]),
+                    }),
+                },
+            ]
+        } else if is_hy2_udp_relay {
+            vec![
+                FactEnvelope {
+                    id: FactId(1),
+                    ts: base,
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "sock_lineage_fragment".into(),
+                    kind: FactKind::SockLineage(SockLineageFact {
+                        netns: 1,
+                        sk_cookie: 199,
+                        pid: 4242,
+                        tid: 4242,
+                        cgroup_id: 4242,
+                        comm: {
+                            let mut comm = [0u8; 16];
+                            comm[..8].copy_from_slice(b"hysteria");
+                            comm
+                        },
+                    }),
+                },
+                route_fact(2, base + Duration::from_millis(10), 199, 3, SessionId(2)),
+                FactEnvelope {
+                    id: FactId(3),
+                    ts: base + Duration::from_millis(20),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(199),
+                        dir: PacketDir::Egress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        payload_byte0: Some(0xc0),
+                        payload_byte1: None,
+                        payload_prefix2: Some(0xc300),
+                        payload_prefix4: None,
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::new(),
+                        l3_proto: 0x0800,
+                        l4_proto: 17,
+                        tot_len: 1300,
+                        tcp_flags: 0,
+                        seq: None,
+                        ack: None,
+                        window: None,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(4),
+                    ts: base + Duration::from_millis(30),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(199),
+                        dir: PacketDir::Egress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: true,
+                        packet_type: Some(QuicPacketType::Initial),
+                        frame_types: vec![QuicFrameType::Crypto],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(5),
+                    ts: base + Duration::from_millis(40),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(199),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        payload_byte0: Some(0xe0),
+                        payload_byte1: None,
+                        payload_prefix2: None,
+                        payload_prefix4: None,
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::new(),
+                        l3_proto: 0x0800,
+                        l4_proto: 17,
+                        tot_len: 220,
+                        tcp_flags: 0,
+                        seq: None,
+                        ack: None,
+                        window: None,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(6),
+                    ts: base + Duration::from_millis(50),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(199),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: true,
+                        packet_type: Some(QuicPacketType::Handshake),
+                        frame_types: vec![QuicFrameType::Crypto],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(7),
+                    ts: base + Duration::from_millis(60),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(199),
+                        dir: PacketDir::Egress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Stream],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(8),
+                    ts: base + Duration::from_millis(70),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(199),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Stream],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(9),
+                    ts: base + Duration::from_millis(80),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(199),
+                        dir: PacketDir::Egress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Datagram],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(10),
+                    ts: base + Duration::from_millis(90),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(199),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Datagram],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+            ]
+        } else if is_hy2_auth {
+            vec![
+                FactEnvelope {
+                    id: FactId(1),
+                    ts: base,
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "sock_lineage_fragment".into(),
+                    kind: FactKind::SockLineage(SockLineageFact {
+                        netns: 1,
+                        sk_cookie: 188,
+                        pid: 4242,
+                        tid: 4242,
+                        cgroup_id: 4242,
+                        comm: {
+                            let mut comm = [0u8; 16];
+                            comm[..8].copy_from_slice(b"hysteria");
+                            comm
+                        },
+                    }),
+                },
+                route_fact(2, base + Duration::from_millis(10), 188, 3, SessionId(2)),
+                FactEnvelope {
+                    id: FactId(3),
+                    ts: base + Duration::from_millis(20),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(188),
+                        dir: PacketDir::Egress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        payload_byte0: Some(0xc0),
+                        payload_byte1: None,
+                        payload_prefix2: Some(0xc300),
+                        payload_prefix4: None,
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::new(),
+                        l3_proto: 0x0800,
+                        l4_proto: 17,
+                        tot_len: 1300,
+                        tcp_flags: 0,
+                        seq: None,
+                        ack: None,
+                        window: None,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(4),
+                    ts: base + Duration::from_millis(30),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(188),
+                        dir: PacketDir::Egress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: true,
+                        packet_type: Some(QuicPacketType::Initial),
+                        frame_types: vec![QuicFrameType::Crypto],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(5),
+                    ts: base + Duration::from_millis(40),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(188),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        payload_byte0: Some(0xe0),
+                        payload_byte1: None,
+                        payload_prefix2: None,
+                        payload_prefix4: None,
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::new(),
+                        l3_proto: 0x0800,
+                        l4_proto: 17,
+                        tot_len: 220,
+                        tcp_flags: 0,
+                        seq: None,
+                        ack: None,
+                        window: None,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(6),
+                    ts: base + Duration::from_millis(50),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(188),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: true,
+                        packet_type: Some(QuicPacketType::Handshake),
+                        frame_types: vec![QuicFrameType::Crypto],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(7),
+                    ts: base + Duration::from_millis(60),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(188),
+                        dir: PacketDir::Egress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Stream],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(8),
+                    ts: base + Duration::from_millis(70),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    kind: FactKind::QuicMeta(gewyvern::ledger::QuicMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(188),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(42310),
+                        remote_port: Some(443),
+                        long_header: false,
+                        packet_type: None,
+                        frame_types: vec![QuicFrameType::Stream],
+                        payload_bytes: std::collections::BTreeMap::new(),
+                    }),
+                },
+            ]
+        } else if is_dns_lookup {
             vec![
                 FactEnvelope {
                     id: FactId(1),
@@ -2322,11 +3307,57 @@ mod tests {
         Cli, SocketTrustMode, annotate_export_trust, filter_export_by_pid, list_entries_json,
         list_entries_text, list_protocols_json, list_protocols_text, protocol_dsl_path,
         run_binding_demo, scan_targets_for_cli, scan_targets_from_set_file, summary_json,
+        summary_line,
     };
     use gewyvern::dsl::compile_file;
-    use gewyvern::flow::ProgramOperation;
+    use gewyvern::flow::{ProgramFinding, ProgramFindingCause, ProgramOperation};
     use std::fs;
+    use std::time::Instant;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn synthesize_large_protocol_flow_export() -> gewyvern::export::ExportBundle {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let base_flow = export.program_flows[0].clone();
+        let base_process = base_flow.process.clone();
+        let flow_count = 256u64;
+
+        export.program_flows = (0..flow_count)
+            .map(|offset| {
+                let mut flow = base_flow.clone();
+                flow.id = gewyvern::flow::ProgramFlowId(offset + 1);
+                flow.process = base_process.clone();
+                flow
+            })
+            .collect();
+        export.program_findings = export
+            .program_flows
+            .iter()
+            .map(|flow| ProgramFinding {
+                program_flow: flow.id,
+                process: flow.process.clone(),
+                operation: flow.operation.clone(),
+                module_label: "http_request_path".into(),
+                phase: Some("receive_response".into()),
+                phase_kind: Some("receive_payload".into()),
+                phase_transition: Some("send_request->receive_response".into()),
+                phase_transition_kind: Some("emit_payload->receive_payload".into()),
+                suspect_area: "transport_io".into(),
+                cause: ProgramFindingCause::MissingCoreStage,
+                summary: "synthetic missing response".into(),
+                supporting_fragments: vec!["tcp_packet_meta_fragment".into()],
+                evidence_trace: vec!["missing_signal:packet_observed".into()],
+            })
+            .collect();
+        export.debug_summary.program_flows = export.program_flows.len() as u64;
+        export.debug_summary.program_findings = export.program_findings.len() as u64;
+        export.debug_summary.module_findings = export.module_findings.len() as u64;
+        export
+    }
 
     #[test]
     fn http_request_demo_produces_healthy_cross_transport_path() {
@@ -2397,6 +3428,132 @@ mod tests {
         assert_eq!(
             bundle.program_flows[0].operation,
             ProgramOperation::Custom("http_server_response".into())
+        );
+    }
+
+    #[test]
+    fn http3_request_demo_produces_healthy_quic_path() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy")
+            .expect("http3_request_path DSL should compile");
+        let bundle = run_binding_demo(binding);
+        assert_eq!(bundle.program_findings.len(), 0);
+        assert_eq!(bundle.module_findings.len(), 0);
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("send_request_stream"))
+        );
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("receive_response_stream"))
+        );
+        assert_eq!(
+            bundle.program_flows[0].operation,
+            ProgramOperation::Custom("http3_request".into())
+        );
+    }
+
+    #[test]
+    fn http3_server_response_demo_produces_healthy_quic_server_path() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
+                .expect("http3_server_response_path DSL should compile");
+        let bundle = run_binding_demo(binding);
+        assert_eq!(bundle.program_findings.len(), 0);
+        assert_eq!(bundle.module_findings.len(), 0);
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("receive_request_stream"))
+        );
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("send_response_stream"))
+        );
+        assert_eq!(
+            bundle.program_flows[0].operation,
+            ProgramOperation::Custom("http3_server_response".into())
+        );
+    }
+
+    #[test]
+    fn hy2_auth_demo_produces_healthy_quic_auth_path() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy")
+            .expect("hy2_auth_path DSL should compile");
+        let bundle = run_binding_demo(binding);
+        assert_eq!(bundle.program_findings.len(), 0);
+        assert_eq!(bundle.module_findings.len(), 0);
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("send_auth_request_stream"))
+        );
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("receive_auth_ok_stream"))
+        );
+        assert_eq!(
+            bundle.program_flows[0].operation,
+            ProgramOperation::Custom("hy2_auth".into())
+        );
+    }
+
+    #[test]
+    fn hy2_udp_relay_demo_produces_healthy_quic_datagram_path() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_relay_path.gewy")
+            .expect("hy2_udp_relay_path DSL should compile");
+        let bundle = run_binding_demo(binding);
+        assert_eq!(bundle.program_findings.len(), 0);
+        assert_eq!(bundle.module_findings.len(), 0);
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("send_udp_relay_datagram"))
+        );
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("receive_udp_relay_datagram"))
+        );
+        assert_eq!(
+            bundle.program_flows[0].operation,
+            ProgramOperation::Custom("hy2_udp_relay".into())
+        );
+    }
+
+    #[test]
+    fn hy2_tcp_relay_demo_produces_healthy_quic_tcp_path() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy")
+            .expect("hy2_tcp_relay_path DSL should compile");
+        let bundle = run_binding_demo(binding);
+        assert_eq!(bundle.program_findings.len(), 0);
+        assert_eq!(bundle.module_findings.len(), 0);
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("send_tcp_request_stream"))
+        );
+        assert!(
+            bundle.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some("receive_tcp_response_stream"))
+        );
+        assert_eq!(
+            bundle.program_flows[0].operation,
+            ProgramOperation::Custom("hy2_tcp_relay".into())
         );
     }
 
@@ -2684,6 +3841,88 @@ mod tests {
     }
 
     #[test]
+    fn summary_json_includes_protocol_flow_progress_for_healthy_export() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"protocol_flows\":["));
+        assert!(json.contains("\"status\":\"healthy\""));
+        assert!(json.contains("\"last_phase\":\"receive_response\""));
+    }
+
+    #[test]
+    fn summary_json_marks_protocol_flow_attention_and_missing_transition() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        export.program_findings.push(ProgramFinding {
+            program_flow: flow.id,
+            process: flow.process.clone(),
+            operation: flow.operation.clone(),
+            module_label: "http_request_path".into(),
+            phase: Some("receive_response".into()),
+            phase_kind: Some("receive_payload".into()),
+            phase_transition: Some("send_request->receive_response".into()),
+            phase_transition_kind: Some("emit_payload->receive_payload".into()),
+            suspect_area: "transport_io".into(),
+            cause: ProgramFindingCause::MissingCoreStage,
+            summary: "synthetic missing response".into(),
+            supporting_fragments: vec!["tcp_packet_meta_fragment".into()],
+            evidence_trace: vec!["missing_signal:packet_observed".into()],
+        });
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"status\":\"attention\""));
+        assert!(json.contains("\"missing_transitions\":[\"send_request->receive_response\"]"));
+        assert!(json.contains("\"suspect_areas\":[\"transport_io\"]"));
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_summary_json_large_protocol_flow_export() {
+        let export = synthesize_large_protocol_flow_export();
+        let start = Instant::now();
+        let mut total_len = 0usize;
+        for _ in 0..200 {
+            total_len += summary_json("bench", &export).len();
+        }
+        let elapsed = start.elapsed();
+        assert!(total_len > 0);
+        eprintln!(
+            "benchmark_summary_json_large_protocol_flow_export: iterations=200 flows={} findings={} elapsed_ms={:.3}",
+            export.program_flows.len(),
+            export.program_findings.len(),
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_summary_line_large_protocol_flow_export() {
+        let export = synthesize_large_protocol_flow_export();
+        let start = Instant::now();
+        let mut total_len = 0usize;
+        for _ in 0..200 {
+            total_len += summary_line("bench", &export).len();
+        }
+        let elapsed = start.elapsed();
+        assert!(total_len > 0);
+        eprintln!(
+            "benchmark_summary_line_large_protocol_flow_export: iterations=200 flows={} findings={} elapsed_ms={:.3}",
+            export.program_flows.len(),
+            export.program_findings.len(),
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
     fn pid_filter_keeps_only_target_process_view() {
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
             .expect("http_request_path DSL should compile");
@@ -2746,8 +3985,9 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
             .collect::<Vec<_>>()
             .join(",")
     };
+    let protocol_flows = protocol_flow_summaries_text(export);
     format!(
-        "{name}: {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={}",
+        "{name}: {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={}",
         locale.label("template"),
         export.template_id,
         "ingest_trust_mode",
@@ -2774,6 +4014,7 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
         suspect_areas,
         locale.label("suspect_modules"),
         suspect_modules,
+        protocol_flows,
     )
 }
 
@@ -2937,6 +4178,135 @@ fn usage() -> &'static str {
     UiLocale::detect().usage()
 }
 
+#[derive(Default)]
+struct ProtocolFlowFindingSummary {
+    missing_transitions: Vec<String>,
+    suspect_areas: Vec<String>,
+    has_findings: bool,
+}
+
+fn protocol_flow_phases(flow: &gewyvern::flow::ProgramFlow) -> Vec<String> {
+    let mut phases = Vec::new();
+    for phase in flow.stages.iter().filter_map(|stage| stage.phase.as_ref()) {
+        if phases.last() != Some(phase) {
+            phases.push(phase.clone());
+        }
+    }
+    phases
+}
+
+fn protocol_flow_last_phase(flow: &gewyvern::flow::ProgramFlow) -> Option<String> {
+    flow.stages
+        .iter()
+        .rev()
+        .find_map(|stage| stage.phase.clone())
+}
+
+fn protocol_flow_finding_summaries(
+    export: &ExportBundle,
+) -> HashMap<ProgramFlowId, ProtocolFlowFindingSummary> {
+    let mut summaries = HashMap::<ProgramFlowId, ProtocolFlowFindingSummary>::new();
+    for finding in &export.program_findings {
+        let entry = summaries.entry(finding.program_flow).or_default();
+        entry.has_findings = true;
+        if let Some(transition) = &finding.phase_transition {
+            if !entry.missing_transitions.contains(transition) {
+                entry.missing_transitions.push(transition.clone());
+            }
+        }
+        if !entry.suspect_areas.contains(&finding.suspect_area) {
+            entry.suspect_areas.push(finding.suspect_area.clone());
+        }
+    }
+    summaries
+}
+
+fn protocol_flow_status(
+    finding_summary: Option<&ProtocolFlowFindingSummary>,
+) -> &'static str {
+    if finding_summary.is_some_and(|summary| summary.has_findings) {
+        "attention"
+    } else {
+        "healthy"
+    }
+}
+
+fn protocol_flow_summary_item_json(
+    flow: &gewyvern::flow::ProgramFlow,
+    finding_summary: Option<&ProtocolFlowFindingSummary>,
+) -> String {
+    let phases = protocol_flow_phases(flow);
+    let missing_transitions = finding_summary
+        .map(|summary| summary.missing_transitions.as_slice())
+        .unwrap_or(&[]);
+    let suspect_areas = finding_summary
+        .map(|summary| summary.suspect_areas.as_slice())
+        .unwrap_or(&[]);
+    format!(
+        "{{\"program_flow\":{},\"process\":{},\"operation\":\"{}\",\"status\":\"{}\",\"phases\":{},\"last_phase\":{},\"missing_transitions\":{},\"suspect_areas\":{}}}",
+        flow.id.0,
+        process_json(flow.process.as_ref()),
+        operation_label(&flow.operation),
+        protocol_flow_status(finding_summary),
+        string_list_json(&phases),
+        protocol_flow_last_phase(flow)
+            .map(|phase| format!("\"{}\"", phase))
+            .unwrap_or_else(|| "null".into()),
+        string_list_json(missing_transitions),
+        string_list_json(suspect_areas),
+    )
+}
+
+fn protocol_flow_summaries_json(export: &ExportBundle) -> String {
+    let finding_summaries = protocol_flow_finding_summaries(export);
+    format!(
+        "[{}]",
+        export
+            .program_flows
+            .iter()
+            .map(|flow| protocol_flow_summary_item_json(flow, finding_summaries.get(&flow.id)))
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
+fn protocol_flow_summaries_text(export: &ExportBundle) -> String {
+    let locale = UiLocale::detect();
+    if export.program_flows.is_empty() {
+        return locale.none().to_string();
+    }
+    let finding_summaries = protocol_flow_finding_summaries(export);
+    export
+        .program_flows
+        .iter()
+        .map(|flow| {
+            let phases = protocol_flow_phases(flow);
+            let finding_summary = finding_summaries.get(&flow.id);
+            let missing_transitions = finding_summary
+                .map(|summary| summary.missing_transitions.as_slice())
+                .unwrap_or(&[]);
+            let phase_text = if phases.is_empty() {
+                locale.none().to_string()
+            } else {
+                phases.join(">")
+            };
+            let missing_text = if missing_transitions.is_empty() {
+                String::new()
+            } else {
+                format!(" missing={}", missing_transitions.join("|"))
+            };
+            format!(
+                "{}[status={} phases={}{}]",
+                operation_label(&flow.operation),
+                protocol_flow_status(finding_summary),
+                phase_text,
+                missing_text
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 fn summary_json(name: &str, export: &ExportBundle) -> String {
     let suspect_modules = format!(
         "[{}]",
@@ -2948,7 +4318,7 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
             .join(",")
     );
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{}}}",
         export.template_id,
         export.ingest_trust_mode,
         export.debug_summary.fragments_loaded,
@@ -2961,6 +4331,7 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
         export.debug_summary.reasons,
         export.debug_summary.degraded,
         suspect_modules,
+        protocol_flow_summaries_json(export),
     )
 }
 

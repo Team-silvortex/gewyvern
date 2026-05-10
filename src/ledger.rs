@@ -140,6 +140,7 @@ pub enum QuicFrameType {
     Crypto,
     Ack,
     Stream,
+    Datagram,
     ConnectionClose,
 }
 
@@ -153,6 +154,7 @@ pub struct QuicMetaFact {
     pub long_header: bool,
     pub packet_type: Option<QuicPacketType>,
     pub frame_types: Vec<QuicFrameType>,
+    pub payload_bytes: BTreeMap<u16, u8>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

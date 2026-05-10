@@ -109,23 +109,13 @@ pub fn compose_http_transactions(exports: &[ExportBundle]) -> Vec<HttpTransactio
             }
 
             let mut degraded = request.bundle.debug_summary.degraded;
-            let mut severity = request
-                .bundle
-                .module_findings
-                .iter()
-                .map(|finding| finding.severity.clone())
-                .max();
-            let mut suspect_sides = if request.bundle.module_findings.is_empty() {
-                Vec::new()
-            } else {
+            let mut severity = bundle_severity(request.bundle);
+            let mut suspect_sides = if bundle_has_findings(request.bundle) {
                 vec![HttpSuspectSide::Client]
+            } else {
+                Vec::new()
             };
-            let mut finding_summaries = request
-                .bundle
-                .module_findings
-                .iter()
-                .flat_map(|finding| finding.summaries.clone())
-                .collect::<Vec<_>>();
+            let mut finding_summaries = bundle_finding_summaries(request.bundle);
 
             if let Some(dns) = find_related_dns(&views_for_dns(exports), &request) {
                 components.push(HttpComponentRef {
@@ -148,22 +138,10 @@ pub fn compose_http_transactions(exports: &[ExportBundle]) -> Vec<HttpTransactio
                     }),
                 );
                 degraded |= dns.bundle.debug_summary.degraded;
-                severity = max_severity(
-                    severity,
-                    dns.bundle
-                        .module_findings
-                        .iter()
-                        .map(|finding| finding.severity.clone())
-                        .max(),
-                );
-                if !dns.bundle.module_findings.is_empty() {
+                severity = max_severity(severity, bundle_severity(dns.bundle));
+                if bundle_has_findings(dns.bundle) {
                     suspect_sides.push(HttpSuspectSide::Dns);
-                    finding_summaries.extend(
-                        dns.bundle
-                            .module_findings
-                            .iter()
-                            .flat_map(|finding| finding.summaries.clone()),
-                    );
+                    finding_summaries.extend(bundle_finding_summaries(dns.bundle));
                 }
             }
 
@@ -190,24 +168,10 @@ pub fn compose_http_transactions(exports: &[ExportBundle]) -> Vec<HttpTransactio
                     }),
                 );
                 degraded |= server.bundle.debug_summary.degraded;
-                severity = max_severity(
-                    severity,
-                    server
-                        .bundle
-                        .module_findings
-                        .iter()
-                        .map(|finding| finding.severity.clone())
-                        .max(),
-                );
-                if !server.bundle.module_findings.is_empty() {
+                severity = max_severity(severity, bundle_severity(server.bundle));
+                if bundle_has_findings(server.bundle) {
                     suspect_sides.push(HttpSuspectSide::Server);
-                    finding_summaries.extend(
-                        server
-                            .bundle
-                            .module_findings
-                            .iter()
-                            .flat_map(|finding| finding.summaries.clone()),
-                    );
+                    finding_summaries.extend(bundle_finding_summaries(server.bundle));
                 }
                 server.process.clone()
             } else {
@@ -293,10 +257,12 @@ fn bundle_view(bundle: &ExportBundle) -> Option<BundleView<'_>> {
     let flow = bundle.program_flows.first()?;
     let kind = match &flow.operation {
         ProgramOperation::Custom(value) if value == "dns_lookup" => HttpComponentKind::DnsLookup,
-        ProgramOperation::Custom(value) if value == "http_request" => {
+        ProgramOperation::Custom(value) if value == "http_request" || value == "http3_request" => {
             HttpComponentKind::ClientRequest
         }
-        ProgramOperation::Custom(value) if value == "http_server_response" => {
+        ProgramOperation::Custom(value)
+            if value == "http_server_response" || value == "http3_server_response" =>
+        {
             HttpComponentKind::ServerResponse
         }
         _ => return None,
@@ -322,6 +288,36 @@ where
             values.push(value);
         }
     }
+}
+
+fn bundle_has_findings(bundle: &ExportBundle) -> bool {
+    !bundle.module_findings.is_empty() || !bundle.program_findings.is_empty()
+}
+
+fn bundle_finding_summaries(bundle: &ExportBundle) -> Vec<String> {
+    let mut summaries = bundle
+        .module_findings
+        .iter()
+        .flat_map(|finding| finding.summaries.clone())
+        .chain(
+            bundle
+                .program_findings
+                .iter()
+                .map(|finding| finding.summary.clone()),
+        )
+        .collect::<Vec<_>>();
+    summaries.sort();
+    summaries.dedup();
+    summaries
+}
+
+fn bundle_severity(bundle: &ExportBundle) -> Option<ModuleSeverity> {
+    bundle
+        .module_findings
+        .iter()
+        .map(|finding| finding.severity.clone())
+        .max()
+        .or_else(|| (!bundle.program_findings.is_empty()).then_some(ModuleSeverity::Low))
 }
 
 fn max_severity(

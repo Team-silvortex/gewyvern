@@ -1,0 +1,6 @@
+name=hy2_udp_relay
+version=0.5.0
+entry=main.gewy
+register.protocol=hy2
+register.entry=udp
+register.aliases=hy2-udp,hy2-relay,hysteria2-udp
