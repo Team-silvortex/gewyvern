@@ -335,6 +335,18 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
                 mode: "denied",
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_denied_path.gewy",
             },
+            ProtocolEntryProfile {
+                mode: "list",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_passive_list_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "retr",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_retr_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "stor",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_stor_path.gewy",
+            },
         ],
     },
     ProtocolProfile {

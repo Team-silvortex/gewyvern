@@ -185,6 +185,12 @@ pub fn infer_network_module_kind(
         return "mail_session";
     }
     if operation_id.starts_with("ftp_") {
+        if operation_id.contains("list")
+            || operation_id.contains("retr")
+            || operation_id.contains("stor")
+        {
+            return "file_transfer_session";
+        }
         return "authentication_exchange";
     }
     if operation_id.starts_with("ssh_") {

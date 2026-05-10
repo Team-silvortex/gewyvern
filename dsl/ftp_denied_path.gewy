@@ -13,11 +13,15 @@ rule=route_resolved;route_resolved;static:program resolved an upstream route for
 rule=socket_state_observed:remote:ftp;socket_state_transition;static:program initiated or advanced an FTP socket state transition;false;ftp_denied_path;connect
 rule=packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323020;packet_observed;transport_payload_received;true;ftp_denied_path;receive_banner
 rule=packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x55534552;packet_observed;transport_payload_sent;true;ftp_denied_path;send_auth_user
+rule=packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x33333120;packet_observed;transport_payload_received;true;ftp_denied_path;receive_password_required
+rule=packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x50415353;packet_observed;transport_payload_sent;true;ftp_denied_path;send_auth_pass
 rule=packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x35333020;packet_observed;transport_payload_received;true;ftp_denied_path;receive_auth_denied
 reason.rule=process_bound;process_identified;process_bound;true;ftp_denied_path;bind
 reason.rule=route_resolved;route_changed;route_changed;true;ftp_denied_path;resolve_upstream
 reason.rule=socket_state_observed:remote:ftp;state_change;tcp_state_transition;false;ftp_denied_path;connect
 reason.rule=packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323020;packet_observed;transport_payload_received;true;ftp_denied_path;receive_banner
 reason.rule=packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x55534552;packet_observed;transport_payload_sent;true;ftp_denied_path;send_auth_user
+reason.rule=packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x33333120;packet_observed;transport_payload_received;true;ftp_denied_path;receive_password_required
+reason.rule=packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x50415353;packet_observed;transport_payload_sent;true;ftp_denied_path;send_auth_pass
 reason.rule=packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x35333020;packet_observed;transport_payload_received;true;ftp_denied_path;receive_auth_denied
 param=sock_lineage_fragment.capture_comm=true

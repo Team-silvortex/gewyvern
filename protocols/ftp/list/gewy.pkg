@@ -1,0 +1,4 @@
+name=ftp
+mode=list
+version=0.5.6
+entry=main.gewy
