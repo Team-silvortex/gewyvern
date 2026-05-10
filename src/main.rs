@@ -3410,6 +3410,38 @@ mod tests {
         export
     }
 
+    fn push_synthetic_missing_stage_finding(
+        export: &mut gewyvern::export::ExportBundle,
+        flow: &gewyvern::flow::ProgramFlow,
+        module_label: &str,
+        network_module_kind: &str,
+        phase: &str,
+        phase_kind: &str,
+        phase_transition: &str,
+        phase_transition_kind: &str,
+        suspect_area: &str,
+        summary: &str,
+        supporting_fragment: &str,
+        evidence_trace: &str,
+    ) {
+        export.program_findings.push(ProgramFinding {
+            program_flow: flow.id,
+            process: flow.process.clone(),
+            operation: flow.operation.clone(),
+            module_label: module_label.into(),
+            network_module_kind: network_module_kind.into(),
+            phase: Some(phase.into()),
+            phase_kind: Some(phase_kind.into()),
+            phase_transition: Some(phase_transition.into()),
+            phase_transition_kind: Some(phase_transition_kind.into()),
+            suspect_area: suspect_area.into(),
+            cause: ProgramFindingCause::MissingCoreStage,
+            summary: summary.into(),
+            supporting_fragments: vec![supporting_fragment.into()],
+            evidence_trace: vec![evidence_trace.into()],
+        });
+    }
+
     #[test]
     fn http_request_demo_produces_healthy_cross_transport_path() {
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
@@ -4014,6 +4046,7 @@ mod tests {
         assert!(report.contains("primary module:"));
         assert!(report.contains("primary stage:"));
         assert!(report.contains("failure mode:"));
+        assert!(report.contains("failure detail:"));
         assert!(report.contains("suspect modules:"));
         assert!(report.contains("family-request-response"));
         assert!(report.contains("stage-request-response"));
@@ -4119,6 +4152,10 @@ mod tests {
             "send_request->receive_response"
         );
         assert_eq!(crate::primary_failure_mode_for_export(&export), "no_response");
+        assert_eq!(
+            crate::primary_failure_detail_for_export(&export),
+            "request_sent_no_reply"
+        );
         assert_eq!(crate::suspect_modules_for_export(&export), "http_request_path");
     }
 
@@ -4153,22 +4190,20 @@ mod tests {
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
         );
         let flow = export.program_flows[0].clone();
-        export.program_findings.push(ProgramFinding {
-            program_flow: flow.id,
-            process: flow.process.clone(),
-            operation: flow.operation.clone(),
-            module_label: "http_request_path".into(),
-            network_module_kind: "http_request_response".into(),
-            phase: Some("receive_response".into()),
-            phase_kind: Some("receive_payload".into()),
-            phase_transition: Some("send_request->receive_response".into()),
-            phase_transition_kind: Some("emit_payload->receive_payload".into()),
-            suspect_area: "transport_io".into(),
-            cause: ProgramFindingCause::MissingCoreStage,
-            summary: "synthetic missing response".into(),
-            supporting_fragments: vec!["tcp_packet_meta_fragment".into()],
-            evidence_trace: vec!["missing_signal:packet_observed".into()],
-        });
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "http_request_path",
+            "http_request_response",
+            "receive_response",
+            "receive_payload",
+            "send_request->receive_response",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing response",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
         let json = summary_json("dsl_demo", &export);
         assert!(json.contains("\"status\":\"attention\""));
         assert!(json.contains("\"network_module_kind\":\"http_request_response\""));
@@ -4181,11 +4216,13 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"http_request_response\""));
         assert!(json.contains("\"primary_failure_stage\":\"send_request->receive_response\""));
         assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
         assert!(json.contains("\"failure_mode\":\"no_response\""));
+        assert!(json.contains("\"failure_detail\":\"request_sent_no_reply\""));
     }
 
     #[test]
-    fn failure_mode_label_classifies_database_directory_and_quic_families() {
+    fn failure_mode_label_classifies_database_directory_quic_tls_http3_and_hy2_families() {
         assert_eq!(
             crate::failure_mode_label(
                 "attention",
@@ -4213,6 +4250,195 @@ mod tests {
             ),
             "setup_incomplete"
         );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "directory_write",
+                "receive_modify_denied",
+                &[],
+            ),
+            "access_denied"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "quic_handshake",
+                "send_initial->receive_handshake",
+                &[],
+            ),
+            "handshake_incomplete"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "tls_handshake",
+                "connect->establish",
+                &["route_io".into()],
+            ),
+            "route_or_connect_blocked"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "tls_handshake",
+                "send_client_hello->receive_server_hello",
+                &[],
+            ),
+            "handshake_incomplete"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "http3_request_response",
+                "send_request_stream->receive_response_stream",
+                &["transport_io".into()],
+            ),
+            "request_sent_no_reply"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "proxy_authentication",
+                "send_auth_request_stream->receive_auth_ok_stream",
+                &["transport_io".into()],
+            ),
+            "request_sent_no_reply"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "proxy_udp_relay",
+                "send_udp_relay_datagram->receive_udp_relay_datagram",
+                &["transport_io".into()],
+            ),
+            "request_sent_no_reply"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "proxy_tcp_relay",
+                "send_tcp_request_stream->receive_tcp_response_stream",
+                &["transport_io".into()],
+            ),
+            "request_sent_no_reply"
+        );
+    }
+
+    #[test]
+    fn summary_json_carries_modern_protocol_failure_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy")
+            .expect("http3_request_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "http3_request_path",
+            "http3_request_response",
+            "receive_response_stream",
+            "receive_payload",
+            "send_request_stream->receive_response_stream",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing http3 response",
+            "quic_frame_meta_fragment",
+            "missing_signal:quic_frame_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"http3_request_response\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+        assert!(json.contains("\"failure_detail\":\"request_sent_no_reply\""));
+    }
+
+    #[test]
+    fn summary_json_carries_tls_handshake_incomplete_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+            .expect("tls_client_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "tls_client_path",
+            "tls_handshake",
+            "receive_server_hello",
+            "receive_payload",
+            "send_client_hello->receive_server_hello",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing tls server hello",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"tls_handshake\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"handshake_incomplete\""));
+    }
+
+    #[test]
+    fn summary_json_carries_http3_request_timeout_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy")
+            .expect("http3_request_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "http3_request_path",
+            "http3_request_response",
+            "receive_response_stream",
+            "receive_payload",
+            "send_request_stream->receive_response_stream",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing http3 response",
+            "quic_frame_meta_fragment",
+            "missing_signal:quic_frame_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"http3_request_response\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+    }
+
+    #[test]
+    fn summary_json_carries_hy2_auth_timeout_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy")
+            .expect("hy2_auth_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "hy2_auth_path",
+            "proxy_authentication",
+            "receive_auth_ok_stream",
+            "receive_payload",
+            "send_auth_request_stream->receive_auth_ok_stream",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing hy2 auth ok",
+            "quic_frame_meta_fragment",
+            "missing_signal:quic_frame_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"proxy_authentication\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
     }
 
     #[test]
@@ -4224,22 +4450,20 @@ mod tests {
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
         );
         let flow = export.program_flows[0].clone();
-        export.program_findings.push(ProgramFinding {
-            program_flow: flow.id,
-            process: flow.process.clone(),
-            operation: flow.operation.clone(),
-            module_label: "http_request_path".into(),
-            network_module_kind: "http_request_response".into(),
-            phase: Some("receive_response".into()),
-            phase_kind: Some("receive_payload".into()),
-            phase_transition: Some("send_request->receive_response".into()),
-            phase_transition_kind: Some("emit_payload->receive_payload".into()),
-            suspect_area: "transport_io".into(),
-            cause: ProgramFindingCause::MissingCoreStage,
-            summary: "synthetic missing response".into(),
-            supporting_fragments: vec!["tcp_packet_meta_fragment".into()],
-            evidence_trace: vec!["missing_signal:packet_observed".into()],
-        });
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "http_request_path",
+            "http_request_response",
+            "receive_response",
+            "receive_payload",
+            "send_request->receive_response",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing response",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
         export.module_findings = vec![gewyvern::flow::ModuleFinding {
             module_label: "http_request_path".into(),
             process: flow.process.clone(),
@@ -4264,6 +4488,7 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"http_request_response\""));
         assert!(json.contains("\"primary_failure_stage\":\"send_request->receive_response\""));
         assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
     }
 
     #[test]
@@ -4580,6 +4805,7 @@ struct ProcessNetworkProfileSummary {
     primary_failure_stage: String,
     primary_stage_family: String,
     primary_failure_mode: String,
+    primary_failure_detail: String,
     operations: Vec<String>,
     module_kinds: Vec<String>,
     phases: Vec<String>,
@@ -4770,6 +4996,110 @@ fn failure_mode_family_label(mode: &str) -> &'static str {
     }
 }
 
+fn failure_detail_label(
+    status: &str,
+    module_kind: &str,
+    primary_stage: &str,
+    suspect_areas: &[String],
+) -> &'static str {
+    if status != "attention" {
+        return "none";
+    }
+
+    let stage = primary_stage.to_ascii_lowercase();
+    let module = module_kind.to_ascii_lowercase();
+
+    if stage.contains("constraint") {
+        return "protocol_constraint_violation";
+    }
+    if stage.contains("denied") {
+        return "access_denied";
+    }
+    if stage.contains("error") || module.contains("error") {
+        return "protocol_error";
+    }
+    if stage.contains("close") {
+        return "peer_closed";
+    }
+    if stage.contains("resolve") || stage.contains("dns") {
+        return "dns_unresolved";
+    }
+    if stage.contains("connect")
+        || stage.contains("establish")
+        || suspect_areas.iter().any(|area| area == "route_io")
+    {
+        return "route_or_connect_blocked";
+    }
+    if stage.contains("tls")
+        || stage.contains("hello")
+        || stage.contains("crypto")
+        || stage.contains("handshake")
+    {
+        return "handshake_incomplete";
+    }
+    if let Some((left, right)) = stage.split_once("->") {
+        if left.starts_with("send")
+            && (right.starts_with("receive")
+                || right.contains("response")
+                || right.contains("result")
+                || right.contains("ack")
+                || right.contains("accept")
+                || right.contains("offer")
+                || right.contains("ready")
+                || right.contains("ok"))
+        {
+            return "request_sent_no_reply";
+        }
+        if left.starts_with("receive")
+            && (right.starts_with("send")
+                || right.contains("request")
+                || right.contains("query")
+                || right.contains("publish")
+                || right.contains("auth")
+                || right.contains("password")
+                || right.contains("relay")
+                || right.contains("stream"))
+        {
+            return "followup_not_sent";
+        }
+    }
+    if stage.starts_with("send_")
+        || stage.contains("request")
+        || stage.contains("query")
+        || stage.contains("publish")
+        || stage.contains("relay")
+        || stage.contains("stream")
+    {
+        return "request_not_sent";
+    }
+    if stage.starts_with("receive_")
+        || stage.contains("response")
+        || stage.contains("result")
+        || stage.contains("ack")
+        || stage.contains("ready")
+        || stage.contains("ok")
+        || suspect_areas.iter().any(|area| area == "transport_io")
+    {
+        return "request_sent_no_reply";
+    }
+    "attention"
+}
+
+fn failure_detail_family_label(detail: &str) -> &'static str {
+    match detail {
+        "dns_unresolved" => "dns",
+        "route_or_connect_blocked" => "connect",
+        "handshake_incomplete" => "handshake",
+        "request_sent_no_reply" => "timeout",
+        "request_not_sent" | "followup_not_sent" => "blocked",
+        "protocol_error" | "protocol_constraint_violation" => "semantic",
+        "access_denied" => "denied",
+        "peer_closed" => "peer",
+        "none" => "none",
+        _ => "general",
+    }
+}
+
 #[derive(Clone, Copy)]
 enum ScanTargetStatus {
     Idle,
@@ -4862,6 +5192,27 @@ fn protocol_flow_failure_mode(
     failure_mode_label(status, module_kind, &primary_stage, suspect_areas).to_string()
 }
 
+fn protocol_flow_failure_detail(
+    flow: &gewyvern::flow::ProgramFlow,
+    finding_summary: Option<&ProtocolFlowFindingSummary>,
+) -> String {
+    let status = protocol_flow_status(finding_summary);
+    let last_phase = protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into());
+    let module_kind = gewyvern::flow::infer_network_module_kind(
+        &flow.operation,
+        Some(&last_phase),
+        None,
+        "network_module",
+    );
+    let primary_stage = finding_summary
+        .and_then(|summary| summary.missing_transitions.first().cloned())
+        .unwrap_or(last_phase);
+    let suspect_areas = finding_summary
+        .map(|summary| summary.suspect_areas.as_slice())
+        .unwrap_or(&[]);
+    failure_detail_label(status, module_kind, &primary_stage, suspect_areas).to_string()
+}
+
 fn protocol_flow_summary_item_json(
     flow: &gewyvern::flow::ProgramFlow,
     finding_summary: Option<&ProtocolFlowFindingSummary>,
@@ -4883,8 +5234,9 @@ fn protocol_flow_summary_item_json(
         .map(|summary| summary.suspect_areas.as_slice())
         .unwrap_or(&[]);
     let failure_mode = protocol_flow_failure_mode(flow, finding_summary);
+    let failure_detail = protocol_flow_failure_detail(flow, finding_summary);
     format!(
-        "{{\"program_flow\":{},\"process\":{},\"operation\":\"{}\",\"network_module_kind\":\"{}\",\"network_module_kinds\":{},\"status\":\"{}\",\"failure_mode\":\"{}\",\"failure_mode_family\":\"{}\",\"phases\":{},\"last_phase\":{},\"missing_transitions\":{},\"suspect_areas\":{}}}",
+        "{{\"program_flow\":{},\"process\":{},\"operation\":\"{}\",\"network_module_kind\":\"{}\",\"network_module_kinds\":{},\"status\":\"{}\",\"failure_mode\":\"{}\",\"failure_mode_family\":\"{}\",\"failure_detail\":\"{}\",\"failure_detail_family\":\"{}\",\"phases\":{},\"last_phase\":{},\"missing_transitions\":{},\"suspect_areas\":{}}}",
         flow.id.0,
         process_json(flow.process.as_ref()),
         operation_label(&flow.operation),
@@ -4897,6 +5249,8 @@ fn protocol_flow_summary_item_json(
         protocol_flow_status(finding_summary),
         failure_mode,
         failure_mode_family_label(&failure_mode),
+        failure_detail,
+        failure_detail_family_label(&failure_detail),
         string_list_json(&phases),
         protocol_flow_last_phase(flow)
             .map(|phase| format!("\"{}\"", phase))
@@ -4951,12 +5305,14 @@ fn protocol_flow_summaries_text(export: &ExportBundle) -> String {
                 format!(" missing={}", missing_transitions.join("|"))
             };
             let failure_mode = protocol_flow_failure_mode(flow, finding_summary);
+            let failure_detail = protocol_flow_failure_detail(flow, finding_summary);
             format!(
-                "{}[kind={} status={} failure_mode={} phases={}{}]",
+                "{}[kind={} status={} failure_mode={} failure_detail={} phases={}{}]",
                 operation_label(&flow.operation),
                 network_module_kind,
                 protocol_flow_status(finding_summary),
                 failure_mode,
+                failure_detail,
                 phase_text,
                 missing_text
             )
@@ -4988,6 +5344,7 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
                 primary_failure_stage: "none".into(),
                 primary_stage_family: "none".into(),
                 primary_failure_mode: "none".into(),
+                primary_failure_detail: "none".into(),
                 ..Default::default()
             });
 
@@ -5075,6 +5432,7 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
                 primary_failure_stage: "none".into(),
                 primary_stage_family: "none".into(),
                 primary_failure_mode: "none".into(),
+                primary_failure_detail: "none".into(),
                 ..Default::default()
             });
         entry.status = "attention".into();
@@ -5132,6 +5490,13 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
             &profile.suspect_areas,
         )
         .to_string();
+        profile.primary_failure_detail = failure_detail_label(
+            &profile.status,
+            &profile.primary_module_kind,
+            &profile.primary_failure_stage,
+            &profile.suspect_areas,
+        )
+        .to_string();
         if let Some(primary_suspect_module) = best_scored_value(&suspect_module_scores, &key) {
             if let Some(index) = profile
                 .suspect_modules
@@ -5153,7 +5518,7 @@ fn process_network_profiles_json(export: &ExportBundle) -> String {
         process_network_profile_summaries(export)
             .into_iter()
             .map(|profile| format!(
-                "{{\"pid\":{},\"comm\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"operations\":{},\"module_kinds\":{},\"phases\":{},\"missing_transitions\":{},\"suspect_areas\":{},\"suspect_modules\":{},\"healthy_flows\":{},\"attention_flows\":{}}}",
+                "{{\"pid\":{},\"comm\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"operations\":{},\"module_kinds\":{},\"phases\":{},\"missing_transitions\":{},\"suspect_areas\":{},\"suspect_modules\":{},\"healthy_flows\":{},\"attention_flows\":{}}}",
                 profile.pid,
                 profile.comm,
                 profile.status,
@@ -5163,6 +5528,8 @@ fn process_network_profiles_json(export: &ExportBundle) -> String {
                 profile.primary_stage_family,
                 profile.primary_failure_mode,
                 failure_mode_family_label(&profile.primary_failure_mode),
+                profile.primary_failure_detail,
+                failure_detail_family_label(&profile.primary_failure_detail),
                 string_list_json(&profile.operations),
                 string_list_json(&profile.module_kinds),
                 string_list_json(&profile.phases),
@@ -5202,13 +5569,14 @@ fn process_network_profiles_text(export: &ExportBundle) -> String {
                 format!(" missing={}", profile.missing_transitions.join("|"))
             };
             format!(
-                "{}(pid={})[status={} primary_kind={} primary_stage={} failure_mode={} kinds={} healthy={} attention={} phases={}{}]",
+                "{}(pid={})[status={} primary_kind={} primary_stage={} failure_mode={} failure_detail={} kinds={} healthy={} attention={} phases={}{}]",
                 profile.comm,
                 profile.pid,
                 profile.status,
                 profile.primary_module_kind,
                 profile.primary_failure_stage,
                 profile.primary_failure_mode,
+                profile.primary_failure_detail,
                 kinds,
                 profile.healthy_flows,
                 profile.attention_flows,
@@ -5302,6 +5670,23 @@ fn primary_failure_mode_for_export(export: &ExportBundle) -> String {
     .to_string()
 }
 
+fn primary_failure_detail_for_export(export: &ExportBundle) -> String {
+    if let Some(profile) = primary_process_profile_for_export(export) {
+        return profile.primary_failure_detail;
+    }
+    failure_detail_label(
+        scan_target_status(export).label(),
+        &primary_module_kind_for_export(export),
+        &primary_failure_stage_for_export(export),
+        &export
+            .program_findings
+            .iter()
+            .map(|finding| finding.suspect_area.clone())
+            .collect::<Vec<_>>(),
+    )
+    .to_string()
+}
+
 fn suspect_modules_for_export(export: &ExportBundle) -> String {
     if let Some(profile) = primary_process_profile_for_export(export) {
         if !profile.suspect_modules.is_empty() {
@@ -5350,8 +5735,9 @@ fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
             let primary_module_kind = primary_module_kind_for_export(export);
             let primary_failure_stage = primary_failure_stage_for_export(export);
             let primary_failure_mode = primary_failure_mode_for_export(export);
+            let primary_failure_detail = primary_failure_detail_for_export(export);
             format!(
-                "{{\"target\":\"{}\",\"template_id\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"suspect_modules\":\"{}\",\"program_flows\":{},\"program_findings\":{},\"module_findings\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
+                "{{\"target\":\"{}\",\"template_id\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"suspect_modules\":\"{}\",\"program_flows\":{},\"program_findings\":{},\"module_findings\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
                 name,
                 export.template_id,
                 scan_target_status(export).label(),
@@ -5361,6 +5747,8 @@ fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
                 stage_family_label(&primary_failure_stage),
                 primary_failure_mode,
                 failure_mode_family_label(&primary_failure_mode),
+                primary_failure_detail,
+                failure_detail_family_label(&primary_failure_detail),
                 suspect_modules_for_export(export),
                 export.program_flows.len(),
                 export.program_findings.len(),
@@ -5459,7 +5847,7 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 .map(|profile| {
                     let suspect_modules = first_or_none(&profile.suspect_modules);
                     format!(
-                        "<li><strong>{}</strong> (pid={}): status={} <span class=\"tag family-{}\">{}</span> <span class=\"tag stage-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> suspect_module={} kinds={} healthy_flows={} attention_flows={} phases={} missing={}</li>",
+                        "<li><strong>{}</strong> (pid={}): status={} <span class=\"tag family-{}\">{}</span> <span class=\"tag stage-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> suspect_module={} kinds={} healthy_flows={} attention_flows={} phases={} missing={}</li>",
                         html_escape(&profile.comm),
                         profile.pid,
                         html_escape(&profile.status),
@@ -5469,6 +5857,8 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                         html_escape(&profile.primary_failure_stage),
                         html_escape(failure_mode_family_label(&profile.primary_failure_mode)),
                         html_escape(&profile.primary_failure_mode),
+                        html_escape(failure_detail_family_label(&profile.primary_failure_detail)),
+                        html_escape(&profile.primary_failure_detail),
                         html_escape(&suspect_modules),
                         html_escape(&profile.module_kinds.join(" | ")),
                         profile.healthy_flows,
@@ -5482,6 +5872,7 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
             let primary_module_kind = primary_module_kind_for_export(export);
             let primary_failure_stage = primary_failure_stage_for_export(export);
             let primary_failure_mode = primary_failure_mode_for_export(export);
+            let primary_failure_detail = primary_failure_detail_for_export(export);
             let suspect_modules = suspect_modules_for_export(export);
             let primary_module_family = module_family_label(&primary_module_kind);
             let primary_stage_family = stage_family_label(&primary_failure_stage);
@@ -5494,19 +5885,23 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                     let phase_text = protocol_flow_phases(flow).join(" > ");
                     let failure_mode =
                         protocol_flow_failure_mode(flow, flow_finding_summaries.get(&flow.id));
+                    let failure_detail =
+                        protocol_flow_failure_detail(flow, flow_finding_summaries.get(&flow.id));
                     format!(
-                        "<li>{}: last_phase={} <span class=\"tag failure-{}\">{}</span> phases={}</li>",
+                        "<li>{}: last_phase={} <span class=\"tag failure-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> phases={}</li>",
                         html_escape(&operation_label(&flow.operation)),
                         html_escape(&protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into())),
                         html_escape(failure_mode_family_label(&failure_mode)),
                         html_escape(&failure_mode),
+                        html_escape(failure_detail_family_label(&failure_detail)),
+                        html_escape(&failure_detail),
                         html_escape(&phase_text),
                     )
                 })
                 .collect::<Vec<_>>()
                 .join("");
             format!(
-                "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><h3>Process Profiles</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
+                "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><h3>Process Profiles</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
                 html_escape(name),
                 status,
                 export.program_flows.len(),
@@ -5518,6 +5913,8 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 html_escape(&primary_failure_stage),
                 primary_failure_mode_family,
                 html_escape(&primary_failure_mode),
+                failure_detail_family_label(&primary_failure_detail),
+                html_escape(&primary_failure_detail),
                 html_escape(&suspect_modules),
                 profiles,
                 flow_lines,
@@ -5591,6 +5988,7 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
     let primary_module_kind = primary_module_kind_for_export(export);
     let primary_failure_stage = primary_failure_stage_for_export(export);
     let primary_failure_mode = primary_failure_mode_for_export(export);
+    let primary_failure_detail = primary_failure_detail_for_export(export);
     let suspect_modules = format!(
         "[{}]",
         export
@@ -5601,7 +5999,7 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
             .join(",")
     );
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
         export.template_id,
         export.ingest_trust_mode,
         primary_module_kind,
@@ -5610,6 +6008,8 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
         stage_family_label(&primary_failure_stage),
         primary_failure_mode,
         failure_mode_family_label(&primary_failure_mode),
+        primary_failure_detail,
+        failure_detail_family_label(&primary_failure_detail),
         export.debug_summary.fragments_loaded,
         export.debug_summary.hookpoints_failed,
         export.debug_summary.accepted_facts,
@@ -5696,8 +6096,9 @@ fn findings_json(name: &str, export: &ExportBundle) -> String {
     let primary_module_kind = primary_module_kind_for_export(export);
     let primary_failure_stage = primary_failure_stage_for_export(export);
     let primary_failure_mode = primary_failure_mode_for_export(export);
+    let primary_failure_detail = primary_failure_detail_for_export(export);
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
         export.template_id,
         primary_module_kind,
         module_family_label(&primary_module_kind),
@@ -5705,6 +6106,8 @@ fn findings_json(name: &str, export: &ExportBundle) -> String {
         stage_family_label(&primary_failure_stage),
         primary_failure_mode,
         failure_mode_family_label(&primary_failure_mode),
+        primary_failure_detail,
+        failure_detail_family_label(&primary_failure_detail),
         export
             .module_findings
             .iter()
