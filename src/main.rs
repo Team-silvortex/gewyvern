@@ -4795,6 +4795,15 @@ mod tests {
         assert_eq!(
             crate::failure_mode_label(
                 "attention",
+                "proxy_authentication",
+                "receive_auth_required",
+                &[],
+            ),
+            "server_denied"
+        );
+        assert_eq!(
+            crate::failure_mode_label(
+                "attention",
                 "quic_handshake",
                 "send_initial->receive_handshake",
                 &[],
@@ -4854,6 +4863,15 @@ mod tests {
                 &[],
             ),
             "access_denied"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "proxy_authentication",
+                "receive_auth_required",
+                &[],
+            ),
+            "auth_required"
         );
         assert_eq!(
             crate::failure_detail_label(
@@ -5281,6 +5299,107 @@ mod tests {
         );
         let json = summary_json("dsl_demo", &export);
         assert!(json.contains("\"primary_module_kind\":\"remote_access_authentication\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+    }
+
+    #[test]
+    fn summary_json_carries_ssh_channel_timeout_detail() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_channel_session_path.gewy")
+                .expect("ssh_channel_session_path DSL should compile");
+        let mut export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 8290, 53029, "ssh-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        8290,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 8290, 1, 2, 53029, 22),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        8290,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53029),
+                        Some(22),
+                        Some(0x53),
+                        Some(0x5353),
+                        Some(0x5353482d),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        8290,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53029),
+                        Some(22),
+                        Some(0x53),
+                        Some(0x5353),
+                        Some(0x5353482d),
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        6,
+                        8290,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53029),
+                        Some(22),
+                        &[(0, 0x00), (4, 0x10), (5, 0x14)],
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        7,
+                        8290,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53029),
+                        Some(22),
+                        &[(0, 0x00), (4, 0x10), (5, 0x32)],
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        8,
+                        8290,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53029),
+                        Some(22),
+                        &[(0, 0x00), (4, 0x10), (5, 0x34)],
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        9,
+                        8290,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53029),
+                        Some(22),
+                        &[(0, 0x00), (4, 0x10), (5, 0x5a)],
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "ssh_channel_session_path",
+            "remote_access_session",
+            "receive_channel_open_confirmation",
+            "receive_payload",
+            "send_channel_open->receive_channel_open_confirmation",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing ssh channel open confirmation",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"remote_access_session\""));
         assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
         assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
     }
@@ -5938,6 +6057,89 @@ mod tests {
     }
 
     #[test]
+    fn summary_json_carries_socks5_auth_connect_denied_detail() {
+        let binding = compile_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_connect_denied_path.gewy",
+        )
+        .expect("socks5_auth_connect_denied_path DSL should compile");
+        let export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 82831, 53186, "proxy-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        82831,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 82831, 1, 2, 53186, 1080),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        4,
+                        82831,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53186),
+                        Some(1080),
+                        &[(0, 0x05), (1, 0x01), (2, 0x02)],
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        5,
+                        82831,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53186),
+                        Some(1080),
+                        &[(0, 0x05), (1, 0x02)],
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        6,
+                        82831,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53186),
+                        Some(1080),
+                        &[(0, 0x01), (1, 0x01)],
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        7,
+                        82831,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53186),
+                        Some(1080),
+                        &[(0, 0x01), (1, 0x00)],
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        8,
+                        82831,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53186),
+                        Some(1080),
+                        &[(0, 0x05), (1, 0x01), (2, 0x00), (3, 0x03)],
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        9,
+                        82831,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53186),
+                        Some(1080),
+                        &[(0, 0x05), (1, 0x05), (2, 0x00), (3, 0x01)],
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"proxy_negotiation\""));
+        assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
+        assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));
+    }
+
+    #[test]
     fn summary_json_carries_http_connect_timeout_detail() {
         let binding =
             compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy")
@@ -5997,6 +6199,57 @@ mod tests {
             "json={}",
             json
         );
+    }
+
+    #[test]
+    fn summary_json_carries_http_connect_auth_required_detail() {
+        let binding = compile_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_auth_required_path.gewy",
+        )
+        .expect("http_connect_auth_required_path DSL should compile");
+        let export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 82840, 53185, "proxy-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        82840,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 82840, 1, 2, 53185, 8080),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        82840,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53185),
+                        Some(8080),
+                        Some(0x43),
+                        Some(0x434f),
+                        Some(0x434f4e4e),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        82840,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53185),
+                        Some(8080),
+                        Some(0x34),
+                        Some(0x3430),
+                        Some(0x34303720),
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"proxy_authentication\""));
+        assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
+        assert!(json.contains("\"primary_failure_detail\":\"auth_required\""));
     }
 
     #[test]
@@ -6550,7 +6803,7 @@ fn failure_mode_label(
     let stage = primary_stage.to_ascii_lowercase();
     let module = module_kind.to_ascii_lowercase();
 
-    if stage.contains("denied") {
+    if stage.contains("denied") || stage.contains("auth_required") {
         return "server_denied";
     }
     if stage.contains("constraint") || stage.contains("error") || module.contains("error") {
@@ -6571,12 +6824,14 @@ fn failure_mode_label(
                 || left.contains("list")
                 || left.contains("relay")
                 || left.contains("stream")
+                || left.contains("channel")
                 || left.contains("greeting"))
             && (right.starts_with("receive")
                 || right.contains("response")
                 || right.contains("result")
                 || right.contains("ack")
                 || right.contains("accept")
+                || right.contains("confirmation")
                 || right.contains("offer")
                 || right.contains("ready")
                 || right.contains("transfer")
@@ -6597,7 +6852,8 @@ fn failure_mode_label(
                 || right.contains("pasv")
                 || right.contains("list")
                 || right.contains("relay")
-                || right.contains("stream"))
+                || right.contains("stream")
+                || right.contains("channel"))
         {
             return "not_sent";
         }
@@ -6632,12 +6888,14 @@ fn failure_mode_label(
         || stage.contains("pasv")
         || stage.contains("relay")
         || stage.contains("stream")
+        || stage.contains("channel")
     {
         return "not_sent";
     }
     if stage.starts_with("receive_")
         || stage.contains("response")
         || stage.contains("result")
+        || stage.contains("confirmation")
         || stage.contains("transfer")
         || stage.contains("ack")
         || stage.contains("ready")
@@ -6683,6 +6941,9 @@ fn failure_detail_label(
     if stage.contains("constraint") {
         return "protocol_constraint_violation";
     }
+    if stage.contains("auth_required") {
+        return "auth_required";
+    }
     if stage.contains("denied") {
         return "access_denied";
     }
@@ -6704,12 +6965,14 @@ fn failure_detail_label(
                 || left.contains("list")
                 || left.contains("relay")
                 || left.contains("stream")
+                || left.contains("channel")
                 || left.contains("greeting"))
             && (right.starts_with("receive")
                 || right.contains("response")
                 || right.contains("result")
                 || right.contains("ack")
                 || right.contains("accept")
+                || right.contains("confirmation")
                 || right.contains("offer")
                 || right.contains("ready")
                 || right.contains("transfer")
@@ -6730,7 +6993,8 @@ fn failure_detail_label(
                 || right.contains("pasv")
                 || right.contains("list")
                 || right.contains("relay")
-                || right.contains("stream"))
+                || right.contains("stream")
+                || right.contains("channel"))
         {
             return "followup_not_sent";
         }
@@ -6771,12 +7035,14 @@ fn failure_detail_label(
         || stage.contains("pasv")
         || stage.contains("relay")
         || stage.contains("stream")
+        || stage.contains("channel")
     {
         return "request_not_sent";
     }
     if stage.starts_with("receive_")
         || stage.contains("response")
         || stage.contains("result")
+        || stage.contains("confirmation")
         || stage.contains("transfer")
         || stage.contains("ack")
         || stage.contains("ready")
@@ -6796,7 +7062,7 @@ fn failure_detail_family_label(detail: &str) -> &'static str {
         "request_sent_no_reply" => "timeout",
         "request_not_sent" | "followup_not_sent" => "blocked",
         "protocol_error" | "protocol_constraint_violation" => "semantic",
-        "access_denied" => "denied",
+        "access_denied" | "auth_required" => "denied",
         "peer_closed" => "peer",
         "none" => "none",
         _ => "general",
@@ -6837,6 +7103,20 @@ fn protocol_flow_last_phase(flow: &gewyvern::flow::ProgramFlow) -> Option<String
         .find_map(|stage| stage.phase.clone())
 }
 
+fn terminal_failure_phase(phase: &str) -> bool {
+    let phase = phase.to_ascii_lowercase();
+    phase.contains("denied")
+        || phase.contains("auth_required")
+        || phase.contains("constraint")
+        || phase.contains("error")
+}
+
+fn protocol_flow_has_terminal_failure(flow: &gewyvern::flow::ProgramFlow) -> bool {
+    protocol_flow_last_phase(flow)
+        .as_deref()
+        .is_some_and(terminal_failure_phase)
+}
+
 fn protocol_flow_finding_summaries(
     export: &ExportBundle,
 ) -> HashMap<ProgramFlowId, ProtocolFlowFindingSummary> {
@@ -6864,8 +7144,13 @@ fn protocol_flow_finding_summaries(
     summaries
 }
 
-fn protocol_flow_status(finding_summary: Option<&ProtocolFlowFindingSummary>) -> &'static str {
-    if finding_summary.is_some_and(|summary| summary.has_findings) {
+fn protocol_flow_status(
+    flow: &gewyvern::flow::ProgramFlow,
+    finding_summary: Option<&ProtocolFlowFindingSummary>,
+) -> &'static str {
+    if finding_summary.is_some_and(|summary| summary.has_findings)
+        || protocol_flow_has_terminal_failure(flow)
+    {
         "attention"
     } else {
         "healthy"
@@ -6876,7 +7161,7 @@ fn protocol_flow_failure_mode(
     flow: &gewyvern::flow::ProgramFlow,
     finding_summary: Option<&ProtocolFlowFindingSummary>,
 ) -> String {
-    let status = protocol_flow_status(finding_summary);
+    let status = protocol_flow_status(flow, finding_summary);
     let last_phase = protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into());
     let module_kind = gewyvern::flow::infer_network_module_kind(
         &flow.operation,
@@ -6897,7 +7182,7 @@ fn protocol_flow_failure_detail(
     flow: &gewyvern::flow::ProgramFlow,
     finding_summary: Option<&ProtocolFlowFindingSummary>,
 ) -> String {
-    let status = protocol_flow_status(finding_summary);
+    let status = protocol_flow_status(flow, finding_summary);
     let last_phase = protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into());
     let module_kind = gewyvern::flow::infer_network_module_kind(
         &flow.operation,
@@ -6947,7 +7232,7 @@ fn protocol_flow_summary_item_json(
         } else {
             string_list_json(network_module_kinds)
         },
-        protocol_flow_status(finding_summary),
+        protocol_flow_status(flow, finding_summary),
         failure_mode,
         failure_mode_family_label(&failure_mode),
         failure_detail,
@@ -7011,7 +7296,7 @@ fn protocol_flow_summaries_text(export: &ExportBundle) -> String {
                 "{}[kind={} status={} failure_mode={} failure_detail={} phases={}{}]",
                 operation_label(&flow.operation),
                 network_module_kind,
-                protocol_flow_status(finding_summary),
+                protocol_flow_status(flow, finding_summary),
                 failure_mode,
                 failure_detail,
                 phase_text,
@@ -7107,6 +7392,12 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
                         entry.suspect_areas.push(suspect_area.clone());
                     }
                 }
+            }
+            _ if protocol_flow_has_terminal_failure(flow) => {
+                entry.attention_flows += 1;
+                entry.status = "attention".into();
+                bump_score(&mut module_scores, &key, &inferred_kind, 10);
+                bump_score(&mut stage_scores, &key, &last_phase, 10);
             }
             _ => {
                 entry.healthy_flows += 1;
@@ -7409,7 +7700,12 @@ fn suspect_modules_for_export(export: &ExportBundle) -> String {
 fn scan_target_status(export: &ExportBundle) -> ScanTargetStatus {
     if export.program_flows.is_empty() {
         ScanTargetStatus::Idle
-    } else if export.program_findings.is_empty() {
+    } else if export.program_findings.is_empty()
+        && !export
+            .program_flows
+            .iter()
+            .any(protocol_flow_has_terminal_failure)
+    {
         ScanTargetStatus::Healthy
     } else {
         ScanTargetStatus::Attention

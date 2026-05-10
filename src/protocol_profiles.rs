@@ -91,6 +91,10 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
                 mode: "denied",
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_denied_path.gewy",
             },
+            ProtocolEntryProfile {
+                mode: "auth-required",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_auth_required_path.gewy",
+            },
         ],
     },
     ProtocolProfile {
@@ -385,6 +389,10 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
                 mode: "auth-denied",
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_denied_path.gewy",
             },
+            ProtocolEntryProfile {
+                mode: "channel",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssh_channel_session_path.gewy",
+            },
         ],
     },
     ProtocolProfile {
@@ -402,6 +410,10 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
             ProtocolEntryProfile {
                 mode: "auth-denied",
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_denied_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "auth-connect-denied",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_connect_denied_path.gewy",
             },
             ProtocolEntryProfile {
                 mode: "denied",

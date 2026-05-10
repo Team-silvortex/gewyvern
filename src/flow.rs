@@ -117,6 +117,9 @@ pub fn infer_network_module_kind(
         return "http3_request_response";
     }
     if operation_id.starts_with("http_connect_") {
+        if operation_id.contains("auth") {
+            return "proxy_authentication";
+        }
         return "proxy_tunnel_establishment";
     }
     if operation_id.starts_with("http_") {
@@ -200,6 +203,9 @@ pub fn infer_network_module_kind(
         return "remote_access_session";
     }
     if operation_id.starts_with("socks5_") {
+        if operation_id.contains("auth_connect") {
+            return "proxy_negotiation";
+        }
         if operation_id.contains("auth") {
             return "proxy_authentication";
         }
