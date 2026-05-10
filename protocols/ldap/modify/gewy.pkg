@@ -1,5 +1,5 @@
 name=ldap_modify
-version=0.5.0
+version=0.5.6
 entry=main.gewy
 register.protocol=ldap
 register.entry=modify

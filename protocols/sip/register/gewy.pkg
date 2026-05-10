@@ -1,5 +1,5 @@
 name=sip_register
-version=0.5.0
+version=0.5.6
 entry=main.gewy
 register.protocol=sip
 register.entry=register

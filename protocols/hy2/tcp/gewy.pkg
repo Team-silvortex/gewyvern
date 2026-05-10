@@ -1,5 +1,5 @@
 name=hy2_tcp_relay
-version=0.5.0
+version=0.5.6
 entry=main.gewy
 register.protocol=hy2
 register.entry=tcp

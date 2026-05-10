@@ -4013,10 +4013,15 @@ mod tests {
         assert!(report.contains("Process Profiles"));
         assert!(report.contains("primary module:"));
         assert!(report.contains("primary stage:"));
+        assert!(report.contains("failure mode:"));
         assert!(report.contains("suspect modules:"));
         assert!(report.contains("family-request-response"));
         assert!(report.contains("stage-request-response"));
+        assert!(report.contains("failure-none"));
+        assert!(report.contains("last_phase=receive_response"));
         assert!(report.contains("request-response</span> 1"));
+        assert!(report.contains("attention targets are shown first"));
+        assert!(report.contains("<details class=\"card status-healthy\">"));
     }
 
     #[test]
@@ -4039,6 +4044,82 @@ mod tests {
         let rendered = render_report_outputs(&cli, &[("scan:mysql:session".to_string(), export)]);
         assert!(rendered.contains("<!DOCTYPE html>"));
         assert!(rendered.contains("scan:mysql:session"));
+    }
+
+    #[test]
+    fn scan_report_html_expands_attention_targets_by_default() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let mut attention_export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = attention_export.program_flows[0].clone();
+        attention_export.program_findings.push(ProgramFinding {
+            program_flow: flow.id,
+            process: flow.process.clone(),
+            operation: flow.operation.clone(),
+            module_label: "http_request_path".into(),
+            network_module_kind: "http_request_response".into(),
+            phase: Some("receive_response".into()),
+            phase_kind: Some("receive_payload".into()),
+            phase_transition: Some("send_request->receive_response".into()),
+            phase_transition_kind: Some("emit_payload->receive_payload".into()),
+            suspect_area: "transport_io".into(),
+            cause: ProgramFindingCause::MissingCoreStage,
+            summary: "synthetic missing response".into(),
+            supporting_fragments: vec!["tcp_packet_meta_fragment".into()],
+            evidence_trace: vec!["missing_signal:packet_observed".into()],
+        });
+        let report = scan_report_html(&[("scan:http:attention".to_string(), attention_export)]);
+        assert!(report.contains("<details class=\"card status-attention\" open>"));
+        assert!(report.contains("scan:http:attention"));
+    }
+
+    #[test]
+    fn export_primary_conclusion_prefers_attention_process_profile() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+
+        let healthy_flow = export.program_flows[0].clone();
+        let mut attention_flow = healthy_flow.clone();
+        attention_flow.id = gewyvern::flow::ProgramFlowId(healthy_flow.id.0 + 1000);
+        if let Some(process) = &mut attention_flow.process {
+            process.pid = 4242;
+            process.comm = "apt".into();
+        }
+        export.program_flows.push(attention_flow.clone());
+        export.program_findings.push(ProgramFinding {
+            program_flow: attention_flow.id,
+            process: attention_flow.process.clone(),
+            operation: attention_flow.operation.clone(),
+            module_label: "http_request_path".into(),
+            network_module_kind: "http_request_response".into(),
+            phase: Some("receive_response".into()),
+            phase_kind: Some("receive_payload".into()),
+            phase_transition: Some("send_request->receive_response".into()),
+            phase_transition_kind: Some("emit_payload->receive_payload".into()),
+            suspect_area: "transport_io".into(),
+            cause: ProgramFindingCause::MissingCoreStage,
+            summary: "synthetic missing response".into(),
+            supporting_fragments: vec!["tcp_packet_meta_fragment".into()],
+            evidence_trace: vec!["missing_signal:packet_observed".into()],
+        });
+
+        assert_eq!(
+            crate::primary_module_kind_for_export(&export),
+            "http_request_response"
+        );
+        assert_eq!(
+            crate::primary_failure_stage_for_export(&export),
+            "send_request->receive_response"
+        );
+        assert_eq!(crate::primary_failure_mode_for_export(&export), "no_response");
+        assert_eq!(crate::suspect_modules_for_export(&export), "http_request_path");
     }
 
     #[test]
@@ -4097,6 +4178,41 @@ mod tests {
         assert!(json.contains("\"attention_flows\":1"));
         assert!(json.contains("\"missing_transitions\":[\"send_request->receive_response\"]"));
         assert!(json.contains("\"suspect_areas\":[\"transport_io\"]"));
+        assert!(json.contains("\"primary_module_kind\":\"http_request_response\""));
+        assert!(json.contains("\"primary_failure_stage\":\"send_request->receive_response\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"failure_mode\":\"no_response\""));
+    }
+
+    #[test]
+    fn failure_mode_label_classifies_database_directory_and_quic_families() {
+        assert_eq!(
+            crate::failure_mode_label(
+                "attention",
+                "database_error_handling",
+                "receive_error",
+                &[],
+            ),
+            "semantic_error"
+        );
+        assert_eq!(
+            crate::failure_mode_label(
+                "attention",
+                "directory_write",
+                "receive_modify_denied",
+                &[],
+            ),
+            "server_denied"
+        );
+        assert_eq!(
+            crate::failure_mode_label(
+                "attention",
+                "quic_handshake",
+                "send_initial->receive_handshake",
+                &[],
+            ),
+            "setup_incomplete"
+        );
     }
 
     #[test]
@@ -4145,6 +4261,9 @@ mod tests {
         assert!(json.contains("\"network_module_kind\":\"http_request_response\""));
         assert!(json.contains("\"network_module_kinds\":[\"http_request_response\"]"));
         assert!(json.contains("\"process_network_profiles\":["));
+        assert!(json.contains("\"primary_module_kind\":\"http_request_response\""));
+        assert!(json.contains("\"primary_failure_stage\":\"send_request->receive_response\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
     }
 
     #[test]
@@ -4455,6 +4574,12 @@ struct ProtocolFlowFindingSummary {
 struct ProcessNetworkProfileSummary {
     pid: u32,
     comm: String,
+    status: String,
+    primary_module_kind: String,
+    primary_module_family: String,
+    primary_failure_stage: String,
+    primary_stage_family: String,
+    primary_failure_mode: String,
     operations: Vec<String>,
     module_kinds: Vec<String>,
     phases: Vec<String>,
@@ -4467,6 +4592,41 @@ struct ProcessNetworkProfileSummary {
 
 fn first_or_none(items: &[String]) -> String {
     items.first().cloned().unwrap_or_else(|| "none".into())
+}
+
+fn first_non_none(items: &[String]) -> Option<String> {
+    items.iter().find(|item| item.as_str() != "none").cloned()
+}
+
+fn bump_score(
+    scores: &mut HashMap<(u32, String), HashMap<String, u32>>,
+    key: &(u32, String),
+    value: &str,
+    delta: u32,
+) {
+    if value.is_empty() || value == "none" {
+        return;
+    }
+    *scores
+        .entry(key.clone())
+        .or_default()
+        .entry(value.to_string())
+        .or_default() += delta;
+}
+
+fn best_scored_value(
+    scores: &HashMap<(u32, String), HashMap<String, u32>>,
+    key: &(u32, String),
+) -> Option<String> {
+    let values = scores.get(key)?;
+    values
+        .iter()
+        .max_by(|(left_value, left_score), (right_value, right_score)| {
+            left_score
+                .cmp(right_score)
+                .then_with(|| right_value.cmp(left_value))
+        })
+        .map(|(value, _)| value.clone())
 }
 
 fn module_family_label(module_kind: &str) -> &'static str {
@@ -4519,6 +4679,94 @@ fn stage_family_label(stage: &str) -> &'static str {
         "none"
     } else {
         "general"
+    }
+}
+
+fn failure_mode_label(
+    status: &str,
+    module_kind: &str,
+    primary_stage: &str,
+    suspect_areas: &[String],
+) -> &'static str {
+    if status != "attention" {
+        return "none";
+    }
+
+    let stage = primary_stage.to_ascii_lowercase();
+    let module = module_kind.to_ascii_lowercase();
+
+    if stage.contains("denied") {
+        return "server_denied";
+    }
+    if stage.contains("constraint") || stage.contains("error") || module.contains("error") {
+        return "semantic_error";
+    }
+    if stage.contains("close") {
+        return "peer_closed";
+    }
+    if stage.contains("resolve") || stage.contains("dns") || stage.contains("connect")
+        || stage.contains("establish") || stage.contains("handshake") || stage.contains("crypto")
+    {
+        return "setup_incomplete";
+    }
+    if let Some((_, right)) = stage.split_once("->") {
+        if right.starts_with("receive")
+            || right.contains("response")
+            || right.contains("result")
+            || right.contains("ack")
+            || right.contains("accept")
+            || right.contains("offer")
+            || right.contains("ready")
+            || right.contains("ok")
+        {
+            return "no_response";
+        }
+        if right.starts_with("send")
+            || right.contains("request")
+            || right.contains("query")
+            || right.contains("publish")
+            || right.contains("auth")
+            || right.contains("password")
+            || right.contains("relay")
+            || right.contains("stream")
+        {
+            return "not_sent";
+        }
+    }
+    if stage.starts_with("send_")
+        || stage.contains("request")
+        || stage.contains("query")
+        || stage.contains("publish")
+        || stage.contains("relay")
+        || stage.contains("stream")
+    {
+        return "not_sent";
+    }
+    if stage.starts_with("receive_")
+        || stage.contains("response")
+        || stage.contains("result")
+        || stage.contains("ack")
+        || stage.contains("ready")
+        || stage.contains("ok")
+    {
+        return "no_response";
+    }
+    if suspect_areas.iter().any(|area| area == "route_io" || area == "transport_io") {
+        return "no_response";
+    }
+    "attention"
+}
+
+fn failure_mode_family_label(mode: &str) -> &'static str {
+    match mode {
+        "not_sent" => "blocked",
+        "no_response" => "timeout",
+        "setup_incomplete" => "setup",
+        "semantic_error" => "semantic",
+        "server_denied" => "denied",
+        "peer_closed" => "peer",
+        "none" => "none",
+        _ => "general",
     }
 }
 
@@ -4593,6 +4841,27 @@ fn protocol_flow_status(
     }
 }
 
+fn protocol_flow_failure_mode(
+    flow: &gewyvern::flow::ProgramFlow,
+    finding_summary: Option<&ProtocolFlowFindingSummary>,
+) -> String {
+    let status = protocol_flow_status(finding_summary);
+    let last_phase = protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into());
+    let module_kind = gewyvern::flow::infer_network_module_kind(
+        &flow.operation,
+        Some(&last_phase),
+        None,
+        "network_module",
+    );
+    let primary_stage = finding_summary
+        .and_then(|summary| summary.missing_transitions.first().cloned())
+        .unwrap_or(last_phase);
+    let suspect_areas = finding_summary
+        .map(|summary| summary.suspect_areas.as_slice())
+        .unwrap_or(&[]);
+    failure_mode_label(status, module_kind, &primary_stage, suspect_areas).to_string()
+}
+
 fn protocol_flow_summary_item_json(
     flow: &gewyvern::flow::ProgramFlow,
     finding_summary: Option<&ProtocolFlowFindingSummary>,
@@ -4613,8 +4882,9 @@ fn protocol_flow_summary_item_json(
     let suspect_areas = finding_summary
         .map(|summary| summary.suspect_areas.as_slice())
         .unwrap_or(&[]);
+    let failure_mode = protocol_flow_failure_mode(flow, finding_summary);
     format!(
-        "{{\"program_flow\":{},\"process\":{},\"operation\":\"{}\",\"network_module_kind\":\"{}\",\"network_module_kinds\":{},\"status\":\"{}\",\"phases\":{},\"last_phase\":{},\"missing_transitions\":{},\"suspect_areas\":{}}}",
+        "{{\"program_flow\":{},\"process\":{},\"operation\":\"{}\",\"network_module_kind\":\"{}\",\"network_module_kinds\":{},\"status\":\"{}\",\"failure_mode\":\"{}\",\"failure_mode_family\":\"{}\",\"phases\":{},\"last_phase\":{},\"missing_transitions\":{},\"suspect_areas\":{}}}",
         flow.id.0,
         process_json(flow.process.as_ref()),
         operation_label(&flow.operation),
@@ -4625,6 +4895,8 @@ fn protocol_flow_summary_item_json(
             string_list_json(network_module_kinds)
         },
         protocol_flow_status(finding_summary),
+        failure_mode,
+        failure_mode_family_label(&failure_mode),
         string_list_json(&phases),
         protocol_flow_last_phase(flow)
             .map(|phase| format!("\"{}\"", phase))
@@ -4678,11 +4950,13 @@ fn protocol_flow_summaries_text(export: &ExportBundle) -> String {
             } else {
                 format!(" missing={}", missing_transitions.join("|"))
             };
+            let failure_mode = protocol_flow_failure_mode(flow, finding_summary);
             format!(
-                "{}[kind={} status={} phases={}{}]",
+                "{}[kind={} status={} failure_mode={} phases={}{}]",
                 operation_label(&flow.operation),
                 network_module_kind,
                 protocol_flow_status(finding_summary),
+                failure_mode,
                 phase_text,
                 missing_text
             )
@@ -4694,6 +4968,9 @@ fn protocol_flow_summaries_text(export: &ExportBundle) -> String {
 fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetworkProfileSummary> {
     let finding_summaries = protocol_flow_finding_summaries(export);
     let mut profiles = HashMap::<(u32, String), ProcessNetworkProfileSummary>::new();
+    let mut module_scores = HashMap::<(u32, String), HashMap<String, u32>>::new();
+    let mut stage_scores = HashMap::<(u32, String), HashMap<String, u32>>::new();
+    let mut suspect_module_scores = HashMap::<(u32, String), HashMap<String, u32>>::new();
 
     for flow in &export.program_flows {
         let Some(process) = flow.process.as_ref() else {
@@ -4701,10 +4978,16 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
         };
         let key = (process.pid, process.comm.clone());
         let entry = profiles
-            .entry(key)
+            .entry(key.clone())
             .or_insert_with(|| ProcessNetworkProfileSummary {
                 pid: process.pid,
                 comm: process.comm.clone(),
+                status: "idle".into(),
+                primary_module_kind: "none".into(),
+                primary_module_family: "general".into(),
+                primary_failure_stage: "none".into(),
+                primary_stage_family: "none".into(),
+                primary_failure_mode: "none".into(),
                 ..Default::default()
             });
 
@@ -4720,9 +5003,12 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
             "network_module",
         )
         .to_string();
+        let last_phase = protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into());
         if !entry.module_kinds.contains(&inferred_kind) {
-            entry.module_kinds.push(inferred_kind);
+            entry.module_kinds.push(inferred_kind.clone());
         }
+        bump_score(&mut module_scores, &key, &inferred_kind, 1);
+        bump_score(&mut stage_scores, &key, &last_phase, 1);
 
         for phase in protocol_flow_phases(flow) {
             if !entry.phases.contains(&phase) {
@@ -4733,6 +5019,21 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
         match finding_summaries.get(&flow.id) {
             Some(summary) if summary.has_findings => {
                 entry.attention_flows += 1;
+                entry.status = "attention".into();
+                if summary.network_module_kinds.is_empty() {
+                    bump_score(&mut module_scores, &key, &inferred_kind, 10);
+                } else {
+                    for module_kind in &summary.network_module_kinds {
+                        bump_score(&mut module_scores, &key, module_kind, 10);
+                    }
+                }
+                if summary.missing_transitions.is_empty() {
+                    bump_score(&mut stage_scores, &key, &last_phase, 10);
+                } else {
+                    for transition in &summary.missing_transitions {
+                        bump_score(&mut stage_scores, &key, transition, 10);
+                    }
+                }
                 for module_kind in &summary.network_module_kinds {
                     if !entry.module_kinds.contains(module_kind) {
                         entry.module_kinds.push(module_kind.clone());
@@ -4749,7 +5050,12 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
                     }
                 }
             }
-            _ => entry.healthy_flows += 1,
+            _ => {
+                entry.healthy_flows += 1;
+                if entry.status != "attention" {
+                    entry.status = "healthy".into();
+                }
+            }
         }
     }
 
@@ -4759,12 +5065,19 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
         };
         let key = (process.pid, process.comm.clone());
         let entry = profiles
-            .entry(key)
+            .entry(key.clone())
             .or_insert_with(|| ProcessNetworkProfileSummary {
                 pid: process.pid,
                 comm: process.comm.clone(),
+                status: "idle".into(),
+                primary_module_kind: "none".into(),
+                primary_module_family: "general".into(),
+                primary_failure_stage: "none".into(),
+                primary_stage_family: "none".into(),
+                primary_failure_mode: "none".into(),
                 ..Default::default()
             });
+        entry.status = "attention".into();
         if !entry.module_kinds.contains(&finding.network_module_kind) {
             entry
                 .module_kinds
@@ -4776,10 +5089,19 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
         if !entry.suspect_modules.contains(&finding.module_label) {
             entry.suspect_modules.push(finding.module_label.clone());
         }
+        bump_score(&mut module_scores, &key, &finding.network_module_kind, 20);
+        if let Some(phase) = &finding.phase {
+            bump_score(&mut stage_scores, &key, phase, 20);
+        }
+        if let Some(transition) = &finding.phase_transition {
+            bump_score(&mut stage_scores, &key, transition, 25);
+        }
+        bump_score(&mut suspect_module_scores, &key, &finding.module_label, 20);
     }
 
     let mut profiles = profiles.into_values().collect::<Vec<_>>();
     for profile in &mut profiles {
+        let key = (profile.pid, profile.comm.clone());
         profile.operations.sort();
         profile.operations.dedup();
         profile.module_kinds.sort();
@@ -4792,6 +5114,34 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
         profile.suspect_areas.dedup();
         profile.suspect_modules.sort();
         profile.suspect_modules.dedup();
+        profile.primary_module_kind = best_scored_value(&module_scores, &key)
+            .or_else(|| first_non_none(&profile.module_kinds))
+            .unwrap_or_else(|| "none".into());
+        profile.primary_module_family =
+            module_family_label(&profile.primary_module_kind).to_string();
+        profile.primary_failure_stage = best_scored_value(&stage_scores, &key)
+            .or_else(|| first_non_none(&profile.missing_transitions))
+            .or_else(|| first_non_none(&profile.phases))
+            .unwrap_or_else(|| "none".into());
+        profile.primary_stage_family =
+            stage_family_label(&profile.primary_failure_stage).to_string();
+        profile.primary_failure_mode = failure_mode_label(
+            &profile.status,
+            &profile.primary_module_kind,
+            &profile.primary_failure_stage,
+            &profile.suspect_areas,
+        )
+        .to_string();
+        if let Some(primary_suspect_module) = best_scored_value(&suspect_module_scores, &key) {
+            if let Some(index) = profile
+                .suspect_modules
+                .iter()
+                .position(|module| module == &primary_suspect_module)
+            {
+                let module = profile.suspect_modules.remove(index);
+                profile.suspect_modules.insert(0, module);
+            }
+        }
     }
     profiles.sort_by(|a, b| a.pid.cmp(&b.pid).then_with(|| a.comm.cmp(&b.comm)));
     profiles
@@ -4803,9 +5153,16 @@ fn process_network_profiles_json(export: &ExportBundle) -> String {
         process_network_profile_summaries(export)
             .into_iter()
             .map(|profile| format!(
-                "{{\"pid\":{},\"comm\":\"{}\",\"operations\":{},\"module_kinds\":{},\"phases\":{},\"missing_transitions\":{},\"suspect_areas\":{},\"suspect_modules\":{},\"healthy_flows\":{},\"attention_flows\":{}}}",
+                "{{\"pid\":{},\"comm\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"operations\":{},\"module_kinds\":{},\"phases\":{},\"missing_transitions\":{},\"suspect_areas\":{},\"suspect_modules\":{},\"healthy_flows\":{},\"attention_flows\":{}}}",
                 profile.pid,
                 profile.comm,
+                profile.status,
+                profile.primary_module_kind,
+                profile.primary_module_family,
+                profile.primary_failure_stage,
+                profile.primary_stage_family,
+                profile.primary_failure_mode,
+                failure_mode_family_label(&profile.primary_failure_mode),
                 string_list_json(&profile.operations),
                 string_list_json(&profile.module_kinds),
                 string_list_json(&profile.phases),
@@ -4845,9 +5202,13 @@ fn process_network_profiles_text(export: &ExportBundle) -> String {
                 format!(" missing={}", profile.missing_transitions.join("|"))
             };
             format!(
-                "{}(pid={})[kinds={} healthy={} attention={} phases={}{}]",
+                "{}(pid={})[status={} primary_kind={} primary_stage={} failure_mode={} kinds={} healthy={} attention={} phases={}{}]",
                 profile.comm,
                 profile.pid,
+                profile.status,
+                profile.primary_module_kind,
+                profile.primary_failure_stage,
+                profile.primary_failure_mode,
                 kinds,
                 profile.healthy_flows,
                 profile.attention_flows,
@@ -4859,7 +5220,33 @@ fn process_network_profiles_text(export: &ExportBundle) -> String {
         .join(",")
 }
 
+fn primary_process_profile_for_export(export: &ExportBundle) -> Option<ProcessNetworkProfileSummary> {
+    let mut profiles = process_network_profile_summaries(export);
+    profiles.sort_by(|left, right| {
+        let left_rank = match left.status.as_str() {
+            "attention" => 0,
+            "healthy" => 1,
+            _ => 2,
+        };
+        let right_rank = match right.status.as_str() {
+            "attention" => 0,
+            "healthy" => 1,
+            _ => 2,
+        };
+        left_rank
+            .cmp(&right_rank)
+            .then_with(|| right.attention_flows.cmp(&left.attention_flows))
+            .then_with(|| right.healthy_flows.cmp(&left.healthy_flows))
+            .then_with(|| left.pid.cmp(&right.pid))
+            .then_with(|| left.comm.cmp(&right.comm))
+    });
+    profiles.into_iter().next()
+}
+
 fn primary_module_kind_for_export(export: &ExportBundle) -> String {
+    if let Some(profile) = primary_process_profile_for_export(export) {
+        return profile.primary_module_kind;
+    }
     if let Some(finding) = export.program_findings.first() {
         return finding.network_module_kind.clone();
     }
@@ -4879,6 +5266,9 @@ fn primary_module_kind_for_export(export: &ExportBundle) -> String {
 }
 
 fn primary_failure_stage_for_export(export: &ExportBundle) -> String {
+    if let Some(profile) = primary_process_profile_for_export(export) {
+        return profile.primary_failure_stage;
+    }
     if let Some(finding) = export.program_findings.first() {
         if let Some(phase) = &finding.phase {
             return phase.clone();
@@ -4895,7 +5285,29 @@ fn primary_failure_stage_for_export(export: &ExportBundle) -> String {
         .unwrap_or_else(|| "none".into())
 }
 
+fn primary_failure_mode_for_export(export: &ExportBundle) -> String {
+    if let Some(profile) = primary_process_profile_for_export(export) {
+        return profile.primary_failure_mode;
+    }
+    failure_mode_label(
+        scan_target_status(export).label(),
+        &primary_module_kind_for_export(export),
+        &primary_failure_stage_for_export(export),
+        &export
+            .program_findings
+            .iter()
+            .map(|finding| finding.suspect_area.clone())
+            .collect::<Vec<_>>(),
+    )
+    .to_string()
+}
+
 fn suspect_modules_for_export(export: &ExportBundle) -> String {
+    if let Some(profile) = primary_process_profile_for_export(export) {
+        if !profile.suspect_modules.is_empty() {
+            return profile.suspect_modules.join(" | ");
+        }
+    }
     if export.program_findings.is_empty() {
         "none".into()
     } else {
@@ -4937,8 +5349,9 @@ fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
         .map(|(name, export)| {
             let primary_module_kind = primary_module_kind_for_export(export);
             let primary_failure_stage = primary_failure_stage_for_export(export);
+            let primary_failure_mode = primary_failure_mode_for_export(export);
             format!(
-                "{{\"target\":\"{}\",\"template_id\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"suspect_modules\":\"{}\",\"program_flows\":{},\"program_findings\":{},\"module_findings\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
+                "{{\"target\":\"{}\",\"template_id\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"suspect_modules\":\"{}\",\"program_flows\":{},\"program_findings\":{},\"module_findings\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
                 name,
                 export.template_id,
                 scan_target_status(export).label(),
@@ -4946,6 +5359,8 @@ fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
                 module_family_label(&primary_module_kind),
                 primary_failure_stage,
                 stage_family_label(&primary_failure_stage),
+                primary_failure_mode,
+                failure_mode_family_label(&primary_failure_mode),
                 suspect_modules_for_export(export),
                 export.program_flows.len(),
                 export.program_findings.len(),
@@ -5034,24 +5449,26 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
         .into_iter()
         .map(|(name, export)| {
             let status = scan_target_status(export).label();
+            let details_open = if matches!(scan_target_status(export), ScanTargetStatus::Attention) {
+                " open"
+            } else {
+                ""
+            };
             let profiles = process_network_profile_summaries(export)
                 .into_iter()
                 .map(|profile| {
-                    let primary_kind = first_or_none(&profile.module_kinds);
-                    let primary_stage = if !profile.missing_transitions.is_empty() {
-                        first_or_none(&profile.missing_transitions)
-                    } else {
-                        first_or_none(&profile.phases)
-                    };
                     let suspect_modules = first_or_none(&profile.suspect_modules);
                     format!(
-                        "<li><strong>{}</strong> (pid={}): <span class=\"tag family-{}\">{}</span> <span class=\"tag stage-{}\">{}</span> suspect_module={} kinds={} healthy_flows={} attention_flows={} phases={} missing={}</li>",
+                        "<li><strong>{}</strong> (pid={}): status={} <span class=\"tag family-{}\">{}</span> <span class=\"tag stage-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> suspect_module={} kinds={} healthy_flows={} attention_flows={} phases={} missing={}</li>",
                         html_escape(&profile.comm),
                         profile.pid,
-                        module_family_label(&primary_kind),
-                        html_escape(&primary_kind),
-                        stage_family_label(&primary_stage),
-                        html_escape(&primary_stage),
+                        html_escape(&profile.status),
+                        html_escape(&profile.primary_module_family),
+                        html_escape(&profile.primary_module_kind),
+                        html_escape(&profile.primary_stage_family),
+                        html_escape(&profile.primary_failure_stage),
+                        html_escape(failure_mode_family_label(&profile.primary_failure_mode)),
+                        html_escape(&profile.primary_failure_mode),
                         html_escape(&suspect_modules),
                         html_escape(&profile.module_kinds.join(" | ")),
                         profile.healthy_flows,
@@ -5064,25 +5481,32 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 .join("");
             let primary_module_kind = primary_module_kind_for_export(export);
             let primary_failure_stage = primary_failure_stage_for_export(export);
+            let primary_failure_mode = primary_failure_mode_for_export(export);
             let suspect_modules = suspect_modules_for_export(export);
             let primary_module_family = module_family_label(&primary_module_kind);
             let primary_stage_family = stage_family_label(&primary_failure_stage);
+            let primary_failure_mode_family = failure_mode_family_label(&primary_failure_mode);
+            let flow_finding_summaries = protocol_flow_finding_summaries(export);
             let flow_lines = export
                 .program_flows
                 .iter()
                 .map(|flow| {
                     let phase_text = protocol_flow_phases(flow).join(" > ");
+                    let failure_mode =
+                        protocol_flow_failure_mode(flow, flow_finding_summaries.get(&flow.id));
                     format!(
-                        "<li>{}: last_phase={} phases={}</li>",
+                        "<li>{}: last_phase={} <span class=\"tag failure-{}\">{}</span> phases={}</li>",
                         html_escape(&operation_label(&flow.operation)),
                         html_escape(&protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into())),
+                        html_escape(failure_mode_family_label(&failure_mode)),
+                        html_escape(&failure_mode),
                         html_escape(&phase_text),
                     )
                 })
                 .collect::<Vec<_>>()
                 .join("");
             format!(
-                "<section class=\"card status-{status}\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div><h3>Process Profiles</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></section>",
+                "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><h3>Process Profiles</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
                 html_escape(name),
                 status,
                 export.program_flows.len(),
@@ -5092,6 +5516,8 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 html_escape(&primary_module_kind),
                 primary_stage_family,
                 html_escape(&primary_failure_stage),
+                primary_failure_mode_family,
+                html_escape(&primary_failure_mode),
                 html_escape(&suspect_modules),
                 profiles,
                 flow_lines,
@@ -5101,7 +5527,7 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
         .join("\n");
 
     format!(
-        "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>gewyvern scan report</title><style>body{{font-family:ui-sans-serif,system-ui,sans-serif;background:#f6f7fb;color:#18202a;margin:0;padding:24px}}h1,h2,h3{{margin:0 0 12px}}.summary{{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 24px}}.pill{{background:#fff;border:1px solid #d8dee9;border-radius:999px;padding:10px 14px;font-size:14px}}.tag{{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}}.family-dns{{background:#dbeafe;color:#1d4ed8}}.family-route{{background:#e0f2fe;color:#0369a1}}.family-connect{{background:#ede9fe;color:#6d28d9}}.family-handshake{{background:#fae8ff;color:#a21caf}}.family-request-response{{background:#dcfce7;color:#166534}}.family-database{{background:#fef3c7;color:#92400e}}.family-auth{{background:#fee2e2;color:#b91c1c}}.family-directory{{background:#ecfccb;color:#3f6212}}.family-messaging{{background:#ffedd5;color:#c2410c}}.family-relay{{background:#d1fae5;color:#047857}}.family-service{{background:#e2e8f0;color:#334155}}.family-general{{background:#f3f4f6;color:#374151}}.stage-dns{{background:#dbeafe;color:#1d4ed8}}.stage-connect{{background:#ede9fe;color:#6d28d9}}.stage-handshake{{background:#fae8ff;color:#a21caf}}.stage-request-response{{background:#dcfce7;color:#166534}}.stage-auth{{background:#fee2e2;color:#b91c1c}}.stage-general{{background:#f3f4f6;color:#374151}}.stage-none{{background:#e5e7eb;color:#6b7280}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}}.card{{background:#fff;border:1px solid #d8dee9;border-radius:16px;padding:18px;box-shadow:0 6px 24px rgba(15,23,42,0.06)}}.conclusion{{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 18px}}.status-attention{{border-color:#f0b429}}.status-healthy{{border-color:#68b984}}.status-idle{{border-color:#cbd5e1}}ul{{padding-left:18px}}li{{margin:6px 0}}</style></head><body><h1>gewyvern Scan Report</h1><div class=\"summary\"><div class=\"pill\">total targets: {}</div><div class=\"pill\">healthy: {}</div><div class=\"pill\">attention: {}</div><div class=\"pill\">idle: {}</div></div><div class=\"summary\">{}</div><div class=\"grid\">{}</div></body></html>",
+        "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>gewyvern scan report</title><style>body{{font-family:ui-sans-serif,system-ui,sans-serif;background:#f6f7fb;color:#18202a;margin:0;padding:24px}}h1,h2,h3{{margin:0 0 12px}}.summary{{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 24px}}.summary-note{{margin:-10px 0 24px;color:#475569;font-size:14px}}.pill{{background:#fff;border:1px solid #d8dee9;border-radius:999px;padding:10px 14px;font-size:14px}}.tag{{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}}.family-dns{{background:#dbeafe;color:#1d4ed8}}.family-route{{background:#e0f2fe;color:#0369a1}}.family-connect{{background:#ede9fe;color:#6d28d9}}.family-handshake{{background:#fae8ff;color:#a21caf}}.family-request-response{{background:#dcfce7;color:#166534}}.family-database{{background:#fef3c7;color:#92400e}}.family-auth{{background:#fee2e2;color:#b91c1c}}.family-directory{{background:#ecfccb;color:#3f6212}}.family-messaging{{background:#ffedd5;color:#c2410c}}.family-relay{{background:#d1fae5;color:#047857}}.family-service{{background:#e2e8f0;color:#334155}}.family-general{{background:#f3f4f6;color:#374151}}.stage-dns{{background:#dbeafe;color:#1d4ed8}}.stage-connect{{background:#ede9fe;color:#6d28d9}}.stage-handshake{{background:#fae8ff;color:#a21caf}}.stage-request-response{{background:#dcfce7;color:#166534}}.stage-auth{{background:#fee2e2;color:#b91c1c}}.stage-general{{background:#f3f4f6;color:#374151}}.stage-none{{background:#e5e7eb;color:#6b7280}}.failure-blocked{{background:#fef3c7;color:#92400e}}.failure-timeout{{background:#fee2e2;color:#b91c1c}}.failure-setup{{background:#e0e7ff;color:#4338ca}}.failure-semantic{{background:#ffedd5;color:#c2410c}}.failure-denied{{background:#fce7f3;color:#be185d}}.failure-peer{{background:#d1fae5;color:#047857}}.failure-none{{background:#e5e7eb;color:#6b7280}}.failure-general{{background:#f3f4f6;color:#374151}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}}.card{{background:#fff;border:1px solid #d8dee9;border-radius:16px;padding:0;box-shadow:0 6px 24px rgba(15,23,42,0.06);overflow:hidden}}.card summary{{list-style:none;cursor:pointer;padding:18px}}.card summary::-webkit-details-marker{{display:none}}.card-title p{{margin:0}}.card-body{{padding:0 18px 18px}}.conclusion{{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 0}}.status-attention{{border-color:#f0b429}}.status-healthy{{border-color:#68b984}}.status-idle{{border-color:#cbd5e1}}ul{{padding-left:18px}}li{{margin:6px 0}}</style></head><body><h1>gewyvern Scan Report</h1><div class=\"summary\"><div class=\"pill\">total targets: {}</div><div class=\"pill\">healthy: {}</div><div class=\"pill\">attention: {}</div><div class=\"pill\">idle: {}</div></div><p class=\"summary-note\">attention targets are shown first and expanded by default so the highest-risk paths are easier to inspect.</p><div class=\"summary\">{}</div><div class=\"grid\">{}</div></body></html>",
         total_targets,
         healthy_targets,
         attention_targets,
@@ -5162,6 +5588,9 @@ fn render_report_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]) -> Strin
 }
 
 fn summary_json(name: &str, export: &ExportBundle) -> String {
+    let primary_module_kind = primary_module_kind_for_export(export);
+    let primary_failure_stage = primary_failure_stage_for_export(export);
+    let primary_failure_mode = primary_failure_mode_for_export(export);
     let suspect_modules = format!(
         "[{}]",
         export
@@ -5172,9 +5601,15 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
             .join(",")
     );
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
         export.template_id,
         export.ingest_trust_mode,
+        primary_module_kind,
+        module_family_label(&primary_module_kind),
+        primary_failure_stage,
+        stage_family_label(&primary_failure_stage),
+        primary_failure_mode,
+        failure_mode_family_label(&primary_failure_mode),
         export.debug_summary.fragments_loaded,
         export.debug_summary.hookpoints_failed,
         export.debug_summary.accepted_facts,
@@ -5258,9 +5693,18 @@ fn findings_text(name: &str, export: &ExportBundle) -> String {
 }
 
 fn findings_json(name: &str, export: &ExportBundle) -> String {
+    let primary_module_kind = primary_module_kind_for_export(export);
+    let primary_failure_stage = primary_failure_stage_for_export(export);
+    let primary_failure_mode = primary_failure_mode_for_export(export);
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
         export.template_id,
+        primary_module_kind,
+        module_family_label(&primary_module_kind),
+        primary_failure_stage,
+        stage_family_label(&primary_failure_stage),
+        primary_failure_mode,
+        failure_mode_family_label(&primary_failure_mode),
         export
             .module_findings
             .iter()

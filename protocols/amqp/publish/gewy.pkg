@@ -1,5 +1,5 @@
 name=amqp_publish
-version=0.5.0
+version=0.5.6
 entry=main.gewy
 register.protocol=amqp
 register.entry=publish

@@ -1,4 +1,4 @@
-# gewyvern v0.5
+# gewyvern v0.5.6
 
 Protocol-agnostic network debugging runtime driven by eBPF fragments.
 
@@ -51,7 +51,7 @@ as a visual report.
 
 ## Status
 
-- project version: `0.5.0`
+- project version: `0.5.6`
 - stage: working prototype with a stabilized workspace, protocol registry, and package-driven DSL/compiler path
 - transport support: TCP + UDP
 - protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP, RADIUS, GTP-U, SMTP, SIP, LDAP, SNMP, DNS-over-TCP
@@ -65,6 +65,23 @@ as a visual report.
 - language semantics: single-entry, function-unit DSL with no cross-file global mutable state
 - workspace shape: `gewyvern` runtime crate + `gewyc` compiler CLI crate
 - protocol registry shape: scanned gewy project packages under `protocols/`
+
+## Road To 1.0
+
+`gewyvern` is now on a deliberate release path:
+
+- `v0.5.6` is the current stabilization point
+- `v0.6.x` through `v0.9.x` should be used to close the remaining production gaps
+- `v0.10.0` is intended to be the last pre-`1.0` release
+- if the `1.0` gates are satisfied at `v0.10.0`, the project should move
+  directly to `v1.0.0`
+
+The goal is not “every protocol under the sun”. The `1.0.0` bar is that
+`gewyvern` is trustworthy enough to serve as infra for process-level network
+debugging: stable CLI/runtime behavior, stable DSL/IR/compiler boundaries,
+reliable HTML/JSON reporting, and predictable operational performance.
+
+The detailed milestone plan lives in [ROADMAP.md](/Users/Shared/chroot/dev/gewyvern/ROADMAP.md).
 
 ## Supported Protocol Families
 
@@ -139,7 +156,7 @@ boundaries:
 - `cargo test --workspace`
   Main regression path for the whole workspace.
 
-## What Works In v0.5
+## What Works In v0.5.6
 
 - Fragment registry, attach planning, and attach reporting
 - TDD-first runtime and rule specs
@@ -550,7 +567,7 @@ Built-in protocol discovery now comes from scanning gewy project manifests in
 
 ```text
 name=mysql_session
-version=0.5.0
+version=0.5.6
 entry=main.gewy
 register.protocol=mysql
 register.entry=session
@@ -733,7 +750,9 @@ cargo linux-smoke
 
 ## Near-Term Direction
 
-The next meaningful step after `v0.5` is not only “more protocol branches”.
+The next meaningful step after `v0.5.6` is not only “more protocol branches”.
 It is continuing to make the DSL and IR more explicit, so protocol behavior is
 described as program-network-module structure rather than as a pile of
-protocol-specific special cases.
+protocol-specific special cases, while steadily closing the remaining gaps on
+the path to `v1.0.0`. The concrete release path is tracked in
+[ROADMAP.md](/Users/Shared/chroot/dev/gewyvern/ROADMAP.md).
