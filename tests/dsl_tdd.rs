@@ -1682,6 +1682,7 @@ fn http_request_path_missing_response_produces_request_to_response_transition() 
     let export = session.export_bundle();
     assert!(export.program_findings.iter().any(|finding| {
         finding.module_label == "http_request_path"
+            && finding.network_module_kind == "http_request_response"
             && finding.phase.as_deref() == Some("receive_response")
             && finding.phase_transition.as_deref() == Some("send_request->receive_response")
     }));
@@ -2872,6 +2873,19 @@ fn hy2_auth_path_does_not_treat_close_as_auth_ok_stream() {
             .stages
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_auth_ok_stream"))
+    );
+}
+
+#[test]
+fn hy2_auth_operation_maps_to_proxy_authentication_module_kind() {
+    assert_eq!(
+        gewyvern::flow::infer_network_module_kind(
+            &ProgramOperation::Custom("hy2_auth".into()),
+            Some("receive_auth_ok_stream"),
+            Some("send_auth_request_stream->receive_auth_ok_stream"),
+            "transport_io",
+        ),
+        "proxy_authentication"
     );
 }
 
@@ -6755,6 +6769,7 @@ fn mysql_query_session_missing_response_produces_query_to_ok_transition() {
     let export = session.export_bundle();
     assert!(export.program_findings.iter().any(|finding| {
         finding.module_label == "mysql_query_session"
+            && finding.network_module_kind == "database_query"
             && finding.phase.as_deref() == Some("receive_ok")
             && finding.phase_transition.as_deref() == Some("send_query->receive_ok")
     }));

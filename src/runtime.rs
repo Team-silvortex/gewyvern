@@ -450,6 +450,13 @@ fn build_program_findings(
                 let phase_kind = phase_kind(signal, phase.as_deref()).map(str::to_string);
                 let (phase_transition, phase_transition_kind) =
                     phase_transition_for_rule(model, rule_diag.rule_index, flow);
+                let network_module_kind = crate::flow::infer_network_module_kind(
+                    &flow.operation,
+                    phase.as_deref(),
+                    phase_transition.as_deref(),
+                    &suspect_area,
+                )
+                .to_string();
                 let module_label = module_label(
                     model.rules.get(rule_diag.rule_index)?.module.as_deref(),
                     &flow.operation,
@@ -468,6 +475,7 @@ fn build_program_findings(
                     process: flow.process.clone(),
                     operation: flow.operation.clone(),
                     module_label,
+                    network_module_kind,
                     phase: phase.clone(),
                     phase_kind,
                     phase_transition: phase_transition.clone(),
@@ -701,6 +709,7 @@ fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleF
             process: finding.process.clone(),
             operation: finding.operation.clone(),
             severity: ModuleSeverity::Low,
+            network_module_kinds: Vec::new(),
             phases: Vec::new(),
             phase_kinds: Vec::new(),
             phase_transitions: Vec::new(),
@@ -725,6 +734,9 @@ fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleF
         if let Some(transition_kind) = &finding.phase_transition_kind {
             entry.phase_transition_kinds.push(transition_kind.clone());
         }
+        entry
+            .network_module_kinds
+            .push(finding.network_module_kind.clone());
         entry.suspect_areas.push(finding.suspect_area.clone());
         entry.causes.push(finding.cause.clone());
         entry
@@ -742,6 +754,8 @@ fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleF
             finding.suspect_areas.dedup();
             finding.phases.sort();
             finding.phases.dedup();
+            finding.network_module_kinds.sort();
+            finding.network_module_kinds.dedup();
             finding.phase_kinds.sort();
             finding.phase_kinds.dedup();
             finding.phase_transitions.sort();

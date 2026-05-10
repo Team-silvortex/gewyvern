@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
@@ -801,7 +801,13 @@ pub fn default_protocol_scan_set() -> Vec<ResolvedProtocolProfile> {
     }
     PROTOCOL_PROFILES
         .iter()
-        .filter_map(|profile| resolve_protocol_profile(profile.name, None))
+        .flat_map(|profile| {
+            profile
+                .entries
+                .iter()
+                .filter_map(|entry| resolve_protocol_profile(profile.name, Some(entry.mode)))
+                .collect::<Vec<_>>()
+        })
         .collect()
 }
 
@@ -827,25 +833,22 @@ fn scan_protocol_registry_in(root: &Path) -> Option<Vec<RegistryManifest>> {
 fn default_protocol_scan_set_from_registry(
     registry: Vec<RegistryManifest>,
 ) -> Vec<ResolvedProtocolProfile> {
-    let mut by_protocol = BTreeMap::<String, RegistryManifest>::new();
-    for manifest in registry {
-        by_protocol
-            .entry(manifest.protocol.clone())
-            .and_modify(|current| {
-                if manifest.default || current.entry > manifest.entry {
-                    *current = manifest.clone();
-                }
-            })
-            .or_insert(manifest);
-    }
-    by_protocol
-        .into_values()
+    let mut seen = BTreeSet::<(String, String)>::new();
+    let mut resolved = registry
+        .into_iter()
+        .filter(|manifest| seen.insert((manifest.protocol.clone(), manifest.entry.clone())))
         .map(|manifest| ResolvedProtocolProfile {
             protocol: manifest.protocol,
             entry: manifest.entry,
             dsl_path: manifest.dsl_path,
         })
-        .collect()
+        .collect::<Vec<_>>();
+    resolved.sort_by(|left, right| {
+        left.protocol
+            .cmp(&right.protocol)
+            .then_with(|| left.entry.cmp(&right.entry))
+    });
+    resolved
 }
 
 fn collect_registry_manifests(

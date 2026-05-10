@@ -93,31 +93,31 @@ impl UiLocale {
     fn usage(self) -> &'static str {
         match self {
             Self::Zh => {
-                "用法: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "用法: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ja => {
-                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ko => {
-                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Fr => {
-                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::De => {
-                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Es => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Pt => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ru => {
-                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::En => {
-                "usage: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "usage: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
         }
     }
@@ -984,35 +984,53 @@ fn main() {
             http_transactions_text(&transactions)
         }
     } else if cli.findings {
-        outputs
-            .into_iter()
-            .map(|(name, export)| {
-                if cli.json {
-                    findings_json(&name, &export)
-                } else {
-                    findings_text(&name, &export)
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
+        if cli.scan_all {
+            render_scan_outputs(&cli, &outputs)
+        } else if cli.report_format.is_some() {
+            render_report_outputs(&cli, &outputs)
+        } else {
+            outputs
+                .into_iter()
+                .map(|(name, export)| {
+                    if cli.json {
+                        findings_json(&name, &export)
+                    } else {
+                        findings_text(&name, &export)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
     } else if cli.json {
-        outputs
-            .into_iter()
-            .map(|(name, export)| {
-                if cli.summary_only {
-                    summary_json(&name, &export)
-                } else {
-                    export.to_json()
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
+        if cli.scan_all && cli.summary_only {
+            render_scan_outputs(&cli, &outputs)
+        } else if cli.report_format.is_some() {
+            render_report_outputs(&cli, &outputs)
+        } else {
+            outputs
+                .into_iter()
+                .map(|(name, export)| {
+                    if cli.summary_only {
+                        summary_json(&name, &export)
+                    } else {
+                        export.to_json()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
     } else {
-        outputs
-            .into_iter()
-            .map(|(name, export)| summary_line(&name, &export))
-            .collect::<Vec<_>>()
-            .join("\n")
+        if cli.scan_all {
+            render_scan_outputs(&cli, &outputs)
+        } else if cli.report_format.is_some() {
+            render_report_outputs(&cli, &outputs)
+        } else {
+            outputs
+                .into_iter()
+                .map(|(name, export)| summary_line(&name, &export))
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
     };
 
     if let Some(path) = cli.out_path.as_deref() {
@@ -1047,6 +1065,7 @@ struct Cli {
     serve: bool,
     max_sessions: Option<usize>,
     json: bool,
+    report_format: Option<ReportFormat>,
     summary_only: bool,
     out_path: Option<String>,
     socket_target: Option<SocketTarget>,
@@ -1063,6 +1082,12 @@ enum DemoMode {
 enum TemplateMode {
     Tcp,
     Udp,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ReportFormat {
+    Json,
+    Html,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1165,6 +1190,16 @@ impl SocketTrustMode {
     }
 }
 
+impl ReportFormat {
+    fn from_str(value: &str) -> Result<Self, String> {
+        match value {
+            "json" => Ok(Self::Json),
+            "html" => Ok(Self::Html),
+            other => Err(format!("unsupported report format '{other}'")),
+        }
+    }
+}
+
 impl Cli {
     fn dsl_binding(&self) -> Option<TemplateBinding> {
         let locale = UiLocale::detect();
@@ -1201,6 +1236,7 @@ impl Cli {
         let mut serve = false;
         let mut max_sessions = None;
         let mut json = false;
+        let mut report_format = None;
         let mut summary_only = false;
         let mut out_path = None;
         let mut socket_target = None;
@@ -1215,6 +1251,12 @@ impl Cli {
                     demo_mode = DemoMode::from_str(&value)?;
                 }
                 "--json" => json = true,
+                "--report-format" => {
+                    let value = args
+                        .next()
+                        .ok_or_else(|| "missing report format".to_string())?;
+                    report_format = Some(ReportFormat::from_str(&value)?);
+                }
                 "--serve" => serve = true,
                 "--findings" => findings = true,
                 "--http-transactions" => http_transactions = true,
@@ -1309,7 +1351,7 @@ impl Cli {
             }
         }
 
-        if summary_only && !json {
+        if summary_only && !json && report_format.is_none() {
             return Err(locale.msg("summary_only_requires_json").into());
         }
         if diagnostics && dsl_path.is_none() {
@@ -1326,6 +1368,12 @@ impl Cli {
         }
         if diagnostics && http_transactions {
             return Err(locale.msg("findings_diagnostics_conflict").into());
+        }
+        if report_format.is_some() && diagnostics {
+            return Err("--report-format cannot be combined with --diagnostics".into());
+        }
+        if report_format.is_some() && http_transactions {
+            return Err("--report-format cannot be combined with --http-transactions".into());
         }
         if scan_all && dsl_path.is_some() {
             return Err("--scan-all cannot be combined with --dsl".into());
@@ -1393,6 +1441,7 @@ impl Cli {
             serve,
             max_sessions,
             json,
+            report_format,
             summary_only,
             out_path,
             socket_target,
@@ -3306,8 +3355,9 @@ mod tests {
     use super::{
         Cli, SocketTrustMode, annotate_export_trust, filter_export_by_pid, list_entries_json,
         list_entries_text, list_protocols_json, list_protocols_text, protocol_dsl_path,
-        run_binding_demo, scan_targets_for_cli, scan_targets_from_set_file, summary_json,
-        summary_line,
+        run_binding_demo, render_report_outputs, scan_report_html, scan_report_json,
+        scan_targets_for_cli, scan_targets_from_set_file, summary_json, summary_line,
+        findings_json, ReportFormat,
     };
     use gewyvern::dsl::compile_file;
     use gewyvern::flow::{ProgramFinding, ProgramFindingCause, ProgramOperation};
@@ -3342,6 +3392,7 @@ mod tests {
                 process: flow.process.clone(),
                 operation: flow.operation.clone(),
                 module_label: "http_request_path".into(),
+                network_module_kind: "http_request_response".into(),
                 phase: Some("receive_response".into()),
                 phase_kind: Some("receive_payload".into()),
                 phase_transition: Some("send_request->receive_response".into()),
@@ -3648,6 +3699,46 @@ mod tests {
     }
 
     #[test]
+    fn cli_accepts_html_report_format_for_scan_all() {
+        let cli = Cli::from_args([
+            "--scan-all".to_string(),
+            "--report-format".to_string(),
+            "html".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(cli.report_format, Some(ReportFormat::Html));
+    }
+
+    #[test]
+    fn cli_accepts_summary_only_html_report_without_json_flag() {
+        let cli = Cli::from_args([
+            "--scan-all".to_string(),
+            "--summary-only".to_string(),
+            "--report-format".to_string(),
+            "html".to_string(),
+        ])
+        .unwrap();
+        assert!(cli.summary_only);
+        assert_eq!(cli.report_format, Some(ReportFormat::Html));
+        assert!(!cli.json);
+    }
+
+    #[test]
+    fn cli_accepts_protocol_html_report_without_scan_all() {
+        let cli = Cli::from_args([
+            "--protocol".to_string(),
+            "mysql".to_string(),
+            "--entry".to_string(),
+            "session".to_string(),
+            "--report-format".to_string(),
+            "html".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(cli.report_format, Some(ReportFormat::Html));
+        assert_eq!(cli.protocol.as_deref(), Some("mysql"));
+    }
+
+    #[test]
     fn cli_rejects_protocol_set_without_scan_all() {
         let err = Cli::from_args([
             "--protocol-set".to_string(),
@@ -3716,6 +3807,16 @@ mod tests {
             targets
                 .iter()
                 .any(|target| { target.protocol == "amqp" && target.entry == "session" })
+        );
+        assert!(
+            targets
+                .iter()
+                .any(|target| { target.protocol == "mysql" && target.entry == "connect" })
+        );
+        assert!(
+            targets
+                .iter()
+                .any(|target| { target.protocol == "hy2" && target.entry == "tcp" })
         );
     }
 
@@ -3850,8 +3951,116 @@ mod tests {
         );
         let json = summary_json("dsl_demo", &export);
         assert!(json.contains("\"protocol_flows\":["));
+        assert!(json.contains("\"process_network_profiles\":["));
         assert!(json.contains("\"status\":\"healthy\""));
         assert!(json.contains("\"last_phase\":\"receive_response\""));
+        assert!(json.contains("\"module_kinds\":[\"http_request_response\"]"));
+    }
+
+    #[test]
+    fn scan_report_json_summarizes_all_targets() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let healthy_export = annotate_export_trust(
+            run_binding_demo(binding.clone()),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let mut attention_export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = attention_export.program_flows[0].clone();
+        attention_export.program_findings.push(ProgramFinding {
+            program_flow: flow.id,
+            process: flow.process.clone(),
+            operation: flow.operation.clone(),
+            module_label: "http_request_path".into(),
+            network_module_kind: "http_request_response".into(),
+            phase: Some("receive_response".into()),
+            phase_kind: Some("receive_payload".into()),
+            phase_transition: Some("send_request->receive_response".into()),
+            phase_transition_kind: Some("emit_payload->receive_payload".into()),
+            suspect_area: "transport_io".into(),
+            cause: ProgramFindingCause::MissingCoreStage,
+            summary: "synthetic missing response".into(),
+            supporting_fragments: vec!["tcp_packet_meta_fragment".into()],
+            evidence_trace: vec!["missing_signal:packet_observed".into()],
+        });
+        let report = scan_report_json(&[
+            ("scan:http:request".to_string(), healthy_export),
+            ("scan:http:response".to_string(), attention_export),
+        ]);
+        assert!(report.contains("\"scan_all\":true"));
+        assert!(report.contains("\"total_targets\":2"));
+        assert!(report.contains("\"healthy_targets\":1"));
+        assert!(report.contains("\"attention_targets\":1"));
+        assert!(report.contains("\"target\":\"scan:http:request\""));
+        assert!(report.contains("\"target\":\"scan:http:response\""));
+    }
+
+    #[test]
+    fn scan_report_html_renders_visual_summary() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let report = scan_report_html(&[("scan:http:request".to_string(), export)]);
+        assert!(report.contains("<!DOCTYPE html>"));
+        assert!(report.contains("gewyvern Scan Report"));
+        assert!(report.contains("scan:http:request"));
+        assert!(report.contains("Process Profiles"));
+        assert!(report.contains("primary module:"));
+        assert!(report.contains("primary stage:"));
+        assert!(report.contains("suspect modules:"));
+        assert!(report.contains("family-request-response"));
+        assert!(report.contains("stage-request-response"));
+        assert!(report.contains("request-response</span> 1"));
+    }
+
+    #[test]
+    fn single_target_html_report_renders_visual_summary() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+            .expect("mysql_query_session DSL should compile");
+        let export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let cli = Cli::from_args([
+            "--protocol".to_string(),
+            "mysql".to_string(),
+            "--entry".to_string(),
+            "session".to_string(),
+            "--report-format".to_string(),
+            "html".to_string(),
+        ])
+        .unwrap();
+        let rendered = render_report_outputs(&cli, &[("scan:mysql:session".to_string(), export)]);
+        assert!(rendered.contains("<!DOCTYPE html>"));
+        assert!(rendered.contains("scan:mysql:session"));
+    }
+
+    #[test]
+    fn single_target_json_report_wraps_protocol_result() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+            .expect("mysql_query_session DSL should compile");
+        let export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let cli = Cli::from_args([
+            "--protocol".to_string(),
+            "mysql".to_string(),
+            "--entry".to_string(),
+            "session".to_string(),
+            "--report-format".to_string(),
+            "json".to_string(),
+        ])
+        .unwrap();
+        let rendered = render_report_outputs(&cli, &[("scan:mysql:session".to_string(), export)]);
+        assert!(rendered.contains("\"scan_all\":true"));
+        assert!(rendered.contains("\"target\":\"scan:mysql:session\""));
     }
 
     #[test]
@@ -3868,6 +4077,7 @@ mod tests {
             process: flow.process.clone(),
             operation: flow.operation.clone(),
             module_label: "http_request_path".into(),
+            network_module_kind: "http_request_response".into(),
             phase: Some("receive_response".into()),
             phase_kind: Some("receive_payload".into()),
             phase_transition: Some("send_request->receive_response".into()),
@@ -3880,8 +4090,61 @@ mod tests {
         });
         let json = summary_json("dsl_demo", &export);
         assert!(json.contains("\"status\":\"attention\""));
+        assert!(json.contains("\"network_module_kind\":\"http_request_response\""));
+        assert!(json.contains("\"network_module_kinds\":[\"http_request_response\"]"));
+        assert!(json.contains("\"process_network_profiles\":["));
+        assert!(json.contains("\"missing_transitions\":[\"send_request->receive_response\"]"));
+        assert!(json.contains("\"attention_flows\":1"));
         assert!(json.contains("\"missing_transitions\":[\"send_request->receive_response\"]"));
         assert!(json.contains("\"suspect_areas\":[\"transport_io\"]"));
+    }
+
+    #[test]
+    fn findings_json_carries_network_module_classification() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        export.program_findings.push(ProgramFinding {
+            program_flow: flow.id,
+            process: flow.process.clone(),
+            operation: flow.operation.clone(),
+            module_label: "http_request_path".into(),
+            network_module_kind: "http_request_response".into(),
+            phase: Some("receive_response".into()),
+            phase_kind: Some("receive_payload".into()),
+            phase_transition: Some("send_request->receive_response".into()),
+            phase_transition_kind: Some("emit_payload->receive_payload".into()),
+            suspect_area: "transport_io".into(),
+            cause: ProgramFindingCause::MissingCoreStage,
+            summary: "synthetic missing response".into(),
+            supporting_fragments: vec!["tcp_packet_meta_fragment".into()],
+            evidence_trace: vec!["missing_signal:packet_observed".into()],
+        });
+        export.module_findings = vec![gewyvern::flow::ModuleFinding {
+            module_label: "http_request_path".into(),
+            process: flow.process.clone(),
+            operation: flow.operation.clone(),
+            severity: gewyvern::flow::ModuleSeverity::Low,
+            network_module_kinds: vec!["http_request_response".into()],
+            phases: vec!["receive_response".into()],
+            phase_kinds: vec!["receive_payload".into()],
+            phase_transitions: vec!["send_request->receive_response".into()],
+            phase_transition_kinds: vec!["emit_payload->receive_payload".into()],
+            suspect_areas: vec!["transport_io".into()],
+            causes: vec![ProgramFindingCause::MissingCoreStage],
+            supporting_fragments: vec!["tcp_packet_meta_fragment".into()],
+            program_flows: vec![flow.id],
+            summaries: vec!["synthetic missing response".into()],
+            evidence_trace: vec!["missing_signal:packet_observed".into()],
+        }];
+        let json = findings_json("dsl_demo", &export);
+        assert!(json.contains("\"network_module_kind\":\"http_request_response\""));
+        assert!(json.contains("\"network_module_kinds\":[\"http_request_response\"]"));
+        assert!(json.contains("\"process_network_profiles\":["));
     }
 
     #[test]
@@ -3986,8 +4249,9 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
             .join(",")
     };
     let protocol_flows = protocol_flow_summaries_text(export);
+    let process_profiles = process_network_profiles_text(export);
     format!(
-        "{name}: {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={}",
+        "{name}: {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
         locale.label("template"),
         export.template_id,
         "ingest_trust_mode",
@@ -4015,6 +4279,7 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
         locale.label("suspect_modules"),
         suspect_modules,
         protocol_flows,
+        process_profiles,
     )
 }
 
@@ -4181,8 +4446,97 @@ fn usage() -> &'static str {
 #[derive(Default)]
 struct ProtocolFlowFindingSummary {
     missing_transitions: Vec<String>,
+    network_module_kinds: Vec<String>,
     suspect_areas: Vec<String>,
     has_findings: bool,
+}
+
+#[derive(Default)]
+struct ProcessNetworkProfileSummary {
+    pid: u32,
+    comm: String,
+    operations: Vec<String>,
+    module_kinds: Vec<String>,
+    phases: Vec<String>,
+    missing_transitions: Vec<String>,
+    suspect_areas: Vec<String>,
+    suspect_modules: Vec<String>,
+    attention_flows: u64,
+    healthy_flows: u64,
+}
+
+fn first_or_none(items: &[String]) -> String {
+    items.first().cloned().unwrap_or_else(|| "none".into())
+}
+
+fn module_family_label(module_kind: &str) -> &'static str {
+    match module_kind {
+        "name_resolution" => "dns",
+        "route_resolution" => "route",
+        "connection_establishment" | "database_connectivity" => "connect",
+        "tls_handshake" | "quic_handshake" | "tunnel_handshake" => "handshake",
+        "http_request_response" | "http3_request_response" | "iot_request_response" => {
+            "request-response"
+        }
+        "database_query" | "database_error_handling" => "database",
+        "database_authentication" | "directory_bind" | "authentication_exchange"
+        | "proxy_authentication" => "auth",
+        "directory_search" | "directory_write" | "directory_sync" => "directory",
+        "message_publish" | "message_session" | "mail_session" | "signaling_session" => {
+            "messaging"
+        }
+        "proxy_udp_relay" | "proxy_tcp_relay" | "quic_stream_session" | "transport_session" => {
+            "relay"
+        }
+        "datagram_exchange" | "management_query" | "time_synchronization"
+        | "address_configuration" | "tunnel_control" | "cache_access" => "service",
+        _ => "general",
+    }
+}
+
+fn stage_family_label(stage: &str) -> &'static str {
+    if stage.contains("resolve") || stage.contains("dns") {
+        "dns"
+    } else if stage.contains("connect") || stage.contains("establish") || stage.contains("bind") {
+        "connect"
+    } else if stage.contains("tls")
+        || stage.contains("hello")
+        || stage.contains("crypto")
+        || stage.contains("handshake")
+    {
+        "handshake"
+    } else if stage.contains("request")
+        || stage.contains("response")
+        || stage.contains("query")
+        || stage.contains("publish")
+        || stage.contains("stream")
+        || stage.contains("relay")
+    {
+        "request-response"
+    } else if stage.contains("auth") || stage.contains("password") {
+        "auth"
+    } else if stage == "none" {
+        "none"
+    } else {
+        "general"
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ScanTargetStatus {
+    Idle,
+    Healthy,
+    Attention,
+}
+
+impl ScanTargetStatus {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Idle => "idle",
+            Self::Healthy => "healthy",
+            Self::Attention => "attention",
+        }
+    }
 }
 
 fn protocol_flow_phases(flow: &gewyvern::flow::ProgramFlow) -> Vec<String> {
@@ -4214,6 +4568,14 @@ fn protocol_flow_finding_summaries(
                 entry.missing_transitions.push(transition.clone());
             }
         }
+        if !entry
+            .network_module_kinds
+            .contains(&finding.network_module_kind)
+        {
+            entry
+                .network_module_kinds
+                .push(finding.network_module_kind.clone());
+        }
         if !entry.suspect_areas.contains(&finding.suspect_area) {
             entry.suspect_areas.push(finding.suspect_area.clone());
         }
@@ -4236,17 +4598,32 @@ fn protocol_flow_summary_item_json(
     finding_summary: Option<&ProtocolFlowFindingSummary>,
 ) -> String {
     let phases = protocol_flow_phases(flow);
+    let network_module_kind = gewyvern::flow::infer_network_module_kind(
+        &flow.operation,
+        protocol_flow_last_phase(flow).as_deref(),
+        None,
+        "network_module",
+    );
     let missing_transitions = finding_summary
         .map(|summary| summary.missing_transitions.as_slice())
+        .unwrap_or(&[]);
+    let network_module_kinds = finding_summary
+        .map(|summary| summary.network_module_kinds.as_slice())
         .unwrap_or(&[]);
     let suspect_areas = finding_summary
         .map(|summary| summary.suspect_areas.as_slice())
         .unwrap_or(&[]);
     format!(
-        "{{\"program_flow\":{},\"process\":{},\"operation\":\"{}\",\"status\":\"{}\",\"phases\":{},\"last_phase\":{},\"missing_transitions\":{},\"suspect_areas\":{}}}",
+        "{{\"program_flow\":{},\"process\":{},\"operation\":\"{}\",\"network_module_kind\":\"{}\",\"network_module_kinds\":{},\"status\":\"{}\",\"phases\":{},\"last_phase\":{},\"missing_transitions\":{},\"suspect_areas\":{}}}",
         flow.id.0,
         process_json(flow.process.as_ref()),
         operation_label(&flow.operation),
+        network_module_kind,
+        if network_module_kinds.is_empty() {
+            format!("[\"{network_module_kind}\"]")
+        } else {
+            string_list_json(network_module_kinds)
+        },
         protocol_flow_status(finding_summary),
         string_list_json(&phases),
         protocol_flow_last_phase(flow)
@@ -4282,6 +4659,12 @@ fn protocol_flow_summaries_text(export: &ExportBundle) -> String {
         .map(|flow| {
             let phases = protocol_flow_phases(flow);
             let finding_summary = finding_summaries.get(&flow.id);
+            let network_module_kind = gewyvern::flow::infer_network_module_kind(
+                &flow.operation,
+                protocol_flow_last_phase(flow).as_deref(),
+                None,
+                "network_module",
+            );
             let missing_transitions = finding_summary
                 .map(|summary| summary.missing_transitions.as_slice())
                 .unwrap_or(&[]);
@@ -4296,8 +4679,9 @@ fn protocol_flow_summaries_text(export: &ExportBundle) -> String {
                 format!(" missing={}", missing_transitions.join("|"))
             };
             format!(
-                "{}[status={} phases={}{}]",
+                "{}[kind={} status={} phases={}{}]",
                 operation_label(&flow.operation),
+                network_module_kind,
                 protocol_flow_status(finding_summary),
                 phase_text,
                 missing_text
@@ -4305,6 +4689,476 @@ fn protocol_flow_summaries_text(export: &ExportBundle) -> String {
         })
         .collect::<Vec<_>>()
         .join(",")
+}
+
+fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetworkProfileSummary> {
+    let finding_summaries = protocol_flow_finding_summaries(export);
+    let mut profiles = HashMap::<(u32, String), ProcessNetworkProfileSummary>::new();
+
+    for flow in &export.program_flows {
+        let Some(process) = flow.process.as_ref() else {
+            continue;
+        };
+        let key = (process.pid, process.comm.clone());
+        let entry = profiles
+            .entry(key)
+            .or_insert_with(|| ProcessNetworkProfileSummary {
+                pid: process.pid,
+                comm: process.comm.clone(),
+                ..Default::default()
+            });
+
+        let operation = operation_label(&flow.operation);
+        if !entry.operations.contains(&operation) {
+            entry.operations.push(operation);
+        }
+
+        let inferred_kind = gewyvern::flow::infer_network_module_kind(
+            &flow.operation,
+            protocol_flow_last_phase(flow).as_deref(),
+            None,
+            "network_module",
+        )
+        .to_string();
+        if !entry.module_kinds.contains(&inferred_kind) {
+            entry.module_kinds.push(inferred_kind);
+        }
+
+        for phase in protocol_flow_phases(flow) {
+            if !entry.phases.contains(&phase) {
+                entry.phases.push(phase);
+            }
+        }
+
+        match finding_summaries.get(&flow.id) {
+            Some(summary) if summary.has_findings => {
+                entry.attention_flows += 1;
+                for module_kind in &summary.network_module_kinds {
+                    if !entry.module_kinds.contains(module_kind) {
+                        entry.module_kinds.push(module_kind.clone());
+                    }
+                }
+                for transition in &summary.missing_transitions {
+                    if !entry.missing_transitions.contains(transition) {
+                        entry.missing_transitions.push(transition.clone());
+                    }
+                }
+                for suspect_area in &summary.suspect_areas {
+                    if !entry.suspect_areas.contains(suspect_area) {
+                        entry.suspect_areas.push(suspect_area.clone());
+                    }
+                }
+            }
+            _ => entry.healthy_flows += 1,
+        }
+    }
+
+    for finding in &export.program_findings {
+        let Some(process) = finding.process.as_ref() else {
+            continue;
+        };
+        let key = (process.pid, process.comm.clone());
+        let entry = profiles
+            .entry(key)
+            .or_insert_with(|| ProcessNetworkProfileSummary {
+                pid: process.pid,
+                comm: process.comm.clone(),
+                ..Default::default()
+            });
+        if !entry.module_kinds.contains(&finding.network_module_kind) {
+            entry
+                .module_kinds
+                .push(finding.network_module_kind.clone());
+        }
+        if !entry.suspect_areas.contains(&finding.suspect_area) {
+            entry.suspect_areas.push(finding.suspect_area.clone());
+        }
+        if !entry.suspect_modules.contains(&finding.module_label) {
+            entry.suspect_modules.push(finding.module_label.clone());
+        }
+    }
+
+    let mut profiles = profiles.into_values().collect::<Vec<_>>();
+    for profile in &mut profiles {
+        profile.operations.sort();
+        profile.operations.dedup();
+        profile.module_kinds.sort();
+        profile.module_kinds.dedup();
+        profile.phases.sort();
+        profile.phases.dedup();
+        profile.missing_transitions.sort();
+        profile.missing_transitions.dedup();
+        profile.suspect_areas.sort();
+        profile.suspect_areas.dedup();
+        profile.suspect_modules.sort();
+        profile.suspect_modules.dedup();
+    }
+    profiles.sort_by(|a, b| a.pid.cmp(&b.pid).then_with(|| a.comm.cmp(&b.comm)));
+    profiles
+}
+
+fn process_network_profiles_json(export: &ExportBundle) -> String {
+    format!(
+        "[{}]",
+        process_network_profile_summaries(export)
+            .into_iter()
+            .map(|profile| format!(
+                "{{\"pid\":{},\"comm\":\"{}\",\"operations\":{},\"module_kinds\":{},\"phases\":{},\"missing_transitions\":{},\"suspect_areas\":{},\"suspect_modules\":{},\"healthy_flows\":{},\"attention_flows\":{}}}",
+                profile.pid,
+                profile.comm,
+                string_list_json(&profile.operations),
+                string_list_json(&profile.module_kinds),
+                string_list_json(&profile.phases),
+                string_list_json(&profile.missing_transitions),
+                string_list_json(&profile.suspect_areas),
+                string_list_json(&profile.suspect_modules),
+                profile.healthy_flows,
+                profile.attention_flows,
+            ))
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
+fn process_network_profiles_text(export: &ExportBundle) -> String {
+    let locale = UiLocale::detect();
+    let profiles = process_network_profile_summaries(export);
+    if profiles.is_empty() {
+        return locale.none().to_string();
+    }
+    profiles
+        .into_iter()
+        .map(|profile| {
+            let kinds = if profile.module_kinds.is_empty() {
+                locale.none().to_string()
+            } else {
+                profile.module_kinds.join("|")
+            };
+            let phases = if profile.phases.is_empty() {
+                locale.none().to_string()
+            } else {
+                profile.phases.join(">")
+            };
+            let missing = if profile.missing_transitions.is_empty() {
+                String::new()
+            } else {
+                format!(" missing={}", profile.missing_transitions.join("|"))
+            };
+            format!(
+                "{}(pid={})[kinds={} healthy={} attention={} phases={}{}]",
+                profile.comm,
+                profile.pid,
+                kinds,
+                profile.healthy_flows,
+                profile.attention_flows,
+                phases,
+                missing
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn primary_module_kind_for_export(export: &ExportBundle) -> String {
+    if let Some(finding) = export.program_findings.first() {
+        return finding.network_module_kind.clone();
+    }
+    export
+        .program_flows
+        .first()
+        .map(|flow| {
+            gewyvern::flow::infer_network_module_kind(
+                &flow.operation,
+                protocol_flow_last_phase(flow).as_deref(),
+                None,
+                "network_module",
+            )
+            .to_string()
+        })
+        .unwrap_or_else(|| "none".into())
+}
+
+fn primary_failure_stage_for_export(export: &ExportBundle) -> String {
+    if let Some(finding) = export.program_findings.first() {
+        if let Some(phase) = &finding.phase {
+            return phase.clone();
+        }
+        if let Some(transition) = &finding.phase_transition {
+            return transition.clone();
+        }
+    }
+    export
+        .program_flows
+        .iter()
+        .filter_map(protocol_flow_last_phase)
+        .next_back()
+        .unwrap_or_else(|| "none".into())
+}
+
+fn suspect_modules_for_export(export: &ExportBundle) -> String {
+    if export.program_findings.is_empty() {
+        "none".into()
+    } else {
+        export
+            .program_findings
+            .iter()
+            .map(|finding| finding.module_label.clone())
+            .collect::<Vec<_>>()
+            .join(" | ")
+    }
+}
+
+fn scan_target_status(export: &ExportBundle) -> ScanTargetStatus {
+    if export.program_flows.is_empty() {
+        ScanTargetStatus::Idle
+    } else if export.program_findings.is_empty() {
+        ScanTargetStatus::Healthy
+    } else {
+        ScanTargetStatus::Attention
+    }
+}
+
+fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
+    let total_targets = outputs.len();
+    let healthy_targets = outputs
+        .iter()
+        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Healthy))
+        .count();
+    let attention_targets = outputs
+        .iter()
+        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Attention))
+        .count();
+    let idle_targets = outputs
+        .iter()
+        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Idle))
+        .count();
+    let targets = outputs
+        .iter()
+        .map(|(name, export)| {
+            let primary_module_kind = primary_module_kind_for_export(export);
+            let primary_failure_stage = primary_failure_stage_for_export(export);
+            format!(
+                "{{\"target\":\"{}\",\"template_id\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"suspect_modules\":\"{}\",\"program_flows\":{},\"program_findings\":{},\"module_findings\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
+                name,
+                export.template_id,
+                scan_target_status(export).label(),
+                primary_module_kind,
+                module_family_label(&primary_module_kind),
+                primary_failure_stage,
+                stage_family_label(&primary_failure_stage),
+                suspect_modules_for_export(export),
+                export.program_flows.len(),
+                export.program_findings.len(),
+                export.module_findings.len(),
+                process_network_profiles_json(export),
+                protocol_flow_summaries_json(export),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        "{{\"scan_all\":true,\"total_targets\":{},\"healthy_targets\":{},\"attention_targets\":{},\"idle_targets\":{},\"targets\":[{}]}}",
+        total_targets,
+        healthy_targets,
+        attention_targets,
+        idle_targets,
+        targets
+    )
+}
+
+fn html_escape(input: &str) -> String {
+    input
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
+    let total_targets = outputs.len();
+    let healthy_targets = outputs
+        .iter()
+        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Healthy))
+        .count();
+    let attention_targets = outputs
+        .iter()
+        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Attention))
+        .count();
+    let idle_targets = outputs
+        .iter()
+        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Idle))
+        .count();
+
+    let mut family_counts = std::collections::BTreeMap::<String, usize>::new();
+    for (_, export) in outputs {
+        let family = module_family_label(&primary_module_kind_for_export(export)).to_string();
+        *family_counts.entry(family).or_default() += 1;
+    }
+    let family_summary = family_counts
+        .into_iter()
+        .map(|(family, count)| {
+            format!(
+                "<div class=\"pill\"><span class=\"tag family-{}\">{}</span> {}</div>",
+                family,
+                family,
+                count
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("");
+
+    let mut sorted_outputs = outputs
+        .iter()
+        .map(|(name, export)| (name, export))
+        .collect::<Vec<_>>();
+    sorted_outputs.sort_by(|(left_name, left), (right_name, right)| {
+        let left_rank = match scan_target_status(left) {
+            ScanTargetStatus::Attention => 0,
+            ScanTargetStatus::Healthy => 1,
+            ScanTargetStatus::Idle => 2,
+        };
+        let right_rank = match scan_target_status(right) {
+            ScanTargetStatus::Attention => 0,
+            ScanTargetStatus::Healthy => 1,
+            ScanTargetStatus::Idle => 2,
+        };
+        left_rank
+            .cmp(&right_rank)
+            .then_with(|| {
+                primary_module_kind_for_export(left).cmp(&primary_module_kind_for_export(right))
+            })
+            .then_with(|| left_name.cmp(right_name))
+    });
+
+    let cards = sorted_outputs
+        .into_iter()
+        .map(|(name, export)| {
+            let status = scan_target_status(export).label();
+            let profiles = process_network_profile_summaries(export)
+                .into_iter()
+                .map(|profile| {
+                    let primary_kind = first_or_none(&profile.module_kinds);
+                    let primary_stage = if !profile.missing_transitions.is_empty() {
+                        first_or_none(&profile.missing_transitions)
+                    } else {
+                        first_or_none(&profile.phases)
+                    };
+                    let suspect_modules = first_or_none(&profile.suspect_modules);
+                    format!(
+                        "<li><strong>{}</strong> (pid={}): <span class=\"tag family-{}\">{}</span> <span class=\"tag stage-{}\">{}</span> suspect_module={} kinds={} healthy_flows={} attention_flows={} phases={} missing={}</li>",
+                        html_escape(&profile.comm),
+                        profile.pid,
+                        module_family_label(&primary_kind),
+                        html_escape(&primary_kind),
+                        stage_family_label(&primary_stage),
+                        html_escape(&primary_stage),
+                        html_escape(&suspect_modules),
+                        html_escape(&profile.module_kinds.join(" | ")),
+                        profile.healthy_flows,
+                        profile.attention_flows,
+                        html_escape(&profile.phases.join(" > ")),
+                        html_escape(&profile.missing_transitions.join(" | ")),
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("");
+            let primary_module_kind = primary_module_kind_for_export(export);
+            let primary_failure_stage = primary_failure_stage_for_export(export);
+            let suspect_modules = suspect_modules_for_export(export);
+            let primary_module_family = module_family_label(&primary_module_kind);
+            let primary_stage_family = stage_family_label(&primary_failure_stage);
+            let flow_lines = export
+                .program_flows
+                .iter()
+                .map(|flow| {
+                    let phase_text = protocol_flow_phases(flow).join(" > ");
+                    format!(
+                        "<li>{}: last_phase={} phases={}</li>",
+                        html_escape(&operation_label(&flow.operation)),
+                        html_escape(&protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into())),
+                        html_escape(&phase_text),
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("");
+            format!(
+                "<section class=\"card status-{status}\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div><h3>Process Profiles</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></section>",
+                html_escape(name),
+                status,
+                export.program_flows.len(),
+                export.program_findings.len(),
+                export.module_findings.len(),
+                primary_module_family,
+                html_escape(&primary_module_kind),
+                primary_stage_family,
+                html_escape(&primary_failure_stage),
+                html_escape(&suspect_modules),
+                profiles,
+                flow_lines,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    format!(
+        "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>gewyvern scan report</title><style>body{{font-family:ui-sans-serif,system-ui,sans-serif;background:#f6f7fb;color:#18202a;margin:0;padding:24px}}h1,h2,h3{{margin:0 0 12px}}.summary{{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 24px}}.pill{{background:#fff;border:1px solid #d8dee9;border-radius:999px;padding:10px 14px;font-size:14px}}.tag{{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}}.family-dns{{background:#dbeafe;color:#1d4ed8}}.family-route{{background:#e0f2fe;color:#0369a1}}.family-connect{{background:#ede9fe;color:#6d28d9}}.family-handshake{{background:#fae8ff;color:#a21caf}}.family-request-response{{background:#dcfce7;color:#166534}}.family-database{{background:#fef3c7;color:#92400e}}.family-auth{{background:#fee2e2;color:#b91c1c}}.family-directory{{background:#ecfccb;color:#3f6212}}.family-messaging{{background:#ffedd5;color:#c2410c}}.family-relay{{background:#d1fae5;color:#047857}}.family-service{{background:#e2e8f0;color:#334155}}.family-general{{background:#f3f4f6;color:#374151}}.stage-dns{{background:#dbeafe;color:#1d4ed8}}.stage-connect{{background:#ede9fe;color:#6d28d9}}.stage-handshake{{background:#fae8ff;color:#a21caf}}.stage-request-response{{background:#dcfce7;color:#166534}}.stage-auth{{background:#fee2e2;color:#b91c1c}}.stage-general{{background:#f3f4f6;color:#374151}}.stage-none{{background:#e5e7eb;color:#6b7280}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}}.card{{background:#fff;border:1px solid #d8dee9;border-radius:16px;padding:18px;box-shadow:0 6px 24px rgba(15,23,42,0.06)}}.conclusion{{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 18px}}.status-attention{{border-color:#f0b429}}.status-healthy{{border-color:#68b984}}.status-idle{{border-color:#cbd5e1}}ul{{padding-left:18px}}li{{margin:6px 0}}</style></head><body><h1>gewyvern Scan Report</h1><div class=\"summary\"><div class=\"pill\">total targets: {}</div><div class=\"pill\">healthy: {}</div><div class=\"pill\">attention: {}</div><div class=\"pill\">idle: {}</div></div><div class=\"summary\">{}</div><div class=\"grid\">{}</div></body></html>",
+        total_targets,
+        healthy_targets,
+        attention_targets,
+        idle_targets,
+        family_summary,
+        cards
+    )
+}
+
+fn scan_report_text(outputs: &[(String, ExportBundle)]) -> String {
+    let total_targets = outputs.len();
+    let healthy_targets = outputs
+        .iter()
+        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Healthy))
+        .count();
+    let attention_targets = outputs
+        .iter()
+        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Attention))
+        .count();
+    let idle_targets = outputs
+        .iter()
+        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Idle))
+        .count();
+    let mut lines = vec![format!(
+        "scan_all_report: total_targets={} healthy_targets={} attention_targets={} idle_targets={}",
+        total_targets, healthy_targets, attention_targets, idle_targets
+    )];
+    lines.extend(outputs.iter().map(|(name, export)| {
+        format!(
+            "{} status={} flows={} findings={} modules={} profiles={} protocol_flows={}",
+            name,
+            scan_target_status(export).label(),
+            export.program_flows.len(),
+            export.program_findings.len(),
+            export.module_findings.len(),
+            process_network_profiles_text(export),
+            protocol_flow_summaries_text(export),
+        )
+    }));
+    lines.join("\n")
+}
+
+fn render_scan_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]) -> String {
+    match cli.report_format {
+        Some(ReportFormat::Html) => scan_report_html(outputs),
+        Some(ReportFormat::Json) => scan_report_json(outputs),
+        None if cli.json => scan_report_json(outputs),
+        None => scan_report_text(outputs),
+    }
+}
+
+fn render_report_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]) -> String {
+    match cli.report_format {
+        Some(ReportFormat::Html) => scan_report_html(outputs),
+        Some(ReportFormat::Json) => scan_report_json(outputs),
+        None => scan_report_text(outputs),
+    }
 }
 
 fn summary_json(name: &str, export: &ExportBundle) -> String {
@@ -4318,7 +5172,7 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
             .join(",")
     );
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
         export.template_id,
         export.ingest_trust_mode,
         export.debug_summary.fragments_loaded,
@@ -4332,6 +5186,7 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
         export.debug_summary.degraded,
         suspect_modules,
         protocol_flow_summaries_json(export),
+        process_network_profiles_json(export),
     )
 }
 
@@ -4404,7 +5259,7 @@ fn findings_text(name: &str, export: &ExportBundle) -> String {
 
 fn findings_json(name: &str, export: &ExportBundle) -> String {
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}]}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
         export.template_id,
         export
             .module_findings
@@ -4418,6 +5273,7 @@ fn findings_json(name: &str, export: &ExportBundle) -> String {
             .map(program_finding_json)
             .collect::<Vec<_>>()
             .join(","),
+        process_network_profiles_json(export),
     )
 }
 
@@ -4534,11 +5390,12 @@ fn http_component_json(component: &gewyvern::http::HttpComponentRef) -> String {
 
 fn module_finding_json(finding: &gewyvern::flow::ModuleFinding) -> String {
     format!(
-        "{{\"module_label\":\"{}\",\"severity\":\"{}\",\"process\":{},\"operation\":\"{}\",\"phases\":{},\"phase_transitions\":{},\"suspect_areas\":{},\"causes\":{},\"supporting_fragments\":{},\"program_flows\":{},\"summaries\":{},\"evidence_trace\":{}}}",
+        "{{\"module_label\":\"{}\",\"severity\":\"{}\",\"process\":{},\"operation\":\"{}\",\"network_module_kinds\":{},\"phases\":{},\"phase_transitions\":{},\"suspect_areas\":{},\"causes\":{},\"supporting_fragments\":{},\"program_flows\":{},\"summaries\":{},\"evidence_trace\":{}}}",
         finding.module_label,
         module_severity_label(&finding.severity),
         process_json(finding.process.as_ref()),
         operation_label(&finding.operation),
+        string_list_json(&finding.network_module_kinds),
         string_list_json(&finding.phases),
         string_list_json(&finding.phase_transitions),
         string_list_json(&finding.suspect_areas),
@@ -4567,9 +5424,10 @@ fn module_finding_json(finding: &gewyvern::flow::ModuleFinding) -> String {
 
 fn program_finding_json(finding: &gewyvern::flow::ProgramFinding) -> String {
     format!(
-        "{{\"program_flow\":{},\"module_label\":\"{}\",\"phase\":{},\"phase_transition\":{},\"suspect_area\":\"{}\",\"cause\":\"{}\",\"process\":{},\"operation\":\"{}\",\"summary\":\"{}\",\"supporting_fragments\":{},\"evidence_trace\":{}}}",
+        "{{\"program_flow\":{},\"module_label\":\"{}\",\"network_module_kind\":\"{}\",\"phase\":{},\"phase_transition\":{},\"suspect_area\":\"{}\",\"cause\":\"{}\",\"process\":{},\"operation\":\"{}\",\"summary\":\"{}\",\"supporting_fragments\":{},\"evidence_trace\":{}}}",
         finding.program_flow.0,
         finding.module_label,
+        finding.network_module_kind,
         finding
             .phase
             .as_ref()
@@ -4714,6 +5572,7 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
                         );
                         std::process::exit(1);
                     });
+                let mut outputs = Vec::new();
                 for target in &scan_targets {
                     let export = run_binding_session(target.binding(), &facts);
                     let export = cli
@@ -4721,8 +5580,9 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
                         .map(|pid| filter_export_by_pid(&export, pid))
                         .unwrap_or(export);
                     let export = annotate_export_trust(export, cli);
-                    emit_rendered(cli, &target.label(), &export, true);
+                    outputs.push((target.label(), export));
                 }
+                emit_scan_outputs(cli, &outputs, true);
                 continue;
             }
 
@@ -4788,6 +5648,7 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
                 );
                 std::process::exit(1);
             });
+            let mut outputs = Vec::new();
             for target in &scan_targets {
                 let export = run_binding_session(target.binding(), &facts);
                 let export = cli
@@ -4795,8 +5656,9 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
                     .map(|pid| filter_export_by_pid(&export, pid))
                     .unwrap_or(export);
                 let export = annotate_export_trust(export, cli);
-                emit_rendered(cli, &target.label(), &export, true);
+                outputs.push((target.label(), export));
             }
+            emit_scan_outputs(cli, &outputs, true);
             continue;
         }
 
@@ -4823,7 +5685,10 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
 
 fn emit_rendered(cli: &Cli, name: &str, export: &ExportBundle, append: bool) {
     let locale = UiLocale::detect();
-    let rendered = if cli.findings {
+    let single = vec![(name.to_string(), export.clone())];
+    let rendered = if cli.report_format.is_some() {
+        render_report_outputs(cli, &single)
+    } else if cli.findings {
         if cli.json {
             findings_json(name, export)
         } else {
@@ -4839,6 +5704,35 @@ fn emit_rendered(cli: &Cli, name: &str, export: &ExportBundle, append: bool) {
         summary_line(name, export)
     };
 
+    if let Some(path) = cli.out_path.as_deref() {
+        if append {
+            let mut existing = fs::read_to_string(path).unwrap_or_default();
+            existing.push_str(&rendered);
+            existing.push('\n');
+            fs::write(path, existing).unwrap_or_else(|err| {
+                eprintln!(
+                    "{}",
+                    locale.msgf("write_failed", path, Some(&err.to_string()))
+                );
+                std::process::exit(1);
+            });
+        } else {
+            fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
+                eprintln!(
+                    "{}",
+                    locale.msgf("write_failed", path, Some(&err.to_string()))
+                );
+                std::process::exit(1);
+            });
+        }
+    } else {
+        println!("{rendered}");
+    }
+}
+
+fn emit_scan_outputs(cli: &Cli, outputs: &[(String, ExportBundle)], append: bool) {
+    let locale = UiLocale::detect();
+    let rendered = render_scan_outputs(cli, outputs);
     if let Some(path) = cli.out_path.as_deref() {
         if append {
             let mut existing = fs::read_to_string(path).unwrap_or_default();

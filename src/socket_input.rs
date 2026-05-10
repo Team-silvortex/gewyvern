@@ -170,6 +170,7 @@ pub fn collect_tcp_socket_facts_on_listener(
     collect_stream_facts(BufReader::new(stream))
 }
 
+#[cfg(test)]
 fn run_stream_session<R: Read>(
     reader: BufReader<R>,
     config: SessionConfig,

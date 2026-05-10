@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use gewyvern::ledger::{
     CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, QuicFrameType, QuicMetaFact,
     QuicPacketType, RouteDecisionFact, SessionId, SockLineageFact, TcpStateFact,

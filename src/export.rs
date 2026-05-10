@@ -1768,6 +1768,10 @@ fn program_finding_json(finding: &ProgramFinding) -> JsonValue {
             JsonValue::String(finding.module_label.clone()),
         ),
         (
+            "network_module_kind".into(),
+            JsonValue::String(finding.network_module_kind.clone()),
+        ),
+        (
             "phase".into(),
             finding
                 .phase
@@ -1868,6 +1872,16 @@ fn module_finding_json(finding: &ModuleFinding) -> JsonValue {
                 ModuleSeverity::Medium => "medium".into(),
                 ModuleSeverity::Low => "low".into(),
             }),
+        ),
+        (
+            "network_module_kinds".into(),
+            JsonValue::Array(
+                finding
+                    .network_module_kinds
+                    .iter()
+                    .map(|kind| JsonValue::String(kind.clone()))
+                    .collect(),
+            ),
         ),
         (
             "phases".into(),
@@ -4329,6 +4343,10 @@ fn parse_program_finding(value: &JsonValue) -> Result<ProgramFinding, ExportErro
             .ok_or_else(|| ExportError::InvalidShape("program_finding.module_label".into()))?
             .as_str()?
             .to_string(),
+        network_module_kind: match object.get("network_module_kind") {
+            Some(value) => value.as_str()?.to_string(),
+            None => "network_module".to_string(),
+        },
         phase: match object.get("phase").unwrap_or(&JsonValue::Null) {
             JsonValue::Null => None,
             value => Some(value.as_str()?.to_string()),
@@ -4411,6 +4429,13 @@ fn parse_module_finding(value: &JsonValue) -> Result<ModuleFinding, ExportError>
                 )));
             }
         },
+        network_module_kinds: object
+            .get("network_module_kinds")
+            .unwrap_or(&JsonValue::Array(Vec::new()))
+            .as_array()?
+            .iter()
+            .map(|item| Ok(item.as_str()?.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
         phases: object
             .get("phases")
             .unwrap_or(&JsonValue::Array(Vec::new()))

@@ -20,6 +20,35 @@ The long-term direction is:
 - all protocol behavior should stay grounded in existing eBPF fragment templates,
   not ad hoc generated kernel bytecode
 
+## Start Here
+
+If you want the shortest path into the current system:
+
+```bash
+# Discover built-in protocol coverage
+cargo run -- --list-protocols
+cargo run -- --list-entries quic
+
+# Run one built-in protocol path
+cargo run -- --protocol mysql --entry session --json --summary-only
+cargo run -- --protocol mysql --entry session --report-format html --out /tmp/mysql-session-report.html
+
+# Sweep the default built-in protocol set
+cargo run -- --scan-all --json --summary-only
+
+# Render the same sweep as a visual HTML report
+cargo run -- --scan-all --summary-only --report-format html --out /tmp/gewyvern-scan-report.html
+
+# Compile a DSL file or package without starting the runtime
+cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy --json
+```
+
+`--summary-only --json` is now the fastest operational view: it includes a
+`protocol_flows` array and `process_network_profiles` summary that show whether
+each matched protocol path is healthy or currently stuck at a missing
+transition. `--report-format html` renders the same single-target or full scan
+as a visual report.
+
 ## Status
 
 - project version: `0.5.0`
@@ -36,6 +65,23 @@ The long-term direction is:
 - language semantics: single-entry, function-unit DSL with no cross-file global mutable state
 - workspace shape: `gewyvern` runtime crate + `gewyc` compiler CLI crate
 - protocol registry shape: scanned gewy project packages under `protocols/`
+
+## Supported Protocol Families
+
+- Web and secure transport:
+  HTTP, HTTPS, TLS, QUIC, HTTP/3, Hysteria 2
+- Name resolution and discovery:
+  DNS, DNS-over-TCP, mDNS, SSDP
+- Datagram and control protocols:
+  STUN, CoAP, NTP, DHCP, WireGuard, SNMP, RADIUS, GTP-U, SIP
+- Data stores and brokers:
+  Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP
+- Mail and directory services:
+  SMTP, LDAP
+
+Most built-in packages model a concrete program-network path such as
+request/response, auth/query, or publish/ack, rather than only matching a port
+number.
 
 ## Workspace Layout
 
@@ -315,6 +361,11 @@ can express:
 - dynamic sampled payload offsets via fragment params in addition to built-in
   offset defaults
 
+In normal runtime use, [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)
+is now the main operational surface. `--protocol`, `--entry`, and `--scan-all`
+resolve through scanned `gewy.pkg` manifests first, and only fall back to
+static compatibility entries when necessary.
+
 The shared datagram predicate surface is what the current UDP-family protocol
 DSLs build on. In practice, the engine is already using the same IR layer to
 differentiate:
@@ -361,6 +412,8 @@ Main commands:
 - `cargo run -p gewyc -- envelope <path.gewy> --json`
 - `cargo run -p gewyc -- <path.gewy> --emit diagnostics --json --out /tmp/gewyc.json`
 - `cargo run -p gewyc -- <path.gewy> --emit envelope --json --out /tmp/gewyc-envelope.json`
+- `cargo test benchmark_summary_json_large_protocol_flow_export -- --ignored --nocapture`
+- `cargo test benchmark_summary_line_large_protocol_flow_export -- --ignored --nocapture`
 
 `gewyc stages` now includes a validation summary for payload-byte support:
 
@@ -380,6 +433,14 @@ Current test layers:
 - [tests/fragment_rules_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/fragment_rules_tdd.rs)
 - [tests/linux_smoke_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/linux_smoke_tdd.rs)
 
+Current benchmark entrypoints:
+
+- summary JSON rendering over many matched protocol flows
+- summary line rendering over many matched protocol flows
+
+These are lightweight ignored tests today, so they run without adding a
+separate benchmark harness dependency.
+
 ## Quick Start
 
 Run the built-in demos:
@@ -392,6 +453,19 @@ cargo run -- --findings
 cargo run -- --demo both --json
 cargo run -- --demo both --json --summary-only
 cargo run -- --findings --json
+```
+
+Recommended operational paths:
+
+```bash
+# one built-in protocol path
+cargo run -- --protocol quic --entry bidi --json --summary-only
+
+# one process-scoped protocol path
+cargo run -- --protocol hy2 --entry tcp --pid 4242 --json
+
+# sweep the built-in protocol registry
+cargo run -- --scan-all --json --summary-only
 ```
 
 Run a DSL-driven demo:
@@ -450,12 +524,14 @@ cargo run -- --scan-all --json --summary-only
 cargo run -- --scan-all --findings --json
 cargo run -- --scan-all --protocol-set /tmp/protocols.txt --json --summary-only
 cargo run -- --scan-all --protocol-set /Users/Shared/chroot/dev/gewyvern/protocols --json --summary-only
+cargo run -- --scan-all --summary-only --report-format html --out /tmp/gewyvern-scan-report.html
+cargo run -- --scan-all --findings --report-format html --out /tmp/gewyvern-scan-findings.html
 ```
 
-`--summary-only --json` now includes a `protocol_flows` array for every matched
-program flow, so scan output can show which protocol path is healthy, which
-phases were observed, and which phase transition is currently missing when a
-flow needs attention.
+`--scan-all` now walks every registered protocol entry under `protocols/`, not
+just one default entry per protocol. The JSON report includes top-level scan
+counts plus per-target `protocol_flows` and `process_network_profiles`; the
+HTML report renders the same scan as a visual summary page.
 
 Example protocol set file:
 
@@ -579,6 +655,7 @@ Socket session scanned against the default protocol set or a custom set file:
 ```bash
 cargo run -- --scan-all --pid 4242 --tcp-socket 127.0.0.1:9000 --json --summary-only
 cargo run -- --scan-all --protocol-set /tmp/protocols.txt --tcp-socket 127.0.0.1:9000 --findings --json
+cargo run -- --scan-all --pid 4242 --tcp-socket 127.0.0.1:9000 --summary-only --report-format html --out /tmp/gewyvern-socket-scan.html
 ```
 
 Remote TCP listeners are now opt-in:

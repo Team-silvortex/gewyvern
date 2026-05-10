@@ -306,6 +306,7 @@ fn repo_script_path(script_name: &'static str) -> Result<std::path::PathBuf, Loa
     Ok(canonical)
 }
 
+#[cfg(any(test, target_os = "linux"))]
 fn validate_tracepoint_name(name: &str) -> Result<(), LoaderError> {
     validate_probe_target(
         name,
@@ -314,6 +315,7 @@ fn validate_tracepoint_name(name: &str) -> Result<(), LoaderError> {
     )
 }
 
+#[cfg(any(test, target_os = "linux"))]
 fn validate_symbol_name(name: &str) -> Result<(), LoaderError> {
     validate_probe_target(
         name,
@@ -322,6 +324,7 @@ fn validate_symbol_name(name: &str) -> Result<(), LoaderError> {
     )
 }
 
+#[cfg(any(test, target_os = "linux"))]
 fn validate_netdev_name(name: &str) -> Result<(), LoaderError> {
     validate_probe_target(
         name,
@@ -330,6 +333,7 @@ fn validate_netdev_name(name: &str) -> Result<(), LoaderError> {
     )
 }
 
+#[cfg(any(test, target_os = "linux"))]
 fn validate_probe_target<F>(
     value: &str,
     is_allowed: F,
