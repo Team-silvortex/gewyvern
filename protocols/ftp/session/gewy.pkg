@@ -1,0 +1,6 @@
+name=ftp_session
+version=0.5.6
+entry=main.gewy
+protocol=ftp
+entry_name=session
+default=true

@@ -1746,6 +1746,26 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
                 gewyvern::flow::ProgramOperation::Custom(value) if value == "hy2_tcp_relay"
             )
         });
+    let is_socks5_session = binding
+        .template
+        .program_model
+        .as_ref()
+        .is_some_and(|model| {
+            matches!(
+                &model.operation,
+                gewyvern::flow::ProgramOperation::Custom(value) if value == "socks5_session"
+            )
+        });
+    let is_http_connect_tunnel = binding
+        .template
+        .program_model
+        .as_ref()
+        .is_some_and(|model| {
+            matches!(
+                &model.operation,
+                gewyvern::flow::ProgramOperation::Custom(value) if value == "http_connect_tunnel"
+            )
+        });
     let facts = if fragments.contains(&"tcp_state_fragment")
         && fragments.contains(&"tcp_packet_meta_fragment")
         && fragments.contains(&"sock_lineage_fragment")
@@ -3138,6 +3158,348 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
                     }),
                 },
             ]
+        } else if is_socks5_session {
+            vec![
+                FactEnvelope {
+                    id: FactId(1),
+                    ts: base,
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "sock_lineage_fragment".into(),
+                    kind: FactKind::SockLineage(SockLineageFact {
+                        netns: 1,
+                        sk_cookie: 155,
+                        pid: 4242,
+                        tid: 4242,
+                        cgroup_id: 4242,
+                        comm: {
+                            let mut comm = [0u8; 16];
+                            comm[..4].copy_from_slice(b"curl");
+                            comm
+                        },
+                    }),
+                },
+                route_fact(2, base + Duration::from_millis(10), 155, 3, SessionId(2)),
+                FactEnvelope {
+                    id: FactId(3),
+                    ts: base + Duration::from_millis(20),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "tcp_state_fragment".into(),
+                    kind: FactKind::TcpState(TcpStateFact {
+                        netns: 1,
+                        sk_cookie: 155,
+                        saddr: [0; 16],
+                        daddr: [0; 16],
+                        sport: 54000,
+                        dport: 1080,
+                        family: 2,
+                        old: 1,
+                        new: 2,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(4),
+                    ts: base + Duration::from_millis(30),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "tcp_state_fragment".into(),
+                    kind: FactKind::TcpState(TcpStateFact {
+                        netns: 1,
+                        sk_cookie: 155,
+                        saddr: [0; 16],
+                        daddr: [0; 16],
+                        sport: 54000,
+                        dport: 1080,
+                        family: 2,
+                        old: 2,
+                        new: 3,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(5),
+                    ts: base + Duration::from_millis(40),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "tcp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(155),
+                        dir: PacketDir::Egress,
+                        local_port: Some(54000),
+                        remote_port: Some(1080),
+                        payload_byte0: Some(0x05),
+                        payload_byte1: Some(0x01),
+                        payload_prefix2: Some(0x0501),
+                        payload_prefix4: None,
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::from([
+                            (0u16, 0x05),
+                            (1u16, 0x01),
+                        ]),
+                        l3_proto: 0x0800,
+                        l4_proto: 6,
+                        tot_len: 80,
+                        tcp_flags: 0x18,
+                        seq: Some(1),
+                        ack: Some(1),
+                        window: Some(65535),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(6),
+                    ts: base + Duration::from_millis(50),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "tcp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(155),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(54000),
+                        remote_port: Some(1080),
+                        payload_byte0: Some(0x05),
+                        payload_byte1: Some(0x00),
+                        payload_prefix2: Some(0x0500),
+                        payload_prefix4: None,
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::from([
+                            (0u16, 0x05),
+                            (1u16, 0x00),
+                        ]),
+                        l3_proto: 0x0800,
+                        l4_proto: 6,
+                        tot_len: 80,
+                        tcp_flags: 0x18,
+                        seq: Some(2),
+                        ack: Some(2),
+                        window: Some(65535),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(7),
+                    ts: base + Duration::from_millis(60),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "tcp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(155),
+                        dir: PacketDir::Egress,
+                        local_port: Some(54000),
+                        remote_port: Some(1080),
+                        payload_byte0: Some(0x05),
+                        payload_byte1: Some(0x01),
+                        payload_prefix2: Some(0x0501),
+                        payload_prefix4: Some(0x05010003),
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::from([
+                            (0u16, 0x05),
+                            (1u16, 0x01),
+                            (2u16, 0x00),
+                            (3u16, 0x03),
+                        ]),
+                        l3_proto: 0x0800,
+                        l4_proto: 6,
+                        tot_len: 92,
+                        tcp_flags: 0x18,
+                        seq: Some(3),
+                        ack: Some(3),
+                        window: Some(65535),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(8),
+                    ts: base + Duration::from_millis(70),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "tcp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(155),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(54000),
+                        remote_port: Some(1080),
+                        payload_byte0: Some(0x05),
+                        payload_byte1: Some(0x00),
+                        payload_prefix2: Some(0x0500),
+                        payload_prefix4: Some(0x05000001),
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::from([
+                            (0u16, 0x05),
+                            (1u16, 0x00),
+                            (2u16, 0x00),
+                            (3u16, 0x01),
+                        ]),
+                        l3_proto: 0x0800,
+                        l4_proto: 6,
+                        tot_len: 92,
+                        tcp_flags: 0x18,
+                        seq: Some(4),
+                        ack: Some(4),
+                        window: Some(65535),
+                    }),
+                },
+            ]
+        } else if is_http_connect_tunnel {
+            vec![
+                FactEnvelope {
+                    id: FactId(1),
+                    ts: base,
+                    cpu: CpuId(0),
+                    ifindex: Some(2),
+                    session: SessionId(2),
+                    fragment_id: "sock_lineage_fragment".into(),
+                    kind: FactKind::SockLineage(SockLineageFact {
+                        netns: 1,
+                        sk_cookie: 166,
+                        pid: 4242,
+                        tid: 4242,
+                        cgroup_id: 4242,
+                        comm: {
+                            let mut comm = [0u8; 16];
+                            comm[..4].copy_from_slice(b"curl");
+                            comm
+                        },
+                    }),
+                },
+                route_fact(2, base + Duration::from_millis(10), 166, 3, SessionId(2)),
+                FactEnvelope {
+                    id: FactId(3),
+                    ts: base + Duration::from_millis(20),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "tcp_state_fragment".into(),
+                    kind: FactKind::TcpState(TcpStateFact {
+                        netns: 1,
+                        sk_cookie: 166,
+                        saddr: [0; 16],
+                        daddr: [0; 16],
+                        sport: 54100,
+                        dport: 8080,
+                        family: 2,
+                        old: 1,
+                        new: 2,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(4),
+                    ts: base + Duration::from_millis(30),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "tcp_state_fragment".into(),
+                    kind: FactKind::TcpState(TcpStateFact {
+                        netns: 1,
+                        sk_cookie: 166,
+                        saddr: [0; 16],
+                        daddr: [0; 16],
+                        sport: 54100,
+                        dport: 8080,
+                        family: 2,
+                        old: 2,
+                        new: 3,
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(5),
+                    ts: base + Duration::from_millis(40),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "tcp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(166),
+                        dir: PacketDir::Egress,
+                        local_port: Some(54100),
+                        remote_port: Some(8080),
+                        payload_byte0: Some(0x43),
+                        payload_byte1: Some(0x4f),
+                        payload_prefix2: Some(0x434f),
+                        payload_prefix4: Some(0x434f4e4e),
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::from([
+                            (0u16, 0x43),
+                            (1u16, 0x4f),
+                            (2u16, 0x4e),
+                            (3u16, 0x4e),
+                        ]),
+                        l3_proto: 0x0800,
+                        l4_proto: 6,
+                        tot_len: 110,
+                        tcp_flags: 0x18,
+                        seq: Some(1),
+                        ack: Some(1),
+                        window: Some(65535),
+                    }),
+                },
+                FactEnvelope {
+                    id: FactId(6),
+                    ts: base + Duration::from_millis(50),
+                    cpu: CpuId(0),
+                    ifindex: Some(3),
+                    session: SessionId(2),
+                    fragment_id: "tcp_packet_meta_fragment".into(),
+                    kind: FactKind::PacketMeta(PacketMetaFact {
+                        netns: 1,
+                        sk_cookie: Some(166),
+                        dir: PacketDir::Ingress,
+                        local_port: Some(54100),
+                        remote_port: Some(8080),
+                        payload_byte0: Some(0x32),
+                        payload_byte1: Some(0x30),
+                        payload_prefix2: Some(0x3230),
+                        payload_prefix4: Some(0x32303020),
+                        payload_byte4: None,
+                        payload_byte5: None,
+                        payload_byte9: None,
+                        payload_byte10: None,
+                        payload_byte13: None,
+                        payload_bytes: std::collections::BTreeMap::from([
+                            (0u16, 0x32),
+                            (1u16, 0x30),
+                            (2u16, 0x30),
+                            (3u16, 0x20),
+                        ]),
+                        l3_proto: 0x0800,
+                        l4_proto: 6,
+                        tot_len: 96,
+                        tcp_flags: 0x18,
+                        seq: Some(2),
+                        ack: Some(2),
+                        window: Some(65535),
+                    }),
+                },
+            ]
         } else if is_dns_lookup {
             vec![
                 FactEnvelope {
@@ -3355,13 +3717,21 @@ mod tests {
     use super::{
         Cli, ReportFormat, SocketTrustMode, annotate_export_trust, filter_export_by_pid,
         findings_json, list_entries_json, list_entries_text, list_protocols_json,
-        list_protocols_text, protocol_dsl_path, render_report_outputs, run_binding_demo,
-        scan_report_html, scan_report_json, scan_targets_for_cli, scan_targets_from_set_file,
-        summary_json, summary_line,
+        list_protocols_text, protocol_dsl_path, render_report_outputs, route_fact,
+        run_binding_demo, scan_report_html, scan_report_json, scan_targets_for_cli,
+        scan_targets_from_set_file, summary_json, summary_line,
     };
     use gewyvern::dsl::compile_file;
+    use gewyvern::export::ExportBundle;
     use gewyvern::flow::{ProgramFinding, ProgramFindingCause, ProgramOperation};
+    use gewyvern::ledger::{
+        CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, SessionId,
+        SockLineageFact, TcpStateFact,
+    };
+    use gewyvern::runtime::{RuntimeSession, SessionConfig};
+    use gewyvern::template::TemplateBinding;
     use std::fs;
+    use std::time::Duration;
     use std::time::Instant;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -3440,6 +3810,163 @@ mod tests {
             supporting_fragments: vec![supporting_fragment.into()],
             evidence_trace: vec![evidence_trace.into()],
         });
+    }
+
+    fn sock_lineage_fact_for_tests(id: u64, cookie: u64, pid: u32, comm: &str) -> FactEnvelope {
+        let mut comm_bytes = [0u8; 16];
+        let bytes = comm.as_bytes();
+        let len = bytes.len().min(comm_bytes.len());
+        comm_bytes[..len].copy_from_slice(&bytes[..len]);
+
+        FactEnvelope {
+            id: FactId(id),
+            ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+            cpu: CpuId(0),
+            ifindex: Some(2),
+            session: SessionId(1),
+            fragment_id: "sock_lineage_fragment".into(),
+            kind: FactKind::SockLineage(SockLineageFact {
+                netns: 1,
+                sk_cookie: cookie,
+                pid,
+                tid: pid,
+                cgroup_id: 4242,
+                comm: comm_bytes,
+            }),
+        }
+    }
+
+    fn tcp_state_fact_with_ports_for_tests(
+        id: u64,
+        cookie: u64,
+        old: u8,
+        new: u8,
+        sport: u16,
+        dport: u16,
+    ) -> FactEnvelope {
+        FactEnvelope {
+            id: FactId(id),
+            ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+            cpu: CpuId(0),
+            ifindex: Some(2),
+            session: SessionId(1),
+            fragment_id: "tcp_state_fragment".into(),
+            kind: FactKind::TcpState(TcpStateFact {
+                netns: 1,
+                sk_cookie: cookie,
+                saddr: [0; 16],
+                daddr: [0; 16],
+                sport,
+                dport,
+                family: 2,
+                old,
+                new,
+            }),
+        }
+    }
+
+    fn packet_fact_with_dir_and_payload_for_tests(
+        id: u64,
+        cookie: u64,
+        tcp_flags: u16,
+        dir: PacketDir,
+        local_port: Option<u16>,
+        remote_port: Option<u16>,
+        payload_byte0: Option<u8>,
+        payload_prefix2: Option<u16>,
+        payload_prefix4: Option<u32>,
+    ) -> FactEnvelope {
+        FactEnvelope {
+            id: FactId(id),
+            ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+            cpu: CpuId(0),
+            ifindex: Some(2),
+            session: SessionId(1),
+            fragment_id: "tcp_packet_meta_fragment".into(),
+            kind: FactKind::PacketMeta(PacketMetaFact {
+                netns: 1,
+                sk_cookie: Some(cookie),
+                dir,
+                local_port: local_port.or(Some(42310)),
+                remote_port: remote_port.or(Some(443)),
+                payload_byte0,
+                payload_byte1: None,
+                payload_prefix2,
+                payload_prefix4,
+                payload_byte4: None,
+                payload_byte5: None,
+                payload_byte9: None,
+                payload_byte10: None,
+                payload_byte13: None,
+                payload_bytes: std::collections::BTreeMap::new(),
+                l3_proto: 0x0800,
+                l4_proto: 6,
+                tot_len: 60,
+                tcp_flags,
+                seq: Some(id as u32),
+                ack: None,
+                window: Some(65535),
+            }),
+        }
+    }
+
+    fn packet_fact_with_dir_and_payload_bytes_for_tests(
+        id: u64,
+        cookie: u64,
+        tcp_flags: u16,
+        dir: PacketDir,
+        local_port: Option<u16>,
+        remote_port: Option<u16>,
+        payload_bytes: &[(u16, u8)],
+    ) -> FactEnvelope {
+        FactEnvelope {
+            id: FactId(id),
+            ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+            cpu: CpuId(0),
+            ifindex: Some(2),
+            session: SessionId(1),
+            fragment_id: "tcp_packet_meta_fragment".into(),
+            kind: FactKind::PacketMeta(PacketMetaFact {
+                netns: 1,
+                sk_cookie: Some(cookie),
+                dir,
+                local_port: local_port.or(Some(42310)),
+                remote_port: remote_port.or(Some(443)),
+                payload_byte0: payload_bytes
+                    .iter()
+                    .find_map(|(offset, value)| (*offset == 0).then_some(*value)),
+                payload_byte1: payload_bytes
+                    .iter()
+                    .find_map(|(offset, value)| (*offset == 1).then_some(*value)),
+                payload_prefix2: None,
+                payload_prefix4: None,
+                payload_byte4: payload_bytes
+                    .iter()
+                    .find_map(|(offset, value)| (*offset == 4).then_some(*value)),
+                payload_byte5: None,
+                payload_byte9: None,
+                payload_byte10: None,
+                payload_byte13: None,
+                payload_bytes: payload_bytes.iter().copied().collect(),
+                l3_proto: 0x0800,
+                l4_proto: 6,
+                tot_len: 60,
+                tcp_flags,
+                seq: Some(id as u32),
+                ack: None,
+                window: Some(65535),
+            }),
+        }
+    }
+
+    fn export_from_test_facts(binding: TemplateBinding, facts: Vec<FactEnvelope>) -> ExportBundle {
+        let config = SessionConfig::for_binding(binding).expect("binding should validate");
+        let mut session = RuntimeSession::start(config).expect("session should start");
+        for fact in facts {
+            session.ingest(fact);
+        }
+        session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(100));
+        session.export_bundle()
     }
 
     #[test]
@@ -3656,7 +4183,7 @@ mod tests {
         assert_eq!(cli.entry.as_deref(), Some("session"));
         assert_eq!(
             cli.dsl_path.as_deref(),
-            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session")
+            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
         );
         assert_eq!(cli.pid, Some(4242));
     }
@@ -3678,7 +4205,7 @@ mod tests {
     fn protocol_lookup_covers_mysql_session() {
         assert_eq!(
             protocol_dsl_path("mysql", Some("session")),
-            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session".to_string())
+            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy".to_string())
         );
     }
 
@@ -3686,11 +4213,11 @@ mod tests {
     fn protocol_lookup_uses_default_entry_when_none_is_provided() {
         assert_eq!(
             protocol_dsl_path("mysql", None),
-            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session".to_string())
+            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy".to_string())
         );
         assert_eq!(
             protocol_dsl_path("amqp", None),
-            Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/session".to_string())
+            Some("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_publish_session.gewy".to_string())
         );
     }
 
@@ -3705,7 +4232,7 @@ mod tests {
     fn legacy_protocol_alias_still_resolves() {
         assert_eq!(
             protocol_dsl_path("mysql-session", None),
-            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session".to_string())
+            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy".to_string())
         );
     }
 
@@ -4223,8 +4750,16 @@ mod tests {
         assert!(json.contains("\"suspect_areas\":[\"transport_io\"]"));
         assert!(json.contains("\"primary_module_kind\":\"http_request_response\""));
         assert!(json.contains("\"primary_failure_stage\":\"send_request->receive_response\""));
-        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
-        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+        assert!(
+            json.contains("\"primary_failure_mode\":\"no_response\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""),
+            "json={}",
+            json
+        );
         assert!(json.contains("\"failure_mode\":\"no_response\""));
         assert!(json.contains("\"failure_detail\":\"request_sent_no_reply\""));
     }
@@ -4267,6 +4802,33 @@ mod tests {
             "setup_incomplete"
         );
         assert_eq!(
+            crate::failure_mode_label(
+                "attention",
+                "remote_access_session",
+                "connect->receive_server_banner",
+                &["transport_io".into()],
+            ),
+            "setup_incomplete"
+        );
+        assert_eq!(
+            crate::failure_mode_label(
+                "attention",
+                "remote_access_session",
+                "receive_server_banner->send_key_exchange_init",
+                &["transport_io".into()],
+            ),
+            "not_sent"
+        );
+        assert_eq!(
+            crate::failure_mode_label(
+                "attention",
+                "authentication_exchange",
+                "connect->receive_banner",
+                &["transport_io".into()],
+            ),
+            "setup_incomplete"
+        );
+        assert_eq!(
             crate::failure_detail_label(
                 "attention",
                 "directory_write",
@@ -4296,9 +4858,54 @@ mod tests {
         assert_eq!(
             crate::failure_detail_label(
                 "attention",
+                "proxy_negotiation",
+                "send_connect_request->receive_connect_success",
+                &["transport_io".into()],
+            ),
+            "request_sent_no_reply"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "proxy_tunnel_establishment",
+                "send_connect_request->receive_connect_established",
+                &["transport_io".into()],
+            ),
+            "request_sent_no_reply"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
                 "quic_handshake",
                 "send_initial->receive_handshake",
                 &[],
+            ),
+            "handshake_incomplete"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "remote_access_session",
+                "connect->receive_server_banner",
+                &["transport_io".into()],
+            ),
+            "handshake_incomplete"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "remote_access_session",
+                "receive_server_banner->send_key_exchange_init",
+                &["transport_io".into()],
+            ),
+            "followup_not_sent"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "authentication_exchange",
+                "connect->receive_banner",
+                &["transport_io".into()],
             ),
             "handshake_incomplete"
         );
@@ -4383,8 +4990,16 @@ mod tests {
         );
         let json = summary_json("dsl_demo", &export);
         assert!(json.contains("\"primary_module_kind\":\"http3_request_response\""));
-        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
-        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+        assert!(
+            json.contains("\"primary_failure_mode\":\"no_response\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""),
+            "json={}",
+            json
+        );
         assert!(json.contains("\"failure_detail\":\"request_sent_no_reply\""));
     }
 
@@ -4413,8 +5028,157 @@ mod tests {
         );
         let json = summary_json("dsl_demo", &export);
         assert!(json.contains("\"primary_module_kind\":\"tls_handshake\""));
-        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(
+            json.contains("\"primary_failure_mode\":\"setup_incomplete\""),
+            "json={}",
+            json
+        );
         assert!(json.contains("\"primary_failure_detail\":\"handshake_incomplete\""));
+    }
+
+    #[test]
+    fn summary_json_carries_ssh_banner_timeout_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy")
+            .expect("ssh_session_path DSL should compile");
+        let mut export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 8281, 53022, "ssh-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        8281,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 8281, 1, 2, 53022, 22),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "ssh_session_path",
+            "remote_access_session",
+            "receive_server_banner",
+            "receive_payload",
+            "connect->receive_server_banner",
+            "initiate_connection->receive_payload",
+            "transport_io",
+            "synthetic missing ssh server banner",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"remote_access_session\""));
+        assert!(json.contains("\"primary_failure_mode\":\"setup_incomplete\""));
+        assert!(json.contains("\"primary_failure_detail\":\"handshake_incomplete\""));
+    }
+
+    #[test]
+    fn summary_json_carries_ssh_kex_followup_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy")
+            .expect("ssh_session_path DSL should compile");
+        let export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 8282, 53023, "ssh-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        8282,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 8282, 1, 2, 53023, 22),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        8282,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53023),
+                        Some(22),
+                        Some(0x53),
+                        Some(0x5353),
+                        Some(0x5353482d),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        8282,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53023),
+                        Some(22),
+                        Some(0x53),
+                        Some(0x5353),
+                        Some(0x5353482d),
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"remote_access_session\""));
+        assert!(
+            json.contains("\"primary_failure_mode\":\"not_sent\""),
+            "json={}",
+            json
+        );
+        assert!(json.contains("\"primary_failure_detail\":\"followup_not_sent\""));
+    }
+
+    #[test]
+    fn summary_json_carries_ftp_banner_timeout_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy")
+            .expect("ftp_session_path DSL should compile");
+        let mut export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 8285, 53182, "ftp-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        8285,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 8285, 1, 2, 53182, 21),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "ftp_session_path",
+            "authentication_exchange",
+            "receive_banner",
+            "receive_payload",
+            "connect->receive_banner",
+            "initiate_connection->receive_payload",
+            "transport_io",
+            "synthetic missing ftp banner",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
+        assert!(
+            json.contains("\"primary_failure_mode\":\"setup_incomplete\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_detail\":\"handshake_incomplete\""),
+            "json={}",
+            json
+        );
     }
 
     #[test]
@@ -4505,6 +5269,150 @@ mod tests {
     }
 
     #[test]
+    fn summary_json_carries_socks5_timeout_detail() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy")
+                .expect("socks5_session_path DSL should compile");
+        let mut export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 8283, 53180, "proxy-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        8283,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 8283, 1, 2, 53180, 1080),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        8283,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53180),
+                        Some(1080),
+                        Some(0x05),
+                        Some(0x0501),
+                        None,
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        8283,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53180),
+                        Some(1080),
+                        Some(0x05),
+                        Some(0x0500),
+                        None,
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        6,
+                        8283,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53180),
+                        Some(1080),
+                        &[(0, 0x05), (1, 0x01), (2, 0x00), (3, 0x03)],
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "socks5_session_path",
+            "proxy_negotiation",
+            "receive_connect_success",
+            "receive_payload",
+            "send_connect_request->receive_connect_success",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing socks5 connect success",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"proxy_negotiation\""));
+        assert!(
+            json.contains("\"primary_failure_mode\":\"no_response\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""),
+            "json={}",
+            json
+        );
+    }
+
+    #[test]
+    fn summary_json_carries_http_connect_timeout_detail() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy")
+                .expect("http_connect_tunnel_path DSL should compile");
+        let mut export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 8284, 53181, "proxy-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        8284,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 8284, 1, 2, 53181, 8080),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        8284,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53181),
+                        Some(8080),
+                        Some(0x43),
+                        Some(0x434f),
+                        Some(0x434f4e4e),
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "http_connect_tunnel_path",
+            "proxy_tunnel_establishment",
+            "receive_connect_established",
+            "receive_payload",
+            "send_connect_request->receive_connect_established",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing http connect established",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"proxy_tunnel_establishment\""));
+        assert!(
+            json.contains("\"primary_failure_mode\":\"no_response\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""),
+            "json={}",
+            json
+        );
+    }
+
+    #[test]
     fn summary_json_carries_http3_server_timeout_detail() {
         let binding =
             compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
@@ -4530,7 +5438,7 @@ mod tests {
         );
         let json = summary_json("dsl_demo", &export);
         assert!(json.contains("\"primary_module_kind\":\"http3_request_response\""));
-        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_mode\":\"not_sent\""));
         assert!(json.contains("\"primary_failure_detail\":\"followup_not_sent\""));
     }
 
@@ -5062,38 +5970,62 @@ fn failure_mode_label(
     if stage.contains("close") {
         return "peer_closed";
     }
+    if let Some((left, right)) = stage.split_once("->") {
+        if left.starts_with("send")
+            && (left.contains("request")
+                || left.contains("query")
+                || left.contains("publish")
+                || left.contains("auth")
+                || left.contains("password")
+                || left.contains("relay")
+                || left.contains("stream")
+                || left.contains("greeting"))
+            && (right.starts_with("receive")
+                || right.contains("response")
+                || right.contains("result")
+                || right.contains("ack")
+                || right.contains("accept")
+                || right.contains("offer")
+                || right.contains("ready")
+                || right.contains("ok")
+                || right.contains("success")
+                || right.contains("established"))
+        {
+            return "no_response";
+        }
+        if left.starts_with("receive")
+            && (right.starts_with("send")
+                || right.contains("request")
+                || right.contains("query")
+                || right.contains("publish")
+                || right.contains("auth")
+                || right.contains("password")
+                || right.contains("relay")
+                || right.contains("stream"))
+        {
+            return "not_sent";
+        }
+        if left.starts_with("send")
+            && (left.contains("banner") || left.contains("hello"))
+            && (right.starts_with("send")
+                || right.contains("key_exchange")
+                || right.contains("kex"))
+        {
+            return "not_sent";
+        }
+    }
     if stage.contains("resolve")
         || stage.contains("dns")
         || stage.contains("connect")
         || stage.contains("establish")
         || stage.contains("handshake")
         || stage.contains("crypto")
+        || stage.contains("hello")
+        || stage.contains("banner")
+        || stage.contains("key_exchange")
+        || stage.contains("kex")
     {
         return "setup_incomplete";
-    }
-    if let Some((_, right)) = stage.split_once("->") {
-        if right.starts_with("receive")
-            || right.contains("response")
-            || right.contains("result")
-            || right.contains("ack")
-            || right.contains("accept")
-            || right.contains("offer")
-            || right.contains("ready")
-            || right.contains("ok")
-        {
-            return "no_response";
-        }
-        if right.starts_with("send")
-            || right.contains("request")
-            || right.contains("query")
-            || right.contains("publish")
-            || right.contains("auth")
-            || right.contains("password")
-            || right.contains("relay")
-            || right.contains("stream")
-        {
-            return "not_sent";
-        }
     }
     if stage.starts_with("send_")
         || stage.contains("request")
@@ -5160,27 +6092,16 @@ fn failure_detail_label(
     if stage.contains("close") {
         return "peer_closed";
     }
-    if stage.contains("resolve") || stage.contains("dns") {
-        return "dns_unresolved";
-    }
-    if stage.contains("connect")
-        || stage.contains("establish")
-        || suspect_areas.iter().any(|area| area == "route_io")
-    {
-        return "route_or_connect_blocked";
-    }
-    if stage.contains("tls")
-        || stage.contains("hello")
-        || stage.contains("crypto")
-        || stage.contains("handshake")
-        || stage.contains("banner")
-        || stage.contains("key_exchange")
-        || stage.contains("kex")
-    {
-        return "handshake_incomplete";
-    }
     if let Some((left, right)) = stage.split_once("->") {
         if left.starts_with("send")
+            && (left.contains("request")
+                || left.contains("query")
+                || left.contains("publish")
+                || left.contains("auth")
+                || left.contains("password")
+                || left.contains("relay")
+                || left.contains("stream")
+                || left.contains("greeting"))
             && (right.starts_with("receive")
                 || right.contains("response")
                 || right.contains("result")
@@ -5188,7 +6109,9 @@ fn failure_detail_label(
                 || right.contains("accept")
                 || right.contains("offer")
                 || right.contains("ready")
-                || right.contains("ok"))
+                || right.contains("ok")
+                || right.contains("success")
+                || right.contains("established"))
         {
             return "request_sent_no_reply";
         }
@@ -5204,6 +6127,33 @@ fn failure_detail_label(
         {
             return "followup_not_sent";
         }
+        if left.starts_with("send")
+            && (left.contains("banner") || left.contains("hello"))
+            && (right.starts_with("send")
+                || right.contains("key_exchange")
+                || right.contains("kex"))
+        {
+            return "followup_not_sent";
+        }
+    }
+    if stage.contains("resolve") || stage.contains("dns") {
+        return "dns_unresolved";
+    }
+    if stage.contains("tls")
+        || stage.contains("hello")
+        || stage.contains("crypto")
+        || stage.contains("handshake")
+        || stage.contains("banner")
+        || stage.contains("key_exchange")
+        || stage.contains("kex")
+    {
+        return "handshake_incomplete";
+    }
+    if stage.contains("connect")
+        || stage.contains("establish")
+        || suspect_areas.iter().any(|area| area == "route_io")
+    {
+        return "route_or_connect_blocked";
     }
     if stage.starts_with("send_")
         || stage.contains("request")
@@ -5778,11 +6728,11 @@ fn primary_failure_stage_for_export(export: &ExportBundle) -> String {
         return profile.primary_failure_stage;
     }
     if let Some(finding) = export.program_findings.first() {
-        if let Some(phase) = &finding.phase {
-            return phase.clone();
-        }
         if let Some(transition) = &finding.phase_transition {
             return transition.clone();
+        }
+        if let Some(phase) = &finding.phase {
+            return phase.clone();
         }
     }
     export

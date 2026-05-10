@@ -324,6 +324,20 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
         }],
     },
     ProtocolProfile {
+        name: "ftp",
+        default_entry: "session",
+        entries: &[
+            ProtocolEntryProfile {
+                mode: "session",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "denied",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_denied_path.gewy",
+            },
+        ],
+    },
+    ProtocolProfile {
         name: "smtp",
         default_entry: "session",
         entries: &[ProtocolEntryProfile {

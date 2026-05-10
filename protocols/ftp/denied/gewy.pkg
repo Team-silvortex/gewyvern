@@ -1,0 +1,5 @@
+name=ftp_denied
+version=0.5.6
+entry=main.gewy
+protocol=ftp
+entry_name=denied

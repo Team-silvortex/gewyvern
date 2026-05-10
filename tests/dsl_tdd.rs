@@ -1268,6 +1268,28 @@ fn built_in_smtp_session_path_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn built_in_ftp_session_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy").unwrap();
+    assert_eq!(binding.template.id, "ftp_session_path");
+    assert_eq!(
+        binding.template.program_model.unwrap().operation,
+        ProgramOperation::Custom("ftp_session".into())
+    );
+}
+
+#[test]
+fn built_in_ftp_denied_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_denied_path.gewy").unwrap();
+    assert_eq!(binding.template.id, "ftp_denied_path");
+    assert_eq!(
+        binding.template.program_model.unwrap().operation,
+        ProgramOperation::Custom("ftp_denied".into())
+    );
+}
+
+#[test]
 fn built_in_ssh_session_path_dsl_compiles_into_template_binding() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy").unwrap();
@@ -4749,6 +4771,19 @@ fn smtp_session_path_does_not_match_wrong_banner_prefix() {
 }
 
 #[test]
+fn ftp_session_operation_maps_to_authentication_exchange_module_kind() {
+    assert_eq!(
+        gewyvern::flow::infer_network_module_kind(
+            &ProgramOperation::Custom("ftp_session".into()),
+            Some("receive_auth_ok"),
+            Some("send_auth_user->receive_auth_ok"),
+            "transport_io"
+        ),
+        "authentication_exchange"
+    );
+}
+
+#[test]
 fn ssh_session_path_materializes_banner_and_key_exchange_phases() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy").unwrap();
@@ -4832,6 +4867,236 @@ fn ssh_session_path_materializes_banner_and_key_exchange_phases() {
     assert!(phase_kinds.contains(&"receive_payload".to_string()));
     assert!(phase_kinds.contains(&"emit_payload".to_string()));
     assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ftp_session_path_materializes_banner_and_auth_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8289, 53030, "ftp-client"));
+    session.ingest(route_fact(2, 8289, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8289, 1, 2, 53030, 21));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8289,
+        0x18,
+        PacketDir::Ingress,
+        Some(53030),
+        Some(21),
+        Some(0x32),
+        Some(0x3232),
+        Some(0x32323020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8289,
+        0x18,
+        PacketDir::Egress,
+        Some(53030),
+        Some(21),
+        Some(0x55),
+        Some(0x5553),
+        Some(0x55534552),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        8289,
+        0x18,
+        PacketDir::Ingress,
+        Some(53030),
+        Some(21),
+        Some(0x32),
+        Some(0x3233),
+        Some(0x32333020),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("ftp_session".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_banner"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_auth_user"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_auth_ok"))
+    );
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ftp_session_path_does_not_match_wrong_login_success_code() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8290, 53031, "ftp-client"));
+    session.ingest(route_fact(2, 8290, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8290, 1, 2, 53031, 21));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8290,
+        0x18,
+        PacketDir::Ingress,
+        Some(53031),
+        Some(21),
+        Some(0x32),
+        Some(0x3232),
+        Some(0x32323020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8290,
+        0x18,
+        PacketDir::Egress,
+        Some(53031),
+        Some(21),
+        Some(0x55),
+        Some(0x5553),
+        Some(0x55534552),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        8290,
+        0x18,
+        PacketDir::Ingress,
+        Some(53031),
+        Some(21),
+        Some(0x35),
+        Some(0x3533),
+        Some(0x35333020),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_auth_ok"))
+    );
+}
+
+#[test]
+fn ftp_denied_path_materializes_auth_denied_phase() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_denied_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8291, 53032, "ftp-client"));
+    session.ingest(route_fact(2, 8291, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8291, 1, 2, 53032, 21));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8291,
+        0x18,
+        PacketDir::Ingress,
+        Some(53032),
+        Some(21),
+        Some(0x32),
+        Some(0x3232),
+        Some(0x32323020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8291,
+        0x18,
+        PacketDir::Egress,
+        Some(53032),
+        Some(21),
+        Some(0x55),
+        Some(0x5553),
+        Some(0x55534552),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        8291,
+        0x18,
+        PacketDir::Ingress,
+        Some(53032),
+        Some(21),
+        Some(0x35),
+        Some(0x3533),
+        Some(0x35333020),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_auth_denied"))
+    );
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ftp_denied_path_does_not_match_success_code() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_denied_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8292, 53033, "ftp-client"));
+    session.ingest(route_fact(2, 8292, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8292, 1, 2, 53033, 21));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8292,
+        0x18,
+        PacketDir::Ingress,
+        Some(53033),
+        Some(21),
+        Some(0x32),
+        Some(0x3232),
+        Some(0x32323020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8292,
+        0x18,
+        PacketDir::Egress,
+        Some(53033),
+        Some(21),
+        Some(0x55),
+        Some(0x5553),
+        Some(0x55534552),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        8292,
+        0x18,
+        PacketDir::Ingress,
+        Some(53033),
+        Some(21),
+        Some(0x32),
+        Some(0x3233),
+        Some(0x32333020),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_auth_denied"))
+    );
 }
 
 #[test]

@@ -184,6 +184,9 @@ pub fn infer_network_module_kind(
     if operation_id.starts_with("smtp_") {
         return "mail_session";
     }
+    if operation_id.starts_with("ftp_") {
+        return "authentication_exchange";
+    }
     if operation_id.starts_with("ssh_") {
         return "remote_access_session";
     }
