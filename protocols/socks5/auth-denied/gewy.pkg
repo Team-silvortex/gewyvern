@@ -1,0 +1,4 @@
+name=socks5
+mode=auth-denied
+version=0.5.6
+entry=main.gewy

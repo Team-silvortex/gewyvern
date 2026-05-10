@@ -4958,6 +4958,24 @@ mod tests {
             crate::failure_detail_label(
                 "attention",
                 "file_transfer_session",
+                "send_port->receive_port_ready",
+                &["transport_io".into()],
+            ),
+            "request_sent_no_reply"
+        );
+        assert_eq!(
+            crate::failure_mode_label(
+                "attention",
+                "file_transfer_session",
+                "send_port->receive_port_ready",
+                &["transport_io".into()],
+            ),
+            "no_response"
+        );
+        assert_eq!(
+            crate::failure_detail_label(
+                "attention",
+                "file_transfer_session",
                 "send_list->receive_transfer_open",
                 &["transport_io".into()],
             ),
@@ -5183,6 +5201,88 @@ mod tests {
             json
         );
         assert!(json.contains("\"primary_failure_detail\":\"followup_not_sent\""));
+    }
+
+    #[test]
+    fn summary_json_carries_ssh_auth_timeout_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_path.gewy")
+            .expect("ssh_auth_path DSL should compile");
+        let mut export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 8289, 53028, "ssh-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        8289,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 8289, 1, 2, 53028, 22),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        8289,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53028),
+                        Some(22),
+                        Some(0x53),
+                        Some(0x5353),
+                        Some(0x5353482d),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        8289,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53028),
+                        Some(22),
+                        Some(0x53),
+                        Some(0x5353),
+                        Some(0x5353482d),
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        6,
+                        8289,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53028),
+                        Some(22),
+                        &[(0, 0x00), (4, 0x10), (5, 0x14)],
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        7,
+                        8289,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53028),
+                        Some(22),
+                        &[(0, 0x00), (4, 0x10), (5, 0x32)],
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "ssh_auth_path",
+            "remote_access_authentication",
+            "receive_auth_success",
+            "receive_payload",
+            "send_auth_request->receive_auth_success",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing ssh auth success",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"remote_access_authentication\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
     }
 
     #[test]
@@ -5534,6 +5634,123 @@ mod tests {
             "emit_payload->receive_payload",
             "transport_io",
             "synthetic missing ftp transfer open",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"file_transfer_session\""));
+        assert!(
+            json.contains("\"primary_failure_mode\":\"no_response\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""),
+            "json={}",
+            json
+        );
+    }
+
+    #[test]
+    fn summary_json_carries_ftp_active_port_timeout_detail() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_list_path.gewy")
+                .expect("ftp_active_list_path DSL should compile");
+        let mut export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 8301, 53042, "ftp-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        8301,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 8301, 1, 2, 53042, 21),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        8301,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53042),
+                        Some(21),
+                        Some(0x32),
+                        Some(0x3232),
+                        Some(0x32323020),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        8301,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53042),
+                        Some(21),
+                        Some(0x55),
+                        Some(0x5553),
+                        Some(0x55534552),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        6,
+                        8301,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53042),
+                        Some(21),
+                        Some(0x33),
+                        Some(0x3333),
+                        Some(0x33333120),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        7,
+                        8301,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53042),
+                        Some(21),
+                        Some(0x50),
+                        Some(0x5041),
+                        Some(0x50415353),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        8,
+                        8301,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53042),
+                        Some(21),
+                        Some(0x32),
+                        Some(0x3233),
+                        Some(0x32333020),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        9,
+                        8301,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53042),
+                        Some(21),
+                        Some(0x50),
+                        Some(0x504f),
+                        Some(0x504f5254),
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "ftp_active_list_path",
+            "file_transfer_session",
+            "receive_port_ready",
+            "receive_payload",
+            "send_port->receive_port_ready",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing ftp port ready",
             "tcp_packet_meta_fragment",
             "missing_signal:packet_observed",
         );
@@ -6269,6 +6486,7 @@ fn module_family_label(module_kind: &str) -> &'static str {
         | "directory_bind"
         | "authentication_exchange"
         | "proxy_authentication"
+        | "remote_access_authentication"
         | "remote_access_session"
         | "proxy_negotiation"
         | "proxy_tunnel_establishment" => "auth",
@@ -6348,6 +6566,7 @@ fn failure_mode_label(
                 || left.contains("publish")
                 || left.contains("auth")
                 || left.contains("password")
+                || left.contains("port")
                 || left.contains("pasv")
                 || left.contains("list")
                 || left.contains("relay")
@@ -6374,6 +6593,7 @@ fn failure_mode_label(
                 || right.contains("publish")
                 || right.contains("auth")
                 || right.contains("password")
+                || right.contains("port")
                 || right.contains("pasv")
                 || right.contains("list")
                 || right.contains("relay")
@@ -6407,6 +6627,7 @@ fn failure_mode_label(
         || stage.contains("request")
         || stage.contains("query")
         || stage.contains("publish")
+        || stage.contains("port")
         || stage.contains("list")
         || stage.contains("pasv")
         || stage.contains("relay")
@@ -6478,6 +6699,7 @@ fn failure_detail_label(
                 || left.contains("publish")
                 || left.contains("auth")
                 || left.contains("password")
+                || left.contains("port")
                 || left.contains("pasv")
                 || left.contains("list")
                 || left.contains("relay")
@@ -6504,6 +6726,7 @@ fn failure_detail_label(
                 || right.contains("publish")
                 || right.contains("auth")
                 || right.contains("password")
+                || right.contains("port")
                 || right.contains("pasv")
                 || right.contains("list")
                 || right.contains("relay")
@@ -6543,6 +6766,7 @@ fn failure_detail_label(
         || stage.contains("request")
         || stage.contains("query")
         || stage.contains("publish")
+        || stage.contains("port")
         || stage.contains("list")
         || stage.contains("pasv")
         || stage.contains("relay")

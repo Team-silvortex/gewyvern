@@ -347,6 +347,18 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
                 mode: "stor",
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_stor_path.gewy",
             },
+            ProtocolEntryProfile {
+                mode: "active-list",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_list_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "active-retr",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_retr_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "active-stor",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_stor_path.gewy",
+            },
         ],
     },
     ProtocolProfile {
@@ -360,10 +372,20 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
     ProtocolProfile {
         name: "ssh",
         default_entry: "session",
-        entries: &[ProtocolEntryProfile {
-            mode: "session",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy",
-        }],
+        entries: &[
+            ProtocolEntryProfile {
+                mode: "session",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "auth",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "auth-denied",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_denied_path.gewy",
+            },
+        ],
     },
     ProtocolProfile {
         name: "socks5",
@@ -372,6 +394,14 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
             ProtocolEntryProfile {
                 mode: "session",
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "auth",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "auth-denied",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_denied_path.gewy",
             },
             ProtocolEntryProfile {
                 mode: "denied",

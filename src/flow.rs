@@ -194,9 +194,15 @@ pub fn infer_network_module_kind(
         return "authentication_exchange";
     }
     if operation_id.starts_with("ssh_") {
+        if operation_id.contains("auth") {
+            return "remote_access_authentication";
+        }
         return "remote_access_session";
     }
     if operation_id.starts_with("socks5_") {
+        if operation_id.contains("auth") {
+            return "proxy_authentication";
+        }
         return "proxy_negotiation";
     }
     if operation_id.starts_with("radius_") {

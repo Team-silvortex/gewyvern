@@ -1,0 +1,4 @@
+name=ssh
+mode=auth
+version=0.5.6
+entry=main.gewy

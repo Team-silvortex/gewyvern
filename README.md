@@ -336,8 +336,14 @@ The repository now includes first-class DSL files that compile into
 - [dsl/ftp_passive_list_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_passive_list_path.gewy)
 - [dsl/ftp_retr_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_retr_path.gewy)
 - [dsl/ftp_stor_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_stor_path.gewy)
+- [dsl/ftp_active_list_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_list_path.gewy)
+- [dsl/ftp_active_retr_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_retr_path.gewy)
+- [dsl/ftp_active_stor_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_stor_path.gewy)
 - [dsl/ssh_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy)
+- [dsl/ssh_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_path.gewy)
+- [dsl/ssh_auth_denied_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_denied_path.gewy)
 - [dsl/socks5_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy)
+- [dsl/socks5_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_path.gewy)
 - [dsl/http_connect_tunnel_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy)
 - [dsl/sip_register_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy)
 - [dsl/ldap_bind_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy)
@@ -528,6 +534,9 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy -
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/ftp_passive_list_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/ftp_retr_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/ftp_stor_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_list_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_retr_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_stor_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json --summary-only
 ```
