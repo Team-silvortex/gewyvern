@@ -385,6 +385,10 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
                 mode: "mail",
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy",
             },
+            ProtocolEntryProfile {
+                mode: "rcpt",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_path.gewy",
+            },
         ],
     },
     ProtocolProfile {

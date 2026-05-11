@@ -1,0 +1,2 @@
+template(:smtp_rcpt_path)
+|> include("../../../../dsl/smtp_rcpt_path.gewy")

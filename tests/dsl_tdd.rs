@@ -1300,6 +1300,22 @@ fn built_in_smtp_mail_path_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn built_in_smtp_rcpt_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "smtp_rcpt_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("smtp_rcpt".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
 fn built_in_ftp_session_path_dsl_compiles_into_template_binding() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy").unwrap();
@@ -3270,6 +3286,19 @@ fn smtp_mail_operation_maps_to_mail_session_module_kind() {
             &ProgramOperation::Custom("smtp_mail".into()),
             Some("receive_mail_ok"),
             Some("send_mail_from->receive_mail_ok"),
+            "transport_io",
+        ),
+        "mail_session"
+    );
+}
+
+#[test]
+fn smtp_rcpt_operation_maps_to_mail_session_module_kind() {
+    assert_eq!(
+        gewyvern::flow::infer_network_module_kind(
+            &ProgramOperation::Custom("smtp_rcpt".into()),
+            Some("receive_rcpt_ok"),
+            Some("send_rcpt_to->receive_rcpt_ok"),
             "transport_io",
         ),
         "mail_session"
@@ -5263,6 +5292,147 @@ fn smtp_mail_path_materializes_auth_and_mail_from_phases() {
 }
 
 #[test]
+fn smtp_rcpt_path_materializes_mail_and_rcpt_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8302, 53016, "postfix-client"));
+    session.ingest(route_fact(2, 8302, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8302, 1, 2, 53016, 25));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8302,
+        0x18,
+        PacketDir::Ingress,
+        Some(53016),
+        Some(25),
+        Some(0x32),
+        Some(0x3232),
+        Some(0x32323020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8302,
+        0x18,
+        PacketDir::Egress,
+        Some(53016),
+        Some(25),
+        Some(0x45),
+        Some(0x4548),
+        Some(0x45484c4f),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        8302,
+        0x18,
+        PacketDir::Ingress,
+        Some(53016),
+        Some(25),
+        Some(0x32),
+        Some(0x3235),
+        Some(0x32353020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        7,
+        8302,
+        0x18,
+        PacketDir::Egress,
+        Some(53016),
+        Some(25),
+        Some(0x41),
+        Some(0x4155),
+        Some(0x41555448),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        8,
+        8302,
+        0x18,
+        PacketDir::Ingress,
+        Some(53016),
+        Some(25),
+        Some(0x32),
+        Some(0x3233),
+        Some(0x32333520),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        9,
+        8302,
+        0x18,
+        PacketDir::Egress,
+        Some(53016),
+        Some(25),
+        Some(0x4d),
+        Some(0x4d41),
+        Some(0x4d41494c),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        10,
+        8302,
+        0x18,
+        PacketDir::Ingress,
+        Some(53016),
+        Some(25),
+        &[
+            (0, 0x32),
+            (1, 0x35),
+            (2, 0x30),
+            (3, 0x20),
+            (4, 0x32),
+            (5, 0x2e),
+            (6, 0x31),
+            (7, 0x2e),
+        ],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        11,
+        8302,
+        0x18,
+        PacketDir::Egress,
+        Some(53016),
+        Some(25),
+        Some(0x52),
+        Some(0x5243),
+        Some(0x52435054),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        12,
+        8302,
+        0x18,
+        PacketDir::Ingress,
+        Some(53016),
+        Some(25),
+        &[
+            (0, 0x32),
+            (1, 0x35),
+            (2, 0x30),
+            (3, 0x20),
+            (4, 0x32),
+            (5, 0x2e),
+            (6, 0x31),
+            (7, 0x2e),
+            (8, 0x35),
+        ],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(110));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("smtp_rcpt".into())
+    );
+    for phase in ["receive_mail_ok", "send_rcpt_to", "receive_rcpt_ok"] {
+        assert!(
+            export.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some(phase)),
+            "missing phase {phase:?}"
+        );
+    }
+}
+
+#[test]
 fn ssh_auth_path_materializes_auth_request_and_success_phases() {
     let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
@@ -5775,6 +5945,139 @@ fn smtp_mail_path_does_not_treat_failed_mail_response_as_mail_ok() {
             .stages
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_mail_ok"))
+    );
+}
+
+#[test]
+fn smtp_rcpt_path_does_not_treat_failed_rcpt_response_as_rcpt_ok() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8303, 53017, "postfix-client"));
+    session.ingest(route_fact(2, 8303, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8303, 1, 2, 53017, 25));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8303,
+        0x18,
+        PacketDir::Ingress,
+        Some(53017),
+        Some(25),
+        Some(0x32),
+        Some(0x3232),
+        Some(0x32323020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8303,
+        0x18,
+        PacketDir::Egress,
+        Some(53017),
+        Some(25),
+        Some(0x45),
+        Some(0x4548),
+        Some(0x45484c4f),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        8303,
+        0x18,
+        PacketDir::Ingress,
+        Some(53017),
+        Some(25),
+        Some(0x32),
+        Some(0x3235),
+        Some(0x32353020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        7,
+        8303,
+        0x18,
+        PacketDir::Egress,
+        Some(53017),
+        Some(25),
+        Some(0x41),
+        Some(0x4155),
+        Some(0x41555448),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        8,
+        8303,
+        0x18,
+        PacketDir::Ingress,
+        Some(53017),
+        Some(25),
+        Some(0x32),
+        Some(0x3233),
+        Some(0x32333520),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        9,
+        8303,
+        0x18,
+        PacketDir::Egress,
+        Some(53017),
+        Some(25),
+        Some(0x4d),
+        Some(0x4d41),
+        Some(0x4d41494c),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        10,
+        8303,
+        0x18,
+        PacketDir::Ingress,
+        Some(53017),
+        Some(25),
+        &[
+            (0, 0x32),
+            (1, 0x35),
+            (2, 0x30),
+            (3, 0x20),
+            (4, 0x32),
+            (5, 0x2e),
+            (6, 0x31),
+            (7, 0x2e),
+        ],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        11,
+        8303,
+        0x18,
+        PacketDir::Egress,
+        Some(53017),
+        Some(25),
+        Some(0x52),
+        Some(0x5243),
+        Some(0x52435054),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        12,
+        8303,
+        0x18,
+        PacketDir::Ingress,
+        Some(53017),
+        Some(25),
+        &[
+            (0, 0x35),
+            (1, 0x35),
+            (2, 0x30),
+            (3, 0x20),
+            (4, 0x35),
+            (5, 0x2e),
+            (6, 0x31),
+            (7, 0x2e),
+        ],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(110));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_rcpt_ok"))
     );
 }
 

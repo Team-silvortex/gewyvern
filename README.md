@@ -350,6 +350,7 @@ The repository now includes first-class DSL files that compile into
 - [dsl/http_connect_authenticated_tunnel_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy)
 - [dsl/smtp_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_auth_path.gewy)
 - [dsl/smtp_mail_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy)
+- [dsl/smtp_rcpt_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_path.gewy)
 - [dsl/http_connect_tunnel_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy)
 - [dsl/sip_register_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy)
 - [dsl/ldap_bind_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy)
