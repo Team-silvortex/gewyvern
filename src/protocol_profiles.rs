@@ -95,6 +95,10 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
                 mode: "auth-required",
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_auth_required_path.gewy",
             },
+            ProtocolEntryProfile {
+                mode: "auth-tunnel",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy",
+            },
         ],
     },
     ProtocolProfile {
@@ -368,10 +372,20 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
     ProtocolProfile {
         name: "smtp",
         default_entry: "session",
-        entries: &[ProtocolEntryProfile {
-            mode: "session",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy",
-        }],
+        entries: &[
+            ProtocolEntryProfile {
+                mode: "session",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "auth",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_auth_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "mail",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy",
+            },
+        ],
     },
     ProtocolProfile {
         name: "ssh",

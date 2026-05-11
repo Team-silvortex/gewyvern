@@ -1268,6 +1268,38 @@ fn built_in_smtp_session_path_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn built_in_smtp_auth_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_auth_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "smtp_auth_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("smtp_auth".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_smtp_mail_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "smtp_mail_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("smtp_mail".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
 fn built_in_ftp_session_path_dsl_compiles_into_template_binding() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy").unwrap();
@@ -1542,6 +1574,27 @@ fn built_in_http_connect_auth_required_path_dsl_compiles_into_template_binding()
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("http_connect_auth_required".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_http_connect_authenticated_tunnel_path_dsl_compiles_into_template_binding() {
+    let binding = compile_file(
+        "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy",
+    )
+    .unwrap();
+
+    assert_eq!(
+        binding.template.id,
+        "http_connect_authenticated_tunnel_path"
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("http_connect_authenticated_tunnel".into())
     );
     assert!(matches!(
         binding.template.reason_profile.as_ref().unwrap(),
@@ -3198,6 +3251,32 @@ fn ssh_channel_session_operation_maps_to_remote_access_session_module_kind() {
 }
 
 #[test]
+fn smtp_auth_operation_maps_to_authentication_exchange_module_kind() {
+    assert_eq!(
+        gewyvern::flow::infer_network_module_kind(
+            &ProgramOperation::Custom("smtp_auth".into()),
+            Some("receive_auth_ok"),
+            Some("send_auth_request->receive_auth_ok"),
+            "transport_io",
+        ),
+        "authentication_exchange"
+    );
+}
+
+#[test]
+fn smtp_mail_operation_maps_to_mail_session_module_kind() {
+    assert_eq!(
+        gewyvern::flow::infer_network_module_kind(
+            &ProgramOperation::Custom("smtp_mail".into()),
+            Some("receive_mail_ok"),
+            Some("send_mail_from->receive_mail_ok"),
+            "transport_io",
+        ),
+        "mail_session"
+    );
+}
+
+#[test]
 fn ssh_auth_operation_maps_to_remote_access_authentication_module_kind() {
     assert_eq!(
         gewyvern::flow::infer_network_module_kind(
@@ -3269,6 +3348,19 @@ fn http_connect_auth_required_operation_maps_to_proxy_authentication_module_kind
             &ProgramOperation::Custom("http_connect_auth_required".into()),
             Some("receive_auth_required"),
             Some("send_connect_request->receive_auth_required"),
+            "transport_io",
+        ),
+        "proxy_authentication"
+    );
+}
+
+#[test]
+fn http_connect_authenticated_tunnel_operation_maps_to_proxy_authentication_module_kind() {
+    assert_eq!(
+        gewyvern::flow::infer_network_module_kind(
+            &ProgramOperation::Custom("http_connect_authenticated_tunnel".into()),
+            Some("receive_connect_established"),
+            Some("send_connect_request->receive_connect_established"),
             "transport_io",
         ),
         "proxy_authentication"
@@ -4972,6 +5064,205 @@ fn smtp_session_path_materializes_connect_banner_and_ehlo_phases() {
 }
 
 #[test]
+fn smtp_auth_path_materializes_banner_ehlo_and_auth_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_auth_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8298, 53011, "postfix-client"));
+    session.ingest(route_fact(2, 8298, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8298, 1, 2, 53011, 25));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8298,
+        0x18,
+        PacketDir::Ingress,
+        Some(53011),
+        Some(25),
+        Some(0x32),
+        Some(0x3232),
+        Some(0x32323020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8298,
+        0x18,
+        PacketDir::Egress,
+        Some(53011),
+        Some(25),
+        Some(0x45),
+        Some(0x4548),
+        Some(0x45484c4f),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        8298,
+        0x18,
+        PacketDir::Ingress,
+        Some(53011),
+        Some(25),
+        Some(0x32),
+        Some(0x3235),
+        Some(0x32353020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        7,
+        8298,
+        0x18,
+        PacketDir::Egress,
+        Some(53011),
+        Some(25),
+        Some(0x41),
+        Some(0x4155),
+        Some(0x41555448),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        8,
+        8298,
+        0x18,
+        PacketDir::Ingress,
+        Some(53011),
+        Some(25),
+        Some(0x32),
+        Some(0x3233),
+        Some(0x32333520),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("smtp_auth".into())
+    );
+    for phase in [
+        "receive_banner",
+        "send_ehlo",
+        "receive_ehlo_ok",
+        "send_auth_request",
+        "receive_auth_ok",
+    ] {
+        assert!(
+            export.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some(phase)),
+            "missing phase {phase:?}"
+        );
+    }
+}
+
+#[test]
+fn smtp_mail_path_materializes_auth_and_mail_from_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8300, 53014, "postfix-client"));
+    session.ingest(route_fact(2, 8300, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8300, 1, 2, 53014, 25));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8300,
+        0x18,
+        PacketDir::Ingress,
+        Some(53014),
+        Some(25),
+        Some(0x32),
+        Some(0x3232),
+        Some(0x32323020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8300,
+        0x18,
+        PacketDir::Egress,
+        Some(53014),
+        Some(25),
+        Some(0x45),
+        Some(0x4548),
+        Some(0x45484c4f),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        8300,
+        0x18,
+        PacketDir::Ingress,
+        Some(53014),
+        Some(25),
+        Some(0x32),
+        Some(0x3235),
+        Some(0x32353020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        7,
+        8300,
+        0x18,
+        PacketDir::Egress,
+        Some(53014),
+        Some(25),
+        Some(0x41),
+        Some(0x4155),
+        Some(0x41555448),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        8,
+        8300,
+        0x18,
+        PacketDir::Ingress,
+        Some(53014),
+        Some(25),
+        Some(0x32),
+        Some(0x3233),
+        Some(0x32333520),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        9,
+        8300,
+        0x18,
+        PacketDir::Egress,
+        Some(53014),
+        Some(25),
+        Some(0x4d),
+        Some(0x4d41),
+        Some(0x4d41494c),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        10,
+        8300,
+        0x18,
+        PacketDir::Ingress,
+        Some(53014),
+        Some(25),
+        &[
+            (0, 0x32),
+            (1, 0x35),
+            (2, 0x30),
+            (3, 0x20),
+            (4, 0x32),
+            (5, 0x2e),
+            (6, 0x31),
+            (7, 0x2e),
+        ],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(90));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("smtp_mail".into())
+    );
+    for phase in ["receive_auth_ok", "send_mail_from", "receive_mail_ok"] {
+        assert!(
+            export.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some(phase)),
+            "missing phase {phase:?}"
+        );
+    }
+}
+
+#[test]
 fn ssh_auth_path_materializes_auth_request_and_success_phases() {
     let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
@@ -5305,6 +5596,185 @@ fn smtp_session_path_does_not_match_wrong_banner_prefix() {
             .stages
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_banner"))
+    );
+}
+
+#[test]
+fn smtp_auth_path_does_not_treat_failed_auth_response_as_auth_ok() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_auth_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8299, 53012, "postfix-client"));
+    session.ingest(route_fact(2, 8299, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8299, 1, 2, 53012, 25));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8299,
+        0x18,
+        PacketDir::Ingress,
+        Some(53012),
+        Some(25),
+        Some(0x32),
+        Some(0x3232),
+        Some(0x32323020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8299,
+        0x18,
+        PacketDir::Egress,
+        Some(53012),
+        Some(25),
+        Some(0x45),
+        Some(0x4548),
+        Some(0x45484c4f),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        8299,
+        0x18,
+        PacketDir::Ingress,
+        Some(53012),
+        Some(25),
+        Some(0x32),
+        Some(0x3235),
+        Some(0x32353020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        7,
+        8299,
+        0x18,
+        PacketDir::Egress,
+        Some(53012),
+        Some(25),
+        Some(0x41),
+        Some(0x4155),
+        Some(0x41555448),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        8,
+        8299,
+        0x18,
+        PacketDir::Ingress,
+        Some(53012),
+        Some(25),
+        Some(0x35),
+        Some(0x3533),
+        Some(0x35333420),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_auth_ok"))
+    );
+}
+
+#[test]
+fn smtp_mail_path_does_not_treat_failed_mail_response_as_mail_ok() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8301, 53015, "postfix-client"));
+    session.ingest(route_fact(2, 8301, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8301, 1, 2, 53015, 25));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8301,
+        0x18,
+        PacketDir::Ingress,
+        Some(53015),
+        Some(25),
+        Some(0x32),
+        Some(0x3232),
+        Some(0x32323020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8301,
+        0x18,
+        PacketDir::Egress,
+        Some(53015),
+        Some(25),
+        Some(0x45),
+        Some(0x4548),
+        Some(0x45484c4f),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        8301,
+        0x18,
+        PacketDir::Ingress,
+        Some(53015),
+        Some(25),
+        Some(0x32),
+        Some(0x3235),
+        Some(0x32353020),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        7,
+        8301,
+        0x18,
+        PacketDir::Egress,
+        Some(53015),
+        Some(25),
+        Some(0x41),
+        Some(0x4155),
+        Some(0x41555448),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        8,
+        8301,
+        0x18,
+        PacketDir::Ingress,
+        Some(53015),
+        Some(25),
+        Some(0x32),
+        Some(0x3233),
+        Some(0x32333520),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        9,
+        8301,
+        0x18,
+        PacketDir::Egress,
+        Some(53015),
+        Some(25),
+        Some(0x4d),
+        Some(0x4d41),
+        Some(0x4d41494c),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        10,
+        8301,
+        0x18,
+        PacketDir::Ingress,
+        Some(53015),
+        Some(25),
+        &[
+            (0, 0x35),
+            (1, 0x35),
+            (2, 0x30),
+            (3, 0x20),
+            (4, 0x35),
+            (5, 0x2e),
+            (6, 0x31),
+            (7, 0x2e),
+        ],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(90));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_mail_ok"))
     );
 }
 
@@ -8460,6 +8930,128 @@ fn http_connect_auth_required_path_does_not_match_403_response() {
             .stages
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_auth_required"))
+    );
+}
+
+#[test]
+fn http_connect_authenticated_tunnel_path_materializes_auth_and_established_phases() {
+    let binding = compile_file(
+        "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy",
+    )
+    .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8293, 53186, "proxy-client"));
+    session.ingest(route_fact(2, 8293, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8293, 1, 2, 53186, 8080));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8293,
+        0x18,
+        PacketDir::Egress,
+        Some(53186),
+        Some(8080),
+        Some(0x43),
+        Some(0x434f),
+        Some(0x434f4e4e),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8293,
+        0x18,
+        PacketDir::Ingress,
+        Some(53186),
+        Some(8080),
+        Some(0x34),
+        Some(0x3430),
+        Some(0x34303720),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        6,
+        8293,
+        0x18,
+        PacketDir::Egress,
+        Some(53186),
+        Some(8080),
+        Some(0x43),
+        Some(0x434f),
+        Some(0x434f4e4e),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        7,
+        8293,
+        0x18,
+        PacketDir::Ingress,
+        Some(53186),
+        Some(8080),
+        Some(0x32),
+        Some(0x3230),
+        Some(0x32303020),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("http_connect_authenticated_tunnel".into())
+    );
+    for phase in [
+        "send_connect_request",
+        "receive_auth_required",
+        "receive_connect_established",
+    ] {
+        assert!(
+            export.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some(phase)),
+            "missing phase {phase:?}"
+        );
+    }
+}
+
+#[test]
+fn http_connect_authenticated_tunnel_path_does_not_treat_407_as_established_without_auth_followup()
+{
+    let binding = compile_file(
+        "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy",
+    )
+    .unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8294, 53186, "proxy-client"));
+    session.ingest(route_fact(2, 8294, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8294, 1, 2, 53186, 8080));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8294,
+        0x18,
+        PacketDir::Egress,
+        Some(53186),
+        Some(8080),
+        Some(0x43),
+        Some(0x434f),
+        Some(0x434f4e4e),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload(
+        5,
+        8294,
+        0x18,
+        PacketDir::Ingress,
+        Some(53186),
+        Some(8080),
+        Some(0x34),
+        Some(0x3430),
+        Some(0x34303720),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_connect_established"))
     );
 }
 

@@ -1,0 +1,7 @@
+name=smtp
+version=0.5.6
+entry=main.gewy
+protocol=smtp
+entry_name=auth
+default=false
+description=SMTP EHLO and AUTH success path

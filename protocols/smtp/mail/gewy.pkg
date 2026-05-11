@@ -1,0 +1,7 @@
+name=smtp
+version=0.5.6
+entry=main.gewy
+protocol=smtp
+entry_name=mail
+default=false
+description=SMTP authenticated MAIL FROM path

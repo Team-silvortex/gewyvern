@@ -185,6 +185,9 @@ pub fn infer_network_module_kind(
         return "cache_access";
     }
     if operation_id.starts_with("smtp_") {
+        if operation_id.contains("auth") {
+            return "authentication_exchange";
+        }
         return "mail_session";
     }
     if operation_id.starts_with("ftp_") {

@@ -5299,8 +5299,16 @@ mod tests {
         );
         let json = summary_json("dsl_demo", &export);
         assert!(json.contains("\"primary_module_kind\":\"remote_access_authentication\""));
-        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
-        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+        assert!(
+            json.contains("\"primary_failure_mode\":\"no_response\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""),
+            "json={}",
+            json
+        );
     }
 
     #[test]
@@ -5400,8 +5408,16 @@ mod tests {
         );
         let json = summary_json("dsl_demo", &export);
         assert!(json.contains("\"primary_module_kind\":\"remote_access_session\""));
-        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
-        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+        assert!(
+            json.contains("\"primary_failure_mode\":\"no_response\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""),
+            "json={}",
+            json
+        );
     }
 
     #[test]
@@ -5917,6 +5933,200 @@ mod tests {
     }
 
     #[test]
+    fn summary_json_carries_smtp_auth_timeout_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_auth_path.gewy")
+            .expect("smtp_auth_path DSL should compile");
+        let mut export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 82911, 53013, "postfix-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        82911,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 82911, 1, 2, 53013, 25),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        82911,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53013),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3232),
+                        Some(0x32323020),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        82911,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53013),
+                        Some(25),
+                        Some(0x45),
+                        Some(0x4548),
+                        Some(0x45484c4f),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        6,
+                        82911,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53013),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3235),
+                        Some(0x32353020),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        7,
+                        82911,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53013),
+                        Some(25),
+                        Some(0x41),
+                        Some(0x4155),
+                        Some(0x41555448),
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "smtp_auth_path",
+            "authentication_exchange",
+            "receive_auth_ok",
+            "receive_payload",
+            "send_auth_request->receive_auth_ok",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing smtp auth ok",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+    }
+
+    #[test]
+    fn summary_json_carries_smtp_mail_timeout_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy")
+            .expect("smtp_mail_path DSL should compile");
+        let mut export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 82912, 53016, "postfix-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        82912,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 82912, 1, 2, 53016, 25),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        82912,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53016),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3232),
+                        Some(0x32323020),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        82912,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53016),
+                        Some(25),
+                        Some(0x45),
+                        Some(0x4548),
+                        Some(0x45484c4f),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        6,
+                        82912,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53016),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3235),
+                        Some(0x32353020),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        7,
+                        82912,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53016),
+                        Some(25),
+                        Some(0x41),
+                        Some(0x4155),
+                        Some(0x41555448),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        8,
+                        82912,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53016),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3233),
+                        Some(0x32333520),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        9,
+                        82912,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53016),
+                        Some(25),
+                        Some(0x4d),
+                        Some(0x4d41),
+                        Some(0x4d41494c),
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "smtp_mail_path",
+            "mail_session",
+            "receive_mail_ok",
+            "receive_payload",
+            "send_mail_from->receive_mail_ok",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing smtp mail ok",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+    }
+
+    #[test]
     fn summary_json_carries_hy2_auth_timeout_detail() {
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy")
             .expect("hy2_auth_path DSL should compile");
@@ -5941,8 +6151,16 @@ mod tests {
         );
         let json = summary_json("dsl_demo", &export);
         assert!(json.contains("\"primary_module_kind\":\"proxy_authentication\""));
-        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
-        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+        assert!(
+            json.contains("\"primary_failure_mode\":\"no_response\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""),
+            "json={}",
+            json
+        );
     }
 
     #[test]
@@ -6250,6 +6468,91 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"proxy_authentication\""));
         assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
         assert!(json.contains("\"primary_failure_detail\":\"auth_required\""));
+    }
+
+    #[test]
+    fn summary_json_carries_http_connect_authenticated_tunnel_pending_auth_detail() {
+        let binding = compile_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy",
+        )
+        .expect("http_connect_authenticated_tunnel_path DSL should compile");
+        let mut export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 82841, 53187, "proxy-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        82841,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 82841, 1, 2, 53187, 8080),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        82841,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53187),
+                        Some(8080),
+                        Some(0x43),
+                        Some(0x434f),
+                        Some(0x434f4e4e),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        82841,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53187),
+                        Some(8080),
+                        Some(0x34),
+                        Some(0x3430),
+                        Some(0x34303720),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        6,
+                        82841,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53187),
+                        Some(8080),
+                        Some(0x43),
+                        Some(0x434f),
+                        Some(0x434f4e4e),
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "http_connect_authenticated_tunnel_path",
+            "proxy_authentication",
+            "receive_connect_established",
+            "receive_payload",
+            "send_connect_request->receive_connect_established",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing authenticated http connect established",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"proxy_authentication\""));
+        assert!(
+            json.contains("\"primary_failure_mode\":\"server_denied\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_detail\":\"auth_required\""),
+            "json={}",
+            json
+        );
     }
 
     #[test]
@@ -6822,6 +7125,7 @@ fn failure_mode_label(
                 || left.contains("port")
                 || left.contains("pasv")
                 || left.contains("list")
+                || left.contains("mail")
                 || left.contains("relay")
                 || left.contains("stream")
                 || left.contains("channel")
@@ -6851,6 +7155,7 @@ fn failure_mode_label(
                 || right.contains("port")
                 || right.contains("pasv")
                 || right.contains("list")
+                || right.contains("mail")
                 || right.contains("relay")
                 || right.contains("stream")
                 || right.contains("channel"))
@@ -6885,6 +7190,7 @@ fn failure_mode_label(
         || stage.contains("publish")
         || stage.contains("port")
         || stage.contains("list")
+        || stage.contains("mail")
         || stage.contains("pasv")
         || stage.contains("relay")
         || stage.contains("stream")
@@ -6963,6 +7269,7 @@ fn failure_detail_label(
                 || left.contains("port")
                 || left.contains("pasv")
                 || left.contains("list")
+                || left.contains("mail")
                 || left.contains("relay")
                 || left.contains("stream")
                 || left.contains("channel")
@@ -6992,6 +7299,7 @@ fn failure_detail_label(
                 || right.contains("port")
                 || right.contains("pasv")
                 || right.contains("list")
+                || right.contains("mail")
                 || right.contains("relay")
                 || right.contains("stream")
                 || right.contains("channel"))
@@ -7032,6 +7340,7 @@ fn failure_detail_label(
         || stage.contains("publish")
         || stage.contains("port")
         || stage.contains("list")
+        || stage.contains("mail")
         || stage.contains("pasv")
         || stage.contains("relay")
         || stage.contains("stream")
@@ -7467,10 +7776,15 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
             .unwrap_or_else(|| "none".into());
         profile.primary_module_family =
             module_family_label(&profile.primary_module_kind).to_string();
-        profile.primary_failure_stage = best_scored_value(&stage_scores, &key)
-            .or_else(|| first_non_none(&profile.missing_transitions))
-            .or_else(|| first_non_none(&profile.phases))
-            .unwrap_or_else(|| "none".into());
+        profile.primary_failure_stage =
+            if profile.status == "attention" && !profile.missing_transitions.is_empty() {
+                first_non_none(&profile.missing_transitions).unwrap_or_else(|| "none".into())
+            } else {
+                best_scored_value(&stage_scores, &key)
+                    .or_else(|| first_non_none(&profile.missing_transitions))
+                    .or_else(|| first_non_none(&profile.phases))
+                    .unwrap_or_else(|| "none".into())
+            };
         profile.primary_stage_family =
             stage_family_label(&profile.primary_failure_stage).to_string();
         profile.primary_failure_mode = failure_mode_label(
