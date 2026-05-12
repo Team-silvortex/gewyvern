@@ -1,0 +1,2 @@
+template(:smtp_data_path)
+|> include("../../../../dsl/smtp_data_path.gewy")

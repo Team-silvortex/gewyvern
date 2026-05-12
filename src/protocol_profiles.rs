@@ -389,6 +389,18 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
                 mode: "rcpt",
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_path.gewy",
             },
+            ProtocolEntryProfile {
+                mode: "rcpt-denied",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_denied_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "data",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "data-denied",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_denied_path.gewy",
+            },
         ],
     },
     ProtocolProfile {

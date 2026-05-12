@@ -6264,6 +6264,523 @@ mod tests {
     }
 
     #[test]
+    fn summary_json_carries_smtp_rcpt_denied_detail() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_denied_path.gewy")
+                .expect("smtp_rcpt_denied_path DSL should compile");
+        let export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 82916, 53022, "postfix-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        82916,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 82916, 1, 2, 53022, 25),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        82916,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53022),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3232),
+                        Some(0x32323020),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        82916,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53022),
+                        Some(25),
+                        Some(0x45),
+                        Some(0x4548),
+                        Some(0x45484c4f),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        6,
+                        82916,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53022),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3235),
+                        Some(0x32353020),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        7,
+                        82916,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53022),
+                        Some(25),
+                        Some(0x41),
+                        Some(0x4155),
+                        Some(0x41555448),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        8,
+                        82916,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53022),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3233),
+                        Some(0x32333520),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        9,
+                        82916,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53022),
+                        Some(25),
+                        Some(0x4d),
+                        Some(0x4d41),
+                        Some(0x4d41494c),
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        10,
+                        82916,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53022),
+                        Some(25),
+                        &[
+                            (0, 0x32),
+                            (1, 0x35),
+                            (2, 0x30),
+                            (3, 0x20),
+                            (4, 0x32),
+                            (5, 0x2e),
+                            (6, 0x31),
+                            (7, 0x2e),
+                        ],
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        11,
+                        82916,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53022),
+                        Some(25),
+                        Some(0x52),
+                        Some(0x5243),
+                        Some(0x52435054),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        12,
+                        82916,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53022),
+                        Some(25),
+                        Some(0x35),
+                        Some(0x3535),
+                        Some(0x35353020),
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
+        assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
+        assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));
+    }
+
+    #[test]
+    fn summary_json_carries_smtp_data_timeout_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_path.gewy")
+            .expect("smtp_data_path DSL should compile");
+        let mut export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 82914, 53018, "postfix-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        82914,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 82914, 1, 2, 53018, 25),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        82914,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53018),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3232),
+                        Some(0x32323020),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        82914,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53018),
+                        Some(25),
+                        Some(0x45),
+                        Some(0x4548),
+                        Some(0x45484c4f),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        6,
+                        82914,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53018),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3235),
+                        Some(0x32353020),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        7,
+                        82914,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53018),
+                        Some(25),
+                        Some(0x41),
+                        Some(0x4155),
+                        Some(0x41555448),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        8,
+                        82914,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53018),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3233),
+                        Some(0x32333520),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        9,
+                        82914,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53018),
+                        Some(25),
+                        Some(0x4d),
+                        Some(0x4d41),
+                        Some(0x4d41494c),
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        10,
+                        82914,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53018),
+                        Some(25),
+                        &[
+                            (0, 0x32),
+                            (1, 0x35),
+                            (2, 0x30),
+                            (3, 0x20),
+                            (4, 0x32),
+                            (5, 0x2e),
+                            (6, 0x31),
+                            (7, 0x2e),
+                        ],
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        11,
+                        82914,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53018),
+                        Some(25),
+                        Some(0x52),
+                        Some(0x5243),
+                        Some(0x52435054),
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        12,
+                        82914,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53018),
+                        Some(25),
+                        &[
+                            (0, 0x32),
+                            (1, 0x35),
+                            (2, 0x30),
+                            (3, 0x20),
+                            (4, 0x32),
+                            (5, 0x2e),
+                            (6, 0x31),
+                            (7, 0x2e),
+                            (8, 0x35),
+                        ],
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        13,
+                        82914,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53018),
+                        Some(25),
+                        Some(0x44),
+                        Some(0x4441),
+                        Some(0x44415441),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        14,
+                        82914,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53018),
+                        Some(25),
+                        Some(0x33),
+                        Some(0x3335),
+                        Some(0x33353420),
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        15,
+                        82914,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53018),
+                        Some(25),
+                        &[(0, 0x0d), (1, 0x0a), (2, 0x2e), (3, 0x0d), (4, 0x0a)],
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "smtp_data_path",
+            "mail_session",
+            "receive_message_queued",
+            "receive_payload",
+            "send_message_body->receive_message_queued",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing smtp queued ack",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+    }
+
+    #[test]
+    fn summary_json_carries_smtp_data_denied_detail() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_denied_path.gewy")
+                .expect("smtp_data_denied_path DSL should compile");
+        let export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 82915, 53020, "postfix-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        82915,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 82915, 1, 2, 53020, 25),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        82915,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53020),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3232),
+                        Some(0x32323020),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        82915,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53020),
+                        Some(25),
+                        Some(0x45),
+                        Some(0x4548),
+                        Some(0x45484c4f),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        6,
+                        82915,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53020),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3235),
+                        Some(0x32353020),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        7,
+                        82915,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53020),
+                        Some(25),
+                        Some(0x41),
+                        Some(0x4155),
+                        Some(0x41555448),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        8,
+                        82915,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53020),
+                        Some(25),
+                        Some(0x32),
+                        Some(0x3233),
+                        Some(0x32333520),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        9,
+                        82915,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53020),
+                        Some(25),
+                        Some(0x4d),
+                        Some(0x4d41),
+                        Some(0x4d41494c),
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        10,
+                        82915,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53020),
+                        Some(25),
+                        &[
+                            (0, 0x32),
+                            (1, 0x35),
+                            (2, 0x30),
+                            (3, 0x20),
+                            (4, 0x32),
+                            (5, 0x2e),
+                            (6, 0x31),
+                            (7, 0x2e),
+                        ],
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        11,
+                        82915,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53020),
+                        Some(25),
+                        Some(0x52),
+                        Some(0x5243),
+                        Some(0x52435054),
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        12,
+                        82915,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53020),
+                        Some(25),
+                        &[
+                            (0, 0x32),
+                            (1, 0x35),
+                            (2, 0x30),
+                            (3, 0x20),
+                            (4, 0x32),
+                            (5, 0x2e),
+                            (6, 0x31),
+                            (7, 0x2e),
+                            (8, 0x35),
+                        ],
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        13,
+                        82915,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53020),
+                        Some(25),
+                        Some(0x44),
+                        Some(0x4441),
+                        Some(0x44415441),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        14,
+                        82915,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53020),
+                        Some(25),
+                        Some(0x33),
+                        Some(0x3335),
+                        Some(0x33353420),
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        15,
+                        82915,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53020),
+                        Some(25),
+                        &[(0, 0x0d), (1, 0x0a), (2, 0x2e), (3, 0x0d), (4, 0x0a)],
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        16,
+                        82915,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53020),
+                        Some(25),
+                        Some(0x35),
+                        Some(0x3535),
+                        Some(0x35353020),
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(
+            json.contains("\"primary_module_kind\":\"mail_session\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_mode\":\"server_denied\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_detail\":\"access_denied\""),
+            "json={}",
+            json
+        );
+    }
+
+    #[test]
     fn summary_json_carries_hy2_auth_timeout_detail() {
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy")
             .expect("hy2_auth_path DSL should compile");
@@ -7264,6 +7781,8 @@ fn failure_mode_label(
                 || left.contains("list")
                 || left.contains("mail")
                 || left.contains("rcpt")
+                || left.contains("data")
+                || left.contains("message")
                 || left.contains("relay")
                 || left.contains("stream")
                 || left.contains("channel")
@@ -7295,6 +7814,8 @@ fn failure_mode_label(
                 || right.contains("list")
                 || right.contains("mail")
                 || right.contains("rcpt")
+                || right.contains("data")
+                || right.contains("message")
                 || right.contains("relay")
                 || right.contains("stream")
                 || right.contains("channel"))
@@ -7331,6 +7852,8 @@ fn failure_mode_label(
         || stage.contains("list")
         || stage.contains("mail")
         || stage.contains("rcpt")
+        || stage.contains("data")
+        || stage.contains("message")
         || stage.contains("pasv")
         || stage.contains("relay")
         || stage.contains("stream")
@@ -7411,6 +7934,8 @@ fn failure_detail_label(
                 || left.contains("list")
                 || left.contains("mail")
                 || left.contains("rcpt")
+                || left.contains("data")
+                || left.contains("message")
                 || left.contains("relay")
                 || left.contains("stream")
                 || left.contains("channel")
@@ -7442,6 +7967,8 @@ fn failure_detail_label(
                 || right.contains("list")
                 || right.contains("mail")
                 || right.contains("rcpt")
+                || right.contains("data")
+                || right.contains("message")
                 || right.contains("relay")
                 || right.contains("stream")
                 || right.contains("channel"))
@@ -7484,6 +8011,8 @@ fn failure_detail_label(
         || stage.contains("list")
         || stage.contains("mail")
         || stage.contains("rcpt")
+        || stage.contains("data")
+        || stage.contains("message")
         || stage.contains("pasv")
         || stage.contains("relay")
         || stage.contains("stream")

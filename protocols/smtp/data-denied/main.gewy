@@ -1,0 +1,2 @@
+template(:smtp_data_denied_path)
+|> include("../../../../dsl/smtp_data_denied_path.gewy")
