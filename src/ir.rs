@@ -241,6 +241,7 @@ pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static s
             | "receive_transfer_complete"
             | "receive_method_selection"
             | "receive_connect_success"
+            | "receive_bind_denied"
             | "receive_bind_response"
             | "receive_search_result"
             | "receive_modify_response"

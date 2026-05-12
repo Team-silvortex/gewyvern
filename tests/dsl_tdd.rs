@@ -1731,6 +1731,22 @@ fn built_in_ldap_modify_path_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn built_in_ldap_bind_denied_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_denied_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "ldap_bind_denied_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("ldap_bind_denied".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
 fn built_in_ldap_modify_denied_path_dsl_compiles_into_template_binding() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy").unwrap();
@@ -10925,6 +10941,122 @@ fn ldap_modify_path_does_not_match_wrong_response_op_tag() {
             .stages
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_modify_response"))
+    );
+}
+
+#[test]
+fn ldap_bind_denied_path_materializes_denied_bind_phase() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_denied_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 841, 54027, "ldapbind"));
+    session.ingest(route_fact(2, 841, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 841, 1, 2, 54027, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 841, 2, 3, 54027, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        5,
+        841,
+        0x18,
+        PacketDir::Egress,
+        Some(54027),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x60),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        6,
+        841,
+        0x18,
+        PacketDir::Ingress,
+        Some(54027),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x61),
+        Some(0x31),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("ldap_bind_denied".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_bind"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_bind_denied"))
+    );
+    let phase_kinds = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase_kind.clone())
+        .collect::<Vec<_>>();
+    assert!(phase_kinds.contains(&"emit_payload".to_string()));
+    assert!(phase_kinds.contains(&"receive_payload".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn ldap_bind_denied_path_does_not_match_success_result_code() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_denied_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8411, 54027, "ldapbind"));
+    session.ingest(route_fact(2, 8411, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8411, 1, 2, 54027, 389));
+    session.ingest(tcp_state_fact_with_ports(4, 8411, 2, 3, 54027, 389));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        5,
+        8411,
+        0x18,
+        PacketDir::Egress,
+        Some(54027),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x60),
+        None,
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_and_bytes4_5_and9(
+        6,
+        8411,
+        0x18,
+        PacketDir::Ingress,
+        Some(54027),
+        Some(389),
+        Some(0x30),
+        Some(0x300c),
+        Some(0x300c0201),
+        Some(0x01),
+        Some(0x61),
+        Some(0x00),
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_bind_denied"))
     );
 }
 

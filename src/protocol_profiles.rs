@@ -468,6 +468,10 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy",
             },
             ProtocolEntryProfile {
+                mode: "bind-denied",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_denied_path.gewy",
+            },
+            ProtocolEntryProfile {
                 mode: "search",
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ldap_search_path.gewy",
             },

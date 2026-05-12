@@ -3943,10 +3943,18 @@ mod tests {
                 payload_byte4: payload_bytes
                     .iter()
                     .find_map(|(offset, value)| (*offset == 4).then_some(*value)),
-                payload_byte5: None,
-                payload_byte9: None,
-                payload_byte10: None,
-                payload_byte13: None,
+                payload_byte5: payload_bytes
+                    .iter()
+                    .find_map(|(offset, value)| (*offset == 5).then_some(*value)),
+                payload_byte9: payload_bytes
+                    .iter()
+                    .find_map(|(offset, value)| (*offset == 9).then_some(*value)),
+                payload_byte10: payload_bytes
+                    .iter()
+                    .find_map(|(offset, value)| (*offset == 10).then_some(*value)),
+                payload_byte13: payload_bytes
+                    .iter()
+                    .find_map(|(offset, value)| (*offset == 13).then_some(*value)),
                 payload_bytes: payload_bytes.iter().copied().collect(),
                 l3_proto: 0x0800,
                 l4_proto: 6,
@@ -6395,6 +6403,61 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
         assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
         assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));
+    }
+
+    #[test]
+    fn summary_json_carries_ldap_bind_denied_detail() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_denied_path.gewy")
+                .expect("ldap_bind_denied_path DSL should compile");
+        let export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 82917, 54030, "ldapbind"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        82917,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 82917, 1, 2, 54030, 389),
+                    tcp_state_fact_with_ports_for_tests(4, 82917, 2, 3, 54030, 389),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        5,
+                        82917,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(54030),
+                        Some(389),
+                        &[(0, 0x30), (4, 0x01), (5, 0x60)],
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        6,
+                        82917,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(54030),
+                        Some(389),
+                        &[(0, 0x30), (4, 0x01), (5, 0x61), (9, 0x31)],
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"directory_bind\""));
+        assert!(
+            json.contains("\"primary_failure_mode\":\"server_denied\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_detail\":\"access_denied\""),
+            "json={}",
+            json
+        );
     }
 
     #[test]
