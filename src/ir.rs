@@ -1,6 +1,7 @@
 use crate::flow::FlowSnapshot;
 use crate::ledger::{FactEnvelope, FactKind, PacketDir};
 pub use crate::ledger::{QuicFrameType, QuicPacketType};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PayloadByteMatch {
@@ -13,6 +14,72 @@ pub struct PayloadByteMatch {
 pub struct PayloadByteSequenceMatch {
     pub offset: u16,
     pub bytes: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PayloadMatcherSetRef<'a> {
+    pub byte_matches: &'a [PayloadByteMatch],
+    pub byte_sequences: &'a [PayloadByteSequenceMatch],
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ObservationScope {
+    pub dir: Option<PacketDir>,
+    pub local_port: Option<u16>,
+    pub remote_port: Option<u16>,
+}
+
+impl<'a> PayloadMatcherSetRef<'a> {
+    pub fn new(
+        byte_matches: &'a [PayloadByteMatch],
+        byte_sequences: &'a [PayloadByteSequenceMatch],
+    ) -> Self {
+        Self {
+            byte_matches,
+            byte_sequences,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.byte_matches.is_empty() && self.byte_sequences.is_empty()
+    }
+
+    pub fn required_offsets(&self) -> Vec<u16> {
+        let mut offsets = BTreeSet::new();
+        for matcher in self.byte_matches {
+            offsets.insert(matcher.offset);
+        }
+        for matcher in self.byte_sequences {
+            for offset in matcher.offset..matcher.offset + matcher.bytes.len() as u16 {
+                offsets.insert(offset);
+            }
+        }
+        offsets.into_iter().collect()
+    }
+
+    pub fn matches_packet(&self, packet: &crate::ledger::PacketMetaFact) -> bool {
+        self.byte_matches.iter().all(|matcher| {
+            packet_payload_byte_at(packet, matcher.offset)
+                .is_some_and(|byte| byte & matcher.mask == matcher.value)
+        }) && self
+            .byte_sequences
+            .iter()
+            .all(|matcher| packet_payload_sequence_at(packet, matcher))
+    }
+
+    pub fn matches_payload_bytes(&self, payload_bytes: &BTreeMap<u16, u8>) -> bool {
+        self.byte_matches.iter().all(|matcher| {
+            payload_bytes
+                .get(&matcher.offset)
+                .is_some_and(|byte| *byte & matcher.mask == matcher.value)
+        }) && self.byte_sequences.iter().all(|matcher| {
+            matcher.bytes.iter().enumerate().all(|(idx, expected)| {
+                payload_bytes
+                    .get(&(matcher.offset + idx as u16))
+                    .is_some_and(|byte| byte == expected)
+            })
+        })
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -73,6 +140,210 @@ pub enum FlowPredicate {
     RouteResolved,
     All(Vec<FlowPredicate>),
     Any(Vec<FlowPredicate>),
+}
+
+impl FlowPredicate {
+    pub fn socket_state_observed(
+        local_port: Option<u16>,
+        remote_port: Option<u16>,
+        min_new_state: Option<u8>,
+    ) -> Self {
+        Self::SocketStateObserved {
+            local_port,
+            remote_port,
+            min_new_state,
+        }
+    }
+
+    pub fn packet_observed(
+        l4_proto: u8,
+        scope: ObservationScope,
+        first_byte_mask: Option<u8>,
+        first_byte_value: Option<u8>,
+        prefix4: Option<u32>,
+        byte4_mask: Option<u8>,
+        byte4_value: Option<u8>,
+        byte13_mask: Option<u8>,
+        byte13_value: Option<u8>,
+        byte_matches: Vec<PayloadByteMatch>,
+        byte_sequences: Vec<PayloadByteSequenceMatch>,
+    ) -> Self {
+        Self::PacketObserved {
+            l4_proto,
+            dir: scope.dir,
+            local_port: scope.local_port,
+            remote_port: scope.remote_port,
+            first_byte_mask,
+            first_byte_value,
+            prefix4,
+            byte4_mask,
+            byte4_value,
+            byte13_mask,
+            byte13_value,
+            byte_matches,
+            byte_sequences,
+        }
+    }
+
+    pub fn datagram_observed(
+        l4_proto: u8,
+        scope: ObservationScope,
+        min_len: Option<u32>,
+        first_byte_mask: Option<u8>,
+        first_byte_value: Option<u8>,
+        prefix2: Option<u16>,
+        prefix4: Option<u32>,
+        byte13_mask: Option<u8>,
+        byte13_value: Option<u8>,
+        byte_matches: Vec<PayloadByteMatch>,
+        byte_sequences: Vec<PayloadByteSequenceMatch>,
+    ) -> Self {
+        Self::DatagramObserved {
+            l4_proto,
+            dir: scope.dir,
+            local_port: scope.local_port,
+            remote_port: scope.remote_port,
+            min_len,
+            first_byte_mask,
+            first_byte_value,
+            prefix2,
+            prefix4,
+            byte13_mask,
+            byte13_value,
+            byte_matches,
+            byte_sequences,
+        }
+    }
+
+    pub fn quic_packet_observed(
+        scope: ObservationScope,
+        min_len: Option<u32>,
+        long_header: Option<bool>,
+        packet_type: Option<QuicPacketType>,
+    ) -> Self {
+        Self::QuicPacketObserved {
+            dir: scope.dir,
+            local_port: scope.local_port,
+            remote_port: scope.remote_port,
+            min_len,
+            long_header,
+            packet_type,
+        }
+    }
+
+    pub fn quic_frame_observed(
+        scope: ObservationScope,
+        packet_type: Option<QuicPacketType>,
+        frame_type: QuicFrameType,
+        byte_matches: Vec<PayloadByteMatch>,
+        byte_sequences: Vec<PayloadByteSequenceMatch>,
+    ) -> Self {
+        Self::QuicFrameObserved {
+            dir: scope.dir,
+            local_port: scope.local_port,
+            remote_port: scope.remote_port,
+            packet_type,
+            frame_type,
+            byte_matches,
+            byte_sequences,
+        }
+    }
+
+    pub fn observation_scope(&self) -> Option<ObservationScope> {
+        match self {
+            FlowPredicate::PacketObserved {
+                dir,
+                local_port,
+                remote_port,
+                ..
+            }
+            | FlowPredicate::DatagramObserved {
+                dir,
+                local_port,
+                remote_port,
+                ..
+            }
+            | FlowPredicate::QuicPacketObserved {
+                dir,
+                local_port,
+                remote_port,
+                ..
+            }
+            | FlowPredicate::QuicFrameObserved {
+                dir,
+                local_port,
+                remote_port,
+                ..
+            } => Some(ObservationScope {
+                dir: *dir,
+                local_port: *local_port,
+                remote_port: *remote_port,
+            }),
+            _ => None,
+        }
+    }
+
+    pub fn payload_matchers(&self) -> Option<PayloadMatcherSetRef<'_>> {
+        match self {
+            FlowPredicate::PacketObserved {
+                byte_matches,
+                byte_sequences,
+                ..
+            }
+            | FlowPredicate::DatagramObserved {
+                byte_matches,
+                byte_sequences,
+                ..
+            }
+            | FlowPredicate::QuicFrameObserved {
+                byte_matches,
+                byte_sequences,
+                ..
+            } => Some(PayloadMatcherSetRef::new(byte_matches, byte_sequences)),
+            _ => None,
+        }
+    }
+
+    pub fn required_payload_offsets(&self) -> Vec<u16> {
+        let mut offsets = BTreeSet::new();
+        match self {
+            FlowPredicate::PacketObserved {
+                byte4_mask,
+                byte13_mask,
+                ..
+            } => {
+                if byte4_mask.is_some() {
+                    offsets.insert(4);
+                }
+                if byte13_mask.is_some() {
+                    offsets.insert(13);
+                }
+                if let Some(matchers) = self.payload_matchers() {
+                    offsets.extend(matchers.required_offsets());
+                }
+            }
+            FlowPredicate::DatagramObserved { byte13_mask, .. } => {
+                if byte13_mask.is_some() {
+                    offsets.insert(13);
+                }
+                if let Some(matchers) = self.payload_matchers() {
+                    offsets.extend(matchers.required_offsets());
+                }
+            }
+            FlowPredicate::QuicFrameObserved { .. } => {
+                if let Some(matchers) = self.payload_matchers() {
+                    offsets.extend(matchers.required_offsets());
+                }
+            }
+            FlowPredicate::All(predicates) | FlowPredicate::Any(predicates) => {
+                for predicate in predicates {
+                    offsets.extend(predicate.required_payload_offsets());
+                }
+            }
+            _ => {}
+        }
+        offsets.into_iter().collect()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -369,13 +640,8 @@ pub fn matches_flow_predicate(
                                 .is_some_and(|byte| byte & *mask == *value),
                             _ => true,
                         }
-                        && byte_matches.iter().all(|matcher| {
-                            packet_payload_byte_at(packet, matcher.offset)
-                                .is_some_and(|byte| byte & matcher.mask == matcher.value)
-                        })
-                        && byte_sequences
-                            .iter()
-                            .all(|matcher| packet_payload_sequence_at(packet, matcher))
+                        && PayloadMatcherSetRef::new(byte_matches, byte_sequences)
+                            .matches_packet(packet)
             )
         }
         FlowPredicate::DatagramObserved {
@@ -428,13 +694,8 @@ pub fn matches_flow_predicate(
                                 .is_some_and(|byte| byte & *mask == *value),
                             _ => true,
                         }
-                        && byte_matches.iter().all(|matcher| {
-                            packet_payload_byte_at(packet, matcher.offset)
-                                .is_some_and(|byte| byte & matcher.mask == matcher.value)
-                        })
-                        && byte_sequences
-                            .iter()
-                            .all(|matcher| packet_payload_sequence_at(packet, matcher))
+                        && PayloadMatcherSetRef::new(byte_matches, byte_sequences)
+                            .matches_packet(packet)
             )
         }
         FlowPredicate::RouteResolved => flow.evidence.route_facts.contains(&fact.id),
@@ -497,18 +758,8 @@ pub fn matches_flow_predicate(
                             .as_ref()
                             .is_none_or(|expected| quic.packet_type == Some(*expected))
                         && quic.frame_types.contains(frame_type)
-                        && byte_matches.iter().all(|matcher| {
-                            quic.payload_bytes
-                                .get(&matcher.offset)
-                                .is_some_and(|byte| *byte & matcher.mask == matcher.value)
-                        })
-                        && byte_sequences.iter().all(|matcher| {
-                            matcher.bytes.iter().enumerate().all(|(idx, expected)| {
-                                quic.payload_bytes
-                                    .get(&(matcher.offset + idx as u16))
-                                    .is_some_and(|byte| byte == expected)
-                            })
-                        })
+                        && PayloadMatcherSetRef::new(byte_matches, byte_sequences)
+                            .matches_payload_bytes(&quic.payload_bytes)
             )
         }
         FlowPredicate::All(predicates) => {
@@ -641,5 +892,118 @@ pub fn render_narrative_template(
             NarrativeSurface::Program => "program received a UDP datagram".into(),
             NarrativeSurface::Reason => "udp datagram received".into(),
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        FlowPredicate, ObservationScope, PayloadByteMatch, PayloadByteSequenceMatch,
+        PayloadMatcherSetRef, QuicFrameType,
+    };
+    use crate::ledger::{PacketDir, PacketMetaFact, QuicMetaFact};
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn payload_matcher_set_ref_matches_packet_and_quic_payloads() {
+        let byte_matches = [PayloadByteMatch {
+            offset: 8,
+            mask: 0xff,
+            value: 0xa0,
+        }];
+        let byte_sequences = [PayloadByteSequenceMatch {
+            offset: 10,
+            bytes: vec![0xde, 0xad],
+        }];
+        let matchers = PayloadMatcherSetRef::new(&byte_matches, &byte_sequences);
+        let packet = PacketMetaFact {
+            netns: 1,
+            sk_cookie: Some(7),
+            dir: PacketDir::Egress,
+            local_port: Some(12345),
+            remote_port: Some(443),
+            payload_byte0: None,
+            payload_byte1: None,
+            payload_prefix2: None,
+            payload_prefix4: None,
+            payload_byte4: None,
+            payload_byte5: None,
+            payload_byte9: None,
+            payload_byte10: Some(0xde),
+            payload_byte13: None,
+            payload_bytes: BTreeMap::from([(8, 0xa0), (10, 0xde), (11, 0xad)]),
+            l3_proto: 0x0800,
+            l4_proto: 17,
+            tot_len: 1280,
+            tcp_flags: 0,
+            seq: None,
+            ack: None,
+            window: None,
+        };
+        let quic = QuicMetaFact {
+            netns: 1,
+            sk_cookie: Some(7),
+            dir: PacketDir::Egress,
+            local_port: Some(12345),
+            remote_port: Some(443),
+            long_header: true,
+            packet_type: None,
+            frame_types: vec![QuicFrameType::Crypto],
+            payload_bytes: BTreeMap::from([(8, 0xa0), (10, 0xde), (11, 0xad)]),
+        };
+
+        assert!(matchers.matches_packet(&packet));
+        assert!(matchers.matches_payload_bytes(&quic.payload_bytes));
+        assert_eq!(matchers.required_offsets(), vec![8, 10, 11]);
+    }
+
+    #[test]
+    fn flow_predicate_required_payload_offsets_include_quic_frame_matchers() {
+        let predicate = FlowPredicate::QuicFrameObserved {
+            dir: Some(PacketDir::Egress),
+            local_port: None,
+            remote_port: Some(443),
+            packet_type: None,
+            frame_type: QuicFrameType::Crypto,
+            byte_matches: vec![PayloadByteMatch {
+                offset: 8,
+                mask: 0xff,
+                value: 0xa0,
+            }],
+            byte_sequences: vec![PayloadByteSequenceMatch {
+                offset: 10,
+                bytes: vec![0xde, 0xad],
+            }],
+        };
+
+        assert_eq!(predicate.required_payload_offsets(), vec![8, 10, 11]);
+    }
+
+    #[test]
+    fn flow_predicate_exposes_observation_scope_for_transport_predicates() {
+        let predicate = FlowPredicate::DatagramObserved {
+            l4_proto: 17,
+            dir: Some(PacketDir::Ingress),
+            local_port: Some(53),
+            remote_port: Some(42000),
+            min_len: Some(64),
+            first_byte_mask: None,
+            first_byte_value: None,
+            prefix2: None,
+            prefix4: None,
+            byte13_mask: None,
+            byte13_value: None,
+            byte_matches: vec![],
+            byte_sequences: vec![],
+        };
+
+        assert_eq!(
+            predicate.observation_scope(),
+            Some(ObservationScope {
+                dir: Some(PacketDir::Ingress),
+                local_port: Some(53),
+                remote_port: Some(42000),
+            })
+        );
     }
 }

@@ -755,56 +755,7 @@ fn parse_sample_payload_offsets(value: &str) -> Vec<u16> {
 }
 
 fn predicate_payload_offsets(predicate: &FlowPredicate) -> Vec<u16> {
-    let mut offsets = BTreeSet::new();
-    match predicate {
-        FlowPredicate::PacketObserved {
-            byte4_mask,
-            byte13_mask,
-            byte_matches,
-            byte_sequences,
-            ..
-        } => {
-            if byte4_mask.is_some() {
-                offsets.insert(4);
-            }
-            if byte13_mask.is_some() {
-                offsets.insert(13);
-            }
-            for matcher in byte_matches {
-                offsets.insert(matcher.offset);
-            }
-            for matcher in byte_sequences {
-                for offset in matcher.offset..matcher.offset + matcher.bytes.len() as u16 {
-                    offsets.insert(offset);
-                }
-            }
-        }
-        FlowPredicate::DatagramObserved {
-            byte13_mask,
-            byte_matches,
-            byte_sequences,
-            ..
-        } => {
-            if byte13_mask.is_some() {
-                offsets.insert(13);
-            }
-            for matcher in byte_matches {
-                offsets.insert(matcher.offset);
-            }
-            for matcher in byte_sequences {
-                for offset in matcher.offset..matcher.offset + matcher.bytes.len() as u16 {
-                    offsets.insert(offset);
-                }
-            }
-        }
-        FlowPredicate::All(predicates) | FlowPredicate::Any(predicates) => {
-            for inner in predicates {
-                offsets.extend(predicate_payload_offsets(inner));
-            }
-        }
-        _ => {}
-    }
-    offsets.into_iter().collect()
+    predicate.required_payload_offsets()
 }
 
 fn classify_rule_tier(

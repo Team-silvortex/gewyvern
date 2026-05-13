@@ -6,7 +6,8 @@ This guide describes the current `v0.1` development workflow.
 
 Recommended reading before changing code:
 
-- `docs/overview.md`
+- `README.md`
+- `docs/system.md`
 - `docs/architecture.md`
 - `docs/dsl.md`
 - `docs/fragments.md`
@@ -157,9 +158,10 @@ After behavior changes, update the matching document:
 
 - fragment semantics -> `docs/fragments.md`
 - export semantics -> `docs/export-format.md`
-- runtime pipeline or boundaries -> `docs/architecture.md`
+- runtime pipeline details -> `docs/architecture.md`
+- system boundaries or layering -> `docs/system.md`
 - workflow changes -> `docs/development.md`
-- project-facing capabilities -> `README.md` and `docs/overview.md`
+- project-facing capabilities -> `README.md`
 
 ## Practical Rule
 

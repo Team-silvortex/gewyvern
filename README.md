@@ -85,20 +85,20 @@ The detailed milestone plan lives in [ROADMAP.md](/Users/Shared/chroot/dev/gewyv
 
 ## Supported Protocol Families
 
-- Web and secure transport:
+- Web, secure transport, and modern proxying:
   HTTP, HTTPS, TLS, QUIC, HTTP/3, Hysteria 2
 - Name resolution and discovery:
   DNS, DNS-over-TCP, mDNS, SSDP
 - Datagram and control protocols:
   STUN, CoAP, NTP, DHCP, WireGuard, SNMP, RADIUS, GTP-U, SIP
-- Data stores and brokers:
+- Data stores, brokers, and cache access:
   Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP
-- Mail and directory services:
-  SMTP, SSH, SOCKS5, LDAP
+- Mail, directory, file-transfer, and remote access:
+  SMTP, FTP, SSH, SOCKS5, LDAP
 
-Most built-in packages model a concrete program-network path such as
-request/response, auth/query, or publish/ack, rather than only matching a port
-number.
+Most built-in entries model a concrete program-network path such as
+request/response, auth/query, relay setup, or publish/ack, rather than only
+matching a port number.
 
 ## Workspace Layout
 
@@ -283,90 +283,56 @@ If you are orienting in the codebase, these files are the shortest path:
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
   Best high-level system map after the README.
 
-## DSL Files
+## DSL Coverage
 
 The repository now includes first-class DSL files that compile into
 `TemplateBinding` rather than into eBPF bytecode:
 
-- [dsl/handshake_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy)
-- [dsl/udp_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_debug.gewy)
-- [dsl/udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy)
-- [dsl/pipeline_udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/pipeline_udp_process_debug.gewy)
-- [dsl/structured_udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/structured_udp_process_debug.gewy)
-- [dsl/dns_udp_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy)
-- [dsl/https_connect_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy)
-- [dsl/http_request_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy)
-- [dsl/http_server_response_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy)
-- [dsl/http3_request_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy)
-- [dsl/http3_server_response_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy)
-- [dsl/hy2_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy)
-- [dsl/hy2_tcp_relay_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy)
-- [dsl/hy2_udp_relay_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_relay_path.gewy)
-- [dsl/tls_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy)
-- [dsl/quic_client_initial_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy)
-- [dsl/quic_crypto_handshake_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_crypto_handshake_path.gewy)
-- [dsl/quic_stream_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_stream_session_path.gewy)
-- [dsl/quic_bidi_stream_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_bidi_stream_path.gewy)
-- [dsl/stun_binding_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy)
-- [dsl/coap_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy)
-- [dsl/ntp_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy)
-- [dsl/dhcp_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy)
-- [dsl/wireguard_handshake_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_path.gewy)
-- [dsl/mdns_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy)
-- [dsl/ssdp_discovery_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy)
-- [dsl/postgres_connect_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy)
-- [dsl/postgres_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy)
-- [dsl/postgres_simple_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_simple_query_path.gewy)
-- [dsl/postgres_query_error_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_error_path.gewy)
-- [dsl/mysql_connect_process.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mysql_connect_process.gewy)
-- [dsl/mysql_simple_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy)
-- [dsl/mysql_query_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy)
-- [dsl/mysql_query_error_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy)
-- [dsl/memcached_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy)
-- [dsl/memcached_set_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy)
-- [dsl/amqp_connection_start_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy)
-- [dsl/amqp_basic_publish_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy)
-- [dsl/amqp_publish_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/amqp_publish_session.gewy)
-- [dsl/redis_ping_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy)
-- [dsl/mqtt_connect_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy)
-- [dsl/radius_access_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy)
-- [dsl/gtpu_echo_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy)
-- [dsl/smtp_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy)
-- [dsl/ftp_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy)
-- [dsl/ftp_passive_list_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_passive_list_path.gewy)
-- [dsl/ftp_retr_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_retr_path.gewy)
-- [dsl/ftp_stor_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_stor_path.gewy)
-- [dsl/ftp_active_list_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_list_path.gewy)
-- [dsl/ftp_active_retr_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_retr_path.gewy)
-- [dsl/ftp_active_stor_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_stor_path.gewy)
-- [dsl/ssh_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy)
-- [dsl/ssh_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_path.gewy)
-- [dsl/ssh_auth_denied_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_denied_path.gewy)
-- [dsl/ssh_channel_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssh_channel_session_path.gewy)
-- [dsl/socks5_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy)
-- [dsl/socks5_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_path.gewy)
-- [dsl/socks5_auth_connect_denied_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_connect_denied_path.gewy)
-- [dsl/http_connect_auth_required_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_auth_required_path.gewy)
-- [dsl/http_connect_authenticated_tunnel_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy)
-- [dsl/smtp_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_auth_path.gewy)
-- [dsl/smtp_mail_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy)
-- [dsl/smtp_rcpt_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_path.gewy)
-- [dsl/smtp_data_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_path.gewy)
-- [dsl/smtp_data_denied_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_denied_path.gewy)
-- [dsl/smtp_rcpt_denied_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_denied_path.gewy)
-- [dsl/http_connect_tunnel_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy)
-- [dsl/sip_register_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy)
-- [dsl/ldap_bind_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy)
-- [dsl/ldap_bind_denied_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_denied_path.gewy)
-- [dsl/ldap_search_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_search_path.gewy)
-- [dsl/ldap_modify_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_path.gewy)
-- [dsl/ldap_modify_denied_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy)
-- [dsl/ldap_modify_constraint_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_constraint_path.gewy)
-- [dsl/ldap_directory_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_session.gewy)
-- [dsl/ldap_directory_write_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_write_session.gewy)
-- [dsl/ldap_directory_sync_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy)
-- [dsl/snmp_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy)
-- [dsl/dns_tcp_query_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy)
+- Debug and compiler baselines:
+  [dsl/handshake_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy),
+  [dsl/udp_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_debug.gewy),
+  [dsl/udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy),
+  [dsl/pipeline_udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/pipeline_udp_process_debug.gewy),
+  [dsl/structured_udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/structured_udp_process_debug.gewy)
+- Web, secure transport, and proxying:
+  HTTP request/response and CONNECT,
+  HTTPS connect,
+  TLS client,
+  QUIC initial/crypto/stream/bidi,
+  HTTP/3 request/server response,
+  HY2 auth/UDP relay/TCP relay
+- Name resolution and discovery:
+  DNS over UDP and TCP,
+  mDNS,
+  SSDP
+- Datagram and control protocols:
+  STUN,
+  CoAP,
+  NTP,
+  DHCP,
+  WireGuard,
+  SNMP,
+  RADIUS,
+  GTP-U,
+  SIP
+- Data stores and brokers:
+  PostgreSQL connect/auth/query/error,
+  MySQL connect/query/session/error,
+  Redis ping,
+  Memcached get/set,
+  MQTT connect,
+  AMQP start/publish/session
+- Mail, directory, and access protocols:
+  SMTP session/auth/mail/rcpt/data and denied branches,
+  FTP session/list/retr/stor across passive and active modes,
+  SSH session/auth/channel branches,
+  SOCKS5 session/auth/denied branches,
+  LDAP bind/search/modify/session/write/sync and denied branches
+
+The clearest operational view of those built-ins is the registry under
+[protocols](/Users/Shared/chroot/dev/gewyvern/protocols). Each package there
+maps one protocol entry to its `main.gewy`, default/alias metadata, and scan
+registration shape.
 
 These DSL files already cover the current built-in protocol/debugging shapes and
 can express:
@@ -778,7 +744,6 @@ cargo linux-smoke
 
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
 - [docs/walkthrough.md](/Users/Shared/chroot/dev/gewyvern/docs/walkthrough.md)
-- [docs/overview.md](/Users/Shared/chroot/dev/gewyvern/docs/overview.md)
 - [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)

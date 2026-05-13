@@ -1,7 +1,8 @@
 use crate::flow::{ProgramOperation, ProgramStageKind};
 use crate::fragment::{EvidenceTier, RegistryError, builtin_registry};
 use crate::ir::{
-    FlowPredicate, NarrativeTemplate, PayloadByteMatch, PayloadByteSequenceMatch, SignalKind,
+    FlowPredicate, NarrativeTemplate, ObservationScope, PayloadByteMatch, PayloadByteSequenceMatch,
+    SignalKind,
 };
 use crate::ledger::{FactKindTag, PacketDir, QuicFrameType, QuicPacketType};
 use crate::program::{ProgramModel, ProgramNarrative, ProgramRule};
@@ -1694,11 +1695,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
 
     match value {
         "process_bound" => Ok(FlowPredicate::ProcessBound),
-        "socket_state_observed" => Ok(FlowPredicate::SocketStateObserved {
-            local_port: None,
-            remote_port: None,
-            min_new_state: None,
-        }),
+        "socket_state_observed" => Ok(FlowPredicate::socket_state_observed(None, None, None)),
         other if other.starts_with("socket_state_observed:") => {
             let suffix = &other["socket_state_observed:".len()..];
             let mut parts = suffix.split(':');
@@ -1723,11 +1720,11 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                     "unexpected socket_state_observed suffix '{extra}'"
                 )));
             }
-            Ok(FlowPredicate::SocketStateObserved {
-                local_port: local_port.then_some(port),
-                remote_port: remote_port.then_some(port),
+            Ok(FlowPredicate::socket_state_observed(
+                local_port.then_some(port),
+                remote_port.then_some(port),
                 min_new_state,
-            })
+            ))
         }
         "route_resolved" => Ok(FlowPredicate::RouteResolved),
         other if other.starts_with("quic_packet_observed:") => {
@@ -1740,56 +1737,54 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut long_header = None;
             let mut packet_type = None;
             while let Some(part) = parts.next() {
-                match part {
-                    "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
-                    "ingress" | "remote_to_local" => dir = Some(PacketDir::Ingress),
-                    "local" | "sport" => {
-                        let port = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC local port qualifier".into())
-                        })?;
-                        local_port = Some(parse_named_port(port, "quic_packet_observed")?);
-                    }
-                    "remote" | "dport" => {
-                        let port = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC remote port qualifier".into())
-                        })?;
-                        remote_port = Some(parse_named_port(port, "quic_packet_observed")?);
-                    }
-                    "min_len" => {
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC min_len qualifier".into())
-                        })?;
-                        min_len = Some(value.parse::<u32>().map_err(|_| {
-                            DslError::InvalidValue(format!("invalid QUIC min_len '{value}'"))
-                        })?);
-                    }
-                    "long_header" => {
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC long_header qualifier".into())
-                        })?;
-                        long_header = Some(parse_bool(value)?);
-                    }
-                    "type" => {
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC type qualifier".into())
-                        })?;
-                        packet_type = Some(parse_quic_packet_type(value)?);
-                    }
-                    other => {
-                        return Err(DslError::InvalidValue(format!(
-                            "unexpected QUIC predicate suffix '{other}'"
-                        )));
+                if !parse_scope_qualifier(
+                    part,
+                    &mut parts,
+                    "quic_packet_observed",
+                    "QUIC",
+                    &mut dir,
+                    &mut local_port,
+                    &mut remote_port,
+                )? {
+                    match part {
+                        "min_len" => {
+                            min_len = Some(parse_u32_qualifier(
+                                &mut parts,
+                                "quic_packet_observed",
+                                "QUIC min_len",
+                                "min_len",
+                            )?);
+                        }
+                        "long_header" => {
+                            let value = parts.next().ok_or_else(|| {
+                                DslError::InvalidValue("missing QUIC long_header qualifier".into())
+                            })?;
+                            long_header = Some(parse_bool(value)?);
+                        }
+                        "type" => {
+                            let value = parts.next().ok_or_else(|| {
+                                DslError::InvalidValue("missing QUIC type qualifier".into())
+                            })?;
+                            packet_type = Some(parse_quic_packet_type(value)?);
+                        }
+                        other => {
+                            return Err(DslError::InvalidValue(format!(
+                                "unexpected QUIC predicate suffix '{other}'"
+                            )));
+                        }
                     }
                 }
             }
-            Ok(FlowPredicate::QuicPacketObserved {
-                dir,
-                local_port,
-                remote_port,
+            Ok(FlowPredicate::quic_packet_observed(
+                ObservationScope {
+                    dir,
+                    local_port,
+                    remote_port,
+                },
                 min_len,
                 long_header,
                 packet_type,
-            })
+            ))
         }
         other if other.starts_with("quic_frame_observed:") => {
             let suffix = &other["quic_frame_observed:".len()..];
@@ -1802,85 +1797,65 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut byte_matches = Vec::new();
             let mut byte_sequences = Vec::new();
             while let Some(part) = parts.next() {
-                match part {
-                    "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
-                    "ingress" | "remote_to_local" => dir = Some(PacketDir::Ingress),
-                    "local" | "sport" => {
-                        let port = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC local port qualifier".into())
-                        })?;
-                        local_port = Some(parse_named_port(port, "quic_frame_observed")?);
-                    }
-                    "remote" | "dport" => {
-                        let port = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC remote port qualifier".into())
-                        })?;
-                        remote_port = Some(parse_named_port(port, "quic_frame_observed")?);
-                    }
-                    "type" => {
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC type qualifier".into())
-                        })?;
-                        packet_type = Some(parse_quic_packet_type(value)?);
-                    }
-                    "frame" => {
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC frame qualifier".into())
-                        })?;
-                        frame_type = Some(parse_quic_frame_type(value)?);
-                    }
-                    "byte_at" => {
-                        let offset = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC byte_at offset".into())
-                        })?;
-                        let mask = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC byte_at mask".into())
-                        })?;
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC byte_at value".into())
-                        })?;
-                        byte_matches.push(PayloadByteMatch {
-                            offset: parse_u16_literal(offset, "quic_frame_observed", "offset")?,
-                            mask: parse_u8_literal(mask, "quic_frame_observed", "mask")?,
-                            value: parse_u8_literal(value, "quic_frame_observed", "value")?,
-                        });
-                    }
-                    "bytes_at" => {
-                        let offset = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC bytes_at offset".into())
-                        })?;
-                        let bytes = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing QUIC bytes_at sequence".into())
-                        })?;
-                        byte_sequences.push(PayloadByteSequenceMatch {
-                            offset: parse_u16_literal(offset, "quic_frame_observed", "offset")?,
-                            bytes: parse_u8_sequence_literal(
-                                bytes,
+                if !parse_scope_qualifier(
+                    part,
+                    &mut parts,
+                    "quic_frame_observed",
+                    "QUIC",
+                    &mut dir,
+                    &mut local_port,
+                    &mut remote_port,
+                )? {
+                    match part {
+                        "type" => {
+                            let value = parts.next().ok_or_else(|| {
+                                DslError::InvalidValue("missing QUIC type qualifier".into())
+                            })?;
+                            packet_type = Some(parse_quic_packet_type(value)?);
+                        }
+                        "frame" => {
+                            let value = parts.next().ok_or_else(|| {
+                                DslError::InvalidValue("missing QUIC frame qualifier".into())
+                            })?;
+                            frame_type = Some(parse_quic_frame_type(value)?);
+                        }
+                        "byte_at" => {
+                            byte_matches.push(parse_payload_byte_match(
+                                &mut parts,
                                 "quic_frame_observed",
-                                "bytes",
-                            )?,
-                        });
-                    }
-                    other => {
-                        return Err(DslError::InvalidValue(format!(
-                            "unexpected QUIC frame predicate suffix '{other}'"
-                        )));
+                                "QUIC",
+                            )?);
+                        }
+                        "bytes_at" => {
+                            byte_sequences.push(parse_payload_byte_sequence_match(
+                                &mut parts,
+                                "quic_frame_observed",
+                                "QUIC",
+                            )?);
+                        }
+                        other => {
+                            return Err(DslError::InvalidValue(format!(
+                                "unexpected QUIC frame predicate suffix '{other}'"
+                            )));
+                        }
                     }
                 }
             }
-            Ok(FlowPredicate::QuicFrameObserved {
-                dir,
-                local_port,
-                remote_port,
+            Ok(FlowPredicate::quic_frame_observed(
+                ObservationScope {
+                    dir,
+                    local_port,
+                    remote_port,
+                },
                 packet_type,
-                frame_type: frame_type.ok_or_else(|| {
+                frame_type.ok_or_else(|| {
                     DslError::InvalidValue(
                         "quic_frame_observed requires a frame:<type> qualifier".into(),
                     )
                 })?,
                 byte_matches,
                 byte_sequences,
-            })
+            ))
         }
         other if other.starts_with("datagram_observed:") => {
             let suffix = &other["datagram_observed:".len()..];
@@ -1906,136 +1881,89 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut byte_matches = Vec::new();
             let mut byte_sequences = Vec::new();
             while let Some(part) = parts.next() {
-                match part {
-                    "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
-                    "ingress" | "remote_to_local" => dir = Some(PacketDir::Ingress),
-                    "local" | "sport" => {
-                        let port = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing datagram local port qualifier".into())
-                        })?;
-                        local_port = Some(parse_named_port(port, "datagram_observed")?);
-                    }
-                    "remote" | "dport" => {
-                        let port = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing datagram remote port qualifier".into())
-                        })?;
-                        remote_port = Some(parse_named_port(port, "datagram_observed")?);
-                    }
-                    "min_len" => {
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing datagram min_len qualifier".into())
-                        })?;
-                        min_len = Some(value.parse::<u32>().map_err(|_| {
-                            DslError::InvalidValue(format!("invalid datagram min_len '{value}'"))
-                        })?);
-                    }
-                    "byte0_mask" => {
-                        let mask = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing datagram byte0_mask mask qualifier".into(),
-                            )
-                        })?;
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing datagram byte0_mask value qualifier".into(),
-                            )
-                        })?;
-                        first_byte_mask =
-                            Some(parse_u8_literal(mask, "datagram_observed", "byte0_mask")?);
-                        first_byte_value =
-                            Some(parse_u8_literal(value, "datagram_observed", "byte0_value")?);
-                    }
-                    "prefix2" => {
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing datagram prefix2 qualifier".into())
-                        })?;
-                        prefix2 = Some(parse_u16_literal(value, "datagram_observed", "prefix2")?);
-                    }
-                    "prefix4" => {
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing datagram prefix4 qualifier".into())
-                        })?;
-                        prefix4 = Some(parse_u32_literal(value, "datagram_observed", "prefix4")?);
-                    }
-                    "byte13_mask" => {
-                        let mask = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing datagram byte13_mask mask qualifier".into(),
-                            )
-                        })?;
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing datagram byte13_mask value qualifier".into(),
-                            )
-                        })?;
-                        byte13_mask =
-                            Some(parse_u8_literal(mask, "datagram_observed", "byte13_mask")?);
-                        byte13_value = Some(parse_u8_literal(
-                            value,
-                            "datagram_observed",
-                            "byte13_value",
-                        )?);
-                    }
-                    "byte_at" => {
-                        let offset = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing datagram byte_at offset qualifier".into(),
-                            )
-                        })?;
-                        let mask = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing datagram byte_at mask qualifier".into())
-                        })?;
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing datagram byte_at value qualifier".into(),
-                            )
-                        })?;
-                        byte_matches.push(PayloadByteMatch {
-                            offset: offset.parse::<u16>().map_err(|_| {
-                                DslError::InvalidValue(format!(
-                                    "invalid datagram byte_at offset '{offset}'"
-                                ))
-                            })?,
-                            mask: parse_u8_literal(mask, "datagram_observed", "byte_at_mask")?,
-                            value: parse_u8_literal(value, "datagram_observed", "byte_at_value")?,
-                        });
-                    }
-                    "bytes_at" => {
-                        let offset = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing datagram bytes_at offset qualifier".into(),
-                            )
-                        })?;
-                        let bytes = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing datagram bytes_at byte sequence qualifier".into(),
-                            )
-                        })?;
-                        byte_sequences.push(PayloadByteSequenceMatch {
-                            offset: offset.parse::<u16>().map_err(|_| {
-                                DslError::InvalidValue(format!(
-                                    "invalid datagram bytes_at offset '{offset}'"
-                                ))
-                            })?,
-                            bytes: parse_u8_sequence_literal(
-                                bytes,
+                if !parse_scope_qualifier(
+                    part,
+                    &mut parts,
+                    "datagram_observed",
+                    "datagram",
+                    &mut dir,
+                    &mut local_port,
+                    &mut remote_port,
+                )? {
+                    match part {
+                        "min_len" => {
+                            min_len = Some(parse_u32_qualifier(
+                                &mut parts,
                                 "datagram_observed",
-                                "bytes_at",
-                            )?,
-                        });
-                    }
-                    other => {
-                        return Err(DslError::InvalidValue(format!(
-                            "unknown datagram predicate suffix '{other}'"
-                        )));
+                                "datagram min_len",
+                                "min_len",
+                            )?);
+                        }
+                        "byte0_mask" => {
+                            let (mask, value) = parse_u8_mask_value_qualifier(
+                                &mut parts,
+                                "datagram_observed",
+                                "datagram byte0_mask",
+                                "byte0_mask",
+                            )?;
+                            first_byte_mask = Some(mask);
+                            first_byte_value = Some(value);
+                        }
+                        "prefix2" => {
+                            prefix2 = Some(parse_u16_qualifier(
+                                &mut parts,
+                                "datagram_observed",
+                                "datagram prefix2",
+                                "prefix2",
+                            )?);
+                        }
+                        "prefix4" => {
+                            prefix4 = Some(parse_u32_qualifier(
+                                &mut parts,
+                                "datagram_observed",
+                                "datagram prefix4",
+                                "prefix4",
+                            )?);
+                        }
+                        "byte13_mask" => {
+                            let (mask, value) = parse_u8_mask_value_qualifier(
+                                &mut parts,
+                                "datagram_observed",
+                                "datagram byte13_mask",
+                                "byte13_mask",
+                            )?;
+                            byte13_mask = Some(mask);
+                            byte13_value = Some(value);
+                        }
+                        "byte_at" => {
+                            byte_matches.push(parse_payload_byte_match(
+                                &mut parts,
+                                "datagram_observed",
+                                "datagram",
+                            )?);
+                        }
+                        "bytes_at" => {
+                            byte_sequences.push(parse_payload_byte_sequence_match(
+                                &mut parts,
+                                "datagram_observed",
+                                "datagram",
+                            )?);
+                        }
+                        other => {
+                            return Err(DslError::InvalidValue(format!(
+                                "unknown datagram predicate suffix '{other}'"
+                            )));
+                        }
                     }
                 }
             }
-            Ok(FlowPredicate::DatagramObserved {
+            Ok(FlowPredicate::datagram_observed(
                 l4_proto,
-                dir,
-                local_port,
-                remote_port,
+                ObservationScope {
+                    dir,
+                    local_port,
+                    remote_port,
+                },
                 min_len,
                 first_byte_mask,
                 first_byte_value,
@@ -2045,7 +1973,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 byte13_value,
                 byte_matches,
                 byte_sequences,
-            })
+            ))
         }
         other if other.starts_with("packet_observed:") => {
             let suffix = &other["packet_observed:".len()..];
@@ -2071,126 +1999,83 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut byte_matches = Vec::new();
             let mut byte_sequences = Vec::new();
             while let Some(part) = parts.next() {
-                match part {
-                    "egress" | "local_to_remote" => dir = Some(PacketDir::Egress),
-                    "ingress" | "remote_to_local" => dir = Some(PacketDir::Ingress),
-                    "local" | "sport" => {
-                        let port = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing packet local port qualifier".into())
-                        })?;
-                        local_port = Some(parse_named_port(port, "packet_observed")?);
-                    }
-                    "remote" | "dport" => {
-                        let port = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing packet remote port qualifier".into())
-                        })?;
-                        remote_port = Some(parse_named_port(port, "packet_observed")?);
-                    }
-                    "byte0_mask" => {
-                        let mask = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing packet byte0_mask mask qualifier".into(),
-                            )
-                        })?;
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing packet byte0_mask value qualifier".into(),
-                            )
-                        })?;
-                        first_byte_mask =
-                            Some(parse_u8_literal(mask, "packet_observed", "byte0_mask")?);
-                        first_byte_value =
-                            Some(parse_u8_literal(value, "packet_observed", "byte0_value")?);
-                    }
-                    "prefix4" => {
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing packet prefix4 qualifier".into())
-                        })?;
-                        prefix4 = Some(parse_u32_literal(value, "packet_observed", "prefix4")?);
-                    }
-                    "byte4_mask" => {
-                        let mask = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing packet byte4_mask mask qualifier".into(),
-                            )
-                        })?;
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing packet byte4_mask value qualifier".into(),
-                            )
-                        })?;
-                        byte4_mask = Some(parse_u8_literal(mask, "packet_observed", "byte4_mask")?);
-                        byte4_value =
-                            Some(parse_u8_literal(value, "packet_observed", "byte4_value")?);
-                    }
-                    "byte13_mask" => {
-                        let mask = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing packet byte13_mask mask qualifier".into(),
-                            )
-                        })?;
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing packet byte13_mask value qualifier".into(),
-                            )
-                        })?;
-                        byte13_mask =
-                            Some(parse_u8_literal(mask, "packet_observed", "byte13_mask")?);
-                        byte13_value =
-                            Some(parse_u8_literal(value, "packet_observed", "byte13_value")?);
-                    }
-                    "byte_at" => {
-                        let offset = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing packet byte_at offset qualifier".into())
-                        })?;
-                        let mask = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing packet byte_at mask qualifier".into())
-                        })?;
-                        let value = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue("missing packet byte_at value qualifier".into())
-                        })?;
-                        byte_matches.push(PayloadByteMatch {
-                            offset: offset.parse::<u16>().map_err(|_| {
-                                DslError::InvalidValue(format!(
-                                    "invalid packet byte_at offset '{offset}'"
-                                ))
-                            })?,
-                            mask: parse_u8_literal(mask, "packet_observed", "byte_at_mask")?,
-                            value: parse_u8_literal(value, "packet_observed", "byte_at_value")?,
-                        });
-                    }
-                    "bytes_at" => {
-                        let offset = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing packet bytes_at offset qualifier".into(),
-                            )
-                        })?;
-                        let bytes = parts.next().ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "missing packet bytes_at byte sequence qualifier".into(),
-                            )
-                        })?;
-                        byte_sequences.push(PayloadByteSequenceMatch {
-                            offset: offset.parse::<u16>().map_err(|_| {
-                                DslError::InvalidValue(format!(
-                                    "invalid packet bytes_at offset '{offset}'"
-                                ))
-                            })?,
-                            bytes: parse_u8_sequence_literal(bytes, "packet_observed", "bytes_at")?,
-                        });
-                    }
-                    other => {
-                        return Err(DslError::InvalidValue(format!(
-                            "unexpected packet predicate suffix '{other}'"
-                        )));
+                if !parse_scope_qualifier(
+                    part,
+                    &mut parts,
+                    "packet_observed",
+                    "packet",
+                    &mut dir,
+                    &mut local_port,
+                    &mut remote_port,
+                )? {
+                    match part {
+                        "byte0_mask" => {
+                            let (mask, value) = parse_u8_mask_value_qualifier(
+                                &mut parts,
+                                "packet_observed",
+                                "packet byte0_mask",
+                                "byte0_mask",
+                            )?;
+                            first_byte_mask = Some(mask);
+                            first_byte_value = Some(value);
+                        }
+                        "prefix4" => {
+                            prefix4 = Some(parse_u32_qualifier(
+                                &mut parts,
+                                "packet_observed",
+                                "packet prefix4",
+                                "prefix4",
+                            )?);
+                        }
+                        "byte4_mask" => {
+                            let (mask, value) = parse_u8_mask_value_qualifier(
+                                &mut parts,
+                                "packet_observed",
+                                "packet byte4_mask",
+                                "byte4_mask",
+                            )?;
+                            byte4_mask = Some(mask);
+                            byte4_value = Some(value);
+                        }
+                        "byte13_mask" => {
+                            let (mask, value) = parse_u8_mask_value_qualifier(
+                                &mut parts,
+                                "packet_observed",
+                                "packet byte13_mask",
+                                "byte13_mask",
+                            )?;
+                            byte13_mask = Some(mask);
+                            byte13_value = Some(value);
+                        }
+                        "byte_at" => {
+                            byte_matches.push(parse_payload_byte_match(
+                                &mut parts,
+                                "packet_observed",
+                                "packet",
+                            )?);
+                        }
+                        "bytes_at" => {
+                            byte_sequences.push(parse_payload_byte_sequence_match(
+                                &mut parts,
+                                "packet_observed",
+                                "packet",
+                            )?);
+                        }
+                        other => {
+                            return Err(DslError::InvalidValue(format!(
+                                "unexpected packet predicate suffix '{other}'"
+                            )));
+                        }
                     }
                 }
             }
-            Ok(FlowPredicate::PacketObserved {
+            Ok(FlowPredicate::packet_observed(
                 l4_proto,
-                dir,
-                local_port,
-                remote_port,
+                ObservationScope {
+                    dir,
+                    local_port,
+                    remote_port,
+                },
                 first_byte_mask,
                 first_byte_value,
                 prefix4,
@@ -2200,7 +2085,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 byte13_value,
                 byte_matches,
                 byte_sequences,
-            })
+            ))
         }
         other => Err(DslError::InvalidValue(format!(
             "unknown predicate '{other}'"
@@ -2278,6 +2163,142 @@ fn parse_u8_sequence_literal(
         )));
     }
     Ok(bytes)
+}
+
+fn parse_payload_byte_match<'a, I>(
+    parts: &mut I,
+    predicate: &str,
+    subject: &str,
+) -> Result<PayloadByteMatch, DslError>
+where
+    I: Iterator<Item = &'a str>,
+{
+    let offset = parts.next().ok_or_else(|| {
+        DslError::InvalidValue(format!("missing {subject} byte_at offset qualifier"))
+    })?;
+    let mask = parts.next().ok_or_else(|| {
+        DslError::InvalidValue(format!("missing {subject} byte_at mask qualifier"))
+    })?;
+    let value = parts.next().ok_or_else(|| {
+        DslError::InvalidValue(format!("missing {subject} byte_at value qualifier"))
+    })?;
+    Ok(PayloadByteMatch {
+        offset: parse_u16_literal(offset, predicate, "byte_at_offset")?,
+        mask: parse_u8_literal(mask, predicate, "byte_at_mask")?,
+        value: parse_u8_literal(value, predicate, "byte_at_value")?,
+    })
+}
+
+fn parse_payload_byte_sequence_match<'a, I>(
+    parts: &mut I,
+    predicate: &str,
+    subject: &str,
+) -> Result<PayloadByteSequenceMatch, DslError>
+where
+    I: Iterator<Item = &'a str>,
+{
+    let offset = parts.next().ok_or_else(|| {
+        DslError::InvalidValue(format!("missing {subject} bytes_at offset qualifier"))
+    })?;
+    let bytes = parts.next().ok_or_else(|| {
+        DslError::InvalidValue(format!(
+            "missing {subject} bytes_at byte sequence qualifier"
+        ))
+    })?;
+    Ok(PayloadByteSequenceMatch {
+        offset: parse_u16_literal(offset, predicate, "bytes_at_offset")?,
+        bytes: parse_u8_sequence_literal(bytes, predicate, "bytes_at")?,
+    })
+}
+
+fn parse_scope_qualifier<'a, I>(
+    part: &str,
+    parts: &mut I,
+    predicate: &str,
+    subject: &str,
+    dir: &mut Option<PacketDir>,
+    local_port: &mut Option<u16>,
+    remote_port: &mut Option<u16>,
+) -> Result<bool, DslError>
+where
+    I: Iterator<Item = &'a str>,
+{
+    match part {
+        "egress" | "local_to_remote" => {
+            *dir = Some(PacketDir::Egress);
+            Ok(true)
+        }
+        "ingress" | "remote_to_local" => {
+            *dir = Some(PacketDir::Ingress);
+            Ok(true)
+        }
+        "local" | "sport" => {
+            let port = parts.next().ok_or_else(|| {
+                DslError::InvalidValue(format!("missing {subject} local port qualifier"))
+            })?;
+            *local_port = Some(parse_named_port(port, predicate)?);
+            Ok(true)
+        }
+        "remote" | "dport" => {
+            let port = parts.next().ok_or_else(|| {
+                DslError::InvalidValue(format!("missing {subject} remote port qualifier"))
+            })?;
+            *remote_port = Some(parse_named_port(port, predicate)?);
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
+}
+
+fn parse_u8_mask_value_qualifier<'a, I>(
+    parts: &mut I,
+    predicate: &str,
+    subject: &str,
+    field: &str,
+) -> Result<(u8, u8), DslError>
+where
+    I: Iterator<Item = &'a str>,
+{
+    let mask = parts
+        .next()
+        .ok_or_else(|| DslError::InvalidValue(format!("missing {subject} mask qualifier")))?;
+    let value = parts
+        .next()
+        .ok_or_else(|| DslError::InvalidValue(format!("missing {subject} value qualifier")))?;
+    Ok((
+        parse_u8_literal(mask, predicate, field)?,
+        parse_u8_literal(value, predicate, &format!("{field}_value"))?,
+    ))
+}
+
+fn parse_u16_qualifier<'a, I>(
+    parts: &mut I,
+    predicate: &str,
+    subject: &str,
+    field: &str,
+) -> Result<u16, DslError>
+where
+    I: Iterator<Item = &'a str>,
+{
+    let value = parts
+        .next()
+        .ok_or_else(|| DslError::InvalidValue(format!("missing {subject} qualifier")))?;
+    parse_u16_literal(value, predicate, field)
+}
+
+fn parse_u32_qualifier<'a, I>(
+    parts: &mut I,
+    predicate: &str,
+    subject: &str,
+    field: &str,
+) -> Result<u32, DslError>
+where
+    I: Iterator<Item = &'a str>,
+{
+    let value = parts
+        .next()
+        .ok_or_else(|| DslError::InvalidValue(format!("missing {subject} qualifier")))?;
+    parse_u32_literal(value, predicate, field)
 }
 
 fn parse_u16_literal(value: &str, predicate: &str, field: &str) -> Result<u16, DslError> {

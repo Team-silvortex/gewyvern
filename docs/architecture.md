@@ -1,5 +1,10 @@
 # Runtime Architecture
 
+This document is the runtime-pipeline deep dive.
+
+For the higher-level system map and current compiler/runtime boundaries, start
+with [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md).
+
 ## Pipeline
 
 The current `v0.1` pipeline in code is:

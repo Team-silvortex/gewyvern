@@ -14488,6 +14488,27 @@ rule=datagram_observed:udp:remote:snmp:bytes_at:8:0x30,0x82,0x01,0x00;datagram_o
 }
 
 #[test]
+fn binding_diagnostics_reports_unsupported_quic_frame_payload_offsets() {
+    let binding = parse_str_unvalidated(
+        r#"
+template=unsupported_quic_frame_payload_offset
+window=default_5s
+reason=udp_datagram_l1
+fragment=udp_packet_meta_fragment
+program_model=unsupported_quic_frame_payload_offset_model
+operation=quic_crypto_handshake
+rule=quic_frame_observed:remote:quic:local_to_remote:frame:crypto:byte_at:8:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+"#,
+    )
+    .unwrap();
+
+    let diagnostics = collect_binding_diagnostics(&binding).unwrap();
+    let rule = &diagnostics.program_model.as_ref().unwrap().rules[0];
+    assert!(!rule.supported);
+    assert_eq!(rule.unsupported_payload_offsets, vec![8]);
+}
+
+#[test]
 fn binding_diagnostics_accept_dynamic_sample_payload_offsets_from_fragment_params() {
     let binding = parse_str_unvalidated(
         r#"
