@@ -1,7 +1,7 @@
 name=socks5
 version=0.5.6
 entry=main.gewy
-protocol=socks5
-entry_name=auth-connect-denied
-default=false
+register.protocol=socks5
+register.entry=auth-connect-denied
+register.default=false
 description=SOCKS5 authenticated connect denied path

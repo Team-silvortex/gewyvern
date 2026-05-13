@@ -37,6 +37,7 @@ struct RegistryManifest {
     entry: String,
     default: bool,
     aliases: Vec<String>,
+    entry_aliases: Vec<String>,
     dsl_path: String,
 }
 
@@ -72,14 +73,6 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy",
             },
             ProtocolEntryProfile {
-                mode: "client",
-                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy",
-            },
-            ProtocolEntryProfile {
-                mode: "server",
-                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy",
-            },
-            ProtocolEntryProfile {
                 mode: "response",
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy",
             },
@@ -108,10 +101,6 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
             ProtocolEntryProfile {
                 mode: "request",
                 dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy",
-            },
-            ProtocolEntryProfile {
-                mode: "server",
-                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy",
             },
             ProtocolEntryProfile {
                 mode: "response",
@@ -898,7 +887,12 @@ pub fn resolve_protocol_profile(
             .collect::<Vec<_>>();
         matches.sort_by(|left, right| left.entry.cmp(&right.entry));
         if let Some(selected) = if let Some(entry) = entry {
-            matches.into_iter().find(|manifest| manifest.entry == entry)
+            let resolved_entry = resolve_registry_entry_alias(&matches, &canonical, entry)
+                .map(str::to_string)
+                .unwrap_or_else(|| entry.to_string());
+            matches
+                .into_iter()
+                .find(|manifest| manifest.entry == resolved_entry)
         } else {
             matches
                 .iter()
@@ -1015,6 +1009,7 @@ fn read_registry_manifest(path: &Path) -> Result<RegistryManifest, String> {
     let mut protocol_entry = None;
     let mut default = false;
     let mut aliases = Vec::new();
+    let mut entry_aliases = Vec::new();
 
     for raw_line in input.lines() {
         let line = raw_line.trim();
@@ -1033,6 +1028,14 @@ fn read_registry_manifest(path: &Path) -> Result<RegistryManifest, String> {
             "register.default" => default = matches!(value, "true" | "1" | "yes"),
             "register.aliases" => {
                 aliases = value
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|item| !item.is_empty())
+                    .map(str::to_string)
+                    .collect();
+            }
+            "register.entry_aliases" => {
+                entry_aliases = value
                     .split(',')
                     .map(str::trim)
                     .filter(|item| !item.is_empty())
@@ -1059,6 +1062,7 @@ fn read_registry_manifest(path: &Path) -> Result<RegistryManifest, String> {
         entry: protocol_entry,
         default,
         aliases,
+        entry_aliases,
         dsl_path: dsl_path.to_string_lossy().into_owned(),
     })
 }
@@ -1068,6 +1072,20 @@ fn resolve_registry_alias(registry: &[RegistryManifest], protocol: &str) -> Opti
         .iter()
         .find(|manifest| manifest.aliases.iter().any(|alias| alias == protocol))
         .map(|manifest| manifest.protocol.clone())
+}
+
+fn resolve_registry_entry_alias<'a>(
+    registry: &'a [RegistryManifest],
+    protocol: &str,
+    entry: &str,
+) -> Option<&'a str> {
+    registry
+        .iter()
+        .find(|manifest| {
+            manifest.protocol == protocol
+                && manifest.entry_aliases.iter().any(|alias| alias == entry)
+        })
+        .map(|manifest| manifest.entry.as_str())
 }
 
 fn find_protocol_profile(protocol: &str) -> Option<&'static ProtocolProfile> {
@@ -1082,4 +1100,30 @@ fn split_protocol_alias(protocol: &str) -> (&str, Option<&str>) {
         .find(|alias| alias.alias == protocol)
         .map(|alias| (alias.protocol, alias.entry))
         .unwrap_or((protocol, None))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{protocol_dsl_path, protocol_entries};
+
+    #[test]
+    fn http_entry_aliases_resolve_to_canonical_registry_targets() {
+        assert_eq!(
+            protocol_dsl_path("http", Some("client")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/http/request".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("http", Some("server")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/http/response".to_string())
+        );
+    }
+
+    #[test]
+    fn list_entries_prefers_canonical_http_entries() {
+        let entries = protocol_entries("http").expect("http entries should resolve");
+        assert!(entries.contains(&"request".to_string()));
+        assert!(entries.contains(&"response".to_string()));
+        assert!(!entries.contains(&"client".to_string()));
+        assert!(!entries.contains(&"server".to_string()));
+    }
 }

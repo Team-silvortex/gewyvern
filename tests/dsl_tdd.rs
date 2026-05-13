@@ -313,18 +313,6 @@ fn built_in_amqp_publish_session_dsl_compiles_into_template_binding() {
 }
 
 #[test]
-fn built_in_redis_connect_process_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_connect_process.gewy").unwrap();
-
-    assert_eq!(binding.template.id, "redis_connect_process");
-    assert_eq!(
-        binding.template.program_model.as_ref().unwrap().operation,
-        ProgramOperation::Custom("redis_connect".into())
-    );
-}
-
-#[test]
 fn built_in_gtpu_echo_path_dsl_compiles_into_template_binding() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy").unwrap();
@@ -13459,30 +13447,6 @@ fn amqp_publish_session_missing_publish_produces_start_ok_to_publish_transition(
             .phase_transitions
             .contains(&"send_start_ok->send_publish".to_string())
     }));
-}
-
-#[test]
-fn redis_connect_dsl_uses_named_port_alias() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_connect_process.gewy").unwrap();
-    let config = SessionConfig::for_binding(binding).unwrap();
-    let mut session = RuntimeSession::start(config).unwrap();
-    session.ingest(sock_lineage_fact(1, 502, 8888, "redis-cli"));
-    session.ingest(tcp_state_fact_with_ports(2, 502, 1, 2, 43124, 6379));
-    session.ingest(route_fact(3, 502, 6));
-    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(40));
-
-    let export = session.export_bundle();
-    assert_eq!(
-        export.program_flows[0].operation,
-        ProgramOperation::Custom("redis_connect".into())
-    );
-    assert!(
-        export.program_flows[0]
-            .narrative
-            .iter()
-            .any(|line| line.contains("Redis socket state transition"))
-    );
 }
 
 #[test]

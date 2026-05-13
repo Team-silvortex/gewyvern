@@ -1,4 +1,5 @@
 name=ftp
-mode=active-stor
 version=0.5.6
 entry=main.gewy
+register.protocol=ftp
+register.entry=active-stor

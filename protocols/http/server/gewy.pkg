@@ -1,7 +1,0 @@
-name=http_server
-version=0.5.6
-entry=main.gewy
-register.protocol=http
-register.entry=server
-register.default=false
-register.aliases=http-server,http_server

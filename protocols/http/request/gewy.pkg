@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=http
 register.entry=request
 register.default=true
-register.aliases=http-client,http_client
+register.aliases=http-request,http_request
+register.entry_aliases=client

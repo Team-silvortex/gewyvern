@@ -1,7 +1,6 @@
-package=gewyvern.smtp.rcpt
 version=0.5.6
-protocol=smtp
 entry=main.gewy
-entry_mode=rcpt
-default=false
+register.protocol=smtp
+register.entry=rcpt
+register.default=false
 description=SMTP recipient flow (EHLO, AUTH, MAIL FROM, RCPT TO)

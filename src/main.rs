@@ -4191,7 +4191,7 @@ mod tests {
         assert_eq!(cli.entry.as_deref(), Some("session"));
         assert_eq!(
             cli.dsl_path.as_deref(),
-            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session")
         );
         assert_eq!(cli.pid, Some(4242));
     }
@@ -4213,7 +4213,7 @@ mod tests {
     fn protocol_lookup_covers_mysql_session() {
         assert_eq!(
             protocol_dsl_path("mysql", Some("session")),
-            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy".to_string())
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session".to_string())
         );
     }
 
@@ -4221,11 +4221,11 @@ mod tests {
     fn protocol_lookup_uses_default_entry_when_none_is_provided() {
         assert_eq!(
             protocol_dsl_path("mysql", None),
-            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy".to_string())
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session".to_string())
         );
         assert_eq!(
             protocol_dsl_path("amqp", None),
-            Some("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_publish_session.gewy".to_string())
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/session".to_string())
         );
     }
 
@@ -4240,7 +4240,7 @@ mod tests {
     fn legacy_protocol_alias_still_resolves() {
         assert_eq!(
             protocol_dsl_path("mysql-session", None),
-            Some("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy".to_string())
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session".to_string())
         );
     }
 

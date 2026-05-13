@@ -1,7 +1,6 @@
-package=gewyvern.smtp.rcpt_denied
 version=0.5.6
-protocol=smtp
 entry=main.gewy
-entry_mode=rcpt-denied
-default=false
+register.protocol=smtp
+register.entry=rcpt-denied
+register.default=false
 description=SMTP recipient rejected before DATA

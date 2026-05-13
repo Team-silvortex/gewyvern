@@ -1,7 +1,7 @@
 name=ssh
 version=0.5.6
 entry=main.gewy
-protocol=ssh
-entry_name=channel
-default=false
+register.protocol=ssh
+register.entry=channel
+register.default=false
 description=SSH authenticated channel session path

@@ -1,7 +1,6 @@
-package=gewyvern.smtp.data
 version=0.5.6
-protocol=smtp
 entry=main.gewy
-entry_mode=data
-default=false
+register.protocol=smtp
+register.entry=data
+register.default=false
 description=SMTP message submission flow (MAIL FROM, RCPT TO, DATA, queued)

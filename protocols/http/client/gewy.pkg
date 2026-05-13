@@ -1,7 +1,0 @@
-name=http_client
-version=0.5.6
-entry=main.gewy
-register.protocol=http
-register.entry=client
-register.default=false
-register.aliases=http-request,http_request

@@ -1,7 +1,7 @@
 name=http
 version=0.5.6
 entry=main.gewy
-protocol=http
-entry_name=auth-required
-default=false
+register.protocol=http
+register.entry=auth-required
+register.default=false
 description=HTTP CONNECT proxy authentication required path

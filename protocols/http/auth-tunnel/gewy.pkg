@@ -1,7 +1,7 @@
 name=http
 version=0.5.6
 entry=main.gewy
-protocol=http
-entry_name=auth-tunnel
-default=false
+register.protocol=http
+register.entry=auth-tunnel
+register.default=false
 description=HTTP CONNECT tunnel established after proxy authentication
