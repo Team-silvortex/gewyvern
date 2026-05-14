@@ -30,6 +30,49 @@ use crate::template::{
 };
 use std::collections::BTreeMap;
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ReasonTransportPredicateFields {
+    scope: ObservationScope,
+    l4_proto: Option<u8>,
+    byte_matches: Vec<PayloadByteMatch>,
+    byte_sequences: Vec<PayloadByteSequenceMatch>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct PacketHeaderQualifiers {
+    first_byte_mask: Option<u8>,
+    first_byte_value: Option<u8>,
+    prefix4: Option<u32>,
+    byte4_mask: Option<u8>,
+    byte4_value: Option<u8>,
+    byte13_mask: Option<u8>,
+    byte13_value: Option<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct DatagramHeaderQualifiers {
+    min_len: Option<u32>,
+    first_byte_mask: Option<u8>,
+    first_byte_value: Option<u8>,
+    prefix2: Option<u16>,
+    prefix4: Option<u32>,
+    byte13_mask: Option<u8>,
+    byte13_value: Option<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct QuicPacketHeaderQualifiers {
+    min_len: Option<u32>,
+    long_header: Option<bool>,
+    packet_type: Option<QuicPacketType>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct QuicFrameHeaderQualifiers {
+    packet_type: Option<QuicPacketType>,
+    frame_type: QuicFrameType,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct FragmentInventoryItem {
     pub id: String,
@@ -2194,30 +2237,23 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             long_header,
             packet_type,
         } => {
-            let mut object = BTreeMap::from([(
-                "kind".into(),
-                JsonValue::String("quic_packet_observed".into()),
-            )]);
-            insert_optional_dir_and_ports(
-                &mut object,
+            let mut object = reason_transport_object(
+                "quic_packet_observed",
                 ObservationScope {
                     dir: *dir,
                     local_port: *local_port,
                     remote_port: *remote_port,
                 },
+                None,
             );
-            if let Some(min_len) = min_len {
-                object.insert("min_len".into(), JsonValue::Number(*min_len as i64));
-            }
-            if let Some(long_header) = long_header {
-                object.insert("long_header".into(), JsonValue::Bool(*long_header));
-            }
-            if let Some(packet_type) = packet_type {
-                object.insert(
-                    "packet_type".into(),
-                    JsonValue::String(quic_packet_type_id(packet_type).into()),
-                );
-            }
+            insert_quic_packet_header_qualifiers(
+                &mut object,
+                QuicPacketHeaderQualifiers {
+                    min_len: *min_len,
+                    long_header: *long_header,
+                    packet_type: *packet_type,
+                },
+            );
             JsonValue::Object(object)
         }
         ReasonPredicate::QuicFrameObserved {
@@ -2229,31 +2265,22 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             byte_matches,
             byte_sequences,
         } => {
-            let mut object = BTreeMap::from([(
-                "kind".into(),
-                JsonValue::String("quic_frame_observed".into()),
-            )]);
-            insert_optional_dir_and_ports(
-                &mut object,
+            let mut object = reason_transport_object_with_matchers(
+                "quic_frame_observed",
                 ObservationScope {
                     dir: *dir,
                     local_port: *local_port,
                     remote_port: *remote_port,
                 },
-            );
-            if let Some(packet_type) = packet_type {
-                object.insert(
-                    "packet_type".into(),
-                    JsonValue::String(quic_packet_type_id(packet_type).into()),
-                );
-            }
-            object.insert(
-                "frame_type".into(),
-                JsonValue::String(quic_frame_type_id(frame_type).into()),
-            );
-            insert_payload_matchers(
-                &mut object,
+                None,
                 PayloadMatcherSetRef::new(byte_matches, byte_sequences),
+            );
+            insert_quic_frame_header_qualifiers(
+                &mut object,
+                QuicFrameHeaderQualifiers {
+                    packet_type: *packet_type,
+                    frame_type: *frame_type,
+                },
             );
             JsonValue::Object(object)
         }
@@ -2272,51 +2299,27 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             byte_matches,
             byte_sequences,
         } => {
-            let mut object = BTreeMap::from([
-                ("kind".into(), JsonValue::String("packet_observed".into())),
-                ("l4_proto".into(), JsonValue::Number(*l4_proto as i64)),
-            ]);
-            insert_optional_dir_and_ports(
-                &mut object,
+            let mut object = reason_transport_object_with_matchers(
+                "packet_observed",
                 ObservationScope {
                     dir: *dir,
                     local_port: *local_port,
                     remote_port: *remote_port,
                 },
-            );
-            if let Some(first_byte_mask) = first_byte_mask {
-                object.insert(
-                    "first_byte_mask".into(),
-                    JsonValue::Number(*first_byte_mask as i64),
-                );
-            }
-            if let Some(first_byte_value) = first_byte_value {
-                object.insert(
-                    "first_byte_value".into(),
-                    JsonValue::Number(*first_byte_value as i64),
-                );
-            }
-            if let Some(prefix4) = prefix4 {
-                object.insert("prefix4".into(), JsonValue::Number(*prefix4 as i64));
-            }
-            if let Some(byte4_mask) = byte4_mask {
-                object.insert("byte4_mask".into(), JsonValue::Number(*byte4_mask as i64));
-            }
-            if let Some(byte4_value) = byte4_value {
-                object.insert("byte4_value".into(), JsonValue::Number(*byte4_value as i64));
-            }
-            if let Some(byte13_mask) = byte13_mask {
-                object.insert("byte13_mask".into(), JsonValue::Number(*byte13_mask as i64));
-            }
-            if let Some(byte13_value) = byte13_value {
-                object.insert(
-                    "byte13_value".into(),
-                    JsonValue::Number(*byte13_value as i64),
-                );
-            }
-            insert_payload_matchers(
-                &mut object,
+                Some(*l4_proto),
                 PayloadMatcherSetRef::new(byte_matches, byte_sequences),
+            );
+            insert_packet_header_qualifiers(
+                &mut object,
+                PacketHeaderQualifiers {
+                    first_byte_mask: *first_byte_mask,
+                    first_byte_value: *first_byte_value,
+                    prefix4: *prefix4,
+                    byte4_mask: *byte4_mask,
+                    byte4_value: *byte4_value,
+                    byte13_mask: *byte13_mask,
+                    byte13_value: *byte13_value,
+                },
             );
             JsonValue::Object(object)
         }
@@ -2335,51 +2338,27 @@ fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
             byte_matches,
             byte_sequences,
         } => {
-            let mut object = BTreeMap::from([
-                ("kind".into(), JsonValue::String("datagram_observed".into())),
-                ("l4_proto".into(), JsonValue::Number(*l4_proto as i64)),
-            ]);
-            insert_optional_dir_and_ports(
-                &mut object,
+            let mut object = reason_transport_object_with_matchers(
+                "datagram_observed",
                 ObservationScope {
                     dir: *dir,
                     local_port: *local_port,
                     remote_port: *remote_port,
                 },
-            );
-            if let Some(min_len) = min_len {
-                object.insert("min_len".into(), JsonValue::Number(*min_len as i64));
-            }
-            if let Some(first_byte_mask) = first_byte_mask {
-                object.insert(
-                    "first_byte_mask".into(),
-                    JsonValue::Number(*first_byte_mask as i64),
-                );
-            }
-            if let Some(first_byte_value) = first_byte_value {
-                object.insert(
-                    "first_byte_value".into(),
-                    JsonValue::Number(*first_byte_value as i64),
-                );
-            }
-            if let Some(prefix2) = prefix2 {
-                object.insert("prefix2".into(), JsonValue::Number(*prefix2 as i64));
-            }
-            if let Some(prefix4) = prefix4 {
-                object.insert("prefix4".into(), JsonValue::Number(*prefix4 as i64));
-            }
-            if let Some(byte13_mask) = byte13_mask {
-                object.insert("byte13_mask".into(), JsonValue::Number(*byte13_mask as i64));
-            }
-            if let Some(byte13_value) = byte13_value {
-                object.insert(
-                    "byte13_value".into(),
-                    JsonValue::Number(*byte13_value as i64),
-                );
-            }
-            insert_payload_matchers(
-                &mut object,
+                Some(*l4_proto),
                 PayloadMatcherSetRef::new(byte_matches, byte_sequences),
+            );
+            insert_datagram_header_qualifiers(
+                &mut object,
+                DatagramHeaderQualifiers {
+                    min_len: *min_len,
+                    first_byte_mask: *first_byte_mask,
+                    first_byte_value: *first_byte_value,
+                    prefix2: *prefix2,
+                    prefix4: *prefix4,
+                    byte13_mask: *byte13_mask,
+                    byte13_value: *byte13_value,
+                },
             );
             JsonValue::Object(object)
         }
@@ -2472,6 +2451,73 @@ fn payload_byte_sequence_match_json(value: &PayloadByteSequenceMatch) -> JsonVal
     ]))
 }
 
+fn reason_transport_object(
+    kind: &str,
+    scope: ObservationScope,
+    l4_proto: Option<u8>,
+) -> BTreeMap<String, JsonValue> {
+    let mut object = BTreeMap::from([("kind".into(), JsonValue::String(kind.into()))]);
+    if let Some(l4_proto) = l4_proto {
+        object.insert("l4_proto".into(), JsonValue::Number(l4_proto as i64));
+    }
+    insert_optional_dir_and_ports(&mut object, scope);
+    object
+}
+
+fn reason_transport_object_with_matchers(
+    kind: &str,
+    scope: ObservationScope,
+    l4_proto: Option<u8>,
+    matchers: PayloadMatcherSetRef<'_>,
+) -> BTreeMap<String, JsonValue> {
+    let mut object = reason_transport_object(kind, scope, l4_proto);
+    insert_payload_matchers(&mut object, matchers);
+    object
+}
+
+fn insert_packet_header_qualifiers(
+    object: &mut BTreeMap<String, JsonValue>,
+    qualifiers: PacketHeaderQualifiers,
+) {
+    insert_optional_u8_field(object, "first_byte_mask", qualifiers.first_byte_mask);
+    insert_optional_u8_field(object, "first_byte_value", qualifiers.first_byte_value);
+    insert_optional_u32_field(object, "prefix4", qualifiers.prefix4);
+    insert_optional_u8_field(object, "byte4_mask", qualifiers.byte4_mask);
+    insert_optional_u8_field(object, "byte4_value", qualifiers.byte4_value);
+    insert_optional_u8_field(object, "byte13_mask", qualifiers.byte13_mask);
+    insert_optional_u8_field(object, "byte13_value", qualifiers.byte13_value);
+}
+
+fn insert_datagram_header_qualifiers(
+    object: &mut BTreeMap<String, JsonValue>,
+    qualifiers: DatagramHeaderQualifiers,
+) {
+    insert_optional_u32_field(object, "min_len", qualifiers.min_len);
+    insert_optional_u8_field(object, "first_byte_mask", qualifiers.first_byte_mask);
+    insert_optional_u8_field(object, "first_byte_value", qualifiers.first_byte_value);
+    insert_optional_u16_field(object, "prefix2", qualifiers.prefix2);
+    insert_optional_u32_field(object, "prefix4", qualifiers.prefix4);
+    insert_optional_u8_field(object, "byte13_mask", qualifiers.byte13_mask);
+    insert_optional_u8_field(object, "byte13_value", qualifiers.byte13_value);
+}
+
+fn insert_quic_packet_header_qualifiers(
+    object: &mut BTreeMap<String, JsonValue>,
+    qualifiers: QuicPacketHeaderQualifiers,
+) {
+    insert_optional_u32_field(object, "min_len", qualifiers.min_len);
+    insert_optional_bool_field(object, "long_header", qualifiers.long_header);
+    insert_optional_quic_packet_type(object, qualifiers.packet_type);
+}
+
+fn insert_quic_frame_header_qualifiers(
+    object: &mut BTreeMap<String, JsonValue>,
+    qualifiers: QuicFrameHeaderQualifiers,
+) {
+    insert_optional_quic_packet_type(object, qualifiers.packet_type);
+    insert_required_quic_frame_type(object, qualifiers.frame_type);
+}
+
 fn insert_payload_matchers(
     object: &mut BTreeMap<String, JsonValue>,
     matchers: PayloadMatcherSetRef<'_>,
@@ -2522,6 +2568,68 @@ fn insert_optional_ports(
     }
     if let Some(remote_port) = remote_port {
         object.insert("remote_port".into(), JsonValue::Number(remote_port as i64));
+    }
+}
+
+fn insert_optional_quic_packet_type(
+    object: &mut BTreeMap<String, JsonValue>,
+    packet_type: Option<QuicPacketType>,
+) {
+    if let Some(packet_type) = packet_type {
+        object.insert(
+            "packet_type".into(),
+            JsonValue::String(quic_packet_type_id(&packet_type).into()),
+        );
+    }
+}
+
+fn insert_required_quic_frame_type(
+    object: &mut BTreeMap<String, JsonValue>,
+    frame_type: QuicFrameType,
+) {
+    object.insert(
+        "frame_type".into(),
+        JsonValue::String(quic_frame_type_id(&frame_type).into()),
+    );
+}
+
+fn insert_optional_u8_field(
+    object: &mut BTreeMap<String, JsonValue>,
+    key: &str,
+    value: Option<u8>,
+) {
+    if let Some(value) = value {
+        object.insert(key.into(), JsonValue::Number(value as i64));
+    }
+}
+
+fn insert_optional_u16_field(
+    object: &mut BTreeMap<String, JsonValue>,
+    key: &str,
+    value: Option<u16>,
+) {
+    if let Some(value) = value {
+        object.insert(key.into(), JsonValue::Number(value as i64));
+    }
+}
+
+fn insert_optional_u32_field(
+    object: &mut BTreeMap<String, JsonValue>,
+    key: &str,
+    value: Option<u32>,
+) {
+    if let Some(value) = value {
+        object.insert(key.into(), JsonValue::Number(value as i64));
+    }
+}
+
+fn insert_optional_bool_field(
+    object: &mut BTreeMap<String, JsonValue>,
+    key: &str,
+    value: Option<bool>,
+) {
+    if let Some(value) = value {
+        object.insert(key.into(), JsonValue::Bool(value));
     }
 }
 
@@ -2693,188 +2801,86 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
                 },
             )),
             "packet_observed" => {
-                let scope =
-                    parse_reason_predicate_scope(object, "unknown reason predicate packet dir")?;
+                let fields = parse_reason_transport_predicate_fields(
+                    object,
+                    "unknown reason predicate packet dir",
+                    true,
+                    true,
+                )?;
+                let header = parse_packet_header_qualifiers(object)?;
                 Ok(ReasonPredicate::PacketObserved {
-                    l4_proto: object
-                        .get("l4_proto")
-                        .ok_or_else(|| {
-                            ExportError::InvalidShape("reason_predicate.l4_proto".into())
-                        })?
-                        .as_i64()? as u8,
-                    dir: scope.dir,
-                    local_port: scope.local_port,
-                    remote_port: scope.remote_port,
-                    first_byte_mask: match object.get("first_byte_mask").unwrap_or(&JsonValue::Null)
-                    {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u8),
-                    },
-                    first_byte_value: match object
-                        .get("first_byte_value")
-                        .unwrap_or(&JsonValue::Null)
-                    {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u8),
-                    },
-                    prefix4: match object.get("prefix4").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u32),
-                    },
-                    byte4_mask: match object.get("byte4_mask").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u8),
-                    },
-                    byte4_value: match object.get("byte4_value").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u8),
-                    },
-                    byte13_mask: match object.get("byte13_mask").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u8),
-                    },
-                    byte13_value: match object.get("byte13_value").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u8),
-                    },
-                    byte_matches: parse_payload_byte_matches(
-                        object
-                            .get("byte_matches")
-                            .unwrap_or(&JsonValue::Array(vec![])),
-                    )?,
-                    byte_sequences: parse_payload_byte_sequence_matches(
-                        object
-                            .get("byte_sequences")
-                            .unwrap_or(&JsonValue::Array(vec![])),
-                    )?,
+                    l4_proto: fields.l4_proto.expect("required l4_proto missing"),
+                    dir: fields.scope.dir,
+                    local_port: fields.scope.local_port,
+                    remote_port: fields.scope.remote_port,
+                    first_byte_mask: header.first_byte_mask,
+                    first_byte_value: header.first_byte_value,
+                    prefix4: header.prefix4,
+                    byte4_mask: header.byte4_mask,
+                    byte4_value: header.byte4_value,
+                    byte13_mask: header.byte13_mask,
+                    byte13_value: header.byte13_value,
+                    byte_matches: fields.byte_matches,
+                    byte_sequences: fields.byte_sequences,
                 })
             }
             "quic_packet_observed" => {
-                let scope =
-                    parse_reason_predicate_scope(object, "unknown reason predicate QUIC dir")?;
+                let fields = parse_reason_transport_predicate_fields(
+                    object,
+                    "unknown reason predicate QUIC dir",
+                    false,
+                    false,
+                )?;
+                let header = parse_quic_packet_header_qualifiers(object)?;
                 Ok(ReasonPredicate::QuicPacketObserved {
-                    dir: scope.dir,
-                    local_port: scope.local_port,
-                    remote_port: scope.remote_port,
-                    min_len: match object.get("min_len").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u32),
-                    },
-                    long_header: match object.get("long_header").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        JsonValue::Bool(value) => Some(*value),
-                        _ => {
-                            return Err(ExportError::InvalidShape(
-                                "reason_predicate.long_header".into(),
-                            ));
-                        }
-                    },
-                    packet_type: match object.get("packet_type").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        JsonValue::String(value) => Some(parse_quic_packet_type(value)?),
-                        _ => {
-                            return Err(ExportError::InvalidShape(
-                                "reason_predicate.packet_type".into(),
-                            ));
-                        }
-                    },
+                    dir: fields.scope.dir,
+                    local_port: fields.scope.local_port,
+                    remote_port: fields.scope.remote_port,
+                    min_len: header.min_len,
+                    long_header: header.long_header,
+                    packet_type: header.packet_type,
                 })
             }
             "quic_frame_observed" => {
-                let scope = parse_reason_predicate_scope(
+                let fields = parse_reason_transport_predicate_fields(
                     object,
                     "unknown reason predicate QUIC frame dir",
+                    false,
+                    true,
                 )?;
+                let header = parse_quic_frame_header_qualifiers(object)?;
                 Ok(ReasonPredicate::QuicFrameObserved {
-                    dir: scope.dir,
-                    local_port: scope.local_port,
-                    remote_port: scope.remote_port,
-                    packet_type: match object.get("packet_type").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        JsonValue::String(value) => Some(parse_quic_packet_type(value)?),
-                        _ => {
-                            return Err(ExportError::InvalidShape(
-                                "reason_predicate.packet_type".into(),
-                            ));
-                        }
-                    },
-                    frame_type: match object.get("frame_type").ok_or_else(|| {
-                        ExportError::InvalidShape("reason_predicate.frame_type".into())
-                    })? {
-                        JsonValue::String(value) => parse_quic_frame_type(value)?,
-                        _ => {
-                            return Err(ExportError::InvalidShape(
-                                "reason_predicate.frame_type".into(),
-                            ));
-                        }
-                    },
-                    byte_matches: parse_payload_byte_matches(
-                        object
-                            .get("byte_matches")
-                            .unwrap_or(&JsonValue::Array(Vec::new())),
-                    )?,
-                    byte_sequences: parse_payload_byte_sequence_matches(
-                        object
-                            .get("byte_sequences")
-                            .unwrap_or(&JsonValue::Array(Vec::new())),
-                    )?,
+                    dir: fields.scope.dir,
+                    local_port: fields.scope.local_port,
+                    remote_port: fields.scope.remote_port,
+                    packet_type: header.packet_type,
+                    frame_type: header.frame_type,
+                    byte_matches: fields.byte_matches,
+                    byte_sequences: fields.byte_sequences,
                 })
             }
             "datagram_observed" => {
-                let scope =
-                    parse_reason_predicate_scope(object, "unknown reason predicate datagram dir")?;
+                let fields = parse_reason_transport_predicate_fields(
+                    object,
+                    "unknown reason predicate datagram dir",
+                    true,
+                    true,
+                )?;
+                let header = parse_datagram_header_qualifiers(object)?;
                 Ok(ReasonPredicate::DatagramObserved {
-                    l4_proto: object
-                        .get("l4_proto")
-                        .ok_or_else(|| {
-                            ExportError::InvalidShape("reason_predicate.l4_proto".into())
-                        })?
-                        .as_i64()? as u8,
-                    dir: scope.dir,
-                    local_port: scope.local_port,
-                    remote_port: scope.remote_port,
-                    min_len: match object.get("min_len").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u32),
-                    },
-                    first_byte_mask: match object.get("first_byte_mask").unwrap_or(&JsonValue::Null)
-                    {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u8),
-                    },
-                    first_byte_value: match object
-                        .get("first_byte_value")
-                        .unwrap_or(&JsonValue::Null)
-                    {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u8),
-                    },
-                    prefix2: match object.get("prefix2").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u16),
-                    },
-                    prefix4: match object.get("prefix4").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u32),
-                    },
-                    byte13_mask: match object.get("byte13_mask").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u8),
-                    },
-                    byte13_value: match object.get("byte13_value").unwrap_or(&JsonValue::Null) {
-                        JsonValue::Null => None,
-                        value => Some(value.as_i64()? as u8),
-                    },
-                    byte_matches: parse_payload_byte_matches(
-                        object
-                            .get("byte_matches")
-                            .unwrap_or(&JsonValue::Array(vec![])),
-                    )?,
-                    byte_sequences: parse_payload_byte_sequence_matches(
-                        object
-                            .get("byte_sequences")
-                            .unwrap_or(&JsonValue::Array(vec![])),
-                    )?,
+                    l4_proto: fields.l4_proto.expect("required l4_proto missing"),
+                    dir: fields.scope.dir,
+                    local_port: fields.scope.local_port,
+                    remote_port: fields.scope.remote_port,
+                    min_len: header.min_len,
+                    first_byte_mask: header.first_byte_mask,
+                    first_byte_value: header.first_byte_value,
+                    prefix2: header.prefix2,
+                    prefix4: header.prefix4,
+                    byte13_mask: header.byte13_mask,
+                    byte13_value: header.byte13_value,
+                    byte_matches: fields.byte_matches,
+                    byte_sequences: fields.byte_sequences,
                 })
             }
             "all" => Ok(ReasonPredicate::All(
@@ -4478,6 +4484,152 @@ fn parse_reason_predicate_scope(
         local_port: parse_optional_object_u16(object, "local_port", "sport")?,
         remote_port: parse_optional_object_u16(object, "remote_port", "dport")?,
     })
+}
+
+fn parse_reason_predicate_payload_matchers(
+    object: &BTreeMap<String, JsonValue>,
+) -> Result<(Vec<PayloadByteMatch>, Vec<PayloadByteSequenceMatch>), ExportError> {
+    Ok((
+        parse_payload_byte_matches(
+            object
+                .get("byte_matches")
+                .unwrap_or(&JsonValue::Array(Vec::new())),
+        )?,
+        parse_payload_byte_sequence_matches(
+            object
+                .get("byte_sequences")
+                .unwrap_or(&JsonValue::Array(Vec::new())),
+        )?,
+    ))
+}
+
+fn parse_reason_transport_predicate_fields(
+    object: &BTreeMap<String, JsonValue>,
+    unknown_dir_message: &'static str,
+    require_l4_proto: bool,
+    include_payload_matchers: bool,
+) -> Result<ReasonTransportPredicateFields, ExportError> {
+    let l4_proto = if require_l4_proto {
+        Some(parse_required_object_u8(
+            object,
+            "l4_proto",
+            "reason_predicate.l4_proto",
+        )?)
+    } else {
+        None
+    };
+    let (byte_matches, byte_sequences) = if include_payload_matchers {
+        parse_reason_predicate_payload_matchers(object)?
+    } else {
+        (Vec::new(), Vec::new())
+    };
+    Ok(ReasonTransportPredicateFields {
+        scope: parse_reason_predicate_scope(object, unknown_dir_message)?,
+        l4_proto,
+        byte_matches,
+        byte_sequences,
+    })
+}
+
+fn parse_packet_header_qualifiers(
+    object: &BTreeMap<String, JsonValue>,
+) -> Result<PacketHeaderQualifiers, ExportError> {
+    Ok(PacketHeaderQualifiers {
+        first_byte_mask: parse_optional_u8(
+            object.get("first_byte_mask").unwrap_or(&JsonValue::Null),
+        )?,
+        first_byte_value: parse_optional_u8(
+            object.get("first_byte_value").unwrap_or(&JsonValue::Null),
+        )?,
+        prefix4: parse_optional_u32(object.get("prefix4").unwrap_or(&JsonValue::Null))?,
+        byte4_mask: parse_optional_u8(object.get("byte4_mask").unwrap_or(&JsonValue::Null))?,
+        byte4_value: parse_optional_u8(object.get("byte4_value").unwrap_or(&JsonValue::Null))?,
+        byte13_mask: parse_optional_u8(object.get("byte13_mask").unwrap_or(&JsonValue::Null))?,
+        byte13_value: parse_optional_u8(object.get("byte13_value").unwrap_or(&JsonValue::Null))?,
+    })
+}
+
+fn parse_datagram_header_qualifiers(
+    object: &BTreeMap<String, JsonValue>,
+) -> Result<DatagramHeaderQualifiers, ExportError> {
+    Ok(DatagramHeaderQualifiers {
+        min_len: parse_optional_u32(object.get("min_len").unwrap_or(&JsonValue::Null))?,
+        first_byte_mask: parse_optional_u8(
+            object.get("first_byte_mask").unwrap_or(&JsonValue::Null),
+        )?,
+        first_byte_value: parse_optional_u8(
+            object.get("first_byte_value").unwrap_or(&JsonValue::Null),
+        )?,
+        prefix2: parse_optional_u16(object.get("prefix2").unwrap_or(&JsonValue::Null))?,
+        prefix4: parse_optional_u32(object.get("prefix4").unwrap_or(&JsonValue::Null))?,
+        byte13_mask: parse_optional_u8(object.get("byte13_mask").unwrap_or(&JsonValue::Null))?,
+        byte13_value: parse_optional_u8(object.get("byte13_value").unwrap_or(&JsonValue::Null))?,
+    })
+}
+
+fn parse_quic_packet_header_qualifiers(
+    object: &BTreeMap<String, JsonValue>,
+) -> Result<QuicPacketHeaderQualifiers, ExportError> {
+    Ok(QuicPacketHeaderQualifiers {
+        min_len: parse_optional_u32(object.get("min_len").unwrap_or(&JsonValue::Null))?,
+        long_header: match object.get("long_header").unwrap_or(&JsonValue::Null) {
+            JsonValue::Null => None,
+            JsonValue::Bool(value) => Some(*value),
+            _ => {
+                return Err(ExportError::InvalidShape(
+                    "reason_predicate.long_header".into(),
+                ));
+            }
+        },
+        packet_type: parse_optional_object_quic_packet_type(object)?,
+    })
+}
+
+fn parse_quic_frame_header_qualifiers(
+    object: &BTreeMap<String, JsonValue>,
+) -> Result<QuicFrameHeaderQualifiers, ExportError> {
+    Ok(QuicFrameHeaderQualifiers {
+        packet_type: parse_optional_object_quic_packet_type(object)?,
+        frame_type: parse_required_object_quic_frame_type(object)?,
+    })
+}
+
+fn parse_required_object_u8(
+    object: &BTreeMap<String, JsonValue>,
+    key: &str,
+    shape: &'static str,
+) -> Result<u8, ExportError> {
+    object
+        .get(key)
+        .ok_or_else(|| ExportError::InvalidShape(shape.into()))?
+        .as_i64()
+        .map(|value| value as u8)
+}
+
+fn parse_optional_object_quic_packet_type(
+    object: &BTreeMap<String, JsonValue>,
+) -> Result<Option<QuicPacketType>, ExportError> {
+    match object.get("packet_type").unwrap_or(&JsonValue::Null) {
+        JsonValue::Null => Ok(None),
+        JsonValue::String(value) => Ok(Some(parse_quic_packet_type(value)?)),
+        _ => Err(ExportError::InvalidShape(
+            "reason_predicate.packet_type".into(),
+        )),
+    }
+}
+
+fn parse_required_object_quic_frame_type(
+    object: &BTreeMap<String, JsonValue>,
+) -> Result<QuicFrameType, ExportError> {
+    match object
+        .get("frame_type")
+        .ok_or_else(|| ExportError::InvalidShape("reason_predicate.frame_type".into()))?
+    {
+        JsonValue::String(value) => parse_quic_frame_type(value),
+        _ => Err(ExportError::InvalidShape(
+            "reason_predicate.frame_type".into(),
+        )),
+    }
 }
 
 fn parse_optional_object_u16(

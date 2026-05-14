@@ -7,7 +7,7 @@ use crate::fragment::{
     AttachFailure, AttachPlan, AttachReport, BindingDiagnostics, EvidenceTier, FragmentRegistry,
     RegistryError, RuleTier, builtin_registry, summarize_attach_failures,
 };
-use crate::ir::phase_kind;
+use crate::ir::render_phase_transition_kind;
 use crate::ledger::{FactEnvelope, FactId, FactKind, FactKindTag};
 use crate::loader::{LinuxProbeLoader, Loader, LoaderError};
 use crate::program::build_program_flows;
@@ -445,9 +445,9 @@ fn build_program_findings(
                     ProgramFindingCause::MissingCoreStage
                 };
 
-                let suspect_area = suspect_area_for_signal(signal).to_string();
+                let suspect_area = signal.suspect_area().to_string();
                 let phase = rule.phase.clone();
-                let phase_kind = phase_kind(signal, phase.as_deref()).map(str::to_string);
+                let phase_kind = signal.phase_kind(phase.as_deref()).map(str::to_string);
                 let (phase_transition, phase_transition_kind) =
                     phase_transition_for_rule(model, rule_diag.rule_index, flow);
                 let network_module_kind = crate::flow::infer_network_module_kind(
@@ -495,25 +495,6 @@ fn build_program_findings(
             })
         })
         .collect()
-}
-
-fn suspect_area_for_signal(signal: &crate::ir::SignalKind) -> &'static str {
-    match signal {
-        crate::ir::SignalKind::ProcessBound | crate::ir::SignalKind::ProcessIdentified => {
-            "process_binding"
-        }
-        crate::ir::SignalKind::SocketStateTransition
-        | crate::ir::SignalKind::StateChange
-        | crate::ir::SignalKind::SynSeen
-        | crate::ir::SignalKind::FinOrRst => "socket_state",
-        crate::ir::SignalKind::PacketObserved => "transport_io",
-        crate::ir::SignalKind::DatagramObserved | crate::ir::SignalKind::UdpDatagramSeen => {
-            "datagram_io"
-        }
-        crate::ir::SignalKind::RouteResolved | crate::ir::SignalKind::RouteChanged => {
-            "route_resolution"
-        }
-    }
 }
 
 fn finding_summary(
@@ -575,17 +556,10 @@ fn phase_transition_for_rule(
         Some((Some(previous), _)) => format!("{previous}->{current_phase}"),
         _ => format!("start->{current_phase}"),
     });
-    let phase_transition_kind = Some(match previous_rule {
-        Some((previous_phase, previous_signal)) => {
-            let previous = phase_kind(previous_signal, previous_phase).unwrap_or("start");
-            let current = phase_kind(current_signal, Some(current_phase)).unwrap_or("unknown");
-            format!("{previous}->{current}")
-        }
-        None => {
-            let current = phase_kind(current_signal, Some(current_phase)).unwrap_or("unknown");
-            format!("start->{current}")
-        }
-    });
+    let phase_transition_kind = Some(render_phase_transition_kind(
+        previous_rule.map(|(previous_phase, previous_signal)| (previous_signal, previous_phase)),
+        (current_signal, Some(current_phase)),
+    ));
 
     (phase_transition, phase_transition_kind)
 }

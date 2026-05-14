@@ -1,5 +1,5 @@
 use crate::flow::FlowSnapshot;
-use crate::ledger::{FactEnvelope, FactKind, PacketDir};
+use crate::ledger::{FactEnvelope, FactKind, FactKindTag, PacketDir};
 pub use crate::ledger::{QuicFrameType, QuicPacketType};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -344,6 +344,22 @@ impl FlowPredicate {
         }
         offsets.into_iter().collect()
     }
+
+    pub fn required_fact_kinds(&self) -> Vec<FactKindTag> {
+        match self {
+            FlowPredicate::ProcessBound => vec![FactKindTag::SockLineage],
+            FlowPredicate::SocketStateObserved { .. } => vec![FactKindTag::TcpState],
+            FlowPredicate::PacketObserved { .. } => vec![FactKindTag::PacketMeta],
+            FlowPredicate::DatagramObserved { .. } => vec![FactKindTag::PacketMeta],
+            FlowPredicate::RouteResolved => vec![FactKindTag::RouteDecision],
+            FlowPredicate::QuicPacketObserved { .. } => vec![FactKindTag::PacketMeta],
+            FlowPredicate::QuicFrameObserved { .. } => vec![FactKindTag::QuicMeta],
+            FlowPredicate::All(predicates) | FlowPredicate::Any(predicates) => predicates
+                .iter()
+                .flat_map(|predicate| predicate.required_fact_kinds())
+                .collect(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -425,138 +441,223 @@ impl SignalKind {
             _ => None,
         }
     }
+
+    pub fn required_fact_kinds(&self) -> Vec<FactKindTag> {
+        match self {
+            SignalKind::ProcessBound | SignalKind::ProcessIdentified => {
+                vec![FactKindTag::SockLineage]
+            }
+            SignalKind::SocketStateTransition
+            | SignalKind::StateChange
+            | SignalKind::SynSeen
+            | SignalKind::FinOrRst => vec![FactKindTag::TcpState],
+            SignalKind::PacketObserved => vec![FactKindTag::PacketMeta],
+            SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => {
+                vec![FactKindTag::PacketMeta]
+            }
+            SignalKind::RouteResolved | SignalKind::RouteChanged => {
+                vec![FactKindTag::RouteDecision]
+            }
+        }
+    }
+
+    pub fn phase_kind(&self, phase: Option<&str>) -> Option<&'static str> {
+        let phase = phase?;
+        match self {
+            SignalKind::ProcessBound | SignalKind::ProcessIdentified => Some("bind_process"),
+            SignalKind::RouteResolved | SignalKind::RouteChanged => Some("resolve_route"),
+            SignalKind::SocketStateTransition | SignalKind::StateChange => {
+                socket_state_phase_kind(phase)
+            }
+            SignalKind::PacketObserved => packet_phase_kind(phase),
+            SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => {
+                datagram_phase_kind(phase)
+            }
+            SignalKind::SynSeen => Some("initiate_connection"),
+            SignalKind::FinOrRst => Some("terminate_connection"),
+        }
+    }
+
+    pub fn suspect_area(&self) -> &'static str {
+        match self {
+            SignalKind::ProcessBound | SignalKind::ProcessIdentified => "process_binding",
+            SignalKind::SocketStateTransition
+            | SignalKind::StateChange
+            | SignalKind::SynSeen
+            | SignalKind::FinOrRst => "socket_state",
+            SignalKind::PacketObserved => "transport_io",
+            SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => "datagram_io",
+            SignalKind::RouteResolved | SignalKind::RouteChanged => "route_resolution",
+        }
+    }
+}
+
+impl NarrativeTemplate {
+    pub fn required_fact_kinds(&self) -> Vec<FactKindTag> {
+        match self {
+            NarrativeTemplate::None | NarrativeTemplate::Static(_) => Vec::new(),
+            NarrativeTemplate::ProcessBound => vec![FactKindTag::SockLineage],
+            NarrativeTemplate::PacketObserved
+            | NarrativeTemplate::TransportPayloadSent
+            | NarrativeTemplate::TransportPayloadReceived => vec![FactKindTag::PacketMeta],
+            NarrativeTemplate::TcpStateTransition => vec![FactKindTag::TcpState],
+            NarrativeTemplate::RouteChanged => vec![FactKindTag::RouteDecision],
+            NarrativeTemplate::UdpDatagramObserved
+            | NarrativeTemplate::UdpDatagramSent
+            | NarrativeTemplate::UdpDatagramReceived => vec![FactKindTag::PacketMeta],
+        }
+    }
 }
 
 pub fn phase_kind(signal: &SignalKind, phase: Option<&str>) -> Option<&'static str> {
-    let phase = phase?;
-    match signal {
-        SignalKind::ProcessBound | SignalKind::ProcessIdentified => Some("bind_process"),
-        SignalKind::RouteResolved | SignalKind::RouteChanged => Some("resolve_route"),
-        SignalKind::SocketStateTransition | SignalKind::StateChange => match phase {
-            "bind" => Some("bind_socket"),
-            "connect" => Some("initiate_connection"),
-            "establish" => Some("establish_connection"),
-            "accept" => Some("accept_connection"),
-            _ => None,
-        },
-        SignalKind::PacketObserved => match phase {
-            "send_request"
-            | "send_response"
-            | "send_connect_request"
-            | "send_client_hello"
-            | "send_ping"
-            | "send_query"
-            | "send_connect"
-            | "send_ehlo"
-            | "send_mail_from"
-            | "send_rcpt_to"
-            | "send_data"
-            | "send_message_body"
-            | "send_client_banner"
-            | "send_key_exchange_init"
-            | "send_channel_open"
-            | "send_method_greeting"
-            | "send_auth_user"
-            | "send_auth_pass"
-            | "send_auth_request"
-            | "send_pasv"
-            | "send_list"
-            | "send_retr"
-            | "send_stor"
-            | "send_port"
-            | "send_bind"
-            | "send_search"
-            | "send_modify"
-            | "send_password"
-            | "send_get"
-            | "send_set"
-            | "send_protocol_header"
-            | "send_start_ok"
-            | "send_publish"
-            | "send_crypto"
-            | "send_stream"
-            | "send_request_stream"
-            | "send_response_stream"
-            | "send_auth_request_stream"
-            | "send_auth_ok_stream"
-            | "send_tcp_request_stream"
-            | "send_close" => Some("emit_payload"),
-            "receive_request"
-            | "receive_connect_established"
-            | "receive_connect_denied"
-            | "receive_auth_required"
-            | "receive_ok"
-            | "receive_error"
-            | "receive_response"
-            | "receive_auth"
-            | "receive_ehlo_ok"
-            | "receive_mail_ok"
-            | "receive_rcpt_denied"
-            | "receive_rcpt_ok"
-            | "receive_data_ready"
-            | "receive_message_denied"
-            | "receive_message_queued"
-            | "receive_ready"
-            | "receive_pong"
-            | "receive_connack"
-            | "receive_banner"
-            | "receive_server_banner"
-            | "receive_password_required"
-            | "receive_auth_denied"
-            | "receive_auth_success"
-            | "receive_channel_open_confirmation"
-            | "receive_auth_ok"
-            | "receive_port_ready"
-            | "receive_pasv_ready"
-            | "receive_transfer_open"
-            | "receive_transfer_complete"
-            | "receive_method_selection"
-            | "receive_connect_success"
-            | "receive_bind_denied"
-            | "receive_bind_response"
-            | "receive_search_result"
-            | "receive_modify_response"
-            | "receive_modify_denied"
-            | "receive_modify_constraint_violation"
-            | "receive_value"
-            | "receive_stored"
-            | "receive_start"
-            | "receive_crypto"
-            | "receive_close"
-            | "receive_response_stream"
-            | "receive_request_stream"
-            | "receive_auth_ok_stream"
-            | "receive_tcp_response_stream" => Some("receive_payload"),
-            "receive_ack" => Some("receive_payload"),
-            "send_udp_relay_datagram" => Some("emit_datagram"),
-            "receive_udp_relay_datagram" => Some("receive_datagram"),
-            _ => None,
-        },
-        SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen => match phase {
-            "send_request"
-            | "send_initial"
-            | "send_handshake"
-            | "send_discover"
-            | "send_initiation"
-            | "send_echo_request"
-            | "send_query"
-            | "send_search"
-            | "send_access_request"
-            | "send_get_request"
-            | "send_register" => Some("emit_datagram"),
-            "receive_reply"
-            | "receive_handshake"
-            | "receive_initial"
-            | "receive_echo_response"
-            | "receive_response"
-            | "receive_offer"
-            | "receive_access_accept"
-            | "receive_get_response"
-            | "receive_ok" => Some("receive_datagram"),
-            _ => None,
-        },
-        SignalKind::SynSeen => Some("initiate_connection"),
-        SignalKind::FinOrRst => Some("terminate_connection"),
+    signal.phase_kind(phase)
+}
+
+pub fn render_phase_transition_kind(
+    previous: Option<(&SignalKind, Option<&str>)>,
+    current: (&SignalKind, Option<&str>),
+) -> String {
+    let current_kind = current.0.phase_kind(current.1).unwrap_or("unknown");
+    match previous {
+        Some((previous_signal, previous_phase)) => {
+            let previous_kind = previous_signal
+                .phase_kind(previous_phase)
+                .unwrap_or("start");
+            format!("{previous_kind}->{current_kind}")
+        }
+        None => format!("start->{current_kind}"),
+    }
+}
+
+fn socket_state_phase_kind(phase: &str) -> Option<&'static str> {
+    match phase {
+        "bind" => Some("bind_socket"),
+        "connect" => Some("initiate_connection"),
+        "establish" => Some("establish_connection"),
+        "accept" => Some("accept_connection"),
+        _ => None,
+    }
+}
+
+fn packet_phase_kind(phase: &str) -> Option<&'static str> {
+    match phase {
+        "send_request"
+        | "send_response"
+        | "send_connect_request"
+        | "send_client_hello"
+        | "send_ping"
+        | "send_query"
+        | "send_connect"
+        | "send_ehlo"
+        | "send_mail_from"
+        | "send_rcpt_to"
+        | "send_data"
+        | "send_message_body"
+        | "send_client_banner"
+        | "send_key_exchange_init"
+        | "send_channel_open"
+        | "send_method_greeting"
+        | "send_auth_user"
+        | "send_auth_pass"
+        | "send_auth_request"
+        | "send_pasv"
+        | "send_list"
+        | "send_retr"
+        | "send_stor"
+        | "send_port"
+        | "send_bind"
+        | "send_search"
+        | "send_modify"
+        | "send_password"
+        | "send_get"
+        | "send_set"
+        | "send_protocol_header"
+        | "send_start_ok"
+        | "send_publish"
+        | "send_crypto"
+        | "send_stream"
+        | "send_request_stream"
+        | "send_response_stream"
+        | "send_auth_request_stream"
+        | "send_auth_ok_stream"
+        | "send_tcp_request_stream"
+        | "send_close" => Some("emit_payload"),
+        "receive_request"
+        | "receive_connect_established"
+        | "receive_connect_denied"
+        | "receive_auth_required"
+        | "receive_ok"
+        | "receive_error"
+        | "receive_response"
+        | "receive_auth"
+        | "receive_ehlo_ok"
+        | "receive_mail_ok"
+        | "receive_rcpt_denied"
+        | "receive_rcpt_ok"
+        | "receive_data_ready"
+        | "receive_message_denied"
+        | "receive_message_queued"
+        | "receive_ready"
+        | "receive_pong"
+        | "receive_connack"
+        | "receive_banner"
+        | "receive_server_banner"
+        | "receive_password_required"
+        | "receive_auth_denied"
+        | "receive_auth_success"
+        | "receive_channel_open_confirmation"
+        | "receive_auth_ok"
+        | "receive_port_ready"
+        | "receive_pasv_ready"
+        | "receive_transfer_open"
+        | "receive_transfer_complete"
+        | "receive_method_selection"
+        | "receive_connect_success"
+        | "receive_bind_denied"
+        | "receive_bind_response"
+        | "receive_search_result"
+        | "receive_modify_response"
+        | "receive_modify_denied"
+        | "receive_modify_constraint_violation"
+        | "receive_value"
+        | "receive_stored"
+        | "receive_start"
+        | "receive_crypto"
+        | "receive_close"
+        | "receive_response_stream"
+        | "receive_request_stream"
+        | "receive_auth_ok_stream"
+        | "receive_tcp_response_stream"
+        | "receive_ack" => Some("receive_payload"),
+        "send_udp_relay_datagram" => Some("emit_datagram"),
+        "receive_udp_relay_datagram" => Some("receive_datagram"),
+        _ => None,
+    }
+}
+
+fn datagram_phase_kind(phase: &str) -> Option<&'static str> {
+    match phase {
+        "send_request"
+        | "send_initial"
+        | "send_handshake"
+        | "send_discover"
+        | "send_initiation"
+        | "send_echo_request"
+        | "send_query"
+        | "send_search"
+        | "send_access_request"
+        | "send_get_request"
+        | "send_register" => Some("emit_datagram"),
+        "receive_reply"
+        | "receive_handshake"
+        | "receive_initial"
+        | "receive_echo_response"
+        | "receive_response"
+        | "receive_offer"
+        | "receive_access_accept"
+        | "receive_get_response"
+        | "receive_ok" => Some("receive_datagram"),
+        _ => None,
     }
 }
 
@@ -898,10 +999,11 @@ pub fn render_narrative_template(
 #[cfg(test)]
 mod tests {
     use super::{
-        FlowPredicate, ObservationScope, PayloadByteMatch, PayloadByteSequenceMatch,
-        PayloadMatcherSetRef, QuicFrameType,
+        FlowPredicate, NarrativeTemplate, ObservationScope, PayloadByteMatch,
+        PayloadByteSequenceMatch, PayloadMatcherSetRef, QuicFrameType, QuicPacketType, SignalKind,
+        render_phase_transition_kind,
     };
-    use crate::ledger::{PacketDir, PacketMetaFact, QuicMetaFact};
+    use crate::ledger::{FactKindTag, PacketDir, PacketMetaFact, QuicMetaFact};
     use std::collections::BTreeMap;
 
     #[test]
@@ -1005,5 +1107,124 @@ mod tests {
                 remote_port: Some(42000),
             })
         );
+    }
+
+    #[test]
+    fn flow_predicate_required_fact_kinds_cover_transport_schema() {
+        let packet = FlowPredicate::packet_observed(
+            6,
+            ObservationScope {
+                dir: Some(PacketDir::Egress),
+                local_port: Some(8080),
+                remote_port: Some(443),
+            },
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        let quic_frame = FlowPredicate::quic_frame_observed(
+            ObservationScope {
+                dir: Some(PacketDir::Ingress),
+                local_port: Some(443),
+                remote_port: Some(53000),
+            },
+            Some(QuicPacketType::Handshake),
+            QuicFrameType::Crypto,
+            Vec::new(),
+            Vec::new(),
+        );
+        let composite = FlowPredicate::All(vec![packet.clone(), quic_frame.clone()]);
+
+        assert_eq!(packet.required_fact_kinds(), vec![FactKindTag::PacketMeta]);
+        assert_eq!(
+            quic_frame.required_fact_kinds(),
+            vec![FactKindTag::QuicMeta]
+        );
+        assert_eq!(
+            composite.required_fact_kinds(),
+            vec![FactKindTag::PacketMeta, FactKindTag::QuicMeta]
+        );
+    }
+
+    #[test]
+    fn signal_and_narrative_required_fact_kinds_cover_runtime_schema() {
+        assert_eq!(
+            SignalKind::ProcessIdentified.required_fact_kinds(),
+            vec![FactKindTag::SockLineage]
+        );
+        assert_eq!(
+            SignalKind::PacketObserved.required_fact_kinds(),
+            vec![FactKindTag::PacketMeta]
+        );
+        assert_eq!(
+            SignalKind::RouteChanged.required_fact_kinds(),
+            vec![FactKindTag::RouteDecision]
+        );
+        assert_eq!(
+            NarrativeTemplate::TransportPayloadReceived.required_fact_kinds(),
+            vec![FactKindTag::PacketMeta]
+        );
+        assert_eq!(
+            NarrativeTemplate::TcpStateTransition.required_fact_kinds(),
+            vec![FactKindTag::TcpState]
+        );
+        assert_eq!(
+            NarrativeTemplate::Static("ok").required_fact_kinds(),
+            Vec::new()
+        );
+    }
+
+    #[test]
+    fn signal_kind_phase_kind_covers_transport_and_socket_paths() {
+        assert_eq!(
+            SignalKind::PacketObserved.phase_kind(Some("send_query")),
+            Some("emit_payload")
+        );
+        assert_eq!(
+            SignalKind::PacketObserved.phase_kind(Some("receive_auth_success")),
+            Some("receive_payload")
+        );
+        assert_eq!(
+            SignalKind::DatagramObserved.phase_kind(Some("send_register")),
+            Some("emit_datagram")
+        );
+        assert_eq!(
+            SignalKind::SocketStateTransition.phase_kind(Some("establish")),
+            Some("establish_connection")
+        );
+        assert_eq!(SignalKind::PacketObserved.phase_kind(None), None);
+    }
+
+    #[test]
+    fn render_phase_transition_kind_uses_signal_phase_schema() {
+        assert_eq!(
+            render_phase_transition_kind(
+                Some((&SignalKind::SocketStateTransition, Some("connect"))),
+                (&SignalKind::PacketObserved, Some("send_query"))
+            ),
+            "initiate_connection->emit_payload"
+        );
+        assert_eq!(
+            render_phase_transition_kind(None, (&SignalKind::DatagramObserved, Some("receive_ok"))),
+            "start->receive_datagram"
+        );
+    }
+
+    #[test]
+    fn signal_kind_suspect_area_covers_runtime_schema() {
+        assert_eq!(SignalKind::ProcessBound.suspect_area(), "process_binding");
+        assert_eq!(
+            SignalKind::SocketStateTransition.suspect_area(),
+            "socket_state"
+        );
+        assert_eq!(SignalKind::PacketObserved.suspect_area(), "transport_io");
+        assert_eq!(SignalKind::DatagramObserved.suspect_area(), "datagram_io");
+        assert_eq!(SignalKind::RouteChanged.suspect_area(), "route_resolution");
     }
 }

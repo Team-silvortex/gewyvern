@@ -1,7 +1,7 @@
 use crate::flow::{FlowSnapshot, ProgramFlow, ProgramFlowId, ProgramOperation, ProgramStage};
 use crate::ir::{
     FlowPredicate, NarrativeSurface, NarrativeTemplate, RuleTemplate, matches_flow_predicate,
-    phase_kind, render_narrative_template,
+    render_narrative_template,
 };
 use crate::ledger::FactEnvelope;
 
@@ -48,12 +48,11 @@ fn build_program_flow(
             }
 
             if let Some(kind) = &rule.signal {
-                stages.push(ProgramStage {
-                    at: fact.id,
-                    kind: kind.clone(),
-                    phase: rule.phase.clone(),
-                    phase_kind: phase_kind(kind, rule.phase.as_deref()).map(str::to_string),
-                });
+                stages.push(ProgramStage::from_signal(
+                    fact.id,
+                    kind.clone(),
+                    rule.phase.clone(),
+                ));
             }
 
             if let Some(line) = render_narrative(&rule.narrative, flow, fact) {

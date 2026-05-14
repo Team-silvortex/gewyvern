@@ -777,60 +777,15 @@ fn classify_rule_tier(
 }
 
 fn predicate_required_facts(predicate: &FlowPredicate) -> Vec<FactKindTag> {
-    match predicate {
-        FlowPredicate::ProcessBound => vec![FactKindTag::SockLineage],
-        FlowPredicate::SocketStateObserved { .. } => vec![FactKindTag::TcpState],
-        FlowPredicate::PacketObserved { .. } => vec![FactKindTag::PacketMeta],
-        FlowPredicate::DatagramObserved { .. } => vec![FactKindTag::PacketMeta],
-        FlowPredicate::RouteResolved => vec![FactKindTag::RouteDecision],
-        FlowPredicate::QuicPacketObserved { .. } => vec![FactKindTag::PacketMeta],
-        FlowPredicate::QuicFrameObserved { .. } => vec![FactKindTag::QuicMeta],
-        FlowPredicate::All(predicates) => predicates
-            .iter()
-            .flat_map(predicate_required_facts)
-            .collect(),
-        FlowPredicate::Any(predicates) => predicates
-            .iter()
-            .flat_map(predicate_required_facts)
-            .collect(),
-    }
+    predicate.required_fact_kinds()
 }
 
 fn signal_required_facts(signal: Option<&SignalKind>) -> Vec<FactKindTag> {
-    match signal {
-        None => Vec::new(),
-        Some(SignalKind::ProcessBound | SignalKind::ProcessIdentified) => {
-            vec![FactKindTag::SockLineage]
-        }
-        Some(
-            SignalKind::SocketStateTransition
-            | SignalKind::StateChange
-            | SignalKind::SynSeen
-            | SignalKind::FinOrRst,
-        ) => vec![FactKindTag::TcpState],
-        Some(SignalKind::PacketObserved) => vec![FactKindTag::PacketMeta],
-        Some(SignalKind::DatagramObserved | SignalKind::UdpDatagramSeen) => {
-            vec![FactKindTag::PacketMeta]
-        }
-        Some(SignalKind::RouteResolved | SignalKind::RouteChanged) => {
-            vec![FactKindTag::RouteDecision]
-        }
-    }
+    signal.map_or_else(Vec::new, SignalKind::required_fact_kinds)
 }
 
 fn narrative_required_facts(narrative: &NarrativeTemplate) -> Vec<FactKindTag> {
-    match narrative {
-        NarrativeTemplate::None | NarrativeTemplate::Static(_) => Vec::new(),
-        NarrativeTemplate::ProcessBound => vec![FactKindTag::SockLineage],
-        NarrativeTemplate::PacketObserved
-        | NarrativeTemplate::TransportPayloadSent
-        | NarrativeTemplate::TransportPayloadReceived => vec![FactKindTag::PacketMeta],
-        NarrativeTemplate::TcpStateTransition => vec![FactKindTag::TcpState],
-        NarrativeTemplate::RouteChanged => vec![FactKindTag::RouteDecision],
-        NarrativeTemplate::UdpDatagramObserved
-        | NarrativeTemplate::UdpDatagramSent
-        | NarrativeTemplate::UdpDatagramReceived => vec![FactKindTag::PacketMeta],
-    }
+    narrative.required_fact_kinds()
 }
 
 impl FragmentParamType {

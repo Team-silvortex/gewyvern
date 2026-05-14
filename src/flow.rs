@@ -97,6 +97,18 @@ pub struct ProgramStage {
 
 pub type ProgramStageKind = SignalKind;
 
+impl ProgramStage {
+    pub fn from_signal(at: FactId, kind: ProgramStageKind, phase: Option<String>) -> Self {
+        let phase_kind = kind.phase_kind(phase.as_deref()).map(str::to_string);
+        Self {
+            at,
+            kind,
+            phase,
+            phase_kind,
+        }
+    }
+}
+
 pub fn infer_network_module_kind(
     operation: &ProgramOperation,
     phase: Option<&str>,
