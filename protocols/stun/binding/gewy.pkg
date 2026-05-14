@@ -1,5 +1,5 @@
 name=stun_binding
-version=0.5.6
+version=0.7.0
 entry=main.gewy
 register.protocol=stun
 register.entry=binding

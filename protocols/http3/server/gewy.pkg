@@ -1,5 +1,5 @@
 name=http3_server_response
-version=0.5.6
+version=0.7.0
 entry=main.gewy
 register.protocol=http3
 register.entry=server

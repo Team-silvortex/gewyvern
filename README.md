@@ -1,4 +1,4 @@
-# gewyvern v0.5.6
+# gewyvern v0.7.0
 
 Protocol-agnostic network debugging runtime driven by eBPF fragments.
 
@@ -51,8 +51,8 @@ as a visual report.
 
 ## Status
 
-- project version: `0.5.6`
-- stage: working prototype with a stabilized workspace, protocol registry, and package-driven DSL/compiler path
+- project version: `0.7.0`
+- stage: pre-1.0 infra candidate with a stabilized workspace, protocol registry, and package-driven DSL/compiler path
 - transport support: TCP + UDP
 - protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP, RADIUS, GTP-U, SMTP, SSH, SOCKS5, SIP, LDAP, SNMP, DNS-over-TCP
 - input modes: demo facts, Unix socket, TCP socket
@@ -70,8 +70,8 @@ as a visual report.
 
 `gewyvern` is now on a deliberate release path:
 
-- `v0.5.6` is the current stabilization point
-- `v0.6.x` through `v0.9.x` should be used to close the remaining production gaps
+- `v0.7.0` is the current stabilization point
+- `v0.7.x` through `v0.9.x` should be used to close the remaining production gaps
 - `v0.10.0` is intended to be the last pre-`1.0` release
 - if the `1.0` gates are satisfied at `v0.10.0`, the project should move
   directly to `v1.0.0`
@@ -100,7 +100,7 @@ Most built-in entries model a concrete program-network path such as
 request/response, auth/query, relay setup, or publish/ack, rather than only
 matching a port number.
 
-## Workspace Layout
+## Repository Shape
 
 This repository is now easier to read as a workspace with clear responsibility
 boundaries:
@@ -141,6 +141,26 @@ boundaries:
 - [scripts](/Users/Shared/chroot/dev/gewyvern/scripts)
   Small helper scripts for demos and roundtrips.
 
+## Repository Reading Order
+
+If you are orienting yourself for the first time, this reading order is usually
+the fastest:
+
+1. [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
+   Current product/runtime status, supported protocol families, and operational entrypoints.
+2. [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)
+   Canonical built-in registry packages. This is the best place to see what the runtime actually registers and scans.
+3. [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
+   Underlying protocol-path DSL files. This is the clearest place to inspect concrete modeled network-module behavior.
+4. [src/main.rs](/Users/Shared/chroot/dev/gewyvern/src/main.rs)
+   Runtime CLI, report rendering, protocol scans, and operator-facing execution flow.
+5. [src/ir.rs](/Users/Shared/chroot/dev/gewyvern/src/ir.rs)
+   Core shared IR semantics: predicates, signal semantics, phase kinds, and transport matcher behavior.
+6. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+   High-level architecture and compiler/runtime boundaries.
+7. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+   Gewy language shape, package model, and compiler-facing usage.
+
 ## Main Entrypoints
 
 - `cargo run -- ...`
@@ -156,7 +176,7 @@ boundaries:
 - `cargo test --workspace`
   Main regression path for the whole workspace.
 
-## What Works In v0.5.6
+## What Works In v0.7.0
 
 - Fragment registry, attach planning, and attach reporting
 - TDD-first runtime and rule specs
@@ -570,7 +590,7 @@ Built-in protocol discovery now comes from scanning gewy project manifests in
 
 ```text
 name=mysql_session
-version=0.5.6
+version=0.7.0
 entry=main.gewy
 register.protocol=mysql
 register.entry=session
@@ -752,7 +772,7 @@ cargo linux-smoke
 
 ## Near-Term Direction
 
-The next meaningful step after `v0.5.6` is not only “more protocol branches”.
+The next meaningful step after `v0.7.0` is not only “more protocol branches”.
 It is continuing to make the DSL and IR more explicit, so protocol behavior is
 described as program-network-module structure rather than as a pile of
 protocol-specific special cases, while steadily closing the remaining gaps on

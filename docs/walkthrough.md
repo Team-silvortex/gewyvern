@@ -198,7 +198,7 @@ state, not just the raw fact list.
 
 ## Why This Walkthrough Matters
 
-This example shows the intended system boundary for `v0.1`:
+This example shows the intended system boundary for `v0.7.0`:
 
 - DSL chooses a runtime shape
 - fragment templates provide the actual observable capabilities

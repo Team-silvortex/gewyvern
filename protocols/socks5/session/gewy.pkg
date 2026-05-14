@@ -1,5 +1,5 @@
 name=socks5_session
-version=0.5.6
+version=0.7.0
 entry=main.gewy
 register.protocol=socks5
 register.entry=session

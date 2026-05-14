@@ -3,6 +3,9 @@
 This document describes the current `ExportBundle` shape implemented by
 `src/export.rs`.
 
+Use this document for field-level export and replay semantics. For the broader
+runtime/compiler layering, start with [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md).
+
 The export format is designed for deterministic replay, not for generic
 analytics ingestion.
 

@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide describes the current `v0.1` development workflow.
+This guide describes the current `v0.7.0` development workflow.
 
 ## Quick Start
 
@@ -13,6 +13,13 @@ Recommended reading before changing code:
 - `docs/fragments.md`
 - `docs/export-format.md`
 - `docs/headless-linux.md` when the change touches real eBPF attach/runtime work
+
+The shortest practical orientation path is:
+
+1. `README.md`
+2. `docs/system.md`
+3. `docs/dsl.md` or `docs/fragments.md`, depending on whether the change is language-facing or runtime-facing
+4. `docs/architecture.md` when the change crosses runtime reconstruction or reporting paths
 
 Run the demo binary:
 

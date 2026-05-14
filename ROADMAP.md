@@ -5,8 +5,8 @@ This roadmap treats `v1.0.0` as an operational trust milestone, not as a
 
 The working intention is:
 
-- current line: `v0.5.6`
-- pre-1.0 stabilization line: `v0.6.x` through `v0.10.0`
+- current line: `v0.7.0`
+- pre-1.0 stabilization line: `v0.7.x` through `v0.10.0`
 - decision point: if `v0.10.0` satisfies the `1.0` gates, release `v1.0.0`
   directly after validation
 
@@ -29,7 +29,7 @@ runtime, reporting surface, and modeling pipeline are trustworthy.
 
 ## Release Path
 
-## v0.6.x
+## v0.6.x (completed)
 
 Focus: stabilize the language and package boundary.
 
@@ -47,6 +47,8 @@ Exit criteria:
 ## v0.7.x
 
 Focus: improve module-level diagnosis quality.
+
+This is the current active line.
 
 - deepen protocol families that already exist instead of only adding new ones
 - improve failure-path modeling, suspect module inference, and stage inference

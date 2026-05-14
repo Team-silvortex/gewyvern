@@ -1,5 +1,5 @@
 name=quic_initial
-version=0.5.6
+version=0.7.0
 entry=main.gewy
 register.protocol=quic
 register.entry=initial
