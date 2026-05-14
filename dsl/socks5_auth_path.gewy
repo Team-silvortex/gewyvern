@@ -1,29 +1,34 @@
-# gewyvern DSL v0
-template=socks5_auth_path
-window.duration_ms=5000
-window.lateness_ms=200
-reason_model=socks5_auth_path_reason
-fragment=tcp_packet_meta_fragment
-fragment=tcp_state_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=socks5_auth
-rule=process_bound;process_bound;process_bound;true;socks5_auth_path;bind
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this SOCKS5 auth session;true;socks5_auth_path;resolve_upstream
-rule=socket_state_observed:remote:socks5;socket_state_transition;static:program initiated or advanced a SOCKS5 socket state transition;false;socks5_auth_path;connect
-rule=packet_observed:tcp:remote:socks5:local_to_remote:bytes_at:0:0x05,0x01,0x02;packet_observed;transport_payload_sent;true;socks5_auth_path;send_method_greeting
-rule=packet_observed:tcp:remote:socks5:remote_to_local:bytes_at:0:0x05,0x02;packet_observed;transport_payload_received;true;socks5_auth_path;receive_method_selection
-rule=packet_observed:tcp:remote:socks5:local_to_remote:bytes_at:0:0x01,0x01;packet_observed;transport_payload_sent;true;socks5_auth_path;send_auth_request
-rule=packet_observed:tcp:remote:socks5:remote_to_local:bytes_at:0:0x01,0x00;packet_observed;transport_payload_received;true;socks5_auth_path;receive_auth_ok
-rule=packet_observed:tcp:remote:socks5:local_to_remote:bytes_at:0:0x05,0x01,0x00,0x03;packet_observed;transport_payload_sent;true;socks5_auth_path;send_connect_request
-rule=packet_observed:tcp:remote:socks5:remote_to_local:bytes_at:0:0x05,0x00,0x00,0x01;packet_observed;transport_payload_received;true;socks5_auth_path;receive_connect_success
-reason.rule=process_bound;process_identified;process_bound;true;socks5_auth_path;bind
-reason.rule=route_resolved;route_changed;route_changed;true;socks5_auth_path;resolve_upstream
-reason.rule=socket_state_observed:remote:socks5;state_change;tcp_state_transition;false;socks5_auth_path;connect
-reason.rule=packet_observed:tcp:remote:socks5:local_to_remote:bytes_at:0:0x05,0x01,0x02;packet_observed;transport_payload_sent;true;socks5_auth_path;send_method_greeting
-reason.rule=packet_observed:tcp:remote:socks5:remote_to_local:bytes_at:0:0x05,0x02;packet_observed;transport_payload_received;true;socks5_auth_path;receive_method_selection
-reason.rule=packet_observed:tcp:remote:socks5:local_to_remote:bytes_at:0:0x01,0x01;packet_observed;transport_payload_sent;true;socks5_auth_path;send_auth_request
-reason.rule=packet_observed:tcp:remote:socks5:remote_to_local:bytes_at:0:0x01,0x00;packet_observed;transport_payload_received;true;socks5_auth_path;receive_auth_ok
-reason.rule=packet_observed:tcp:remote:socks5:local_to_remote:bytes_at:0:0x05,0x01,0x00,0x03;packet_observed;transport_payload_sent;true;socks5_auth_path;send_connect_request
-reason.rule=packet_observed:tcp:remote:socks5:remote_to_local:bytes_at:0:0x05,0x00,0x00,0x01;packet_observed;transport_payload_received;true;socks5_auth_path;receive_connect_success
-param=sock_lineage_fragment.capture_comm=true
+# gewyvern stable-subset protocol path
+
+fn socks5_auth_rules() =
+  let module_name = :socks5_auth_path
+  let route_narrative = "static:program resolved an upstream route for this SOCKS5 auth session"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:socks5_auth)
+  |> reason_model(:socks5_auth_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "socket_state_observed:remote:socks5", stage: :socket_state_transition, narrative: "static:program initiated or advanced a SOCKS5 socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "packet_observed:tcp:remote:socks5:local_to_remote:bytes_at:0:0x05,0x01,0x02", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_method_greeting)
+  |> program_rule(predicate: "packet_observed:tcp:remote:socks5:remote_to_local:bytes_at:0:0x05,0x02", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_method_selection)
+  |> program_rule(predicate: "packet_observed:tcp:remote:socks5:local_to_remote:bytes_at:0:0x01,0x01", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_auth_request)
+  |> program_rule(predicate: "packet_observed:tcp:remote:socks5:remote_to_local:bytes_at:0:0x01,0x00", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_auth_ok)
+  |> program_rule(predicate: "packet_observed:tcp:remote:socks5:local_to_remote:bytes_at:0:0x05,0x01,0x00,0x03", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_connect_request)
+  |> program_rule(predicate: "packet_observed:tcp:remote:socks5:remote_to_local:bytes_at:0:0x05,0x00,0x00,0x01", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_connect_success)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "socket_state_observed:remote:socks5", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:socks5:local_to_remote:bytes_at:0:0x05,0x01,0x02", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_method_greeting)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:socks5:remote_to_local:bytes_at:0:0x05,0x02", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_method_selection)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:socks5:local_to_remote:bytes_at:0:0x01,0x01", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_auth_request)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:socks5:remote_to_local:bytes_at:0:0x01,0x00", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_auth_ok)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:socks5:local_to_remote:bytes_at:0:0x05,0x01,0x00,0x03", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_connect_request)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:socks5:remote_to_local:bytes_at:0:0x05,0x00,0x00,0x01", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_connect_success)
+
+template(:socks5_auth_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:socks5_auth_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)
