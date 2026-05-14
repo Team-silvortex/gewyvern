@@ -1,12 +1,16 @@
-# gewyvern DSL v0
-template=handshake_debug
-window.duration_ms=5000
-window.lateness_ms=200
-reason=handshake_l1
-fragment=tcp_state_fragment
-fragment=tcp_packet_meta_fragment
-fragment=route_meta_fragment
-operation=connect_flow
-rule=process_bound;process_bound;process_bound;true
-rule=socket_state_observed;socket_state_transition;none;false
-rule=route_resolved;route_resolved;static:program resolved a route for this network flow;true
+# gewyvern stable-subset baseline
+
+fn handshake_rules() =
+  let route_narrative = "static:program resolved a route for this network flow"
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:connect_flow)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)
+  |> program_rule(predicate: :socket_state_observed, stage: :socket_state_transition, narrative: :none, dedupe: false)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true)
+
+template(:handshake_debug)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> reason(:handshake_l1)
+|> use(:handshake_rules)

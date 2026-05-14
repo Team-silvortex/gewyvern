@@ -13841,6 +13841,130 @@ template(:pipeline_parameter_fn_udp)
 }
 
 #[test]
+fn dsl_accepts_expression_style_pipeline_function_units() {
+    let binding = compile_str(
+        r#"
+fn udp_core() =
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:datagram_exchange)
+  |> program_model(:pipeline_expr_fn_udp_model)
+
+template(:pipeline_expr_fn_udp)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core)
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "pipeline_expr_fn_udp");
+    assert_eq!(
+        binding.template.fragment_set,
+        vec![
+            "udp_packet_meta_fragment",
+            "route_meta_fragment",
+            "sock_lineage_fragment"
+        ]
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "pipeline_expr_fn_udp_model"
+    );
+}
+
+#[test]
+fn dsl_accepts_parameterized_expression_style_pipeline_function_units() {
+    let binding = compile_str(
+        r#"
+fn udp_core(model_name, op_name) =>
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+
+template(:pipeline_expr_param_fn_udp)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core, :pipeline_expr_param_fn_udp_model, :datagram_exchange)
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "pipeline_expr_param_fn_udp");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "pipeline_expr_param_fn_udp_model"
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::DatagramExchange
+    );
+}
+
+#[test]
+fn dsl_accepts_pipeline_function_local_let_bindings() {
+    let binding = compile_str(
+        r#"
+fn udp_core() =
+  let model_name = :pipeline_let_fn_udp_model
+  let op_name = :datagram_exchange
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+
+template(:pipeline_let_fn_udp)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core)
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "pipeline_let_fn_udp");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "pipeline_let_fn_udp_model"
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::DatagramExchange
+    );
+}
+
+#[test]
+fn dsl_accepts_parameterized_pipeline_function_local_let_bindings() {
+    let binding = compile_str(
+        r#"
+fn udp_core(model_name) {
+  let op_name = :datagram_exchange
+  let phase_module = ${model_name}
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${phase_module}, phase: :bind)
+}
+
+template(:pipeline_param_let_fn_udp)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core, :pipeline_param_let_fn_udp_model)
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "pipeline_param_let_fn_udp");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "pipeline_param_let_fn_udp_model"
+    );
+}
+
+#[test]
 fn dsl_accepts_nested_pipeline_function_use_units() {
     let binding = compile_str(
         r#"

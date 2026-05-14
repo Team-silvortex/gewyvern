@@ -336,7 +336,7 @@ fn render_init_entry(package_name: &str) -> String {
 
 fn render_init_module(package_name: &str) -> String {
     format!(
-        "fn network_module() {{\n|> fragment(:udp_packet_meta_fragment)\n|> fragment(:route_meta_fragment)\n|> fragment(:sock_lineage_fragment)\n|> operation(:datagram_exchange)\n|> program_model(:{package_name}_model)\n|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :{package_name}, phase: :bind)\n|> program_rule(predicate: \"datagram_observed:udp\", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: :{package_name}, phase: :send_request)\n|> param(:sock_lineage_fragment.capture_comm, true)\n}}\n"
+        "fn network_module() =\n  let model_name = :{package_name}_model\n  let module_name = :{package_name}\n  let op_name = :datagram_exchange\n  |> fragment(:udp_packet_meta_fragment)\n  |> fragment(:route_meta_fragment)\n  |> fragment(:sock_lineage_fragment)\n  |> operation(${{op_name}})\n  |> program_model(${{model_name}})\n  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${{module_name}}, phase: :bind)\n  |> program_rule(predicate: \"datagram_observed:udp\", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${{module_name}}, phase: :send_request)\n  |> param(:sock_lineage_fragment.capture_comm, true)\n"
     )
 }
 
@@ -537,8 +537,9 @@ mod tests {
         assert!(render_init_manifest("demo").contains("entry=main.gewy"));
         assert!(render_init_entry("demo").contains("|> include(\"./module.gewy\")"));
         assert!(render_init_entry("demo").contains("|> use(:network_module)"));
-        assert!(render_init_module("demo").contains("fn network_module() {"));
-        assert!(render_init_module("demo").contains("program_model(:demo_model)"));
+        assert!(render_init_module("demo").contains("fn network_module() ="));
+        assert!(render_init_module("demo").contains("let model_name = :demo_model"));
+        assert!(render_init_module("demo").contains("|> program_model(${model_name})"));
     }
 
     #[test]

@@ -590,7 +590,7 @@ fn looks_like_pipeline_dsl(input: &str) -> bool {
         .next()
         .is_some_and(|line| {
             (line.starts_with("template(") && line.ends_with(')'))
-                || (line.starts_with("fn ") && line.ends_with('{'))
+                || parse_pipeline_function_head(line).is_some()
         })
 }
 
@@ -612,6 +612,7 @@ struct PipelineModule {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct PipelineFunction {
     params: Vec<String>,
+    local_bindings: Vec<PipelineLetBinding>,
     body: Vec<PipelineCall>,
 }
 
@@ -620,6 +621,18 @@ struct PipelineCall {
     line_no: usize,
     name: String,
     args: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PipelineFunctionBodySyntax {
+    Block,
+    Expression,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PipelineLetBinding {
+    name: String,
+    value: String,
 }
 
 fn parse_pipeline_module(
@@ -677,57 +690,78 @@ fn parse_pipeline_module_into(
             continue;
         }
 
-        if let Some(header) = line.strip_suffix('{') {
-            let header = header.trim();
-            if let Some(signature) = header.strip_prefix("fn ") {
-                let (name, params) = parse_pipeline_function_signature(signature)
-                    .map_err(|err| err.at_line(line_no))?;
-                let mut body = Vec::new();
-                index += 1;
-                while index < lines.len() {
-                    let body_line = lines[index].trim();
-                    if body_line == "}" {
-                        break;
-                    }
-                    if !body_line.is_empty() && !body_line.starts_with('#') {
-                        let nested_call = body_line.strip_prefix("|>").ok_or_else(|| {
-                            DslError::InvalidValue(
-                                "pipeline function bodies must contain '|>' steps".into(),
-                            )
-                            .at_line(index + 1)
-                        })?;
-                        let (nested_name, nested_args) = parse_pipeline_call(nested_call.trim())
-                            .map_err(|err| err.at_line(index + 1))?;
-                        if nested_name == "use" {
-                            if let Ok(target_name) = parse_pipeline_single_arg(&nested_args, "use")
-                            {
-                                module.use_edges.push(FrontendUseEdge {
-                                    from: name.trim().to_string(),
-                                    to: target_name,
-                                    line: index + 1,
-                                });
-                            }
+        if let Some((signature, body_syntax)) = parse_pipeline_function_head(line) {
+            let (name, params) =
+                parse_pipeline_function_signature(signature).map_err(|err| err.at_line(line_no))?;
+            let mut local_bindings = Vec::new();
+            let mut body = Vec::new();
+            index += 1;
+            match body_syntax {
+                PipelineFunctionBodySyntax::Block => {
+                    while index < lines.len() {
+                        let body_line = lines[index].trim();
+                        if body_line == "}" {
+                            break;
                         }
-                        body.push(PipelineCall {
-                            line_no: index + 1,
-                            name: nested_name,
-                            args: nested_args,
-                        });
+                        if !body_line.is_empty() && !body_line.starts_with('#') {
+                            parse_pipeline_function_body_line(
+                                module,
+                                &name,
+                                body_line,
+                                index + 1,
+                                &params,
+                                &mut local_bindings,
+                                &mut body,
+                            )?;
+                        }
+                        index += 1;
+                    }
+                    if index == lines.len() {
+                        return Err(DslError::InvalidValue(
+                            "unclosed pipeline function block".into(),
+                        )
+                        .at_line(line_no));
                     }
                     index += 1;
                 }
-                if index == lines.len() {
-                    return Err(
-                        DslError::InvalidValue("unclosed pipeline function block".into())
-                            .at_line(line_no),
-                    );
+                PipelineFunctionBodySyntax::Expression => {
+                    while index < lines.len() {
+                        let body_line = lines[index].trim();
+                        if body_line.is_empty() || body_line.starts_with('#') {
+                            index += 1;
+                            continue;
+                        }
+                        if !body_line.starts_with("|>") && !body_line.starts_with("let ") {
+                            break;
+                        }
+                        parse_pipeline_function_body_line(
+                            module,
+                            &name,
+                            body_line,
+                            index + 1,
+                            &params,
+                            &mut local_bindings,
+                            &mut body,
+                        )?;
+                        index += 1;
+                    }
+                    if body.is_empty() {
+                        return Err(DslError::InvalidValue(
+                            "pipeline function expressions must contain '|>' steps".into(),
+                        )
+                        .at_line(line_no));
+                    }
                 }
-                module
-                    .functions
-                    .insert(name.to_string(), PipelineFunction { params, body });
-                index += 1;
-                continue;
             }
+            module.functions.insert(
+                name.to_string(),
+                PipelineFunction {
+                    params,
+                    local_bindings,
+                    body,
+                },
+            );
+            continue;
         }
 
         let call = if module.template.is_some() || !allow_template_head {
@@ -842,6 +876,106 @@ fn parse_pipeline_module_into(
     Ok(())
 }
 
+fn parse_pipeline_function_head(line: &str) -> Option<(&str, PipelineFunctionBodySyntax)> {
+    if let Some(header) = line.strip_suffix('{') {
+        let header = header.trim();
+        let signature = header.strip_prefix("fn ")?;
+        return Some((signature, PipelineFunctionBodySyntax::Block));
+    }
+    if let Some(header) = line.strip_suffix("=>") {
+        let header = header.trim();
+        let signature = header.strip_prefix("fn ")?;
+        return Some((signature, PipelineFunctionBodySyntax::Expression));
+    }
+    if let Some(header) = line.strip_suffix('=') {
+        let header = header.trim();
+        let signature = header.strip_prefix("fn ")?;
+        return Some((signature, PipelineFunctionBodySyntax::Expression));
+    }
+    None
+}
+
+fn parse_pipeline_function_body_line(
+    module: &mut PipelineModule,
+    function_name: &str,
+    body_line: &str,
+    line_no: usize,
+    params: &[String],
+    local_bindings: &mut Vec<PipelineLetBinding>,
+    output: &mut Vec<PipelineCall>,
+) -> Result<(), DslError> {
+    if let Some(binding) =
+        parse_pipeline_let_binding(body_line).map_err(|err| err.at_line(line_no))?
+    {
+        if params.iter().any(|param| param == &binding.name)
+            || local_bindings
+                .iter()
+                .any(|existing| existing.name == binding.name)
+        {
+            return Err(DslError::InvalidValue(format!(
+                "duplicate pipeline local binding '{}'",
+                binding.name
+            ))
+            .at_line(line_no));
+        }
+        local_bindings.push(binding);
+        return Ok(());
+    }
+    push_pipeline_function_call(module, function_name, body_line, line_no, output)
+}
+
+fn push_pipeline_function_call(
+    module: &mut PipelineModule,
+    function_name: &str,
+    body_line: &str,
+    line_no: usize,
+    output: &mut Vec<PipelineCall>,
+) -> Result<(), DslError> {
+    let nested_call = body_line.strip_prefix("|>").ok_or_else(|| {
+        DslError::InvalidValue(
+            "pipeline function bodies may only contain 'let' bindings or '|>' steps".into(),
+        )
+        .at_line(line_no)
+    })?;
+    let (nested_name, nested_args) =
+        parse_pipeline_call(nested_call.trim()).map_err(|err| err.at_line(line_no))?;
+    if nested_name == "use" {
+        if let Ok(target_name) = parse_pipeline_single_arg(&nested_args, "use") {
+            module.use_edges.push(FrontendUseEdge {
+                from: function_name.trim().to_string(),
+                to: target_name,
+                line: line_no,
+            });
+        }
+    }
+    output.push(PipelineCall {
+        line_no,
+        name: nested_name,
+        args: nested_args,
+    });
+    Ok(())
+}
+
+fn parse_pipeline_let_binding(line: &str) -> Result<Option<PipelineLetBinding>, DslError> {
+    let Some(remainder) = line.strip_prefix("let ") else {
+        return Ok(None);
+    };
+    let (name, value) = remainder
+        .split_once('=')
+        .ok_or_else(|| DslError::InvalidValue(format!("invalid let binding '{line}'")))?;
+    let name = parse_pipeline_param_name(name)?;
+    let value = value.trim();
+    if value.is_empty() {
+        return Err(DslError::InvalidValue(format!(
+            "pipeline let binding '{name}' requires a value"
+        )));
+    }
+    Ok(Some(PipelineLetBinding {
+        name,
+        value: value.to_string(),
+    }))
+}
+
 fn lower_pipeline_module_to_legacy(
     module: &PipelineModule,
     allow_template_head: bool,
@@ -945,6 +1079,12 @@ fn lower_pipeline_call(
                 .cloned()
                 .zip(actuals)
                 .collect::<BTreeMap<_, _>>();
+            let mut function_bindings = function_bindings;
+            for binding in &function.local_bindings {
+                let resolved = substitute_pipeline_arg(&binding.value, &function_bindings)
+                    .map_err(|err| err.at_line(line_no))?;
+                function_bindings.insert(binding.name.clone(), parse_pipeline_literal(&resolved));
+            }
             use_stack.push(function_name.clone());
             lower_pipeline_calls(
                 &function.body,

@@ -136,7 +136,29 @@ Then extend the binding with Elixir-style pipeline steps:
 
 Current parser rule: one pipeline call per line.
 
-Function units are declared with pure blocks:
+Function units can be declared in two equivalent forms.
+
+The more FP-like preferred form is an expression-style definition:
+
+```text
+fn network_module() =
+  let module_name = :udp_module
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:datagram_exchange)
+```
+
+`=>` is accepted as an alias:
+
+```text
+fn network_module(model_name, op_name) =>
+  let default_phase = :bind
+  |> fragment(:udp_packet_meta_fragment)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+```
+
+The original block form is still supported for compatibility:
 
 ```text
 fn network_module() {
@@ -146,7 +168,7 @@ fn network_module() {
 }
 ```
 
-They can also be parameterized:
+Block functions can also be parameterized:
 
 ```text
 fn network_module(model_name, op_name) {
@@ -169,12 +191,73 @@ template(:demo_app)
 Current semantics:
 
 - functions are pure DSL composition units
+- local `let` bindings are immutable and scoped to one function unit
+- `let` values may reference earlier parameters or earlier local bindings via
+  `${name}` placeholders
+- expression-style functions consume the following `|>` lines until the next
+  top-level declaration
 - they may not define `template(...)`
 - `include(...)` merges function definitions and steps into the single package
   entry compile path
 - nested `use(:other_function)` composition is supported
 - `use(:fn_name, ...)` supports positional arguments for parameterized function units
 - there is no cross-file global variable state
+
+## Stable Subset
+
+The current recommended stable subset for `gewylang` is intentionally small:
+
+- one package entry file with exactly one `template(...)` head
+- pipeline steps with one call per line
+- pure function units declared with either `fn ... =` or `fn ... { ... }`
+- positional `use(:fn_name, ...)` function application
+- local immutable `let` bindings inside function units
+- `include(...)` for file composition
+- keyword-style `program_rule(...)` and `reason_rule(...)`
+
+This subset is the best target if you want DSLs that are likely to stay stable
+through the `0.7.x` to `1.0` hardening path.
+
+Features that are supported but should still be thought of as compatibility or
+transitional surfaces:
+
+- structured block DSL
+- legacy `key=value` DSL
+- large hand-written inline entry pipelines without reusable function units
+
+## Pipeline Idioms
+
+Recommended `gewylang` style is intentionally small and regular:
+
+- prefer expression-style `fn ... =` for short reusable modules
+- use `let` for local names that improve readability, not for building deep
+  mini-scope trees
+- keep one conceptual action per `|>` line
+- pass variability in through function parameters, then derive local aliases
+  with `let`
+- keep `template(...)` heads shallow and move reusable behavior into function
+  units
+- prefer `use(:module_name, ...)` composition over repeating the same fragment
+  and rule bundle inline
+
+Example:
+
+```text
+fn udp_client(model_name) =
+  let module_name = :udp_client
+  let op_name = :datagram_exchange
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+
+template(:demo_app)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_client, :demo_app_model)
+```
 
 Pipeline program rules use keyword arguments:
 
@@ -190,6 +273,62 @@ Pipeline reason rules use `key_event:` instead of `stage:`:
 
 Atoms like `:udp_datagram_l1` lower to plain DSL identifiers, while quoted
 strings are kept for values that contain punctuation or spaces.
+
+## Pipeline EBNF
+
+The preferred, formalized grammar surface is the pipeline DSL. Structured and
+legacy forms remain supported, but the EBNF below focuses on the pipeline
+syntax that `gewylang` is converging toward.
+
+The canonical draft grammar now also lives in
+[docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf).
+
+```ebnf
+pipeline_file        = { blank_line | comment | function_decl }, template_head,
+                       { pipeline_step | blank_line | comment } ;
+
+function_decl        = function_block_decl | function_expr_decl ;
+function_block_decl  = "fn", ws, ident, "(", [ param_list ], ")", ws, "{",
+                       newline,
+                       { function_binding | function_step | blank_line | comment },
+                       "}" ;
+function_expr_decl   = "fn", ws, ident, "(", [ param_list ], ")", ws,
+                       ( "=" | "=>" ), newline,
+                       { function_binding | function_step | blank_line | comment } ;
+
+template_head        = "template", "(", value, ")" ;
+pipeline_step        = "|>", ws, call ;
+function_step        = "|>", ws, call ;
+function_binding     = "let", ws, ident, ws, "=", ws, value ;
+
+call                 = ident, "(", [ arg_list ], ")" ;
+arg_list             = arg, { ",", ws, arg } ;
+arg                  = value | keyword_arg ;
+keyword_arg          = ident, ":", ws, value ;
+
+param_list           = ident, { ",", ws, ident } ;
+value                = atom | string | placeholder | raw_token ;
+atom                 = ":", ident ;
+placeholder          = "${", ident, "}" ;
+
+ident                = ? non-empty identifier token ? ;
+string               = ? double-quoted string literal ? ;
+raw_token            = ? unquoted token consumed by the current pipeline step ? ;
+comment              = "#", ? rest of line ? ;
+blank_line           = "" ;
+ws                   = { " " | "\t" } ;
+newline              = "\n" ;
+```
+
+Operational notes:
+
+- exactly one `template(...)` head is allowed per pipeline entry
+- `include(...)` is resolved before lowering
+- `use(...)` applies a pure function unit by positional arguments
+- `let` introduces a local immutable binding inside a function unit
+- one pipeline call still occupies one line
+- expression-style functions end when the parser reaches the next non-comment,
+  non-empty line that does not start with `|>` or `let `
 
 ## Package Shape
 

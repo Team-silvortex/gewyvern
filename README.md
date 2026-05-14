@@ -63,6 +63,7 @@ as a visual report.
 - package deps: local path dependencies plus named sources via `dep.<name>=...`, `source.<name>=...`, and `include("std:file.gewy")`
 - package resolution: `gewyc lock` emits a resolved `gewy.lock` snapshot
 - language semantics: single-entry, function-unit DSL with no cross-file global mutable state
+- preferred gewylang subset: expression-style function units, local immutable `let`, positional `use(...)`, and package-entry composition
 - workspace shape: `gewyvern` runtime crate + `gewyc` compiler CLI crate
 - protocol registry shape: scanned gewy project packages under `protocols/`
 
@@ -160,6 +161,8 @@ the fastest:
    High-level architecture and compiler/runtime boundaries.
 7. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
    Gewy language shape, package model, and compiler-facing usage.
+8. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
+   Draft formal grammar for the preferred pipeline surface of `gewylang`.
 
 ## Main Entrypoints
 

@@ -1,28 +1,33 @@
-# gewyvern DSL v0
-template=http3_request_path
-window.duration_ms=5000
-window.lateness_ms=200
-reason_model=http3_request_path_reason
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=http3_request
-rule=process_bound;process_bound;process_bound;true;http3_request_path;bind
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this HTTP/3 request path;true;http3_request_path;resolve_upstream
-rule=quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial;datagram_observed;udp_datagram_sent;true;http3_request_path;send_initial
-rule=quic_frame_observed:remote:quic:local_to_remote:type:initial:frame:crypto;packet_observed;transport_payload_sent;true;http3_request_path;send_crypto
-rule=quic_packet_observed:remote:quic:remote_to_local:long_header:true:type:handshake;datagram_observed;udp_datagram_received;true;http3_request_path;receive_handshake
-rule=quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto;packet_observed;transport_payload_received;true;http3_request_path;receive_crypto
-rule=quic_frame_observed:remote:quic:local_to_remote:frame:stream;packet_observed;transport_payload_sent;true;http3_request_path;send_request_stream
-rule=quic_frame_observed:remote:quic:remote_to_local:frame:stream;packet_observed;transport_payload_received;true;http3_request_path;receive_response_stream
-rule=quic_frame_observed:remote:quic:remote_to_local:frame:connection_close;packet_observed;transport_payload_received;true;http3_request_path;receive_close
-reason.rule=process_bound;process_identified;process_bound;true;http3_request_path;bind
-reason.rule=route_resolved;route_changed;route_changed;true;http3_request_path;resolve_upstream
-reason.rule=quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial;udp_datagram_seen;udp_datagram_sent;true;http3_request_path;send_initial
-reason.rule=quic_frame_observed:remote:quic:local_to_remote:type:initial:frame:crypto;packet_observed;transport_payload_sent;true;http3_request_path;send_crypto
-reason.rule=quic_packet_observed:remote:quic:remote_to_local:long_header:true:type:handshake;udp_datagram_seen;udp_datagram_received;true;http3_request_path;receive_handshake
-reason.rule=quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto;packet_observed;transport_payload_received;true;http3_request_path;receive_crypto
-reason.rule=quic_frame_observed:remote:quic:local_to_remote:frame:stream;packet_observed;transport_payload_sent;true;http3_request_path;send_request_stream
-reason.rule=quic_frame_observed:remote:quic:remote_to_local:frame:stream;packet_observed;transport_payload_received;true;http3_request_path;receive_response_stream
-reason.rule=quic_frame_observed:remote:quic:remote_to_local:frame:connection_close;packet_observed;transport_payload_received;true;http3_request_path;receive_close
-param=sock_lineage_fragment.capture_comm=true
+# gewyvern stable-subset protocol path
+
+fn http3_request_rules() =
+  let module_name = :http3_request_path
+  let route_narrative = "static:program resolved an upstream route for this HTTP/3 request path"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:http3_request)
+  |> reason_model(:http3_request_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_initial)
+  |> program_rule(predicate: "quic_frame_observed:remote:quic:local_to_remote:type:initial:frame:crypto", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_crypto)
+  |> program_rule(predicate: "quic_packet_observed:remote:quic:remote_to_local:long_header:true:type:handshake", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_handshake)
+  |> program_rule(predicate: "quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_crypto)
+  |> program_rule(predicate: "quic_frame_observed:remote:quic:local_to_remote:frame:stream", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_request_stream)
+  |> program_rule(predicate: "quic_frame_observed:remote:quic:remote_to_local:frame:stream", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_response_stream)
+  |> program_rule(predicate: "quic_frame_observed:remote:quic:remote_to_local:frame:connection_close", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_close)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial", key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_initial)
+  |> reason_rule(predicate: "quic_frame_observed:remote:quic:local_to_remote:type:initial:frame:crypto", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_crypto)
+  |> reason_rule(predicate: "quic_packet_observed:remote:quic:remote_to_local:long_header:true:type:handshake", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_handshake)
+  |> reason_rule(predicate: "quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_crypto)
+  |> reason_rule(predicate: "quic_frame_observed:remote:quic:local_to_remote:frame:stream", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_request_stream)
+  |> reason_rule(predicate: "quic_frame_observed:remote:quic:remote_to_local:frame:stream", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_response_stream)
+  |> reason_rule(predicate: "quic_frame_observed:remote:quic:remote_to_local:frame:connection_close", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_close)
+
+template(:http3_request_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:http3_request_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

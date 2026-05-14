@@ -1355,7 +1355,9 @@ fn dsl_invalid_value_code(value: &str) -> &'static str {
         "GEWYC-PARSE-UNKNOWN-PACKAGE-DEPENDENCY"
     } else if value == "pipeline include() requires a filesystem-backed entry file" {
         "GEWYC-PARSE-INCLUDE-NONFILESYSTEM-ENTRY"
-    } else if value == "pipeline function bodies must contain '|>' steps" {
+    } else if value == "pipeline function bodies must contain '|>' steps"
+        || value == "pipeline function bodies may only contain 'let' bindings or '|>' steps"
+    {
         "GEWYC-PARSE-INVALID-FUNCTION-BODY"
     } else if value == "unclosed pipeline function block" {
         "GEWYC-PARSE-UNCLOSED-FUNCTION-BLOCK"

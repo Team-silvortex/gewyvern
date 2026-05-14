@@ -1,0 +1,52 @@
+# gewylang Pipeline Grammar (Draft)
+
+This file is the draft EBNF for the preferred pipeline surface of `gewylang`.
+It intentionally focuses on the current functional DSL shape rather than the
+legacy key/value or structured compatibility layers.
+
+```ebnf
+pipeline_file        = { blank_line | comment | function_decl }, template_head,
+                       { pipeline_step | blank_line | comment } ;
+
+function_decl        = function_block_decl | function_expr_decl ;
+function_block_decl  = "fn", ws, ident, "(", [ param_list ], ")", ws, "{",
+                       newline,
+                       { function_binding | function_step | blank_line | comment },
+                       "}" ;
+function_expr_decl   = "fn", ws, ident, "(", [ param_list ], ")", ws,
+                       ( "=" | "=>" ), newline,
+                       { function_binding | function_step | blank_line | comment } ;
+
+template_head        = "template", "(", value, ")" ;
+pipeline_step        = "|>", ws, call ;
+function_step        = "|>", ws, call ;
+function_binding     = "let", ws, ident, ws, "=", ws, value ;
+
+call                 = ident, "(", [ arg_list ], ")" ;
+arg_list             = arg, { ",", ws, arg } ;
+arg                  = value | keyword_arg ;
+keyword_arg          = ident, ":", ws, value ;
+
+param_list           = ident, { ",", ws, ident } ;
+value                = atom | string | placeholder | raw_token ;
+atom                 = ":", ident ;
+placeholder          = "${", ident, "}" ;
+
+ident                = ? non-empty identifier token ? ;
+string               = ? double-quoted string literal ? ;
+raw_token            = ? unquoted token consumed by the current pipeline step ? ;
+comment              = "#", ? rest of line ? ;
+blank_line           = "" ;
+ws                   = { " " | "\t" } ;
+newline              = "\n" ;
+```
+
+Operational notes:
+
+- exactly one `template(...)` head is allowed per pipeline entry
+- `include(...)` is resolved before lowering
+- `use(...)` applies a pure function unit by positional arguments
+- `let` introduces a local immutable binding inside a function unit
+- one pipeline call still occupies one line
+- expression-style functions end when the parser reaches the next non-comment,
+  non-empty line that does not start with `|>` or `let `
