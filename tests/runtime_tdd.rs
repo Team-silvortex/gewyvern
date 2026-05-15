@@ -1014,17 +1014,17 @@ fn rejected_core_packet_evidence_points_to_datagram_io_as_suspect_area() {
 fn dsl_declared_module_names_override_auto_generated_module_labels() {
     let binding = gewyvern::dsl::compile_str(
         r#"
-template=udp_module_debug
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=datagram_exchange
-rule=process_bound;process_bound;process_bound;true;udp_request_path
-rule=datagram_observed:udp;datagram_observed;udp_datagram_observed;true;udp_request_path
-rule=route_resolved;route_resolved;route_changed;true;udp_request_path
-param=udp_packet_meta_fragment.min_len=80
+template(:udp_module_debug)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> operation(:datagram_exchange)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :udp_request_path)
+|> program_rule(predicate: "datagram_observed:udp", stage: :datagram_observed, narrative: :udp_datagram_observed, dedupe: true, module: :udp_request_path)
+|> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_changed, dedupe: true, module: :udp_request_path)
+|> param(:udp_packet_meta_fragment.min_len, 80)
 "#,
     )
     .unwrap();

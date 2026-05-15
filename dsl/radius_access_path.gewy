@@ -1,18 +1,23 @@
-# gewyvern DSL v0
-template=radius_access_path
-window.duration_ms=5000
-window.lateness_ms=200
-reason_model=radius_access_path_reason
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=radius_access
-rule=process_bound;process_bound;process_bound;true;radius_access_path;bind
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this RADIUS access path;true;radius_access_path;resolve_upstream
-rule=datagram_observed:udp:remote:radius:local_to_remote:byte0_mask:0xff:0x01;datagram_observed;udp_datagram_sent;true;radius_access_path;send_access_request
-rule=datagram_observed:udp:remote:radius:remote_to_local:byte0_mask:0xff:0x02;datagram_observed;udp_datagram_received;true;radius_access_path;receive_access_accept
-reason.rule=process_bound;process_identified;process_bound;true;radius_access_path;bind
-reason.rule=route_resolved;route_changed;route_changed;true;radius_access_path;resolve_upstream
-reason.rule=datagram_observed:udp:remote:radius:local_to_remote:byte0_mask:0xff:0x01;udp_datagram_seen;udp_datagram_sent;true;radius_access_path;send_access_request
-reason.rule=datagram_observed:udp:remote:radius:remote_to_local:byte0_mask:0xff:0x02;udp_datagram_seen;udp_datagram_received;true;radius_access_path;receive_access_accept
-param=sock_lineage_fragment.capture_comm=true
+# gewyvern stable-subset protocol path
+
+fn radius_access_rules() =
+  let module_name = :radius_access_path
+  let route_narrative = "static:program resolved an upstream route for this RADIUS access path"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:radius_access)
+  |> reason_model(:radius_access_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "datagram_observed:udp:remote:radius:local_to_remote:byte0_mask:0xff:0x01", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_access_request)
+  |> program_rule(predicate: "datagram_observed:udp:remote:radius:remote_to_local:byte0_mask:0xff:0x02", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_access_accept)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:radius:local_to_remote:byte0_mask:0xff:0x01", key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_access_request)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:radius:remote_to_local:byte0_mask:0xff:0x02", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_access_accept)
+
+template(:radius_access_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:radius_access_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

@@ -1,21 +1,26 @@
-template=ldap_search_path
-window=default_5s
-reason_model=ldap_search_path_reason
-fragment=tcp_state_fragment
-fragment=tcp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-program_model=ldap_search_path_model
-operation=ldap_search
-rule=process_bound;process_bound;process_bound;true;ldap_search_path;bind
-rule=socket_state_observed:remote:ldap;socket_state_transition;static:program initiated or advanced an LDAP socket state transition;false;ldap_search_path;connect
-rule=socket_state_observed:remote:ldap:established;socket_state_transition;static:program reached an established LDAP socket state;true;ldap_search_path;establish
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this LDAP search path;true;ldap_search_path;resolve_upstream
-rule=packet_observed:tcp:remote:ldap:local_to_remote:byte_at:5:0xff:0x63;packet_observed;transport_payload_sent;true;ldap_search_path;send_search
-rule=packet_observed:tcp:remote:ldap:remote_to_local:byte_at:5:0xff:0x65;packet_observed;transport_payload_received;true;ldap_search_path;receive_search_result
-reason.rule=process_bound;process_identified;process_bound;true;ldap_search_path;bind
-reason.rule=socket_state_observed:remote:ldap;state_change;tcp_state_transition;false;ldap_search_path;connect
-reason.rule=socket_state_observed:remote:ldap:established;state_change;tcp_state_transition;true;ldap_search_path;establish
-reason.rule=route_resolved;route_changed;route_changed;true;ldap_search_path;resolve_upstream
-reason.rule=packet_observed:tcp:remote:ldap:local_to_remote:byte_at:5:0xff:0x63;packet_observed;transport_payload_sent;true;ldap_search_path;send_search
-reason.rule=packet_observed:tcp:remote:ldap:remote_to_local:byte_at:5:0xff:0x65;packet_observed;transport_payload_received;true;ldap_search_path;receive_search_result
+fn ldap_search_rules() =
+  let module_name = :ldap_search_path
+  let route_narrative = "static:program resolved an upstream route for this LDAP search path"
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> program_model(:ldap_search_path_model)
+  |> operation(:ldap_search)
+  |> reason_model(:ldap_search_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: "socket_state_observed:remote:ldap", stage: :socket_state_transition, narrative: "static:program initiated or advanced an LDAP socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "socket_state_observed:remote:ldap:established", stage: :socket_state_transition, narrative: "static:program reached an established LDAP socket state", dedupe: true, module: ${module_name}, phase: :establish)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "packet_observed:tcp:remote:ldap:local_to_remote:byte_at:5:0xff:0x63", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_search)
+  |> program_rule(predicate: "packet_observed:tcp:remote:ldap:remote_to_local:byte_at:5:0xff:0x65", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_search_result)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: "socket_state_observed:remote:ldap", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "socket_state_observed:remote:ldap:established", key_event: :state_change, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :establish)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:ldap:local_to_remote:byte_at:5:0xff:0x63", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_search)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:ldap:remote_to_local:byte_at:5:0xff:0x65", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_search_result)
+
+template(:ldap_search_path)
+|> window(:default_5s)
+|> use(:ldap_search_rules)

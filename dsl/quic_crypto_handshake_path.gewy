@@ -1,22 +1,27 @@
-# gewyvern DSL v0
-template=quic_crypto_handshake_path
-window.duration_ms=5000
-window.lateness_ms=200
-reason_model=quic_crypto_handshake_path_reason
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=quic_crypto_handshake
-rule=process_bound;process_bound;process_bound;true;quic_crypto_handshake_path;bind
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this QUIC crypto handshake;true;quic_crypto_handshake_path;resolve_upstream
-rule=quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial;datagram_observed;udp_datagram_sent;true;quic_crypto_handshake_path;send_initial
-rule=quic_frame_observed:remote:quic:local_to_remote:type:initial:frame:crypto;packet_observed;transport_payload_sent;true;quic_crypto_handshake_path;send_crypto
-rule=quic_packet_observed:remote:quic:remote_to_local:long_header:true:type:handshake;datagram_observed;udp_datagram_received;true;quic_crypto_handshake_path;receive_handshake
-rule=quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto;packet_observed;transport_payload_received;true;quic_crypto_handshake_path;receive_crypto
-reason.rule=process_bound;process_identified;process_bound;true;quic_crypto_handshake_path;bind
-reason.rule=route_resolved;route_changed;route_changed;true;quic_crypto_handshake_path;resolve_upstream
-reason.rule=quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial;udp_datagram_seen;udp_datagram_sent;true;quic_crypto_handshake_path;send_initial
-reason.rule=quic_frame_observed:remote:quic:local_to_remote:type:initial:frame:crypto;packet_observed;transport_payload_sent;true;quic_crypto_handshake_path;send_crypto
-reason.rule=quic_packet_observed:remote:quic:remote_to_local:long_header:true:type:handshake;udp_datagram_seen;udp_datagram_received;true;quic_crypto_handshake_path;receive_handshake
-reason.rule=quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto;packet_observed;transport_payload_received;true;quic_crypto_handshake_path;receive_crypto
-param=sock_lineage_fragment.capture_comm=true
+# gewyvern stable-subset protocol path
+
+fn quic_crypto_handshake_rules() =
+  let module_name = :quic_crypto_handshake_path
+  let route_narrative = "static:program resolved an upstream route for this QUIC crypto handshake"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:quic_crypto_handshake)
+  |> reason_model(:quic_crypto_handshake_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_initial)
+  |> program_rule(predicate: "quic_frame_observed:remote:quic:local_to_remote:type:initial:frame:crypto", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_crypto)
+  |> program_rule(predicate: "quic_packet_observed:remote:quic:remote_to_local:long_header:true:type:handshake", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_handshake)
+  |> program_rule(predicate: "quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_crypto)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial", key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_initial)
+  |> reason_rule(predicate: "quic_frame_observed:remote:quic:local_to_remote:type:initial:frame:crypto", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_crypto)
+  |> reason_rule(predicate: "quic_packet_observed:remote:quic:remote_to_local:long_header:true:type:handshake", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_handshake)
+  |> reason_rule(predicate: "quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_crypto)
+
+template(:quic_crypto_handshake_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:quic_crypto_handshake_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

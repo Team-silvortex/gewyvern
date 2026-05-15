@@ -1,31 +1,36 @@
-# gewyvern DSL v0
-template=ssh_channel_session_path
-window.duration_ms=5000
-window.lateness_ms=200
-reason_model=ssh_channel_session_path_reason
-fragment=tcp_packet_meta_fragment
-fragment=tcp_state_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=ssh_channel_session
-rule=process_bound;process_bound;process_bound;true;ssh_channel_session_path;bind
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this SSH channel session;true;ssh_channel_session_path;resolve_upstream
-rule=socket_state_observed:remote:ssh;socket_state_transition;static:program initiated or advanced an SSH socket state transition;false;ssh_channel_session_path;connect
-rule=packet_observed:tcp:remote:ssh:remote_to_local:prefix4:0x5353482d;packet_observed;transport_payload_received;true;ssh_channel_session_path;receive_server_banner
-rule=packet_observed:tcp:remote:ssh:local_to_remote:prefix4:0x5353482d;packet_observed;transport_payload_sent;true;ssh_channel_session_path;send_client_banner
-rule=packet_observed:tcp:remote:ssh:local_to_remote:byte_at:5:0xff:0x14;packet_observed;transport_payload_sent;true;ssh_channel_session_path;send_key_exchange_init
-rule=packet_observed:tcp:remote:ssh:local_to_remote:byte_at:5:0xff:0x32;packet_observed;transport_payload_sent;true;ssh_channel_session_path;send_auth_request
-rule=packet_observed:tcp:remote:ssh:remote_to_local:byte_at:5:0xff:0x34;packet_observed;transport_payload_received;true;ssh_channel_session_path;receive_auth_success
-rule=packet_observed:tcp:remote:ssh:local_to_remote:byte_at:5:0xff:0x5a;packet_observed;transport_payload_sent;true;ssh_channel_session_path;send_channel_open
-rule=packet_observed:tcp:remote:ssh:remote_to_local:byte_at:5:0xff:0x5b;packet_observed;transport_payload_received;true;ssh_channel_session_path;receive_channel_open_confirmation
-reason.rule=process_bound;process_identified;process_bound;true;ssh_channel_session_path;bind
-reason.rule=route_resolved;route_changed;route_changed;true;ssh_channel_session_path;resolve_upstream
-reason.rule=socket_state_observed:remote:ssh;state_change;tcp_state_transition;false;ssh_channel_session_path;connect
-reason.rule=packet_observed:tcp:remote:ssh:remote_to_local:prefix4:0x5353482d;packet_observed;transport_payload_received;true;ssh_channel_session_path;receive_server_banner
-reason.rule=packet_observed:tcp:remote:ssh:local_to_remote:prefix4:0x5353482d;packet_observed;transport_payload_sent;true;ssh_channel_session_path;send_client_banner
-reason.rule=packet_observed:tcp:remote:ssh:local_to_remote:byte_at:5:0xff:0x14;packet_observed;transport_payload_sent;true;ssh_channel_session_path;send_key_exchange_init
-reason.rule=packet_observed:tcp:remote:ssh:local_to_remote:byte_at:5:0xff:0x32;packet_observed;transport_payload_sent;true;ssh_channel_session_path;send_auth_request
-reason.rule=packet_observed:tcp:remote:ssh:remote_to_local:byte_at:5:0xff:0x34;packet_observed;transport_payload_received;true;ssh_channel_session_path;receive_auth_success
-reason.rule=packet_observed:tcp:remote:ssh:local_to_remote:byte_at:5:0xff:0x5a;packet_observed;transport_payload_sent;true;ssh_channel_session_path;send_channel_open
-reason.rule=packet_observed:tcp:remote:ssh:remote_to_local:byte_at:5:0xff:0x5b;packet_observed;transport_payload_received;true;ssh_channel_session_path;receive_channel_open_confirmation
-param=sock_lineage_fragment.capture_comm=true
+# gewyvern stable-subset protocol path
+
+fn ssh_channel_session_rules() =
+  let module_name = :ssh_channel_session_path
+  let route_narrative = "static:program resolved an upstream route for this SSH channel session"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:ssh_channel_session)
+  |> reason_model(:ssh_channel_session_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "socket_state_observed:remote:ssh", stage: :socket_state_transition, narrative: "static:program initiated or advanced an SSH socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "packet_observed:tcp:remote:ssh:remote_to_local:prefix4:0x5353482d", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_server_banner)
+  |> program_rule(predicate: "packet_observed:tcp:remote:ssh:local_to_remote:prefix4:0x5353482d", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_client_banner)
+  |> program_rule(predicate: "packet_observed:tcp:remote:ssh:local_to_remote:byte_at:5:0xff:0x14", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_key_exchange_init)
+  |> program_rule(predicate: "packet_observed:tcp:remote:ssh:local_to_remote:byte_at:5:0xff:0x32", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_auth_request)
+  |> program_rule(predicate: "packet_observed:tcp:remote:ssh:remote_to_local:byte_at:5:0xff:0x34", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_auth_success)
+  |> program_rule(predicate: "packet_observed:tcp:remote:ssh:local_to_remote:byte_at:5:0xff:0x5a", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_channel_open)
+  |> program_rule(predicate: "packet_observed:tcp:remote:ssh:remote_to_local:byte_at:5:0xff:0x5b", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_channel_open_confirmation)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "socket_state_observed:remote:ssh", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:ssh:remote_to_local:prefix4:0x5353482d", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_server_banner)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:ssh:local_to_remote:prefix4:0x5353482d", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_client_banner)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:ssh:local_to_remote:byte_at:5:0xff:0x14", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_key_exchange_init)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:ssh:local_to_remote:byte_at:5:0xff:0x32", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_auth_request)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:ssh:remote_to_local:byte_at:5:0xff:0x34", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_auth_success)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:ssh:local_to_remote:byte_at:5:0xff:0x5a", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_channel_open)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:ssh:remote_to_local:byte_at:5:0xff:0x5b", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_channel_open_confirmation)
+
+template(:ssh_channel_session_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:ssh_channel_session_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

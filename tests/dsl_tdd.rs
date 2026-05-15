@@ -414,51 +414,33 @@ fn built_in_hy2_tcp_relay_path_dsl_compiles_into_template_binding() {
 }
 
 #[test]
-fn dsl_accepts_local_remote_port_predicates_and_legacy_aliases() {
+fn dsl_accepts_local_remote_port_predicates() {
     let local_binding = compile_str(
         r#"
-template=http_server_compat
-window=default_5s
-reason=handshake_l1
-fragment=tcp_state_fragment
-program_model=http_server_compat_model
-operation=http_server_response
-rule=socket_state_observed:local:http;socket_state_transition;static:local http socket observed;true
-"#,
-    )
-    .unwrap();
-    let legacy_binding = compile_str(
-        r#"
-template=http_server_legacy
-window=default_5s
-reason=handshake_l1
-fragment=tcp_state_fragment
-program_model=http_server_legacy_model
-operation=http_server_response
-rule=socket_state_observed:sport:http;socket_state_transition;static:legacy local http socket observed;true
+template(:http_server_compat)
+|> window(:default_5s)
+|> reason(:handshake_l1)
+|> fragment(:tcp_state_fragment)
+|> program_model(:http_server_compat_model)
+|> operation(:http_server_response)
+|> program_rule(predicate: "socket_state_observed:local:http", stage: :socket_state_transition, narrative: "static:local http socket observed", dedupe: true)
 "#,
     )
     .unwrap();
     let remote_binding = compile_str(
         r#"
-template=http_client_remote
-window=default_5s
-reason=handshake_l1
-fragment=tcp_state_fragment
-program_model=http_client_remote_model
-operation=http_request
-rule=socket_state_observed:remote:https;socket_state_transition;static:remote https socket observed;true
+template(:http_client_remote)
+|> window(:default_5s)
+|> reason(:handshake_l1)
+|> fragment(:tcp_state_fragment)
+|> program_model(:http_client_remote_model)
+|> operation(:http_request)
+|> program_rule(predicate: "socket_state_observed:remote:https", stage: :socket_state_transition, narrative: "static:remote https socket observed", dedupe: true)
 "#,
     )
     .unwrap();
 
     let local_rule = &local_binding.template.program_model.as_ref().unwrap().rules[0];
-    let legacy_rule = &legacy_binding
-        .template
-        .program_model
-        .as_ref()
-        .unwrap()
-        .rules[0];
     let remote_rule = &remote_binding
         .template
         .program_model
@@ -466,7 +448,14 @@ rule=socket_state_observed:remote:https;socket_state_transition;static:remote ht
         .unwrap()
         .rules[0];
 
-    assert_eq!(local_rule.predicate, legacy_rule.predicate);
+    assert_eq!(
+        local_rule.predicate,
+        gewyvern::ir::FlowPredicate::SocketStateObserved {
+            local_port: Some(80),
+            remote_port: None,
+            min_new_state: None,
+        }
+    );
     assert_eq!(
         remote_rule.predicate,
         gewyvern::ir::FlowPredicate::SocketStateObserved {
@@ -478,63 +467,33 @@ rule=socket_state_observed:remote:https;socket_state_transition;static:remote ht
 }
 
 #[test]
-fn dsl_accepts_flow_direction_predicates_and_legacy_aliases() {
+fn dsl_accepts_flow_direction_predicates() {
     let packet_binding = compile_str(
         r#"
-template=http_client_direction
-window=default_5s
-reason=handshake_l1
-fragment=tcp_packet_meta_fragment
-program_model=http_client_direction_model
-operation=http_request
-rule=packet_observed:tcp:local_to_remote;packet_observed;static:outbound http payload observed;true
-"#,
-    )
-    .unwrap();
-    let legacy_packet_binding = compile_str(
-        r#"
-template=http_client_direction_legacy
-window=default_5s
-reason=handshake_l1
-fragment=tcp_packet_meta_fragment
-program_model=http_client_direction_legacy_model
-operation=http_request
-rule=packet_observed:tcp:egress;packet_observed;static:legacy outbound http payload observed;true
+template(:http_client_direction)
+|> window(:default_5s)
+|> reason(:handshake_l1)
+|> fragment(:tcp_packet_meta_fragment)
+|> program_model(:http_client_direction_model)
+|> operation(:http_request)
+|> program_rule(predicate: "packet_observed:tcp:local_to_remote", stage: :packet_observed, narrative: "static:outbound http payload observed", dedupe: true)
 "#,
     )
     .unwrap();
     let datagram_binding = compile_str(
         r#"
-template=dns_direction
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=dns_direction_model
-operation=dns_lookup
-rule=datagram_observed:udp:remote_to_local;datagram_observed;static:inbound dns datagram observed;true
-"#,
-    )
-    .unwrap();
-    let legacy_datagram_binding = compile_str(
-        r#"
-template=dns_direction_legacy
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=dns_direction_legacy_model
-operation=dns_lookup
-rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns datagram observed;true
+template(:dns_direction)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:dns_direction_model)
+|> operation(:dns_lookup)
+|> program_rule(predicate: "datagram_observed:udp:remote_to_local", stage: :datagram_observed, narrative: "static:inbound dns datagram observed", dedupe: true)
 "#,
     )
     .unwrap();
 
     let packet_rule = &packet_binding
-        .template
-        .program_model
-        .as_ref()
-        .unwrap()
-        .rules[0];
-    let legacy_packet_rule = &legacy_packet_binding
         .template
         .program_model
         .as_ref()
@@ -546,14 +505,7 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
         .as_ref()
         .unwrap()
         .rules[0];
-    let legacy_datagram_rule = &legacy_datagram_binding
-        .template
-        .program_model
-        .as_ref()
-        .unwrap()
-        .rules[0];
 
-    assert_eq!(packet_rule.predicate, legacy_packet_rule.predicate);
     assert_eq!(
         packet_rule.predicate,
         gewyvern::ir::FlowPredicate::PacketObserved {
@@ -572,7 +524,6 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
             byte_sequences: vec![],
         }
     );
-    assert_eq!(datagram_rule.predicate, legacy_datagram_rule.predicate);
     assert_eq!(
         datagram_rule.predicate,
         gewyvern::ir::FlowPredicate::DatagramObserved {
@@ -597,14 +548,14 @@ rule=datagram_observed:udp:ingress;datagram_observed;static:legacy inbound dns d
 fn dsl_accepts_packet_port_and_prefix4_qualifiers() {
     let binding = compile_str(
         r#"
-template=redis_resp_packet_match
-window=default_5s
-reason=handshake_l1
-fragment=tcp_packet_meta_fragment
-program_model=redis_resp_packet_match_model
-operation=redis_ping
-rule=packet_observed:tcp:remote:redis:local_to_remote:byte0_mask:0xff:0x2a;packet_observed;transport_payload_sent;true
-rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_observed;transport_payload_received;true
+template(:redis_resp_packet_match)
+|> window(:default_5s)
+|> reason(:handshake_l1)
+|> fragment(:tcp_packet_meta_fragment)
+|> program_model(:redis_resp_packet_match_model)
+|> operation(:redis_ping)
+|> program_rule(predicate: "packet_observed:tcp:remote:redis:local_to_remote:byte0_mask:0xff:0x2a", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true)
+|> program_rule(predicate: "packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true)
 "#,
     )
     .unwrap();
@@ -653,13 +604,13 @@ rule=packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e;packet_
 fn dsl_accepts_packet_byte4_mask_qualifier() {
     let binding = compile_str(
         r#"
-template=dns_tcp_packet_match
-window=default_5s
-reason=handshake_l1
-fragment=tcp_packet_meta_fragment
-program_model=dns_tcp_packet_match_model
-operation=dns_tcp_query
-rule=packet_observed:tcp:remote:53:remote_to_local:byte4_mask:0x80:0x80;packet_observed;transport_payload_received;true
+template(:dns_tcp_packet_match)
+|> window(:default_5s)
+|> reason(:handshake_l1)
+|> fragment(:tcp_packet_meta_fragment)
+|> program_model(:dns_tcp_packet_match_model)
+|> operation(:dns_tcp_query)
+|> program_rule(predicate: "packet_observed:tcp:remote:53:remote_to_local:byte4_mask:0x80:0x80", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true)
 "#,
     )
     .unwrap();
@@ -689,25 +640,13 @@ rule=packet_observed:tcp:remote:53:remote_to_local:byte4_mask:0x80:0x80;packet_o
 fn dsl_accepts_datagram_port_predicates_and_named_quic_alias() {
     let remote_quic_binding = compile_str(
         r#"
-template=quic_port_match
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=quic_port_match_model
-operation=quic_client_initial
-rule=datagram_observed:udp:remote:quic:local_to_remote;datagram_observed;udp_datagram_sent;true
-"#,
-    )
-    .unwrap();
-    let legacy_remote_binding = compile_str(
-        r#"
-template=quic_port_match_legacy
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=quic_port_match_legacy_model
-operation=quic_client_initial
-rule=datagram_observed:udp:dport:443:local_to_remote;datagram_observed;udp_datagram_sent;true
+template(:quic_port_match)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:quic_port_match_model)
+|> operation(:quic_client_initial)
+|> program_rule(predicate: "datagram_observed:udp:remote:quic:local_to_remote", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true)
 "#,
     )
     .unwrap();
@@ -718,13 +657,6 @@ rule=datagram_observed:udp:dport:443:local_to_remote;datagram_observed;udp_datag
         .as_ref()
         .unwrap()
         .rules[0];
-    let legacy_rule = &legacy_remote_binding
-        .template
-        .program_model
-        .as_ref()
-        .unwrap()
-        .rules[0];
-    assert_eq!(rule.predicate, legacy_rule.predicate);
     assert_eq!(
         rule.predicate,
         gewyvern::ir::FlowPredicate::DatagramObserved {
@@ -749,13 +681,13 @@ rule=datagram_observed:udp:dport:443:local_to_remote;datagram_observed;udp_datag
 fn dsl_accepts_quic_packet_observed_predicate() {
     let binding = compile_str(
         r#"
-template=quic_packet_match
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=quic_packet_match_model
-operation=quic_client_initial
-rule=quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial;datagram_observed;udp_datagram_sent;true
+template(:quic_packet_match)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:quic_packet_match_model)
+|> operation(:quic_client_initial)
+|> program_rule(predicate: "quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true)
 "#,
     )
     .unwrap();
@@ -778,13 +710,13 @@ rule=quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:t
 fn dsl_accepts_quic_frame_observed_predicate() {
     let binding = compile_str(
         r#"
-template=quic_frame_match
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=quic_frame_match_model
-operation=quic_crypto_handshake
-rule=quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto;packet_observed;transport_payload_received;true
+template(:quic_frame_match)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:quic_frame_match_model)
+|> operation(:quic_crypto_handshake)
+|> program_rule(predicate: "quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true)
 "#,
     )
     .unwrap();
@@ -808,13 +740,13 @@ rule=quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto
 fn dsl_accepts_datagram_min_len_qualifier() {
     let binding = compile_str(
         r#"
-template=quic_initial_len_match
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=quic_initial_len_match_model
-operation=quic_client_initial
-rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200;datagram_observed;udp_datagram_sent;true
+template(:quic_initial_len_match)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:quic_initial_len_match_model)
+|> operation(:quic_client_initial)
+|> program_rule(predicate: "datagram_observed:udp:remote:quic:local_to_remote:min_len:1200", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true)
 "#,
     )
     .unwrap();
@@ -844,13 +776,13 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200;datagram_obs
 fn dsl_accepts_datagram_byte0_mask_qualifier() {
     let binding = compile_str(
         r#"
-template=quic_initial_byte_match
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=quic_initial_byte_match_model
-operation=quic_client_initial
-rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0xf0:0xc0;datagram_observed;udp_datagram_sent;true
+template(:quic_initial_byte_match)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:quic_initial_byte_match_model)
+|> operation(:quic_client_initial)
+|> program_rule(predicate: "datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0xf0:0xc0", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true)
 "#,
     )
     .unwrap();
@@ -880,13 +812,13 @@ rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0
 fn dsl_accepts_datagram_prefix4_qualifier() {
     let binding = compile_str(
         r#"
-template=mdns_response_prefix4_match
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=mdns_response_prefix4_match_model
-operation=mdns_query
-rule=datagram_observed:udp:remote:mdns:remote_to_local:prefix4:0x00008400;datagram_observed;udp_datagram_received;true
+template(:mdns_response_prefix4_match)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:mdns_response_prefix4_match_model)
+|> operation(:mdns_query)
+|> program_rule(predicate: "datagram_observed:udp:remote:mdns:remote_to_local:prefix4:0x00008400", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true)
 "#,
     )
     .unwrap();
@@ -916,13 +848,13 @@ rule=datagram_observed:udp:remote:mdns:remote_to_local:prefix4:0x00008400;datagr
 fn dsl_accepts_datagram_byte_at_qualifier() {
     let binding = compile_str(
         r#"
-template=snmp_byte13_match
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=snmp_byte13_match_model
-operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:byte_at:13:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+template(:snmp_byte13_match)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:snmp_byte13_match_model)
+|> operation(:snmp_get)
+|> program_rule(predicate: "datagram_observed:udp:remote:snmp:byte_at:13:0xff:0xa0", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true)
 "#,
     )
     .unwrap();
@@ -948,14 +880,14 @@ rule=datagram_observed:udp:remote:snmp:byte_at:13:0xff:0xa0;datagram_observed;ud
 fn dsl_accepts_datagram_bytes_at_qualifier() {
     let binding = compile_str(
         r#"
-template=snmp_bytes_sequence_match
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-param=udp_packet_meta_fragment.sample_payload_offsets=8
-program_model=snmp_bytes_sequence_match_model
-operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:bytes_at:8:0x30,0x82,0x01;datagram_observed;udp_datagram_sent;true
+template(:snmp_bytes_sequence_match)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> param(:udp_packet_meta_fragment.sample_payload_offsets, 8)
+|> program_model(:snmp_bytes_sequence_match_model)
+|> operation(:snmp_get)
+|> program_rule(predicate: "datagram_observed:udp:remote:snmp:bytes_at:8:0x30,0x82,0x01", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true)
 "#,
     )
     .unwrap();
@@ -978,14 +910,14 @@ rule=datagram_observed:udp:remote:snmp:bytes_at:8:0x30,0x82,0x01;datagram_observ
 fn binding_diagnostics_accept_bytes_at_sequence_with_dynamic_offsets() {
     let binding = compile_str(
         r#"
-template=snmp_bytes_sequence_runtime
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-param=udp_packet_meta_fragment.sample_payload_offsets=8
-program_model=snmp_bytes_sequence_runtime_model
-operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:local_to_remote:bytes_at:8:0x30,0x82,0x01;datagram_observed;udp_datagram_sent;true
+template(:snmp_bytes_sequence_runtime)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> param(:udp_packet_meta_fragment.sample_payload_offsets, 8)
+|> program_model(:snmp_bytes_sequence_runtime_model)
+|> operation(:snmp_get)
+|> program_rule(predicate: "datagram_observed:udp:remote:snmp:local_to_remote:bytes_at:8:0x30,0x82,0x01", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true)
 "#,
     )
     .unwrap();
@@ -1005,16 +937,15 @@ rule=datagram_observed:udp:remote:snmp:local_to_remote:bytes_at:8:0x30,0x82,0x01
 fn directional_narrative_templates_render_and_replay_cleanly() {
     let binding = compile_str(
         r#"
-template=directional_narrative_templates
-window.duration_ms=5000
-window.lateness_ms=200
-fragment=udp_packet_meta_fragment
-fragment=sock_lineage_fragment
-operation=datagram_exchange
-rule=process_bound;process_bound;process_bound;true
-rule=datagram_observed:udp:remote_to_local;datagram_observed;udp_datagram_received;true
-reason.rule=process_bound;process_identified;process_bound;true
-reason.rule=datagram_observed:udp:remote_to_local;udp_datagram_seen;udp_datagram_received;true
+template(:directional_narrative_templates)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> operation(:datagram_exchange)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)
+|> program_rule(predicate: "datagram_observed:udp:remote_to_local", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true)
+|> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true)
+|> reason_rule(predicate: "datagram_observed:udp:remote_to_local", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true)
 "#,
     )
     .unwrap();
@@ -1865,18 +1796,18 @@ fn udp_process_dsl_binding_drives_runtime_session() {
 fn dsl_supports_custom_predicates_and_fragment_params() {
     let binding = compile_str(
         r#"
-template=udp_dns_debug
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-program_model=dns_lookup_v1
-operation=dns_lookup
-rule=all(process_bound,datagram_observed:udp);datagram_observed;static:process-owned dns datagram;true
-rule=any(route_resolved,socket_state_observed);route_resolved;static:upstream path or socket progress observed;true
-param=sock_lineage_fragment.capture_comm=false
-param=udp_packet_meta_fragment.min_len=80
+template(:udp_dns_debug)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> program_model(:dns_lookup_v1)
+|> operation(:dns_lookup)
+|> program_rule(predicate: "all(process_bound,datagram_observed:udp)", stage: :datagram_observed, narrative: "static:process-owned dns datagram", dedupe: true)
+|> program_rule(predicate: "any(route_resolved,socket_state_observed)", stage: :route_resolved, narrative: "static:upstream path or socket progress observed", dedupe: true)
+|> param(:sock_lineage_fragment.capture_comm, false)
+|> param(:udp_packet_meta_fragment.min_len, 80)
 "#,
     )
     .unwrap();
@@ -13560,14 +13491,13 @@ fn handshake_dsl_compiles_and_preserves_tcp_shape() {
 fn dsl_supports_inline_window_and_infers_program_model_id() {
     let binding = compile_str(
         r#"
-template=udp_inline_debug
-window.duration_ms=9000
-window.lateness_ms=450
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-operation=datagram_exchange
-rule=datagram_observed:udp;datagram_observed;static:inline udp activity observed;true
+template(:udp_inline_debug)
+|> window(duration_ms: 9000, lateness_ms: 450)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> operation(:datagram_exchange)
+|> program_rule(predicate: "datagram_observed:udp", stage: :datagram_observed, narrative: "static:inline udp activity observed", dedupe: true)
 "#,
     )
     .unwrap();
@@ -13601,41 +13531,19 @@ rule=datagram_observed:udp;datagram_observed;static:inline udp activity observed
 }
 
 #[test]
-fn dsl_accepts_structured_template_blocks() {
+fn dsl_accepts_pipeline_template_blocks() {
     let binding = compile_str(
         r#"
-template structured_udp_debug {
-  window default_5s
-  reason udp_datagram_l1
-
-  fragments {
-    udp_packet_meta_fragment
-    route_meta_fragment
-    sock_lineage_fragment
-  }
-
-  program_model structured_udp_debug_model {
-    operation datagram_exchange
-
-    rule {
-      predicate process_bound
-      stage process_bound
-      narrative process_bound
-      dedupe true
-      module structured_udp_debug
-      phase bind
-    }
-
-    rule {
-      predicate datagram_observed:udp:local_to_remote
-      stage datagram_observed
-      narrative udp_datagram_sent
-      dedupe true
-      module structured_udp_debug
-      phase send_request
-    }
-  }
-}
+template(:structured_udp_debug)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> program_model(:structured_udp_debug_model)
+|> operation(:datagram_exchange)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :structured_udp_debug, phase: :bind)
+|> program_rule(predicate: "datagram_observed:udp:local_to_remote", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: :structured_udp_debug, phase: :send_request)
 "#,
     )
     .unwrap();
@@ -13661,40 +13569,19 @@ template structured_udp_debug {
 }
 
 #[test]
-fn dsl_accepts_structured_reason_model_blocks() {
+fn dsl_accepts_pipeline_reason_model_blocks() {
     let binding = compile_str(
         r#"
-template structured_reason_udp {
-  window default_5s
-  fragments {
-    udp_packet_meta_fragment
-    route_meta_fragment
-    sock_lineage_fragment
-  }
-
-  program_model structured_reason_udp_model {
-    operation datagram_exchange
-    rule {
-      predicate process_bound
-      stage process_bound
-      narrative process_bound
-      dedupe true
-      module structured_reason_udp
-      phase bind
-    }
-  }
-
-  reason_model structured_reason_udp_reason {
-    rule {
-      predicate process_bound
-      key_event process_identified
-      narrative process_bound
-      dedupe true
-      module structured_reason_udp
-      phase bind
-    }
-  }
-}
+template(:structured_reason_udp)
+|> window(:default_5s)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> program_model(:structured_reason_udp_model)
+|> operation(:datagram_exchange)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :structured_reason_udp, phase: :bind)
+|> reason_model(:structured_reason_udp_reason)
+|> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: :structured_reason_udp, phase: :bind)
 "#,
     )
     .unwrap();
@@ -14333,12 +14220,11 @@ template(:use_cycle)
 fn dsl_can_fall_back_to_default_program_model_from_reason_profile() {
     let binding = compile_str(
         r#"
-template=udp_minimal
-window.duration_ms=5000
-window.lateness_ms=200
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
+template(:udp_minimal)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
 "#,
     )
     .unwrap();
@@ -14357,17 +14243,16 @@ fragment=route_meta_fragment
 fn dsl_supports_declarative_reason_rules_and_replay_preserves_them() {
     let binding = compile_str(
         r#"
-template=udp_reason_inline
-window.duration_ms=5000
-window.lateness_ms=200
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=datagram_exchange
-rule=process_bound;process_bound;process_bound;true
-reason.rule=process_bound;process_identified;process_bound;true
-reason.rule=datagram_observed:udp;udp_datagram_seen;udp_datagram_observed;true
-reason.rule=route_resolved;route_changed;route_changed;true
+template(:udp_reason_inline)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> operation(:datagram_exchange)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)
+|> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true)
+|> reason_rule(predicate: "datagram_observed:udp", key_event: :udp_datagram_seen, narrative: :udp_datagram_observed, dedupe: true)
+|> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true)
 "#,
     )
     .unwrap();
@@ -14416,17 +14301,16 @@ reason.rule=route_resolved;route_changed;route_changed;true
 fn dsl_program_rules_can_use_shared_narrative_templates() {
     let binding = compile_str(
         r#"
-template=udp_shared_ir
-window.duration_ms=5000
-window.lateness_ms=200
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=datagram_exchange
-rule=process_bound;process_bound;process_bound;true
-rule=datagram_observed:udp;datagram_observed;udp_datagram_observed;true
-rule=route_resolved;route_resolved;route_changed;true
+template(:udp_shared_ir)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> operation(:datagram_exchange)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)
+|> program_rule(predicate: "datagram_observed:udp", stage: :datagram_observed, narrative: :udp_datagram_observed, dedupe: true)
+|> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_changed, dedupe: true)
 "#,
     )
     .unwrap();
@@ -14463,17 +14347,16 @@ rule=route_resolved;route_resolved;route_changed;true
 fn dsl_reason_rules_can_use_shared_signal_ids() {
     let binding = compile_str(
         r#"
-template=udp_shared_signal_reason
-window.duration_ms=5000
-window.lateness_ms=200
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=datagram_exchange
-rule=process_bound;process_bound;process_bound;true
-reason.rule=process_bound;process_bound;process_bound;true
-reason.rule=datagram_observed:udp;datagram_observed;udp_datagram_observed;true
-reason.rule=route_resolved;route_resolved;route_changed;true
+template(:udp_shared_signal_reason)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> operation(:datagram_exchange)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)
+|> reason_rule(predicate: :process_bound, key_event: :process_bound, narrative: :process_bound, dedupe: true)
+|> reason_rule(predicate: "datagram_observed:udp", key_event: :datagram_observed, narrative: :udp_datagram_observed, dedupe: true)
+|> reason_rule(predicate: :route_resolved, key_event: :route_resolved, narrative: :route_changed, dedupe: true)
 "#,
     )
     .unwrap();
@@ -14504,13 +14387,12 @@ reason.rule=route_resolved;route_resolved;route_changed;true
 fn dsl_rejects_program_rules_when_fragment_set_cannot_supply_evidence() {
     let err = compile_str(
         r#"
-template=route_only_invalid
-window.duration_ms=5000
-window.lateness_ms=200
-reason=udp_datagram_l1
-fragment=route_meta_fragment
-operation=datagram_exchange
-rule=process_bound;process_bound;process_bound;true
+template(:route_only_invalid)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> reason(:udp_datagram_l1)
+|> fragment(:route_meta_fragment)
+|> operation(:datagram_exchange)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)
 "#,
     )
     .unwrap_err();
@@ -14568,13 +14450,13 @@ fn binding_diagnostics_report_rule_support_and_supporting_fragments() {
 fn binding_diagnostics_reports_unsupported_payload_offsets() {
     let binding = parse_str_unvalidated(
         r#"
-template=unsupported_payload_offset
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=unsupported_payload_offset_model
-operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+template(:unsupported_payload_offset)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:unsupported_payload_offset_model)
+|> operation(:snmp_get)
+|> program_rule(predicate: "datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true)
 "#,
     )
     .unwrap();
@@ -14594,13 +14476,13 @@ rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;udp
 fn binding_diagnostics_reports_expanded_sequence_offsets() {
     let binding = parse_str_unvalidated(
         r#"
-template=unsupported_payload_sequence
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=unsupported_payload_sequence_model
-operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:bytes_at:8:0x30,0x82,0x01,0x00;datagram_observed;udp_datagram_sent;true
+template(:unsupported_payload_sequence)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:unsupported_payload_sequence_model)
+|> operation(:snmp_get)
+|> program_rule(predicate: "datagram_observed:udp:remote:snmp:bytes_at:8:0x30,0x82,0x01,0x00", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true)
 "#,
     )
     .unwrap();
@@ -14615,13 +14497,13 @@ rule=datagram_observed:udp:remote:snmp:bytes_at:8:0x30,0x82,0x01,0x00;datagram_o
 fn binding_diagnostics_reports_unsupported_quic_frame_payload_offsets() {
     let binding = parse_str_unvalidated(
         r#"
-template=unsupported_quic_frame_payload_offset
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=unsupported_quic_frame_payload_offset_model
-operation=quic_crypto_handshake
-rule=quic_frame_observed:remote:quic:local_to_remote:frame:crypto:byte_at:8:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+template(:unsupported_quic_frame_payload_offset)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:unsupported_quic_frame_payload_offset_model)
+|> operation(:quic_crypto_handshake)
+|> program_rule(predicate: "quic_frame_observed:remote:quic:local_to_remote:frame:crypto:byte_at:8:0xff:0xa0", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true)
 "#,
     )
     .unwrap();
@@ -14636,14 +14518,14 @@ rule=quic_frame_observed:remote:quic:local_to_remote:frame:crypto:byte_at:8:0xff
 fn binding_diagnostics_accept_dynamic_sample_payload_offsets_from_fragment_params() {
     let binding = parse_str_unvalidated(
         r#"
-template=dynamic_payload_offset_support
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-param=udp_packet_meta_fragment.sample_payload_offsets=8
-program_model=dynamic_payload_offset_support_model
-operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+template(:dynamic_payload_offset_support)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> param(:udp_packet_meta_fragment.sample_payload_offsets, 8)
+|> program_model(:dynamic_payload_offset_support_model)
+|> operation(:snmp_get)
+|> program_rule(predicate: "datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true)
 "#,
     )
     .unwrap();
@@ -14663,13 +14545,13 @@ rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;udp
 fn dsl_validation_rejects_rules_with_unsupported_payload_offsets() {
     let err = compile_str(
         r#"
-template=unsupported_payload_offset_compile
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=unsupported_payload_offset_compile_model
-operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;udp_datagram_sent;true
+template(:unsupported_payload_offset_compile)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:unsupported_payload_offset_compile_model)
+|> operation(:snmp_get)
+|> program_rule(predicate: "datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true)
 "#,
     )
     .unwrap_err();
@@ -14688,18 +14570,18 @@ rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;udp
 fn dsl_can_override_evidence_tiers_per_template() {
     let binding = compile_str(
         r#"
-template=udp_process_core_lineage
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=datagram_exchange
-rule=process_bound;process_bound;process_bound;true
-rule=datagram_observed:udp;datagram_observed;udp_datagram_observed;true
-rule=route_resolved;route_resolved;route_changed;true
-evidence=sock_lineage:core_requirement
-evidence=packet_meta:optional_enhancement
+template(:udp_process_core_lineage)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> operation(:datagram_exchange)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)
+|> program_rule(predicate: "datagram_observed:udp", stage: :datagram_observed, narrative: :udp_datagram_observed, dedupe: true)
+|> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_changed, dedupe: true)
+|> evidence(:sock_lineage, :core_requirement)
+|> evidence(:packet_meta, :optional_enhancement)
 "#,
     )
     .unwrap();
@@ -14725,16 +14607,16 @@ evidence=packet_meta:optional_enhancement
 fn dsl_rejects_unknown_fragment_param_keys() {
     let err = compile_str(
         r#"
-template=udp_process_debug
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-program_model=datagram_exchange_v1
-operation=datagram_exchange
-rule=process_bound;process_bound;process_bound;true
-param=sock_lineage_fragment.not_a_real_param=true
+template(:udp_process_debug)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> program_model(:datagram_exchange_v1)
+|> operation(:datagram_exchange)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)
+|> param(:sock_lineage_fragment.not_a_real_param, true)
 "#,
     )
     .unwrap_err();
@@ -14752,16 +14634,16 @@ param=sock_lineage_fragment.not_a_real_param=true
 fn dsl_rejects_fragment_param_type_mismatches() {
     let err = compile_str(
         r#"
-template=udp_process_debug
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-program_model=datagram_exchange_v1
-operation=datagram_exchange
-rule=process_bound;process_bound;process_bound;true
-param=udp_packet_meta_fragment.min_len=false
+template(:udp_process_debug)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> program_model(:datagram_exchange_v1)
+|> operation(:datagram_exchange)
+|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)
+|> param(:udp_packet_meta_fragment.min_len, false)
 "#,
     )
     .unwrap_err();
@@ -14779,13 +14661,13 @@ param=udp_packet_meta_fragment.min_len=false
 fn dsl_accepts_datagram_prefix2_qualifier() {
     let binding = compile_str(
         r#"
-template=quic_initial_prefix2_match
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=quic_initial_prefix2_match_model
-operation=quic_client_initial
-rule=datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0xf0:0xc0:prefix2:0xc300;datagram_observed;udp_datagram_sent;true
+template(:quic_initial_prefix2_match)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:quic_initial_prefix2_match_model)
+|> operation(:quic_client_initial)
+|> program_rule(predicate: "datagram_observed:udp:remote:quic:local_to_remote:min_len:1200:byte0_mask:0xf0:0xc0:prefix2:0xc300", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true)
 "#,
     )
     .unwrap();

@@ -1,18 +1,23 @@
-# gewyvern DSL v0
-template=coap_get_path
-window.duration_ms=5000
-window.lateness_ms=200
-reason_model=coap_get_path_reason
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=coap_get
-rule=process_bound;process_bound;process_bound;true;coap_get_path;bind
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this CoAP path;true;coap_get_path;resolve_upstream
-rule=datagram_observed:udp:remote:coap:local_to_remote:prefix2:0x4001;datagram_observed;udp_datagram_sent;true;coap_get_path;send_request
-rule=datagram_observed:udp:remote:coap:remote_to_local:prefix2:0x6045;datagram_observed;udp_datagram_received;true;coap_get_path;receive_response
-reason.rule=process_bound;process_identified;process_bound;true;coap_get_path;bind
-reason.rule=route_resolved;route_changed;route_changed;true;coap_get_path;resolve_upstream
-reason.rule=datagram_observed:udp:remote:coap:local_to_remote:prefix2:0x4001;udp_datagram_seen;udp_datagram_sent;true;coap_get_path;send_request
-reason.rule=datagram_observed:udp:remote:coap:remote_to_local:prefix2:0x6045;udp_datagram_seen;udp_datagram_received;true;coap_get_path;receive_response
-param=sock_lineage_fragment.capture_comm=true
+# gewyvern stable-subset protocol path
+
+fn coap_get_rules() =
+  let module_name = :coap_get_path
+  let route_narrative = "static:program resolved an upstream route for this CoAP path"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:coap_get)
+  |> reason_model(:coap_get_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "datagram_observed:udp:remote:coap:local_to_remote:prefix2:0x4001", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_request)
+  |> program_rule(predicate: "datagram_observed:udp:remote:coap:remote_to_local:prefix2:0x6045", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_response)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:coap:local_to_remote:prefix2:0x4001", key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_request)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:coap:remote_to_local:prefix2:0x6045", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_response)
+
+template(:coap_get_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:coap_get_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

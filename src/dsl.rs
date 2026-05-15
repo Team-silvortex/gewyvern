@@ -20,8 +20,6 @@ pub const PACKAGE_MANIFEST_FILE: &str = "gewy.pkg";
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FrontendDslKind {
     Pipeline,
-    Structured,
-    Legacy,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -127,11 +125,9 @@ fn parse_str_unvalidated_with_base(
         let legacy = pipeline_to_legacy(input, package)?;
         return parse_legacy_str_unvalidated(&legacy);
     }
-    if looks_like_structured_dsl(input) {
-        let legacy = structured_to_legacy(input)?;
-        return parse_legacy_str_unvalidated(&legacy);
-    }
-    parse_legacy_str_unvalidated(input)
+    Err(DslError::InvalidValue(
+        "gewylang now only supports the pipeline stable subset".into(),
+    ))
 }
 
 fn summarize_frontend_str_with_base(
@@ -168,36 +164,9 @@ fn summarize_frontend_str_with_base(
             graph_edges,
         });
     }
-    if looks_like_structured_dsl(input) {
-        return Ok(FrontendModuleSummary {
-            kind: FrontendDslKind::Structured,
-            function_count: 0,
-            function_nodes: Vec::new(),
-            merged_step_count: input
-                .lines()
-                .map(str::trim)
-                .filter(|line| !line.is_empty() && !line.starts_with('#') && *line != "}")
-                .count(),
-            include_sources: Vec::new(),
-            use_edges: Vec::new(),
-            graph_nodes: Vec::new(),
-            graph_edges: Vec::new(),
-        });
-    }
-    Ok(FrontendModuleSummary {
-        kind: FrontendDslKind::Legacy,
-        function_count: 0,
-        function_nodes: Vec::new(),
-        merged_step_count: input
-            .lines()
-            .map(str::trim)
-            .filter(|line| !line.is_empty() && !line.starts_with('#'))
-            .count(),
-        include_sources: Vec::new(),
-        use_edges: Vec::new(),
-        graph_nodes: Vec::new(),
-        graph_edges: Vec::new(),
-    })
+    Err(DslError::InvalidValue(
+        "gewylang now only supports the pipeline stable subset".into(),
+    ))
 }
 
 fn pipeline_use_edges(module: &PipelineModule) -> Vec<FrontendUseEdge> {
@@ -551,35 +520,6 @@ fn parse_legacy_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError
         binding = binding.with_evidence_tier(fact_kind, tier);
     }
     Ok(binding)
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum StructuredContext {
-    Template,
-    Fragments,
-    ProgramModel,
-    ReasonModel,
-    ProgramRule,
-    ReasonRule,
-}
-
-#[derive(Default)]
-struct StructuredRuleDraft {
-    predicate: Option<String>,
-    signal: Option<String>,
-    narrative: Option<String>,
-    dedupe: Option<String>,
-    module: Option<String>,
-    phase: Option<String>,
-}
-
-fn looks_like_structured_dsl(input: &str) -> bool {
-    input
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .next()
-        .is_some_and(|line| line.starts_with("template ") && line.ends_with('{'))
 }
 
 fn looks_like_pipeline_dsl(input: &str) -> bool {
@@ -1423,231 +1363,6 @@ fn lower_pipeline_rule(args: &[String], reason_rule: bool) -> Result<String, Dsl
     } else {
         format!("rule={value}")
     })
-}
-
-fn structured_to_legacy(input: &str) -> Result<String, DslError> {
-    let mut output = Vec::<String>::new();
-    let mut contexts = Vec::<StructuredContext>::new();
-    let mut current_rule = None::<StructuredRuleDraft>;
-
-    for (line_no, raw_line) in input.lines().enumerate() {
-        let line_no = line_no + 1;
-        let line = raw_line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-
-        if let Some(header) = line.strip_suffix('{') {
-            let header = header.trim();
-            if contexts.is_empty() {
-                let id = header.strip_prefix("template ").ok_or_else(|| {
-                    DslError::InvalidValue(
-                        "structured DSL must start with 'template <id> {'".into(),
-                    )
-                    .at_line(line_no)
-                })?;
-                output.push(format!("template={}", id.trim()));
-                contexts.push(StructuredContext::Template);
-                continue;
-            }
-
-            match current_context(&contexts, line_no)? {
-                StructuredContext::Template => {
-                    if header == "fragments" {
-                        contexts.push(StructuredContext::Fragments);
-                    } else if let Some(id) = header.strip_prefix("program_model ") {
-                        output.push(format!("program_model={}", id.trim()));
-                        contexts.push(StructuredContext::ProgramModel);
-                    } else if let Some(id) = header.strip_prefix("reason_model ") {
-                        output.push(format!("reason_model={}", id.trim()));
-                        contexts.push(StructuredContext::ReasonModel);
-                    } else {
-                        return Err(DslError::InvalidValue(format!(
-                            "unknown structured block '{header}'"
-                        ))
-                        .at_line(line_no));
-                    }
-                }
-                StructuredContext::ProgramModel if header == "rule" => {
-                    current_rule = Some(StructuredRuleDraft::default());
-                    contexts.push(StructuredContext::ProgramRule);
-                }
-                StructuredContext::ReasonModel if header == "rule" => {
-                    current_rule = Some(StructuredRuleDraft::default());
-                    contexts.push(StructuredContext::ReasonRule);
-                }
-                _ => {
-                    return Err(DslError::InvalidValue(format!(
-                        "unexpected structured block '{header}'"
-                    ))
-                    .at_line(line_no));
-                }
-            }
-            continue;
-        }
-
-        if line == "}" {
-            let closed = contexts
-                .pop()
-                .ok_or_else(|| DslError::InvalidLine(line.into()).at_line(line_no))?;
-            match closed {
-                StructuredContext::ProgramRule | StructuredContext::ReasonRule => {
-                    let draft = current_rule.take().ok_or_else(|| {
-                        DslError::InvalidValue("missing structured rule draft".into())
-                            .at_line(line_no)
-                    })?;
-                    output.push(
-                        render_structured_rule(draft, closed)
-                            .map_err(|err| err.at_line(line_no))?,
-                    );
-                }
-                _ => {}
-            }
-            continue;
-        }
-
-        match current_context(&contexts, line_no)? {
-            StructuredContext::Template => parse_structured_template_line(line, &mut output)
-                .map_err(|err| err.at_line(line_no))?,
-            StructuredContext::Fragments => output.push(format!("fragment={line}")),
-            StructuredContext::ProgramModel => parse_structured_program_line(line, &mut output)
-                .map_err(|err| err.at_line(line_no))?,
-            StructuredContext::ReasonModel => parse_structured_reason_line(line, &mut output)
-                .map_err(|err| err.at_line(line_no))?,
-            StructuredContext::ProgramRule | StructuredContext::ReasonRule => {
-                let draft = current_rule.as_mut().ok_or_else(|| {
-                    DslError::InvalidValue("structured rule field outside rule block".into())
-                        .at_line(line_no)
-                })?;
-                parse_structured_rule_line(line, draft).map_err(|err| err.at_line(line_no))?;
-            }
-        }
-    }
-
-    if !contexts.is_empty() {
-        return Err(DslError::InvalidValue(
-            "unclosed structured DSL block".into(),
-        ));
-    }
-
-    Ok(output.join("\n"))
-}
-
-fn current_context(
-    contexts: &[StructuredContext],
-    line_no: usize,
-) -> Result<StructuredContext, DslError> {
-    contexts.last().copied().ok_or_else(|| {
-        DslError::InvalidValue("structured DSL content before template block".into())
-            .at_line(line_no)
-    })
-}
-
-fn parse_structured_template_line(line: &str, output: &mut Vec<String>) -> Result<(), DslError> {
-    if let Some(value) = line.strip_prefix("window.duration_ms ") {
-        output.push(format!("window.duration_ms={}", value.trim()));
-    } else if let Some(value) = line.strip_prefix("window.lateness_ms ") {
-        output.push(format!("window.lateness_ms={}", value.trim()));
-    } else if let Some(value) = line.strip_prefix("window ") {
-        output.push(format!("window={}", value.trim()));
-    } else if let Some(value) = line.strip_prefix("reason ") {
-        output.push(format!("reason={}", value.trim()));
-    } else if let Some(value) = line.strip_prefix("fragment ") {
-        output.push(format!("fragment={}", value.trim()));
-    } else if let Some(value) = line.strip_prefix("param ") {
-        output.push(format!("param={}", normalize_structured_assignment(value)?));
-    } else if let Some(value) = line.strip_prefix("evidence ") {
-        output.push(format!(
-            "evidence={}",
-            normalize_structured_assignment(value)?
-        ));
-    } else {
-        return Err(DslError::InvalidValue(format!(
-            "unknown structured template field '{line}'"
-        )));
-    }
-    Ok(())
-}
-
-fn parse_structured_program_line(line: &str, output: &mut Vec<String>) -> Result<(), DslError> {
-    if let Some(value) = line.strip_prefix("operation ") {
-        output.push(format!("operation={}", value.trim()));
-        return Ok(());
-    }
-    Err(DslError::InvalidValue(format!(
-        "unknown structured program_model field '{line}'"
-    )))
-}
-
-fn parse_structured_reason_line(line: &str, _output: &mut Vec<String>) -> Result<(), DslError> {
-    Err(DslError::InvalidValue(format!(
-        "unknown structured reason_model field '{line}'"
-    )))
-}
-
-fn parse_structured_rule_line(line: &str, draft: &mut StructuredRuleDraft) -> Result<(), DslError> {
-    if let Some(value) = line.strip_prefix("predicate ") {
-        draft.predicate = Some(value.trim().into());
-    } else if let Some(value) = line.strip_prefix("stage ") {
-        draft.signal = Some(value.trim().into());
-    } else if let Some(value) = line.strip_prefix("key_event ") {
-        draft.signal = Some(value.trim().into());
-    } else if let Some(value) = line.strip_prefix("narrative ") {
-        draft.narrative = Some(value.trim().into());
-    } else if let Some(value) = line.strip_prefix("dedupe ") {
-        draft.dedupe = Some(value.trim().into());
-    } else if let Some(value) = line.strip_prefix("module ") {
-        draft.module = Some(value.trim().into());
-    } else if let Some(value) = line.strip_prefix("phase ") {
-        draft.phase = Some(value.trim().into());
-    } else {
-        return Err(DslError::InvalidValue(format!(
-            "unknown structured rule field '{line}'"
-        )));
-    }
-    Ok(())
-}
-
-fn render_structured_rule(
-    draft: StructuredRuleDraft,
-    context: StructuredContext,
-) -> Result<String, DslError> {
-    let predicate = draft.predicate.ok_or(DslError::MissingField("predicate"))?;
-    let signal = draft.signal.ok_or(DslError::MissingField(match context {
-        StructuredContext::ProgramRule => "stage",
-        StructuredContext::ReasonRule => "key_event",
-        _ => "signal",
-    }))?;
-    let narrative = draft.narrative.ok_or(DslError::MissingField("narrative"))?;
-    let dedupe = draft.dedupe.ok_or(DslError::MissingField("dedupe"))?;
-    let mut value = format!("{predicate};{signal};{narrative};{dedupe}");
-    if let Some(module) = draft.module {
-        value.push(';');
-        value.push_str(&module);
-        if let Some(phase) = draft.phase {
-            value.push(';');
-            value.push_str(&phase);
-        }
-    } else if let Some(phase) = draft.phase {
-        return Err(DslError::InvalidValue(format!(
-            "structured rule phase '{phase}' requires module"
-        )));
-    }
-    Ok(match context {
-        StructuredContext::ProgramRule => format!("rule={value}"),
-        StructuredContext::ReasonRule => format!("reason.rule={value}"),
-        _ => unreachable!("only rule contexts can render structured rules"),
-    })
-}
-
-fn normalize_structured_assignment(value: &str) -> Result<String, DslError> {
-    if value.contains('=') || value.contains(':') {
-        return Ok(value.trim().into());
-    }
-    let (lhs, rhs) = value.split_once(' ').ok_or_else(|| {
-        DslError::InvalidValue(format!("invalid structured assignment '{value}'"))
-    })?;
-    Ok(format!("{}={}", lhs.trim(), rhs.trim()))
 }
 
 pub fn compile_str(input: &str) -> Result<TemplateBinding, DslError> {

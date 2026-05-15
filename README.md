@@ -58,7 +58,7 @@ as a visual report.
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
 - replay: deterministic for exported sessions
-- DSL shape: pipeline-driven syntax preferred, structured and legacy key/value syntax still supported
+- DSL shape: pipeline-driven `gewylang` stable subset
 - package shape: `gewy.pkg` manifest + `main.gewy` entry + pipeline `include(...)` expansion
 - package deps: local path dependencies plus named sources via `dep.<name>=...`, `source.<name>=...`, and `include("std:file.gewy")`
 - package resolution: `gewyc lock` emits a resolved `gewy.lock` snapshot
@@ -233,8 +233,7 @@ the fastest:
   - `route_meta_fragment`
   - `tcp_packet_meta_fragment`
   - UDP template attach path through `route_meta_fragment` + `udp_packet_meta_fragment`
-- Structured `.gewy` block syntax lowered into the same compiler IR as the
-  legacy key/value DSL shape
+- Pipeline `.gewy` syntax lowered into the current compiler IR
 - `gewyc` as a separate workspace crate for compiler-facing workflows
 - parameterized pure pipeline functions via `fn ...(...) { ... }` and `|> use(:fn_name, ...)`
 - source-backed package dependency resolution and `gewy.lock` generation
@@ -292,7 +291,7 @@ If you are orienting in the codebase, these files are the shortest path:
   Session lifecycle, ingest gating, finding synthesis, export assembly.
 - [src/dsl.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl.rs)
   `.gewy` parser/compiler front-end, including pipeline/function lowering,
-  package entry resolution, and structured compatibility syntax.
+  package entry resolution, and stable-subset `gewylang` parsing.
 - [src/fragment.rs](/Users/Shared/chroot/dev/gewyvern/src/fragment.rs)
   Fragment registry, capability surface, attach planning, and validation.
 - [src/ir.rs](/Users/Shared/chroot/dev/gewyvern/src/ir.rs)
@@ -631,7 +630,7 @@ Current responsibilities:
 - compile `.gewy` into validated `TemplateBinding`
 - print compiled binding in text or JSON
 - print binding diagnostics in text or JSON
-- print structured compiler findings in text or JSON
+- print compiler findings in text or JSON
 - print staged compiler output in text or JSON
 - write compiler output to a file with `--out`
 - select compiler surface explicitly with `--emit binding|diagnostics|findings|stages`

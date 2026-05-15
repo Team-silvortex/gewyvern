@@ -1,17 +1,23 @@
-template=mdns_query_path
-window=default_5s
-reason=udp_datagram_l1
-reason_model=mdns_query_path_reason
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-program_model=mdns_query_path_model
-operation=mdns_query
-rule=process_bound;process_bound;process_bound;true;mdns_query_path;bind
-rule=route_resolved;route_resolved;static:program resolved a local multicast route for this mDNS path;true;mdns_query_path;resolve_upstream
-rule=datagram_observed:udp:local:mdns:remote:mdns:local_to_remote:prefix4:0x00000000;datagram_observed;udp_datagram_sent;true;mdns_query_path;send_query
-rule=datagram_observed:udp:local:mdns:remote:mdns:remote_to_local:prefix4:0x00008400;datagram_observed;udp_datagram_received;true;mdns_query_path;receive_response
-reason.rule=process_bound;process_identified;process_bound;true;mdns_query_path;bind
-reason.rule=route_resolved;route_changed;route_changed;true;mdns_query_path;resolve_upstream
-reason.rule=datagram_observed:udp:local:mdns:remote:mdns:local_to_remote:prefix4:0x00000000;udp_datagram_seen;udp_datagram_sent;true;mdns_query_path;send_query
-reason.rule=datagram_observed:udp:local:mdns:remote:mdns:remote_to_local:prefix4:0x00008400;udp_datagram_seen;udp_datagram_received;true;mdns_query_path;receive_response
+# gewyvern stable-subset protocol path
+
+fn mdns_query_rules() =
+  let module_name = :mdns_query_path
+  let route_narrative = "static:program resolved a local multicast route for this mDNS path"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:mdns_query)
+  |> reason_model(:mdns_query_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "datagram_observed:udp:local:mdns:remote:mdns:local_to_remote:prefix4:0x00000000", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_query)
+  |> program_rule(predicate: "datagram_observed:udp:local:mdns:remote:mdns:remote_to_local:prefix4:0x00008400", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_response)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "datagram_observed:udp:local:mdns:remote:mdns:local_to_remote:prefix4:0x00000000", key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_query)
+  |> reason_rule(predicate: "datagram_observed:udp:local:mdns:remote:mdns:remote_to_local:prefix4:0x00008400", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_response)
+
+template(:mdns_query_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:mdns_query_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

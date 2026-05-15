@@ -910,8 +910,6 @@ fn frontend_graph_edge_report(edge: FrontendGraphEdge) -> FrontendGraphEdgeRepor
 fn frontend_kind_text(kind: FrontendDslKind) -> &'static str {
     match kind {
         FrontendDslKind::Pipeline => "pipeline",
-        FrontendDslKind::Structured => "structured",
-        FrontendDslKind::Legacy => "legacy",
     }
 }
 
@@ -1505,11 +1503,11 @@ mod tests {
     fn compile_envelope_str_keeps_findings_and_stages_in_sync_for_parse_failure() {
         let envelope = compile_envelope_str(
             r#"
-template=broken
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-oops=true
+template(:broken)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> oops(:true)
 "#,
         );
         assert!(envelope.binding.is_none());
@@ -1573,11 +1571,11 @@ oops=true
     fn compile_stages_report_str_keeps_parse_failure_as_stage_finding() {
         let report = compile_stages_report_str(
             r#"
-template=broken
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-oops=true
+template(:broken)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> oops(:true)
 "#,
         );
         assert!(!report.parse.ok);
@@ -1602,13 +1600,13 @@ oops=true
         std::fs::write(
             path,
             r#"
-template=broken_offset_validation
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=broken_offset_validation_model
-operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;static:snmp seen;true
+template(:broken_offset_validation)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:broken_offset_validation_model)
+|> operation(:snmp_get)
+|> program_rule(predicate: "datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0", stage: :datagram_observed, narrative: "static:snmp seen", dedupe: true)
 "#,
         )
         .unwrap();
@@ -1632,11 +1630,11 @@ rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;sta
     fn compile_findings_report_str_surfaces_parse_failures() {
         let report = compile_findings_report_str(
             r#"
-template=broken
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-oops=true
+template(:broken)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> oops(:true)
 "#,
         );
         assert_eq!(report.findings.len(), 1);
@@ -1644,20 +1642,24 @@ oops=true
         assert_eq!(report.findings[0].code, "GEWYC-PARSE-INVALID-VALUE");
         assert_eq!(report.findings[0].severity, CompilerFindingSeverity::Error);
         assert_eq!(report.findings[0].line, Some(6));
-        assert!(report.findings[0].message.contains("unknown DSL key"));
+        assert!(
+            report.findings[0]
+                .message
+                .contains("unknown pipeline DSL step 'oops'")
+        );
     }
 
     #[test]
     fn compile_findings_report_str_surfaces_validation_failures() {
         let report = compile_findings_report_str(
             r#"
-template=broken_validation
-window=default_5s
-reason=udp_datagram_l1
-fragment=route_meta_fragment
-program_model=broken_validation_model
-operation=dns_lookup
-rule=datagram_observed:udp;datagram_observed;static:udp seen;true
+template(:broken_validation)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:route_meta_fragment)
+|> program_model(:broken_validation_model)
+|> operation(:dns_lookup)
+|> program_rule(predicate: "datagram_observed:udp", stage: :datagram_observed, narrative: "static:udp seen", dedupe: true)
 "#,
         );
         assert_eq!(report.findings.len(), 1);
@@ -1675,13 +1677,13 @@ rule=datagram_observed:udp;datagram_observed;static:udp seen;true
     fn compile_findings_report_str_surfaces_unsupported_payload_offset_failures() {
         let report = compile_findings_report_str(
             r#"
-template=broken_offset_validation
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-program_model=broken_offset_validation_model
-operation=snmp_get
-rule=datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0;datagram_observed;static:snmp seen;true
+template(:broken_offset_validation)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:broken_offset_validation_model)
+|> operation(:snmp_get)
+|> program_rule(predicate: "datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0", stage: :datagram_observed, narrative: "static:snmp seen", dedupe: true)
 "#,
         );
         assert_eq!(report.findings.len(), 1);
@@ -1823,11 +1825,11 @@ fn udp_core() {
     fn findings_json_includes_code_severity_and_line() {
         let report = compile_findings_report_str(
             r#"
-template=broken
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-oops=true
+template(:broken)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> oops(:true)
 "#,
         );
         let json = render_findings_report(&report, RenderFormat::Json);
@@ -1840,20 +1842,20 @@ oops=true
     fn stage_local_finding_json_matches_standalone_findings_shape() {
         let stages = compile_stages_report_str(
             r#"
-template=broken
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-oops=true
+template(:broken)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> oops(:true)
 "#,
         );
         let standalone = compile_findings_report_str(
             r#"
-template=broken
-window=default_5s
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-oops=true
+template(:broken)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> oops(:true)
 "#,
         );
         let standalone_finding = standalone.findings.first().unwrap();

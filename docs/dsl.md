@@ -54,10 +54,9 @@ Useful anchor examples:
 
 ## Current Shape
 
-The preferred shape is now a pipeline-driven syntax inspired by Elixir. The
-older structured block syntax and legacy `key=value` shape are both still
-supported for compatibility and all existing protocol DSL files continue to
-compile.
+`gewylang` now uses a single pipeline-driven surface inspired by Elixir. All
+maintained protocol DSL files in this repository compile through that stable
+subset.
 
 The language direction is intentionally functional:
 
@@ -84,8 +83,8 @@ template(:structured_udp_process_debug)
 ```
 
 The pipeline parser now first merges files and function units into a single
-pipeline module IR, then lowers that IR into the same compiler surface as the
-structured and legacy forms; it does not generate eBPF bytecode directly.
+pipeline module IR, then lowers that IR into the current compiler surface; it
+does not generate eBPF bytecode directly.
 
 For QUIC-family protocols, `quic_frame_observed` now accepts
 `frame:crypto`, `frame:ack`, `frame:stream`, `frame:datagram`, and
@@ -96,10 +95,10 @@ UDP payload offsets.
 
 That merged front-end IR is now also reflected in compiler-facing reports, so
 `gewyc stages` can surface function counts, merged step counts, and resolved
-`include(...)` sources for a package entry, along with a minimal structured
-front-end graph whose nodes cover entry/file/function identities and whose
-edges capture both `include()` and `use()` relationships, including the source
-line that produced each edge.
+`include(...)` sources for a package entry, along with a minimal front-end
+graph whose nodes cover entry/file/function identities and whose edges capture
+both `include()` and `use()` relationships, including the source line that
+produced each edge.
 Pipeline projects can also resolve through a `gewy.pkg` manifest with one
 `main.gewy` entry and `include("...")` expansion.
 
@@ -218,11 +217,9 @@ The current recommended stable subset for `gewylang` is intentionally small:
 This subset is the best target if you want DSLs that are likely to stay stable
 through the `0.7.x` to `1.0` hardening path.
 
-Features that are supported but should still be thought of as compatibility or
-transitional surfaces:
+Features that are still legal but should be thought of as transitional or
+lower-preference surfaces:
 
-- structured block DSL
-- legacy `key=value` DSL
 - large hand-written inline entry pipelines without reusable function units
 
 ## Pipeline Idioms
@@ -276,9 +273,7 @@ strings are kept for values that contain punctuation or spaces.
 
 ## Pipeline EBNF
 
-The preferred, formalized grammar surface is the pipeline DSL. Structured and
-legacy forms remain supported, but the EBNF below focuses on the pipeline
-syntax that `gewylang` is converging toward.
+The formalized grammar surface is the pipeline DSL.
 
 The canonical draft grammar now also lives in
 [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf).
@@ -403,88 +398,6 @@ gewyc lock .
 ```
 
 By default this writes `gewy.lock` next to the resolved package entry.
-
-## Structured Blocks
-
-Structured blocks remain supported as a compatibility layer.
-
-Top-level structured files start with:
-
-```text
-template <template_id> {
-  ...
-}
-```
-
-Supported top-level fields and blocks:
-
-- `window <profile>` or `window.duration_ms <n>` plus `window.lateness_ms <n>`
-- `reason <built_in_reason_profile>`
-- `fragment <fragment_id>` or a `fragments { ... }` block
-- `param <fragment>.<key> <value>`
-- `evidence <fact_kind>:<tier>`
-- `program_model <id> { ... }`
-- `reason_model <id> { ... }`
-
-Structured program rules use named fields instead of positional semicolons:
-
-```text
-program_model example_model {
-  operation datagram_exchange
-
-  rule {
-    predicate datagram_observed:udp:local_to_remote
-    stage datagram_observed
-    narrative udp_datagram_sent
-    dedupe true
-    module example_module
-    phase send_request
-  }
-}
-```
-
-Structured reason rules use the same predicate vocabulary but name the reason
-key event explicitly:
-
-```text
-reason_model example_reason {
-  rule {
-    predicate datagram_observed:udp:local_to_remote
-    key_event udp_datagram_seen
-    narrative udp_datagram_sent
-    dedupe true
-    module example_module
-    phase send_request
-  }
-}
-```
-
-The `predicate`, `stage`/`key_event`, `narrative`, and `dedupe` fields are
-required inside each structured rule. `module` and `phase` remain optional, but
-`phase` requires `module` so transition findings can stay module-scoped.
-
-## Legacy Key/Value Shape
-
-Each non-empty, non-comment line in the legacy form is a single `key=value`
-pair. This remains fully supported so older `.gewy` files do not need to move
-all at once.
-
-Example:
-
-```text
-template=udp_process_debug
-window.duration_ms=5000
-window.lateness_ms=200
-reason=udp_datagram_l1
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=datagram_exchange
-rule=process_bound;process_bound;process_bound;true
-rule=datagram_observed:udp;datagram_observed;static:program emitted or received a UDP datagram;true
-rule=route_resolved;route_resolved;static:program resolved a route for this network flow;true
-param=sock_lineage_fragment.capture_comm=true
-```
 
 ## Top-Level Keys
 

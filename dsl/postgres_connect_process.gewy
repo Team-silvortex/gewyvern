@@ -1,18 +1,23 @@
-# gewyvern DSL v0
-template=postgres_connect_process
-window.duration_ms=5000
-window.lateness_ms=200
-reason_model=postgres_connect_process_reason
-fragment=tcp_state_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=postgres_connect
-rule=process_bound;process_bound;process_bound;true;postgres_connect_path;bind
-rule=socket_state_observed:remote:postgres;socket_state_transition;static:program initiated or advanced a PostgreSQL socket state transition;false;postgres_connect_path;connect
-rule=socket_state_observed:remote:postgres:established;socket_state_transition;static:program reached an established PostgreSQL socket state;true;postgres_connect_path;establish
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this PostgreSQL connect path;true;postgres_connect_path;resolve
-reason.rule=process_bound;process_identified;process_bound;true;postgres_connect_path;bind
-reason.rule=socket_state_observed:remote:postgres;state_change;tcp_state_transition;false;postgres_connect_path;connect
-reason.rule=socket_state_observed:remote:postgres:established;state_change;tcp_state_transition;true;postgres_connect_path;establish
-reason.rule=route_resolved;route_changed;route_changed;true;postgres_connect_path;resolve
-param=sock_lineage_fragment.capture_comm=true
+# gewyvern stable-subset protocol path
+
+fn postgres_connect_rules() =
+  let module_name = :postgres_connect_path
+  let route_narrative = "static:program resolved an upstream route for this PostgreSQL connect path"
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:postgres_connect)
+  |> reason_model(:postgres_connect_process_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: "socket_state_observed:remote:postgres", stage: :socket_state_transition, narrative: "static:program initiated or advanced a PostgreSQL socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "socket_state_observed:remote:postgres:established", stage: :socket_state_transition, narrative: "static:program reached an established PostgreSQL socket state", dedupe: true, module: ${module_name}, phase: :establish)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: "socket_state_observed:remote:postgres", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "socket_state_observed:remote:postgres:established", key_event: :state_change, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :establish)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve)
+
+template(:postgres_connect_process)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:postgres_connect_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

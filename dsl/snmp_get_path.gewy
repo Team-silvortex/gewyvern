@@ -1,18 +1,23 @@
-# gewyvern DSL v0
-template=snmp_get_path
-window.duration_ms=5000
-window.lateness_ms=200
-reason_model=snmp_get_path_reason
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=snmp_get
-rule=process_bound;process_bound;process_bound;true;snmp_get_path;bind
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this SNMP GET path;true;snmp_get_path;resolve_upstream
-rule=datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa0;datagram_observed;udp_datagram_sent;true;snmp_get_path;send_get_request
-rule=datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa2;datagram_observed;udp_datagram_received;true;snmp_get_path;receive_get_response
-reason.rule=process_bound;process_identified;process_bound;true;snmp_get_path;bind
-reason.rule=route_resolved;route_changed;route_changed;true;snmp_get_path;resolve_upstream
-reason.rule=datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa0;udp_datagram_seen;udp_datagram_sent;true;snmp_get_path;send_get_request
-reason.rule=datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa2;udp_datagram_seen;udp_datagram_received;true;snmp_get_path;receive_get_response
-param=sock_lineage_fragment.capture_comm=true
+# gewyvern stable-subset protocol path
+
+fn snmp_get_rules() =
+  let module_name = :snmp_get_path
+  let route_narrative = "static:program resolved an upstream route for this SNMP GET path"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:snmp_get)
+  |> reason_model(:snmp_get_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa0", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_get_request)
+  |> program_rule(predicate: "datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa2", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_get_response)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa0", key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_get_request)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa2", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_get_response)
+
+template(:snmp_get_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:snmp_get_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

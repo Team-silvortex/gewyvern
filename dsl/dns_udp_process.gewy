@@ -1,18 +1,23 @@
-# gewyvern DSL v0
-template=dns_udp_process
-window.duration_ms=5000
-window.lateness_ms=200
-reason_model=dns_udp_process_reason
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=dns_lookup
-rule=process_bound;process_bound;process_bound;true;dns_lookup_path;bind
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this DNS lookup;true;dns_lookup_path;resolve
-rule=datagram_observed:udp:local_to_remote;datagram_observed;udp_datagram_sent;true;dns_lookup_path;send_request
-rule=datagram_observed:udp:remote_to_local;datagram_observed;udp_datagram_received;true;dns_lookup_path;receive_reply
-reason.rule=process_bound;process_identified;process_bound;true;dns_lookup_path;bind
-reason.rule=route_resolved;route_changed;route_changed;true;dns_lookup_path;resolve
-reason.rule=datagram_observed:udp:local_to_remote;udp_datagram_seen;udp_datagram_sent;true;dns_lookup_path;send_request
-reason.rule=datagram_observed:udp:remote_to_local;udp_datagram_seen;udp_datagram_received;true;dns_lookup_path;receive_reply
-param=sock_lineage_fragment.capture_comm=true
+# gewyvern stable-subset protocol path
+
+fn dns_udp_process_rules() =
+  let module_name = :dns_lookup_path
+  let route_narrative = "static:program resolved an upstream route for this DNS lookup"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:dns_lookup)
+  |> reason_model(:dns_udp_process_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve)
+  |> program_rule(predicate: "datagram_observed:udp:local_to_remote", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_request)
+  |> program_rule(predicate: "datagram_observed:udp:remote_to_local", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_reply)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve)
+  |> reason_rule(predicate: "datagram_observed:udp:local_to_remote", key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_request)
+  |> reason_rule(predicate: "datagram_observed:udp:remote_to_local", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_reply)
+
+template(:dns_udp_process)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:dns_udp_process_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)
