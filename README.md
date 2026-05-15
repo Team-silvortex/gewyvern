@@ -95,7 +95,7 @@ The detailed milestone plan lives in [ROADMAP.md](/Users/Shared/chroot/dev/gewyv
 - Data stores, brokers, and cache access:
   Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP
 - Mail, directory, file-transfer, and remote access:
-  SMTP, FTP, SSH, SOCKS5, LDAP
+  SMTP, IMAP, FTP, SSH, SOCKS5, LDAP
 
 Most built-in entries model a concrete program-network path such as
 request/response, auth/query, relay setup, or publish/ack, rather than only
@@ -346,6 +346,7 @@ The repository now includes first-class DSL files that compile into
   AMQP start/publish/session
 - Mail, directory, and access protocols:
   SMTP session/auth/mail/rcpt/data and denied branches,
+  IMAP auth/auth-denied/select mailbox branches,
   FTP session/list/retr/stor across passive and active modes,
   SSH session/auth/channel branches,
   SOCKS5 session/auth/denied branches,

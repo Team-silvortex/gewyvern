@@ -1,0 +1,7 @@
+name=imap
+version=0.7.0
+entry=main.gewy
+register.protocol=imap
+register.entry=auth
+register.default=true
+description=IMAP banner and LOGIN success path

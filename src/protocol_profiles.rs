@@ -393,6 +393,24 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
         ],
     },
     ProtocolProfile {
+        name: "imap",
+        default_entry: "auth",
+        entries: &[
+            ProtocolEntryProfile {
+                mode: "auth",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "auth-denied",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_denied_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "select",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/imap_select_path.gewy",
+            },
+        ],
+    },
+    ProtocolProfile {
         name: "ssh",
         default_entry: "session",
         entries: &[

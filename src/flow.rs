@@ -202,6 +202,12 @@ pub fn infer_network_module_kind(
         }
         return "mail_session";
     }
+    if operation_id.starts_with("imap_") {
+        if operation_id.contains("auth") {
+            return "authentication_exchange";
+        }
+        return "mail_session";
+    }
     if operation_id.starts_with("ftp_") {
         if operation_id.contains("list")
             || operation_id.contains("retr")

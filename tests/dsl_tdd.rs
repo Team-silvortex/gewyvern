@@ -1203,6 +1203,54 @@ fn built_in_smtp_auth_path_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn built_in_imap_auth_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "imap_auth_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("imap_auth".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_imap_auth_denied_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_denied_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "imap_auth_denied_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("imap_auth_denied".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
+fn built_in_imap_select_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_select_path.gewy").unwrap();
+
+    assert_eq!(binding.template.id, "imap_select_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("imap_select".into())
+    );
+    assert!(matches!(
+        binding.template.reason_profile.as_ref().unwrap(),
+        ReasonProfile::Declarative(_)
+    ));
+}
+
+#[test]
 fn built_in_smtp_mail_path_dsl_compiles_into_template_binding() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy").unwrap();
@@ -3263,6 +3311,45 @@ fn smtp_auth_operation_maps_to_authentication_exchange_module_kind() {
 }
 
 #[test]
+fn imap_auth_operation_maps_to_authentication_exchange_module_kind() {
+    assert_eq!(
+        gewyvern::flow::infer_network_module_kind(
+            &ProgramOperation::Custom("imap_auth".into()),
+            Some("receive_auth_ok"),
+            Some("send_auth_request->receive_auth_ok"),
+            "transport_io",
+        ),
+        "authentication_exchange"
+    );
+}
+
+#[test]
+fn imap_auth_denied_operation_maps_to_authentication_exchange_module_kind() {
+    assert_eq!(
+        gewyvern::flow::infer_network_module_kind(
+            &ProgramOperation::Custom("imap_auth_denied".into()),
+            Some("receive_auth_denied"),
+            Some("send_auth_request->receive_auth_denied"),
+            "transport_io",
+        ),
+        "authentication_exchange"
+    );
+}
+
+#[test]
+fn imap_select_operation_maps_to_mail_session_module_kind() {
+    assert_eq!(
+        gewyvern::flow::infer_network_module_kind(
+            &ProgramOperation::Custom("imap_select".into()),
+            Some("receive_mailbox_selected"),
+            Some("send_select->receive_mailbox_selected"),
+            "transport_io",
+        ),
+        "mail_session"
+    );
+}
+
+#[test]
 fn smtp_mail_operation_maps_to_mail_session_module_kind() {
     assert_eq!(
         gewyvern::flow::infer_network_module_kind(
@@ -5203,6 +5290,194 @@ fn smtp_auth_path_materializes_banner_ehlo_and_auth_phases() {
 }
 
 #[test]
+fn imap_auth_path_materializes_banner_and_login_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8401, 53031, "imap-client"));
+    session.ingest(route_fact(2, 8401, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8401, 1, 2, 53031, 143));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8401,
+        0x18,
+        PacketDir::Ingress,
+        Some(53031),
+        Some(143),
+        Some(0x2a),
+        Some(0x2a20),
+        Some(0x2a204f4b),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        5,
+        8401,
+        0x18,
+        PacketDir::Egress,
+        Some(53031),
+        Some(143),
+        &[
+            (0, 0x41),
+            (1, 0x30),
+            (2, 0x30),
+            (3, 0x31),
+            (5, 0x4c),
+            (6, 0x4f),
+            (7, 0x47),
+            (8, 0x49),
+            (9, 0x4e),
+        ],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        6,
+        8401,
+        0x18,
+        PacketDir::Ingress,
+        Some(53031),
+        Some(143),
+        &[
+            (0, 0x41),
+            (1, 0x30),
+            (2, 0x30),
+            (3, 0x31),
+            (5, 0x4f),
+            (6, 0x4b),
+        ],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("imap_auth".into())
+    );
+    for phase in ["receive_banner", "send_auth_request", "receive_auth_ok"] {
+        assert!(
+            export.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some(phase)),
+            "missing phase {phase:?}"
+        );
+    }
+}
+
+#[test]
+fn imap_select_path_materializes_login_and_select_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_select_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8402, 53032, "imap-client"));
+    session.ingest(route_fact(2, 8402, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8402, 1, 2, 53032, 143));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8402,
+        0x18,
+        PacketDir::Ingress,
+        Some(53032),
+        Some(143),
+        Some(0x2a),
+        Some(0x2a20),
+        Some(0x2a204f4b),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        5,
+        8402,
+        0x18,
+        PacketDir::Egress,
+        Some(53032),
+        Some(143),
+        &[
+            (0, 0x41),
+            (1, 0x30),
+            (2, 0x30),
+            (3, 0x31),
+            (5, 0x4c),
+            (6, 0x4f),
+            (7, 0x47),
+            (8, 0x49),
+            (9, 0x4e),
+        ],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        6,
+        8402,
+        0x18,
+        PacketDir::Ingress,
+        Some(53032),
+        Some(143),
+        &[
+            (0, 0x41),
+            (1, 0x30),
+            (2, 0x30),
+            (3, 0x31),
+            (5, 0x4f),
+            (6, 0x4b),
+        ],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        7,
+        8402,
+        0x18,
+        PacketDir::Egress,
+        Some(53032),
+        Some(143),
+        &[
+            (0, 0x41),
+            (1, 0x30),
+            (2, 0x30),
+            (3, 0x32),
+            (5, 0x53),
+            (6, 0x45),
+            (7, 0x4c),
+            (8, 0x45),
+            (9, 0x43),
+            (10, 0x54),
+        ],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        8,
+        8402,
+        0x18,
+        PacketDir::Ingress,
+        Some(53032),
+        Some(143),
+        &[
+            (0, 0x41),
+            (1, 0x30),
+            (2, 0x30),
+            (3, 0x32),
+            (5, 0x4f),
+            (6, 0x4b),
+        ],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("imap_select".into())
+    );
+    for phase in [
+        "receive_banner",
+        "send_auth_request",
+        "receive_auth_ok",
+        "send_select",
+        "receive_mailbox_selected",
+    ] {
+        assert!(
+            export.program_flows[0]
+                .stages
+                .iter()
+                .any(|stage| stage.phase.as_deref() == Some(phase)),
+            "missing phase {phase:?}"
+        );
+    }
+}
+
+#[test]
 fn smtp_mail_path_materializes_auth_and_mail_from_phases() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy").unwrap();
@@ -6680,6 +6955,174 @@ fn smtp_auth_path_does_not_treat_failed_auth_response_as_auth_ok() {
             .stages
             .iter()
             .all(|stage| stage.phase.as_deref() != Some("receive_auth_ok"))
+    );
+}
+
+#[test]
+fn imap_auth_path_does_not_treat_denied_response_as_auth_ok() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8403, 53033, "imap-client"));
+    session.ingest(route_fact(2, 8403, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8403, 1, 2, 53033, 143));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8403,
+        0x18,
+        PacketDir::Ingress,
+        Some(53033),
+        Some(143),
+        Some(0x2a),
+        Some(0x2a20),
+        Some(0x2a204f4b),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        5,
+        8403,
+        0x18,
+        PacketDir::Egress,
+        Some(53033),
+        Some(143),
+        &[
+            (0, 0x41),
+            (1, 0x30),
+            (2, 0x30),
+            (3, 0x31),
+            (5, 0x4c),
+            (6, 0x4f),
+            (7, 0x47),
+            (8, 0x49),
+            (9, 0x4e),
+        ],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        6,
+        8403,
+        0x18,
+        PacketDir::Ingress,
+        Some(53033),
+        Some(143),
+        &[
+            (0, 0x41),
+            (1, 0x30),
+            (2, 0x30),
+            (3, 0x31),
+            (5, 0x4e),
+            (6, 0x4f),
+        ],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_auth_ok"))
+    );
+}
+
+#[test]
+fn imap_select_path_does_not_treat_login_ok_as_mailbox_selected() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_select_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 8404, 53034, "imap-client"));
+    session.ingest(route_fact(2, 8404, 7));
+    session.ingest(tcp_state_fact_with_ports(3, 8404, 1, 2, 53034, 143));
+    session.ingest(packet_fact_with_dir_and_payload(
+        4,
+        8404,
+        0x18,
+        PacketDir::Ingress,
+        Some(53034),
+        Some(143),
+        Some(0x2a),
+        Some(0x2a20),
+        Some(0x2a204f4b),
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        5,
+        8404,
+        0x18,
+        PacketDir::Egress,
+        Some(53034),
+        Some(143),
+        &[
+            (0, 0x41),
+            (1, 0x30),
+            (2, 0x30),
+            (3, 0x31),
+            (5, 0x4c),
+            (6, 0x4f),
+            (7, 0x47),
+            (8, 0x49),
+            (9, 0x4e),
+        ],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        6,
+        8404,
+        0x18,
+        PacketDir::Ingress,
+        Some(53034),
+        Some(143),
+        &[
+            (0, 0x41),
+            (1, 0x30),
+            (2, 0x30),
+            (3, 0x31),
+            (5, 0x4f),
+            (6, 0x4b),
+        ],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        7,
+        8404,
+        0x18,
+        PacketDir::Egress,
+        Some(53034),
+        Some(143),
+        &[
+            (0, 0x41),
+            (1, 0x30),
+            (2, 0x30),
+            (3, 0x32),
+            (5, 0x53),
+            (6, 0x45),
+            (7, 0x4c),
+            (8, 0x45),
+            (9, 0x43),
+            (10, 0x54),
+        ],
+    ));
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
+        8,
+        8404,
+        0x18,
+        PacketDir::Ingress,
+        Some(53034),
+        Some(143),
+        &[
+            (0, 0x41),
+            (1, 0x30),
+            (2, 0x30),
+            (3, 0x31),
+            (5, 0x4f),
+            (6, 0x4b),
+        ],
+    ));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
+
+    let export = session.export_bundle();
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some("receive_mailbox_selected"))
     );
 }
 

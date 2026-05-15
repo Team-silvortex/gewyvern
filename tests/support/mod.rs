@@ -363,6 +363,15 @@ pub fn packet_fact_with_dir_and_payload_bytes(
     remote_port: Option<u16>,
     payload_bytes: &[(u16, u8)],
 ) -> FactEnvelope {
+    let byte_at = |target: u16| {
+        payload_bytes
+            .iter()
+            .find_map(|(offset, value)| (*offset == target).then_some(*value))
+    };
+    let payload_byte0 = byte_at(0);
+    let payload_byte1 = byte_at(1);
+    let payload_byte2 = byte_at(2);
+    let payload_byte3 = byte_at(3);
     FactEnvelope {
         id: FactId(id),
         ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
@@ -376,29 +385,21 @@ pub fn packet_fact_with_dir_and_payload_bytes(
             dir,
             local_port: local_port.or(Some(42310)),
             remote_port: remote_port.or(Some(443)),
-            payload_byte0: payload_bytes
-                .iter()
-                .find_map(|(offset, value)| (*offset == 0).then_some(*value)),
-            payload_byte1: payload_bytes
-                .iter()
-                .find_map(|(offset, value)| (*offset == 1).then_some(*value)),
-            payload_prefix2: None,
-            payload_prefix4: None,
-            payload_byte4: payload_bytes
-                .iter()
-                .find_map(|(offset, value)| (*offset == 4).then_some(*value)),
-            payload_byte5: payload_bytes
-                .iter()
-                .find_map(|(offset, value)| (*offset == 5).then_some(*value)),
-            payload_byte9: payload_bytes
-                .iter()
-                .find_map(|(offset, value)| (*offset == 9).then_some(*value)),
-            payload_byte10: payload_bytes
-                .iter()
-                .find_map(|(offset, value)| (*offset == 10).then_some(*value)),
-            payload_byte13: payload_bytes
-                .iter()
-                .find_map(|(offset, value)| (*offset == 13).then_some(*value)),
+            payload_byte0,
+            payload_byte1,
+            payload_prefix2: payload_byte0
+                .zip(payload_byte1)
+                .map(|(b0, b1)| u16::from_be_bytes([b0, b1])),
+            payload_prefix4: payload_byte0
+                .zip(payload_byte1)
+                .zip(payload_byte2)
+                .zip(payload_byte3)
+                .map(|(((b0, b1), b2), b3)| u32::from_be_bytes([b0, b1, b2, b3])),
+            payload_byte4: byte_at(4),
+            payload_byte5: byte_at(5),
+            payload_byte9: byte_at(9),
+            payload_byte10: byte_at(10),
+            payload_byte13: byte_at(13),
             payload_bytes: payload_bytes.iter().copied().collect(),
             l3_proto: 0x0800,
             l4_proto: 6,

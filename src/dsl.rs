@@ -1986,6 +1986,7 @@ fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslError> {
         "socks" | "socks5" => Ok(1080),
         "ftp" => Ok(21),
         "smtp" => Ok(25),
+        "imap" => Ok(143),
         "ssh" => Ok(22),
         "snmp" => Ok(161),
         other => other

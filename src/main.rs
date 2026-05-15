@@ -3919,6 +3919,15 @@ mod tests {
         remote_port: Option<u16>,
         payload_bytes: &[(u16, u8)],
     ) -> FactEnvelope {
+        let byte_at = |target: u16| {
+            payload_bytes
+                .iter()
+                .find_map(|(offset, value)| (*offset == target).then_some(*value))
+        };
+        let payload_byte0 = byte_at(0);
+        let payload_byte1 = byte_at(1);
+        let payload_byte2 = byte_at(2);
+        let payload_byte3 = byte_at(3);
         FactEnvelope {
             id: FactId(id),
             ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
@@ -3932,29 +3941,21 @@ mod tests {
                 dir,
                 local_port: local_port.or(Some(42310)),
                 remote_port: remote_port.or(Some(443)),
-                payload_byte0: payload_bytes
-                    .iter()
-                    .find_map(|(offset, value)| (*offset == 0).then_some(*value)),
-                payload_byte1: payload_bytes
-                    .iter()
-                    .find_map(|(offset, value)| (*offset == 1).then_some(*value)),
-                payload_prefix2: None,
-                payload_prefix4: None,
-                payload_byte4: payload_bytes
-                    .iter()
-                    .find_map(|(offset, value)| (*offset == 4).then_some(*value)),
-                payload_byte5: payload_bytes
-                    .iter()
-                    .find_map(|(offset, value)| (*offset == 5).then_some(*value)),
-                payload_byte9: payload_bytes
-                    .iter()
-                    .find_map(|(offset, value)| (*offset == 9).then_some(*value)),
-                payload_byte10: payload_bytes
-                    .iter()
-                    .find_map(|(offset, value)| (*offset == 10).then_some(*value)),
-                payload_byte13: payload_bytes
-                    .iter()
-                    .find_map(|(offset, value)| (*offset == 13).then_some(*value)),
+                payload_byte0,
+                payload_byte1,
+                payload_prefix2: payload_byte0
+                    .zip(payload_byte1)
+                    .map(|(b0, b1)| u16::from_be_bytes([b0, b1])),
+                payload_prefix4: payload_byte0
+                    .zip(payload_byte1)
+                    .zip(payload_byte2)
+                    .zip(payload_byte3)
+                    .map(|(((b0, b1), b2), b3)| u32::from_be_bytes([b0, b1, b2, b3])),
+                payload_byte4: byte_at(4),
+                payload_byte5: byte_at(5),
+                payload_byte9: byte_at(9),
+                payload_byte10: byte_at(10),
+                payload_byte13: byte_at(13),
                 payload_bytes: payload_bytes.iter().copied().collect(),
                 l3_proto: 0x0800,
                 l4_proto: 6,
@@ -6027,6 +6028,78 @@ mod tests {
     }
 
     #[test]
+    fn summary_json_carries_imap_auth_timeout_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_path.gewy")
+            .expect("imap_auth_path DSL should compile");
+        let mut export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 82921, 53041, "imap-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        82921,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 82921, 1, 2, 53041, 143),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        82921,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53041),
+                        Some(143),
+                        Some(0x2a),
+                        Some(0x2a20),
+                        Some(0x2a204f4b),
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        5,
+                        82921,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53041),
+                        Some(143),
+                        &[
+                            (0, 0x41),
+                            (1, 0x30),
+                            (2, 0x30),
+                            (3, 0x31),
+                            (5, 0x4c),
+                            (6, 0x4f),
+                            (7, 0x47),
+                            (8, 0x49),
+                            (9, 0x4e),
+                        ],
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "imap_auth_path",
+            "authentication_exchange",
+            "receive_auth_ok",
+            "receive_payload",
+            "send_auth_request->receive_auth_ok",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing imap auth ok",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
+        assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
+        assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+    }
+
+    #[test]
     fn summary_json_carries_smtp_mail_timeout_detail() {
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy")
             .expect("smtp_mail_path DSL should compile");
@@ -7070,6 +7143,80 @@ mod tests {
         );
         let json = summary_json("dsl_demo", &export);
         assert!(json.contains("\"primary_module_kind\":\"proxy_negotiation\""));
+        assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
+        assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));
+    }
+
+    #[test]
+    fn summary_json_carries_imap_auth_denied_detail() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_denied_path.gewy")
+                .expect("imap_auth_denied_path DSL should compile");
+        let export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 82922, 53042, "imap-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        82922,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 82922, 1, 2, 53042, 143),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        82922,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53042),
+                        Some(143),
+                        Some(0x2a),
+                        Some(0x2a20),
+                        Some(0x2a204f4b),
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        5,
+                        82922,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53042),
+                        Some(143),
+                        &[
+                            (0, 0x41),
+                            (1, 0x30),
+                            (2, 0x30),
+                            (3, 0x31),
+                            (5, 0x4c),
+                            (6, 0x4f),
+                            (7, 0x47),
+                            (8, 0x49),
+                            (9, 0x4e),
+                        ],
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        6,
+                        82922,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53042),
+                        Some(143),
+                        &[
+                            (0, 0x41),
+                            (1, 0x30),
+                            (2, 0x30),
+                            (3, 0x31),
+                            (5, 0x4e),
+                            (6, 0x4f),
+                        ],
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
         assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
         assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));
     }

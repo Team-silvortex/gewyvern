@@ -1,0 +1,7 @@
+name=imap
+version=0.7.0
+entry=main.gewy
+register.protocol=imap
+register.entry=auth-denied
+register.default=false
+description=IMAP LOGIN denied path
