@@ -148,6 +148,20 @@ That tells you:
 - one reason chain was produced
 - the session was not degraded
 
+For more operator-facing runs, modern `summary_json` output also carries:
+
+- `primary_module_kind`
+- `primary_failure_stage`
+- `primary_failure_mode`
+- `primary_failure_detail`
+- `primary_failure_confidence`
+- `primary_failure_basis`
+
+Those fields are more useful when the session is diagnosing a real failure than
+this tiny healthy UDP baseline. See
+[docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md) for
+practical report-reading examples.
+
 ## Step 6: Understand What Was Materialized
 
 Under that summary, the runtime has already constructed several different views:

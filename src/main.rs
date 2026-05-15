@@ -5109,6 +5109,55 @@ mod tests {
     }
 
     #[test]
+    fn failure_confidence_and_basis_distinguish_direct_and_inferred_failures() {
+        assert_eq!(
+            crate::failure_basis_label(
+                "attention",
+                "proxy_authentication",
+                "receive_auth_required",
+                &[],
+            ),
+            "direct_protocol_signal"
+        );
+        assert_eq!(
+            crate::failure_confidence_label(
+                "attention",
+                "proxy_authentication",
+                "receive_auth_required",
+                &[],
+            ),
+            "high"
+        );
+        assert_eq!(
+            crate::failure_basis_label(
+                "attention",
+                "http3_request_response",
+                "send_request_stream->receive_response_stream",
+                &["transport_io".into()],
+            ),
+            "missing_transition"
+        );
+        assert_eq!(
+            crate::failure_confidence_label(
+                "attention",
+                "http3_request_response",
+                "send_request_stream->receive_response_stream",
+                &["transport_io".into()],
+            ),
+            "medium"
+        );
+        assert_eq!(
+            crate::failure_basis_label(
+                "attention",
+                "tls_handshake",
+                "connect->establish",
+                &["route_io".into()],
+            ),
+            "missing_transition"
+        );
+    }
+
+    #[test]
     fn summary_json_carries_modern_protocol_failure_detail() {
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy")
             .expect("http3_request_path DSL should compile");
@@ -7669,6 +7718,8 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"signaling_session\""));
         assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
         assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -8293,6 +8344,8 @@ struct ProcessNetworkProfileSummary {
     primary_stage_family: String,
     primary_failure_mode: String,
     primary_failure_detail: String,
+    primary_failure_confidence: String,
+    primary_failure_basis: String,
     operations: Vec<String>,
     module_kinds: Vec<String>,
     phases: Vec<String>,
@@ -8729,6 +8782,73 @@ fn failure_detail_family_label(detail: &str) -> &'static str {
     }
 }
 
+fn reduce_confidence_level(level: &str) -> &'static str {
+    match level {
+        "high" => "medium",
+        "medium" => "low",
+        "low" => "low",
+        _ => "none",
+    }
+}
+
+fn failure_basis_label(
+    status: &str,
+    module_kind: &str,
+    primary_stage: &str,
+    suspect_areas: &[String],
+) -> &'static str {
+    if status != "attention" {
+        return "none";
+    }
+
+    let stage = primary_stage.to_ascii_lowercase();
+    let module = module_kind.to_ascii_lowercase();
+
+    if stage.contains("denied")
+        || stage.contains("auth_required")
+        || stage.contains("constraint")
+        || stage.contains("error")
+        || stage.contains("close")
+        || module.contains("error")
+    {
+        return "direct_protocol_signal";
+    }
+    if stage.contains("->") {
+        return "missing_transition";
+    }
+    if stage.contains("resolve")
+        || stage.contains("dns")
+        || stage.contains("connect")
+        || stage.contains("establish")
+        || stage.contains("handshake")
+        || stage.contains("crypto")
+        || stage.contains("hello")
+        || stage.contains("banner")
+        || stage.contains("key_exchange")
+        || stage.contains("kex")
+        || suspect_areas
+            .iter()
+            .any(|area| area == "route_io" || area == "transport_io" || area == "socket_state")
+    {
+        return "phase_inference";
+    }
+    "heuristic_summary"
+}
+
+fn failure_confidence_label(
+    status: &str,
+    module_kind: &str,
+    primary_stage: &str,
+    suspect_areas: &[String],
+) -> &'static str {
+    match failure_basis_label(status, module_kind, primary_stage, suspect_areas) {
+        "direct_protocol_signal" => "high",
+        "missing_transition" => "medium",
+        "phase_inference" | "heuristic_summary" => "low",
+        _ => "none",
+    }
+}
+
 #[derive(Clone, Copy)]
 enum ScanTargetStatus {
     Idle,
@@ -8859,6 +8979,48 @@ fn protocol_flow_failure_detail(
     failure_detail_label(status, module_kind, &primary_stage, suspect_areas).to_string()
 }
 
+fn protocol_flow_failure_confidence(
+    flow: &gewyvern::flow::ProgramFlow,
+    finding_summary: Option<&ProtocolFlowFindingSummary>,
+) -> String {
+    let status = protocol_flow_status(flow, finding_summary);
+    let last_phase = protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into());
+    let module_kind = gewyvern::flow::infer_network_module_kind(
+        &flow.operation,
+        Some(&last_phase),
+        None,
+        "network_module",
+    );
+    let primary_stage = finding_summary
+        .and_then(|summary| summary.missing_transitions.first().cloned())
+        .unwrap_or(last_phase);
+    let suspect_areas = finding_summary
+        .map(|summary| summary.suspect_areas.as_slice())
+        .unwrap_or(&[]);
+    failure_confidence_label(status, module_kind, &primary_stage, suspect_areas).to_string()
+}
+
+fn protocol_flow_failure_basis(
+    flow: &gewyvern::flow::ProgramFlow,
+    finding_summary: Option<&ProtocolFlowFindingSummary>,
+) -> String {
+    let status = protocol_flow_status(flow, finding_summary);
+    let last_phase = protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into());
+    let module_kind = gewyvern::flow::infer_network_module_kind(
+        &flow.operation,
+        Some(&last_phase),
+        None,
+        "network_module",
+    );
+    let primary_stage = finding_summary
+        .and_then(|summary| summary.missing_transitions.first().cloned())
+        .unwrap_or(last_phase);
+    let suspect_areas = finding_summary
+        .map(|summary| summary.suspect_areas.as_slice())
+        .unwrap_or(&[]);
+    failure_basis_label(status, module_kind, &primary_stage, suspect_areas).to_string()
+}
+
 fn protocol_flow_summary_item_json(
     flow: &gewyvern::flow::ProgramFlow,
     finding_summary: Option<&ProtocolFlowFindingSummary>,
@@ -8881,8 +9043,10 @@ fn protocol_flow_summary_item_json(
         .unwrap_or(&[]);
     let failure_mode = protocol_flow_failure_mode(flow, finding_summary);
     let failure_detail = protocol_flow_failure_detail(flow, finding_summary);
+    let failure_confidence = protocol_flow_failure_confidence(flow, finding_summary);
+    let failure_basis = protocol_flow_failure_basis(flow, finding_summary);
     format!(
-        "{{\"program_flow\":{},\"process\":{},\"operation\":\"{}\",\"network_module_kind\":\"{}\",\"network_module_kinds\":{},\"status\":\"{}\",\"failure_mode\":\"{}\",\"failure_mode_family\":\"{}\",\"failure_detail\":\"{}\",\"failure_detail_family\":\"{}\",\"phases\":{},\"last_phase\":{},\"missing_transitions\":{},\"suspect_areas\":{}}}",
+        "{{\"program_flow\":{},\"process\":{},\"operation\":\"{}\",\"network_module_kind\":\"{}\",\"network_module_kinds\":{},\"status\":\"{}\",\"failure_mode\":\"{}\",\"failure_mode_family\":\"{}\",\"failure_detail\":\"{}\",\"failure_detail_family\":\"{}\",\"failure_confidence\":\"{}\",\"failure_basis\":\"{}\",\"phases\":{},\"last_phase\":{},\"missing_transitions\":{},\"suspect_areas\":{}}}",
         flow.id.0,
         process_json(flow.process.as_ref()),
         operation_label(&flow.operation),
@@ -8897,6 +9061,8 @@ fn protocol_flow_summary_item_json(
         failure_mode_family_label(&failure_mode),
         failure_detail,
         failure_detail_family_label(&failure_detail),
+        failure_confidence,
+        failure_basis,
         string_list_json(&phases),
         protocol_flow_last_phase(flow)
             .map(|phase| format!("\"{}\"", phase))
@@ -8952,13 +9118,17 @@ fn protocol_flow_summaries_text(export: &ExportBundle) -> String {
             };
             let failure_mode = protocol_flow_failure_mode(flow, finding_summary);
             let failure_detail = protocol_flow_failure_detail(flow, finding_summary);
+            let failure_confidence = protocol_flow_failure_confidence(flow, finding_summary);
+            let failure_basis = protocol_flow_failure_basis(flow, finding_summary);
             format!(
-                "{}[kind={} status={} failure_mode={} failure_detail={} phases={}{}]",
+                "{}[kind={} status={} failure_mode={} failure_detail={} confidence={} basis={} phases={}{}]",
                 operation_label(&flow.operation),
                 network_module_kind,
                 protocol_flow_status(flow, finding_summary),
                 failure_mode,
                 failure_detail,
+                failure_confidence,
+                failure_basis,
                 phase_text,
                 missing_text
             )
@@ -8991,6 +9161,8 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
                 primary_stage_family: "none".into(),
                 primary_failure_mode: "none".into(),
                 primary_failure_detail: "none".into(),
+                primary_failure_confidence: "none".into(),
+                primary_failure_basis: "none".into(),
                 ..Default::default()
             });
 
@@ -9085,6 +9257,8 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
                 primary_stage_family: "none".into(),
                 primary_failure_mode: "none".into(),
                 primary_failure_detail: "none".into(),
+                primary_failure_confidence: "none".into(),
+                primary_failure_basis: "none".into(),
                 ..Default::default()
             });
         entry.status = "attention".into();
@@ -9155,6 +9329,28 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
             &profile.suspect_areas,
         )
         .to_string();
+        let mut confidence = failure_confidence_label(
+            &profile.status,
+            &profile.primary_module_kind,
+            &profile.primary_failure_stage,
+            &profile.suspect_areas,
+        );
+        let basis = failure_basis_label(
+            &profile.status,
+            &profile.primary_module_kind,
+            &profile.primary_failure_stage,
+            &profile.suspect_areas,
+        );
+        let ambiguity_signals = usize::from(profile.module_kinds.len() > 1)
+            + usize::from(profile.missing_transitions.len() > 1);
+        if ambiguity_signals > 0 {
+            confidence = reduce_confidence_level(confidence);
+        }
+        if ambiguity_signals > 1 {
+            confidence = reduce_confidence_level(confidence);
+        }
+        profile.primary_failure_confidence = confidence.to_string();
+        profile.primary_failure_basis = basis.to_string();
         if let Some(primary_suspect_module) = best_scored_value(&suspect_module_scores, &key) {
             if let Some(index) = profile
                 .suspect_modules
@@ -9176,7 +9372,7 @@ fn process_network_profiles_json(export: &ExportBundle) -> String {
         process_network_profile_summaries(export)
             .into_iter()
             .map(|profile| format!(
-                "{{\"pid\":{},\"comm\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"operations\":{},\"module_kinds\":{},\"phases\":{},\"missing_transitions\":{},\"suspect_areas\":{},\"suspect_modules\":{},\"healthy_flows\":{},\"attention_flows\":{}}}",
+                "{{\"pid\":{},\"comm\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"operations\":{},\"module_kinds\":{},\"phases\":{},\"missing_transitions\":{},\"suspect_areas\":{},\"suspect_modules\":{},\"healthy_flows\":{},\"attention_flows\":{}}}",
                 profile.pid,
                 profile.comm,
                 profile.status,
@@ -9188,6 +9384,8 @@ fn process_network_profiles_json(export: &ExportBundle) -> String {
                 failure_mode_family_label(&profile.primary_failure_mode),
                 profile.primary_failure_detail,
                 failure_detail_family_label(&profile.primary_failure_detail),
+                profile.primary_failure_confidence,
+                profile.primary_failure_basis,
                 string_list_json(&profile.operations),
                 string_list_json(&profile.module_kinds),
                 string_list_json(&profile.phases),
@@ -9227,7 +9425,7 @@ fn process_network_profiles_text(export: &ExportBundle) -> String {
                 format!(" missing={}", profile.missing_transitions.join("|"))
             };
             format!(
-                "{}(pid={})[status={} primary_kind={} primary_stage={} failure_mode={} failure_detail={} kinds={} healthy={} attention={} phases={}{}]",
+                "{}(pid={})[status={} primary_kind={} primary_stage={} failure_mode={} failure_detail={} confidence={} basis={} kinds={} healthy={} attention={} phases={}{}]",
                 profile.comm,
                 profile.pid,
                 profile.status,
@@ -9235,6 +9433,8 @@ fn process_network_profiles_text(export: &ExportBundle) -> String {
                 profile.primary_failure_stage,
                 profile.primary_failure_mode,
                 profile.primary_failure_detail,
+                profile.primary_failure_confidence,
+                profile.primary_failure_basis,
                 kinds,
                 profile.healthy_flows,
                 profile.attention_flows,
@@ -9347,6 +9547,40 @@ fn primary_failure_detail_for_export(export: &ExportBundle) -> String {
     .to_string()
 }
 
+fn primary_failure_confidence_for_export(export: &ExportBundle) -> String {
+    if let Some(profile) = primary_process_profile_for_export(export) {
+        return profile.primary_failure_confidence;
+    }
+    failure_confidence_label(
+        scan_target_status(export).label(),
+        &primary_module_kind_for_export(export),
+        &primary_failure_stage_for_export(export),
+        &export
+            .program_findings
+            .iter()
+            .map(|finding| finding.suspect_area.clone())
+            .collect::<Vec<_>>(),
+    )
+    .to_string()
+}
+
+fn primary_failure_basis_for_export(export: &ExportBundle) -> String {
+    if let Some(profile) = primary_process_profile_for_export(export) {
+        return profile.primary_failure_basis;
+    }
+    failure_basis_label(
+        scan_target_status(export).label(),
+        &primary_module_kind_for_export(export),
+        &primary_failure_stage_for_export(export),
+        &export
+            .program_findings
+            .iter()
+            .map(|finding| finding.suspect_area.clone())
+            .collect::<Vec<_>>(),
+    )
+    .to_string()
+}
+
 fn suspect_modules_for_export(export: &ExportBundle) -> String {
     if let Some(profile) = primary_process_profile_for_export(export) {
         if !profile.suspect_modules.is_empty() {
@@ -9401,8 +9635,10 @@ fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
             let primary_failure_stage = primary_failure_stage_for_export(export);
             let primary_failure_mode = primary_failure_mode_for_export(export);
             let primary_failure_detail = primary_failure_detail_for_export(export);
+            let primary_failure_confidence = primary_failure_confidence_for_export(export);
+            let primary_failure_basis = primary_failure_basis_for_export(export);
             format!(
-                "{{\"target\":\"{}\",\"template_id\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"suspect_modules\":\"{}\",\"program_flows\":{},\"program_findings\":{},\"module_findings\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
+                "{{\"target\":\"{}\",\"template_id\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"suspect_modules\":\"{}\",\"program_flows\":{},\"program_findings\":{},\"module_findings\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
                 name,
                 export.template_id,
                 scan_target_status(export).label(),
@@ -9414,6 +9650,8 @@ fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
                 failure_mode_family_label(&primary_failure_mode),
                 primary_failure_detail,
                 failure_detail_family_label(&primary_failure_detail),
+                primary_failure_confidence,
+                primary_failure_basis,
                 suspect_modules_for_export(export),
                 export.program_flows.len(),
                 export.program_findings.len(),
@@ -9506,7 +9744,7 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 .map(|profile| {
                     let suspect_modules = first_or_none(&profile.suspect_modules);
                     format!(
-                        "<li><strong>{}</strong> (pid={}): status={} <span class=\"tag family-{}\">{}</span> <span class=\"tag stage-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> suspect_module={} kinds={} healthy_flows={} attention_flows={} phases={} missing={}</li>",
+                        "<li><strong>{}</strong> (pid={}): status={} <span class=\"tag family-{}\">{}</span> <span class=\"tag stage-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> confidence={} basis={} suspect_module={} kinds={} healthy_flows={} attention_flows={} phases={} missing={}</li>",
                         html_escape(&profile.comm),
                         profile.pid,
                         html_escape(&profile.status),
@@ -9518,6 +9756,8 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                         html_escape(&profile.primary_failure_mode),
                         html_escape(failure_detail_family_label(&profile.primary_failure_detail)),
                         html_escape(&profile.primary_failure_detail),
+                        html_escape(&profile.primary_failure_confidence),
+                        html_escape(&profile.primary_failure_basis),
                         html_escape(&suspect_modules),
                         html_escape(&profile.module_kinds.join(" | ")),
                         profile.healthy_flows,
@@ -9532,6 +9772,8 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
             let primary_failure_stage = primary_failure_stage_for_export(export);
             let primary_failure_mode = primary_failure_mode_for_export(export);
             let primary_failure_detail = primary_failure_detail_for_export(export);
+            let primary_failure_confidence = primary_failure_confidence_for_export(export);
+            let primary_failure_basis = primary_failure_basis_for_export(export);
             let suspect_modules = suspect_modules_for_export(export);
             let primary_module_family = module_family_label(&primary_module_kind);
             let primary_stage_family = stage_family_label(&primary_failure_stage);
@@ -9546,21 +9788,29 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                         protocol_flow_failure_mode(flow, flow_finding_summaries.get(&flow.id));
                     let failure_detail =
                         protocol_flow_failure_detail(flow, flow_finding_summaries.get(&flow.id));
+                    let failure_confidence = protocol_flow_failure_confidence(
+                        flow,
+                        flow_finding_summaries.get(&flow.id),
+                    );
+                    let failure_basis =
+                        protocol_flow_failure_basis(flow, flow_finding_summaries.get(&flow.id));
                     format!(
-                        "<li>{}: last_phase={} <span class=\"tag failure-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> phases={}</li>",
+                        "<li>{}: last_phase={} <span class=\"tag failure-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> confidence={} basis={} phases={}</li>",
                         html_escape(&operation_label(&flow.operation)),
                         html_escape(&protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into())),
                         html_escape(failure_mode_family_label(&failure_mode)),
                         html_escape(&failure_mode),
                         html_escape(failure_detail_family_label(&failure_detail)),
                         html_escape(&failure_detail),
+                        html_escape(&failure_confidence),
+                        html_escape(&failure_basis),
                         html_escape(&phase_text),
                     )
                 })
                 .collect::<Vec<_>>()
                 .join("");
             format!(
-                "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><h3>Process Profiles</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
+                "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><h3>Process Profiles</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
                 html_escape(name),
                 status,
                 export.program_flows.len(),
@@ -9574,6 +9824,8 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 html_escape(&primary_failure_mode),
                 failure_detail_family_label(&primary_failure_detail),
                 html_escape(&primary_failure_detail),
+                html_escape(&primary_failure_confidence),
+                html_escape(&primary_failure_basis),
                 html_escape(&suspect_modules),
                 profiles,
                 flow_lines,
@@ -9643,6 +9895,8 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
     let primary_failure_stage = primary_failure_stage_for_export(export);
     let primary_failure_mode = primary_failure_mode_for_export(export);
     let primary_failure_detail = primary_failure_detail_for_export(export);
+    let primary_failure_confidence = primary_failure_confidence_for_export(export);
+    let primary_failure_basis = primary_failure_basis_for_export(export);
     let suspect_modules = format!(
         "[{}]",
         export
@@ -9653,7 +9907,7 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
             .join(",")
     );
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
         export.template_id,
         export.ingest_trust_mode,
         primary_module_kind,
@@ -9664,6 +9918,8 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
         failure_mode_family_label(&primary_failure_mode),
         primary_failure_detail,
         failure_detail_family_label(&primary_failure_detail),
+        primary_failure_confidence,
+        primary_failure_basis,
         export.debug_summary.fragments_loaded,
         export.debug_summary.hookpoints_failed,
         export.debug_summary.accepted_facts,
@@ -9751,8 +10007,10 @@ fn findings_json(name: &str, export: &ExportBundle) -> String {
     let primary_failure_stage = primary_failure_stage_for_export(export);
     let primary_failure_mode = primary_failure_mode_for_export(export);
     let primary_failure_detail = primary_failure_detail_for_export(export);
+    let primary_failure_confidence = primary_failure_confidence_for_export(export);
+    let primary_failure_basis = primary_failure_basis_for_export(export);
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
         export.template_id,
         primary_module_kind,
         module_family_label(&primary_module_kind),
@@ -9762,6 +10020,8 @@ fn findings_json(name: &str, export: &ExportBundle) -> String {
         failure_mode_family_label(&primary_failure_mode),
         primary_failure_detail,
         failure_detail_family_label(&primary_failure_detail),
+        primary_failure_confidence,
+        primary_failure_basis,
         export
             .module_findings
             .iter()

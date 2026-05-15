@@ -159,9 +159,15 @@ the fastest:
    Core shared IR semantics: predicates, signal semantics, phase kinds, and transport matcher behavior.
 6. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
    High-level architecture and compiler/runtime boundaries.
-7. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+7. [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
+   Operator-facing examples for single-protocol scans, full sweeps, PID-scoped
+   reports, and reading failure confidence/basis.
+8. [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
+   How to interpret `process_network_profiles` for tools such as `apt`, `curl`,
+   media clients, proxies, and database clients.
+9. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
    Gewy language shape, package model, and compiler-facing usage.
-8. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
+10. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
    Draft formal grammar for the preferred pipeline surface of `gewylang`.
 
 ## Main Entrypoints
