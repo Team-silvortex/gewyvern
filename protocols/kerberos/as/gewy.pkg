@@ -1,0 +1,7 @@
+name=kerberos
+version=0.7.0
+entry=main.gewy
+register.protocol=kerberos
+register.entry=as
+register.default=true
+description=Kerberos AS-REQ to AS-REP exchange

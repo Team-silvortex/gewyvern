@@ -1,0 +1,6 @@
+name=rtsp
+version=0.7.0
+entry=main.gewy
+register.protocol=rtsp
+register.entry=setup
+description=RTSP OPTIONS plus DESCRIBE plus SETUP exchange

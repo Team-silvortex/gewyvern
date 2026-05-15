@@ -208,6 +208,12 @@ pub fn infer_network_module_kind(
         }
         return "mail_session";
     }
+    if operation_id.starts_with("pop3_") {
+        if operation_id.contains("auth") {
+            return "authentication_exchange";
+        }
+        return "mail_session";
+    }
     if operation_id.starts_with("ftp_") {
         if operation_id.contains("list")
             || operation_id.contains("retr")
@@ -235,6 +241,12 @@ pub fn infer_network_module_kind(
     if operation_id.starts_with("radius_") {
         return "authentication_exchange";
     }
+    if operation_id.starts_with("kerberos_") {
+        if operation_id.contains("tgs") {
+            return "ticket_granting";
+        }
+        return "authentication_exchange";
+    }
     if operation_id.starts_with("snmp_") {
         return "management_query";
     }
@@ -245,6 +257,9 @@ pub fn infer_network_module_kind(
         return "time_synchronization";
     }
     if operation_id.starts_with("sip_") {
+        return "signaling_session";
+    }
+    if operation_id.starts_with("rtsp_") {
         return "signaling_session";
     }
     if operation_id.starts_with("gtpu_") {

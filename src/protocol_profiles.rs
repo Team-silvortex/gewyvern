@@ -411,6 +411,60 @@ const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
         ],
     },
     ProtocolProfile {
+        name: "pop3",
+        default_entry: "auth",
+        entries: &[
+            ProtocolEntryProfile {
+                mode: "auth",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/pop3_auth_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "auth-denied",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/pop3_auth_denied_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "list",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/pop3_list_path.gewy",
+            },
+        ],
+    },
+    ProtocolProfile {
+        name: "kerberos",
+        default_entry: "as",
+        entries: &[
+            ProtocolEntryProfile {
+                mode: "as",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/kerberos_as_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "as-error",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/kerberos_as_error_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "tgs",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/kerberos_tgs_path.gewy",
+            },
+        ],
+    },
+    ProtocolProfile {
+        name: "rtsp",
+        default_entry: "options",
+        entries: &[
+            ProtocolEntryProfile {
+                mode: "options",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_options_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "describe",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_describe_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "setup",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_setup_path.gewy",
+            },
+        ],
+    },
+    ProtocolProfile {
         name: "ssh",
         default_entry: "session",
         entries: &[

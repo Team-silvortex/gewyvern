@@ -51,7 +51,10 @@ Useful anchor examples:
   [dsl/socks5_auth_connect_denied_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_connect_denied_path.gewy),
   [dsl/ftp_active_retr_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_retr_path.gewy),
   [dsl/smtp_data_denied_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_denied_path.gewy),
-  [dsl/imap_select_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/imap_select_path.gewy)
+  [dsl/imap_select_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/imap_select_path.gewy),
+  [dsl/pop3_list_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/pop3_list_path.gewy),
+  [dsl/kerberos_tgs_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/kerberos_tgs_path.gewy),
+  [dsl/rtsp_setup_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_setup_path.gewy)
 
 ## Current Shape
 

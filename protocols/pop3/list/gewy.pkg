@@ -1,0 +1,6 @@
+name=pop3
+version=0.7.0
+entry=main.gewy
+register.protocol=pop3
+register.entry=list
+description=POP3 mailbox LIST path

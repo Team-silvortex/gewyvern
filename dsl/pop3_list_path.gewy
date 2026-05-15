@@ -1,0 +1,36 @@
+# gewyvern stable-subset protocol path
+
+fn pop3_list_rules() =
+  let module_name = :pop3_list_path
+  let route_narrative = "static:program resolved an upstream route for this POP3 mailbox session"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:pop3_list)
+  |> reason_model(:pop3_list_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "socket_state_observed:remote:pop3", stage: :socket_state_transition, narrative: "static:program initiated or advanced a POP3 socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "packet_observed:tcp:remote:pop3:remote_to_local:prefix4:0x2b4f4b20:bytes_at:5:0x50,0x4f,0x50,0x33", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_banner)
+  |> program_rule(predicate: "packet_observed:tcp:remote:pop3:local_to_remote:prefix4:0x55534552", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_user)
+  |> program_rule(predicate: "packet_observed:tcp:remote:pop3:remote_to_local:prefix4:0x2b4f4b20:bytes_at:5:0x55,0x73,0x65,0x72", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_user_ok)
+  |> program_rule(predicate: "packet_observed:tcp:remote:pop3:local_to_remote:prefix4:0x50415353", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_auth_pass)
+  |> program_rule(predicate: "packet_observed:tcp:remote:pop3:remote_to_local:prefix4:0x2b4f4b20:bytes_at:5:0x4d,0x61,0x69,0x6c", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_auth_ok)
+  |> program_rule(predicate: "packet_observed:tcp:remote:pop3:local_to_remote:prefix4:0x4c495354", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_list)
+  |> program_rule(predicate: "packet_observed:tcp:remote:pop3:remote_to_local:prefix4:0x2b4f4b20:bytes_at:5:0x6d,0x65,0x73,0x73", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_list_ready)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "socket_state_observed:remote:pop3", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:pop3:remote_to_local:prefix4:0x2b4f4b20:bytes_at:5:0x50,0x4f,0x50,0x33", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_banner)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:pop3:local_to_remote:prefix4:0x55534552", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_user)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:pop3:remote_to_local:prefix4:0x2b4f4b20:bytes_at:5:0x55,0x73,0x65,0x72", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_user_ok)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:pop3:local_to_remote:prefix4:0x50415353", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_auth_pass)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:pop3:remote_to_local:prefix4:0x2b4f4b20:bytes_at:5:0x4d,0x61,0x69,0x6c", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_auth_ok)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:pop3:local_to_remote:prefix4:0x4c495354", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_list)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:pop3:remote_to_local:prefix4:0x2b4f4b20:bytes_at:5:0x6d,0x65,0x73,0x73", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_list_ready)
+
+template(:pop3_list_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:pop3_list_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

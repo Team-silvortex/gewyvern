@@ -1,0 +1,6 @@
+name=kerberos
+version=0.7.0
+entry=main.gewy
+register.protocol=kerberos
+register.entry=tgs
+description=Kerberos TGS-REQ to TGS-REP exchange

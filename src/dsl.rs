@@ -1983,12 +1983,15 @@ fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslError> {
         "radius" => Ok(1812),
         "gtpu" => Ok(2152),
         "sip" => Ok(5060),
+        "rtsp" => Ok(554),
         "socks" | "socks5" => Ok(1080),
         "ftp" => Ok(21),
         "smtp" => Ok(25),
         "imap" => Ok(143),
+        "pop3" => Ok(110),
         "ssh" => Ok(22),
         "snmp" => Ok(161),
+        "kerberos" => Ok(88),
         other => other
             .parse::<u16>()
             .map_err(|_| DslError::InvalidValue(format!("unknown {predicate} port '{other}'"))),

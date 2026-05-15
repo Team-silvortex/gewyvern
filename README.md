@@ -54,7 +54,7 @@ as a visual report.
 - project version: `0.7.0`
 - stage: pre-1.0 infra candidate with a stabilized workspace, protocol registry, and package-driven DSL/compiler path
 - transport support: TCP + UDP
-- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP, RADIUS, GTP-U, SMTP, SSH, SOCKS5, SIP, LDAP, SNMP, DNS-over-TCP
+- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP, RADIUS, GTP-U, SMTP, SSH, SOCKS5, SIP, LDAP, SNMP, RTSP, DNS-over-TCP
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
 - replay: deterministic for exported sessions
@@ -95,7 +95,7 @@ The detailed milestone plan lives in [ROADMAP.md](/Users/Shared/chroot/dev/gewyv
 - Data stores, brokers, and cache access:
   Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP
 - Mail, directory, file-transfer, and remote access:
-  SMTP, IMAP, FTP, SSH, SOCKS5, LDAP
+  SMTP, IMAP, POP3, FTP, SSH, SOCKS5, LDAP, Kerberos, RTSP
 
 Most built-in entries model a concrete program-network path such as
 request/response, auth/query, relay setup, or publish/ack, rather than only
@@ -347,10 +347,13 @@ The repository now includes first-class DSL files that compile into
 - Mail, directory, and access protocols:
   SMTP session/auth/mail/rcpt/data and denied branches,
   IMAP auth/auth-denied/select mailbox branches,
+  POP3 auth/auth-denied/list mailbox branches,
   FTP session/list/retr/stor across passive and active modes,
   SSH session/auth/channel branches,
   SOCKS5 session/auth/denied branches,
-  LDAP bind/search/modify/session/write/sync and denied branches
+  LDAP bind/search/modify/session/write/sync and denied branches,
+  Kerberos AS/TGS and KRB-ERROR branches,
+  RTSP options/describe/setup signaling branches
 
 The clearest operational view of those built-ins is the registry under
 [protocols](/Users/Shared/chroot/dev/gewyvern/protocols). Each package there
