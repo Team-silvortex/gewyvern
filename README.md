@@ -165,9 +165,12 @@ the fastest:
 8. [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
    How to interpret `process_network_profiles` for tools such as `apt`, `curl`,
    media clients, proxies, and database clients.
-9. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+9. [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
+   Cluster-oriented reading guide for `failure_mode`, `failure_detail`,
+   `failure_confidence`, and `failure_basis`.
+10. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
    Gewy language shape, package model, and compiler-facing usage.
-10. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
+11. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
    Draft formal grammar for the preferred pipeline surface of `gewylang`.
 
 ## Main Entrypoints

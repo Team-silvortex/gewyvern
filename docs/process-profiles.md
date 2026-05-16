@@ -230,3 +230,7 @@ When a process profile says `attention`:
 6. compare against `protocol_flows`
 
 That order usually gives the best balance between speed and accuracy.
+
+If you want a cluster-by-cluster explanation of the failure language itself,
+continue with
+[docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md).

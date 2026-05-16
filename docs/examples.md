@@ -191,3 +191,8 @@ pretending certainty.
 If your main goal is process-oriented diagnosis rather than command syntax, the
 next best companion guide is
 [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md).
+
+If your main goal is to understand what report language like
+`server_denied`, `request_sent_no_reply`, or `followup_not_sent` means across
+different protocol clusters, the best companion guide is
+[docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md).
