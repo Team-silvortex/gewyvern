@@ -4813,6 +4813,10 @@ mod tests {
             "json={}",
             json
         );
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
         assert!(json.contains("\"failure_mode\":\"no_response\""));
         assert!(json.contains("\"failure_detail\":\"request_sent_no_reply\""));
     }
@@ -5158,6 +5162,117 @@ mod tests {
     }
 
     #[test]
+    fn process_profiles_lower_confidence_for_competing_missing_transition_hypotheses() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let primary_flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &primary_flow,
+            "http_request_path",
+            "http_request_response",
+            "receive_response",
+            "receive_payload",
+            "send_request->receive_response",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing http response",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+
+        let mut competing_flow = primary_flow.clone();
+        competing_flow.id = gewyvern::flow::ProgramFlowId(primary_flow.id.0 + 5000);
+        export.program_flows.push(competing_flow.clone());
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &competing_flow,
+            "http_connect_authenticated_tunnel_path",
+            "proxy_authentication",
+            "receive_auth_ok",
+            "receive_payload",
+            "send_auth_request->receive_auth_ok",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing proxy auth response",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+
+        let json = crate::process_network_profiles_json(&export);
+        assert!(
+            json.contains("\"module_kinds\":[\"http_request_response\",\"proxy_authentication\"]"),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains(
+                "\"missing_transitions\":[\"send_auth_request->receive_auth_ok\",\"send_request->receive_response\"]"
+            ),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_confidence\":\"low\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_basis\":\"missing_transition\""),
+            "json={}",
+            json
+        );
+    }
+
+    #[test]
+    fn process_profiles_lower_direct_signal_confidence_for_competing_module_hypotheses() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        export.program_findings.push(ProgramFinding {
+            program_flow: flow.id,
+            process: flow.process.clone(),
+            operation: flow.operation.clone(),
+            module_label: "http_connect_auth_required_path".into(),
+            network_module_kind: "proxy_authentication".into(),
+            phase: Some("receive_auth_required".into()),
+            phase_kind: Some("receive_payload".into()),
+            phase_transition: None,
+            phase_transition_kind: None,
+            suspect_area: "authentication".into(),
+            cause: ProgramFindingCause::MissingCoreStage,
+            summary: "synthetic competing proxy auth requirement".into(),
+            supporting_fragments: vec!["tcp_packet_meta_fragment".into()],
+            evidence_trace: vec!["synthetic:direct_protocol_signal".into()],
+        });
+
+        let json = crate::process_network_profiles_json(&export);
+        assert!(
+            json.contains("\"module_kinds\":[\"http_request_response\",\"proxy_authentication\"]"),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_confidence\":\"medium\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""),
+            "json={}",
+            json
+        );
+    }
+
+    #[test]
     fn summary_json_carries_modern_protocol_failure_detail() {
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy")
             .expect("http3_request_path DSL should compile");
@@ -5268,6 +5383,8 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"remote_access_session\""));
         assert!(json.contains("\"primary_failure_mode\":\"setup_incomplete\""));
         assert!(json.contains("\"primary_failure_detail\":\"handshake_incomplete\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -5321,6 +5438,8 @@ mod tests {
             json
         );
         assert!(json.contains("\"primary_failure_detail\":\"followup_not_sent\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -5411,6 +5530,8 @@ mod tests {
             "json={}",
             json
         );
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -5520,6 +5641,8 @@ mod tests {
             "json={}",
             json
         );
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -5570,6 +5693,8 @@ mod tests {
             "json={}",
             json
         );
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -5664,6 +5789,8 @@ mod tests {
             "json={}",
             json
         );
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -5747,6 +5874,8 @@ mod tests {
             "json={}",
             json
         );
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -5886,6 +6015,8 @@ mod tests {
             "json={}",
             json
         );
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -6003,6 +6134,92 @@ mod tests {
             "json={}",
             json
         );
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
+    }
+
+    #[test]
+    fn summary_json_carries_ftp_denied_detail() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_denied_path.gewy")
+            .expect("ftp_denied_path DSL should compile");
+        let export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 8302, 53053, "ftp-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        8302,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 8302, 1, 2, 53053, 21),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        8302,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53053),
+                        Some(21),
+                        Some(0x32),
+                        Some(0x3232),
+                        Some(0x32323020),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        8302,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53053),
+                        Some(21),
+                        Some(0x55),
+                        Some(0x5553),
+                        Some(0x55534552),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        6,
+                        8302,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53053),
+                        Some(21),
+                        Some(0x33),
+                        Some(0x3333),
+                        Some(0x33333120),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        7,
+                        8302,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53053),
+                        Some(21),
+                        Some(0x50),
+                        Some(0x5041),
+                        Some(0x50415353),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        8,
+                        8302,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53053),
+                        Some(21),
+                        Some(0x35),
+                        Some(0x3533),
+                        Some(0x35333020),
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
+        assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
+        assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"high\""));
+        assert!(json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
     }
 
     #[test]
@@ -6118,6 +6335,8 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
         assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
         assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -6298,6 +6517,8 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
         assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
         assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -6435,6 +6656,8 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
         assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
         assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -6569,6 +6792,8 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
         assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
         assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"high\""));
+        assert!(json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
     }
 
     #[test]
@@ -6624,6 +6849,114 @@ mod tests {
             "json={}",
             json
         );
+        assert!(
+            json.contains("\"primary_failure_confidence\":\"high\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""),
+            "json={}",
+            json
+        );
+    }
+
+    #[test]
+    fn summary_json_carries_ldap_modify_denied_detail() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy")
+                .expect("ldap_modify_denied_path DSL should compile");
+        let export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 82931, 54031, "ldapmodify"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        82931,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 82931, 1, 2, 54031, 389),
+                    tcp_state_fact_with_ports_for_tests(4, 82931, 2, 3, 54031, 389),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        5,
+                        82931,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(54031),
+                        Some(389),
+                        &[(0, 0x30), (4, 0x01), (5, 0x66)],
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        6,
+                        82931,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(54031),
+                        Some(389),
+                        &[(0, 0x30), (4, 0x01), (5, 0x67), (9, 0x32)],
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"directory_write\""));
+        assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
+        assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"high\""));
+        assert!(json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
+    }
+
+    #[test]
+    fn summary_json_carries_ldap_modify_constraint_detail() {
+        let binding =
+            compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_constraint_path.gewy")
+                .expect("ldap_modify_constraint_path DSL should compile");
+        let export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 82932, 54032, "ldapmodify"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        82932,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 82932, 1, 2, 54032, 389),
+                    tcp_state_fact_with_ports_for_tests(4, 82932, 2, 3, 54032, 389),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        5,
+                        82932,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(54032),
+                        Some(389),
+                        &[(0, 0x30), (4, 0x01), (5, 0x66)],
+                    ),
+                    packet_fact_with_dir_and_payload_bytes_for_tests(
+                        6,
+                        82932,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(54032),
+                        Some(389),
+                        &[(0, 0x30), (4, 0x01), (5, 0x67), (9, 0x13)],
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"directory_write\""));
+        assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""));
+        assert!(json.contains("\"primary_failure_detail\":\"protocol_constraint_violation\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"high\""));
+        assert!(json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
     }
 
     #[test]
@@ -6811,6 +7144,8 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
         assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
         assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -7007,6 +7342,16 @@ mod tests {
             "json={}",
             json
         );
+        assert!(
+            json.contains("\"primary_failure_confidence\":\"high\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""),
+            "json={}",
+            json
+        );
     }
 
     #[test]
@@ -7073,6 +7418,8 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"proxy_tcp_relay\""));
         assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
         assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -7238,6 +7585,8 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"proxy_negotiation\""));
         assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
         assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"high\""));
+        assert!(json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
     }
 
     #[test]
@@ -7520,6 +7869,8 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
         assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
         assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -7845,6 +8196,8 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
         assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""));
         assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"high\""));
+        assert!(json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
     }
 
     #[test]
@@ -8105,6 +8458,8 @@ mod tests {
             "json={}",
             json
         );
+        assert!(json.contains("\"primary_failure_confidence\":\"medium\""));
+        assert!(json.contains("\"primary_failure_basis\":\"missing_transition\""));
     }
 
     #[test]
@@ -8156,6 +8511,8 @@ mod tests {
         assert!(json.contains("\"primary_module_kind\":\"proxy_authentication\""));
         assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
         assert!(json.contains("\"primary_failure_detail\":\"auth_required\""));
+        assert!(json.contains("\"primary_failure_confidence\":\"high\""));
+        assert!(json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
     }
 
     #[test]
