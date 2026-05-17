@@ -215,6 +215,7 @@ pub struct CompilerFinding {
     pub code: String,
     pub severity: CompilerFindingSeverity,
     pub line: Option<usize>,
+    pub column: Option<usize>,
     pub message: String,
 }
 
@@ -1646,8 +1647,17 @@ fn finding_json(finding: Option<&CompilerFinding>) -> String {
 }
 
 fn finding_text_record(finding: &CompilerFinding) -> String {
-    match finding.line {
-        Some(line) => format!(
+    match (finding.line, finding.column) {
+        (Some(line), Some(column)) => format!(
+            "stage={} severity={} code={} line={} column={} message={}",
+            finding_stage_text(finding.stage),
+            finding_severity_text(finding.severity),
+            finding.code,
+            line,
+            column,
+            finding.message
+        ),
+        (Some(line), None) => format!(
             "stage={} severity={} code={} line={} message={}",
             finding_stage_text(finding.stage),
             finding_severity_text(finding.severity),
@@ -1655,7 +1665,7 @@ fn finding_text_record(finding: &CompilerFinding) -> String {
             line,
             finding.message
         ),
-        None => format!(
+        (None, _) => format!(
             "stage={} severity={} code={} message={}",
             finding_stage_text(finding.stage),
             finding_severity_text(finding.severity),
@@ -1666,17 +1676,26 @@ fn finding_text_record(finding: &CompilerFinding) -> String {
 }
 
 fn finding_json_record(finding: &CompilerFinding) -> String {
-    match finding.line {
-        Some(line) => format!(
-            "{{\"stage\":\"{}\",\"severity\":\"{}\",\"code\":\"{}\",\"line\":{},\"message\":\"{}\"}}",
+    match (finding.line, finding.column) {
+        (Some(line), Some(column)) => format!(
+            "{{\"stage\":\"{}\",\"severity\":\"{}\",\"code\":\"{}\",\"line\":{},\"column\":{},\"message\":\"{}\"}}",
+            finding_stage_text(finding.stage),
+            finding_severity_text(finding.severity),
+            finding.code,
+            line,
+            column,
+            json_escape(&finding.message),
+        ),
+        (Some(line), None) => format!(
+            "{{\"stage\":\"{}\",\"severity\":\"{}\",\"code\":\"{}\",\"line\":{},\"column\":null,\"message\":\"{}\"}}",
             finding_stage_text(finding.stage),
             finding_severity_text(finding.severity),
             finding.code,
             line,
             json_escape(&finding.message),
         ),
-        None => format!(
-            "{{\"stage\":\"{}\",\"severity\":\"{}\",\"code\":\"{}\",\"line\":null,\"message\":\"{}\"}}",
+        (None, _) => format!(
+            "{{\"stage\":\"{}\",\"severity\":\"{}\",\"code\":\"{}\",\"line\":null,\"column\":null,\"message\":\"{}\"}}",
             finding_stage_text(finding.stage),
             finding_severity_text(finding.severity),
             finding.code,
@@ -1915,6 +1934,7 @@ fn finding_from_dsl_error(err: &DslError) -> CompilerFinding {
         code: dsl_error_code(root).to_string(),
         severity: CompilerFindingSeverity::Error,
         line: err.line(),
+        column: err.column(),
         message: dsl_error_message(root),
     }
 }
@@ -1928,6 +1948,7 @@ fn finding_from_registry_error(
         code: registry_error_code(err).to_string(),
         severity: CompilerFindingSeverity::Error,
         line: None,
+        column: None,
         message: format!("{err:?}"),
     }
 }
@@ -2489,6 +2510,45 @@ template(:broken_pipeline_use)
                 .as_ref()
                 .map(|finding| finding.code.as_str()),
             Some("GEWYC-PARSE-UNKNOWN-PIPELINE-FUNCTION")
+        );
+        assert_eq!(
+            stages
+                .parse
+                .finding
+                .as_ref()
+                .and_then(|finding| finding.column),
+            None
+        );
+    }
+
+    #[test]
+    fn parse_findings_surface_column_for_invalid_function_signature() {
+        let report = compile_findings_report_str(
+            r#"
+fn broken =
+template(:broken)
+|> use(:broken)
+"#,
+        );
+        let finding = report.findings.first().expect("parse finding");
+        assert_eq!(finding.line, Some(2));
+        assert_eq!(finding.column, Some(7));
+        let text = render_findings_report(&report, RenderFormat::Text);
+        let json = render_findings_report(&report, RenderFormat::Json);
+        assert!(text.contains("line=2 column=7"));
+        assert!(json.contains("\"line\":2"));
+        assert!(json.contains("\"column\":7"));
+    }
+
+    #[test]
+    fn stage_local_finding_without_column_stays_shape_compatible() {
+        let stages = compile_stages_report_str(
+            r#"
+template(:broken_pipeline_use)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:missing_core)
+"#,
         );
         assert_eq!(
             stages

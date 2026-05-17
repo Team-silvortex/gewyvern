@@ -77,7 +77,11 @@ pub struct FrontendGraphEdge {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum DslError {
-    Located { line: usize, inner: Box<DslError> },
+    Located {
+        line: usize,
+        column: Option<usize>,
+        inner: Box<DslError>,
+    },
     InvalidLine(String),
     MissingField(&'static str),
     InvalidValue(String),
@@ -900,15 +904,17 @@ fn parse_pipeline_let_binding(line: &str) -> Result<Option<PipelineLetBinding>, 
     let Some(remainder) = line.strip_prefix("let ") else {
         return Ok(None);
     };
-    let (name, value) = remainder
-        .split_once('=')
-        .ok_or_else(|| DslError::InvalidValue(format!("invalid let binding '{line}'")))?;
+    let (name, value) = remainder.split_once('=').ok_or_else(|| {
+        DslError::InvalidValue(format!("invalid let binding '{line}'"))
+            .at_line_column(0, Some(line.len() + 1))
+    })?;
     let name = parse_pipeline_param_name(name)?;
     let value = value.trim();
     if value.is_empty() {
         return Err(DslError::InvalidValue(format!(
             "pipeline let binding '{name}' requires a value"
-        )));
+        ))
+        .at_line_column(0, Some(line.len() + 1)));
     }
     Ok(Some(PipelineLetBinding {
         name,
@@ -1119,17 +1125,20 @@ fn ensure_within_root(path: &Path, root: &Path) -> Result<(), DslError> {
 }
 
 fn parse_pipeline_call(line: &str) -> Result<(String, Vec<String>), DslError> {
-    let open = line
-        .find('(')
-        .ok_or_else(|| DslError::InvalidValue(format!("invalid pipeline call '{line}'")))?;
+    let open = line.find('(').ok_or_else(|| {
+        DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
+            .at_line_column(0, Some(line.len() + 1))
+    })?;
     let name = line[..open].trim();
-    let inner = line[open + 1..]
-        .strip_suffix(')')
-        .ok_or_else(|| DslError::InvalidValue(format!("invalid pipeline call '{line}'")))?;
+    let inner = line[open + 1..].strip_suffix(')').ok_or_else(|| {
+        DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
+            .at_line_column(0, Some(line.len() + 1))
+    })?;
     if name.is_empty() {
-        return Err(DslError::InvalidValue(format!(
-            "invalid pipeline call '{line}'"
-        )));
+        return Err(
+            DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
+                .at_line_column(0, Some(1)),
+        );
     }
     Ok((name.to_string(), split_pipeline_args(inner)))
 }
@@ -1137,20 +1146,24 @@ fn parse_pipeline_call(line: &str) -> Result<(String, Vec<String>), DslError> {
 fn parse_pipeline_function_signature(signature: &str) -> Result<(String, Vec<String>), DslError> {
     let open = signature.find('(').ok_or_else(|| {
         DslError::InvalidValue(format!("invalid function signature '{signature}'"))
+            .at_line_column(0, Some(signature.len() + 1))
     })?;
     let close = signature.rfind(')').ok_or_else(|| {
         DslError::InvalidValue(format!("invalid function signature '{signature}'"))
+            .at_line_column(0, Some(signature.len() + 1))
     })?;
     if close < open {
-        return Err(DslError::InvalidValue(format!(
-            "invalid function signature '{signature}'"
-        )));
+        return Err(
+            DslError::InvalidValue(format!("invalid function signature '{signature}'"))
+                .at_line_column(0, Some(close + 1)),
+        );
     }
     let name = signature[..open].trim();
     if name.is_empty() {
-        return Err(DslError::InvalidValue(format!(
-            "invalid function signature '{signature}'"
-        )));
+        return Err(
+            DslError::InvalidValue(format!("invalid function signature '{signature}'"))
+                .at_line_column(0, Some(1)),
+        );
     }
     let params_src = &signature[open + 1..close];
     let params = if params_src.trim().is_empty() {
@@ -1377,10 +1390,27 @@ pub fn validate_compiled_binding(binding: &TemplateBinding) -> Result<(), Regist
 
 impl DslError {
     pub fn at_line(self, line: usize) -> Self {
+        self.at_line_column(line, None)
+    }
+
+    pub fn at_line_column(self, line: usize, column: Option<usize>) -> Self {
         match self {
-            Self::Located { .. } => self,
+            Self::Located {
+                line: existing_line,
+                column: existing_column,
+                inner,
+            } => Self::Located {
+                line: if existing_line == 0 {
+                    line
+                } else {
+                    existing_line
+                },
+                column: existing_column.or(column),
+                inner,
+            },
             other => Self::Located {
                 line,
+                column,
                 inner: Box::new(other),
             },
         }
@@ -1389,6 +1419,13 @@ impl DslError {
     pub fn line(&self) -> Option<usize> {
         match self {
             Self::Located { line, .. } => Some(*line),
+            _ => None,
+        }
+    }
+
+    pub fn column(&self) -> Option<usize> {
+        match self {
+            Self::Located { column, .. } => *column,
             _ => None,
         }
     }
