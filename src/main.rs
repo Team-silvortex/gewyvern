@@ -1,8 +1,12 @@
+mod data_api;
+mod report_runtime;
+mod serve_runtime;
+
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
 use gewyvern::flow::{FlowId, ProcessView, ProgramFlowId};
 use gewyvern::gewyc::{RenderFormat, compile_diagnostics_report_file, render_diagnostics_report};
-use gewyvern::http::{HttpSuspectSide, HttpTransactionView, compose_http_transactions};
+use gewyvern::http::{HttpSuspectSide, compose_http_transactions};
 use gewyvern::ledger::{
     CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, QuicFrameType,
     QuicPacketType, RouteDecisionFact, SessionId, SockLineageFact, TcpStateFact,
@@ -25,12 +29,16 @@ use gewyvern::template::{TemplateBinding, handshake_debug_template, udp_debug_te
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream, ToSocketAddrs};
+use std::net::ToSocketAddrs;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::thread;
 use std::time::{Duration, SystemTime};
+
+use crate::report_runtime::{
+    findings_json, findings_text, http_transactions_json, http_transactions_text,
+    render_report_outputs, render_scan_outputs, scan_report_html, scan_report_json,
+    scan_report_text, summary_json, summary_line,
+};
+use crate::serve_runtime::serve_socket_sessions;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum UiLocale {
@@ -1113,32 +1121,6 @@ enum TemplateMode {
 enum ReportFormat {
     Json,
     Html,
-}
-
-#[derive(Clone, Debug, Default)]
-struct ApiSnapshot {
-    updated_unix_ms: u128,
-    kind: String,
-    name: Option<String>,
-    target_count: Option<usize>,
-    target_names: Vec<String>,
-    summary_text: Option<String>,
-    summary_json: Option<String>,
-    findings_json: Option<String>,
-    export_json: Option<String>,
-    report_json: Option<String>,
-    report_html: Option<String>,
-    target_snapshots: HashMap<String, ApiTargetSnapshot>,
-}
-
-#[derive(Clone, Debug, Default)]
-struct ApiTargetSnapshot {
-    summary_text: String,
-    summary_json: String,
-    findings_json: String,
-    export_json: String,
-    report_json: String,
-    report_html: String,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -3829,13 +3811,16 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
 
 #[cfg(test)]
 mod tests {
+    use super::data_api::{
+        ApiRenderedTarget, ApiSnapshot, api_response_for_request, api_snapshot_meta_json,
+        update_api_snapshot_for_scan, update_api_snapshot_for_single,
+    };
     use super::{
-        ApiSnapshot, Cli, IngestMode, ReportFormat, annotate_export_trust,
-        api_response_for_request, api_snapshot_meta_json, filter_export_by_pid, findings_json,
+        Cli, IngestMode, ReportFormat, annotate_export_trust, filter_export_by_pid, findings_json,
         list_entries_json, list_entries_text, list_protocols_json, list_protocols_text,
         protocol_dsl_path, render_report_outputs, route_fact, run_binding_demo, scan_report_html,
-        scan_report_json, scan_targets_for_cli, scan_targets_from_set_file, summary_json,
-        summary_line, update_api_snapshot_for_scan, update_api_snapshot_for_single,
+        scan_report_json, scan_report_text, scan_targets_for_cli, scan_targets_from_set_file,
+        summary_json, summary_line,
     };
     use gewyvern::dsl::compile_file;
     use gewyvern::export::ExportBundle;
@@ -9221,7 +9206,18 @@ mod tests {
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
         );
         let state = Arc::new(Mutex::new(ApiSnapshot::default()));
-        update_api_snapshot_for_single(&state, "dsl_demo", &export);
+        update_api_snapshot_for_single(
+            &state,
+            ApiRenderedTarget {
+                name: "dsl_demo".into(),
+                summary_text: summary_line("dsl_demo", &export),
+                summary_json: summary_json("dsl_demo", &export),
+                findings_json: findings_json("dsl_demo", &export),
+                export_json: export.to_json(),
+                report_json: scan_report_json(&[("dsl_demo".to_string(), export.clone())]),
+                report_html: scan_report_html(&[("dsl_demo".to_string(), export.clone())]),
+            },
+        );
         let snapshot = state.lock().unwrap().clone();
 
         let meta = api_snapshot_meta_json(&snapshot);
@@ -9254,7 +9250,26 @@ mod tests {
         );
         let outputs = vec![("scan:http:request".to_string(), export)];
         let state = Arc::new(Mutex::new(ApiSnapshot::default()));
-        update_api_snapshot_for_scan(&state, &outputs);
+        let rendered_targets = outputs
+            .iter()
+            .map(|(name, export)| ApiRenderedTarget {
+                name: name.clone(),
+                summary_text: summary_line(name, export),
+                summary_json: summary_json(name, export),
+                findings_json: findings_json(name, export),
+                export_json: export.to_json(),
+                report_json: scan_report_json(&[(name.clone(), export.clone())]),
+                report_html: scan_report_html(&[(name.clone(), export.clone())]),
+            })
+            .collect::<Vec<_>>();
+        update_api_snapshot_for_scan(
+            &state,
+            rendered_targets,
+            scan_report_text(&outputs),
+            scan_report_json(&outputs),
+            scan_report_json(&outputs),
+            scan_report_html(&outputs),
+        );
         let snapshot = state.lock().unwrap().clone();
 
         let (health_status, _, health_body) = api_response_for_request("/health", &snapshot);
@@ -9296,7 +9311,24 @@ mod tests {
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
         );
         let state = Arc::new(Mutex::new(ApiSnapshot::default()));
-        update_api_snapshot_for_single(&state, "scan:http request/%", &export);
+        update_api_snapshot_for_single(
+            &state,
+            ApiRenderedTarget {
+                name: "scan:http request/%".into(),
+                summary_text: summary_line("scan:http request/%", &export),
+                summary_json: summary_json("scan:http request/%", &export),
+                findings_json: findings_json("scan:http request/%", &export),
+                export_json: export.to_json(),
+                report_json: scan_report_json(&[(
+                    "scan:http request/%".to_string(),
+                    export.clone(),
+                )]),
+                report_html: scan_report_html(&[(
+                    "scan:http request/%".to_string(),
+                    export.clone(),
+                )]),
+            },
+        );
         let snapshot = state.lock().unwrap().clone();
 
         let (_, _, meta_body) = api_response_for_request("/v1/latest/meta", &snapshot);
@@ -9402,69 +9434,6 @@ fn route_fact(id: u64, ts: SystemTime, cookie: u64, oif: u32, session: SessionId
             gw: None,
         }),
     }
-}
-
-fn summary_line(name: &str, export: &ExportBundle) -> String {
-    let locale = UiLocale::detect();
-    let suspect_areas = if export.program_findings.is_empty() {
-        locale.none().to_string()
-    } else {
-        export
-            .program_findings
-            .iter()
-            .map(|finding| finding.suspect_area.clone())
-            .collect::<Vec<_>>()
-            .join(",")
-    };
-    let suspect_modules = if export.program_findings.is_empty() {
-        locale.none().to_string()
-    } else {
-        export
-            .program_findings
-            .iter()
-            .map(|finding| finding.module_label.clone())
-            .collect::<Vec<_>>()
-            .join(",")
-    };
-    let protocol_flows = protocol_flow_summaries_text(export);
-    let process_profiles = process_network_profiles_text(export);
-    let ingest_mode_note = ingest_mode_note_for_export(export);
-    format!(
-        "{name}: {}={} ingest_mode={} ingest_mode_note={} {}={} pid_attribution_status={} ambiguous={} competing_hypotheses={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
-        locale.label("template"),
-        export.template_id,
-        ingest_mode_for_export(export),
-        ingest_mode_note,
-        "ingest_trust_mode",
-        export.ingest_trust_mode,
-        pid_attribution_status_for_export(export),
-        primary_process_profile_ambiguous_for_export(export),
-        competing_hypotheses_for_export(export),
-        locale.label("fragments_loaded"),
-        export.debug_summary.fragments_loaded,
-        locale.label("hookpoints_failed"),
-        export.debug_summary.hookpoints_failed,
-        locale.label("accepted_facts"),
-        export.debug_summary.accepted_facts,
-        locale.label("rejected_facts"),
-        export.debug_summary.rejected_facts,
-        locale.label("flows"),
-        export.debug_summary.flows,
-        locale.label("program_findings"),
-        export.debug_summary.program_findings,
-        locale.label("module_findings"),
-        export.debug_summary.module_findings,
-        locale.label("reasons"),
-        export.debug_summary.reasons,
-        locale.label("degraded"),
-        export.debug_summary.degraded,
-        locale.label("suspect_areas"),
-        suspect_areas,
-        locale.label("suspect_modules"),
-        suspect_modules,
-        protocol_flows,
-        process_profiles,
-    )
 }
 
 fn write_or_print(rendered: &str, out_path: Option<&str>, locale: UiLocale) {
@@ -10978,649 +10947,12 @@ fn scan_target_status(export: &ExportBundle) -> ScanTargetStatus {
     }
 }
 
-fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
-    let total_targets = outputs.len();
-    let healthy_targets = outputs
-        .iter()
-        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Healthy))
-        .count();
-    let attention_targets = outputs
-        .iter()
-        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Attention))
-        .count();
-    let idle_targets = outputs
-        .iter()
-        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Idle))
-        .count();
-    let targets = outputs
-        .iter()
-        .map(|(name, export)| {
-            let primary_module_kind = primary_module_kind_for_export(export);
-            let primary_failure_stage = primary_failure_stage_for_export(export);
-            let primary_failure_mode = primary_failure_mode_for_export(export);
-            let primary_failure_detail = primary_failure_detail_for_export(export);
-            let primary_failure_confidence = primary_failure_confidence_for_export(export);
-            let primary_failure_basis = primary_failure_basis_for_export(export);
-            let pid_attribution_status = pid_attribution_status_for_export(export);
-            let pid_attribution_note = pid_attribution_note_for_export(export);
-            let ingest_mode_note = ingest_mode_note_for_export(export);
-            let ambiguous = primary_process_profile_ambiguous_for_export(export);
-            let competing_hypotheses = competing_hypotheses_for_export(export);
-            format!(
-                "{{\"target\":\"{}\",\"template_id\":\"{}\",\"ingest_mode\":\"{}\",\"ingest_mode_note\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"suspect_modules\":\"{}\",\"program_flows\":{},\"program_findings\":{},\"module_findings\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
-                name,
-                export.template_id,
-                ingest_mode_for_export(export),
-                ingest_mode_note,
-                export.ingest_trust_mode,
-                pid_attribution_status,
-                pid_attribution_note,
-                ambiguous,
-                competing_hypotheses,
-                scan_target_status(export).label(),
-                primary_module_kind,
-                module_family_label(&primary_module_kind),
-                primary_failure_stage,
-                stage_family_label(&primary_failure_stage),
-                primary_failure_mode,
-                failure_mode_family_label(&primary_failure_mode),
-                primary_failure_detail,
-                failure_detail_family_label(&primary_failure_detail),
-                primary_failure_confidence,
-                primary_failure_basis,
-                suspect_modules_for_export(export),
-                export.program_flows.len(),
-                export.program_findings.len(),
-                export.module_findings.len(),
-                process_network_profiles_json(export),
-                protocol_flow_summaries_json(export),
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(",");
-    format!(
-        "{{\"scan_all\":true,\"total_targets\":{},\"healthy_targets\":{},\"attention_targets\":{},\"idle_targets\":{},\"targets\":[{}]}}",
-        total_targets, healthy_targets, attention_targets, idle_targets, targets
-    )
-}
-
 fn html_escape(input: &str) -> String {
     input
         .replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
-}
-
-fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
-    let total_targets = outputs.len();
-    let healthy_targets = outputs
-        .iter()
-        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Healthy))
-        .count();
-    let attention_targets = outputs
-        .iter()
-        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Attention))
-        .count();
-    let idle_targets = outputs
-        .iter()
-        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Idle))
-        .count();
-
-    let mut family_counts = std::collections::BTreeMap::<String, usize>::new();
-    for (_, export) in outputs {
-        let family = module_family_label(&primary_module_kind_for_export(export)).to_string();
-        *family_counts.entry(family).or_default() += 1;
-    }
-    let family_summary = family_counts
-        .into_iter()
-        .map(|(family, count)| {
-            format!(
-                "<div class=\"pill\"><span class=\"tag family-{}\">{}</span> {}</div>",
-                family, family, count
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("");
-
-    let mut sorted_outputs = outputs
-        .iter()
-        .map(|(name, export)| (name, export))
-        .collect::<Vec<_>>();
-    sorted_outputs.sort_by(|(left_name, left), (right_name, right)| {
-        let left_rank = match scan_target_status(left) {
-            ScanTargetStatus::Attention => 0,
-            ScanTargetStatus::Healthy => 1,
-            ScanTargetStatus::Idle => 2,
-        };
-        let right_rank = match scan_target_status(right) {
-            ScanTargetStatus::Attention => 0,
-            ScanTargetStatus::Healthy => 1,
-            ScanTargetStatus::Idle => 2,
-        };
-        left_rank
-            .cmp(&right_rank)
-            .then_with(|| {
-                primary_module_kind_for_export(left).cmp(&primary_module_kind_for_export(right))
-            })
-            .then_with(|| left_name.cmp(right_name))
-    });
-
-    let cards = sorted_outputs
-        .into_iter()
-        .map(|(name, export)| {
-            let status = scan_target_status(export).label();
-            let details_open = if matches!(scan_target_status(export), ScanTargetStatus::Attention) {
-                " open"
-            } else {
-                ""
-            };
-            let profiles = process_network_profile_summaries(export)
-                .into_iter()
-                .map(|profile| {
-                    let suspect_modules = first_or_none(&profile.suspect_modules);
-                    format!(
-                        "<li><strong>{}</strong> (pid={}): status={} <span class=\"tag family-{}\">{}</span> <span class=\"tag stage-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> confidence={} basis={} suspect_module={} kinds={} healthy_flows={} attention_flows={} phases={} missing={}</li>",
-                        html_escape(&profile.comm),
-                        profile.pid,
-                        html_escape(&profile.status),
-                        html_escape(&profile.primary_module_family),
-                        html_escape(&profile.primary_module_kind),
-                        html_escape(&profile.primary_stage_family),
-                        html_escape(&profile.primary_failure_stage),
-                        html_escape(failure_mode_family_label(&profile.primary_failure_mode)),
-                        html_escape(&profile.primary_failure_mode),
-                        html_escape(failure_detail_family_label(&profile.primary_failure_detail)),
-                        html_escape(&profile.primary_failure_detail),
-                        html_escape(&profile.primary_failure_confidence),
-                        html_escape(&profile.primary_failure_basis),
-                        html_escape(&suspect_modules),
-                        html_escape(&profile.module_kinds.join(" | ")),
-                        profile.healthy_flows,
-                        profile.attention_flows,
-                        html_escape(&profile.phases.join(" > ")),
-                        html_escape(&profile.missing_transitions.join(" | ")),
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("");
-            let primary_module_kind = primary_module_kind_for_export(export);
-            let primary_failure_stage = primary_failure_stage_for_export(export);
-            let primary_failure_mode = primary_failure_mode_for_export(export);
-            let primary_failure_detail = primary_failure_detail_for_export(export);
-            let primary_failure_confidence = primary_failure_confidence_for_export(export);
-            let primary_failure_basis = primary_failure_basis_for_export(export);
-            let pid_attribution_status = pid_attribution_status_for_export(export);
-            let pid_attribution_note = pid_attribution_note_for_export(export);
-            let ingest_mode_note = ingest_mode_note_for_export(export);
-            let ambiguous = primary_process_profile_ambiguous_for_export(export);
-            let competing_hypotheses = primary_process_profile_for_export(export)
-                .map(|profile| profile.competing_hypotheses.join(" | "))
-                .unwrap_or_else(|| "none".into());
-            let suspect_modules = suspect_modules_for_export(export);
-            let primary_module_family = module_family_label(&primary_module_kind);
-            let primary_stage_family = stage_family_label(&primary_failure_stage);
-            let primary_failure_mode_family = failure_mode_family_label(&primary_failure_mode);
-            let flow_finding_summaries = protocol_flow_finding_summaries(export);
-            let flow_lines = export
-                .program_flows
-                .iter()
-                .map(|flow| {
-                    let phase_text = protocol_flow_phases(flow).join(" > ");
-                    let failure_mode =
-                        protocol_flow_failure_mode(flow, flow_finding_summaries.get(&flow.id));
-                    let failure_detail =
-                        protocol_flow_failure_detail(flow, flow_finding_summaries.get(&flow.id));
-                    let failure_confidence = protocol_flow_failure_confidence(
-                        flow,
-                        flow_finding_summaries.get(&flow.id),
-                    );
-                    let failure_basis =
-                        protocol_flow_failure_basis(flow, flow_finding_summaries.get(&flow.id));
-                    format!(
-                        "<li>{}: last_phase={} <span class=\"tag failure-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> confidence={} basis={} phases={}</li>",
-                        html_escape(&operation_label(&flow.operation)),
-                        html_escape(&protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into())),
-                        html_escape(failure_mode_family_label(&failure_mode)),
-                        html_escape(&failure_mode),
-                        html_escape(failure_detail_family_label(&failure_detail)),
-                        html_escape(&failure_detail),
-                        html_escape(&failure_confidence),
-                        html_escape(&failure_basis),
-                        html_escape(&phase_text),
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("");
-            format!(
-                "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>mode:</strong> {} | <strong>trust:</strong> {} | <strong>pid attribution:</strong> {} | <strong>ambiguous:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><p><strong>Mode note:</strong> {}</p><p><strong>PID attribution note:</strong> {}</p><p><strong>Competing hypotheses:</strong> {}</p><h3>Process Profiles</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
-                html_escape(name),
-                status,
-                html_escape(ingest_mode_for_export(export)),
-                html_escape(&export.ingest_trust_mode),
-                html_escape(pid_attribution_status),
-                ambiguous,
-                export.program_flows.len(),
-                export.program_findings.len(),
-                export.module_findings.len(),
-                primary_module_family,
-                html_escape(&primary_module_kind),
-                primary_stage_family,
-                html_escape(&primary_failure_stage),
-                primary_failure_mode_family,
-                html_escape(&primary_failure_mode),
-                failure_detail_family_label(&primary_failure_detail),
-                html_escape(&primary_failure_detail),
-                html_escape(&primary_failure_confidence),
-                html_escape(&primary_failure_basis),
-                html_escape(&suspect_modules),
-                html_escape(ingest_mode_note),
-                html_escape(pid_attribution_note),
-                html_escape(&competing_hypotheses),
-                profiles,
-                flow_lines,
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    format!(
-        "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>gewyvern scan report</title><style>body{{font-family:ui-sans-serif,system-ui,sans-serif;background:#f6f7fb;color:#18202a;margin:0;padding:24px}}h1,h2,h3{{margin:0 0 12px}}.summary{{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 24px}}.summary-note{{margin:-10px 0 24px;color:#475569;font-size:14px}}.pill{{background:#fff;border:1px solid #d8dee9;border-radius:999px;padding:10px 14px;font-size:14px}}.tag{{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}}.family-dns{{background:#dbeafe;color:#1d4ed8}}.family-route{{background:#e0f2fe;color:#0369a1}}.family-connect{{background:#ede9fe;color:#6d28d9}}.family-handshake{{background:#fae8ff;color:#a21caf}}.family-request-response{{background:#dcfce7;color:#166534}}.family-database{{background:#fef3c7;color:#92400e}}.family-auth{{background:#fee2e2;color:#b91c1c}}.family-directory{{background:#ecfccb;color:#3f6212}}.family-messaging{{background:#ffedd5;color:#c2410c}}.family-relay{{background:#d1fae5;color:#047857}}.family-service{{background:#e2e8f0;color:#334155}}.family-general{{background:#f3f4f6;color:#374151}}.stage-dns{{background:#dbeafe;color:#1d4ed8}}.stage-connect{{background:#ede9fe;color:#6d28d9}}.stage-handshake{{background:#fae8ff;color:#a21caf}}.stage-request-response{{background:#dcfce7;color:#166534}}.stage-auth{{background:#fee2e2;color:#b91c1c}}.stage-general{{background:#f3f4f6;color:#374151}}.stage-none{{background:#e5e7eb;color:#6b7280}}.failure-blocked{{background:#fef3c7;color:#92400e}}.failure-timeout{{background:#fee2e2;color:#b91c1c}}.failure-setup{{background:#e0e7ff;color:#4338ca}}.failure-semantic{{background:#ffedd5;color:#c2410c}}.failure-denied{{background:#fce7f3;color:#be185d}}.failure-peer{{background:#d1fae5;color:#047857}}.failure-none{{background:#e5e7eb;color:#6b7280}}.failure-general{{background:#f3f4f6;color:#374151}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}}.card{{background:#fff;border:1px solid #d8dee9;border-radius:16px;padding:0;box-shadow:0 6px 24px rgba(15,23,42,0.06);overflow:hidden}}.card summary{{list-style:none;cursor:pointer;padding:18px}}.card summary::-webkit-details-marker{{display:none}}.card-title p{{margin:0}}.card-body{{padding:0 18px 18px}}.conclusion{{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 0}}.status-attention{{border-color:#f0b429}}.status-healthy{{border-color:#68b984}}.status-idle{{border-color:#cbd5e1}}ul{{padding-left:18px}}li{{margin:6px 0}}</style></head><body><h1>gewyvern Scan Report</h1><div class=\"summary\"><div class=\"pill\">total targets: {}</div><div class=\"pill\">healthy: {}</div><div class=\"pill\">attention: {}</div><div class=\"pill\">idle: {}</div></div><p class=\"summary-note\">attention targets are shown first and expanded by default so the highest-risk paths are easier to inspect.</p><div class=\"summary\">{}</div><div class=\"grid\">{}</div></body></html>",
-        total_targets, healthy_targets, attention_targets, idle_targets, family_summary, cards
-    )
-}
-
-fn scan_report_text(outputs: &[(String, ExportBundle)]) -> String {
-    let total_targets = outputs.len();
-    let healthy_targets = outputs
-        .iter()
-        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Healthy))
-        .count();
-    let attention_targets = outputs
-        .iter()
-        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Attention))
-        .count();
-    let idle_targets = outputs
-        .iter()
-        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Idle))
-        .count();
-    let mut lines = vec![format!(
-        "scan_all_report: total_targets={} healthy_targets={} attention_targets={} idle_targets={}",
-        total_targets, healthy_targets, attention_targets, idle_targets
-    )];
-    lines.extend(outputs.iter().map(|(name, export)| {
-        format!(
-            "{} status={} flows={} findings={} modules={} profiles={} protocol_flows={}",
-            name,
-            scan_target_status(export).label(),
-            export.program_flows.len(),
-            export.program_findings.len(),
-            export.module_findings.len(),
-            process_network_profiles_text(export),
-            protocol_flow_summaries_text(export),
-        )
-    }));
-    lines.join("\n")
-}
-
-fn render_scan_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]) -> String {
-    match cli.report_format {
-        Some(ReportFormat::Html) => scan_report_html(outputs),
-        Some(ReportFormat::Json) => scan_report_json(outputs),
-        None if cli.json => scan_report_json(outputs),
-        None => scan_report_text(outputs),
-    }
-}
-
-fn render_report_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]) -> String {
-    match cli.report_format {
-        Some(ReportFormat::Html) => scan_report_html(outputs),
-        Some(ReportFormat::Json) => scan_report_json(outputs),
-        None => scan_report_text(outputs),
-    }
-}
-
-fn summary_json(name: &str, export: &ExportBundle) -> String {
-    let primary_module_kind = primary_module_kind_for_export(export);
-    let primary_failure_stage = primary_failure_stage_for_export(export);
-    let primary_failure_mode = primary_failure_mode_for_export(export);
-    let primary_failure_detail = primary_failure_detail_for_export(export);
-    let primary_failure_confidence = primary_failure_confidence_for_export(export);
-    let primary_failure_basis = primary_failure_basis_for_export(export);
-    let pid_attribution_status = pid_attribution_status_for_export(export);
-    let pid_attribution_note = pid_attribution_note_for_export(export);
-    let ingest_mode_note = ingest_mode_note_for_export(export);
-    let ambiguous = primary_process_profile_ambiguous_for_export(export);
-    let competing_hypotheses = competing_hypotheses_for_export(export);
-    let suspect_modules = format!(
-        "[{}]",
-        export
-            .program_findings
-            .iter()
-            .map(|finding| format!("\"{}\"", finding.module_label))
-            .collect::<Vec<_>>()
-            .join(",")
-    );
-    format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_mode\":\"{}\",\"ingest_mode_note\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
-        export.template_id,
-        ingest_mode_for_export(export),
-        ingest_mode_note,
-        export.ingest_trust_mode,
-        pid_attribution_status,
-        pid_attribution_note,
-        ambiguous,
-        competing_hypotheses,
-        primary_module_kind,
-        module_family_label(&primary_module_kind),
-        primary_failure_stage,
-        stage_family_label(&primary_failure_stage),
-        primary_failure_mode,
-        failure_mode_family_label(&primary_failure_mode),
-        primary_failure_detail,
-        failure_detail_family_label(&primary_failure_detail),
-        primary_failure_confidence,
-        primary_failure_basis,
-        export.debug_summary.fragments_loaded,
-        export.debug_summary.hookpoints_failed,
-        export.debug_summary.accepted_facts,
-        export.debug_summary.rejected_facts,
-        export.debug_summary.flows,
-        export.debug_summary.program_findings,
-        export.debug_summary.module_findings,
-        export.debug_summary.reasons,
-        export.debug_summary.degraded,
-        suspect_modules,
-        protocol_flow_summaries_json(export),
-        process_network_profiles_json(export),
-    )
-}
-
-fn findings_text(name: &str, export: &ExportBundle) -> String {
-    let locale = UiLocale::detect();
-    if export.module_findings.is_empty() {
-        return format!("{name}: {}", locale.none());
-    }
-
-    let mut lines = vec![format!("{name}:")];
-    for finding in &export.module_findings {
-        let process = finding
-            .process
-            .as_ref()
-            .map(|process| format!("{}(pid={})", process.comm, process.pid))
-            .unwrap_or_else(|| locale.none().to_string());
-        let traces = if finding.evidence_trace.is_empty() {
-            locale.none().to_string()
-        } else {
-            finding.evidence_trace.join("|")
-        };
-        let phases = if finding.phases.is_empty() {
-            locale.none().to_string()
-        } else {
-            finding.phases.join(",")
-        };
-        let transitions = if finding.phase_transitions.is_empty() {
-            locale.none().to_string()
-        } else {
-            finding.phase_transitions.join(",")
-        };
-        let summaries = if finding.summaries.is_empty() {
-            locale.none().to_string()
-        } else {
-            finding.summaries.join("|")
-        };
-        lines.push(format!(
-            "  {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={}",
-            locale.label("severity"),
-            module_severity_label(&finding.severity),
-            locale.label("module"),
-            finding.module_label,
-            locale.label("phases"),
-            phases,
-            locale.label("phase_transitions"),
-            transitions,
-            locale.label("process"),
-            process,
-            locale.label("operation"),
-            operation_label(&finding.operation),
-            locale.label("suspect_areas"),
-            finding.suspect_areas.join(","),
-            locale.label("causes"),
-            finding
-                .causes
-                .iter()
-                .map(finding_cause_label)
-                .collect::<Vec<_>>()
-                .join(","),
-            locale.label("supporting"),
-            finding.supporting_fragments.join(","),
-            locale.label("trace"),
-            traces,
-        ));
-        lines.push(format!("  {}={}", locale.label("summary"), summaries));
-    }
-
-    lines.join("\n")
-}
-
-fn findings_json(name: &str, export: &ExportBundle) -> String {
-    let primary_module_kind = primary_module_kind_for_export(export);
-    let primary_failure_stage = primary_failure_stage_for_export(export);
-    let primary_failure_mode = primary_failure_mode_for_export(export);
-    let primary_failure_detail = primary_failure_detail_for_export(export);
-    let primary_failure_confidence = primary_failure_confidence_for_export(export);
-    let primary_failure_basis = primary_failure_basis_for_export(export);
-    let pid_attribution_status = pid_attribution_status_for_export(export);
-    let pid_attribution_note = pid_attribution_note_for_export(export);
-    let ingest_mode_note = ingest_mode_note_for_export(export);
-    let ambiguous = primary_process_profile_ambiguous_for_export(export);
-    let competing_hypotheses = competing_hypotheses_for_export(export);
-    format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_mode\":\"{}\",\"ingest_mode_note\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
-        export.template_id,
-        ingest_mode_for_export(export),
-        ingest_mode_note,
-        export.ingest_trust_mode,
-        pid_attribution_status,
-        pid_attribution_note,
-        ambiguous,
-        competing_hypotheses,
-        primary_module_kind,
-        module_family_label(&primary_module_kind),
-        primary_failure_stage,
-        stage_family_label(&primary_failure_stage),
-        primary_failure_mode,
-        failure_mode_family_label(&primary_failure_mode),
-        primary_failure_detail,
-        failure_detail_family_label(&primary_failure_detail),
-        primary_failure_confidence,
-        primary_failure_basis,
-        export
-            .module_findings
-            .iter()
-            .map(module_finding_json)
-            .collect::<Vec<_>>()
-            .join(","),
-        export
-            .program_findings
-            .iter()
-            .map(program_finding_json)
-            .collect::<Vec<_>>()
-            .join(","),
-        process_network_profiles_json(export),
-    )
-}
-
-fn http_transactions_text(transactions: &[HttpTransactionView]) -> String {
-    let locale = UiLocale::detect();
-    if transactions.is_empty() {
-        return locale.none().into();
-    }
-
-    transactions
-        .iter()
-        .map(|tx| {
-            format!(
-                "http_transaction#{}: client={} server={} verdict={} severity={} degraded={} suspect_sides={} phases={} components={} summaries={}",
-                tx.id.0,
-                tx.client_process
-                    .as_ref()
-                    .map(|p| format!("{}(pid={})", p.comm, p.pid))
-                    .unwrap_or_else(|| locale.none().to_string()),
-                tx.server_process
-                    .as_ref()
-                    .map(|p| format!("{}(pid={})", p.comm, p.pid))
-                    .unwrap_or_else(|| locale.none().to_string()),
-                http_transaction_verdict_label(&tx.verdict),
-                tx.severity
-                    .as_ref()
-                    .map(module_severity_label)
-                    .unwrap_or_else(|| locale.none()),
-                tx.degraded,
-                if tx.suspect_sides.is_empty() {
-                    locale.none().to_string()
-                } else {
-                    tx.suspect_sides
-                        .iter()
-                        .map(http_suspect_side_label)
-                        .collect::<Vec<_>>()
-                        .join(",")
-                },
-                if tx.phases.is_empty() {
-                    locale.none().to_string()
-                } else {
-                    tx.phases.join(",")
-                },
-                tx.components
-                    .iter()
-                    .map(|component| format!("{}:{}", http_component_kind_label(&component.kind), operation_label(&component.operation)))
-                    .collect::<Vec<_>>()
-                    .join(","),
-                if tx.finding_summaries.is_empty() {
-                    tx.summaries.join("|")
-                } else {
-                    tx.finding_summaries.join("|")
-                }
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-fn http_transactions_json(transactions: &[HttpTransactionView]) -> String {
-    format!(
-        "[{}]",
-        transactions
-            .iter()
-            .map(http_transaction_json)
-            .collect::<Vec<_>>()
-            .join(",")
-    )
-}
-
-fn http_transaction_json(transaction: &HttpTransactionView) -> String {
-    format!(
-        "{{\"id\":{},\"client_process\":{},\"server_process\":{},\"verdict\":\"{}\",\"severity\":{},\"degraded\":{},\"suspect_sides\":{},\"phases\":{},\"components\":{},\"finding_summaries\":{},\"summaries\":{}}}",
-        transaction.id.0,
-        process_json(transaction.client_process.as_ref()),
-        process_json(transaction.server_process.as_ref()),
-        http_transaction_verdict_label(&transaction.verdict),
-        transaction
-            .severity
-            .as_ref()
-            .map(|severity| format!("\"{}\"", module_severity_label(severity)))
-            .unwrap_or_else(|| "null".into()),
-        transaction.degraded,
-        string_list_json(
-            &transaction
-                .suspect_sides
-                .iter()
-                .map(|side| http_suspect_side_label(side).to_string())
-                .collect::<Vec<_>>()
-        ),
-        string_list_json(&transaction.phases),
-        format!(
-            "[{}]",
-            transaction
-                .components
-                .iter()
-                .map(http_component_json)
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-        string_list_json(&transaction.finding_summaries),
-        string_list_json(&transaction.summaries),
-    )
-}
-
-fn http_component_json(component: &gewyvern::http::HttpComponentRef) -> String {
-    format!(
-        "{{\"template_id\":\"{}\",\"kind\":\"{}\",\"operation\":\"{}\"}}",
-        component.template_id,
-        http_component_kind_label(&component.kind),
-        operation_label(&component.operation),
-    )
-}
-
-fn module_finding_json(finding: &gewyvern::flow::ModuleFinding) -> String {
-    format!(
-        "{{\"module_label\":\"{}\",\"severity\":\"{}\",\"process\":{},\"operation\":\"{}\",\"network_module_kinds\":{},\"phases\":{},\"phase_transitions\":{},\"suspect_areas\":{},\"causes\":{},\"supporting_fragments\":{},\"program_flows\":{},\"summaries\":{},\"evidence_trace\":{}}}",
-        finding.module_label,
-        module_severity_label(&finding.severity),
-        process_json(finding.process.as_ref()),
-        operation_label(&finding.operation),
-        string_list_json(&finding.network_module_kinds),
-        string_list_json(&finding.phases),
-        string_list_json(&finding.phase_transitions),
-        string_list_json(&finding.suspect_areas),
-        string_list_json(
-            &finding
-                .causes
-                .iter()
-                .map(finding_cause_label)
-                .map(str::to_string)
-                .collect::<Vec<_>>()
-        ),
-        string_list_json(&finding.supporting_fragments),
-        format!(
-            "[{}]",
-            finding
-                .program_flows
-                .iter()
-                .map(|flow| flow.0.to_string())
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-        string_list_json(&finding.summaries),
-        string_list_json(&finding.evidence_trace),
-    )
-}
-
-fn program_finding_json(finding: &gewyvern::flow::ProgramFinding) -> String {
-    format!(
-        "{{\"program_flow\":{},\"module_label\":\"{}\",\"network_module_kind\":\"{}\",\"phase\":{},\"phase_transition\":{},\"suspect_area\":\"{}\",\"cause\":\"{}\",\"process\":{},\"operation\":\"{}\",\"summary\":\"{}\",\"supporting_fragments\":{},\"evidence_trace\":{}}}",
-        finding.program_flow.0,
-        finding.module_label,
-        finding.network_module_kind,
-        finding
-            .phase
-            .as_ref()
-            .map_or("null".to_string(), |phase| format!("\"{}\"", phase)),
-        finding
-            .phase_transition
-            .as_ref()
-            .map_or("null".to_string(), |transition| format!(
-                "\"{}\"",
-                transition
-            )),
-        finding.suspect_area,
-        finding_cause_label(&finding.cause),
-        process_json(finding.process.as_ref()),
-        operation_label(&finding.operation),
-        finding.summary,
-        string_list_json(&finding.supporting_fragments),
-        string_list_json(&finding.evidence_trace),
-    )
 }
 
 fn http_component_kind_label(kind: &gewyvern::http::HttpComponentKind) -> &'static str {
@@ -11680,75 +11012,6 @@ fn string_list_json(items: &[String]) -> String {
     )
 }
 
-fn json_string(value: &str) -> String {
-    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
-}
-
-fn optional_json_string(value: Option<&str>) -> String {
-    value.map(json_string).unwrap_or_else(|| "null".into())
-}
-
-fn is_api_target_direct_path_char(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b':')
-}
-
-fn api_target_path_segment(name: &str) -> String {
-    let mut out = String::new();
-    for byte in name.bytes() {
-        if is_api_target_direct_path_char(byte) {
-            out.push(byte as char);
-        } else {
-            out.push('%');
-            out.push_str(&format!("{:02X}", byte));
-        }
-    }
-    out
-}
-
-fn decode_api_target_path_segment(segment: &str) -> Result<String, &'static str> {
-    let mut bytes = Vec::with_capacity(segment.len());
-    let raw = segment.as_bytes();
-    let mut index = 0;
-    while index < raw.len() {
-        if raw[index] == b'%' {
-            if index + 2 >= raw.len() {
-                return Err("target path segment ends with an incomplete percent-encoding");
-            }
-            let hi = (raw[index + 1] as char)
-                .to_digit(16)
-                .ok_or("target path segment contains an invalid percent-encoding")?;
-            let lo = (raw[index + 2] as char)
-                .to_digit(16)
-                .ok_or("target path segment contains an invalid percent-encoding")?;
-            bytes.push(((hi << 4) | lo) as u8);
-            index += 3;
-        } else {
-            bytes.push(raw[index]);
-            index += 1;
-        }
-    }
-    String::from_utf8(bytes).map_err(|_| "target path segment is not valid UTF-8")
-}
-
-fn api_target_refs_json(target_names: &[String]) -> String {
-    format!(
-        "[{}]",
-        target_names
-            .iter()
-            .map(|name| {
-                let path_segment = api_target_path_segment(name);
-                format!(
-                    "{{\"name\":{},\"path_segment\":{},\"url_path\":{}}}",
-                    json_string(name),
-                    json_string(&path_segment),
-                    json_string(&format!("/v1/latest/targets/{}", path_segment)),
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(",")
-    )
-}
-
 fn operation_label(operation: &gewyvern::flow::ProgramOperation) -> String {
     match operation {
         gewyvern::flow::ProgramOperation::ConnectFlow => "connect_flow".into(),
@@ -11772,556 +11035,4 @@ fn module_severity_label(severity: &gewyvern::flow::ModuleSeverity) -> &'static 
         gewyvern::flow::ModuleSeverity::Medium => "medium",
         gewyvern::flow::ModuleSeverity::Low => "low",
     }
-}
-
-fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {
-    let api_state = cli
-        .api_socket
-        .as_deref()
-        .map(|addr| start_api_service(addr));
-    match socket_target {
-        SocketTarget::Unix(path) => serve_unix_socket_sessions(cli, path, api_state),
-        SocketTarget::Tcp(addr) => serve_tcp_socket_sessions(cli, addr, api_state),
-    }
-}
-
-fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<Arc<Mutex<ApiSnapshot>>>) {
-    let locale = UiLocale::detect();
-    let scan_targets = scan_targets_for_cli(cli).unwrap_or_else(|err| {
-        eprintln!("{err}");
-        std::process::exit(2);
-    });
-    #[cfg(target_family = "unix")]
-    {
-        remove_unix_socket_file(path).unwrap_or_else(|err| {
-            eprintln!(
-                "{}",
-                locale.msgf("socket_service_failed", &format!("{err:?}"), None)
-            );
-            std::process::exit(1);
-        });
-        let listener = bind_unix_socket_listener(path).unwrap_or_else(|err| {
-            eprintln!(
-                "{}",
-                locale.msgf("socket_service_failed", &format!("{err:?}"), None)
-            );
-            std::process::exit(1);
-        });
-        let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
-
-        for _ in 0..max_sessions {
-            if cli.scan_all {
-                let facts = match collect_unix_socket_facts_on_listener(&listener) {
-                    Ok(facts) => facts,
-                    Err(err) => {
-                        eprintln!(
-                            "{}",
-                            locale.msgf("socket_service_failed", &format!("{err:?}"), None)
-                        );
-                        continue;
-                    }
-                };
-                let mut outputs = Vec::new();
-                for target in &scan_targets {
-                    let export = run_binding_session(target.binding(), &facts);
-                    let export = annotate_export_trust(export, cli);
-                    outputs.push((target.label(), export));
-                }
-                emit_scan_outputs(cli, &outputs, true, api_state.as_ref());
-                continue;
-            }
-
-            let export = match if let Some(binding) = cli.dsl_binding() {
-                run_unix_socket_session_on_listener_with_binding(&listener, binding)
-            } else {
-                run_unix_socket_session_on_listener(&listener, cli.template_mode.template())
-            } {
-                Ok(export) => export,
-                Err(err) => {
-                    eprintln!(
-                        "{}",
-                        locale.msgf("socket_service_failed", &format!("{err:?}"), None)
-                    );
-                    continue;
-                }
-            };
-            let export = annotate_export_trust(export, cli);
-            emit_rendered(cli, "socket_session", &export, true, api_state.as_ref());
-        }
-
-        remove_unix_socket_file(path).unwrap_or_else(|err| {
-            eprintln!(
-                "{}",
-                locale.msgf("socket_service_failed", &format!("{err:?}"), None)
-            );
-            std::process::exit(1);
-        });
-        return;
-    }
-
-    #[cfg(not(target_family = "unix"))]
-    {
-        let _ = path;
-        eprintln!("{}", locale.msg("unix_only"));
-        std::process::exit(1);
-    }
-}
-
-fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_state: Option<Arc<Mutex<ApiSnapshot>>>) {
-    let locale = UiLocale::detect();
-    let scan_targets = scan_targets_for_cli(cli).unwrap_or_else(|err| {
-        eprintln!("{err}");
-        std::process::exit(2);
-    });
-    let listener = TcpListener::bind(addr).unwrap_or_else(|err| {
-        eprintln!(
-            "{}",
-            locale.msgf("socket_service_failed", &err.to_string(), None)
-        );
-        std::process::exit(1);
-    });
-    let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
-
-    for _ in 0..max_sessions {
-        if cli.scan_all {
-            let facts = match collect_tcp_socket_facts_on_listener(&listener) {
-                Ok(facts) => facts,
-                Err(err) => {
-                    eprintln!(
-                        "{}",
-                        locale.msgf("socket_service_failed", &format!("{err:?}"), None)
-                    );
-                    continue;
-                }
-            };
-            let mut outputs = Vec::new();
-            for target in &scan_targets {
-                let export = run_binding_session(target.binding(), &facts);
-                let export = annotate_export_trust(export, cli);
-                outputs.push((target.label(), export));
-            }
-            emit_scan_outputs(cli, &outputs, true, api_state.as_ref());
-            continue;
-        }
-
-        let export = match if let Some(binding) = cli.dsl_binding() {
-            run_tcp_socket_session_on_listener_with_binding(&listener, binding)
-        } else {
-            run_tcp_socket_session_on_listener(&listener, cli.template_mode.template())
-        } {
-            Ok(export) => export,
-            Err(err) => {
-                eprintln!(
-                    "{}",
-                    locale.msgf("socket_service_failed", &format!("{err:?}"), None)
-                );
-                continue;
-            }
-        };
-        let export = annotate_export_trust(export, cli);
-        emit_rendered(cli, "socket_session", &export, true, api_state.as_ref());
-    }
-}
-
-fn emit_rendered(
-    cli: &Cli,
-    name: &str,
-    export: &ExportBundle,
-    append: bool,
-    api_state: Option<&Arc<Mutex<ApiSnapshot>>>,
-) {
-    let locale = UiLocale::detect();
-    let single = vec![(name.to_string(), export.clone())];
-    if let Some(state) = api_state {
-        update_api_snapshot_for_single(state, name, export);
-    }
-    let rendered = if cli.report_format.is_some() {
-        render_report_outputs(cli, &single)
-    } else if cli.findings {
-        if cli.json {
-            findings_json(name, export)
-        } else {
-            findings_text(name, export)
-        }
-    } else if cli.json {
-        if cli.summary_only {
-            summary_json(name, export)
-        } else {
-            export.to_json()
-        }
-    } else {
-        summary_line(name, export)
-    };
-
-    if let Some(path) = cli.out_path.as_deref() {
-        if append {
-            let mut existing = fs::read_to_string(path).unwrap_or_default();
-            existing.push_str(&rendered);
-            existing.push('\n');
-            fs::write(path, existing).unwrap_or_else(|err| {
-                eprintln!(
-                    "{}",
-                    locale.msgf("write_failed", path, Some(&err.to_string()))
-                );
-                std::process::exit(1);
-            });
-        } else {
-            fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
-                eprintln!(
-                    "{}",
-                    locale.msgf("write_failed", path, Some(&err.to_string()))
-                );
-                std::process::exit(1);
-            });
-        }
-    } else {
-        println!("{rendered}");
-    }
-}
-
-fn emit_scan_outputs(
-    cli: &Cli,
-    outputs: &[(String, ExportBundle)],
-    append: bool,
-    api_state: Option<&Arc<Mutex<ApiSnapshot>>>,
-) {
-    let locale = UiLocale::detect();
-    if let Some(state) = api_state {
-        update_api_snapshot_for_scan(state, outputs);
-    }
-    let rendered = render_scan_outputs(cli, outputs);
-    if let Some(path) = cli.out_path.as_deref() {
-        if append {
-            let mut existing = fs::read_to_string(path).unwrap_or_default();
-            existing.push_str(&rendered);
-            existing.push('\n');
-            fs::write(path, existing).unwrap_or_else(|err| {
-                eprintln!(
-                    "{}",
-                    locale.msgf("write_failed", path, Some(&err.to_string()))
-                );
-                std::process::exit(1);
-            });
-        } else {
-            fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
-                eprintln!(
-                    "{}",
-                    locale.msgf("write_failed", path, Some(&err.to_string()))
-                );
-                std::process::exit(1);
-            });
-        }
-    } else {
-        println!("{rendered}");
-    }
-}
-
-fn current_unix_ms() -> u128 {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
-}
-
-fn update_api_snapshot_for_single(
-    state: &Arc<Mutex<ApiSnapshot>>,
-    name: &str,
-    export: &ExportBundle,
-) {
-    let summary_text = summary_line(name, export);
-    let summary_json = summary_json(name, export);
-    let findings_json = findings_json(name, export);
-    let export_json = export.to_json();
-    let report_json = scan_report_json(&[(name.to_string(), export.clone())]);
-    let report_html = scan_report_html(&[(name.to_string(), export.clone())]);
-    let mut target_snapshots = HashMap::new();
-    target_snapshots.insert(
-        name.into(),
-        ApiTargetSnapshot {
-            summary_text: summary_text.clone(),
-            summary_json: summary_json.clone(),
-            findings_json: findings_json.clone(),
-            export_json: export_json.clone(),
-            report_json: report_json.clone(),
-            report_html: report_html.clone(),
-        },
-    );
-    let mut guard = state.lock().expect("api snapshot mutex poisoned");
-    *guard = ApiSnapshot {
-        updated_unix_ms: current_unix_ms(),
-        kind: "single".into(),
-        name: Some(name.into()),
-        target_count: Some(1),
-        target_names: vec![name.into()],
-        summary_text: Some(summary_text),
-        summary_json: Some(summary_json),
-        findings_json: Some(findings_json),
-        export_json: Some(export_json),
-        report_json: Some(report_json),
-        report_html: Some(report_html),
-        target_snapshots,
-    };
-}
-
-fn update_api_snapshot_for_scan(
-    state: &Arc<Mutex<ApiSnapshot>>,
-    outputs: &[(String, ExportBundle)],
-) {
-    let mut target_snapshots = HashMap::new();
-    let target_names = outputs
-        .iter()
-        .map(|(name, _)| name.clone())
-        .collect::<Vec<_>>();
-    for (name, export) in outputs {
-        target_snapshots.insert(
-            name.clone(),
-            ApiTargetSnapshot {
-                summary_text: summary_line(name, export),
-                summary_json: summary_json(name, export),
-                findings_json: findings_json(name, export),
-                export_json: export.to_json(),
-                report_json: scan_report_json(&[(name.clone(), export.clone())]),
-                report_html: scan_report_html(&[(name.clone(), export.clone())]),
-            },
-        );
-    }
-    let mut guard = state.lock().expect("api snapshot mutex poisoned");
-    *guard = ApiSnapshot {
-        updated_unix_ms: current_unix_ms(),
-        kind: "scan".into(),
-        name: None,
-        target_count: Some(outputs.len()),
-        target_names,
-        summary_text: Some(scan_report_text(outputs)),
-        summary_json: Some(scan_report_json(outputs)),
-        findings_json: None,
-        export_json: None,
-        report_json: Some(scan_report_json(outputs)),
-        report_html: Some(scan_report_html(outputs)),
-        target_snapshots,
-    };
-}
-
-fn api_snapshot_meta_json(snapshot: &ApiSnapshot) -> String {
-    format!(
-        "{{\"updated_unix_ms\":{},\"kind\":{},\"name\":{},\"target_count\":{},\"target_names\":{},\"target_refs\":{},\"has_summary_text\":{},\"has_summary_json\":{},\"has_findings_json\":{},\"has_export_json\":{},\"has_report_json\":{},\"has_report_html\":{}}}",
-        snapshot.updated_unix_ms,
-        json_string(&snapshot.kind),
-        optional_json_string(snapshot.name.as_deref()),
-        snapshot
-            .target_count
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "null".into()),
-        string_list_json(&snapshot.target_names),
-        api_target_refs_json(&snapshot.target_names),
-        snapshot.summary_text.is_some(),
-        snapshot.summary_json.is_some(),
-        snapshot.findings_json.is_some(),
-        snapshot.export_json.is_some(),
-        snapshot.report_json.is_some(),
-        snapshot.report_html.is_some(),
-    )
-}
-
-fn api_target_list_json(snapshot: &ApiSnapshot) -> String {
-    format!(
-        "{{\"kind\":{},\"target_count\":{},\"targets\":{},\"target_refs\":{},\"path_segment_encoding\":\"percent-encoding\",\"direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\"}}",
-        json_string(&snapshot.kind),
-        snapshot
-            .target_count
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "null".into()),
-        string_list_json(&snapshot.target_names),
-        api_target_refs_json(&snapshot.target_names),
-    )
-}
-
-fn api_response_for_request(path: &str, snapshot: &ApiSnapshot) -> (u16, &'static str, String) {
-    if let Some(rest) = path.strip_prefix("/v1/latest/targets/") {
-        if rest.is_empty() {
-            return (
-                404,
-                "application/json; charset=utf-8",
-                "{\"error\":\"not_found\"}".into(),
-            );
-        }
-        if let Some((target_name_segment, suffix)) = rest.split_once('/') {
-            let target_name = match decode_api_target_path_segment(target_name_segment) {
-                Ok(value) => value,
-                Err(message) => {
-                    return (
-                        400,
-                        "application/json; charset=utf-8",
-                        format!(
-                            "{{\"error\":\"invalid_target_path_segment\",\"segment\":{},\"message\":{}}}",
-                            json_string(target_name_segment),
-                            json_string(message),
-                        ),
-                    );
-                }
-            };
-            if let Some(target) = snapshot.target_snapshots.get(&target_name) {
-                return match suffix {
-                    "summary.txt" => (
-                        200,
-                        "text/plain; charset=utf-8",
-                        target.summary_text.clone(),
-                    ),
-                    "summary.json" => (
-                        200,
-                        "application/json; charset=utf-8",
-                        target.summary_json.clone(),
-                    ),
-                    "findings.json" => (
-                        200,
-                        "application/json; charset=utf-8",
-                        target.findings_json.clone(),
-                    ),
-                    "export.json" => (
-                        200,
-                        "application/json; charset=utf-8",
-                        target.export_json.clone(),
-                    ),
-                    "report.json" => (
-                        200,
-                        "application/json; charset=utf-8",
-                        target.report_json.clone(),
-                    ),
-                    "report.html" => (200, "text/html; charset=utf-8", target.report_html.clone()),
-                    _ => (
-                        404,
-                        "application/json; charset=utf-8",
-                        "{\"error\":\"not_found\"}".into(),
-                    ),
-                };
-            }
-            return (
-                404,
-                "application/json; charset=utf-8",
-                format!(
-                    "{{\"error\":\"unknown_target\",\"target\":{},\"path_segment\":{}}}",
-                    json_string(&target_name),
-                    json_string(target_name_segment)
-                ),
-            );
-        }
-        return (
-            400,
-            "application/json; charset=utf-8",
-            "{\"error\":\"invalid_target_path\",\"expected\":\"/v1/latest/targets/<path-segment>/<resource>\"}".into(),
-        );
-    }
-    match path {
-        "/health" => (
-            200,
-            "application/json; charset=utf-8",
-            format!(
-                "{{\"ok\":true,\"has_snapshot\":{},\"kind\":{},\"updated_unix_ms\":{}}}",
-                !snapshot.kind.is_empty(),
-                if snapshot.kind.is_empty() {
-                    "null".into()
-                } else {
-                    json_string(&snapshot.kind)
-                },
-                snapshot.updated_unix_ms
-            ),
-        ),
-        "/v1/latest/meta" => (200, "application/json; charset=utf-8", api_snapshot_meta_json(snapshot)),
-        "/v1/latest/targets" => (
-            200,
-            "application/json; charset=utf-8",
-            api_target_list_json(snapshot),
-        ),
-        "/v1/capabilities" => (
-            200,
-            "application/json; charset=utf-8",
-            "{\"service\":\"gewyvern-api\",\"version\":\"0.7.0\",\"latest_snapshot\":true,\"serve_required\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}".into(),
-        ),
-        "/v1/latest/summary.txt" => match snapshot.summary_text.as_ref() {
-            Some(body) => (200, "text/plain; charset=utf-8", body.clone()),
-            None => (404, "text/plain; charset=utf-8", "no latest summary available".into()),
-        },
-        "/v1/latest/summary.json" => match snapshot.summary_json.as_ref() {
-            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
-            None => (404, "text/plain; charset=utf-8", "no latest summary json available".into()),
-        },
-        "/v1/latest/findings.json" => match snapshot.findings_json.as_ref() {
-            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
-            None => (404, "text/plain; charset=utf-8", "no latest findings json available".into()),
-        },
-        "/v1/latest/export.json" => match snapshot.export_json.as_ref() {
-            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
-            None => (404, "text/plain; charset=utf-8", "no latest export json available".into()),
-        },
-        "/v1/latest/report.json" => match snapshot.report_json.as_ref() {
-            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
-            None => (404, "text/plain; charset=utf-8", "no latest report json available".into()),
-        },
-        "/v1/latest/report.html" => match snapshot.report_html.as_ref() {
-            Some(body) => (200, "text/html; charset=utf-8", body.clone()),
-            None => (404, "text/plain; charset=utf-8", "no latest report html available".into()),
-        },
-        _ => (
-            404,
-            "application/json; charset=utf-8",
-            "{\"error\":\"not_found\",\"paths\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}".into(),
-        ),
-    }
-}
-
-fn write_http_response(
-    stream: &mut TcpStream,
-    status: u16,
-    content_type: &str,
-    body: &str,
-) -> std::io::Result<()> {
-    let reason = match status {
-        200 => "OK",
-        404 => "Not Found",
-        _ => "OK",
-    };
-    write!(
-        stream,
-        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        status,
-        reason,
-        content_type,
-        body.len(),
-        body
-    )
-}
-
-fn handle_api_client(mut stream: TcpStream, state: Arc<Mutex<ApiSnapshot>>) {
-    let mut buffer = [0u8; 2048];
-    let bytes_read = match stream.read(&mut buffer) {
-        Ok(bytes) if bytes > 0 => bytes,
-        _ => return,
-    };
-    let request = String::from_utf8_lossy(&buffer[..bytes_read]);
-    let first_line = request.lines().next().unwrap_or_default();
-    let path = first_line.split_whitespace().nth(1).unwrap_or("/health");
-    let snapshot = {
-        let guard = state.lock().expect("api snapshot mutex poisoned");
-        guard.clone()
-    };
-    let (status, content_type, body) = api_response_for_request(path, &snapshot);
-    let _ = write_http_response(&mut stream, status, content_type, &body);
-}
-
-fn start_api_service(addr: &str) -> Arc<Mutex<ApiSnapshot>> {
-    let listener = TcpListener::bind(addr).unwrap_or_else(|err| {
-        eprintln!("failed to bind api socket {}: {}", addr, err);
-        std::process::exit(1);
-    });
-    let state = Arc::new(Mutex::new(ApiSnapshot::default()));
-    let thread_state = Arc::clone(&state);
-    thread::spawn(move || {
-        for stream in listener.incoming() {
-            match stream {
-                Ok(stream) => handle_api_client(stream, Arc::clone(&thread_state)),
-                Err(_) => continue,
-            }
-        }
-    });
-    state
 }
