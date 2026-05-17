@@ -25,8 +25,11 @@ use gewyvern::template::{TemplateBinding, handshake_debug_template, udp_debug_te
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
-use std::net::{TcpListener, ToSocketAddrs};
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::{Duration, SystemTime};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -93,31 +96,31 @@ impl UiLocale {
     fn usage(self) -> &'static str {
         match self {
             Self::Zh => {
-                "用法: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "用法: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ja => {
-                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ko => {
-                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Fr => {
-                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::De => {
-                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Es => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Pt => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::Ru => {
-                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
             Self::En => {
-                "usage: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "usage: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
             }
         }
     }
@@ -408,9 +411,10 @@ impl UiLocale {
             (Self::Zh, "entry_requires_protocol") => "--entry 需要和 --protocol 一起使用",
             (Self::Zh, "list_conflict") => "--list-protocols 不能和 --list-entries 一起使用",
             (Self::Zh, "remote_socket_requires_flag") => {
-                "远程 TCP 监听需要显式加上 --socket-trust unsafe-remote（或兼容的 --allow-remote-socket）"
+                "远程 TCP 监听默认关闭。只有在你确认要接收未验证的远程事实流时，才应显式加上 --ingest-mode remote-advisory（或兼容的 --socket-trust unsafe-remote / --allow-remote-socket）"
             }
             (Self::Zh, "serve_requires_socket") => "--serve 需要 --unix-socket 或 --tcp-socket",
+            (Self::Zh, "api_requires_serve") => "--api-socket 需要和 --serve 一起使用",
             (Self::Zh, "unsupported_fragment_combo") => "不支持的片段组合",
             (Self::Zh, "unix_only") => "unix socket 服务仅支持 unix 平台",
             (Self::Zh, "findings_diagnostics_conflict") => {
@@ -593,13 +597,14 @@ impl UiLocale {
             (_, "dsl_entry_conflict") => "--dsl cannot be combined with --entry",
             (_, "entry_requires_protocol") => "--entry requires --protocol",
             (_, "pid_socket_conflict") => {
-                "--pid cannot be combined with socket ingest because incoming fact lineage is unauthenticated"
+                "--pid cannot be combined with socket ingest because incoming fact lineage is unverified; run a broader advisory scan first, then narrow down with a verified local source"
             }
             (_, "list_conflict") => "--list-protocols cannot be combined with --list-entries",
             (_, "remote_socket_requires_flag") => {
-                "remote TCP listeners require explicit --socket-trust unsafe-remote (or legacy --allow-remote-socket)"
+                "remote TCP listeners are off by default; only opt in with --ingest-mode remote-advisory (or legacy --socket-trust unsafe-remote / --allow-remote-socket) when you intentionally want unverified remote ingest"
             }
             (_, "serve_requires_socket") => "--serve requires --unix-socket or --tcp-socket",
+            (_, "api_requires_serve") => "--api-socket requires --serve",
             (_, "unsupported_fragment_combo") => "unsupported fragment combination",
             (_, "unix_only") => "unix socket service is only supported on unix platforms",
             (_, "findings_diagnostics_conflict") => {
@@ -632,13 +637,20 @@ impl UiLocale {
             (Self::Zh, "invalid_pid") => "--pid 必须是正整数".into(),
             (Self::Zh, "missing_unix_socket") => "缺少 --unix-socket 的值，期望文件路径".into(),
             (Self::Zh, "missing_tcp_socket") => "缺少 --tcp-socket 的值，期望 host:port".into(),
+            (Self::Zh, "missing_api_socket") => "缺少 --api-socket 的值，期望 host:port".into(),
             (Self::Zh, "missing_socket_trust") => {
                 "缺少 --socket-trust 的值，期望 trusted-local 或 unsafe-remote".into()
+            }
+            (Self::Zh, "missing_ingest_mode") => {
+                "缺少 --ingest-mode 的值，期望 local-advisory 或 remote-advisory".into()
             }
             (Self::Zh, "missing_out") => "缺少 --out 的值，期望可写文件路径".into(),
             (Self::Zh, "unsupported_protocol") => format!("不支持的协议 '{a}'"),
             (Self::Zh, "unsupported_socket_trust") => {
                 format!("不支持的 socket 信任模式 '{a}'，期望 trusted-local 或 unsafe-remote")
+            }
+            (Self::Zh, "unsupported_ingest_mode") => {
+                format!("不支持的 ingest 运行模式 '{a}'，期望 local-advisory 或 remote-advisory")
             }
             (_, "unsupported_demo") => {
                 format!("unsupported demo mode '{a}', expected tcp, udp, or both")
@@ -671,14 +683,23 @@ impl UiLocale {
             (_, "missing_tcp_socket") => {
                 "missing value for --tcp-socket, expected host:port".into()
             }
+            (_, "missing_api_socket") => {
+                "missing value for --api-socket, expected host:port".into()
+            }
             (_, "missing_socket_trust") => {
                 "missing value for --socket-trust, expected trusted-local or unsafe-remote".into()
+            }
+            (_, "missing_ingest_mode") => {
+                "missing value for --ingest-mode, expected local-advisory or remote-advisory".into()
             }
             (_, "missing_out") => "missing value for --out, expected a writable file path".into(),
             (_, "unsupported_protocol") => format!("unsupported protocol '{a}'"),
             (_, "unsupported_socket_trust") => format!(
                 "unsupported socket trust mode '{a}', expected trusted-local or unsafe-remote"
             ),
+            (_, "unsupported_ingest_mode") => {
+                format!("unsupported ingest mode '{a}', expected local-advisory or remote-advisory")
+            }
             _ => key.into(),
         }
     }
@@ -1060,12 +1081,13 @@ struct Cli {
     protocol_set_path: Option<String>,
     list_protocols: bool,
     list_entries: Option<String>,
-    socket_trust: SocketTrustMode,
+    ingest_mode: IngestMode,
     pid: Option<u32>,
     diagnostics: bool,
     findings: bool,
     http_transactions: bool,
     serve: bool,
+    api_socket: Option<String>,
     max_sessions: Option<usize>,
     json: bool,
     report_format: Option<ReportFormat>,
@@ -1093,10 +1115,36 @@ enum ReportFormat {
     Html,
 }
 
+#[derive(Clone, Debug, Default)]
+struct ApiSnapshot {
+    updated_unix_ms: u128,
+    kind: String,
+    name: Option<String>,
+    target_count: Option<usize>,
+    target_names: Vec<String>,
+    summary_text: Option<String>,
+    summary_json: Option<String>,
+    findings_json: Option<String>,
+    export_json: Option<String>,
+    report_json: Option<String>,
+    report_html: Option<String>,
+    target_snapshots: HashMap<String, ApiTargetSnapshot>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct ApiTargetSnapshot {
+    summary_text: String,
+    summary_json: String,
+    findings_json: String,
+    export_json: String,
+    report_json: String,
+    report_html: String,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum SocketTrustMode {
-    TrustedLocal,
-    UnsafeRemote,
+enum IngestMode {
+    LocalAdvisory,
+    RemoteAdvisory,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1175,13 +1223,13 @@ impl TemplateMode {
     }
 }
 
-impl SocketTrustMode {
+impl IngestMode {
     fn from_str(value: &str) -> Result<Self, String> {
         let locale = UiLocale::detect();
         match value {
-            "trusted-local" | "local" => Ok(Self::TrustedLocal),
-            "unsafe-remote" | "remote" => Ok(Self::UnsafeRemote),
-            other => Err(locale.msgf("unsupported_socket_trust", other, None)),
+            "local-advisory" | "local" => Ok(Self::LocalAdvisory),
+            "remote-advisory" | "remote" => Ok(Self::RemoteAdvisory),
+            other => Err(locale.msgf("unsupported_ingest_mode", other, None)),
         }
     }
 }
@@ -1224,12 +1272,13 @@ impl Cli {
         let mut protocol_set_path = None;
         let mut list_protocols = false;
         let mut list_entries = None;
-        let mut socket_trust = SocketTrustMode::TrustedLocal;
+        let mut ingest_mode = IngestMode::LocalAdvisory;
         let mut pid = None;
         let mut diagnostics = false;
         let mut findings = false;
         let mut http_transactions = false;
         let mut serve = false;
+        let mut api_socket = None;
         let mut max_sessions = None;
         let mut json = false;
         let mut report_format = None;
@@ -1254,6 +1303,12 @@ impl Cli {
                     report_format = Some(ReportFormat::from_str(&value)?);
                 }
                 "--serve" => serve = true,
+                "--api-socket" => {
+                    api_socket = Some(
+                        args.next()
+                            .ok_or_else(|| locale.msgf("missing_api_socket", "", None))?,
+                    );
+                }
                 "--findings" => findings = true,
                 "--http-transactions" => http_transactions = true,
                 "--max-sessions" => {
@@ -1298,7 +1353,13 @@ impl Cli {
                     );
                 }
                 "--list-protocols" => list_protocols = true,
-                "--allow-remote-socket" => socket_trust = SocketTrustMode::UnsafeRemote,
+                "--allow-remote-socket" => ingest_mode = IngestMode::RemoteAdvisory,
+                "--ingest-mode" => {
+                    let value = args
+                        .next()
+                        .ok_or_else(|| locale.msgf("missing_ingest_mode", "", None))?;
+                    ingest_mode = IngestMode::from_str(&value)?;
+                }
                 "--list-entries" => {
                     list_entries = Some(
                         args.next()
@@ -1309,7 +1370,13 @@ impl Cli {
                     let value = args
                         .next()
                         .ok_or_else(|| locale.msgf("missing_socket_trust", "", None))?;
-                    socket_trust = SocketTrustMode::from_str(&value)?;
+                    ingest_mode = match value.as_str() {
+                        "trusted-local" | "local" => IngestMode::LocalAdvisory,
+                        "unsafe-remote" | "remote" => IngestMode::RemoteAdvisory,
+                        other => {
+                            return Err(locale.msgf("unsupported_socket_trust", other, None));
+                        }
+                    };
                 }
                 "--pid" => {
                     let value = args
@@ -1407,8 +1474,11 @@ impl Cli {
         if serve && socket_target.is_none() {
             return Err(locale.msg("serve_requires_socket").into());
         }
+        if api_socket.is_some() && !serve {
+            return Err(locale.msg("api_requires_serve").into());
+        }
         if matches!(socket_target, Some(SocketTarget::Tcp(_)))
-            && socket_trust != SocketTrustMode::UnsafeRemote
+            && ingest_mode != IngestMode::RemoteAdvisory
             && socket_target
                 .as_ref()
                 .is_some_and(|target| !socket_target_is_local(target))
@@ -1432,12 +1502,13 @@ impl Cli {
             protocol_set_path,
             list_protocols,
             list_entries,
-            socket_trust,
+            ingest_mode,
             pid,
             diagnostics,
             findings,
             http_transactions,
             serve,
+            api_socket,
             max_sessions,
             json,
             report_format,
@@ -1454,9 +1525,9 @@ fn process_matches_pid(process: Option<&ProcessView>, pid: u32) -> bool {
 
 fn ingest_trust_mode_for_cli(cli: &Cli) -> &'static str {
     match cli.socket_target {
-        Some(_) => match cli.socket_trust {
-            SocketTrustMode::TrustedLocal => "unverified-local",
-            SocketTrustMode::UnsafeRemote => "unverified-remote",
+        Some(_) => match cli.ingest_mode {
+            IngestMode::LocalAdvisory => "unverified-local",
+            IngestMode::RemoteAdvisory => "unverified-remote",
         },
         None => "synthetic-demo",
     }
@@ -1465,6 +1536,30 @@ fn ingest_trust_mode_for_cli(cli: &Cli) -> &'static str {
 fn annotate_export_trust(mut export: ExportBundle, cli: &Cli) -> ExportBundle {
     export.ingest_trust_mode = ingest_trust_mode_for_cli(cli).to_string();
     export
+}
+
+fn ingest_mode_for_export(export: &ExportBundle) -> &'static str {
+    match export.ingest_trust_mode.as_str() {
+        "synthetic-demo" => "demo",
+        "unverified-local" => "local-advisory",
+        "unverified-remote" => "remote-advisory",
+        _ => "unknown",
+    }
+}
+
+fn ingest_mode_note_for_export(export: &ExportBundle) -> &'static str {
+    match ingest_mode_for_export(export) {
+        "demo" => {
+            "synthetic demo mode: useful for exercising flows and reports, not for real process attribution"
+        }
+        "local-advisory" => {
+            "local advisory mode: facts come from a local socket source, but lineage is still unverified"
+        }
+        "remote-advisory" => {
+            "remote advisory mode: facts come from an explicitly enabled remote socket source and should be treated as unverified"
+        }
+        _ => "ingest mode could not be classified; treat process-level conclusions conservatively",
+    }
 }
 
 fn pid_attribution_status_for_export(export: &ExportBundle) -> &'static str {
@@ -3735,11 +3830,12 @@ fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
 #[cfg(test)]
 mod tests {
     use super::{
-        Cli, ReportFormat, SocketTrustMode, annotate_export_trust, filter_export_by_pid,
-        findings_json, list_entries_json, list_entries_text, list_protocols_json,
-        list_protocols_text, protocol_dsl_path, render_report_outputs, route_fact,
-        run_binding_demo, scan_report_html, scan_report_json, scan_targets_for_cli,
-        scan_targets_from_set_file, summary_json, summary_line,
+        ApiSnapshot, Cli, IngestMode, ReportFormat, annotate_export_trust,
+        api_response_for_request, api_snapshot_meta_json, filter_export_by_pid, findings_json,
+        list_entries_json, list_entries_text, list_protocols_json, list_protocols_text,
+        protocol_dsl_path, render_report_outputs, route_fact, run_binding_demo, scan_report_html,
+        scan_report_json, scan_targets_for_cli, scan_targets_from_set_file, summary_json,
+        summary_line, update_api_snapshot_for_scan, update_api_snapshot_for_single,
     };
     use gewyvern::dsl::compile_file;
     use gewyvern::export::ExportBundle;
@@ -3751,6 +3847,7 @@ mod tests {
     use gewyvern::runtime::{RuntimeSession, SessionConfig};
     use gewyvern::template::TemplateBinding;
     use std::fs;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use std::time::Instant;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -4572,18 +4669,30 @@ mod tests {
             "--allow-remote-socket".to_string(),
         ])
         .unwrap();
-        assert_eq!(cli.socket_trust, SocketTrustMode::UnsafeRemote);
+        assert_eq!(cli.ingest_mode, IngestMode::RemoteAdvisory);
     }
 
     #[test]
     fn cli_accepts_loopback_tcp_socket_without_remote_flag() {
         let cli =
             Cli::from_args(["--tcp-socket".to_string(), "127.0.0.1:9000".to_string()]).unwrap();
-        assert_eq!(cli.socket_trust, SocketTrustMode::TrustedLocal);
+        assert_eq!(cli.ingest_mode, IngestMode::LocalAdvisory);
     }
 
     #[test]
-    fn cli_accepts_explicit_socket_trust_mode() {
+    fn cli_accepts_explicit_ingest_mode() {
+        let cli = Cli::from_args([
+            "--tcp-socket".to_string(),
+            "0.0.0.0:9000".to_string(),
+            "--ingest-mode".to_string(),
+            "remote-advisory".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(cli.ingest_mode, IngestMode::RemoteAdvisory);
+    }
+
+    #[test]
+    fn cli_accepts_legacy_socket_trust_alias() {
         let cli = Cli::from_args([
             "--tcp-socket".to_string(),
             "0.0.0.0:9000".to_string(),
@@ -4591,14 +4700,13 @@ mod tests {
             "unsafe-remote".to_string(),
         ])
         .unwrap();
-        assert_eq!(cli.socket_trust, SocketTrustMode::UnsafeRemote);
+        assert_eq!(cli.ingest_mode, IngestMode::RemoteAdvisory);
     }
 
     #[test]
-    fn cli_rejects_unknown_socket_trust_mode() {
-        let err =
-            Cli::from_args(["--socket-trust".to_string(), "mystery".to_string()]).unwrap_err();
-        assert!(err.contains("socket trust") || err.contains("信任模式"));
+    fn cli_rejects_unknown_ingest_mode() {
+        let err = Cli::from_args(["--ingest-mode".to_string(), "mystery".to_string()]).unwrap_err();
+        assert!(err.contains("ingest mode") || err.contains("采集模式"));
     }
 
     #[test]
@@ -4612,6 +4720,19 @@ mod tests {
         .unwrap_err();
         assert!(err.contains("--pid"));
         assert!(err.contains("socket"));
+    }
+
+    #[test]
+    fn cli_rejects_api_socket_without_serve() {
+        let err = Cli::from_args([
+            "--tcp-socket".to_string(),
+            "127.0.0.1:9000".to_string(),
+            "--api-socket".to_string(),
+            "127.0.0.1:9100".to_string(),
+        ])
+        .unwrap_err();
+        assert!(err.contains("--api-socket"));
+        assert!(err.contains("--serve"));
     }
 
     #[test]
@@ -4635,6 +4756,8 @@ mod tests {
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
         );
         let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"ingest_mode\":\"demo\""));
+        assert!(json.contains("\"ingest_mode_note\":\"synthetic demo mode: useful for exercising flows and reports, not for real process attribution\""));
         assert!(json.contains("\"ingest_trust_mode\":\"synthetic-demo\""));
     }
 
@@ -4646,6 +4769,8 @@ mod tests {
             .expect("http_request_path DSL should compile");
         let export = annotate_export_trust(run_binding_demo(binding), &cli);
         let json = summary_json("socket_session", &export);
+        assert!(json.contains("\"ingest_mode\":\"local-advisory\""));
+        assert!(json.contains("\"ingest_mode_note\":\"local advisory mode: facts come from a local socket source, but lineage is still unverified\""));
         assert!(json.contains("\"ingest_trust_mode\":\"unverified-local\""));
         assert!(json.contains("\"pid_attribution_status\":\"unverified\""));
         assert!(json.contains(
@@ -4708,6 +4833,8 @@ mod tests {
         assert!(report.contains("\"attention_targets\":1"));
         assert!(report.contains("\"target\":\"scan:http:request\""));
         assert!(report.contains("\"target\":\"scan:http:response\""));
+        assert!(report.contains("\"ingest_mode\":\"demo\""));
+        assert!(report.contains("\"ingest_mode_note\":\"synthetic demo mode: useful for exercising flows and reports, not for real process attribution\""));
         assert!(report.contains("\"ingest_trust_mode\":\"synthetic-demo\""));
         assert!(report.contains("\"pid_attribution_status\":\"synthetic\""));
     }
@@ -4730,6 +4857,8 @@ mod tests {
         assert!(report.contains("failure mode:"));
         assert!(report.contains("failure detail:"));
         assert!(report.contains("suspect modules:"));
+        assert!(report.contains("mode:</strong> demo"));
+        assert!(report.contains("Mode note:</strong> synthetic demo mode: useful for exercising flows and reports, not for real process attribution"));
         assert!(report.contains("trust:</strong> synthetic-demo"));
         assert!(report.contains("pid attribution:</strong> synthetic"));
         assert!(report.contains(
@@ -9071,6 +9200,9 @@ mod tests {
         assert!(json.contains(
             "\"pid_attribution_note\":\"pid-scoped conclusions come from synthetic demo lineage\""
         ));
+        assert!(json.contains("\"ingest_mode\":\"demo\""));
+        assert!(json.contains("\"ingest_mode_note\":\"synthetic demo mode: useful for exercising flows and reports, not for real process attribution\""));
+        assert!(json.contains("\"ingest_trust_mode\":\"synthetic-demo\""));
         assert!(json.contains("\"network_module_kind\":\"http_request_response\""));
         assert!(json.contains("\"network_module_kinds\":[\"http_request_response\"]"));
         assert!(json.contains("\"process_network_profiles\":["));
@@ -9078,6 +9210,119 @@ mod tests {
         assert!(json.contains("\"primary_failure_stage\":\"send_request->receive_response\""));
         assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
         assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
+    }
+
+    #[test]
+    fn api_snapshot_meta_and_routes_cover_single_export() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let state = Arc::new(Mutex::new(ApiSnapshot::default()));
+        update_api_snapshot_for_single(&state, "dsl_demo", &export);
+        let snapshot = state.lock().unwrap().clone();
+
+        let meta = api_snapshot_meta_json(&snapshot);
+        assert!(meta.contains("\"kind\":\"single\""));
+        assert!(meta.contains("\"name\":\"dsl_demo\""));
+        assert!(meta.contains("\"target_names\":[\"dsl_demo\"]"));
+        assert!(meta.contains("\"has_export_json\":true"));
+
+        let (_, _, targets_body) = api_response_for_request("/v1/latest/targets", &snapshot);
+        assert!(targets_body.contains("\"targets\":[\"dsl_demo\"]"));
+
+        let (_, _, summary_body) = api_response_for_request("/v1/latest/summary.json", &snapshot);
+        assert!(summary_body.contains("\"demo\":\"dsl_demo\""));
+
+        let (_, _, export_body) = api_response_for_request("/v1/latest/export.json", &snapshot);
+        assert!(export_body.contains("\"template_id\""));
+
+        let (_, _, target_summary_body) =
+            api_response_for_request("/v1/latest/targets/dsl_demo/summary.json", &snapshot);
+        assert!(target_summary_body.contains("\"demo\":\"dsl_demo\""));
+    }
+
+    #[test]
+    fn api_snapshot_routes_cover_scan_export() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let outputs = vec![("scan:http:request".to_string(), export)];
+        let state = Arc::new(Mutex::new(ApiSnapshot::default()));
+        update_api_snapshot_for_scan(&state, &outputs);
+        let snapshot = state.lock().unwrap().clone();
+
+        let (health_status, _, health_body) = api_response_for_request("/health", &snapshot);
+        assert_eq!(health_status, 200);
+        assert!(health_body.contains("\"has_snapshot\":true"));
+
+        let (cap_status, _, cap_body) = api_response_for_request("/v1/capabilities", &snapshot);
+        assert_eq!(cap_status, 200);
+        assert!(cap_body.contains("\"service\":\"gewyvern-api\""));
+
+        let (targets_status, _, targets_body) =
+            api_response_for_request("/v1/latest/targets", &snapshot);
+        assert_eq!(targets_status, 200);
+        assert!(targets_body.contains("\"targets\":[\"scan:http:request\"]"));
+
+        let (report_status, _, report_body) =
+            api_response_for_request("/v1/latest/report.json", &snapshot);
+        assert_eq!(report_status, 200);
+        assert!(report_body.contains("\"scan_all\":true"));
+
+        let (target_status, _, target_body) = api_response_for_request(
+            "/v1/latest/targets/scan:http:request/report.json",
+            &snapshot,
+        );
+        assert_eq!(target_status, 200);
+        assert!(target_body.contains("\"target\":\"scan:http:request\""));
+
+        let (findings_status, _, _) =
+            api_response_for_request("/v1/latest/findings.json", &snapshot);
+        assert_eq!(findings_status, 404);
+    }
+
+    #[test]
+    fn api_target_list_exposes_url_safe_path_segments() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let state = Arc::new(Mutex::new(ApiSnapshot::default()));
+        update_api_snapshot_for_single(&state, "scan:http request/%", &export);
+        let snapshot = state.lock().unwrap().clone();
+
+        let (_, _, meta_body) = api_response_for_request("/v1/latest/meta", &snapshot);
+        assert!(meta_body.contains("\"path_segment\":\"scan:http%20request%2F%25\""));
+
+        let (_, _, targets_body) = api_response_for_request("/v1/latest/targets", &snapshot);
+        assert!(targets_body.contains("\"path_segment_encoding\":\"percent-encoding\""));
+        assert!(
+            targets_body.contains("\"url_path\":\"/v1/latest/targets/scan:http%20request%2F%25\"")
+        );
+
+        let (target_status, _, target_body) = api_response_for_request(
+            "/v1/latest/targets/scan:http%20request%2F%25/summary.json",
+            &snapshot,
+        );
+        assert_eq!(target_status, 200);
+        assert!(target_body.contains("\"demo\":\"scan:http request/%\""));
+    }
+
+    #[test]
+    fn api_rejects_invalid_target_path_percent_encoding() {
+        let snapshot = ApiSnapshot::default();
+        let (status, _, body) =
+            api_response_for_request("/v1/latest/targets/bad%2/report.json", &snapshot);
+        assert_eq!(status, 400);
+        assert!(body.contains("\"error\":\"invalid_target_path_segment\""));
     }
 
     #[test]
@@ -9183,10 +9428,13 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
     };
     let protocol_flows = protocol_flow_summaries_text(export);
     let process_profiles = process_network_profiles_text(export);
+    let ingest_mode_note = ingest_mode_note_for_export(export);
     format!(
-        "{name}: {}={} {}={} pid_attribution_status={} ambiguous={} competing_hypotheses={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
+        "{name}: {}={} ingest_mode={} ingest_mode_note={} {}={} pid_attribution_status={} ambiguous={} competing_hypotheses={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
         locale.label("template"),
         export.template_id,
+        ingest_mode_for_export(export),
+        ingest_mode_note,
         "ingest_trust_mode",
         export.ingest_trust_mode,
         pid_attribution_status_for_export(export),
@@ -10755,12 +11003,15 @@ fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
             let primary_failure_basis = primary_failure_basis_for_export(export);
             let pid_attribution_status = pid_attribution_status_for_export(export);
             let pid_attribution_note = pid_attribution_note_for_export(export);
+            let ingest_mode_note = ingest_mode_note_for_export(export);
             let ambiguous = primary_process_profile_ambiguous_for_export(export);
             let competing_hypotheses = competing_hypotheses_for_export(export);
             format!(
-                "{{\"target\":\"{}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"suspect_modules\":\"{}\",\"program_flows\":{},\"program_findings\":{},\"module_findings\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
+                "{{\"target\":\"{}\",\"template_id\":\"{}\",\"ingest_mode\":\"{}\",\"ingest_mode_note\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"suspect_modules\":\"{}\",\"program_flows\":{},\"program_findings\":{},\"module_findings\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
                 name,
                 export.template_id,
+                ingest_mode_for_export(export),
+                ingest_mode_note,
                 export.ingest_trust_mode,
                 pid_attribution_status,
                 pid_attribution_note,
@@ -10901,6 +11152,7 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
             let primary_failure_basis = primary_failure_basis_for_export(export);
             let pid_attribution_status = pid_attribution_status_for_export(export);
             let pid_attribution_note = pid_attribution_note_for_export(export);
+            let ingest_mode_note = ingest_mode_note_for_export(export);
             let ambiguous = primary_process_profile_ambiguous_for_export(export);
             let competing_hypotheses = primary_process_profile_for_export(export)
                 .map(|profile| profile.competing_hypotheses.join(" | "))
@@ -10941,9 +11193,10 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 .collect::<Vec<_>>()
                 .join("");
             format!(
-                "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>trust:</strong> {} | <strong>pid attribution:</strong> {} | <strong>ambiguous:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><p><strong>PID attribution note:</strong> {}</p><p><strong>Competing hypotheses:</strong> {}</p><h3>Process Profiles</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
+                "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>mode:</strong> {} | <strong>trust:</strong> {} | <strong>pid attribution:</strong> {} | <strong>ambiguous:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><p><strong>Mode note:</strong> {}</p><p><strong>PID attribution note:</strong> {}</p><p><strong>Competing hypotheses:</strong> {}</p><h3>Process Profiles</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
                 html_escape(name),
                 status,
+                html_escape(ingest_mode_for_export(export)),
                 html_escape(&export.ingest_trust_mode),
                 html_escape(pid_attribution_status),
                 ambiguous,
@@ -10961,6 +11214,7 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 html_escape(&primary_failure_confidence),
                 html_escape(&primary_failure_basis),
                 html_escape(&suspect_modules),
+                html_escape(ingest_mode_note),
                 html_escape(pid_attribution_note),
                 html_escape(&competing_hypotheses),
                 profiles,
@@ -11035,6 +11289,7 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
     let primary_failure_basis = primary_failure_basis_for_export(export);
     let pid_attribution_status = pid_attribution_status_for_export(export);
     let pid_attribution_note = pid_attribution_note_for_export(export);
+    let ingest_mode_note = ingest_mode_note_for_export(export);
     let ambiguous = primary_process_profile_ambiguous_for_export(export);
     let competing_hypotheses = competing_hypotheses_for_export(export);
     let suspect_modules = format!(
@@ -11047,8 +11302,10 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
             .join(",")
     );
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_mode\":\"{}\",\"ingest_mode_note\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
         export.template_id,
+        ingest_mode_for_export(export),
+        ingest_mode_note,
         export.ingest_trust_mode,
         pid_attribution_status,
         pid_attribution_note,
@@ -11155,11 +11412,15 @@ fn findings_json(name: &str, export: &ExportBundle) -> String {
     let primary_failure_basis = primary_failure_basis_for_export(export);
     let pid_attribution_status = pid_attribution_status_for_export(export);
     let pid_attribution_note = pid_attribution_note_for_export(export);
+    let ingest_mode_note = ingest_mode_note_for_export(export);
     let ambiguous = primary_process_profile_ambiguous_for_export(export);
     let competing_hypotheses = competing_hypotheses_for_export(export);
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_mode\":\"{}\",\"ingest_mode_note\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
         export.template_id,
+        ingest_mode_for_export(export),
+        ingest_mode_note,
+        export.ingest_trust_mode,
         pid_attribution_status,
         pid_attribution_note,
         ambiguous,
@@ -11419,6 +11680,75 @@ fn string_list_json(items: &[String]) -> String {
     )
 }
 
+fn json_string(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+fn optional_json_string(value: Option<&str>) -> String {
+    value.map(json_string).unwrap_or_else(|| "null".into())
+}
+
+fn is_api_target_direct_path_char(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b':')
+}
+
+fn api_target_path_segment(name: &str) -> String {
+    let mut out = String::new();
+    for byte in name.bytes() {
+        if is_api_target_direct_path_char(byte) {
+            out.push(byte as char);
+        } else {
+            out.push('%');
+            out.push_str(&format!("{:02X}", byte));
+        }
+    }
+    out
+}
+
+fn decode_api_target_path_segment(segment: &str) -> Result<String, &'static str> {
+    let mut bytes = Vec::with_capacity(segment.len());
+    let raw = segment.as_bytes();
+    let mut index = 0;
+    while index < raw.len() {
+        if raw[index] == b'%' {
+            if index + 2 >= raw.len() {
+                return Err("target path segment ends with an incomplete percent-encoding");
+            }
+            let hi = (raw[index + 1] as char)
+                .to_digit(16)
+                .ok_or("target path segment contains an invalid percent-encoding")?;
+            let lo = (raw[index + 2] as char)
+                .to_digit(16)
+                .ok_or("target path segment contains an invalid percent-encoding")?;
+            bytes.push(((hi << 4) | lo) as u8);
+            index += 3;
+        } else {
+            bytes.push(raw[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(bytes).map_err(|_| "target path segment is not valid UTF-8")
+}
+
+fn api_target_refs_json(target_names: &[String]) -> String {
+    format!(
+        "[{}]",
+        target_names
+            .iter()
+            .map(|name| {
+                let path_segment = api_target_path_segment(name);
+                format!(
+                    "{{\"name\":{},\"path_segment\":{},\"url_path\":{}}}",
+                    json_string(name),
+                    json_string(&path_segment),
+                    json_string(&format!("/v1/latest/targets/{}", path_segment)),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
 fn operation_label(operation: &gewyvern::flow::ProgramOperation) -> String {
     match operation {
         gewyvern::flow::ProgramOperation::ConnectFlow => "connect_flow".into(),
@@ -11445,13 +11775,17 @@ fn module_severity_label(severity: &gewyvern::flow::ModuleSeverity) -> &'static 
 }
 
 fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {
+    let api_state = cli
+        .api_socket
+        .as_deref()
+        .map(|addr| start_api_service(addr));
     match socket_target {
-        SocketTarget::Unix(path) => serve_unix_socket_sessions(cli, path),
-        SocketTarget::Tcp(addr) => serve_tcp_socket_sessions(cli, addr),
+        SocketTarget::Unix(path) => serve_unix_socket_sessions(cli, path, api_state),
+        SocketTarget::Tcp(addr) => serve_tcp_socket_sessions(cli, addr, api_state),
     }
 }
 
-fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
+fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<Arc<Mutex<ApiSnapshot>>>) {
     let locale = UiLocale::detect();
     let scan_targets = scan_targets_for_cli(cli).unwrap_or_else(|err| {
         eprintln!("{err}");
@@ -11493,7 +11827,7 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
                     let export = annotate_export_trust(export, cli);
                     outputs.push((target.label(), export));
                 }
-                emit_scan_outputs(cli, &outputs, true);
+                emit_scan_outputs(cli, &outputs, true, api_state.as_ref());
                 continue;
             }
 
@@ -11512,7 +11846,7 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
                 }
             };
             let export = annotate_export_trust(export, cli);
-            emit_rendered(cli, "socket_session", &export, true);
+            emit_rendered(cli, "socket_session", &export, true, api_state.as_ref());
         }
 
         remove_unix_socket_file(path).unwrap_or_else(|err| {
@@ -11533,7 +11867,7 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
     }
 }
 
-fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
+fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_state: Option<Arc<Mutex<ApiSnapshot>>>) {
     let locale = UiLocale::detect();
     let scan_targets = scan_targets_for_cli(cli).unwrap_or_else(|err| {
         eprintln!("{err}");
@@ -11566,7 +11900,7 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
                 let export = annotate_export_trust(export, cli);
                 outputs.push((target.label(), export));
             }
-            emit_scan_outputs(cli, &outputs, true);
+            emit_scan_outputs(cli, &outputs, true, api_state.as_ref());
             continue;
         }
 
@@ -11585,13 +11919,22 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
             }
         };
         let export = annotate_export_trust(export, cli);
-        emit_rendered(cli, "socket_session", &export, true);
+        emit_rendered(cli, "socket_session", &export, true, api_state.as_ref());
     }
 }
 
-fn emit_rendered(cli: &Cli, name: &str, export: &ExportBundle, append: bool) {
+fn emit_rendered(
+    cli: &Cli,
+    name: &str,
+    export: &ExportBundle,
+    append: bool,
+    api_state: Option<&Arc<Mutex<ApiSnapshot>>>,
+) {
     let locale = UiLocale::detect();
     let single = vec![(name.to_string(), export.clone())];
+    if let Some(state) = api_state {
+        update_api_snapshot_for_single(state, name, export);
+    }
     let rendered = if cli.report_format.is_some() {
         render_report_outputs(cli, &single)
     } else if cli.findings {
@@ -11636,8 +11979,16 @@ fn emit_rendered(cli: &Cli, name: &str, export: &ExportBundle, append: bool) {
     }
 }
 
-fn emit_scan_outputs(cli: &Cli, outputs: &[(String, ExportBundle)], append: bool) {
+fn emit_scan_outputs(
+    cli: &Cli,
+    outputs: &[(String, ExportBundle)],
+    append: bool,
+    api_state: Option<&Arc<Mutex<ApiSnapshot>>>,
+) {
     let locale = UiLocale::detect();
+    if let Some(state) = api_state {
+        update_api_snapshot_for_scan(state, outputs);
+    }
     let rendered = render_scan_outputs(cli, outputs);
     if let Some(path) = cli.out_path.as_deref() {
         if append {
@@ -11663,4 +12014,314 @@ fn emit_scan_outputs(cli: &Cli, outputs: &[(String, ExportBundle)], append: bool
     } else {
         println!("{rendered}");
     }
+}
+
+fn current_unix_ms() -> u128 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+}
+
+fn update_api_snapshot_for_single(
+    state: &Arc<Mutex<ApiSnapshot>>,
+    name: &str,
+    export: &ExportBundle,
+) {
+    let summary_text = summary_line(name, export);
+    let summary_json = summary_json(name, export);
+    let findings_json = findings_json(name, export);
+    let export_json = export.to_json();
+    let report_json = scan_report_json(&[(name.to_string(), export.clone())]);
+    let report_html = scan_report_html(&[(name.to_string(), export.clone())]);
+    let mut target_snapshots = HashMap::new();
+    target_snapshots.insert(
+        name.into(),
+        ApiTargetSnapshot {
+            summary_text: summary_text.clone(),
+            summary_json: summary_json.clone(),
+            findings_json: findings_json.clone(),
+            export_json: export_json.clone(),
+            report_json: report_json.clone(),
+            report_html: report_html.clone(),
+        },
+    );
+    let mut guard = state.lock().expect("api snapshot mutex poisoned");
+    *guard = ApiSnapshot {
+        updated_unix_ms: current_unix_ms(),
+        kind: "single".into(),
+        name: Some(name.into()),
+        target_count: Some(1),
+        target_names: vec![name.into()],
+        summary_text: Some(summary_text),
+        summary_json: Some(summary_json),
+        findings_json: Some(findings_json),
+        export_json: Some(export_json),
+        report_json: Some(report_json),
+        report_html: Some(report_html),
+        target_snapshots,
+    };
+}
+
+fn update_api_snapshot_for_scan(
+    state: &Arc<Mutex<ApiSnapshot>>,
+    outputs: &[(String, ExportBundle)],
+) {
+    let mut target_snapshots = HashMap::new();
+    let target_names = outputs
+        .iter()
+        .map(|(name, _)| name.clone())
+        .collect::<Vec<_>>();
+    for (name, export) in outputs {
+        target_snapshots.insert(
+            name.clone(),
+            ApiTargetSnapshot {
+                summary_text: summary_line(name, export),
+                summary_json: summary_json(name, export),
+                findings_json: findings_json(name, export),
+                export_json: export.to_json(),
+                report_json: scan_report_json(&[(name.clone(), export.clone())]),
+                report_html: scan_report_html(&[(name.clone(), export.clone())]),
+            },
+        );
+    }
+    let mut guard = state.lock().expect("api snapshot mutex poisoned");
+    *guard = ApiSnapshot {
+        updated_unix_ms: current_unix_ms(),
+        kind: "scan".into(),
+        name: None,
+        target_count: Some(outputs.len()),
+        target_names,
+        summary_text: Some(scan_report_text(outputs)),
+        summary_json: Some(scan_report_json(outputs)),
+        findings_json: None,
+        export_json: None,
+        report_json: Some(scan_report_json(outputs)),
+        report_html: Some(scan_report_html(outputs)),
+        target_snapshots,
+    };
+}
+
+fn api_snapshot_meta_json(snapshot: &ApiSnapshot) -> String {
+    format!(
+        "{{\"updated_unix_ms\":{},\"kind\":{},\"name\":{},\"target_count\":{},\"target_names\":{},\"target_refs\":{},\"has_summary_text\":{},\"has_summary_json\":{},\"has_findings_json\":{},\"has_export_json\":{},\"has_report_json\":{},\"has_report_html\":{}}}",
+        snapshot.updated_unix_ms,
+        json_string(&snapshot.kind),
+        optional_json_string(snapshot.name.as_deref()),
+        snapshot
+            .target_count
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "null".into()),
+        string_list_json(&snapshot.target_names),
+        api_target_refs_json(&snapshot.target_names),
+        snapshot.summary_text.is_some(),
+        snapshot.summary_json.is_some(),
+        snapshot.findings_json.is_some(),
+        snapshot.export_json.is_some(),
+        snapshot.report_json.is_some(),
+        snapshot.report_html.is_some(),
+    )
+}
+
+fn api_target_list_json(snapshot: &ApiSnapshot) -> String {
+    format!(
+        "{{\"kind\":{},\"target_count\":{},\"targets\":{},\"target_refs\":{},\"path_segment_encoding\":\"percent-encoding\",\"direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\"}}",
+        json_string(&snapshot.kind),
+        snapshot
+            .target_count
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "null".into()),
+        string_list_json(&snapshot.target_names),
+        api_target_refs_json(&snapshot.target_names),
+    )
+}
+
+fn api_response_for_request(path: &str, snapshot: &ApiSnapshot) -> (u16, &'static str, String) {
+    if let Some(rest) = path.strip_prefix("/v1/latest/targets/") {
+        if rest.is_empty() {
+            return (
+                404,
+                "application/json; charset=utf-8",
+                "{\"error\":\"not_found\"}".into(),
+            );
+        }
+        if let Some((target_name_segment, suffix)) = rest.split_once('/') {
+            let target_name = match decode_api_target_path_segment(target_name_segment) {
+                Ok(value) => value,
+                Err(message) => {
+                    return (
+                        400,
+                        "application/json; charset=utf-8",
+                        format!(
+                            "{{\"error\":\"invalid_target_path_segment\",\"segment\":{},\"message\":{}}}",
+                            json_string(target_name_segment),
+                            json_string(message),
+                        ),
+                    );
+                }
+            };
+            if let Some(target) = snapshot.target_snapshots.get(&target_name) {
+                return match suffix {
+                    "summary.txt" => (
+                        200,
+                        "text/plain; charset=utf-8",
+                        target.summary_text.clone(),
+                    ),
+                    "summary.json" => (
+                        200,
+                        "application/json; charset=utf-8",
+                        target.summary_json.clone(),
+                    ),
+                    "findings.json" => (
+                        200,
+                        "application/json; charset=utf-8",
+                        target.findings_json.clone(),
+                    ),
+                    "export.json" => (
+                        200,
+                        "application/json; charset=utf-8",
+                        target.export_json.clone(),
+                    ),
+                    "report.json" => (
+                        200,
+                        "application/json; charset=utf-8",
+                        target.report_json.clone(),
+                    ),
+                    "report.html" => (200, "text/html; charset=utf-8", target.report_html.clone()),
+                    _ => (
+                        404,
+                        "application/json; charset=utf-8",
+                        "{\"error\":\"not_found\"}".into(),
+                    ),
+                };
+            }
+            return (
+                404,
+                "application/json; charset=utf-8",
+                format!(
+                    "{{\"error\":\"unknown_target\",\"target\":{},\"path_segment\":{}}}",
+                    json_string(&target_name),
+                    json_string(target_name_segment)
+                ),
+            );
+        }
+        return (
+            400,
+            "application/json; charset=utf-8",
+            "{\"error\":\"invalid_target_path\",\"expected\":\"/v1/latest/targets/<path-segment>/<resource>\"}".into(),
+        );
+    }
+    match path {
+        "/health" => (
+            200,
+            "application/json; charset=utf-8",
+            format!(
+                "{{\"ok\":true,\"has_snapshot\":{},\"kind\":{},\"updated_unix_ms\":{}}}",
+                !snapshot.kind.is_empty(),
+                if snapshot.kind.is_empty() {
+                    "null".into()
+                } else {
+                    json_string(&snapshot.kind)
+                },
+                snapshot.updated_unix_ms
+            ),
+        ),
+        "/v1/latest/meta" => (200, "application/json; charset=utf-8", api_snapshot_meta_json(snapshot)),
+        "/v1/latest/targets" => (
+            200,
+            "application/json; charset=utf-8",
+            api_target_list_json(snapshot),
+        ),
+        "/v1/capabilities" => (
+            200,
+            "application/json; charset=utf-8",
+            "{\"service\":\"gewyvern-api\",\"version\":\"0.7.0\",\"latest_snapshot\":true,\"serve_required\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}".into(),
+        ),
+        "/v1/latest/summary.txt" => match snapshot.summary_text.as_ref() {
+            Some(body) => (200, "text/plain; charset=utf-8", body.clone()),
+            None => (404, "text/plain; charset=utf-8", "no latest summary available".into()),
+        },
+        "/v1/latest/summary.json" => match snapshot.summary_json.as_ref() {
+            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
+            None => (404, "text/plain; charset=utf-8", "no latest summary json available".into()),
+        },
+        "/v1/latest/findings.json" => match snapshot.findings_json.as_ref() {
+            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
+            None => (404, "text/plain; charset=utf-8", "no latest findings json available".into()),
+        },
+        "/v1/latest/export.json" => match snapshot.export_json.as_ref() {
+            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
+            None => (404, "text/plain; charset=utf-8", "no latest export json available".into()),
+        },
+        "/v1/latest/report.json" => match snapshot.report_json.as_ref() {
+            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
+            None => (404, "text/plain; charset=utf-8", "no latest report json available".into()),
+        },
+        "/v1/latest/report.html" => match snapshot.report_html.as_ref() {
+            Some(body) => (200, "text/html; charset=utf-8", body.clone()),
+            None => (404, "text/plain; charset=utf-8", "no latest report html available".into()),
+        },
+        _ => (
+            404,
+            "application/json; charset=utf-8",
+            "{\"error\":\"not_found\",\"paths\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}".into(),
+        ),
+    }
+}
+
+fn write_http_response(
+    stream: &mut TcpStream,
+    status: u16,
+    content_type: &str,
+    body: &str,
+) -> std::io::Result<()> {
+    let reason = match status {
+        200 => "OK",
+        404 => "Not Found",
+        _ => "OK",
+    };
+    write!(
+        stream,
+        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        status,
+        reason,
+        content_type,
+        body.len(),
+        body
+    )
+}
+
+fn handle_api_client(mut stream: TcpStream, state: Arc<Mutex<ApiSnapshot>>) {
+    let mut buffer = [0u8; 2048];
+    let bytes_read = match stream.read(&mut buffer) {
+        Ok(bytes) if bytes > 0 => bytes,
+        _ => return,
+    };
+    let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+    let first_line = request.lines().next().unwrap_or_default();
+    let path = first_line.split_whitespace().nth(1).unwrap_or("/health");
+    let snapshot = {
+        let guard = state.lock().expect("api snapshot mutex poisoned");
+        guard.clone()
+    };
+    let (status, content_type, body) = api_response_for_request(path, &snapshot);
+    let _ = write_http_response(&mut stream, status, content_type, &body);
+}
+
+fn start_api_service(addr: &str) -> Arc<Mutex<ApiSnapshot>> {
+    let listener = TcpListener::bind(addr).unwrap_or_else(|err| {
+        eprintln!("failed to bind api socket {}: {}", addr, err);
+        std::process::exit(1);
+    });
+    let state = Arc::new(Mutex::new(ApiSnapshot::default()));
+    let thread_state = Arc::clone(&state);
+    thread::spawn(move || {
+        for stream in listener.incoming() {
+            match stream {
+                Ok(stream) => handle_api_client(stream, Arc::clone(&thread_state)),
+                Err(_) => continue,
+            }
+        }
+    });
+    state
 }

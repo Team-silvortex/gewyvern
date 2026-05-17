@@ -129,11 +129,30 @@ network picture.
 If facts are coming from a socket producer:
 
 ```bash
-cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --summary-only --report-format html --out /tmp/process-scan.html
+cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --ingest-mode local-advisory --summary-only --report-format html --out /tmp/process-scan.html
 ```
+
+If another local service needs to consume the latest serve-session result over
+HTTP:
+
+```bash
+cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --ingest-mode local-advisory --serve --api-socket 127.0.0.1:9100 --json --summary-only
+curl http://127.0.0.1:9100/v1/capabilities
+curl http://127.0.0.1:9100/v1/latest/targets
+curl http://127.0.0.1:9100/v1/latest/summary.json
+curl http://127.0.0.1:9100/v1/latest/targets/scan:http:request/report.json
+```
+
+When you need a target-specific route, prefer discovering it from
+`/v1/latest/targets` and use the returned `target_refs[].path_segment` field
+instead of guessing how to encode the name yourself. The API uses
+percent-encoded path segments for any characters outside the direct-safe set
+`A-Z a-z 0-9 . _ ~ :`.
 
 Pay attention to:
 
+- `ingest_mode`
+- `ingest_mode_note`
 - `ingest_trust_mode`
 - `pid_attribution_status`
 - `pid_attribution_note`
@@ -147,6 +166,7 @@ Important:
 
 - `--pid` is intentionally rejected with socket ingest
 - lineage arriving over socket ingest is treated as unverified
+- `local-advisory` and `remote-advisory` are operator-facing run modes, not proof of trust
 - process-scoped conclusions in this mode should be read as advisory
 
 ## Reading Failure Semantics
@@ -207,6 +227,11 @@ story for the same process.
 If your main goal is process-oriented diagnosis rather than command syntax, the
 next best companion guide is
 [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md).
+
+If your main goal is to understand local-advisory vs remote-advisory ingest,
+trust labels, and why PID attribution is deliberately downgraded for socket
+inputs, the best companion guide is
+[docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md).
 
 If your main goal is to understand what report language like
 `server_denied`, `request_sent_no_reply`, or `followup_not_sent` means across

@@ -62,6 +62,10 @@ Then use:
 
 to inspect the rawer supporting evidence.
 
+Before leaning too hard on any process-level conclusion from socket ingest,
+check the ingest-side guardrails in
+[docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md).
+
 ## Example: `apt`
 
 Typical question:

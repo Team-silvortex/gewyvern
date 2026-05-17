@@ -162,15 +162,18 @@ the fastest:
 7. [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
    Operator-facing examples for single-protocol scans, full sweeps, PID-scoped
    reports, and reading failure confidence/basis.
-8. [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
+8. [docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md)
+   Operator-facing explanation of advisory ingest modes, trust labeling, and
+   why PID attribution is deliberately downgraded for unverified socket inputs.
+9. [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
    How to interpret `process_network_profiles` for tools such as `apt`, `curl`,
    media clients, proxies, and database clients.
-9. [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
+10. [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
    Cluster-oriented reading guide for `failure_mode`, `failure_detail`,
    `failure_confidence`, and `failure_basis`.
-10. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+11. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
    Gewy language shape, package model, and compiler-facing usage.
-11. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
+12. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
    Draft formal grammar for the preferred pipeline surface of `gewylang`.
 
 ## Main Entrypoints
@@ -699,30 +702,47 @@ Socket session from a DSL file:
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --unix-socket /tmp/gewyvern.sock --json
 ```
 
-Socket session locked to a built-in protocol and PID:
+Socket session focused on one built-in protocol:
 
 ```bash
-cargo run -- --protocol mysql --entry session --pid 4242 --tcp-socket 127.0.0.1:9000 --json
+cargo run -- --protocol mysql --entry session --tcp-socket 127.0.0.1:9000 --json
 ```
 
 Socket session scanned against the default protocol set or a custom set file:
 
 ```bash
-cargo run -- --scan-all --pid 4242 --tcp-socket 127.0.0.1:9000 --json --summary-only
+cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --json --summary-only
 cargo run -- --scan-all --protocol-set /tmp/protocols.txt --tcp-socket 127.0.0.1:9000 --findings --json
-cargo run -- --scan-all --pid 4242 --tcp-socket 127.0.0.1:9000 --summary-only --report-format html --out /tmp/gewyvern-socket-scan.html
+cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --summary-only --report-format html --out /tmp/gewyvern-socket-scan.html
 ```
 
-Remote TCP listeners are now opt-in:
+Human-friendly ingest modes are now the primary interface:
 
 ```bash
-cargo run -- --protocol mysql --entry session --tcp-socket 0.0.0.0:9000 --socket-trust unsafe-remote --json
-cargo run -- --protocol mysql --entry session --tcp-socket 0.0.0.0:9000 --allow-remote-socket --json
+cargo run -- --protocol mysql --entry session --tcp-socket 127.0.0.1:9000 --ingest-mode local-advisory --json
+cargo run -- --protocol mysql --entry session --tcp-socket 0.0.0.0:9000 --ingest-mode remote-advisory --json
 ```
 
-`--socket-trust trusted-local` is the default. `--allow-remote-socket` remains as a
-compatibility shorthand for `--socket-trust unsafe-remote`.
-Rendered summaries and full JSON exports carry this as `ingest_trust_mode`.
+Mode meanings:
+
+- `local-advisory`
+  local socket ingest, process-level conclusions are advisory because lineage is
+  still unverified
+- `remote-advisory`
+  remote socket ingest, explicitly opt-in and still unverified
+
+Legacy compatibility aliases still work:
+
+- `--socket-trust trusted-local|unsafe-remote`
+- `--allow-remote-socket`
+
+Rendered summaries and JSON reports now carry both:
+
+- `ingest_mode`
+- `ingest_trust_mode`
+
+`--pid` is intentionally rejected with socket ingest, because unverified socket
+lineage should not be presented as strong PID-scoped attribution.
 
 Serve multiple sessions:
 
@@ -731,6 +751,39 @@ cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --serve --json --summary
 cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --serve --max-sessions 2 --json
 cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --serve --max-sessions 2 --json --summary-only
 ```
+
+Expose the latest serve-session snapshot over a read-only HTTP API:
+
+```bash
+cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --serve --api-socket 127.0.0.1:9100 --json --summary-only
+```
+
+Useful API endpoints:
+
+- `/health`
+- `/v1/capabilities`
+- `/v1/latest/meta`
+- `/v1/latest/targets`
+- `/v1/latest/summary.txt`
+- `/v1/latest/summary.json`
+- `/v1/latest/findings.json`
+- `/v1/latest/export.json`
+- `/v1/latest/report.json`
+- `/v1/latest/report.html`
+- `/v1/latest/targets/<name>/summary.json`
+- `/v1/latest/targets/<name>/findings.json`
+- `/v1/latest/targets/<name>/export.json`
+- `/v1/latest/targets/<name>/report.json`
+- `/v1/latest/targets/<name>/report.html`
+
+`--api-socket` is intended for `--serve` mode and exposes only the latest
+session or scan snapshot in memory so that other local services can consume
+`gewyvern` results without parsing terminal output.
+
+For target-specific routes, discover names from `/v1/latest/targets` and prefer
+the returned `target_refs[].path_segment` value when building URLs. The API
+accepts percent-encoded path segments and reports its path-segment contract in
+`/v1/capabilities`.
 
 Roundtrip demo:
 
