@@ -628,22 +628,25 @@ fn parse_pipeline_module_into(
 
     while index < lines.len() {
         let line_no = index + 1;
-        let line = lines[index].trim();
+        let raw_line = lines[index];
+        let line = raw_line.trim();
         if line.is_empty() || line.starts_with('#') {
             index += 1;
             continue;
         }
 
         if let Some((signature, body_syntax)) = parse_pipeline_function_head(line) {
-            let (name, params) =
-                parse_pipeline_function_signature(signature).map_err(|err| err.at_line(line_no))?;
+            let signature_column = raw_line.find("fn ").map(|idx| idx + 4).unwrap_or(1);
+            let (name, params) = parse_pipeline_function_signature(signature)
+                .map_err(|err| err.reanchor_line_column(line_no, signature_column))?;
             let mut local_bindings = Vec::new();
             let mut body = Vec::new();
             index += 1;
             match body_syntax {
                 PipelineFunctionBodySyntax::Block => {
                     while index < lines.len() {
-                        let body_line = lines[index].trim();
+                        let raw_body_line = lines[index];
+                        let body_line = raw_body_line.trim();
                         if body_line == "}" {
                             break;
                         }
@@ -651,6 +654,7 @@ fn parse_pipeline_module_into(
                             parse_pipeline_function_body_line(
                                 module,
                                 &name,
+                                raw_body_line,
                                 body_line,
                                 index + 1,
                                 &params,
@@ -670,7 +674,8 @@ fn parse_pipeline_module_into(
                 }
                 PipelineFunctionBodySyntax::Expression => {
                     while index < lines.len() {
-                        let body_line = lines[index].trim();
+                        let raw_body_line = lines[index];
+                        let body_line = raw_body_line.trim();
                         if body_line.is_empty() || body_line.starts_with('#') {
                             index += 1;
                             continue;
@@ -681,6 +686,7 @@ fn parse_pipeline_module_into(
                         parse_pipeline_function_body_line(
                             module,
                             &name,
+                            raw_body_line,
                             body_line,
                             index + 1,
                             &params,
@@ -721,7 +727,9 @@ fn parse_pipeline_module_into(
             line
         };
 
-        let (name, args) = parse_pipeline_call(call).map_err(|err| err.at_line(line_no))?;
+        let call_column = raw_line.find(call).map(|idx| idx + 1).unwrap_or(1);
+        let (name, args) = parse_pipeline_call(call)
+            .map_err(|err| err.reanchor_line_column(line_no, call_column))?;
         match name.as_str() {
             "template" => {
                 if module.template.is_some() || !allow_template_head {
@@ -842,14 +850,19 @@ fn parse_pipeline_function_head(line: &str) -> Option<(&str, PipelineFunctionBod
 fn parse_pipeline_function_body_line(
     module: &mut PipelineModule,
     function_name: &str,
+    raw_body_line: &str,
     body_line: &str,
     line_no: usize,
     params: &[String],
     local_bindings: &mut Vec<PipelineLetBinding>,
     output: &mut Vec<PipelineCall>,
 ) -> Result<(), DslError> {
-    if let Some(binding) =
-        parse_pipeline_let_binding(body_line).map_err(|err| err.at_line(line_no))?
+    let body_column = raw_body_line
+        .find(body_line)
+        .map(|idx| idx + 1)
+        .unwrap_or(1);
+    if let Some(binding) = parse_pipeline_let_binding(body_line)
+        .map_err(|err| err.reanchor_line_column(line_no, body_column))?
     {
         if params.iter().any(|param| param == &binding.name)
             || local_bindings
@@ -865,12 +878,20 @@ fn parse_pipeline_function_body_line(
         local_bindings.push(binding);
         return Ok(());
     }
-    push_pipeline_function_call(module, function_name, body_line, line_no, output)
+    push_pipeline_function_call(
+        module,
+        function_name,
+        raw_body_line,
+        body_line,
+        line_no,
+        output,
+    )
 }
 
 fn push_pipeline_function_call(
     module: &mut PipelineModule,
     function_name: &str,
+    raw_body_line: &str,
     body_line: &str,
     line_no: usize,
     output: &mut Vec<PipelineCall>,
@@ -881,8 +902,13 @@ fn push_pipeline_function_call(
         )
         .at_line(line_no)
     })?;
-    let (nested_name, nested_args) =
-        parse_pipeline_call(nested_call.trim()).map_err(|err| err.at_line(line_no))?;
+    let nested_call = nested_call.trim();
+    let nested_call_column = raw_body_line
+        .find(nested_call)
+        .map(|idx| idx + 1)
+        .unwrap_or(1);
+    let (nested_name, nested_args) = parse_pipeline_call(nested_call)
+        .map_err(|err| err.reanchor_line_column(line_no, nested_call_column))?;
     if nested_name == "use" {
         if let Ok(target_name) = parse_pipeline_single_arg(&nested_args, "use") {
             module.use_edges.push(FrontendUseEdge {
@@ -1185,9 +1211,10 @@ fn parse_pipeline_param_name(param: &str) -> Result<String, DslError> {
         .trim()
         .to_string();
     if value.is_empty() {
-        return Err(DslError::InvalidValue(
-            "pipeline parameter name cannot be empty".into(),
-        ));
+        return Err(
+            DslError::InvalidValue("pipeline parameter name cannot be empty".into())
+                .at_line_column(0, Some(1)),
+        );
     }
     Ok(value)
 }
@@ -1229,7 +1256,8 @@ fn parse_pipeline_single_arg(args: &[String], step: &str) -> Result<String, DslE
     if args.len() != 1 {
         return Err(DslError::InvalidValue(format!(
             "pipeline step '{step}' expects exactly one argument"
-        )));
+        ))
+        .at_line_column(0, Some(1)));
     }
     Ok(parse_pipeline_literal(&args[0]))
 }
@@ -1238,7 +1266,8 @@ fn parse_pipeline_use_call(args: &[String]) -> Result<(String, Vec<String>), Dsl
     if args.is_empty() {
         return Err(DslError::InvalidValue(
             "pipeline step 'use' expects at least one argument".into(),
-        ));
+        )
+        .at_line_column(0, Some(1)));
     }
     let function_name = parse_pipeline_literal(&args[0]);
     let actuals = args[1..]
@@ -1257,12 +1286,14 @@ fn substitute_pipeline_arg(
         let tail = &result[start + 2..];
         let end_rel = tail.find('}').ok_or_else(|| {
             DslError::InvalidValue(format!("unclosed pipeline placeholder in '{arg}'"))
+                .at_line_column(0, Some(start + 1))
         })?;
         let end = start + 2 + end_rel;
         let key = result[start + 2..end].trim();
-        let value = bindings
-            .get(key)
-            .ok_or_else(|| DslError::InvalidValue(format!("unknown pipeline parameter '{key}'")))?;
+        let value = bindings.get(key).ok_or_else(|| {
+            DslError::InvalidValue(format!("unknown pipeline parameter '{key}'"))
+                .at_line_column(0, Some(start + 3))
+        })?;
         result.replace_range(start..=end, value);
     }
     Ok(result)
@@ -1287,6 +1318,7 @@ fn parse_pipeline_keywords(
             DslError::InvalidValue(format!(
                 "pipeline step '{step}' expected keyword argument, got '{arg}'"
             ))
+            .at_line_column(0, Some(1))
         })?;
         keywords.insert(key.trim().to_string(), parse_pipeline_literal(value));
     }
@@ -1314,7 +1346,8 @@ fn lower_pipeline_param(args: &[String]) -> Result<String, DslError> {
     if args.len() != 2 {
         return Err(DslError::InvalidValue(
             "pipeline step 'param' expects target and value".into(),
-        ));
+        )
+        .at_line_column(0, Some(1)));
     }
     Ok(format!(
         "{}={}",
@@ -1327,7 +1360,8 @@ fn lower_pipeline_evidence(args: &[String]) -> Result<String, DslError> {
     if args.len() != 2 {
         return Err(DslError::InvalidValue(
             "pipeline step 'evidence' expects fact kind and tier".into(),
-        ));
+        )
+        .at_line_column(0, Some(1)));
     }
     Ok(format!(
         "{}:{}",
@@ -1411,6 +1445,29 @@ impl DslError {
             other => Self::Located {
                 line,
                 column,
+                inner: Box::new(other),
+            },
+        }
+    }
+
+    pub fn reanchor_line_column(self, line: usize, column_offset: usize) -> Self {
+        match self {
+            Self::Located {
+                line: existing_line,
+                column,
+                inner,
+            } => Self::Located {
+                line: if existing_line == 0 {
+                    line
+                } else {
+                    existing_line
+                },
+                column: column.map(|value| value + column_offset.saturating_sub(1)),
+                inner,
+            },
+            other => Self::Located {
+                line,
+                column: None,
                 inner: Box::new(other),
             },
         }

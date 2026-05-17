@@ -2532,12 +2532,32 @@ template(:broken)
         );
         let finding = report.findings.first().expect("parse finding");
         assert_eq!(finding.line, Some(2));
-        assert_eq!(finding.column, Some(7));
+        assert_eq!(finding.column, Some(10));
         let text = render_findings_report(&report, RenderFormat::Text);
         let json = render_findings_report(&report, RenderFormat::Json);
-        assert!(text.contains("line=2 column=7"));
+        assert!(text.contains("line=2 column=10"));
         assert!(json.contains("\"line\":2"));
-        assert!(json.contains("\"column\":7"));
+        assert!(json.contains("\"column\":10"));
+    }
+
+    #[test]
+    fn parse_findings_surface_column_for_invalid_let_binding() {
+        let report = compile_findings_report_str(
+            r#"
+fn demo() =
+  let op
+template(:demo)
+|> use(:demo)
+"#,
+        );
+        let finding = report.findings.first().expect("parse finding");
+        assert_eq!(finding.line, Some(3));
+        assert_eq!(finding.column, Some(9));
+        let text = render_findings_report(&report, RenderFormat::Text);
+        let json = render_findings_report(&report, RenderFormat::Json);
+        assert!(text.contains("line=3 column=9"));
+        assert!(json.contains("\"line\":3"));
+        assert!(json.contains("\"column\":9"));
     }
 
     #[test]
