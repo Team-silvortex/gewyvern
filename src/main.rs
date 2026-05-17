@@ -592,6 +592,9 @@ impl UiLocale {
             (_, "dsl_protocol_conflict") => "--dsl cannot be combined with --protocol",
             (_, "dsl_entry_conflict") => "--dsl cannot be combined with --entry",
             (_, "entry_requires_protocol") => "--entry requires --protocol",
+            (_, "pid_socket_conflict") => {
+                "--pid cannot be combined with socket ingest because incoming fact lineage is unauthenticated"
+            }
             (_, "list_conflict") => "--list-protocols cannot be combined with --list-entries",
             (_, "remote_socket_requires_flag") => {
                 "remote TCP listeners require explicit --socket-trust unsafe-remote (or legacy --allow-remote-socket)"
@@ -1181,13 +1184,6 @@ impl SocketTrustMode {
             other => Err(locale.msgf("unsupported_socket_trust", other, None)),
         }
     }
-
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::TrustedLocal => "trusted-local",
-            Self::UnsafeRemote => "unsafe-remote",
-        }
-    }
 }
 
 impl ReportFormat {
@@ -1396,6 +1392,9 @@ impl Cli {
         if list_protocols && list_entries.is_some() {
             return Err(locale.msg("list_conflict").into());
         }
+        if socket_target.is_some() && pid.is_some() {
+            return Err(locale.msg("pid_socket_conflict").into());
+        }
         if entry.is_some() && protocol.is_none() {
             return Err(locale.msg("entry_requires_protocol").into());
         }
@@ -1455,7 +1454,10 @@ fn process_matches_pid(process: Option<&ProcessView>, pid: u32) -> bool {
 
 fn ingest_trust_mode_for_cli(cli: &Cli) -> &'static str {
     match cli.socket_target {
-        Some(_) => cli.socket_trust.as_str(),
+        Some(_) => match cli.socket_trust {
+            SocketTrustMode::TrustedLocal => "unverified-local",
+            SocketTrustMode::UnsafeRemote => "unverified-remote",
+        },
         None => "synthetic-demo",
     }
 }
@@ -1463,6 +1465,24 @@ fn ingest_trust_mode_for_cli(cli: &Cli) -> &'static str {
 fn annotate_export_trust(mut export: ExportBundle, cli: &Cli) -> ExportBundle {
     export.ingest_trust_mode = ingest_trust_mode_for_cli(cli).to_string();
     export
+}
+
+fn pid_attribution_status_for_export(export: &ExportBundle) -> &'static str {
+    match export.ingest_trust_mode.as_str() {
+        "synthetic-demo" => "synthetic",
+        "unverified-local" | "unverified-remote" => "unverified",
+        _ => "unknown",
+    }
+}
+
+fn pid_attribution_note_for_export(export: &ExportBundle) -> &'static str {
+    match export.ingest_trust_mode.as_str() {
+        "synthetic-demo" => "pid-scoped conclusions come from synthetic demo lineage",
+        "unverified-local" | "unverified-remote" => {
+            "pid-scoped conclusions are advisory only because ingest lineage is unverified"
+        }
+        _ => "pid attribution status is unknown",
+    }
 }
 
 fn export_has_operation(export: &ExportBundle, operation: &str) -> bool {
@@ -3723,7 +3743,7 @@ mod tests {
     };
     use gewyvern::dsl::compile_file;
     use gewyvern::export::ExportBundle;
-    use gewyvern::flow::{ProgramFinding, ProgramFindingCause, ProgramOperation};
+    use gewyvern::flow::{ProcessView, ProgramFinding, ProgramFindingCause, ProgramOperation};
     use gewyvern::ledger::{
         CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, SessionId,
         SockLineageFact, TcpStateFact,
@@ -3810,6 +3830,58 @@ mod tests {
             supporting_fragments: vec![supporting_fragment.into()],
             evidence_trace: vec![evidence_trace.into()],
         });
+    }
+
+    fn synthetic_process_view(pid: u32, comm: &str) -> ProcessView {
+        ProcessView {
+            pid,
+            tid: pid,
+            cgroup_id: 4242,
+            comm: comm.into(),
+        }
+    }
+
+    fn coerce_export_process(
+        mut export: gewyvern::export::ExportBundle,
+        process: &ProcessView,
+    ) -> gewyvern::export::ExportBundle {
+        for flow in &mut export.program_flows {
+            flow.process = Some(process.clone());
+        }
+        for finding in &mut export.program_findings {
+            finding.process = Some(process.clone());
+        }
+        for finding in &mut export.module_findings {
+            finding.process = Some(process.clone());
+        }
+        export
+    }
+
+    fn merge_exports_for_tests(
+        exports: Vec<gewyvern::export::ExportBundle>,
+    ) -> gewyvern::export::ExportBundle {
+        let mut iter = exports.into_iter();
+        let mut merged = iter.next().expect("expected at least one export");
+        for export in iter {
+            merged.facts.extend(export.facts);
+            merged.rejected_facts.extend(export.rejected_facts);
+            merged
+                .rejected_fact_summary
+                .extend(export.rejected_fact_summary);
+            merged.flows.extend(export.flows);
+            merged.program_flows.extend(export.program_flows);
+            merged.program_findings.extend(export.program_findings);
+            merged.module_findings.extend(export.module_findings);
+            merged.reasons.extend(export.reasons);
+        }
+        merged.debug_summary.accepted_facts = merged.facts.len() as u64;
+        merged.debug_summary.rejected_facts = merged.rejected_facts.len() as u64;
+        merged.debug_summary.flows = merged.flows.len() as u64;
+        merged.debug_summary.program_flows = merged.program_flows.len() as u64;
+        merged.debug_summary.program_findings = merged.program_findings.len() as u64;
+        merged.debug_summary.module_findings = merged.module_findings.len() as u64;
+        merged.debug_summary.reasons = merged.reasons.len() as u64;
+        merged
     }
 
     fn sock_lineage_fact_for_tests(id: u64, cookie: u64, pid: u32, comm: &str) -> FactEnvelope {
@@ -4530,6 +4602,19 @@ mod tests {
     }
 
     #[test]
+    fn cli_rejects_pid_filter_for_socket_ingest() {
+        let err = Cli::from_args([
+            "--tcp-socket".to_string(),
+            "127.0.0.1:9000".to_string(),
+            "--pid".to_string(),
+            "4242".to_string(),
+        ])
+        .unwrap_err();
+        assert!(err.contains("--pid"));
+        assert!(err.contains("socket"));
+    }
+
+    #[test]
     fn export_json_carries_ingest_trust_mode() {
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
             .expect("http_request_path DSL should compile");
@@ -4551,6 +4636,21 @@ mod tests {
         );
         let json = summary_json("dsl_demo", &export);
         assert!(json.contains("\"ingest_trust_mode\":\"synthetic-demo\""));
+    }
+
+    #[test]
+    fn summary_json_marks_socket_ingest_as_unverified_local() {
+        let cli =
+            Cli::from_args(["--tcp-socket".to_string(), "127.0.0.1:9000".to_string()]).unwrap();
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let export = annotate_export_trust(run_binding_demo(binding), &cli);
+        let json = summary_json("socket_session", &export);
+        assert!(json.contains("\"ingest_trust_mode\":\"unverified-local\""));
+        assert!(json.contains("\"pid_attribution_status\":\"unverified\""));
+        assert!(json.contains(
+            "\"pid_attribution_note\":\"pid-scoped conclusions are advisory only because ingest lineage is unverified\""
+        ));
     }
 
     #[test]
@@ -4608,6 +4708,8 @@ mod tests {
         assert!(report.contains("\"attention_targets\":1"));
         assert!(report.contains("\"target\":\"scan:http:request\""));
         assert!(report.contains("\"target\":\"scan:http:response\""));
+        assert!(report.contains("\"ingest_trust_mode\":\"synthetic-demo\""));
+        assert!(report.contains("\"pid_attribution_status\":\"synthetic\""));
     }
 
     #[test]
@@ -4628,6 +4730,11 @@ mod tests {
         assert!(report.contains("failure mode:"));
         assert!(report.contains("failure detail:"));
         assert!(report.contains("suspect modules:"));
+        assert!(report.contains("trust:</strong> synthetic-demo"));
+        assert!(report.contains("pid attribution:</strong> synthetic"));
+        assert!(report.contains(
+            "PID attribution note:</strong> pid-scoped conclusions come from synthetic demo lineage"
+        ));
         assert!(report.contains("family-request-response"));
         assert!(report.contains("stage-request-response"));
         assert!(report.contains("failure-none"));
@@ -5226,6 +5333,19 @@ mod tests {
             "json={}",
             json
         );
+        assert!(json.contains("\"ambiguous\":true"), "json={}", json);
+        assert!(json.contains("\"competing_hypotheses\":["), "json={}", json);
+        assert!(
+            json.contains("\"module:proxy_authentication\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"transition:send_request->receive_response\"")
+                || json.contains("\"transition:send_auth_request->receive_auth_ok\""),
+            "json={}",
+            json
+        );
     }
 
     #[test]
@@ -5267,6 +5387,253 @@ mod tests {
         );
         assert!(
             json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""),
+            "json={}",
+            json
+        );
+        assert!(json.contains("\"ambiguous\":true"), "json={}", json);
+    }
+
+    #[test]
+    fn summary_json_exposes_ambiguous_competing_hypotheses() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let mut export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let primary_flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &primary_flow,
+            "http_request_path",
+            "http_request_response",
+            "receive_response",
+            "receive_payload",
+            "send_request->receive_response",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing http response",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let mut competing_flow = primary_flow.clone();
+        competing_flow.id = gewyvern::flow::ProgramFlowId(primary_flow.id.0 + 6000);
+        export.program_flows.push(competing_flow.clone());
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &competing_flow,
+            "http_connect_authenticated_tunnel_path",
+            "proxy_authentication",
+            "receive_auth_ok",
+            "receive_payload",
+            "send_auth_request->receive_auth_ok",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing proxy auth response",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"ambiguous\":true"), "json={}", json);
+        assert!(json.contains("\"competing_hypotheses\":["), "json={}", json);
+        assert!(
+            json.contains("\"module:proxy_authentication\""),
+            "json={}",
+            json
+        );
+    }
+
+    #[test]
+    fn mixed_dns_tls_http_profile_stays_ambiguous_and_low_confidence() {
+        let process = synthetic_process_view(7001, "curl");
+        let dns_export = coerce_export_process(
+            annotate_export_trust(
+                run_binding_demo(
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
+                        .expect("dns_udp_process DSL should compile"),
+                ),
+                &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+            ),
+            &process,
+        );
+        let tls_export = coerce_export_process(
+            annotate_export_trust(
+                run_binding_demo(
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+                        .expect("tls_client_path DSL should compile"),
+                ),
+                &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+            ),
+            &process,
+        );
+        let mut http_export = coerce_export_process(
+            annotate_export_trust(
+                run_binding_demo(
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                        .expect("http_request_path DSL should compile"),
+                ),
+                &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+            ),
+            &process,
+        );
+        let http_flow = http_export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut http_export,
+            &http_flow,
+            "http_request_path",
+            "http_request_response",
+            "receive_response",
+            "receive_payload",
+            "send_request->receive_response",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing http response",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+
+        let export = merge_exports_for_tests(vec![dns_export, tls_export, http_export]);
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"http_request_response\""));
+        assert!(json.contains("\"ambiguous\":true"), "json={}", json);
+        assert!(
+            json.contains("\"primary_failure_confidence\":\"low\""),
+            "json={}",
+            json
+        );
+        assert!(json.contains("\"module:name_resolution\""), "json={}", json);
+        assert!(json.contains("\"module:tls_handshake\""), "json={}", json);
+    }
+
+    #[test]
+    fn mixed_proxy_tunnel_and_upstream_request_exposes_competing_hypotheses() {
+        let process = synthetic_process_view(7002, "apt");
+        let proxy_export = coerce_export_process(
+            annotate_export_trust(
+                run_binding_demo(
+                    compile_file(
+                        "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy",
+                    )
+                    .expect("http_connect_authenticated_tunnel_path DSL should compile"),
+                ),
+                &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+            ),
+            &process,
+        );
+        let mut http_export = coerce_export_process(
+            annotate_export_trust(
+                run_binding_demo(
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                        .expect("http_request_path DSL should compile"),
+                ),
+                &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+            ),
+            &process,
+        );
+        let http_flow = http_export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut http_export,
+            &http_flow,
+            "http_request_path",
+            "http_request_response",
+            "receive_response",
+            "receive_payload",
+            "send_request->receive_response",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing upstream http response",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+
+        let export = merge_exports_for_tests(vec![proxy_export, http_export]);
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"ambiguous\":true"), "json={}", json);
+        assert!(
+            json.contains("\"primary_failure_confidence\":\"low\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"module:proxy_authentication\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"transition:send_request->receive_response\""),
+            "json={}",
+            json
+        );
+    }
+
+    #[test]
+    fn mixed_quic_http3_hy2_profile_stays_conservative() {
+        let process = synthetic_process_view(7003, "proxy");
+        let quic_export = coerce_export_process(
+            annotate_export_trust(
+                run_binding_demo(
+                    compile_file(
+                        "/Users/Shared/chroot/dev/gewyvern/dsl/quic_stream_session_path.gewy",
+                    )
+                    .expect("quic_stream_session_path DSL should compile"),
+                ),
+                &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+            ),
+            &process,
+        );
+        let mut http3_export = coerce_export_process(
+            annotate_export_trust(
+                run_binding_demo(
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy")
+                        .expect("http3_request_path DSL should compile"),
+                ),
+                &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+            ),
+            &process,
+        );
+        let http3_flow = http3_export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut http3_export,
+            &http3_flow,
+            "http3_request_path",
+            "http3_request_response",
+            "receive_response_stream",
+            "receive_payload",
+            "send_request_stream->receive_response_stream",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing http3 response",
+            "quic_frame_meta_fragment",
+            "missing_signal:quic_frame_observed",
+        );
+        let hy2_export = coerce_export_process(
+            annotate_export_trust(
+                run_binding_demo(
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy")
+                        .expect("hy2_auth_path DSL should compile"),
+                ),
+                &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+            ),
+            &process,
+        );
+
+        let export = merge_exports_for_tests(vec![quic_export, http3_export, hy2_export]);
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"primary_module_kind\":\"http3_request_response\""));
+        assert!(json.contains("\"ambiguous\":true"), "json={}", json);
+        assert!(
+            json.contains("\"primary_failure_confidence\":\"low\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"module:quic_stream_session\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"module:proxy_authentication\""),
             "json={}",
             json
         );
@@ -8700,6 +9067,10 @@ mod tests {
             evidence_trace: vec!["missing_signal:packet_observed".into()],
         }];
         let json = findings_json("dsl_demo", &export);
+        assert!(json.contains("\"pid_attribution_status\":\"synthetic\""));
+        assert!(json.contains(
+            "\"pid_attribution_note\":\"pid-scoped conclusions come from synthetic demo lineage\""
+        ));
         assert!(json.contains("\"network_module_kind\":\"http_request_response\""));
         assert!(json.contains("\"network_module_kinds\":[\"http_request_response\"]"));
         assert!(json.contains("\"process_network_profiles\":["));
@@ -8813,11 +9184,14 @@ fn summary_line(name: &str, export: &ExportBundle) -> String {
     let protocol_flows = protocol_flow_summaries_text(export);
     let process_profiles = process_network_profiles_text(export);
     format!(
-        "{name}: {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
+        "{name}: {}={} {}={} pid_attribution_status={} ambiguous={} competing_hypotheses={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
         locale.label("template"),
         export.template_id,
         "ingest_trust_mode",
         export.ingest_trust_mode,
+        pid_attribution_status_for_export(export),
+        primary_process_profile_ambiguous_for_export(export),
+        competing_hypotheses_for_export(export),
         locale.label("fragments_loaded"),
         export.debug_summary.fragments_loaded,
         locale.label("hookpoints_failed"),
@@ -9018,6 +9392,7 @@ struct ProcessNetworkProfileSummary {
     pid: u32,
     comm: String,
     status: String,
+    ambiguous: bool,
     primary_module_kind: String,
     primary_module_family: String,
     primary_failure_stage: String,
@@ -9026,6 +9401,7 @@ struct ProcessNetworkProfileSummary {
     primary_failure_detail: String,
     primary_failure_confidence: String,
     primary_failure_basis: String,
+    competing_hypotheses: Vec<String>,
     operations: Vec<String>,
     module_kinds: Vec<String>,
     phases: Vec<String>,
@@ -10043,6 +10419,32 @@ fn process_network_profile_summaries(export: &ExportBundle) -> Vec<ProcessNetwor
         if ambiguity_signals > 1 {
             confidence = reduce_confidence_level(confidence);
         }
+        profile.ambiguous = profile.module_kinds.len() > 1 || profile.missing_transitions.len() > 1;
+        let mut competing_hypotheses = Vec::new();
+        competing_hypotheses.extend(
+            profile
+                .module_kinds
+                .iter()
+                .filter(|kind| kind.as_str() != profile.primary_module_kind)
+                .map(|kind| format!("module:{kind}")),
+        );
+        competing_hypotheses.extend(
+            profile
+                .missing_transitions
+                .iter()
+                .filter(|transition| transition.as_str() != profile.primary_failure_stage)
+                .map(|transition| format!("transition:{transition}")),
+        );
+        competing_hypotheses.extend(
+            profile
+                .suspect_modules
+                .iter()
+                .skip(1)
+                .map(|module| format!("suspect_module:{module}")),
+        );
+        competing_hypotheses.sort();
+        competing_hypotheses.dedup();
+        profile.competing_hypotheses = competing_hypotheses;
         profile.primary_failure_confidence = confidence.to_string();
         profile.primary_failure_basis = basis.to_string();
         if let Some(primary_suspect_module) = best_scored_value(&suspect_module_scores, &key) {
@@ -10066,10 +10468,11 @@ fn process_network_profiles_json(export: &ExportBundle) -> String {
         process_network_profile_summaries(export)
             .into_iter()
             .map(|profile| format!(
-                "{{\"pid\":{},\"comm\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"operations\":{},\"module_kinds\":{},\"phases\":{},\"missing_transitions\":{},\"suspect_areas\":{},\"suspect_modules\":{},\"healthy_flows\":{},\"attention_flows\":{}}}",
+                "{{\"pid\":{},\"comm\":\"{}\",\"status\":\"{}\",\"ambiguous\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"competing_hypotheses\":{},\"operations\":{},\"module_kinds\":{},\"phases\":{},\"missing_transitions\":{},\"suspect_areas\":{},\"suspect_modules\":{},\"healthy_flows\":{},\"attention_flows\":{}}}",
                 profile.pid,
                 profile.comm,
                 profile.status,
+                profile.ambiguous,
                 profile.primary_module_kind,
                 profile.primary_module_family,
                 profile.primary_failure_stage,
@@ -10080,6 +10483,7 @@ fn process_network_profiles_json(export: &ExportBundle) -> String {
                 failure_detail_family_label(&profile.primary_failure_detail),
                 profile.primary_failure_confidence,
                 profile.primary_failure_basis,
+                string_list_json(&profile.competing_hypotheses),
                 string_list_json(&profile.operations),
                 string_list_json(&profile.module_kinds),
                 string_list_json(&profile.phases),
@@ -10119,16 +10523,22 @@ fn process_network_profiles_text(export: &ExportBundle) -> String {
                 format!(" missing={}", profile.missing_transitions.join("|"))
             };
             format!(
-                "{}(pid={})[status={} primary_kind={} primary_stage={} failure_mode={} failure_detail={} confidence={} basis={} kinds={} healthy={} attention={} phases={}{}]",
+                "{}(pid={})[status={} ambiguous={} primary_kind={} primary_stage={} failure_mode={} failure_detail={} confidence={} basis={} competing={} kinds={} healthy={} attention={} phases={}{}]",
                 profile.comm,
                 profile.pid,
                 profile.status,
+                profile.ambiguous,
                 profile.primary_module_kind,
                 profile.primary_failure_stage,
                 profile.primary_failure_mode,
                 profile.primary_failure_detail,
                 profile.primary_failure_confidence,
                 profile.primary_failure_basis,
+                if profile.competing_hypotheses.is_empty() {
+                    locale.none().to_string()
+                } else {
+                    profile.competing_hypotheses.join("|")
+                },
                 kinds,
                 profile.healthy_flows,
                 profile.attention_flows,
@@ -10138,6 +10548,18 @@ fn process_network_profiles_text(export: &ExportBundle) -> String {
         })
         .collect::<Vec<_>>()
         .join(",")
+}
+
+fn primary_process_profile_ambiguous_for_export(export: &ExportBundle) -> bool {
+    primary_process_profile_for_export(export)
+        .map(|profile| profile.ambiguous)
+        .unwrap_or(false)
+}
+
+fn competing_hypotheses_for_export(export: &ExportBundle) -> String {
+    primary_process_profile_for_export(export)
+        .map(|profile| string_list_json(&profile.competing_hypotheses))
+        .unwrap_or_else(|| "[]".into())
 }
 
 fn primary_process_profile_for_export(
@@ -10331,10 +10753,19 @@ fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
             let primary_failure_detail = primary_failure_detail_for_export(export);
             let primary_failure_confidence = primary_failure_confidence_for_export(export);
             let primary_failure_basis = primary_failure_basis_for_export(export);
+            let pid_attribution_status = pid_attribution_status_for_export(export);
+            let pid_attribution_note = pid_attribution_note_for_export(export);
+            let ambiguous = primary_process_profile_ambiguous_for_export(export);
+            let competing_hypotheses = competing_hypotheses_for_export(export);
             format!(
-                "{{\"target\":\"{}\",\"template_id\":\"{}\",\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"suspect_modules\":\"{}\",\"program_flows\":{},\"program_findings\":{},\"module_findings\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
+                "{{\"target\":\"{}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"status\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"suspect_modules\":\"{}\",\"program_flows\":{},\"program_findings\":{},\"module_findings\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
                 name,
                 export.template_id,
+                export.ingest_trust_mode,
+                pid_attribution_status,
+                pid_attribution_note,
+                ambiguous,
+                competing_hypotheses,
                 scan_target_status(export).label(),
                 primary_module_kind,
                 module_family_label(&primary_module_kind),
@@ -10468,6 +10899,12 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
             let primary_failure_detail = primary_failure_detail_for_export(export);
             let primary_failure_confidence = primary_failure_confidence_for_export(export);
             let primary_failure_basis = primary_failure_basis_for_export(export);
+            let pid_attribution_status = pid_attribution_status_for_export(export);
+            let pid_attribution_note = pid_attribution_note_for_export(export);
+            let ambiguous = primary_process_profile_ambiguous_for_export(export);
+            let competing_hypotheses = primary_process_profile_for_export(export)
+                .map(|profile| profile.competing_hypotheses.join(" | "))
+                .unwrap_or_else(|| "none".into());
             let suspect_modules = suspect_modules_for_export(export);
             let primary_module_family = module_family_label(&primary_module_kind);
             let primary_stage_family = stage_family_label(&primary_failure_stage);
@@ -10504,9 +10941,12 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 .collect::<Vec<_>>()
                 .join("");
             format!(
-                "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><h3>Process Profiles</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
+                "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>trust:</strong> {} | <strong>pid attribution:</strong> {} | <strong>ambiguous:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><p><strong>PID attribution note:</strong> {}</p><p><strong>Competing hypotheses:</strong> {}</p><h3>Process Profiles</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
                 html_escape(name),
                 status,
+                html_escape(&export.ingest_trust_mode),
+                html_escape(pid_attribution_status),
+                ambiguous,
                 export.program_flows.len(),
                 export.program_findings.len(),
                 export.module_findings.len(),
@@ -10521,6 +10961,8 @@ fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 html_escape(&primary_failure_confidence),
                 html_escape(&primary_failure_basis),
                 html_escape(&suspect_modules),
+                html_escape(pid_attribution_note),
+                html_escape(&competing_hypotheses),
                 profiles,
                 flow_lines,
             )
@@ -10591,6 +11033,10 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
     let primary_failure_detail = primary_failure_detail_for_export(export);
     let primary_failure_confidence = primary_failure_confidence_for_export(export);
     let primary_failure_basis = primary_failure_basis_for_export(export);
+    let pid_attribution_status = pid_attribution_status_for_export(export);
+    let pid_attribution_note = pid_attribution_note_for_export(export);
+    let ambiguous = primary_process_profile_ambiguous_for_export(export);
+    let competing_hypotheses = competing_hypotheses_for_export(export);
     let suspect_modules = format!(
         "[{}]",
         export
@@ -10601,9 +11047,13 @@ fn summary_json(name: &str, export: &ExportBundle) -> String {
             .join(",")
     );
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
         export.template_id,
         export.ingest_trust_mode,
+        pid_attribution_status,
+        pid_attribution_note,
+        ambiguous,
+        competing_hypotheses,
         primary_module_kind,
         module_family_label(&primary_module_kind),
         primary_failure_stage,
@@ -10703,9 +11153,17 @@ fn findings_json(name: &str, export: &ExportBundle) -> String {
     let primary_failure_detail = primary_failure_detail_for_export(export);
     let primary_failure_confidence = primary_failure_confidence_for_export(export);
     let primary_failure_basis = primary_failure_basis_for_export(export);
+    let pid_attribution_status = pid_attribution_status_for_export(export);
+    let pid_attribution_note = pid_attribution_note_for_export(export);
+    let ambiguous = primary_process_profile_ambiguous_for_export(export);
+    let competing_hypotheses = competing_hypotheses_for_export(export);
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
         export.template_id,
+        pid_attribution_status,
+        pid_attribution_note,
+        ambiguous,
+        competing_hypotheses,
         primary_module_kind,
         module_family_label(&primary_module_kind),
         primary_failure_stage,
@@ -11019,21 +11477,19 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
 
         for _ in 0..max_sessions {
             if cli.scan_all {
-                let facts =
-                    collect_unix_socket_facts_on_listener(&listener).unwrap_or_else(|err| {
+                let facts = match collect_unix_socket_facts_on_listener(&listener) {
+                    Ok(facts) => facts,
+                    Err(err) => {
                         eprintln!(
                             "{}",
                             locale.msgf("socket_service_failed", &format!("{err:?}"), None)
                         );
-                        std::process::exit(1);
-                    });
+                        continue;
+                    }
+                };
                 let mut outputs = Vec::new();
                 for target in &scan_targets {
                     let export = run_binding_session(target.binding(), &facts);
-                    let export = cli
-                        .pid
-                        .map(|pid| filter_export_by_pid(&export, pid))
-                        .unwrap_or(export);
                     let export = annotate_export_trust(export, cli);
                     outputs.push((target.label(), export));
                 }
@@ -11041,22 +11497,20 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str) {
                 continue;
             }
 
-            let export = if let Some(binding) = cli.dsl_binding() {
+            let export = match if let Some(binding) = cli.dsl_binding() {
                 run_unix_socket_session_on_listener_with_binding(&listener, binding)
             } else {
                 run_unix_socket_session_on_listener(&listener, cli.template_mode.template())
-            }
-            .unwrap_or_else(|err| {
-                eprintln!(
-                    "{}",
-                    locale.msgf("socket_service_failed", &format!("{err:?}"), None)
-                );
-                std::process::exit(1);
-            });
-            let export = cli
-                .pid
-                .map(|pid| filter_export_by_pid(&export, pid))
-                .unwrap_or(export);
+            } {
+                Ok(export) => export,
+                Err(err) => {
+                    eprintln!(
+                        "{}",
+                        locale.msgf("socket_service_failed", &format!("{err:?}"), None)
+                    );
+                    continue;
+                }
+            };
             let export = annotate_export_trust(export, cli);
             emit_rendered(cli, "socket_session", &export, true);
         }
@@ -11096,20 +11550,19 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
 
     for _ in 0..max_sessions {
         if cli.scan_all {
-            let facts = collect_tcp_socket_facts_on_listener(&listener).unwrap_or_else(|err| {
-                eprintln!(
-                    "{}",
-                    locale.msgf("socket_service_failed", &format!("{err:?}"), None)
-                );
-                std::process::exit(1);
-            });
+            let facts = match collect_tcp_socket_facts_on_listener(&listener) {
+                Ok(facts) => facts,
+                Err(err) => {
+                    eprintln!(
+                        "{}",
+                        locale.msgf("socket_service_failed", &format!("{err:?}"), None)
+                    );
+                    continue;
+                }
+            };
             let mut outputs = Vec::new();
             for target in &scan_targets {
                 let export = run_binding_session(target.binding(), &facts);
-                let export = cli
-                    .pid
-                    .map(|pid| filter_export_by_pid(&export, pid))
-                    .unwrap_or(export);
                 let export = annotate_export_trust(export, cli);
                 outputs.push((target.label(), export));
             }
@@ -11117,22 +11570,20 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str) {
             continue;
         }
 
-        let export = if let Some(binding) = cli.dsl_binding() {
+        let export = match if let Some(binding) = cli.dsl_binding() {
             run_tcp_socket_session_on_listener_with_binding(&listener, binding)
         } else {
             run_tcp_socket_session_on_listener(&listener, cli.template_mode.template())
-        }
-        .unwrap_or_else(|err| {
-            eprintln!(
-                "{}",
-                locale.msgf("socket_service_failed", &format!("{err:?}"), None)
-            );
-            std::process::exit(1);
-        });
-        let export = cli
-            .pid
-            .map(|pid| filter_export_by_pid(&export, pid))
-            .unwrap_or(export);
+        } {
+            Ok(export) => export,
+            Err(err) => {
+                eprintln!(
+                    "{}",
+                    locale.msgf("socket_service_failed", &format!("{err:?}"), None)
+                );
+                continue;
+            }
+        };
         let export = annotate_export_trust(export, cli);
         emit_rendered(cli, "socket_session", &export, true);
     }

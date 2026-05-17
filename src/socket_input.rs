@@ -65,9 +65,15 @@ pub fn remove_unix_socket_file(socket_path: &str) -> Result<(), SocketInputError
 pub fn bind_unix_socket_listener(
     socket_path: &str,
 ) -> Result<std::os::unix::net::UnixListener, SocketInputError> {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
     use std::os::unix::net::UnixListener;
 
-    UnixListener::bind(socket_path).map_err(|err| SocketInputError::BindFailed(err.to_string()))
+    let listener = UnixListener::bind(socket_path)
+        .map_err(|err| SocketInputError::BindFailed(err.to_string()))?;
+    fs::set_permissions(socket_path, fs::Permissions::from_mode(0o600))
+        .map_err(|err| SocketInputError::BindFailed(err.to_string()))?;
+    Ok(listener)
 }
 
 #[cfg(target_family = "unix")]
@@ -200,25 +206,22 @@ fn run_facts_session(
 fn collect_stream_facts<R: Read>(
     reader: BufReader<R>,
 ) -> Result<Vec<FactEnvelope>, SocketInputError> {
-    let mut line = String::new();
+    let mut line = Vec::new();
     let mut fact_count = 0usize;
     let mut facts = Vec::new();
 
     let mut reader = reader;
     loop {
         line.clear();
-        let read = reader
-            .read_line(&mut line)
-            .map_err(|err| SocketInputError::ReadFailed(err.to_string()))?;
+        let read = read_capped_line(&mut reader, &mut line)?;
         if read == 0 {
             break;
         }
-        if line.len() > MAX_FACT_LINE_BYTES {
-            return Err(SocketInputError::LimitExceeded(format!(
-                "fact line exceeded {} bytes",
-                MAX_FACT_LINE_BYTES
-            )));
-        }
+        let line = String::from_utf8(line.clone()).map_err(|_| {
+            SocketInputError::ParseFailed(ExportError::InvalidValue(
+                "fact line must be utf-8".into(),
+            ))
+        })?;
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
@@ -234,6 +237,37 @@ fn collect_stream_facts<R: Read>(
         facts.push(fact);
     }
     Ok(facts)
+}
+
+fn read_capped_line<R: BufRead>(
+    reader: &mut R,
+    output: &mut Vec<u8>,
+) -> Result<usize, SocketInputError> {
+    let mut total = 0usize;
+    loop {
+        let available = reader
+            .fill_buf()
+            .map_err(|err| SocketInputError::ReadFailed(err.to_string()))?;
+        if available.is_empty() {
+            return Ok(total);
+        }
+        let newline_pos = available.iter().position(|byte| *byte == b'\n');
+        let take = newline_pos
+            .map(|index| index + 1)
+            .unwrap_or(available.len());
+        if total + take > MAX_FACT_LINE_BYTES {
+            return Err(SocketInputError::LimitExceeded(format!(
+                "fact line exceeded {} bytes",
+                MAX_FACT_LINE_BYTES
+            )));
+        }
+        output.extend_from_slice(&available[..take]);
+        reader.consume(take);
+        total += take;
+        if newline_pos.is_some() {
+            return Ok(total);
+        }
+    }
 }
 
 #[cfg(not(target_family = "unix"))]
@@ -318,6 +352,19 @@ mod tests {
     #[test]
     fn run_stream_session_rejects_oversized_fact_line() {
         let oversized = format!("{}\n", "x".repeat(MAX_FACT_LINE_BYTES + 1));
+        let err = run_stream_session(
+            BufReader::new(std::io::Cursor::new(oversized.into_bytes())),
+            SessionConfig::for_template(udp_debug_template()).unwrap(),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(err, SocketInputError::LimitExceeded(message) if message.contains("fact line exceeded"))
+        );
+    }
+
+    #[test]
+    fn run_stream_session_rejects_oversized_fact_line_without_newline() {
+        let oversized = "x".repeat(MAX_FACT_LINE_BYTES + 1);
         let err = run_stream_session(
             BufReader::new(std::io::Cursor::new(oversized.into_bytes())),
             SessionConfig::for_template(udp_debug_template()).unwrap(),

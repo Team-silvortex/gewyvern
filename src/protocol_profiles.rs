@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fs;
 use std::path::Path;
 
@@ -1020,7 +1020,8 @@ fn scan_protocol_registry() -> Option<Vec<RegistryManifest>> {
 
 fn scan_protocol_registry_in(root: &Path) -> Option<Vec<RegistryManifest>> {
     let mut manifests = Vec::new();
-    collect_registry_manifests(root, &mut manifests).ok()?;
+    let mut visited_dirs = HashSet::new();
+    collect_registry_manifests(root, &mut manifests, &mut visited_dirs).ok()?;
     if manifests.is_empty() {
         None
     } else {
@@ -1052,15 +1053,28 @@ fn default_protocol_scan_set_from_registry(
 fn collect_registry_manifests(
     dir: &Path,
     manifests: &mut Vec<RegistryManifest>,
+    visited_dirs: &mut HashSet<std::path::PathBuf>,
 ) -> Result<(), String> {
     if !dir.exists() {
+        return Ok(());
+    }
+    let dir_metadata = fs::symlink_metadata(dir).map_err(|err| err.to_string())?;
+    if dir_metadata.file_type().is_symlink() {
+        return Ok(());
+    }
+    let canonical_dir = fs::canonicalize(dir).map_err(|err| err.to_string())?;
+    if !visited_dirs.insert(canonical_dir) {
         return Ok(());
     }
     for entry in fs::read_dir(dir).map_err(|err| err.to_string())? {
         let entry = entry.map_err(|err| err.to_string())?;
         let path = entry.path();
+        let metadata = fs::symlink_metadata(&path).map_err(|err| err.to_string())?;
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
         if path.is_dir() {
-            collect_registry_manifests(&path, manifests)?;
+            collect_registry_manifests(&path, manifests, visited_dirs)?;
             continue;
         }
         if path.file_name().and_then(|name| name.to_str()) != Some("gewy.pkg") {
@@ -1177,6 +1191,9 @@ fn split_protocol_alias(protocol: &str) -> (&str, Option<&str>) {
 #[cfg(test)]
 mod tests {
     use super::{protocol_dsl_path, protocol_entries};
+    use std::fs;
+    #[cfg(target_family = "unix")]
+    use std::os::unix::fs as unix_fs;
 
     #[test]
     fn http_entry_aliases_resolve_to_canonical_registry_targets() {
@@ -1197,5 +1214,33 @@ mod tests {
         assert!(entries.contains(&"response".to_string()));
         assert!(!entries.contains(&"client".to_string()));
         assert!(!entries.contains(&"server".to_string()));
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn registry_scan_ignores_symlinked_directories() {
+        let root = std::env::temp_dir().join(format!(
+            "gewyvern-protocol-registry-symlink-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let package_dir = root.join("mysql").join("session");
+        fs::create_dir_all(&package_dir).unwrap();
+        fs::write(
+            package_dir.join("gewy.pkg"),
+            "name=mysql_session\nversion=0.7.0\nentry=main.gewy\nregister.protocol=mysql\nregister.entry=session\nregister.default=true\n",
+        )
+        .unwrap();
+        fs::write(package_dir.join("main.gewy"), "template(:mysql_session)\n").unwrap();
+        unix_fs::symlink(root.join("mysql"), root.join("mysql-link")).unwrap();
+
+        let targets = super::default_protocol_scan_set_from_dir(root.to_str().unwrap()).unwrap();
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(targets.len(), 1);
+        assert_eq!(targets[0].protocol, "mysql");
+        assert_eq!(targets[0].entry, "session");
     }
 }

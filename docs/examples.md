@@ -129,17 +129,25 @@ network picture.
 If facts are coming from a socket producer:
 
 ```bash
-cargo run -- --scan-all --pid 4242 --tcp-socket 127.0.0.1:9000 --summary-only --report-format html --out /tmp/process-scan.html
+cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --summary-only --report-format html --out /tmp/process-scan.html
 ```
 
 Pay attention to:
 
 - `ingest_trust_mode`
+- `pid_attribution_status`
+- `pid_attribution_note`
 - `primary_failure_confidence`
 - `primary_failure_basis`
 
 That combination tells you both what the runtime thinks and how directly the
 evidence supports that conclusion.
+
+Important:
+
+- `--pid` is intentionally rejected with socket ingest
+- lineage arriving over socket ingest is treated as unverified
+- process-scoped conclusions in this mode should be read as advisory
 
 ## Reading Failure Semantics
 
@@ -178,6 +186,14 @@ Treat the confidence values this way:
 If multiple module kinds or multiple missing transitions compete inside one
 process profile, the runtime will intentionally reduce confidence instead of
 pretending certainty.
+
+The report will now also say this explicitly:
+
+- `ambiguous=true`
+- `competing_hypotheses=[...]`
+
+That is the runtime telling you there is more than one plausible network-module
+story for the same process.
 
 ## Suggested Learning Order
 

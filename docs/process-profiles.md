@@ -25,6 +25,8 @@ A process profile is trying to summarize:
 The most important fields are:
 
 - `status`
+- `ambiguous`
+- `competing_hypotheses`
 - `primary_module_kind`
 - `primary_failure_stage`
 - `primary_failure_mode`
@@ -40,11 +42,15 @@ Read a process profile in this order:
    Is this process healthy, idle, or attention-worthy?
 2. `primary_module_kind`
    What kind of network module does the runtime think this most resembles?
-3. `primary_failure_detail`
+3. `ambiguous`
+   Is the runtime explicitly telling you there are multiple plausible stories?
+4. `competing_hypotheses`
+   What other module or transition-level explanations are still alive?
+5. `primary_failure_detail`
    What exact operational problem is being suggested?
-4. `primary_failure_confidence`
+6. `primary_failure_confidence`
    How hard should you lean on that conclusion?
-5. `primary_failure_basis`
+7. `primary_failure_basis`
    Did the system see a direct protocol signal, a missing transition, or a
    weaker phase-level inference?
 
@@ -158,6 +164,72 @@ This is where `primary_failure_basis` is especially helpful:
   means the proxy itself explicitly said no
 - `missing_transition`
   means the runtime observed the request side but not the next expected stage
+
+## Example: `apt update`
+
+Typical real-world mixed picture:
+
+- DNS lookup happens
+- TLS starts
+- HTTP request path also starts
+- only the final request/response edge is clearly missing
+
+In that case a good report should usually look like this:
+
+- `primary_module_kind = http_request_response`
+- `ambiguous = true`
+- `competing_hypotheses` includes `name_resolution` and `tls_handshake`
+- `primary_failure_confidence = low`
+
+That is the right kind of conservatism. The runtime is saying:
+
+- the strongest concrete failure is in the HTTP request/response path
+- but DNS and TLS were both present enough that they still matter
+
+This is much safer than pretending the process has one clean explanation.
+
+## Example: `curl` Via Proxy
+
+Typical mixed picture:
+
+- proxy authentication / tunnel setup is present
+- upstream HTTP request path is also present
+- the final upstream response never arrives
+
+Useful output shape:
+
+- `ambiguous = true`
+- `competing_hypotheses` includes `proxy_authentication`
+- `primary_failure_stage = send_request->receive_response`
+
+This says:
+
+- the best current lead is "upstream request sent, reply missing"
+- but the proxy leg is still a competing explanation
+
+That is exactly the sort of result you want in a real proxy-heavy environment.
+
+## Example: Media Client Over QUIC / HTTP3
+
+Typical mixed picture:
+
+- QUIC transport/session setup is present
+- HTTP/3 request path is present
+- HY2-like auth/tunnel behavior may also be present
+- the clearest concrete miss is still the HTTP/3 response side
+
+Good conservative output:
+
+- `primary_module_kind = http3_request_response`
+- `ambiguous = true`
+- `competing_hypotheses` includes `quic_stream_session`
+- `competing_hypotheses` may also include `proxy_authentication`
+
+This is useful because it separates:
+
+- "what failed most concretely"
+from
+- "what other transport/tunnel stories are still live"
 
 ## Example: Database Clients
 
