@@ -8,6 +8,7 @@ Recommended reading before changing code:
 
 - `README.md`
 - `docs/system.md`
+- `docs/module-boundaries.md`
 - `docs/architecture.md`
 - `docs/dsl.md`
 - `docs/fragments.md`
@@ -18,8 +19,9 @@ The shortest practical orientation path is:
 
 1. `README.md`
 2. `docs/system.md`
-3. `docs/dsl.md` or `docs/fragments.md`, depending on whether the change is language-facing or runtime-facing
-4. `docs/architecture.md` when the change crosses runtime reconstruction or reporting paths
+3. `docs/module-boundaries.md`
+4. `docs/dsl.md` or `docs/fragments.md`, depending on whether the change is language-facing or runtime-facing
+5. `docs/architecture.md` when the change crosses runtime reconstruction or reporting paths
 
 Run the demo binary:
 
@@ -166,6 +168,7 @@ After behavior changes, update the matching document:
 - fragment semantics -> `docs/fragments.md`
 - export semantics -> `docs/export-format.md`
 - runtime pipeline details -> `docs/architecture.md`
+- `src/` layering and ownership -> `docs/module-boundaries.md`
 - system boundaries or layering -> `docs/system.md`
 - workflow changes -> `docs/development.md`
 - project-facing capabilities -> `README.md`

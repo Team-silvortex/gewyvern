@@ -110,6 +110,32 @@ pub struct CompilerEnvelope {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExplainReport {
+    pub ok: bool,
+    pub binding: Option<BindingReport>,
+    pub frontend: Option<FrontendReport>,
+    pub diagnostics: Option<DiagnosticsReport>,
+    pub findings: CompilerFindingsReport,
+    pub stages: CompilerStagesReport,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExplainFocus {
+    Parse,
+    Frontend,
+    Validation,
+    Diagnostics,
+    Findings,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FrontendFocus {
+    Functions,
+    Includes,
+    Graph,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParseStageReport {
     pub ok: bool,
     pub frontend: Option<FrontendReport>,
@@ -217,6 +243,14 @@ pub fn compile_binding_report_file(path: &str) -> Result<BindingReport, DslError
     })
 }
 
+pub fn compile_frontend_report_file(path: &str) -> Result<FrontendReport, DslError> {
+    summarize_frontend_file(path).map(frontend_report)
+}
+
+pub fn compile_frontend_report_str(input: &str) -> Result<FrontendReport, DslError> {
+    summarize_frontend_str(input).map(frontend_report)
+}
+
 pub fn collect_binding_diagnostics(
     binding: &TemplateBinding,
 ) -> Result<BindingDiagnostics, RegistryError> {
@@ -258,6 +292,14 @@ pub fn compile_findings_report_file(path: &str) -> CompilerFindingsReport {
 
 pub fn compile_findings_report_str(input: &str) -> CompilerFindingsReport {
     compile_envelope_str(input).findings
+}
+
+pub fn compile_explain_report_file(path: &str) -> Result<ExplainReport, DslError> {
+    compile_envelope_file(path).map(explain_report)
+}
+
+pub fn compile_explain_report_str(input: &str) -> ExplainReport {
+    explain_report(compile_envelope_str(input))
 }
 
 pub fn compile_envelope_file(path: &str) -> Result<CompilerEnvelope, DslError> {
@@ -375,6 +417,21 @@ pub fn render_binding_report(report: &BindingReport, format: RenderFormat) -> St
     }
 }
 
+pub fn render_frontend_report(report: &FrontendReport, format: RenderFormat) -> String {
+    render_frontend_report_with_focus(report, format, None)
+}
+
+pub fn render_frontend_report_with_focus(
+    report: &FrontendReport,
+    format: RenderFormat,
+    focus: Option<FrontendFocus>,
+) -> String {
+    match format {
+        RenderFormat::Text => frontend_report_text(report, focus),
+        RenderFormat::Json => frontend_report_json(report, focus),
+    }
+}
+
 pub fn render_diagnostics(
     binding: &TemplateBinding,
     diagnostics: &BindingDiagnostics,
@@ -408,6 +465,21 @@ pub fn render_envelope_report(report: &CompilerEnvelope, format: RenderFormat) -
     match format {
         RenderFormat::Text => envelope_text(report),
         RenderFormat::Json => envelope_json(report),
+    }
+}
+
+pub fn render_explain_report(report: &ExplainReport, format: RenderFormat) -> String {
+    render_explain_report_with_focus(report, format, None)
+}
+
+pub fn render_explain_report_with_focus(
+    report: &ExplainReport,
+    format: RenderFormat,
+    focus: Option<ExplainFocus>,
+) -> String {
+    match format {
+        RenderFormat::Text => explain_text(report, focus),
+        RenderFormat::Json => explain_json(report, focus),
     }
 }
 
@@ -741,6 +813,336 @@ fn envelope_json(report: &CompilerEnvelope) -> String {
     )
 }
 
+fn explain_text(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
+    let next_step = explain_next_step_hint(report);
+    let mut lines = vec![
+        "surface=explain".to_string(),
+        format!("ok={}", report.ok),
+        format!("parse_ok={}", report.stages.parse.ok),
+        format!("validation_ok={}", report.stages.validation.ok),
+        format!("diagnostics_ok={}", report.stages.diagnostics.ok),
+        format!("next_step={next_step}"),
+    ];
+    if let Some(focus) = focus {
+        lines.push(format!("focus={}", explain_focus_text(focus)));
+    }
+
+    if let Some(focus) = focus {
+        lines.extend(explain_focus_text_lines(report, focus));
+        return lines.join("\n");
+    }
+
+    match &report.binding {
+        Some(binding) => {
+            lines.push(format!("template={}", binding.template_id));
+            if let Some(model) = &binding.program_model {
+                lines.push(format!("operation={}", model.operation));
+                lines.push(format!("program_rules={}", model.rules));
+            } else {
+                lines.push("operation=none".into());
+            }
+            lines.push(format!("fragments={}", binding.fragments.join(",")));
+        }
+        None => {
+            lines.push("template=none".into());
+            lines.push("operation=none".into());
+            lines.push("fragments=none".into());
+        }
+    }
+
+    if let Some(frontend) = &report.frontend {
+        lines.push("frontend:".into());
+        lines.push(format!("- kind={}", frontend.kind));
+        lines.push(format!("- function_count={}", frontend.function_count));
+        lines.push(format!(
+            "- merged_step_count={}",
+            frontend.merged_step_count
+        ));
+        lines.push(format!(
+            "- include_sources={}",
+            frontend.include_sources.len()
+        ));
+        lines.push(format!("- use_edges={}", frontend.use_edges.len()));
+        lines.push(format!("- graph_nodes={}", frontend.graph_nodes.len()));
+        lines.push(format!("- graph_edges={}", frontend.graph_edges.len()));
+    } else {
+        lines.push("frontend=none".into());
+    }
+
+    lines.push("validation:".into());
+    lines.push(format!("- registry={}", report.stages.validation.registry));
+    lines.push(format!(
+        "- fragments={}",
+        report.stages.validation.fragment_count
+    ));
+    lines.push(format!(
+        "- program_rules={}",
+        report.stages.validation.program_rule_count
+    ));
+    lines.push(format!(
+        "- reason_rules={}",
+        report.stages.validation.reason_rule_count
+    ));
+    lines.push(format!(
+        "- unsupported_payload_offsets={:?}",
+        report.stages.validation.unsupported_payload_offsets
+    ));
+
+    match &report.diagnostics {
+        Some(diagnostics) => {
+            lines.push("diagnostics:".into());
+            lines.push(format!("- template={}", diagnostics.template_id));
+            lines.push(format!(
+                "- program_model_rules={}",
+                diagnostics
+                    .program_model
+                    .as_ref()
+                    .map(|model| model.rules.len())
+                    .unwrap_or(0)
+            ));
+            lines.push(format!(
+                "- reason_model_rules={}",
+                diagnostics
+                    .reason_model
+                    .as_ref()
+                    .map(|model| model.rules.len())
+                    .unwrap_or(0)
+            ));
+        }
+        None => lines.push("diagnostics=none".into()),
+    }
+
+    if report.findings.findings.is_empty() {
+        lines.push("findings=none".into());
+    } else {
+        lines.push("findings:".into());
+        lines.extend(
+            report
+                .findings
+                .findings
+                .iter()
+                .map(|finding| format!("- {}", finding_text_record(finding))),
+        );
+    }
+
+    lines.join("\n")
+}
+
+fn explain_json(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
+    let next_step = explain_next_step_hint(report);
+    let template_id = report
+        .binding
+        .as_ref()
+        .map(|binding| format!("\"{}\"", binding.template_id))
+        .unwrap_or_else(|| "null".into());
+    let operation = report
+        .binding
+        .as_ref()
+        .and_then(|binding| binding.program_model.as_ref())
+        .map(|model| format!("\"{}\"", model.operation))
+        .unwrap_or_else(|| "null".into());
+    let focus_json = focus
+        .map(|focus| format!("\"{}\"", explain_focus_text(focus)))
+        .unwrap_or_else(|| "null".into());
+    let focused_report_json = focus
+        .map(|focus| explain_focus_json(report, focus))
+        .unwrap_or_else(|| "null".into());
+    format!(
+        "{{\"ok\":{},\"summary\":{{\"parse_ok\":{},\"validation_ok\":{},\"diagnostics_ok\":{},\"template_id\":{},\"operation\":{},\"finding_count\":{},\"next_step\":\"{}\",\"focus\":{}}},\"focused_report\":{},\"frontend\":{},\"binding\":{},\"validation\":{},\"diagnostics\":{},\"findings\":{}}}",
+        report.ok,
+        report.stages.parse.ok,
+        report.stages.validation.ok,
+        report.stages.diagnostics.ok,
+        template_id,
+        operation,
+        report.findings.findings.len(),
+        next_step,
+        focus_json,
+        focused_report_json,
+        frontend_json(report.frontend.as_ref()),
+        report
+            .binding
+            .as_ref()
+            .map_or_else(|| "null".to_string(), binding_json),
+        stages_validation_json(&report.stages.validation),
+        report
+            .diagnostics
+            .as_ref()
+            .map_or_else(|| "null".to_string(), diagnostics_json),
+        findings_json(&report.findings),
+    )
+}
+
+fn stages_validation_json(report: &ValidationReport) -> String {
+    format!(
+        "{{\"ok\":{},\"registry\":\"{}\",\"fragment_count\":{},\"program_rule_count\":{},\"reason_rule_count\":{},\"checks\":[{}],\"sampled_payload_offsets\":[{}],\"required_payload_offsets\":[{}],\"unsupported_payload_offsets\":[{}],\"finding\":{}}}",
+        report.ok,
+        report.registry,
+        report.fragment_count,
+        report.program_rule_count,
+        report.reason_rule_count,
+        string_json_list(&report.checks),
+        u16_json_list(&report.sampled_payload_offsets),
+        u16_json_list(&report.required_payload_offsets),
+        u16_json_list(&report.unsupported_payload_offsets),
+        finding_json(report.finding.as_ref()),
+    )
+}
+
+fn explain_report(envelope: CompilerEnvelope) -> ExplainReport {
+    let ok = envelope.stages.parse.ok
+        && envelope.stages.validation.ok
+        && envelope.stages.diagnostics.ok
+        && envelope.findings.findings.is_empty();
+    ExplainReport {
+        ok,
+        binding: envelope.binding,
+        frontend: envelope.stages.parse.frontend.clone(),
+        diagnostics: envelope.diagnostics,
+        findings: envelope.findings,
+        stages: envelope.stages,
+    }
+}
+
+fn explain_focus_text(focus: ExplainFocus) -> &'static str {
+    match focus {
+        ExplainFocus::Parse => "parse",
+        ExplainFocus::Frontend => "frontend",
+        ExplainFocus::Validation => "validation",
+        ExplainFocus::Diagnostics => "diagnostics",
+        ExplainFocus::Findings => "findings",
+    }
+}
+
+fn explain_focus_text_lines(report: &ExplainReport, focus: ExplainFocus) -> Vec<String> {
+    match focus {
+        ExplainFocus::Parse => vec![
+            format!("parse_ok={}", report.stages.parse.ok),
+            format!(
+                "parse_finding={}",
+                finding_text(report.stages.parse.finding.as_ref())
+            ),
+        ],
+        ExplainFocus::Frontend => match &report.frontend {
+            Some(frontend) => {
+                let mut lines = vec!["frontend:".to_string()];
+                lines.extend(
+                    frontend_report_text(frontend, None)
+                        .lines()
+                        .map(|line| line.to_string()),
+                );
+                lines
+            }
+            None => vec!["frontend=none".into()],
+        },
+        ExplainFocus::Validation => vec![
+            format!("validation_ok={}", report.stages.validation.ok),
+            format!("registry={}", report.stages.validation.registry),
+            format!("checks={}", report.stages.validation.checks.join(",")),
+            format!(
+                "unsupported_payload_offsets={:?}",
+                report.stages.validation.unsupported_payload_offsets
+            ),
+            format!(
+                "validation_finding={}",
+                finding_text(report.stages.validation.finding.as_ref())
+            ),
+        ],
+        ExplainFocus::Diagnostics => match &report.diagnostics {
+            Some(diagnostics) => {
+                let mut lines = vec![format!("diagnostics_ok={}", report.stages.diagnostics.ok)];
+                lines.extend(
+                    diagnostics_text(diagnostics)
+                        .lines()
+                        .map(|line| line.to_string()),
+                );
+                lines
+            }
+            None => vec![
+                format!("diagnostics_ok={}", report.stages.diagnostics.ok),
+                "diagnostics=none".into(),
+            ],
+        },
+        ExplainFocus::Findings => {
+            let mut lines = vec![format!("finding_count={}", report.findings.findings.len())];
+            if report.findings.findings.is_empty() {
+                lines.push("findings=none".into());
+            } else {
+                lines.push("findings:".into());
+                lines.extend(
+                    report
+                        .findings
+                        .findings
+                        .iter()
+                        .map(|finding| format!("- {}", finding_text_record(finding))),
+                );
+            }
+            lines
+        }
+    }
+}
+
+fn explain_focus_json(report: &ExplainReport, focus: ExplainFocus) -> String {
+    match focus {
+        ExplainFocus::Parse => format!(
+            "{{\"kind\":\"parse\",\"ok\":{},\"finding\":{}}}",
+            report.stages.parse.ok,
+            finding_json(report.stages.parse.finding.as_ref())
+        ),
+        ExplainFocus::Frontend => format!(
+            "{{\"kind\":\"frontend\",\"report\":{}}}",
+            frontend_json(report.frontend.as_ref())
+        ),
+        ExplainFocus::Validation => format!(
+            "{{\"kind\":\"validation\",\"report\":{}}}",
+            stages_validation_json(&report.stages.validation)
+        ),
+        ExplainFocus::Diagnostics => format!(
+            "{{\"kind\":\"diagnostics\",\"ok\":{},\"report\":{}}}",
+            report.stages.diagnostics.ok,
+            report
+                .diagnostics
+                .as_ref()
+                .map_or_else(|| "null".to_string(), diagnostics_json)
+        ),
+        ExplainFocus::Findings => format!(
+            "{{\"kind\":\"findings\",\"report\":{}}}",
+            findings_json(&report.findings)
+        ),
+    }
+}
+
+fn explain_next_step_hint(report: &ExplainReport) -> &'static str {
+    if !report.stages.parse.ok {
+        if report.frontend.is_some() {
+            return "fix the parse finding first, then inspect the standalone frontend graph with `gewyc frontend`";
+        }
+        return "fix the parse finding first, then rerun `gewyc explain`";
+    }
+
+    if !report.stages.validation.ok {
+        if !report
+            .stages
+            .validation
+            .unsupported_payload_offsets
+            .is_empty()
+        {
+            return "inspect `unsupported_payload_offsets` and adjust fragment coverage or payload matchers before rerunning";
+        }
+        return "inspect the validation section and binding fragments before rerunning";
+    }
+
+    if !report.stages.diagnostics.ok {
+        return "inspect the diagnostics section and rule support details before rerunning";
+    }
+
+    if !report.findings.findings.is_empty() {
+        return "inspect the findings list first, then drill into `frontend` or `stages` for the failing phase";
+    }
+
+    "binding, frontend, validation, and diagnostics are all healthy; continue with runtime/demo verification"
+}
+
 fn stages_text(report: &CompilerStagesReport) -> String {
     format!(
         "stage=parse\nok={}\nfrontend={}\nparse_finding={}\n{}\nstage=validation\nok={}\nregistry={}\nfragments={}\nprogram_rules={}\nreason_rules={}\nchecks={}\nsampled_payload_offsets={:?}\nrequired_payload_offsets={:?}\nunsupported_payload_offsets={:?}\nvalidation_finding={}\nstage=diagnostics\nok={}\ndiagnostics_finding={}\n{}",
@@ -965,6 +1367,212 @@ fn frontend_text(frontend: Option<&FrontendReport>) -> String {
                 .join(",")
         ),
         None => "none".into(),
+    }
+}
+
+fn frontend_report_text(report: &FrontendReport, focus: Option<FrontendFocus>) -> String {
+    let mut lines = vec![
+        format!("kind={}", report.kind),
+        format!("function_count={}", report.function_count),
+        format!("merged_step_count={}", report.merged_step_count),
+    ];
+
+    if let Some(focus) = focus {
+        lines.push(format!("focus={}", frontend_focus_text(focus)));
+        lines.extend(frontend_focus_text_lines(report, focus));
+        return lines.join("\n");
+    }
+
+    if report.include_sources.is_empty() {
+        lines.push("include_sources=none".into());
+    } else {
+        lines.push("include_sources:".into());
+        lines.extend(
+            report
+                .include_sources
+                .iter()
+                .map(|source| format!("- {source}")),
+        );
+    }
+
+    if report.function_nodes.is_empty() {
+        lines.push("function_nodes=none".into());
+    } else {
+        lines.push("function_nodes:".into());
+        lines.extend(
+            report
+                .function_nodes
+                .iter()
+                .map(|node| format!("- {} (steps={})", node.name, node.step_count)),
+        );
+    }
+
+    if report.use_edges.is_empty() {
+        lines.push("use_edges=none".into());
+    } else {
+        lines.push("use_edges:".into());
+        lines.extend(
+            report
+                .use_edges
+                .iter()
+                .map(|edge| format!("- {} -> {} @ line {}", edge.from, edge.to, edge.line)),
+        );
+    }
+
+    if report.graph_nodes.is_empty() {
+        lines.push("graph_nodes=none".into());
+    } else {
+        lines.push("graph_nodes:".into());
+        lines.extend(report.graph_nodes.iter().map(|node| match node.step_count {
+            Some(step_count) => format!("- {} [{}] steps={}", node.id, node.kind, step_count),
+            None => format!("- {} [{}]", node.id, node.kind),
+        }));
+    }
+
+    if report.graph_edges.is_empty() {
+        lines.push("graph_edges=none".into());
+    } else {
+        lines.push("graph_edges:".into());
+        lines.extend(report.graph_edges.iter().map(|edge| {
+            format!(
+                "- {} -{}-> {} @ line {}",
+                edge.from, edge.kind, edge.to, edge.line
+            )
+        }));
+    }
+
+    lines.join("\n")
+}
+
+fn frontend_report_json(report: &FrontendReport, focus: Option<FrontendFocus>) -> String {
+    let focus_json = focus
+        .map(|focus| format!("\"{}\"", frontend_focus_text(focus)))
+        .unwrap_or_else(|| "null".into());
+    let focused_report_json = focus
+        .map(|focus| frontend_focus_json(report, focus))
+        .unwrap_or_else(|| "null".into());
+    format!(
+        "{{\"summary\":{{\"kind\":\"{}\",\"function_count\":{},\"merged_step_count\":{},\"focus\":{}}},\"focused_report\":{},\"report\":{}}}",
+        report.kind,
+        report.function_count,
+        report.merged_step_count,
+        focus_json,
+        focused_report_json,
+        frontend_json(Some(report)),
+    )
+}
+
+fn frontend_focus_text(focus: FrontendFocus) -> &'static str {
+    match focus {
+        FrontendFocus::Functions => "functions",
+        FrontendFocus::Includes => "includes",
+        FrontendFocus::Graph => "graph",
+    }
+}
+
+fn frontend_focus_text_lines(report: &FrontendReport, focus: FrontendFocus) -> Vec<String> {
+    match focus {
+        FrontendFocus::Functions => {
+            let mut lines = vec!["function_nodes:".into()];
+            if report.function_nodes.is_empty() {
+                lines.push("- none".into());
+            } else {
+                lines.extend(
+                    report
+                        .function_nodes
+                        .iter()
+                        .map(|node| format!("- {} (steps={})", node.name, node.step_count)),
+                );
+            }
+            lines
+        }
+        FrontendFocus::Includes => {
+            let mut lines = vec!["include_sources:".into()];
+            if report.include_sources.is_empty() {
+                lines.push("- none".into());
+            } else {
+                lines.extend(
+                    report
+                        .include_sources
+                        .iter()
+                        .map(|source| format!("- {source}")),
+                );
+            }
+            lines
+        }
+        FrontendFocus::Graph => {
+            let mut lines = vec!["graph_nodes:".into()];
+            if report.graph_nodes.is_empty() {
+                lines.push("- none".into());
+            } else {
+                lines.extend(report.graph_nodes.iter().map(|node| match node.step_count {
+                    Some(step_count) => {
+                        format!("- {} [{}] steps={}", node.id, node.kind, step_count)
+                    }
+                    None => format!("- {} [{}]", node.id, node.kind),
+                }));
+            }
+            lines.push("graph_edges:".into());
+            if report.graph_edges.is_empty() {
+                lines.push("- none".into());
+            } else {
+                lines.extend(report.graph_edges.iter().map(|edge| {
+                    format!(
+                        "- {} -{}-> {} @ line {}",
+                        edge.from, edge.kind, edge.to, edge.line
+                    )
+                }));
+            }
+            lines
+        }
+    }
+}
+
+fn frontend_focus_json(report: &FrontendReport, focus: FrontendFocus) -> String {
+    match focus {
+        FrontendFocus::Functions => format!(
+            "{{\"kind\":\"functions\",\"function_nodes\":[{}]}}",
+            report
+                .function_nodes
+                .iter()
+                .map(|node| format!(
+                    "{{\"name\":\"{}\",\"step_count\":{}}}",
+                    node.name, node.step_count
+                ))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        FrontendFocus::Includes => format!(
+            "{{\"kind\":\"includes\",\"include_sources\":[{}]}}",
+            string_json_list(&report.include_sources)
+        ),
+        FrontendFocus::Graph => format!(
+            "{{\"kind\":\"graph\",\"graph_nodes\":[{}],\"graph_edges\":[{}]}}",
+            report
+                .graph_nodes
+                .iter()
+                .map(|node| match node.step_count {
+                    Some(step_count) => format!(
+                        "{{\"id\":\"{}\",\"kind\":\"{}\",\"step_count\":{}}}",
+                        node.id, node.kind, step_count
+                    ),
+                    None => format!(
+                        "{{\"id\":\"{}\",\"kind\":\"{}\",\"step_count\":null}}",
+                        node.id, node.kind
+                    ),
+                })
+                .collect::<Vec<_>>()
+                .join(","),
+            report
+                .graph_edges
+                .iter()
+                .map(|edge| format!(
+                    "{{\"from\":\"{}\",\"to\":\"{}\",\"kind\":\"{}\",\"line\":{}}}",
+                    edge.from, edge.to, edge.kind, edge.line
+                ))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
     }
 }
 
@@ -1904,6 +2512,71 @@ template(:broken_pipeline_use)
         assert!(json.contains("\"findings\":{\"findings\":[]}"));
         assert!(json.contains("\"stages\":"));
         assert!(json.contains("\"template_id\":\"udp_process_debug\""));
+    }
+
+    #[test]
+    fn compile_frontend_report_file_materializes_pipeline_summary() {
+        let report = compile_frontend_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        assert_eq!(report.kind, "pipeline");
+        assert!(!report.function_nodes.is_empty());
+        assert!(!report.graph_nodes.is_empty());
+        assert!(!report.graph_edges.is_empty());
+    }
+
+    #[test]
+    fn compile_explain_report_file_materializes_human_summary_surface() {
+        let report = compile_explain_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        assert!(report.ok);
+        assert!(report.binding.is_some());
+        assert!(report.frontend.is_some());
+        assert!(report.findings.findings.is_empty());
+        let text = render_explain_report(&report, RenderFormat::Text);
+        let json = render_explain_report(&report, RenderFormat::Json);
+        assert!(text.contains("surface=explain"));
+        assert!(text.contains("validation:"));
+        assert!(text.contains("next_step="));
+        assert!(json.contains("\"summary\""));
+        assert!(json.contains("\"next_step\""));
+    }
+
+    #[test]
+    fn explain_report_suggests_frontend_for_parse_failure() {
+        let report = compile_explain_report_str(
+            r#"
+template(:broken_parse)
+|> window(:default_5s)
+|> use(:missing_function)
+"#,
+        );
+        let text = render_explain_report(&report, RenderFormat::Text);
+        assert!(text.contains("next_step=fix the parse finding first"));
+        assert!(text.contains("gewyc frontend"));
+    }
+
+    #[test]
+    fn explain_report_suggests_unsupported_offsets_for_validation_failure() {
+        let report = compile_explain_report_str(
+            r#"
+template(:broken_offsets)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> operation(:snmp_query)
+|> program_model(:broken_offsets_model)
+|> program_rule(predicate: "packet_observed:tcp:remote:mysql:byte_at:42:255:1", stage: :packet_observed, narrative: "static:test", dedupe: true)
+"#,
+        );
+        let text = render_explain_report(&report, RenderFormat::Text);
+        let json = render_explain_report(&report, RenderFormat::Json);
+        assert!(text.contains("unsupported_payload_offsets"));
+        assert!(text.contains("adjust fragment coverage or payload matchers"));
+        assert!(json.contains("unsupported_payload_offsets"));
     }
 
     #[test]

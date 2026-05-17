@@ -1,7 +1,9 @@
 use gewyvern::dsl::build_lockfile;
 use gewyvern::gewyc::{
-    CompilerEnvelope, RenderFormat, compile_envelope_file, render_binding_report,
-    render_diagnostics_report, render_envelope_report, render_findings_report,
+    CompilerEnvelope, ExplainFocus, FrontendFocus, RenderFormat, compile_envelope_file,
+    compile_explain_report_file, compile_frontend_report_file, render_binding_report,
+    render_diagnostics_report, render_envelope_report, render_explain_report,
+    render_explain_report_with_focus, render_findings_report, render_frontend_report_with_focus,
     render_stages_report,
 };
 use std::env;
@@ -16,6 +18,8 @@ enum OutputMode {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Command {
     Compile,
+    Explain,
+    Frontend,
     Diagnostics,
     Findings,
     Stages,
@@ -27,6 +31,8 @@ enum Command {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum EmitTarget {
     Binding,
+    Explain,
+    Frontend,
     Diagnostics,
     Findings,
     Stages,
@@ -39,6 +45,7 @@ struct Cli {
     emit: EmitTarget,
     path: String,
     output: OutputMode,
+    focus: Option<String>,
     out: Option<String>,
 }
 
@@ -63,16 +70,16 @@ impl UiLocale {
     fn usage(self) -> &'static str {
         match self {
             Self::Zh => {
-                "用法: gewyc <compile|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
+                "用法: gewyc <compile|explain|frontend|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
                  用法: gewyc lock [dir|gewy.pkg] [--out path]\n\
                  用法: gewyc init [dir]\n\
-                 用法: gewyc <path.gewy> [--json] [--emit binding|diagnostics|findings|stages|envelope] [--out path]"
+                 用法: gewyc <path.gewy> [--json] [--emit binding|explain|frontend|diagnostics|findings|stages|envelope] [--out path]"
             }
             Self::En => {
-                "usage: gewyc <compile|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
+                "usage: gewyc <compile|explain|frontend|diagnostics|findings|stages|envelope> <path.gewy> [--json] [--out path]\n\
                  usage: gewyc lock [dir|gewy.pkg] [--out path]\n\
                  usage: gewyc init [dir]\n\
-                 usage: gewyc <path.gewy> [--json] [--emit binding|diagnostics|findings|stages|envelope] [--out path]"
+                 usage: gewyc <path.gewy> [--json] [--emit binding|explain|frontend|diagnostics|findings|stages|envelope] [--out path]"
             }
         }
     }
@@ -82,24 +89,34 @@ impl UiLocale {
             (Self::Zh, "missing_path") => "缺少 .gewy 文件路径",
             (Self::Zh, "unknown_arg") => "未知参数",
             (Self::Zh, "compile_failed") => "DSL 编译失败",
+            (Self::Zh, "explain_failed") => "解释摘要生成失败",
+            (Self::Zh, "frontend_failed") => "前端摘要生成失败",
             (Self::Zh, "diagnostics_failed") => "binding 诊断失败",
             (Self::Zh, "stages_failed") => "compiler 阶段报告生成失败",
             (Self::Zh, "missing_emit") => {
-                "缺少 --emit 的值，期望 binding、diagnostics、findings、stages 或 envelope"
+                "缺少 --emit 的值，期望 binding、explain、frontend、diagnostics、findings、stages 或 envelope"
             }
             (Self::Zh, "missing_out") => "缺少 --out 的值，期望输出路径",
+            (Self::Zh, "missing_focus") => "缺少 --focus 的值",
+            (Self::Zh, "invalid_focus") => "--focus 只适用于 explain、frontend 或对应的 --emit",
             (Self::Zh, "write_failed") => "写入输出失败",
             (Self::Zh, "init_failed") => "初始化 gewy package 失败",
             (Self::Zh, "lock_failed") => "生成 gewy.lock 失败",
             (_, "missing_path") => "missing .gewy file path",
             (_, "unknown_arg") => "unknown argument",
             (_, "compile_failed") => "dsl compile failed",
+            (_, "explain_failed") => "explain summary failed",
+            (_, "frontend_failed") => "frontend summary failed",
             (_, "diagnostics_failed") => "binding diagnostics failed",
             (_, "stages_failed") => "compiler stages report failed",
             (_, "missing_emit") => {
-                "missing value for --emit, expected binding, diagnostics, findings, stages, or envelope"
+                "missing value for --emit, expected binding, explain, frontend, diagnostics, findings, stages, or envelope"
             }
             (_, "missing_out") => "missing value for --out, expected an output path",
+            (_, "missing_focus") => "missing value for --focus",
+            (_, "invalid_focus") => {
+                "--focus is only valid with explain/frontend or their --emit forms"
+            }
             (_, "write_failed") => "failed to write output",
             (_, "init_failed") => "failed to initialize gewy package",
             (_, "lock_failed") => "failed to build gewy.lock",
@@ -119,6 +136,8 @@ fn main() {
         _ if cli.command == Command::Init => run_init(cli, locale),
         _ if cli.command == Command::Lock => run_lock(cli, locale),
         EmitTarget::Binding => run_compile(cli, locale),
+        EmitTarget::Explain => run_explain(cli, locale),
+        EmitTarget::Frontend => run_frontend(cli, locale),
         EmitTarget::Diagnostics => run_diagnostics(cli, locale),
         EmitTarget::Findings => run_findings(cli, locale),
         EmitTarget::Stages => run_stages(cli, locale),
@@ -131,6 +150,7 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
     let mut emit = EmitTarget::Binding;
     let mut path = None;
     let mut output = OutputMode::Text;
+    let mut focus = None;
     let mut out = None;
 
     let mut iter = args.into_iter().skip(1);
@@ -143,6 +163,8 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
                     .ok_or_else(|| format!("{}\n{}", locale.msg("missing_emit"), locale.usage()))?;
                 emit = match value.as_str() {
                     "binding" => EmitTarget::Binding,
+                    "explain" => EmitTarget::Explain,
+                    "frontend" => EmitTarget::Frontend,
                     "diagnostics" => EmitTarget::Diagnostics,
                     "findings" => EmitTarget::Findings,
                     "stages" => EmitTarget::Stages,
@@ -162,9 +184,23 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
                         format!("{}\n{}", locale.msg("missing_out"), locale.usage())
                     })?);
             }
+            "--focus" => {
+                let value = iter.next().ok_or_else(|| {
+                    format!("{}\n{}", locale.msg("missing_focus"), locale.usage())
+                })?;
+                focus = Some(value);
+            }
             "compile" if path.is_none() => {
                 command = Command::Compile;
                 emit = EmitTarget::Binding;
+            }
+            "explain" if path.is_none() => {
+                command = Command::Explain;
+                emit = EmitTarget::Explain;
+            }
+            "frontend" if path.is_none() => {
+                command = Command::Frontend;
+                emit = EmitTarget::Frontend;
             }
             "diagnostics" if path.is_none() => {
                 command = Command::Diagnostics;
@@ -211,11 +247,24 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
     } else {
         path.ok_or_else(|| format!("{}\n{}", locale.msg("missing_path"), locale.usage()))?
     };
+    if focus.is_some()
+        && !(command == Command::Explain
+            || emit == EmitTarget::Explain
+            || command == Command::Frontend
+            || emit == EmitTarget::Frontend)
+    {
+        return Err(format!(
+            "{}\n{}",
+            locale.msg("invalid_focus"),
+            locale.usage()
+        ));
+    }
     Ok(Cli {
         command,
         emit,
         path,
         output,
+        focus,
         out,
     })
 }
@@ -251,6 +300,52 @@ fn run_compile(cli: Cli, locale: UiLocale) {
     });
     let out = render_binding_report(&report, render_format(cli.output));
     emit_output(&out, cli.out.as_deref(), locale);
+}
+
+fn run_explain(cli: Cli, locale: UiLocale) {
+    let report = compile_explain_report_file(&cli.path).unwrap_or_else(|err| {
+        eprintln!("{}: {err:?}", locale.msg("explain_failed"));
+        std::process::exit(1);
+    });
+    let focus = parse_explain_focus(cli.focus.as_deref(), locale);
+    let out = render_explain_report_with_focus(&report, render_format(cli.output), focus);
+    emit_output(&out, cli.out.as_deref(), locale);
+}
+
+fn run_frontend(cli: Cli, locale: UiLocale) {
+    let report = compile_frontend_report_file(&cli.path).unwrap_or_else(|err| {
+        eprintln!("{}: {err:?}", locale.msg("frontend_failed"));
+        std::process::exit(1);
+    });
+    let focus = parse_frontend_focus(cli.focus.as_deref(), locale);
+    let out = render_frontend_report_with_focus(&report, render_format(cli.output), focus);
+    emit_output(&out, cli.out.as_deref(), locale);
+}
+
+fn parse_explain_focus(value: Option<&str>, locale: UiLocale) -> Option<ExplainFocus> {
+    value.map(|value| match value {
+        "parse" => ExplainFocus::Parse,
+        "frontend" => ExplainFocus::Frontend,
+        "validation" => ExplainFocus::Validation,
+        "diagnostics" => ExplainFocus::Diagnostics,
+        "findings" => ExplainFocus::Findings,
+        other => {
+            eprintln!("{}: {other}\n{}", locale.msg("unknown_arg"), locale.usage());
+            std::process::exit(2);
+        }
+    })
+}
+
+fn parse_frontend_focus(value: Option<&str>, locale: UiLocale) -> Option<FrontendFocus> {
+    value.map(|value| match value {
+        "functions" => FrontendFocus::Functions,
+        "includes" => FrontendFocus::Includes,
+        "graph" => FrontendFocus::Graph,
+        other => {
+            eprintln!("{}: {other}\n{}", locale.msg("unknown_arg"), locale.usage());
+            std::process::exit(2);
+        }
+    })
 }
 
 fn run_diagnostics(cli: Cli, locale: UiLocale) {
@@ -369,8 +464,10 @@ fn emit_output(rendered: &str, out: Option<&str>, locale: UiLocale) {
 mod tests {
     use super::*;
     use gewyvern::gewyc::{
-        RenderFormat, compile_binding_report_file, compile_envelope_file, render_binding_report,
-        render_envelope_report,
+        RenderFormat, compile_binding_report_file, compile_envelope_file,
+        compile_explain_report_file, compile_frontend_report_file, render_binding_report,
+        render_envelope_report, render_explain_report_with_focus, render_frontend_report,
+        render_frontend_report_with_focus,
     };
 
     #[test]
@@ -387,6 +484,7 @@ mod tests {
                 emit: EmitTarget::Binding,
                 path: "dsl/udp_process_debug.gewy".into(),
                 output: OutputMode::Text,
+                focus: None,
                 out: None,
             }
         );
@@ -407,6 +505,88 @@ mod tests {
         assert_eq!(cli.command, Command::Diagnostics);
         assert_eq!(cli.emit, EmitTarget::Diagnostics);
         assert_eq!(cli.output, OutputMode::Json);
+    }
+
+    #[test]
+    fn parse_cli_accepts_frontend_command() {
+        let cli = parse_cli(
+            vec![
+                "gewyc".into(),
+                "frontend".into(),
+                "dsl/udp_process_debug.gewy".into(),
+                "--json".into(),
+            ],
+            UiLocale::En,
+        )
+        .unwrap();
+        assert_eq!(cli.command, Command::Frontend);
+        assert_eq!(cli.emit, EmitTarget::Frontend);
+        assert_eq!(cli.output, OutputMode::Json);
+    }
+
+    #[test]
+    fn parse_cli_accepts_explain_command() {
+        let cli = parse_cli(
+            vec![
+                "gewyc".into(),
+                "explain".into(),
+                "dsl/udp_process_debug.gewy".into(),
+                "--json".into(),
+            ],
+            UiLocale::En,
+        )
+        .unwrap();
+        assert_eq!(cli.command, Command::Explain);
+        assert_eq!(cli.emit, EmitTarget::Explain);
+        assert_eq!(cli.output, OutputMode::Json);
+    }
+
+    #[test]
+    fn parse_cli_accepts_explain_focus() {
+        let cli = parse_cli(
+            vec![
+                "gewyc".into(),
+                "explain".into(),
+                "dsl/udp_process_debug.gewy".into(),
+                "--focus".into(),
+                "validation".into(),
+            ],
+            UiLocale::En,
+        )
+        .unwrap();
+        assert_eq!(cli.focus.as_deref(), Some("validation"));
+    }
+
+    #[test]
+    fn parse_cli_accepts_frontend_focus() {
+        let cli = parse_cli(
+            vec![
+                "gewyc".into(),
+                "frontend".into(),
+                "dsl/udp_process_debug.gewy".into(),
+                "--focus".into(),
+                "graph".into(),
+            ],
+            UiLocale::En,
+        )
+        .unwrap();
+        assert_eq!(cli.focus.as_deref(), Some("graph"));
+    }
+
+    #[test]
+    fn parse_cli_rejects_focus_outside_explain() {
+        let err = parse_cli(
+            vec![
+                "gewyc".into(),
+                "diagnostics".into(),
+                "dsl/udp_process_debug.gewy".into(),
+                "--focus".into(),
+                "parse".into(),
+            ],
+            UiLocale::En,
+        )
+        .unwrap_err();
+        assert!(err.contains("--focus is only valid with explain/frontend"));
     }
 
     #[test]
@@ -540,6 +720,82 @@ mod tests {
         assert!(render_init_module("demo").contains("fn network_module() ="));
         assert!(render_init_module("demo").contains("let model_name = :demo_model"));
         assert!(render_init_module("demo").contains("|> program_model(${model_name})"));
+    }
+
+    #[test]
+    fn frontend_command_renders_pipeline_graph_summary() {
+        let report = compile_frontend_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        let text = render_frontend_report(&report, RenderFormat::Text);
+        let json = render_frontend_report(&report, RenderFormat::Json);
+        assert!(text.contains("kind=pipeline"));
+        assert!(text.contains("function_nodes:"));
+        assert!(text.contains("graph_nodes:"));
+        assert!(text.contains("graph_edges:"));
+        assert!(json.contains("\"kind\":\"pipeline\""));
+        assert!(json.contains("\"graph_edges\""));
+    }
+
+    #[test]
+    fn frontend_command_focuses_graph_section() {
+        let report = compile_frontend_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        let text = render_frontend_report_with_focus(
+            &report,
+            RenderFormat::Text,
+            Some(FrontendFocus::Graph),
+        );
+        let json = render_frontend_report_with_focus(
+            &report,
+            RenderFormat::Json,
+            Some(FrontendFocus::Graph),
+        );
+        assert!(text.contains("focus=graph"));
+        assert!(text.contains("graph_nodes:"));
+        assert!(text.contains("graph_edges:"));
+        assert!(json.contains("\"focus\":\"graph\""));
+        assert!(json.contains("\"focused_report\""));
+    }
+
+    #[test]
+    fn explain_command_renders_human_oriented_compiler_summary() {
+        let report = compile_explain_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        let text = render_explain_report(&report, RenderFormat::Text);
+        let json = render_explain_report(&report, RenderFormat::Json);
+        assert!(text.contains("surface=explain"));
+        assert!(text.contains("frontend:"));
+        assert!(text.contains("validation:"));
+        assert!(json.contains("\"summary\""));
+        assert!(json.contains("\"findings\""));
+    }
+
+    #[test]
+    fn explain_command_focuses_validation_section() {
+        let report = compile_explain_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        let text = render_explain_report_with_focus(
+            &report,
+            RenderFormat::Text,
+            Some(ExplainFocus::Validation),
+        );
+        let json = render_explain_report_with_focus(
+            &report,
+            RenderFormat::Json,
+            Some(ExplainFocus::Validation),
+        );
+        assert!(text.contains("focus=validation"));
+        assert!(text.contains("unsupported_payload_offsets="));
+        assert!(json.contains("\"focus\":\"validation\""));
+        assert!(json.contains("\"focused_report\""));
     }
 
     #[test]

@@ -106,6 +106,41 @@ produced each edge.
 Pipeline projects can also resolve through a `gewy.pkg` manifest with one
 `main.gewy` entry and `include("...")` expansion.
 
+If you only want the front-end shape without the full staged compiler report,
+`gewyc frontend` now renders that pipeline/package summary directly:
+
+```bash
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus graph
+cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --emit frontend --json --out /tmp/udp-process-frontend.json
+```
+
+The text form is intentionally optimized for human inspection: it prints
+`include_sources`, `function_nodes`, `use_edges`, `graph_nodes`, and
+`graph_edges` as separate multi-line sections instead of a single compact line.
+When you only want one part, `--focus functions|includes|graph` keeps the top
+summary and expands just that section.
+
+If you want one human-oriented debugging surface that narrates the compiler
+state from parse/front-end through validation, diagnostics, and findings,
+`gewyc explain` now sits above the lower-level report surfaces:
+
+```bash
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation
+cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --emit explain --json --out /tmp/udp-process-explain.json
+```
+
+`explain` is intentionally advisory: it now adds a `next_step` hint so parse
+failures steer you toward `gewyc frontend`, validation failures steer you
+toward `unsupported_payload_offsets`, and healthy bindings steer you toward
+runtime/demo verification.
+
+When you only want one layer, `--focus parse|frontend|validation|diagnostics|findings`
+keeps the top summary but expands just that section.
+
 When pipeline/package parsing fails, `gewyc findings` and `gewyc stages` now
 surface more specific parse codes for front-end errors such as unknown
 `use(:fn)` targets, unknown package dependencies, invalid function bodies,

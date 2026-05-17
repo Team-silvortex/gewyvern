@@ -159,21 +159,25 @@ the fastest:
    Core shared IR semantics: predicates, signal semantics, phase kinds, and transport matcher behavior.
 6. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
    High-level architecture and compiler/runtime boundaries.
-7. [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
+7. [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+   Current `src/` layering for the `v0.8.0` refactor line: what belongs in
+   `main`, `serve_runtime`, `report_runtime`, `diagnosis_runtime`, and
+   `data_api`.
+8. [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
    Operator-facing examples for single-protocol scans, full sweeps, PID-scoped
    reports, and reading failure confidence/basis.
-8. [docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md)
+9. [docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md)
    Operator-facing explanation of advisory ingest modes, trust labeling, and
    why PID attribution is deliberately downgraded for unverified socket inputs.
-9. [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
+10. [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
    How to interpret `process_network_profiles` for tools such as `apt`, `curl`,
    media clients, proxies, and database clients.
-10. [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
+11. [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
    Cluster-oriented reading guide for `failure_mode`, `failure_detail`,
    `failure_confidence`, and `failure_basis`.
-11. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+12. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
    Gewy language shape, package model, and compiler-facing usage.
-12. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
+13. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
    Draft formal grammar for the preferred pipeline surface of `gewylang`.
 
 ## Main Entrypoints
@@ -457,6 +461,10 @@ Main commands:
 - `cargo tdd-rules`
 - `cargo test`
 - `cargo run -p gewyc -- <path.gewy>`
+- `cargo run -p gewyc -- explain <path.gewy>`
+- `cargo run -p gewyc -- explain <path.gewy> --focus validation`
+- `cargo run -p gewyc -- frontend <path.gewy> --json`
+- `cargo run -p gewyc -- frontend <path.gewy> --focus graph`
 - `cargo run -p gewyc -- diagnostics <path.gewy> --json`
 - `cargo run -p gewyc -- findings <path.gewy> --json`
 - `cargo run -p gewyc -- stages <path.gewy> --json`
@@ -631,6 +639,10 @@ Inspect binding diagnostics without starting a runtime session:
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --diagnostics
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --diagnostics --json
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus graph
 cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
 cargo run -p gewyc -- findings /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
 cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
@@ -644,18 +656,24 @@ cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.ge
 Current responsibilities:
 
 - compile `.gewy` into validated `TemplateBinding`
+- explain parse/front-end/validation/diagnostics/findings in one human-oriented surface
+- inspect the standalone pipeline frontend summary before binding or validation
 - print compiled binding in text or JSON
 - print binding diagnostics in text or JSON
 - print compiler findings in text or JSON
 - print staged compiler output in text or JSON
 - write compiler output to a file with `--out`
-- select compiler surface explicitly with `--emit binding|diagnostics|findings|stages`
+- select compiler surface explicitly with `--emit binding|explain|frontend|diagnostics|findings|stages|envelope`
 
 Current examples:
 
 ```bash
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy --json
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --focus parse
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --focus includes
 cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy
 cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json
 cargo run -p gewyc -- findings /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json
@@ -831,6 +849,7 @@ cargo linux-smoke
 ## Repo Docs
 
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
 - [docs/walkthrough.md](/Users/Shared/chroot/dev/gewyvern/docs/walkthrough.md)
 - [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
