@@ -2,6 +2,7 @@ use gewyvern::export::ExportBundle;
 use gewyvern::http::HttpTransactionView;
 
 use super::*;
+use crate::render_utils::*;
 
 pub(super) fn summary_line(name: &str, export: &ExportBundle) -> String {
     let locale = UiLocale::detect();

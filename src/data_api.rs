@@ -5,6 +5,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::render_utils::string_list_json;
+
 pub type ApiState = Arc<Mutex<ApiSnapshot>>;
 
 #[derive(Clone, Debug, Default)]
@@ -304,17 +306,6 @@ fn current_unix_ms() -> u128 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis()
-}
-
-fn string_list_json(items: &[String]) -> String {
-    format!(
-        "[{}]",
-        items
-            .iter()
-            .map(|item| format!("\"{}\"", item))
-            .collect::<Vec<_>>()
-            .join(",")
-    )
 }
 
 fn json_string(value: &str) -> String {
