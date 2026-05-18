@@ -117,6 +117,8 @@ pub struct ExplainReport {
     pub diagnostics: Option<DiagnosticsReport>,
     pub findings: CompilerFindingsReport,
     pub stages: CompilerStagesReport,
+    pub parse_source_excerpt: Option<SourceExcerpt>,
+    pub validation_excerpt: Option<ValidationExcerpt>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -219,6 +221,22 @@ pub struct CompilerFinding {
     pub message: String,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SourceExcerpt {
+    pub line: usize,
+    pub column: Option<usize>,
+    pub line_text: String,
+    pub marker: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ValidationExcerpt {
+    pub model: String,
+    pub rule_index: usize,
+    pub unsupported_payload_offsets: Vec<u16>,
+    pub supporting_fragments: Vec<String>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CompilerFindingStage {
     Parse,
@@ -296,11 +314,12 @@ pub fn compile_findings_report_str(input: &str) -> CompilerFindingsReport {
 }
 
 pub fn compile_explain_report_file(path: &str) -> Result<ExplainReport, DslError> {
-    compile_envelope_file(path).map(explain_report)
+    let source = std::fs::read_to_string(path).ok();
+    compile_envelope_file(path).map(|envelope| explain_report(envelope, source.as_deref()))
 }
 
 pub fn compile_explain_report_str(input: &str) -> ExplainReport {
-    explain_report(compile_envelope_str(input))
+    explain_report(compile_envelope_str(input), Some(input))
 }
 
 pub fn compile_envelope_file(path: &str) -> Result<CompilerEnvelope, DslError> {
@@ -833,6 +852,11 @@ fn explain_text(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
         return lines.join("\n");
     }
 
+    if let Some(excerpt) = &report.parse_source_excerpt {
+        lines.push(format!("parse_source_excerpt={}", excerpt.line_text));
+        lines.push(format!("parse_source_marker={}", excerpt.marker));
+    }
+
     match &report.binding {
         Some(binding) => {
             lines.push(format!("template={}", binding.template_id));
@@ -888,6 +912,15 @@ fn explain_text(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
         "- unsupported_payload_offsets={:?}",
         report.stages.validation.unsupported_payload_offsets
     ));
+    if let Some(excerpt) = &report.validation_excerpt {
+        lines.push(format!(
+            "- validation_excerpt=model:{} rule:{} offsets:{:?} supporting_fragments:{}",
+            excerpt.model,
+            excerpt.rule_index,
+            excerpt.unsupported_payload_offsets,
+            excerpt.supporting_fragments.join(",")
+        ));
+    }
 
     match &report.diagnostics {
         Some(diagnostics) => {
@@ -948,8 +981,18 @@ fn explain_json(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
     let focused_report_json = focus
         .map(|focus| explain_focus_json(report, focus))
         .unwrap_or_else(|| "null".into());
+    let parse_source_excerpt_json = report
+        .parse_source_excerpt
+        .as_ref()
+        .map(source_excerpt_json)
+        .unwrap_or_else(|| "null".into());
+    let validation_excerpt_json = report
+        .validation_excerpt
+        .as_ref()
+        .map(validation_excerpt_json)
+        .unwrap_or_else(|| "null".into());
     format!(
-        "{{\"ok\":{},\"summary\":{{\"parse_ok\":{},\"validation_ok\":{},\"diagnostics_ok\":{},\"template_id\":{},\"operation\":{},\"finding_count\":{},\"next_step\":\"{}\",\"focus\":{}}},\"focused_report\":{},\"frontend\":{},\"binding\":{},\"validation\":{},\"diagnostics\":{},\"findings\":{}}}",
+        "{{\"ok\":{},\"summary\":{{\"parse_ok\":{},\"validation_ok\":{},\"diagnostics_ok\":{},\"template_id\":{},\"operation\":{},\"finding_count\":{},\"next_step\":\"{}\",\"focus\":{},\"parse_source_excerpt\":{},\"validation_excerpt\":{}}},\"focused_report\":{},\"frontend\":{},\"binding\":{},\"validation\":{},\"diagnostics\":{},\"findings\":{}}}",
         report.ok,
         report.stages.parse.ok,
         report.stages.validation.ok,
@@ -959,6 +1002,8 @@ fn explain_json(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
         report.findings.findings.len(),
         next_step,
         focus_json,
+        parse_source_excerpt_json,
+        validation_excerpt_json,
         focused_report_json,
         frontend_json(report.frontend.as_ref()),
         report
@@ -990,11 +1035,23 @@ fn stages_validation_json(report: &ValidationReport) -> String {
     )
 }
 
-fn explain_report(envelope: CompilerEnvelope) -> ExplainReport {
+fn explain_report(envelope: CompilerEnvelope, source: Option<&str>) -> ExplainReport {
     let ok = envelope.stages.parse.ok
         && envelope.stages.validation.ok
         && envelope.stages.diagnostics.ok
         && envelope.findings.findings.is_empty();
+    let parse_source_excerpt = source.and_then(|source| {
+        envelope
+            .stages
+            .parse
+            .finding
+            .as_ref()
+            .and_then(|finding| source_excerpt_for_finding(source, finding))
+    });
+    let validation_excerpt = envelope
+        .diagnostics
+        .as_ref()
+        .and_then(validation_excerpt_from_diagnostics);
     ExplainReport {
         ok,
         binding: envelope.binding,
@@ -1002,6 +1059,8 @@ fn explain_report(envelope: CompilerEnvelope) -> ExplainReport {
         diagnostics: envelope.diagnostics,
         findings: envelope.findings,
         stages: envelope.stages,
+        parse_source_excerpt,
+        validation_excerpt,
     }
 }
 
@@ -1017,13 +1076,20 @@ fn explain_focus_text(focus: ExplainFocus) -> &'static str {
 
 fn explain_focus_text_lines(report: &ExplainReport, focus: ExplainFocus) -> Vec<String> {
     match focus {
-        ExplainFocus::Parse => vec![
-            format!("parse_ok={}", report.stages.parse.ok),
-            format!(
-                "parse_finding={}",
-                finding_text(report.stages.parse.finding.as_ref())
-            ),
-        ],
+        ExplainFocus::Parse => {
+            let mut lines = vec![
+                format!("parse_ok={}", report.stages.parse.ok),
+                format!(
+                    "parse_finding={}",
+                    finding_text(report.stages.parse.finding.as_ref())
+                ),
+            ];
+            if let Some(excerpt) = &report.parse_source_excerpt {
+                lines.push(format!("parse_source_excerpt={}", excerpt.line_text));
+                lines.push(format!("parse_source_marker={}", excerpt.marker));
+            }
+            lines
+        }
         ExplainFocus::Frontend => match &report.frontend {
             Some(frontend) => {
                 let mut lines = vec!["frontend:".to_string()];
@@ -1036,7 +1102,8 @@ fn explain_focus_text_lines(report: &ExplainReport, focus: ExplainFocus) -> Vec<
             }
             None => vec!["frontend=none".into()],
         },
-        ExplainFocus::Validation => vec![
+        ExplainFocus::Validation => {
+            vec![
             format!("validation_ok={}", report.stages.validation.ok),
             format!("registry={}", report.stages.validation.registry),
             format!("checks={}", report.stages.validation.checks.join(",")),
@@ -1044,11 +1111,23 @@ fn explain_focus_text_lines(report: &ExplainReport, focus: ExplainFocus) -> Vec<
                 "unsupported_payload_offsets={:?}",
                 report.stages.validation.unsupported_payload_offsets
             ),
+            report
+                .validation_excerpt
+                .as_ref()
+                .map(|excerpt| format!(
+                    "validation_excerpt=model:{} rule:{} offsets:{:?} supporting_fragments:{}",
+                    excerpt.model,
+                    excerpt.rule_index,
+                    excerpt.unsupported_payload_offsets,
+                    excerpt.supporting_fragments.join(",")
+                ))
+                .unwrap_or_else(|| "validation_excerpt=none".into()),
             format!(
                 "validation_finding={}",
                 finding_text(report.stages.validation.finding.as_ref())
             ),
-        ],
+        ]
+        }
         ExplainFocus::Diagnostics => match &report.diagnostics {
             Some(diagnostics) => {
                 let mut lines = vec![format!("diagnostics_ok={}", report.stages.diagnostics.ok)];
@@ -1086,17 +1165,27 @@ fn explain_focus_text_lines(report: &ExplainReport, focus: ExplainFocus) -> Vec<
 fn explain_focus_json(report: &ExplainReport, focus: ExplainFocus) -> String {
     match focus {
         ExplainFocus::Parse => format!(
-            "{{\"kind\":\"parse\",\"ok\":{},\"finding\":{}}}",
+            "{{\"kind\":\"parse\",\"ok\":{},\"finding\":{},\"source_excerpt\":{}}}",
             report.stages.parse.ok,
-            finding_json(report.stages.parse.finding.as_ref())
+            finding_json(report.stages.parse.finding.as_ref()),
+            report
+                .parse_source_excerpt
+                .as_ref()
+                .map(source_excerpt_json)
+                .unwrap_or_else(|| "null".to_string())
         ),
         ExplainFocus::Frontend => format!(
             "{{\"kind\":\"frontend\",\"report\":{}}}",
             frontend_json(report.frontend.as_ref())
         ),
         ExplainFocus::Validation => format!(
-            "{{\"kind\":\"validation\",\"report\":{}}}",
-            stages_validation_json(&report.stages.validation)
+            "{{\"kind\":\"validation\",\"report\":{},\"validation_excerpt\":{}}}",
+            stages_validation_json(&report.stages.validation),
+            report
+                .validation_excerpt
+                .as_ref()
+                .map(validation_excerpt_json)
+                .unwrap_or_else(|| "null".to_string())
         ),
         ExplainFocus::Diagnostics => format!(
             "{{\"kind\":\"diagnostics\",\"ok\":{},\"report\":{}}}",
@@ -1142,6 +1231,75 @@ fn explain_next_step_hint(report: &ExplainReport) -> &'static str {
     }
 
     "binding, frontend, validation, and diagnostics are all healthy; continue with runtime/demo verification"
+}
+
+fn source_excerpt_for_finding(source: &str, finding: &CompilerFinding) -> Option<SourceExcerpt> {
+    let line = finding.line?;
+    let line_text = source.lines().nth(line.saturating_sub(1))?.to_string();
+    let marker_column = finding.column.unwrap_or(1).max(1);
+    let marker = format!("{}^", " ".repeat(marker_column.saturating_sub(1)));
+    Some(SourceExcerpt {
+        line,
+        column: finding.column,
+        line_text,
+        marker,
+    })
+}
+
+fn source_excerpt_json(excerpt: &SourceExcerpt) -> String {
+    format!(
+        "{{\"line\":{},\"column\":{},\"line_text\":\"{}\",\"marker\":\"{}\"}}",
+        excerpt.line,
+        excerpt
+            .column
+            .map(|column| column.to_string())
+            .unwrap_or_else(|| "null".to_string()),
+        json_escape_string(&excerpt.line_text),
+        json_escape_string(&excerpt.marker),
+    )
+}
+
+fn validation_excerpt_from_diagnostics(
+    diagnostics: &DiagnosticsReport,
+) -> Option<ValidationExcerpt> {
+    diagnostics
+        .program_model
+        .as_ref()
+        .into_iter()
+        .chain(diagnostics.reason_model.as_ref())
+        .find_map(|model| {
+            model.rules.iter().find_map(|rule| {
+                if rule.unsupported_payload_offsets.is_empty() {
+                    None
+                } else {
+                    Some(ValidationExcerpt {
+                        model: model.model.clone(),
+                        rule_index: rule.rule_index,
+                        unsupported_payload_offsets: rule.unsupported_payload_offsets.clone(),
+                        supporting_fragments: rule.supporting_fragments.clone(),
+                    })
+                }
+            })
+        })
+}
+
+fn validation_excerpt_json(excerpt: &ValidationExcerpt) -> String {
+    format!(
+        "{{\"model\":\"{}\",\"rule_index\":{},\"unsupported_payload_offsets\":[{}],\"supporting_fragments\":[{}]}}",
+        json_escape_string(&excerpt.model),
+        excerpt.rule_index,
+        u16_json_list(&excerpt.unsupported_payload_offsets),
+        string_json_list(&excerpt.supporting_fragments),
+    )
+}
+
+fn json_escape_string(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
 }
 
 fn stages_text(report: &CompilerStagesReport) -> String {
@@ -2561,6 +2719,209 @@ template(:demo)
     }
 
     #[test]
+    fn parse_findings_surface_column_for_window_keyword_error() {
+        let report = compile_findings_report_str(
+            r#"
+template(:demo)
+|> window(duration_ms: 5000)
+|> reason(:udp_datagram_l1)
+"#,
+        );
+        let finding = report.findings.first().expect("parse finding");
+        assert_eq!(finding.line, Some(3));
+        assert_eq!(finding.column, Some(4));
+    }
+
+    #[test]
+    fn parse_findings_surface_column_for_program_rule_keyword_error() {
+        let report = compile_findings_report_str(
+            r#"
+template(:demo)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:demo_model)
+|> program_rule(predicate: "process_bound", stage: :connect_flow, dedupe: true)
+"#,
+        );
+        let finding = report.findings.first().expect("parse finding");
+        assert_eq!(finding.line, Some(8));
+        assert_eq!(finding.column, Some(4));
+    }
+
+    #[test]
+    fn parse_findings_surface_column_for_program_rule_invalid_stage_value() {
+        let input = r#"
+template(:demo)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:demo_model)
+|> program_rule(predicate: "process_bound", stage: :not_a_stage, narrative: "static:test", dedupe: true)
+"#;
+        let report = compile_findings_report_str(input);
+        let finding = report.findings.first().expect("parse finding");
+        let line = input.lines().nth(7).unwrap();
+        let expected_column = line.find(":not_a_stage").unwrap() + 1;
+        assert_eq!(finding.line, Some(8));
+        assert_eq!(finding.column, Some(expected_column));
+    }
+
+    #[test]
+    fn parse_findings_surface_column_for_program_rule_invalid_predicate_value() {
+        let input = r#"
+template(:demo)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:demo_model)
+|> program_rule(predicate: "packet_observed:tcp:remote:notaport", stage: :connect_flow, narrative: "static:test", dedupe: true)
+"#;
+        let report = compile_findings_report_str(input);
+        let finding = report.findings.first().expect("parse finding");
+        let line = input.lines().nth(7).unwrap();
+        let expected_column = line.find("\"packet_observed").unwrap() + 1;
+        assert_eq!(finding.line, Some(8));
+        assert_eq!(finding.column, Some(expected_column));
+    }
+
+    #[test]
+    fn parse_findings_surface_column_for_packet_byte_at_qualifier_error() {
+        let input = r#"
+template(:demo)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:demo_model)
+|> program_rule(predicate: "packet_observed:tcp:remote:mysql:byte_at:not_u16:255:1", stage: :connect_flow, narrative: "static:test", dedupe: true)
+"#;
+        let report = compile_findings_report_str(input);
+        let finding = report.findings.first().expect("parse finding");
+        let line = input.lines().nth(7).unwrap();
+        let expected_column = line.find("byte_at").unwrap();
+        assert_eq!(finding.line, Some(8));
+        assert_eq!(finding.column, Some(expected_column));
+    }
+
+    #[test]
+    fn parse_findings_surface_column_for_datagram_bytes_at_missing_sequence() {
+        let input = r#"
+template(:demo)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:demo_model)
+|> program_rule(predicate: "datagram_observed:udp:remote:snmp:bytes_at:8", stage: :datagram_observed, narrative: "static:test", dedupe: true)
+"#;
+        let report = compile_findings_report_str(input);
+        let finding = report.findings.first().expect("parse finding");
+        let line = input.lines().nth(7).unwrap();
+        let expected_column = line.find("bytes_at").unwrap();
+        assert_eq!(finding.line, Some(8));
+        assert_eq!(finding.column, Some(expected_column));
+    }
+
+    #[test]
+    fn parse_findings_surface_column_for_socket_state_invalid_port() {
+        let input = r#"
+template(:demo)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:demo_model)
+|> program_rule(predicate: "socket_state_observed:remote:notaport", stage: :socket_state_transition, narrative: "static:test", dedupe: true)
+"#;
+        let report = compile_findings_report_str(input);
+        let finding = report.findings.first().expect("parse finding");
+        let line = input.lines().nth(7).unwrap();
+        let expected_column = line.find("notaport").unwrap();
+        assert_eq!(finding.line, Some(8));
+        assert_eq!(finding.column, Some(expected_column));
+    }
+
+    #[test]
+    fn parse_findings_surface_column_for_quic_packet_invalid_type() {
+        let input = r#"
+template(:demo)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:demo_model)
+|> program_rule(predicate: "quic_packet_observed:remote:quic:type:not_a_type", stage: :datagram_observed, narrative: "static:test", dedupe: true)
+"#;
+        let report = compile_findings_report_str(input);
+        let finding = report.findings.first().expect("parse finding");
+        let line = input.lines().nth(7).unwrap();
+        let expected_column = line.find("not_a_type").unwrap();
+        assert_eq!(finding.line, Some(8));
+        assert_eq!(finding.column, Some(expected_column));
+    }
+
+    #[test]
+    fn parse_findings_surface_column_for_quic_frame_byte_at_error() {
+        let input = r#"
+template(:demo)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:demo_model)
+|> program_rule(predicate: "quic_frame_observed:remote:quic:frame:crypto:byte_at:not_u16:0xff:0xa0", stage: :datagram_observed, narrative: "static:test", dedupe: true)
+"#;
+        let report = compile_findings_report_str(input);
+        let finding = report.findings.first().expect("parse finding");
+        let line = input.lines().nth(7).unwrap();
+        let expected_column = line.find("byte_at").unwrap();
+        assert_eq!(finding.line, Some(8));
+        assert_eq!(finding.column, Some(expected_column));
+    }
+
+    #[test]
+    fn parse_findings_surface_column_for_all_predicate_child_error() {
+        let input = r#"
+template(:demo)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:demo_model)
+|> program_rule(predicate: "all(process_bound, packet_observed:tcp:remote:mysql:byte_at:not_u16:255:1)", stage: :connect_flow, narrative: "static:test", dedupe: true)
+"#;
+        let report = compile_findings_report_str(input);
+        let finding = report.findings.first().expect("parse finding");
+        let line = input.lines().nth(7).unwrap();
+        let expected_column = line.find("byte_at").unwrap();
+        assert_eq!(finding.line, Some(8));
+        assert_eq!(finding.column, Some(expected_column));
+    }
+
+    #[test]
+    fn parse_findings_surface_column_for_any_predicate_child_error() {
+        let input = r#"
+template(:demo)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> operation(:datagram_exchange)
+|> program_model(:demo_model)
+|> program_rule(predicate: "any(process_bound, quic_packet_observed:remote:quic:type:not_a_type)", stage: :connect_flow, narrative: "static:test", dedupe: true)
+"#;
+        let report = compile_findings_report_str(input);
+        let finding = report.findings.first().expect("parse finding");
+        let line = input.lines().nth(7).unwrap();
+        let expected_column = line.find("not_a_type").unwrap();
+        assert_eq!(finding.line, Some(8));
+        assert_eq!(finding.column, Some(expected_column));
+    }
+
+    #[test]
     fn stage_local_finding_without_column_stays_shape_compatible() {
         let stages = compile_stages_report_str(
             r#"
@@ -2640,6 +3001,23 @@ template(:broken_parse)
     }
 
     #[test]
+    fn explain_report_includes_parse_source_excerpt() {
+        let report = compile_explain_report_str(
+            r#"
+template(:demo)
+fn broken( =
+  |> fragment(:udp_packet_meta_fragment)
+"#,
+        );
+        let text = render_explain_report(&report, RenderFormat::Text);
+        let json = render_explain_report(&report, RenderFormat::Json);
+        assert!(text.contains("parse_source_excerpt=fn broken( ="));
+        assert!(text.contains("parse_source_marker="));
+        assert!(json.contains("\"parse_source_excerpt\""));
+        assert!(json.contains("\"line_text\":\"fn broken( =\""));
+    }
+
+    #[test]
     fn explain_report_suggests_unsupported_offsets_for_validation_failure() {
         let report = compile_explain_report_str(
             r#"
@@ -2655,8 +3033,11 @@ template(:broken_offsets)
         let text = render_explain_report(&report, RenderFormat::Text);
         let json = render_explain_report(&report, RenderFormat::Json);
         assert!(text.contains("unsupported_payload_offsets"));
+        assert!(text.contains("validation_excerpt=model:broken_offsets_model rule:0"));
         assert!(text.contains("adjust fragment coverage or payload matchers"));
         assert!(json.contains("unsupported_payload_offsets"));
+        assert!(json.contains("\"validation_excerpt\""));
+        assert!(json.contains("\"model\":\"broken_offsets_model\""));
     }
 
     #[test]

@@ -138,6 +138,14 @@ failures steer you toward `gewyc frontend`, validation failures steer you
 toward `unsupported_payload_offsets`, and healthy bindings steer you toward
 runtime/demo verification.
 
+For parse failures, `explain` also includes a lightweight `source_excerpt`
+surface so you can see the failing source line and caret marker next to the
+reported `line:column`.
+
+For validation failures around payload coverage, `explain` now also includes a
+lightweight `validation_excerpt` that points at the first failing model/rule
+and its unsupported offsets, so the next debugging step is less guessy.
+
 When you only want one layer, `--focus parse|frontend|validation|diagnostics|findings`
 keeps the top summary but expands just that section.
 

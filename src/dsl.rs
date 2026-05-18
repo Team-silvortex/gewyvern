@@ -563,8 +563,10 @@ struct PipelineFunction {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct PipelineCall {
     line_no: usize,
+    column_no: usize,
     name: String,
     args: Vec<String>,
+    arg_columns: Vec<usize>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -728,7 +730,7 @@ fn parse_pipeline_module_into(
         };
 
         let call_column = raw_line.find(call).map(|idx| idx + 1).unwrap_or(1);
-        let (name, args) = parse_pipeline_call(call)
+        let (name, args, arg_columns) = parse_pipeline_call(call)
             .map_err(|err| err.reanchor_line_column(line_no, call_column))?;
         match name.as_str() {
             "template" => {
@@ -740,8 +742,13 @@ fn parse_pipeline_module_into(
                 }
                 module.template = Some(PipelineCall {
                     line_no,
+                    column_no: call_column,
                     name,
                     args,
+                    arg_columns: arg_columns
+                        .into_iter()
+                        .map(|column| call_column + column.saturating_sub(1))
+                        .collect(),
                 });
             }
             "include" => {
@@ -806,8 +813,13 @@ fn parse_pipeline_module_into(
                 };
                 target.push(PipelineCall {
                     line_no,
+                    column_no: call_column,
                     name: other.to_string(),
                     args,
+                    arg_columns: arg_columns
+                        .into_iter()
+                        .map(|column| call_column + column.saturating_sub(1))
+                        .collect(),
                 });
                 if other == "use" {
                     if let Ok(target_name) =
@@ -907,7 +919,7 @@ fn push_pipeline_function_call(
         .find(nested_call)
         .map(|idx| idx + 1)
         .unwrap_or(1);
-    let (nested_name, nested_args) = parse_pipeline_call(nested_call)
+    let (nested_name, nested_args, nested_arg_columns) = parse_pipeline_call(nested_call)
         .map_err(|err| err.reanchor_line_column(line_no, nested_call_column))?;
     if nested_name == "use" {
         if let Ok(target_name) = parse_pipeline_single_arg(&nested_args, "use") {
@@ -920,8 +932,13 @@ fn push_pipeline_function_call(
     }
     output.push(PipelineCall {
         line_no,
+        column_no: nested_call_column,
         name: nested_name,
         args: nested_args,
+        arg_columns: nested_arg_columns
+            .into_iter()
+            .map(|column| nested_call_column + column.saturating_sub(1))
+            .collect(),
     });
     Ok(())
 }
@@ -1006,12 +1023,13 @@ fn lower_pipeline_call(
     bindings: &BTreeMap<String, String>,
 ) -> Result<(), DslError> {
     let line_no = call.line_no;
+    let column_no = call.column_no;
     let resolved_args = call
         .args
         .iter()
         .map(|arg| substitute_pipeline_arg(arg, bindings))
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|err| err.at_line(line_no))?;
+        .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
     match call.name.as_str() {
         "template" => {
             if !allow_template_head {
@@ -1022,11 +1040,13 @@ fn lower_pipeline_call(
             }
             output.push(format!(
                 "template={}",
-                parse_pipeline_single_arg(&resolved_args, "template")?
+                parse_pipeline_single_arg(&resolved_args, "template")
+                    .map_err(|err| err.reanchor_line_column(line_no, column_no))?
             ));
         }
         "use" => {
-            let (function_name, actuals) = parse_pipeline_use_call(&resolved_args)?;
+            let (function_name, actuals) = parse_pipeline_use_call(&resolved_args)
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
             if use_stack.contains(&function_name) {
                 return Err(DslError::InvalidValue(format!(
                     "pipeline use cycle detected at function '{function_name}'"
@@ -1054,7 +1074,7 @@ fn lower_pipeline_call(
             let mut function_bindings = function_bindings;
             for binding in &function.local_bindings {
                 let resolved = substitute_pipeline_arg(&binding.value, &function_bindings)
-                    .map_err(|err| err.at_line(line_no))?;
+                    .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
                 function_bindings.insert(binding.name.clone(), parse_pipeline_literal(&resolved));
             }
             use_stack.push(function_name.clone());
@@ -1074,41 +1094,51 @@ fn lower_pipeline_call(
             )
             .at_line(line_no));
         }
-        "window" => {
-            lower_pipeline_window(&resolved_args, output).map_err(|err| err.at_line(line_no))?
-        }
+        "window" => lower_pipeline_window(&resolved_args, &call.arg_columns, column_no, output)
+            .map_err(|err| err.at_line(line_no))?,
         "reason" => output.push(format!(
             "reason={}",
-            parse_pipeline_single_arg(&resolved_args, "reason")?
+            parse_pipeline_single_arg(&resolved_args, "reason")
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
         )),
         "reason_model" => output.push(format!(
             "reason_model={}",
-            parse_pipeline_single_arg(&resolved_args, "reason_model")?
+            parse_pipeline_single_arg(&resolved_args, "reason_model")
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
         )),
         "fragment" => output.push(format!(
             "fragment={}",
-            parse_pipeline_single_arg(&resolved_args, "fragment")?
+            parse_pipeline_single_arg(&resolved_args, "fragment")
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
         )),
         "program_model" => output.push(format!(
             "program_model={}",
-            parse_pipeline_single_arg(&resolved_args, "program_model")?
+            parse_pipeline_single_arg(&resolved_args, "program_model")
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
         )),
         "operation" => output.push(format!(
             "operation={}",
-            parse_pipeline_single_arg(&resolved_args, "operation")?
+            parse_pipeline_single_arg(&resolved_args, "operation")
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
         )),
         "param" => output.push(format!(
             "param={}",
-            lower_pipeline_param(&resolved_args).map_err(|err| err.at_line(line_no))?
+            lower_pipeline_param(&resolved_args)
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
         )),
         "evidence" => output.push(format!(
             "evidence={}",
-            lower_pipeline_evidence(&resolved_args).map_err(|err| err.at_line(line_no))?
+            lower_pipeline_evidence(&resolved_args)
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
         )),
-        "program_rule" => output
-            .push(lower_pipeline_rule(&resolved_args, false).map_err(|err| err.at_line(line_no))?),
-        "reason_rule" => output
-            .push(lower_pipeline_rule(&resolved_args, true).map_err(|err| err.at_line(line_no))?),
+        "program_rule" => output.push(
+            lower_pipeline_rule(&resolved_args, &call.arg_columns, column_no, false)
+                .map_err(|err| err.at_line(line_no))?,
+        ),
+        "reason_rule" => output.push(
+            lower_pipeline_rule(&resolved_args, &call.arg_columns, column_no, true)
+                .map_err(|err| err.at_line(line_no))?,
+        ),
         other => {
             return Err(
                 DslError::InvalidValue(format!("unknown pipeline DSL step '{other}'"))
@@ -1150,7 +1180,7 @@ fn ensure_within_root(path: &Path, root: &Path) -> Result<(), DslError> {
     }
 }
 
-fn parse_pipeline_call(line: &str) -> Result<(String, Vec<String>), DslError> {
+fn parse_pipeline_call(line: &str) -> Result<(String, Vec<String>, Vec<usize>), DslError> {
     let open = line.find('(').ok_or_else(|| {
         DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
             .at_line_column(0, Some(line.len() + 1))
@@ -1166,7 +1196,18 @@ fn parse_pipeline_call(line: &str) -> Result<(String, Vec<String>), DslError> {
                 .at_line_column(0, Some(1)),
         );
     }
-    Ok((name.to_string(), split_pipeline_args(inner)))
+    let args_with_columns = split_pipeline_args_with_columns(inner, open + 2);
+    Ok((
+        name.to_string(),
+        args_with_columns
+            .iter()
+            .map(|(_, value)| value.clone())
+            .collect(),
+        args_with_columns
+            .into_iter()
+            .map(|(column, _)| column)
+            .collect(),
+    ))
 }
 
 fn parse_pipeline_function_signature(signature: &str) -> Result<(String, Vec<String>), DslError> {
@@ -1220,6 +1261,13 @@ fn parse_pipeline_param_name(param: &str) -> Result<String, DslError> {
 }
 
 fn split_pipeline_args(input: &str) -> Vec<String> {
+    split_pipeline_args_with_columns(input, 1)
+        .into_iter()
+        .map(|(_, value)| value)
+        .collect()
+}
+
+fn split_pipeline_args_with_columns(input: &str, base_column: usize) -> Vec<(usize, String)> {
     let mut parts = Vec::new();
     let mut start = 0usize;
     let mut in_string = false;
@@ -1228,15 +1276,22 @@ fn split_pipeline_args(input: &str) -> Vec<String> {
         match ch {
             '"' => in_string = !in_string,
             ',' if !in_string => {
-                parts.push(input[start..idx].trim().to_string());
+                let raw = &input[start..idx];
+                let trimmed = raw.trim();
+                if !trimmed.is_empty() {
+                    let leading = raw.find(trimmed).unwrap_or(0);
+                    parts.push((base_column + start + leading, trimmed.to_string()));
+                }
                 start = idx + 1;
             }
             _ => {}
         }
     }
-    let tail = input[start..].trim();
+    let raw_tail = &input[start..];
+    let tail = raw_tail.trim();
     if !tail.is_empty() {
-        parts.push(tail.to_string());
+        let leading = raw_tail.find(tail).unwrap_or(0);
+        parts.push((base_column + start + leading, tail.to_string()));
     }
     parts
 }
@@ -1308,37 +1363,57 @@ fn looks_like_pipeline_keyword_arg(arg: &str) -> bool {
         .is_some_and(|(key, _)| !key.trim().is_empty())
 }
 
-fn parse_pipeline_keywords(
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PipelineKeywordArg {
+    value: String,
+    value_column: usize,
+}
+
+fn parse_pipeline_keywords_with_columns(
     args: &[String],
+    arg_columns: &[usize],
     step: &str,
-) -> Result<BTreeMap<String, String>, DslError> {
+) -> Result<BTreeMap<String, PipelineKeywordArg>, DslError> {
     let mut keywords = BTreeMap::new();
-    for arg in args {
+    for (arg, arg_column) in args.iter().zip(arg_columns.iter()) {
         let (key, value) = arg.split_once(':').ok_or_else(|| {
             DslError::InvalidValue(format!(
                 "pipeline step '{step}' expected keyword argument, got '{arg}'"
             ))
-            .at_line_column(0, Some(1))
+            .at_line_column(0, Some(*arg_column))
         })?;
-        keywords.insert(key.trim().to_string(), parse_pipeline_literal(value));
+        let value_trimmed = value.trim();
+        let value_offset = value.find(value_trimmed).unwrap_or(0);
+        keywords.insert(
+            key.trim().to_string(),
+            PipelineKeywordArg {
+                value: parse_pipeline_literal(value),
+                value_column: arg_column + key.len() + 1 + value_offset,
+            },
+        );
     }
     Ok(keywords)
 }
 
-fn lower_pipeline_window(args: &[String], output: &mut Vec<String>) -> Result<(), DslError> {
+fn lower_pipeline_window(
+    args: &[String],
+    arg_columns: &[usize],
+    call_column: usize,
+    output: &mut Vec<String>,
+) -> Result<(), DslError> {
     if args.len() == 1 && !looks_like_pipeline_keyword_arg(&args[0]) {
         output.push(format!("window={}", parse_pipeline_literal(&args[0])));
         return Ok(());
     }
-    let keywords = parse_pipeline_keywords(args, "window")?;
+    let keywords = parse_pipeline_keywords_with_columns(args, arg_columns, "window")?;
     let duration_ms = keywords
         .get("duration_ms")
-        .ok_or(DslError::MissingField("duration_ms"))?;
+        .ok_or(DslError::MissingField("duration_ms").at_line_column(0, Some(call_column)))?;
     let lateness_ms = keywords
         .get("lateness_ms")
-        .ok_or(DslError::MissingField("lateness_ms"))?;
-    output.push(format!("window.duration_ms={duration_ms}"));
-    output.push(format!("window.lateness_ms={lateness_ms}"));
+        .ok_or(DslError::MissingField("lateness_ms").at_line_column(0, Some(call_column)))?;
+    output.push(format!("window.duration_ms={}", duration_ms.value));
+    output.push(format!("window.lateness_ms={}", lateness_ms.value));
     Ok(())
 }
 
@@ -1370,9 +1445,15 @@ fn lower_pipeline_evidence(args: &[String]) -> Result<String, DslError> {
     ))
 }
 
-fn lower_pipeline_rule(args: &[String], reason_rule: bool) -> Result<String, DslError> {
-    let keywords = parse_pipeline_keywords(
+fn lower_pipeline_rule(
+    args: &[String],
+    arg_columns: &[usize],
+    call_column: usize,
+    reason_rule: bool,
+) -> Result<String, DslError> {
+    let keywords = parse_pipeline_keywords_with_columns(
         args,
+        arg_columns,
         if reason_rule {
             "reason_rule"
         } else {
@@ -1381,29 +1462,44 @@ fn lower_pipeline_rule(args: &[String], reason_rule: bool) -> Result<String, Dsl
     )?;
     let predicate = keywords
         .get("predicate")
-        .ok_or(DslError::MissingField("predicate"))?;
+        .ok_or(DslError::MissingField("predicate").at_line_column(0, Some(call_column)))?;
     let signal_key = if reason_rule { "key_event" } else { "stage" };
     let signal = keywords
         .get(signal_key)
-        .ok_or(DslError::MissingField(signal_key))?;
+        .ok_or(DslError::MissingField(signal_key).at_line_column(0, Some(call_column)))?;
     let narrative = keywords
         .get("narrative")
-        .ok_or(DslError::MissingField("narrative"))?;
+        .ok_or(DslError::MissingField("narrative").at_line_column(0, Some(call_column)))?;
     let dedupe = keywords
         .get("dedupe")
-        .ok_or(DslError::MissingField("dedupe"))?;
-    let mut value = format!("{predicate};{signal};{narrative};{dedupe}");
+        .ok_or(DslError::MissingField("dedupe").at_line_column(0, Some(call_column)))?;
+    parse_flow_predicate(&predicate.value)
+        .map_err(|err| err.reanchor_line_column(0, predicate.value_column))?;
+    if reason_rule {
+        parse_reason_key_event(&signal.value)
+            .map_err(|err| err.reanchor_line_column(0, signal.value_column))?;
+    } else {
+        parse_stage(&signal.value)
+            .map_err(|err| err.reanchor_line_column(0, signal.value_column))?;
+    }
+    parse_bool(&dedupe.value).map_err(|err| err.reanchor_line_column(0, dedupe.value_column))?;
+    let mut value = format!(
+        "{};{};{};{}",
+        predicate.value, signal.value, narrative.value, dedupe.value
+    );
     if let Some(module) = keywords.get("module") {
         value.push(';');
-        value.push_str(module);
+        value.push_str(&module.value);
         if let Some(phase) = keywords.get("phase") {
             value.push(';');
-            value.push_str(phase);
+            value.push_str(&phase.value);
         }
     } else if let Some(phase) = keywords.get("phase") {
         return Err(DslError::InvalidValue(format!(
-            "pipeline rule phase '{phase}' requires module"
-        )));
+            "pipeline rule phase '{}' requires module",
+            phase.value
+        ))
+        .at_line_column(0, Some(phase.value_column)));
     }
     Ok(if reason_rule {
         format!("reason.rule={value}")
@@ -1467,7 +1563,7 @@ impl DslError {
             },
             other => Self::Located {
                 line,
-                column: None,
+                column: Some(column_offset),
                 inner: Box::new(other),
             },
         }
@@ -1571,36 +1667,41 @@ fn parse_operation(value: &str) -> ProgramOperation {
 }
 
 fn parse_rule(value: &str) -> Result<ProgramRule, DslError> {
-    let parts = split_top_level(value, ';');
+    let parts = split_top_level_with_columns(value, ';', 1);
     if !(4..=6).contains(&parts.len()) {
-        return Err(DslError::InvalidValue(format!("invalid rule '{value}'")));
+        return Err(DslError::InvalidValue(format!("invalid rule '{value}'"))
+            .at_line_column(0, Some(value.len() + 1)));
     }
 
     Ok(ProgramRule {
-        predicate: parse_flow_predicate(parts[0].trim())?,
-        signal: parse_stage(parts[1].trim())?,
-        narrative: parse_narrative(parts[2].trim()),
-        dedupe: parse_bool(parts[3].trim())?,
-        module: parts.get(4).map(|value| value.trim().to_string()),
-        phase: parts.get(5).map(|value| value.trim().to_string()),
+        predicate: parse_flow_predicate(&parts[0].1)
+            .map_err(|err| err.reanchor_line_column(0, parts[0].0))?,
+        signal: parse_stage(&parts[1].1).map_err(|err| err.reanchor_line_column(0, parts[1].0))?,
+        narrative: parse_narrative(&parts[2].1),
+        dedupe: parse_bool(&parts[3].1).map_err(|err| err.reanchor_line_column(0, parts[3].0))?,
+        module: parts.get(4).map(|(_, value)| value.clone()),
+        phase: parts.get(5).map(|(_, value)| value.clone()),
     })
 }
 
 fn parse_reason_rule(value: &str) -> Result<ReasonRule, DslError> {
-    let parts = split_top_level(value, ';');
+    let parts = split_top_level_with_columns(value, ';', 1);
     if !(4..=6).contains(&parts.len()) {
-        return Err(DslError::InvalidValue(format!(
-            "invalid reason rule '{value}'"
-        )));
+        return Err(
+            DslError::InvalidValue(format!("invalid reason rule '{value}'"))
+                .at_line_column(0, Some(value.len() + 1)),
+        );
     }
 
     Ok(ReasonRule {
-        predicate: parse_flow_predicate(parts[0].trim())?,
-        signal: parse_reason_key_event(parts[1].trim())?,
-        narrative: parse_reason_narrative(parts[2].trim()),
-        dedupe: parse_bool(parts[3].trim())?,
-        module: parts.get(4).map(|value| value.trim().to_string()),
-        phase: parts.get(5).map(|value| value.trim().to_string()),
+        predicate: parse_flow_predicate(&parts[0].1)
+            .map_err(|err| err.reanchor_line_column(0, parts[0].0))?,
+        signal: parse_reason_key_event(&parts[1].1)
+            .map_err(|err| err.reanchor_line_column(0, parts[1].0))?,
+        narrative: parse_reason_narrative(&parts[2].1),
+        dedupe: parse_bool(&parts[3].1).map_err(|err| err.reanchor_line_column(0, parts[3].0))?,
+        module: parts.get(4).map(|(_, value)| value.clone()),
+        phase: parts.get(5).map(|(_, value)| value.clone()),
     })
 }
 
@@ -1623,10 +1724,13 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
         .strip_prefix("all(")
         .and_then(|rest| rest.strip_suffix(')'))
     {
+        let base_column = value.find(inner).unwrap_or(0) + 1;
         return Ok(FlowPredicate::All(
-            split_top_level(inner, ',')
+            split_top_level_with_columns(inner, ',', base_column)
                 .into_iter()
-                .map(|part| parse_flow_predicate(part.trim()))
+                .map(|(column, part)| {
+                    parse_flow_predicate(&part).map_err(|err| err.reanchor_line_column(0, column))
+                })
                 .collect::<Result<Vec<_>, _>>()?,
         ));
     }
@@ -1634,10 +1738,13 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
         .strip_prefix("any(")
         .and_then(|rest| rest.strip_suffix(')'))
     {
+        let base_column = value.find(inner).unwrap_or(0) + 1;
         return Ok(FlowPredicate::Any(
-            split_top_level(inner, ',')
+            split_top_level_with_columns(inner, ',', base_column)
                 .into_iter()
-                .map(|part| parse_flow_predicate(part.trim()))
+                .map(|(column, part)| {
+                    parse_flow_predicate(&part).map_err(|err| err.reanchor_line_column(0, column))
+                })
                 .collect::<Result<Vec<_>, _>>()?,
         ));
     }
@@ -1647,27 +1754,53 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
         "socket_state_observed" => Ok(FlowPredicate::socket_state_observed(None, None, None)),
         other if other.starts_with("socket_state_observed:") => {
             let suffix = &other["socket_state_observed:".len()..];
-            let mut parts = suffix.split(':');
-            let first = parts.next().unwrap_or_default();
-            let (local_port, remote_port, port) = match first {
-                "local" | "sport" => (true, false, parts.next().unwrap_or_default()),
-                "remote" | "dport" => (false, true, parts.next().unwrap_or_default()),
-                _ => (false, true, first),
+            let parts =
+                split_qualifier_parts_with_columns(suffix, "socket_state_observed:".len() + 1);
+            let mut part_index = 0usize;
+            let (first_column, first) = qualifier_part_at(&parts, part_index);
+            part_index += 1;
+            let (local_port, remote_port, port, port_column) = match first {
+                "local" | "sport" => {
+                    let (column, value) =
+                        qualifier_part_opt(&parts, part_index).ok_or_else(|| {
+                            DslError::InvalidValue("missing socket local port qualifier".into())
+                                .at_line_column(0, Some(first_column))
+                        })?;
+                    part_index += 1;
+                    (true, false, value, column)
+                }
+                "remote" | "dport" => {
+                    let (column, value) =
+                        qualifier_part_opt(&parts, part_index).ok_or_else(|| {
+                            DslError::InvalidValue("missing socket remote port qualifier".into())
+                                .at_line_column(0, Some(first_column))
+                        })?;
+                    part_index += 1;
+                    (false, true, value, column)
+                }
+                _ => (false, true, first, first_column),
             };
-            let port = parse_named_port(port, "socket_state_observed")?;
-            let min_new_state = match parts.next() {
+            let port = parse_named_port(port, "socket_state_observed")
+                .map_err(|err| err.reanchor_line_column(0, port_column))?;
+            let min_new_state = match qualifier_part_opt(&parts, part_index).map(|(_, value)| value)
+            {
                 None => None,
-                Some("established") => Some(3),
+                Some("established") => {
+                    part_index += 1;
+                    Some(3)
+                }
                 Some(other) => {
                     return Err(DslError::InvalidValue(format!(
                         "unknown socket_state_observed state qualifier '{other}'"
-                    )));
+                    ))
+                    .at_line_column(0, Some(qualifier_part_at(&parts, part_index).0)));
                 }
             };
-            if let Some(extra) = parts.next() {
+            if let Some((extra_column, extra)) = qualifier_part_opt(&parts, part_index) {
                 return Err(DslError::InvalidValue(format!(
                     "unexpected socket_state_observed suffix '{extra}'"
-                )));
+                ))
+                .at_line_column(0, Some(extra_column)));
             }
             Ok(FlowPredicate::socket_state_observed(
                 local_port.then_some(port),
@@ -1678,17 +1811,20 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
         "route_resolved" => Ok(FlowPredicate::RouteResolved),
         other if other.starts_with("quic_packet_observed:") => {
             let suffix = &other["quic_packet_observed:".len()..];
-            let mut parts = suffix.split(':');
+            let parts =
+                split_qualifier_parts_with_columns(suffix, "quic_packet_observed:".len() + 1);
+            let mut part_index = 0usize;
             let mut dir = None;
             let mut local_port = None;
             let mut remote_port = None;
             let mut min_len = None;
             let mut long_header = None;
             let mut packet_type = None;
-            while let Some(part) = parts.next() {
+            while let Some((part_column, part)) = qualifier_part_opt(&parts, part_index) {
+                part_index += 1;
                 if !parse_scope_qualifier(
                     part,
-                    &mut parts,
+                    &mut QualifierPartsCursor::new(&parts, &mut part_index),
                     "quic_packet_observed",
                     "QUIC",
                     &mut dir,
@@ -1697,29 +1833,47 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 )? {
                     match part {
                         "min_len" => {
-                            min_len = Some(parse_u32_qualifier(
-                                &mut parts,
-                                "quic_packet_observed",
-                                "QUIC min_len",
-                                "min_len",
-                            )?);
+                            min_len = Some(
+                                parse_u32_qualifier(
+                                    &mut QualifierPartsCursor::new(&parts, &mut part_index),
+                                    "quic_packet_observed",
+                                    "QUIC min_len",
+                                    "min_len",
+                                )
+                                .map_err(|err| err.reanchor_line_column(0, part_column))?,
+                            );
                         }
                         "long_header" => {
-                            let value = parts.next().ok_or_else(|| {
-                                DslError::InvalidValue("missing QUIC long_header qualifier".into())
-                            })?;
-                            long_header = Some(parse_bool(value)?);
+                            let (value_column, value) = qualifier_part_opt(&parts, part_index)
+                                .ok_or_else(|| {
+                                    DslError::InvalidValue(
+                                        "missing QUIC long_header qualifier".into(),
+                                    )
+                                    .at_line_column(0, Some(part_column))
+                                })?;
+                            part_index += 1;
+                            long_header = Some(
+                                parse_bool(value)
+                                    .map_err(|err| err.reanchor_line_column(0, value_column))?,
+                            );
                         }
                         "type" => {
-                            let value = parts.next().ok_or_else(|| {
-                                DslError::InvalidValue("missing QUIC type qualifier".into())
-                            })?;
-                            packet_type = Some(parse_quic_packet_type(value)?);
+                            let (value_column, value) = qualifier_part_opt(&parts, part_index)
+                                .ok_or_else(|| {
+                                    DslError::InvalidValue("missing QUIC type qualifier".into())
+                                        .at_line_column(0, Some(part_column))
+                                })?;
+                            part_index += 1;
+                            packet_type = Some(
+                                parse_quic_packet_type(value)
+                                    .map_err(|err| err.reanchor_line_column(0, value_column))?,
+                            );
                         }
                         other => {
                             return Err(DslError::InvalidValue(format!(
                                 "unexpected QUIC predicate suffix '{other}'"
-                            )));
+                            ))
+                            .at_line_column(0, Some(part_column)));
                         }
                     }
                 }
@@ -1737,7 +1891,9 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
         }
         other if other.starts_with("quic_frame_observed:") => {
             let suffix = &other["quic_frame_observed:".len()..];
-            let mut parts = suffix.split(':');
+            let parts =
+                split_qualifier_parts_with_columns(suffix, "quic_frame_observed:".len() + 1);
+            let mut part_index = 0usize;
             let mut dir = None;
             let mut local_port = None;
             let mut remote_port = None;
@@ -1745,10 +1901,11 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut frame_type = None;
             let mut byte_matches = Vec::new();
             let mut byte_sequences = Vec::new();
-            while let Some(part) = parts.next() {
+            while let Some((part_column, part)) = qualifier_part_opt(&parts, part_index) {
+                part_index += 1;
                 if !parse_scope_qualifier(
                     part,
-                    &mut parts,
+                    &mut QualifierPartsCursor::new(&parts, &mut part_index),
                     "quic_frame_observed",
                     "QUIC",
                     &mut dir,
@@ -1757,35 +1914,54 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                 )? {
                     match part {
                         "type" => {
-                            let value = parts.next().ok_or_else(|| {
-                                DslError::InvalidValue("missing QUIC type qualifier".into())
-                            })?;
-                            packet_type = Some(parse_quic_packet_type(value)?);
+                            let (value_column, value) = qualifier_part_opt(&parts, part_index)
+                                .ok_or_else(|| {
+                                    DslError::InvalidValue("missing QUIC type qualifier".into())
+                                        .at_line_column(0, Some(part_column))
+                                })?;
+                            part_index += 1;
+                            packet_type = Some(
+                                parse_quic_packet_type(value)
+                                    .map_err(|err| err.reanchor_line_column(0, value_column))?,
+                            );
                         }
                         "frame" => {
-                            let value = parts.next().ok_or_else(|| {
-                                DslError::InvalidValue("missing QUIC frame qualifier".into())
-                            })?;
-                            frame_type = Some(parse_quic_frame_type(value)?);
+                            let (value_column, value) = qualifier_part_opt(&parts, part_index)
+                                .ok_or_else(|| {
+                                    DslError::InvalidValue("missing QUIC frame qualifier".into())
+                                        .at_line_column(0, Some(part_column))
+                                })?;
+                            part_index += 1;
+                            frame_type = Some(
+                                parse_quic_frame_type(value)
+                                    .map_err(|err| err.reanchor_line_column(0, value_column))?,
+                            );
                         }
                         "byte_at" => {
-                            byte_matches.push(parse_payload_byte_match(
-                                &mut parts,
-                                "quic_frame_observed",
-                                "QUIC",
-                            )?);
+                            byte_matches.push(
+                                parse_payload_byte_match(
+                                    &mut QualifierPartsCursor::new(&parts, &mut part_index),
+                                    "quic_frame_observed",
+                                    "QUIC",
+                                )
+                                .map_err(|err| err.reanchor_line_column(0, part_column))?,
+                            );
                         }
                         "bytes_at" => {
-                            byte_sequences.push(parse_payload_byte_sequence_match(
-                                &mut parts,
-                                "quic_frame_observed",
-                                "QUIC",
-                            )?);
+                            byte_sequences.push(
+                                parse_payload_byte_sequence_match(
+                                    &mut QualifierPartsCursor::new(&parts, &mut part_index),
+                                    "quic_frame_observed",
+                                    "QUIC",
+                                )
+                                .map_err(|err| err.reanchor_line_column(0, part_column))?,
+                            );
                         }
                         other => {
                             return Err(DslError::InvalidValue(format!(
                                 "unexpected QUIC frame predicate suffix '{other}'"
-                            )));
+                            ))
+                            .at_line_column(0, Some(part_column)));
                         }
                     }
                 }
@@ -1801,6 +1977,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                     DslError::InvalidValue(
                         "quic_frame_observed requires a frame:<type> qualifier".into(),
                     )
+                    .at_line_column(0, Some("quic_frame_observed:".len() + 1))
                 })?,
                 byte_matches,
                 byte_sequences,
@@ -1808,13 +1985,16 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
         }
         other if other.starts_with("datagram_observed:") => {
             let suffix = &other["datagram_observed:".len()..];
-            let mut parts = suffix.split(':');
-            let proto = parts.next().unwrap_or_default();
+            let parts = split_qualifier_parts_with_columns(suffix, "datagram_observed:".len() + 1);
+            let mut part_index = 0usize;
+            let (proto_column, proto) = qualifier_part_at(&parts, part_index);
+            part_index += 1;
             let l4_proto = match proto {
                 "udp" => 17,
                 "tcp" => 6,
                 _ => proto.parse::<u8>().map_err(|_| {
                     DslError::InvalidValue(format!("unknown datagram proto '{proto}'"))
+                        .at_line_column(0, Some(proto_column))
                 })?,
             };
             let mut dir = None;
@@ -1829,10 +2009,11 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut byte13_value = None;
             let mut byte_matches = Vec::new();
             let mut byte_sequences = Vec::new();
-            while let Some(part) = parts.next() {
+            while let Some((part_column, part)) = qualifier_part_opt(&parts, part_index) {
+                part_index += 1;
                 if !parse_scope_qualifier(
                     part,
-                    &mut parts,
+                    &mut QualifierPartsCursor::new(&parts, &mut part_index),
                     "datagram_observed",
                     "datagram",
                     &mut dir,
@@ -1842,7 +2023,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                     match part {
                         "min_len" => {
                             min_len = Some(parse_u32_qualifier(
-                                &mut parts,
+                                &mut QualifierPartsCursor::new(&parts, &mut part_index),
                                 "datagram_observed",
                                 "datagram min_len",
                                 "min_len",
@@ -1850,7 +2031,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         }
                         "byte0_mask" => {
                             let (mask, value) = parse_u8_mask_value_qualifier(
-                                &mut parts,
+                                &mut QualifierPartsCursor::new(&parts, &mut part_index),
                                 "datagram_observed",
                                 "datagram byte0_mask",
                                 "byte0_mask",
@@ -1860,7 +2041,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         }
                         "prefix2" => {
                             prefix2 = Some(parse_u16_qualifier(
-                                &mut parts,
+                                &mut QualifierPartsCursor::new(&parts, &mut part_index),
                                 "datagram_observed",
                                 "datagram prefix2",
                                 "prefix2",
@@ -1868,7 +2049,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         }
                         "prefix4" => {
                             prefix4 = Some(parse_u32_qualifier(
-                                &mut parts,
+                                &mut QualifierPartsCursor::new(&parts, &mut part_index),
                                 "datagram_observed",
                                 "datagram prefix4",
                                 "prefix4",
@@ -1876,7 +2057,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         }
                         "byte13_mask" => {
                             let (mask, value) = parse_u8_mask_value_qualifier(
-                                &mut parts,
+                                &mut QualifierPartsCursor::new(&parts, &mut part_index),
                                 "datagram_observed",
                                 "datagram byte13_mask",
                                 "byte13_mask",
@@ -1885,23 +2066,30 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                             byte13_value = Some(value);
                         }
                         "byte_at" => {
-                            byte_matches.push(parse_payload_byte_match(
-                                &mut parts,
-                                "datagram_observed",
-                                "datagram",
-                            )?);
+                            byte_matches.push(
+                                parse_payload_byte_match(
+                                    &mut QualifierPartsCursor::new(&parts, &mut part_index),
+                                    "datagram_observed",
+                                    "datagram",
+                                )
+                                .map_err(|err| err.reanchor_line_column(0, part_column))?,
+                            );
                         }
                         "bytes_at" => {
-                            byte_sequences.push(parse_payload_byte_sequence_match(
-                                &mut parts,
-                                "datagram_observed",
-                                "datagram",
-                            )?);
+                            byte_sequences.push(
+                                parse_payload_byte_sequence_match(
+                                    &mut QualifierPartsCursor::new(&parts, &mut part_index),
+                                    "datagram_observed",
+                                    "datagram",
+                                )
+                                .map_err(|err| err.reanchor_line_column(0, part_column))?,
+                            );
                         }
                         other => {
                             return Err(DslError::InvalidValue(format!(
                                 "unknown datagram predicate suffix '{other}'"
-                            )));
+                            ))
+                            .at_line_column(0, Some(part_column)));
                         }
                     }
                 }
@@ -1926,13 +2114,16 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
         }
         other if other.starts_with("packet_observed:") => {
             let suffix = &other["packet_observed:".len()..];
-            let mut parts = suffix.split(':');
-            let proto = parts.next().unwrap_or_default();
+            let parts = split_qualifier_parts_with_columns(suffix, "packet_observed:".len() + 1);
+            let mut part_index = 0usize;
+            let (proto_column, proto) = qualifier_part_at(&parts, part_index);
+            part_index += 1;
             let l4_proto = match proto {
                 "udp" => 17,
                 "tcp" => 6,
                 _ => proto.parse::<u8>().map_err(|_| {
                     DslError::InvalidValue(format!("unknown packet proto '{proto}'"))
+                        .at_line_column(0, Some(proto_column))
                 })?,
             };
             let mut dir = None;
@@ -1947,10 +2138,11 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             let mut byte13_value = None;
             let mut byte_matches = Vec::new();
             let mut byte_sequences = Vec::new();
-            while let Some(part) = parts.next() {
+            while let Some((part_column, part)) = qualifier_part_opt(&parts, part_index) {
+                part_index += 1;
                 if !parse_scope_qualifier(
                     part,
-                    &mut parts,
+                    &mut QualifierPartsCursor::new(&parts, &mut part_index),
                     "packet_observed",
                     "packet",
                     &mut dir,
@@ -1960,7 +2152,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                     match part {
                         "byte0_mask" => {
                             let (mask, value) = parse_u8_mask_value_qualifier(
-                                &mut parts,
+                                &mut QualifierPartsCursor::new(&parts, &mut part_index),
                                 "packet_observed",
                                 "packet byte0_mask",
                                 "byte0_mask",
@@ -1970,7 +2162,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         }
                         "prefix4" => {
                             prefix4 = Some(parse_u32_qualifier(
-                                &mut parts,
+                                &mut QualifierPartsCursor::new(&parts, &mut part_index),
                                 "packet_observed",
                                 "packet prefix4",
                                 "prefix4",
@@ -1978,7 +2170,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         }
                         "byte4_mask" => {
                             let (mask, value) = parse_u8_mask_value_qualifier(
-                                &mut parts,
+                                &mut QualifierPartsCursor::new(&parts, &mut part_index),
                                 "packet_observed",
                                 "packet byte4_mask",
                                 "byte4_mask",
@@ -1988,7 +2180,7 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                         }
                         "byte13_mask" => {
                             let (mask, value) = parse_u8_mask_value_qualifier(
-                                &mut parts,
+                                &mut QualifierPartsCursor::new(&parts, &mut part_index),
                                 "packet_observed",
                                 "packet byte13_mask",
                                 "byte13_mask",
@@ -1997,23 +2189,30 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
                             byte13_value = Some(value);
                         }
                         "byte_at" => {
-                            byte_matches.push(parse_payload_byte_match(
-                                &mut parts,
-                                "packet_observed",
-                                "packet",
-                            )?);
+                            byte_matches.push(
+                                parse_payload_byte_match(
+                                    &mut QualifierPartsCursor::new(&parts, &mut part_index),
+                                    "packet_observed",
+                                    "packet",
+                                )
+                                .map_err(|err| err.reanchor_line_column(0, part_column))?,
+                            );
                         }
                         "bytes_at" => {
-                            byte_sequences.push(parse_payload_byte_sequence_match(
-                                &mut parts,
-                                "packet_observed",
-                                "packet",
-                            )?);
+                            byte_sequences.push(
+                                parse_payload_byte_sequence_match(
+                                    &mut QualifierPartsCursor::new(&parts, &mut part_index),
+                                    "packet_observed",
+                                    "packet",
+                                )
+                                .map_err(|err| err.reanchor_line_column(0, part_column))?,
+                            );
                         }
                         other => {
                             return Err(DslError::InvalidValue(format!(
                                 "unexpected packet predicate suffix '{other}'"
-                            )));
+                            ))
+                            .at_line_column(0, Some(part_column)));
                         }
                     }
                 }
@@ -2040,6 +2239,61 @@ fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
             "unknown predicate '{other}'"
         ))),
     }
+}
+
+struct QualifierPartsCursor<'a> {
+    parts: &'a [(usize, String)],
+    index: &'a mut usize,
+}
+
+impl<'a> QualifierPartsCursor<'a> {
+    fn new(parts: &'a [(usize, String)], index: &'a mut usize) -> Self {
+        Self { parts, index }
+    }
+}
+
+impl<'a> Iterator for QualifierPartsCursor<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (_, value) = self.parts.get(*self.index)?;
+        *self.index += 1;
+        Some(value.as_str())
+    }
+}
+
+fn split_qualifier_parts_with_columns(input: &str, base_column: usize) -> Vec<(usize, String)> {
+    let mut parts = Vec::new();
+    let mut start = 0usize;
+    for (idx, ch) in input.char_indices() {
+        if ch == ':' {
+            let raw = &input[start..idx];
+            let trimmed = raw.trim();
+            if !trimmed.is_empty() {
+                let leading = raw.find(trimmed).unwrap_or(0);
+                parts.push((base_column + start + leading, trimmed.to_string()));
+            }
+            start = idx + 1;
+        }
+    }
+    let raw_tail = &input[start..];
+    let tail = raw_tail.trim();
+    if !tail.is_empty() {
+        let leading = raw_tail.find(tail).unwrap_or(0);
+        parts.push((base_column + start + leading, tail.to_string()));
+    }
+    parts
+}
+
+fn qualifier_part_at(parts: &[(usize, String)], index: usize) -> (usize, &str) {
+    let (column, value) = &parts[index];
+    (*column, value.as_str())
+}
+
+fn qualifier_part_opt(parts: &[(usize, String)], index: usize) -> Option<(usize, &str)> {
+    parts
+        .get(index)
+        .map(|(column, value)| (*column, value.as_str()))
 }
 
 fn parse_reason_key_event(value: &str) -> Result<Option<ReasonKeyEvent>, DslError> {
@@ -2378,7 +2632,11 @@ fn parse_u64(value: &str, key: &str) -> Result<u64, DslError> {
         .map_err(|_| DslError::InvalidValue(format!("invalid u64 for '{key}': '{value}'")))
 }
 
-fn split_top_level(input: &str, delimiter: char) -> Vec<&str> {
+fn split_top_level_with_columns(
+    input: &str,
+    delimiter: char,
+    base_column: usize,
+) -> Vec<(usize, String)> {
     let mut parts = Vec::new();
     let mut depth = 0usize;
     let mut start = 0usize;
@@ -2388,13 +2646,48 @@ fn split_top_level(input: &str, delimiter: char) -> Vec<&str> {
             '(' => depth += 1,
             ')' => depth = depth.saturating_sub(1),
             _ if ch == delimiter && depth == 0 => {
-                parts.push(input[start..idx].trim());
+                let raw = &input[start..idx];
+                let trimmed = raw.trim();
+                let leading = raw.find(trimmed).unwrap_or(0);
+                parts.push((base_column + start + leading, trimmed.to_string()));
                 start = idx + ch.len_utf8();
             }
             _ => {}
         }
     }
 
-    parts.push(input[start..].trim());
+    let raw = &input[start..];
+    let trimmed = raw.trim();
+    let leading = raw.find(trimmed).unwrap_or(0);
+    parts.push((base_column + start + leading, trimmed.to_string()));
     parts
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_rule_reanchors_invalid_stage_column() {
+        let input = "process_bound;not_a_stage;static:test;true";
+        let err = parse_rule(input).expect_err("invalid stage");
+        assert_eq!(err.column(), Some(input.find("not_a_stage").unwrap() + 1));
+    }
+
+    #[test]
+    fn parse_rule_reanchors_composite_predicate_child_column() {
+        let input = "all(process_bound, packet_observed:tcp:remote:mysql:byte_at:not_u16:255:1);connect_flow;static:test;true";
+        let err = parse_rule(input).expect_err("invalid composite predicate child");
+        assert_eq!(err.column(), Some(input.find("byte_at").unwrap() + 1));
+    }
+
+    #[test]
+    fn parse_reason_rule_reanchors_invalid_key_event_column() {
+        let input = "process_bound;not_a_reason_event;static:test;true";
+        let err = parse_reason_rule(input).expect_err("invalid reason key event");
+        assert_eq!(
+            err.column(),
+            Some(input.find("not_a_reason_event").unwrap() + 1)
+        );
+    }
 }
