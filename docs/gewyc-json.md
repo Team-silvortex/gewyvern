@@ -1,0 +1,324 @@
+# `gewyc` JSON Surfaces
+
+This note is the small, practical schema guide for the human-facing `gewyc`
+debugging surfaces that are most likely to be consumed by editors, scripts, or
+lightweight IDE tooling:
+
+- `gewyc frontend --json`
+- `gewyc frontend --focus ... --json`
+- `gewyc explain --json`
+- `gewyc explain --focus ... --json`
+
+It is intentionally narrower than the full compiler envelope. The goal here is
+to make the higher-level debugging surfaces easy to consume without having to
+reverse-engineer the emitted JSON from source.
+
+## Stability
+
+During the `v0.8.x` line, these JSON shapes should be treated as:
+
+- stable enough for local tooling and editor integration
+- small, human-oriented summaries rather than lossless compiler internals
+- append-only where practical
+
+Fields may still grow, but consumers should prefer tolerant parsing and ignore
+unknown keys.
+
+`--compact` only changes text rendering. It does not change the JSON schema.
+
+## `frontend --json`
+
+Command:
+
+```bash
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+```
+
+Shape:
+
+```json
+{
+  "summary": {
+    "kind": "pipeline",
+    "function_count": 1,
+    "merged_step_count": 4,
+    "focus": null
+  },
+  "focused_report": null,
+  "report": {
+    "kind": "pipeline",
+    "function_count": 1,
+    "function_nodes": [
+      { "name": "network_module", "step_count": 3 }
+    ],
+    "merged_step_count": 4,
+    "include_sources": [],
+    "use_edges": [
+      { "from": "template", "to": "network_module", "line": 8 }
+    ],
+    "graph_nodes": [
+      { "id": "template", "kind": "template", "step_count": 1 },
+      { "id": "network_module", "kind": "function", "step_count": 3 }
+    ],
+    "graph_edges": [
+      { "from": "template", "to": "network_module", "kind": "use", "line": 8 }
+    ]
+  }
+}
+```
+
+### `frontend.summary`
+
+- `kind`: current frontend surface kind, currently `pipeline`
+- `function_count`: number of declared function units
+- `merged_step_count`: steps visible after entry-level pipeline merge
+- `focus`: `null` unless `--focus` is used
+
+### `frontend.report`
+
+- `function_nodes`: declared functions with step counts
+- `include_sources`: `include(...)` file references
+- `use_edges`: `template/use` call edges
+- `graph_nodes`: lightweight graph nodes for template/functions/includes
+- `graph_edges`: lightweight graph edges for `use`/`include` relationships
+
+## `frontend --focus ... --json`
+
+Command:
+
+```bash
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus graph --json
+```
+
+`summary` and `report` stay present. `focused_report` becomes a narrowed view.
+
+Example:
+
+```json
+{
+  "summary": {
+    "kind": "pipeline",
+    "function_count": 1,
+    "merged_step_count": 4,
+    "focus": "graph"
+  },
+  "focused_report": {
+    "kind": "graph",
+    "graph_nodes": [
+      { "id": "template", "kind": "template", "step_count": 1 }
+    ],
+    "graph_edges": []
+  },
+  "report": { "...": "full frontend report still present" }
+}
+```
+
+Supported focus values:
+
+- `functions`
+- `includes`
+- `graph`
+
+## `explain --json`
+
+Command:
+
+```bash
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+```
+
+Shape:
+
+```json
+{
+  "ok": true,
+  "summary": {
+    "parse_ok": true,
+    "validation_ok": true,
+    "diagnostics_ok": true,
+    "template_id": "udp_process_debug",
+    "operation": "datagram_exchange",
+    "finding_count": 0,
+    "next_step": "binding is healthy; validate with runtime/demo input next",
+    "focus": null,
+    "parse_source_excerpt": null,
+    "validation_excerpt": null,
+    "diagnostics_excerpt": null
+  },
+  "focused_report": null,
+  "frontend": { "...": "frontend report" },
+  "binding": { "...": "binding report" },
+  "validation": { "...": "validation report" },
+  "diagnostics": { "...": "diagnostics report" },
+  "findings": {
+    "findings": []
+  }
+}
+```
+
+### `explain.summary`
+
+- `parse_ok`: parse/front-end status
+- `validation_ok`: registry/fragment coverage status
+- `diagnostics_ok`: rule-support/diagnostics status
+- `template_id`: compiled template id when available
+- `operation`: compiled operation when available
+- `finding_count`: total compiler findings
+- `next_step`: human-oriented recommended next action
+- `focus`: `null` unless `--focus` is used
+- `parse_source_excerpt`: optional parse failure excerpt
+- `validation_excerpt`: optional validation failure excerpt
+- `diagnostics_excerpt`: optional diagnostics failure excerpt
+
+### `parse_source_excerpt`
+
+Shape:
+
+```json
+{
+  "line": 3,
+  "column": 9,
+  "line_text": "  let broken =",
+  "marker": "        ^"
+}
+```
+
+Used when parse/front-end compilation fails and `gewyc` can point at a concrete
+source line.
+
+### `validation_excerpt`
+
+Shape:
+
+```json
+{
+  "model": "broken_offsets_model",
+  "rule_index": 0,
+  "unsupported_payload_offsets": [8, 9],
+  "supporting_fragments": ["udp_packet_meta_fragment"]
+}
+```
+
+Used when payload coverage validation fails and `gewyc` can point at the first
+failing model/rule.
+
+### `diagnostics_excerpt`
+
+Shape:
+
+```json
+{
+  "model": "broken_rule_model",
+  "rule_index": 0,
+  "missing_facts": ["PacketMeta"],
+  "unsupported_payload_offsets": [],
+  "supporting_fragments": ["sock_lineage_fragment"]
+}
+```
+
+Used when diagnostics/rule-support fails and `gewyc` can point at the first
+unsupported rule-sized unit.
+
+## `explain --focus ... --json`
+
+Command:
+
+```bash
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation --json
+```
+
+`summary` remains present. `focused_report` becomes a narrowed surface-specific
+object. The broader reports still remain at top level so tooling can keep a
+single code path if it wants.
+
+Supported focus values:
+
+- `parse`
+- `frontend`
+- `validation`
+- `diagnostics`
+- `findings`
+
+Example validation focus:
+
+```json
+{
+  "summary": {
+    "focus": "validation"
+  },
+  "focused_report": {
+    "kind": "validation",
+    "report": {
+      "ok": false,
+      "registry": "builtin",
+      "unsupported_payload_offsets": [8, 9]
+    },
+    "validation_excerpt": {
+      "model": "broken_offsets_model",
+      "rule_index": 0,
+      "unsupported_payload_offsets": [8, 9],
+      "supporting_fragments": ["udp_packet_meta_fragment"]
+    }
+  }
+}
+```
+
+## Small Integration Examples
+
+### Shell / `jq`: grab the first parse excerpt
+
+```bash
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus parse --json \
+  | jq '.summary.parse_source_excerpt // .focused_report.parse_source_excerpt'
+```
+
+This is a good fit for:
+
+- editor task runners
+- pre-commit DSL validation hooks
+- tiny shell wrappers that only need `line/column + caret`
+
+### Shell / `jq`: grab the first validation coverage issue
+
+```bash
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation --json \
+  | jq '.focused_report.validation_excerpt'
+```
+
+This is a good fit for tooling that wants:
+
+- the first failing model/rule
+- unsupported payload offsets
+- the supporting fragments already present
+
+### Editor / IDE quick-inspect pattern
+
+For a lightweight editor integration, a practical flow is:
+
+1. Run `gewyc explain <path.gewy> --focus parse --json`
+2. If `summary.parse_ok == false`, read `summary.parse_source_excerpt`
+3. Otherwise run `gewyc explain <path.gewy> --focus validation --json`
+4. If `summary.validation_ok == false`, read `focused_report.validation_excerpt`
+5. Otherwise run `gewyc explain <path.gewy> --focus diagnostics --json`
+6. If `summary.diagnostics_ok == false`, read `focused_report.diagnostics_excerpt`
+
+That sequence keeps the UI small and progressive:
+
+- parse gets source-local feedback first
+- validation gets payload-coverage feedback second
+- diagnostics gets rule-support feedback last
+
+## When To Use Which Surface
+
+- Use `frontend --json` when you want function/include/graph structure.
+- Use `frontend --focus graph --json` when you only care about graph shape.
+- Use `explain --json` when you want a single human-oriented compiler summary.
+- Use `explain --focus parse --json` when you are building editor diagnostics.
+- Use `explain --focus validation --json` when you are building coverage/debug tooling.
+- Use `explain --focus diagnostics --json` when you want the first unsupported rule-sized entry point.
+
+## Related Docs
+
+- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+- [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
+- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)

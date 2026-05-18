@@ -1,8 +1,8 @@
 use crate::dsl::{
-    DslError, FrontendDslKind, FrontendFunctionNode, FrontendGraphEdge, FrontendGraphEdgeKind,
-    FrontendGraphNode, FrontendGraphNodeKind, FrontendModuleSummary, FrontendUseEdge, compile_file,
-    parse_file_unvalidated, parse_str_unvalidated, summarize_frontend_file, summarize_frontend_str,
-    validate_compiled_binding,
+    DslError, FrontendDslKind, FrontendExpansionPreview, FrontendFunctionNode, FrontendGraphEdge,
+    FrontendGraphEdgeKind, FrontendGraphNode, FrontendGraphNodeKind, FrontendModuleSummary,
+    FrontendUseEdge, compile_file, parse_file_unvalidated, parse_str_unvalidated,
+    summarize_frontend_file, summarize_frontend_str, validate_compiled_binding,
 };
 use crate::flow::ProgramOperation;
 use crate::fragment::{
@@ -119,6 +119,7 @@ pub struct ExplainReport {
     pub stages: CompilerStagesReport,
     pub parse_source_excerpt: Option<SourceExcerpt>,
     pub validation_excerpt: Option<ValidationExcerpt>,
+    pub diagnostics_excerpt: Option<DiagnosticsExcerpt>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -135,6 +136,7 @@ pub enum FrontendFocus {
     Functions,
     Includes,
     Graph,
+    Expansion,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -155,6 +157,7 @@ pub struct FrontendReport {
     pub use_edges: Vec<FrontendUseEdgeReport>,
     pub graph_nodes: Vec<FrontendGraphNodeReport>,
     pub graph_edges: Vec<FrontendGraphEdgeReport>,
+    pub expansion_previews: Vec<FrontendExpansionPreviewReport>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -183,6 +186,14 @@ pub struct FrontendGraphEdgeReport {
     pub to: String,
     pub kind: String,
     pub line: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendExpansionPreviewReport {
+    pub scope: String,
+    pub local_bindings: Vec<String>,
+    pub steps: Vec<String>,
+    pub use_targets: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -233,6 +244,15 @@ pub struct SourceExcerpt {
 pub struct ValidationExcerpt {
     pub model: String,
     pub rule_index: usize,
+    pub unsupported_payload_offsets: Vec<u16>,
+    pub supporting_fragments: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DiagnosticsExcerpt {
+    pub model: String,
+    pub rule_index: usize,
+    pub missing_facts: Vec<String>,
     pub unsupported_payload_offsets: Vec<u16>,
     pub supporting_fragments: Vec<String>,
 }
@@ -438,7 +458,7 @@ pub fn render_binding_report(report: &BindingReport, format: RenderFormat) -> St
 }
 
 pub fn render_frontend_report(report: &FrontendReport, format: RenderFormat) -> String {
-    render_frontend_report_with_focus(report, format, None)
+    render_frontend_report_with_options(report, format, None, false)
 }
 
 pub fn render_frontend_report_with_focus(
@@ -446,7 +466,17 @@ pub fn render_frontend_report_with_focus(
     format: RenderFormat,
     focus: Option<FrontendFocus>,
 ) -> String {
+    render_frontend_report_with_options(report, format, focus, false)
+}
+
+pub fn render_frontend_report_with_options(
+    report: &FrontendReport,
+    format: RenderFormat,
+    focus: Option<FrontendFocus>,
+    compact: bool,
+) -> String {
     match format {
+        RenderFormat::Text if compact => frontend_report_text_compact(report, focus),
         RenderFormat::Text => frontend_report_text(report, focus),
         RenderFormat::Json => frontend_report_json(report, focus),
     }
@@ -489,7 +519,7 @@ pub fn render_envelope_report(report: &CompilerEnvelope, format: RenderFormat) -
 }
 
 pub fn render_explain_report(report: &ExplainReport, format: RenderFormat) -> String {
-    render_explain_report_with_focus(report, format, None)
+    render_explain_report_with_options(report, format, None, false)
 }
 
 pub fn render_explain_report_with_focus(
@@ -497,7 +527,17 @@ pub fn render_explain_report_with_focus(
     format: RenderFormat,
     focus: Option<ExplainFocus>,
 ) -> String {
+    render_explain_report_with_options(report, format, focus, false)
+}
+
+pub fn render_explain_report_with_options(
+    report: &ExplainReport,
+    format: RenderFormat,
+    focus: Option<ExplainFocus>,
+    compact: bool,
+) -> String {
     match format {
+        RenderFormat::Text if compact => explain_text_compact(report, focus),
         RenderFormat::Text => explain_text(report, focus),
         RenderFormat::Json => explain_json(report, focus),
     }
@@ -942,6 +982,16 @@ fn explain_text(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
                     .map(|model| model.rules.len())
                     .unwrap_or(0)
             ));
+            if let Some(excerpt) = &report.diagnostics_excerpt {
+                lines.push(format!(
+                    "- diagnostics_excerpt=model:{} rule:{} missing_facts:{} offsets:{:?} supporting_fragments:{}",
+                    excerpt.model,
+                    excerpt.rule_index,
+                    excerpt.missing_facts.join(","),
+                    excerpt.unsupported_payload_offsets,
+                    excerpt.supporting_fragments.join(",")
+                ));
+            }
         }
         None => lines.push("diagnostics=none".into()),
     }
@@ -959,6 +1009,113 @@ fn explain_text(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
         );
     }
 
+    lines.join("\n")
+}
+
+fn explain_text_compact(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
+    let mut lines = vec![format!(
+        "surface=explain ok={} parse_ok={} validation_ok={} diagnostics_ok={} findings={} next_step={}",
+        report.ok,
+        report.stages.parse.ok,
+        report.stages.validation.ok,
+        report.stages.diagnostics.ok,
+        report.findings.findings.len(),
+        explain_next_step_hint(report),
+    )];
+    if let Some(focus) = focus {
+        lines.push(format!("focus={}", explain_focus_text(focus)));
+        match focus {
+            ExplainFocus::Parse => {
+                lines.push(format!(
+                    "parse_finding={}",
+                    finding_text(report.stages.parse.finding.as_ref())
+                ));
+            }
+            ExplainFocus::Frontend => {
+                if let Some(frontend) = &report.frontend {
+                    lines.push(format!(
+                        "frontend kind={} functions={} includes={} use_edges={} graph_nodes={} graph_edges={}",
+                        frontend.kind,
+                        frontend.function_count,
+                        frontend.include_sources.len(),
+                        frontend.use_edges.len(),
+                        frontend.graph_nodes.len(),
+                        frontend.graph_edges.len()
+                    ));
+                } else {
+                    lines.push("frontend=none".into());
+                }
+            }
+            ExplainFocus::Validation => {
+                lines.push(format!(
+                    "validation registry={} unsupported_payload_offsets={:?}",
+                    report.stages.validation.registry,
+                    report.stages.validation.unsupported_payload_offsets
+                ));
+            }
+            ExplainFocus::Diagnostics => {
+                lines.push(format!(
+                    "diagnostics excerpt={}",
+                    report
+                        .diagnostics_excerpt
+                        .as_ref()
+                        .map(|excerpt| format!(
+                            "{}#{} missing={} offsets={:?}",
+                            excerpt.model,
+                            excerpt.rule_index,
+                            excerpt.missing_facts.join(","),
+                            excerpt.unsupported_payload_offsets
+                        ))
+                        .unwrap_or_else(|| "none".into())
+                ));
+            }
+            ExplainFocus::Findings => {
+                lines.push(format!("findings={}", report.findings.findings.len()));
+            }
+        }
+        return lines.join("\n");
+    }
+
+    lines.push(format!(
+        "template={} operation={} fragments={}",
+        report
+            .binding
+            .as_ref()
+            .map(|binding| binding.template_id.as_str())
+            .unwrap_or("none"),
+        report
+            .binding
+            .as_ref()
+            .and_then(|binding| binding.program_model.as_ref())
+            .map(|model| model.operation.as_str())
+            .unwrap_or("none"),
+        report
+            .binding
+            .as_ref()
+            .map(|binding| binding.fragments.len().to_string())
+            .unwrap_or_else(|| "0".into())
+    ));
+    if let Some(excerpt) = &report.parse_source_excerpt {
+        lines.push(format!(
+            "parse_source={} {}",
+            excerpt.line_text, excerpt.marker
+        ));
+    }
+    if let Some(excerpt) = &report.validation_excerpt {
+        lines.push(format!(
+            "validation_excerpt={}#{} offsets={:?}",
+            excerpt.model, excerpt.rule_index, excerpt.unsupported_payload_offsets
+        ));
+    }
+    if let Some(excerpt) = &report.diagnostics_excerpt {
+        lines.push(format!(
+            "diagnostics_excerpt={}#{} missing={} offsets={:?}",
+            excerpt.model,
+            excerpt.rule_index,
+            excerpt.missing_facts.join(","),
+            excerpt.unsupported_payload_offsets
+        ));
+    }
     lines.join("\n")
 }
 
@@ -991,8 +1148,13 @@ fn explain_json(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
         .as_ref()
         .map(validation_excerpt_json)
         .unwrap_or_else(|| "null".into());
+    let diagnostics_excerpt_json = report
+        .diagnostics_excerpt
+        .as_ref()
+        .map(diagnostics_excerpt_json)
+        .unwrap_or_else(|| "null".into());
     format!(
-        "{{\"ok\":{},\"summary\":{{\"parse_ok\":{},\"validation_ok\":{},\"diagnostics_ok\":{},\"template_id\":{},\"operation\":{},\"finding_count\":{},\"next_step\":\"{}\",\"focus\":{},\"parse_source_excerpt\":{},\"validation_excerpt\":{}}},\"focused_report\":{},\"frontend\":{},\"binding\":{},\"validation\":{},\"diagnostics\":{},\"findings\":{}}}",
+        "{{\"ok\":{},\"summary\":{{\"parse_ok\":{},\"validation_ok\":{},\"diagnostics_ok\":{},\"template_id\":{},\"operation\":{},\"finding_count\":{},\"next_step\":\"{}\",\"focus\":{},\"parse_source_excerpt\":{},\"validation_excerpt\":{},\"diagnostics_excerpt\":{}}},\"focused_report\":{},\"frontend\":{},\"binding\":{},\"validation\":{},\"diagnostics\":{},\"findings\":{}}}",
         report.ok,
         report.stages.parse.ok,
         report.stages.validation.ok,
@@ -1004,6 +1166,7 @@ fn explain_json(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
         focus_json,
         parse_source_excerpt_json,
         validation_excerpt_json,
+        diagnostics_excerpt_json,
         focused_report_json,
         frontend_json(report.frontend.as_ref()),
         report
@@ -1052,6 +1215,10 @@ fn explain_report(envelope: CompilerEnvelope, source: Option<&str>) -> ExplainRe
         .diagnostics
         .as_ref()
         .and_then(validation_excerpt_from_diagnostics);
+    let diagnostics_excerpt = envelope
+        .diagnostics
+        .as_ref()
+        .and_then(diagnostics_excerpt_from_diagnostics);
     ExplainReport {
         ok,
         binding: envelope.binding,
@@ -1061,6 +1228,7 @@ fn explain_report(envelope: CompilerEnvelope, source: Option<&str>) -> ExplainRe
         stages: envelope.stages,
         parse_source_excerpt,
         validation_excerpt,
+        diagnostics_excerpt,
     }
 }
 
@@ -1131,6 +1299,20 @@ fn explain_focus_text_lines(report: &ExplainReport, focus: ExplainFocus) -> Vec<
         ExplainFocus::Diagnostics => match &report.diagnostics {
             Some(diagnostics) => {
                 let mut lines = vec![format!("diagnostics_ok={}", report.stages.diagnostics.ok)];
+                lines.push(
+                    report
+                        .diagnostics_excerpt
+                        .as_ref()
+                        .map(|excerpt| format!(
+                            "diagnostics_excerpt=model:{} rule:{} missing_facts:{} offsets:{:?} supporting_fragments:{}",
+                            excerpt.model,
+                            excerpt.rule_index,
+                            excerpt.missing_facts.join(","),
+                            excerpt.unsupported_payload_offsets,
+                            excerpt.supporting_fragments.join(",")
+                        ))
+                        .unwrap_or_else(|| "diagnostics_excerpt=none".into()),
+                );
                 lines.extend(
                     diagnostics_text(diagnostics)
                         .lines()
@@ -1188,8 +1370,13 @@ fn explain_focus_json(report: &ExplainReport, focus: ExplainFocus) -> String {
                 .unwrap_or_else(|| "null".to_string())
         ),
         ExplainFocus::Diagnostics => format!(
-            "{{\"kind\":\"diagnostics\",\"ok\":{},\"report\":{}}}",
+            "{{\"kind\":\"diagnostics\",\"ok\":{},\"diagnostics_excerpt\":{},\"report\":{}}}",
             report.stages.diagnostics.ok,
+            report
+                .diagnostics_excerpt
+                .as_ref()
+                .map(diagnostics_excerpt_json)
+                .unwrap_or_else(|| "null".to_string()),
             report
                 .diagnostics
                 .as_ref()
@@ -1288,6 +1475,42 @@ fn validation_excerpt_json(excerpt: &ValidationExcerpt) -> String {
         "{{\"model\":\"{}\",\"rule_index\":{},\"unsupported_payload_offsets\":[{}],\"supporting_fragments\":[{}]}}",
         json_escape_string(&excerpt.model),
         excerpt.rule_index,
+        u16_json_list(&excerpt.unsupported_payload_offsets),
+        string_json_list(&excerpt.supporting_fragments),
+    )
+}
+
+fn diagnostics_excerpt_from_diagnostics(
+    diagnostics: &DiagnosticsReport,
+) -> Option<DiagnosticsExcerpt> {
+    diagnostics
+        .program_model
+        .as_ref()
+        .into_iter()
+        .chain(diagnostics.reason_model.as_ref())
+        .find_map(|model| {
+            model.rules.iter().find_map(|rule| {
+                if rule.supported {
+                    None
+                } else {
+                    Some(DiagnosticsExcerpt {
+                        model: model.model.clone(),
+                        rule_index: rule.rule_index,
+                        missing_facts: rule.missing_facts.clone(),
+                        unsupported_payload_offsets: rule.unsupported_payload_offsets.clone(),
+                        supporting_fragments: rule.supporting_fragments.clone(),
+                    })
+                }
+            })
+        })
+}
+
+fn diagnostics_excerpt_json(excerpt: &DiagnosticsExcerpt) -> String {
+    format!(
+        "{{\"model\":\"{}\",\"rule_index\":{},\"missing_facts\":[{}],\"unsupported_payload_offsets\":[{}],\"supporting_fragments\":[{}]}}",
+        json_escape_string(&excerpt.model),
+        excerpt.rule_index,
+        string_json_list(&excerpt.missing_facts),
         u16_json_list(&excerpt.unsupported_payload_offsets),
         string_json_list(&excerpt.supporting_fragments),
     )
@@ -1433,6 +1656,11 @@ fn frontend_report(summary: FrontendModuleSummary) -> FrontendReport {
             .into_iter()
             .map(frontend_graph_edge_report)
             .collect(),
+        expansion_previews: summary
+            .expansion_previews
+            .into_iter()
+            .map(frontend_expansion_preview_report)
+            .collect(),
     }
 }
 
@@ -1468,6 +1696,17 @@ fn frontend_graph_edge_report(edge: FrontendGraphEdge) -> FrontendGraphEdgeRepor
     }
 }
 
+fn frontend_expansion_preview_report(
+    preview: FrontendExpansionPreview,
+) -> FrontendExpansionPreviewReport {
+    FrontendExpansionPreviewReport {
+        scope: preview.scope,
+        local_bindings: preview.local_bindings,
+        steps: preview.steps,
+        use_targets: preview.use_targets,
+    }
+}
+
 fn frontend_kind_text(kind: FrontendDslKind) -> &'static str {
     match kind {
         FrontendDslKind::Pipeline => "pipeline",
@@ -1492,7 +1731,7 @@ fn frontend_graph_edge_kind_text(kind: FrontendGraphEdgeKind) -> &'static str {
 fn frontend_text(frontend: Option<&FrontendReport>) -> String {
     match frontend {
         Some(frontend) => format!(
-            "kind={} functions={} function_nodes={} merged_steps={} include_sources={} use_edges={} graph_nodes={} graph_edges={}",
+            "kind={} functions={} function_nodes={} merged_steps={} include_sources={} use_edges={} expansions={} graph_nodes={} graph_edges={}",
             frontend.kind,
             frontend.function_count,
             frontend
@@ -1507,6 +1746,12 @@ fn frontend_text(frontend: Option<&FrontendReport>) -> String {
                 .use_edges
                 .iter()
                 .map(|edge| format!("{}->{}@{}", edge.from, edge.to, edge.line))
+                .collect::<Vec<_>>()
+                .join(","),
+            frontend
+                .expansion_previews
+                .iter()
+                .map(|preview| format!("{}:{}", preview.scope, preview.steps.join(" -> ")))
                 .collect::<Vec<_>>()
                 .join(","),
             frontend
@@ -1578,6 +1823,18 @@ fn frontend_report_text(report: &FrontendReport, focus: Option<FrontendFocus>) -
         );
     }
 
+    if report.expansion_previews.is_empty() {
+        lines.push("expansion_previews=none".into());
+    } else {
+        lines.push("expansion_previews:".into());
+        lines.extend(
+            report
+                .expansion_previews
+                .iter()
+                .map(frontend_expansion_preview_text),
+        );
+    }
+
     if report.graph_nodes.is_empty() {
         lines.push("graph_nodes=none".into());
     } else {
@@ -1600,6 +1857,67 @@ fn frontend_report_text(report: &FrontendReport, focus: Option<FrontendFocus>) -
         }));
     }
 
+    lines.join("\n")
+}
+
+fn frontend_report_text_compact(report: &FrontendReport, focus: Option<FrontendFocus>) -> String {
+    let mut lines = vec![format!(
+        "kind={} function_count={} merged_step_count={}",
+        report.kind, report.function_count, report.merged_step_count
+    )];
+    if let Some(focus) = focus {
+        lines.push(format!("focus={}", frontend_focus_text(focus)));
+        match focus {
+            FrontendFocus::Functions => lines.push(format!(
+                "functions={}",
+                if report.function_nodes.is_empty() {
+                    "none".into()
+                } else {
+                    report
+                        .function_nodes
+                        .iter()
+                        .map(|node| format!("{}:{}", node.name, node.step_count))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                }
+            )),
+            FrontendFocus::Includes => lines.push(format!(
+                "include_sources={}",
+                if report.include_sources.is_empty() {
+                    "none".into()
+                } else {
+                    report.include_sources.join(",")
+                }
+            )),
+            FrontendFocus::Graph => lines.push(format!(
+                "graph_nodes={} graph_edges={}",
+                report.graph_nodes.len(),
+                report.graph_edges.len()
+            )),
+            FrontendFocus::Expansion => lines.push(format!(
+                "expansion_previews={}",
+                if report.expansion_previews.is_empty() {
+                    "none".into()
+                } else {
+                    report
+                        .expansion_previews
+                        .iter()
+                        .map(|preview| format!("{}:{}", preview.scope, preview.steps.len()))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                }
+            )),
+        }
+        return lines.join("\n");
+    }
+    lines.push(format!(
+        "includes={} use_edges={} expansion_previews={} graph_nodes={} graph_edges={}",
+        report.include_sources.len(),
+        report.use_edges.len(),
+        report.expansion_previews.len(),
+        report.graph_nodes.len(),
+        report.graph_edges.len()
+    ));
     lines.join("\n")
 }
 
@@ -1626,6 +1944,7 @@ fn frontend_focus_text(focus: FrontendFocus) -> &'static str {
         FrontendFocus::Functions => "functions",
         FrontendFocus::Includes => "includes",
         FrontendFocus::Graph => "graph",
+        FrontendFocus::Expansion => "expansion",
     }
 }
 
@@ -1684,6 +2003,20 @@ fn frontend_focus_text_lines(report: &FrontendReport, focus: FrontendFocus) -> V
             }
             lines
         }
+        FrontendFocus::Expansion => {
+            let mut lines = vec!["expansion_previews:".into()];
+            if report.expansion_previews.is_empty() {
+                lines.push("- none".into());
+            } else {
+                lines.extend(
+                    report
+                        .expansion_previews
+                        .iter()
+                        .map(frontend_expansion_preview_text),
+                );
+            }
+            lines
+        }
     }
 }
 
@@ -1732,13 +2065,22 @@ fn frontend_focus_json(report: &FrontendReport, focus: FrontendFocus) -> String 
                 .collect::<Vec<_>>()
                 .join(",")
         ),
+        FrontendFocus::Expansion => format!(
+            "{{\"kind\":\"expansion\",\"expansion_previews\":[{}]}}",
+            report
+                .expansion_previews
+                .iter()
+                .map(frontend_expansion_preview_json)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
     }
 }
 
 fn frontend_json(frontend: Option<&FrontendReport>) -> String {
     match frontend {
         Some(frontend) => format!(
-            "{{\"kind\":\"{}\",\"function_count\":{},\"function_nodes\":[{}],\"merged_step_count\":{},\"include_sources\":[{}],\"use_edges\":[{}],\"graph_nodes\":[{}],\"graph_edges\":[{}]}}",
+            "{{\"kind\":\"{}\",\"function_count\":{},\"function_nodes\":[{}],\"merged_step_count\":{},\"include_sources\":[{}],\"use_edges\":[{}],\"graph_nodes\":[{}],\"graph_edges\":[{}],\"expansion_previews\":[{}]}}",
             frontend.kind,
             frontend.function_count,
             frontend
@@ -1784,10 +2126,48 @@ fn frontend_json(frontend: Option<&FrontendReport>) -> String {
                     edge.from, edge.to, edge.kind, edge.line
                 ))
                 .collect::<Vec<_>>()
+                .join(","),
+            frontend
+                .expansion_previews
+                .iter()
+                .map(frontend_expansion_preview_json)
+                .collect::<Vec<_>>()
                 .join(",")
         ),
         None => "null".into(),
     }
+}
+
+fn frontend_expansion_preview_text(preview: &FrontendExpansionPreviewReport) -> String {
+    let bindings = if preview.local_bindings.is_empty() {
+        "none".to_string()
+    } else {
+        preview.local_bindings.join(", ")
+    };
+    let uses = if preview.use_targets.is_empty() {
+        "none".to_string()
+    } else {
+        preview.use_targets.join(", ")
+    };
+    let steps = if preview.steps.is_empty() {
+        "none".to_string()
+    } else {
+        preview.steps.join(" -> ")
+    };
+    format!(
+        "- {} bindings=[{}] uses=[{}] steps=[{}]",
+        preview.scope, bindings, uses, steps
+    )
+}
+
+fn frontend_expansion_preview_json(preview: &FrontendExpansionPreviewReport) -> String {
+    format!(
+        "{{\"scope\":\"{}\",\"local_bindings\":[{}],\"steps\":[{}],\"use_targets\":[{}]}}",
+        preview.scope,
+        string_json_list(&preview.local_bindings),
+        string_json_list(&preview.steps),
+        string_json_list(&preview.use_targets),
+    )
 }
 
 fn finding_text(finding: Option<&CompilerFinding>) -> String {
@@ -2965,6 +3345,14 @@ template(:broken_pipeline_use)
         assert!(!report.function_nodes.is_empty());
         assert!(!report.graph_nodes.is_empty());
         assert!(!report.graph_edges.is_empty());
+        assert!(!report.expansion_previews.is_empty());
+        assert_eq!(report.expansion_previews[0].scope, "entry");
+        assert!(
+            report.expansion_previews[0]
+                .steps
+                .iter()
+                .any(|step| step.starts_with("use("))
+        );
     }
 
     #[test]
@@ -3038,6 +3426,31 @@ template(:broken_offsets)
         assert!(json.contains("unsupported_payload_offsets"));
         assert!(json.contains("\"validation_excerpt\""));
         assert!(json.contains("\"model\":\"broken_offsets_model\""));
+    }
+
+    #[test]
+    fn explain_report_includes_diagnostics_excerpt_for_rule_support_failures() {
+        let report = compile_explain_report_str(
+            r#"
+template(:broken_offset_validation)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:broken_offset_validation_model)
+|> operation(:snmp_get)
+|> program_rule(predicate: "datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0", stage: :datagram_observed, narrative: "static:snmp seen", dedupe: true)
+"#,
+        );
+        let text = render_explain_report_with_focus(
+            &report,
+            RenderFormat::Text,
+            Some(ExplainFocus::Diagnostics),
+        );
+        let json = render_explain_report(&report, RenderFormat::Json);
+        assert!(text.contains("diagnostics_excerpt=model:broken_offset_validation_model"));
+        assert!(text.contains("offsets:[8]"));
+        assert!(json.contains("\"diagnostics_excerpt\""));
+        assert!(json.contains("\"model\":\"broken_offset_validation_model\""));
     }
 
     #[test]

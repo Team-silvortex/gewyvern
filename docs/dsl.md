@@ -113,6 +113,8 @@ If you only want the front-end shape without the full staged compiler report,
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus graph
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus expansion
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --compact
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --emit frontend --json --out /tmp/udp-process-frontend.json
 ```
 
@@ -121,6 +123,8 @@ The text form is intentionally optimized for human inspection: it prints
 `graph_edges` as separate multi-line sections instead of a single compact line.
 When you only want one part, `--focus functions|includes|graph` keeps the top
 summary and expands just that section.
+When you just want a quick terminal scan, `--compact` keeps the same summary
+surface but compresses it into a much shorter text form.
 
 If you want one human-oriented debugging surface that narrates the compiler
 state from parse/front-end through validation, diagnostics, and findings,
@@ -130,6 +134,7 @@ state from parse/front-end through validation, diagnostics, and findings,
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --compact
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --emit explain --json --out /tmp/udp-process-explain.json
 ```
 
@@ -146,8 +151,26 @@ For validation failures around payload coverage, `explain` now also includes a
 lightweight `validation_excerpt` that points at the first failing model/rule
 and its unsupported offsets, so the next debugging step is less guessy.
 
-When you only want one layer, `--focus parse|frontend|validation|diagnostics|findings`
-keeps the top summary but expands just that section.
+For diagnostics/rule-support failures, `explain` now includes a matching
+`diagnostics_excerpt` with the first unsupported rule, its missing facts or
+unsupported offsets, and the fragments that are currently supporting it.
+
+That keeps `explain --focus diagnostics` useful even when the full diagnostics
+report is large: you get one concrete rule-sized starting point instead of
+having to scan the whole model first.
+
+When you only want one layer, `explain --focus parse|frontend|validation|diagnostics|findings`
+keeps the top summary but expands just that section, and
+`frontend --focus functions|includes|graph|expansion` does the same for the
+pipeline front-end view. The `expansion` focus is the quickest way to answer
+"what do entry and functions actually expand into?" without reading the full
+graph first.
+When you only want the high-level answer, `--compact` keeps `explain` readable
+in a short terminal view without changing the JSON schema.
+
+If you are wiring these surfaces into an editor, script, or lightweight IDE
+tool, the small JSON shape guide lives in
+[docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md).
 
 When pipeline/package parsing fails, `gewyc findings` and `gewyc stages` now
 surface more specific parse codes for front-end errors such as unknown

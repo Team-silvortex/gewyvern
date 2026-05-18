@@ -32,6 +32,7 @@ pub struct FrontendModuleSummary {
     pub use_edges: Vec<FrontendUseEdge>,
     pub graph_nodes: Vec<FrontendGraphNode>,
     pub graph_edges: Vec<FrontendGraphEdge>,
+    pub expansion_previews: Vec<FrontendExpansionPreview>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -73,6 +74,14 @@ pub struct FrontendGraphEdge {
     pub to: String,
     pub kind: FrontendGraphEdgeKind,
     pub line: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendExpansionPreview {
+    pub scope: String,
+    pub local_bindings: Vec<String>,
+    pub steps: Vec<String>,
+    pub use_targets: Vec<String>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -157,6 +166,7 @@ fn summarize_frontend_str_with_base(
         let use_edges = pipeline_use_edges(&module);
         let graph_nodes = pipeline_graph_nodes(&module);
         let graph_edges = pipeline_graph_edges(&module);
+        let expansion_previews = pipeline_expansion_previews(&module);
         return Ok(FrontendModuleSummary {
             kind: FrontendDslKind::Pipeline,
             function_count: module.functions.len(),
@@ -166,6 +176,7 @@ fn summarize_frontend_str_with_base(
             use_edges,
             graph_nodes,
             graph_edges,
+            expansion_previews,
         });
     }
     Err(DslError::InvalidValue(
@@ -240,6 +251,46 @@ fn pipeline_graph_edges(module: &PipelineModule) -> Vec<FrontendGraphEdge> {
             )
     });
     edges
+}
+
+fn pipeline_expansion_previews(module: &PipelineModule) -> Vec<FrontendExpansionPreview> {
+    let mut previews = vec![FrontendExpansionPreview {
+        scope: "entry".to_string(),
+        local_bindings: Vec::new(),
+        steps: module.body.iter().map(pipeline_call_preview).collect(),
+        use_targets: module
+            .body
+            .iter()
+            .filter(|call| call.name == "use")
+            .filter_map(|call| parse_pipeline_single_arg(&call.args, "use").ok())
+            .collect(),
+    }];
+    previews.extend(module.functions.iter().map(|(name, function)| {
+        FrontendExpansionPreview {
+            scope: name.clone(),
+            local_bindings: function
+                .local_bindings
+                .iter()
+                .map(|binding| binding.name.clone())
+                .collect(),
+            steps: function.body.iter().map(pipeline_call_preview).collect(),
+            use_targets: function
+                .body
+                .iter()
+                .filter(|call| call.name == "use")
+                .filter_map(|call| parse_pipeline_single_arg(&call.args, "use").ok())
+                .collect(),
+        }
+    }));
+    previews
+}
+
+fn pipeline_call_preview(call: &PipelineCall) -> String {
+    if call.args.is_empty() {
+        call.name.clone()
+    } else {
+        format!("{}({})", call.name, call.args.join(", "))
+    }
 }
 
 fn scope_graph_id(scope: &str) -> String {

@@ -3,8 +3,8 @@ use gewyvern::gewyc::{
     CompilerEnvelope, ExplainFocus, FrontendFocus, RenderFormat, compile_envelope_file,
     compile_explain_report_file, compile_frontend_report_file, render_binding_report,
     render_diagnostics_report, render_envelope_report, render_explain_report,
-    render_explain_report_with_focus, render_findings_report, render_frontend_report_with_focus,
-    render_stages_report,
+    render_explain_report_with_options, render_findings_report,
+    render_frontend_report_with_options, render_stages_report,
 };
 use std::env;
 use std::fs;
@@ -46,6 +46,7 @@ struct Cli {
     path: String,
     output: OutputMode,
     focus: Option<String>,
+    compact: bool,
     out: Option<String>,
 }
 
@@ -99,6 +100,7 @@ impl UiLocale {
             (Self::Zh, "missing_out") => "缺少 --out 的值，期望输出路径",
             (Self::Zh, "missing_focus") => "缺少 --focus 的值",
             (Self::Zh, "invalid_focus") => "--focus 只适用于 explain、frontend 或对应的 --emit",
+            (Self::Zh, "invalid_compact") => "--compact 只适用于 explain、frontend 或对应的 --emit",
             (Self::Zh, "write_failed") => "写入输出失败",
             (Self::Zh, "init_failed") => "初始化 gewy package 失败",
             (Self::Zh, "lock_failed") => "生成 gewy.lock 失败",
@@ -116,6 +118,9 @@ impl UiLocale {
             (_, "missing_focus") => "missing value for --focus",
             (_, "invalid_focus") => {
                 "--focus is only valid with explain/frontend or their --emit forms"
+            }
+            (_, "invalid_compact") => {
+                "--compact is only valid with explain/frontend or their --emit forms"
             }
             (_, "write_failed") => "failed to write output",
             (_, "init_failed") => "failed to initialize gewy package",
@@ -151,12 +156,14 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
     let mut path = None;
     let mut output = OutputMode::Text;
     let mut focus = None;
+    let mut compact = false;
     let mut out = None;
 
     let mut iter = args.into_iter().skip(1);
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "--json" => output = OutputMode::Json,
+            "--compact" => compact = true,
             "--emit" => {
                 let value = iter
                     .next()
@@ -259,12 +266,25 @@ fn parse_cli(args: Vec<String>, locale: UiLocale) -> Result<Cli, String> {
             locale.usage()
         ));
     }
+    if compact
+        && !(command == Command::Explain
+            || emit == EmitTarget::Explain
+            || command == Command::Frontend
+            || emit == EmitTarget::Frontend)
+    {
+        return Err(format!(
+            "{}\n{}",
+            locale.msg("invalid_compact"),
+            locale.usage()
+        ));
+    }
     Ok(Cli {
         command,
         emit,
         path,
         output,
         focus,
+        compact,
         out,
     })
 }
@@ -308,7 +328,8 @@ fn run_explain(cli: Cli, locale: UiLocale) {
         std::process::exit(1);
     });
     let focus = parse_explain_focus(cli.focus.as_deref(), locale);
-    let out = render_explain_report_with_focus(&report, render_format(cli.output), focus);
+    let out =
+        render_explain_report_with_options(&report, render_format(cli.output), focus, cli.compact);
     emit_output(&out, cli.out.as_deref(), locale);
 }
 
@@ -318,7 +339,8 @@ fn run_frontend(cli: Cli, locale: UiLocale) {
         std::process::exit(1);
     });
     let focus = parse_frontend_focus(cli.focus.as_deref(), locale);
-    let out = render_frontend_report_with_focus(&report, render_format(cli.output), focus);
+    let out =
+        render_frontend_report_with_options(&report, render_format(cli.output), focus, cli.compact);
     emit_output(&out, cli.out.as_deref(), locale);
 }
 
@@ -341,6 +363,7 @@ fn parse_frontend_focus(value: Option<&str>, locale: UiLocale) -> Option<Fronten
         "functions" => FrontendFocus::Functions,
         "includes" => FrontendFocus::Includes,
         "graph" => FrontendFocus::Graph,
+        "expansion" => FrontendFocus::Expansion,
         other => {
             eprintln!("{}: {other}\n{}", locale.msg("unknown_arg"), locale.usage());
             std::process::exit(2);
@@ -466,8 +489,9 @@ mod tests {
     use gewyvern::gewyc::{
         RenderFormat, compile_binding_report_file, compile_envelope_file,
         compile_explain_report_file, compile_frontend_report_file, render_binding_report,
-        render_envelope_report, render_explain_report_with_focus, render_frontend_report,
-        render_frontend_report_with_focus,
+        render_envelope_report, render_explain_report_with_focus,
+        render_explain_report_with_options, render_frontend_report,
+        render_frontend_report_with_focus, render_frontend_report_with_options,
     };
 
     #[test]
@@ -485,6 +509,7 @@ mod tests {
                 path: "dsl/udp_process_debug.gewy".into(),
                 output: OutputMode::Text,
                 focus: None,
+                compact: false,
                 out: None,
             }
         );
@@ -574,6 +599,21 @@ mod tests {
     }
 
     #[test]
+    fn parse_cli_accepts_compact_for_explain() {
+        let cli = parse_cli(
+            vec![
+                "gewyc".into(),
+                "explain".into(),
+                "dsl/udp_process_debug.gewy".into(),
+                "--compact".into(),
+            ],
+            UiLocale::En,
+        )
+        .unwrap();
+        assert!(cli.compact);
+    }
+
+    #[test]
     fn parse_cli_rejects_focus_outside_explain() {
         let err = parse_cli(
             vec![
@@ -587,6 +627,21 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.contains("--focus is only valid with explain/frontend"));
+    }
+
+    #[test]
+    fn parse_cli_rejects_compact_outside_explain() {
+        let err = parse_cli(
+            vec![
+                "gewyc".into(),
+                "diagnostics".into(),
+                "dsl/udp_process_debug.gewy".into(),
+                "--compact".into(),
+            ],
+            UiLocale::En,
+        )
+        .unwrap_err();
+        assert!(err.contains("--compact is only valid with explain/frontend"));
     }
 
     #[test]
@@ -762,6 +817,41 @@ mod tests {
     }
 
     #[test]
+    fn frontend_command_focuses_expansion_section() {
+        let report = compile_frontend_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        let text = render_frontend_report_with_focus(
+            &report,
+            RenderFormat::Text,
+            Some(FrontendFocus::Expansion),
+        );
+        let json = render_frontend_report_with_focus(
+            &report,
+            RenderFormat::Json,
+            Some(FrontendFocus::Expansion),
+        );
+        assert!(text.contains("focus=expansion"));
+        assert!(text.contains("expansion_previews:"));
+        assert!(json.contains("\"focus\":\"expansion\""));
+        assert!(json.contains("\"expansion_previews\""));
+    }
+
+    #[test]
+    fn frontend_command_compact_text_stays_short() {
+        let report = compile_frontend_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        let text = render_frontend_report_with_options(&report, RenderFormat::Text, None, true);
+        assert!(text.contains("kind=pipeline"));
+        assert!(text.contains("includes="));
+        assert!(!text.contains("function_nodes:"));
+        assert!(!text.contains("graph_nodes:"));
+    }
+
+    #[test]
     fn explain_command_renders_human_oriented_compiler_summary() {
         let report = compile_explain_report_file(
             "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
@@ -796,6 +886,19 @@ mod tests {
         assert!(text.contains("unsupported_payload_offsets="));
         assert!(json.contains("\"focus\":\"validation\""));
         assert!(json.contains("\"focused_report\""));
+    }
+
+    #[test]
+    fn explain_command_compact_text_stays_short() {
+        let report = compile_explain_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        let text = render_explain_report_with_options(&report, RenderFormat::Text, None, true);
+        assert!(text.contains("surface=explain ok=true"));
+        assert!(text.contains("template=udp_process_debug"));
+        assert!(!text.contains("frontend:"));
+        assert!(!text.contains("validation:"));
     }
 
     #[test]

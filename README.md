@@ -177,7 +177,9 @@ the fastest:
    `failure_confidence`, and `failure_basis`.
 12. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
    Gewy language shape, package model, and compiler-facing usage.
-13. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
+13. [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+   Small JSON schema guide for `gewyc frontend --json` and `gewyc explain --json`.
+14. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
    Draft formal grammar for the preferred pipeline surface of `gewylang`.
 
 ## Main Entrypoints
@@ -465,6 +467,7 @@ Main commands:
 - `cargo run -p gewyc -- explain <path.gewy> --focus validation`
 - `cargo run -p gewyc -- frontend <path.gewy> --json`
 - `cargo run -p gewyc -- frontend <path.gewy> --focus graph`
+- `cargo run -p gewyc -- frontend <path.gewy> --focus expansion`
 - `cargo run -p gewyc -- diagnostics <path.gewy> --json`
 - `cargo run -p gewyc -- findings <path.gewy> --json`
 - `cargo run -p gewyc -- stages <path.gewy> --json`
@@ -643,6 +646,7 @@ cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus graph
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus expansion
 cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
 cargo run -p gewyc -- findings /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
 cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
@@ -674,6 +678,7 @@ cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_quer
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --focus parse
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --focus includes
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --focus expansion
 cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy
 cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json
 cargo run -p gewyc -- findings /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json
@@ -853,6 +858,7 @@ cargo linux-smoke
 - [docs/walkthrough.md](/Users/Shared/chroot/dev/gewyvern/docs/walkthrough.md)
 - [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+- [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
 - [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
 - [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)
