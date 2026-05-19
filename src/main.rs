@@ -3819,11 +3819,12 @@ mod tests {
         update_api_snapshot_for_scan, update_api_snapshot_for_single,
     };
     use super::{
-        Cli, IngestMode, ReportFormat, annotate_export_trust, filter_export_by_pid, findings_json,
-        list_entries_json, list_entries_text, list_protocols_json, list_protocols_text,
-        protocol_dsl_path, render_report_outputs, route_fact, run_binding_demo, scan_report_html,
-        scan_report_json, scan_report_text, scan_targets_for_cli, scan_targets_from_set_file,
-        summary_json, summary_line,
+        AnalysisAugmenter, AnalysisSnapshot, Cli, IngestMode, ReportFormat, analysis_snapshot_with,
+        annotate_export_trust, filter_export_by_pid, findings_json, list_entries_json,
+        list_entries_text, list_protocols_json, list_protocols_text, protocol_dsl_path,
+        render_report_outputs, route_fact, run_binding_demo, scan_report_html, scan_report_json,
+        scan_report_text, scan_targets_for_cli, scan_targets_from_set_file, summary_json,
+        summary_line,
     };
     use gewyvern::dsl::compile_file;
     use gewyvern::export::ExportBundle;
@@ -3883,6 +3884,37 @@ mod tests {
         export.debug_summary.program_findings = export.program_findings.len() as u64;
         export.debug_summary.module_findings = export.module_findings.len() as u64;
         export
+    }
+
+    #[test]
+    fn analysis_snapshot_supports_composable_augmenters() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let augmenter = MlHookAugmenter;
+        let snapshot = analysis_snapshot_with(&export, &[&augmenter]);
+
+        assert_eq!(snapshot.primary_failure_confidence, "ml-candidate");
+        assert!(
+            snapshot
+                .competing_hypotheses
+                .contains(&"augmenter:ml_rerank_hook".to_string()),
+            "augmenters should be able to enrich the shared analysis snapshot",
+        );
+    }
+
+    struct MlHookAugmenter;
+
+    impl AnalysisAugmenter for MlHookAugmenter {
+        fn augment(&self, _export: &ExportBundle, snapshot: &mut AnalysisSnapshot) {
+            snapshot.primary_failure_confidence = "ml-candidate".into();
+            snapshot
+                .competing_hypotheses
+                .push("augmenter:ml_rerank_hook".into());
+        }
     }
 
     fn push_synthetic_missing_stage_finding(

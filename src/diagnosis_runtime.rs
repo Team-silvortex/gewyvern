@@ -14,28 +14,67 @@ pub(super) struct ProtocolFlowFindingSummary {
 }
 
 #[derive(Clone, Default)]
-pub(super) struct ProcessNetworkProfileSummary {
-    pub(super) pid: u32,
-    pub(super) comm: String,
-    pub(super) status: String,
-    pub(super) primary_module_kind: String,
-    pub(super) primary_module_family: String,
-    pub(super) primary_failure_stage: String,
-    pub(super) primary_stage_family: String,
-    pub(super) primary_failure_mode: String,
-    pub(super) primary_failure_detail: String,
-    pub(super) primary_failure_confidence: String,
-    pub(super) primary_failure_basis: String,
-    pub(super) ambiguous: bool,
-    pub(super) competing_hypotheses: Vec<String>,
-    pub(super) operations: Vec<String>,
-    pub(super) module_kinds: Vec<String>,
-    pub(super) phases: Vec<String>,
-    pub(super) missing_transitions: Vec<String>,
-    pub(super) suspect_areas: Vec<String>,
-    pub(super) suspect_modules: Vec<String>,
-    pub(super) healthy_flows: usize,
-    pub(super) attention_flows: usize,
+pub(crate) struct ProtocolFlowAnalysisSummary {
+    pub(crate) program_flow: u64,
+    pub(crate) process: Option<gewyvern::flow::ProcessView>,
+    pub(crate) operation: String,
+    pub(crate) network_module_kind: String,
+    pub(crate) network_module_kinds: Vec<String>,
+    pub(crate) status: String,
+    pub(crate) failure_mode: String,
+    pub(crate) failure_detail: String,
+    pub(crate) failure_confidence: String,
+    pub(crate) failure_basis: String,
+    pub(crate) phases: Vec<String>,
+    pub(crate) last_phase: Option<String>,
+    pub(crate) missing_transitions: Vec<String>,
+    pub(crate) suspect_areas: Vec<String>,
+}
+
+#[derive(Clone, Default)]
+pub(crate) struct ProcessNetworkProfileSummary {
+    pub(crate) pid: u32,
+    pub(crate) comm: String,
+    pub(crate) status: String,
+    pub(crate) primary_module_kind: String,
+    pub(crate) primary_module_family: String,
+    pub(crate) primary_failure_stage: String,
+    pub(crate) primary_stage_family: String,
+    pub(crate) primary_failure_mode: String,
+    pub(crate) primary_failure_detail: String,
+    pub(crate) primary_failure_confidence: String,
+    pub(crate) primary_failure_basis: String,
+    pub(crate) ambiguous: bool,
+    pub(crate) competing_hypotheses: Vec<String>,
+    pub(crate) operations: Vec<String>,
+    pub(crate) module_kinds: Vec<String>,
+    pub(crate) phases: Vec<String>,
+    pub(crate) missing_transitions: Vec<String>,
+    pub(crate) suspect_areas: Vec<String>,
+    pub(crate) suspect_modules: Vec<String>,
+    pub(crate) healthy_flows: usize,
+    pub(crate) attention_flows: usize,
+}
+
+#[derive(Clone, Default)]
+pub(crate) struct AnalysisSnapshot {
+    pub(crate) target_status: ScanTargetStatus,
+    pub(crate) primary_process_profile: Option<ProcessNetworkProfileSummary>,
+    pub(crate) primary_module_kind: String,
+    pub(crate) primary_failure_stage: String,
+    pub(crate) primary_failure_mode: String,
+    pub(crate) primary_failure_detail: String,
+    pub(crate) primary_failure_confidence: String,
+    pub(crate) primary_failure_basis: String,
+    pub(crate) primary_process_profile_ambiguous: bool,
+    pub(crate) competing_hypotheses: Vec<String>,
+    pub(crate) suspect_modules: Vec<String>,
+    pub(crate) process_profiles: Vec<ProcessNetworkProfileSummary>,
+    pub(crate) protocol_flows: Vec<ProtocolFlowAnalysisSummary>,
+}
+
+pub(crate) trait AnalysisAugmenter {
+    fn augment(&self, export: &ExportBundle, snapshot: &mut AnalysisSnapshot);
 }
 
 pub(super) fn first_or_none(items: &[String]) -> String {
@@ -565,15 +604,16 @@ pub(super) fn failure_confidence_label(
     }
 }
 
-#[derive(Clone, Copy)]
-pub(super) enum ScanTargetStatus {
+#[derive(Clone, Copy, Default)]
+pub(crate) enum ScanTargetStatus {
+    #[default]
     Idle,
     Healthy,
     Attention,
 }
 
 impl ScanTargetStatus {
-    pub(super) fn label(self) -> &'static str {
+    pub(crate) fn label(self) -> &'static str {
         match self {
             Self::Idle => "idle",
             Self::Healthy => "healthy",
@@ -737,114 +777,117 @@ pub(super) fn protocol_flow_failure_basis(
     failure_basis_label(status, module_kind, &primary_stage, suspect_areas).to_string()
 }
 
-fn protocol_flow_summary_item_json(
+fn protocol_flow_analysis_summary(
     flow: &gewyvern::flow::ProgramFlow,
     finding_summary: Option<&ProtocolFlowFindingSummary>,
-) -> String {
+) -> ProtocolFlowAnalysisSummary {
     let phases = protocol_flow_phases(flow);
+    let last_phase = protocol_flow_last_phase(flow);
     let network_module_kind = gewyvern::flow::infer_network_module_kind(
         &flow.operation,
-        protocol_flow_last_phase(flow).as_deref(),
+        last_phase.as_deref(),
         None,
         "network_module",
-    );
-    let missing_transitions = finding_summary
-        .map(|summary| summary.missing_transitions.as_slice())
-        .unwrap_or(&[]);
-    let network_module_kinds = finding_summary
-        .map(|summary| summary.network_module_kinds.as_slice())
-        .unwrap_or(&[]);
-    let suspect_areas = finding_summary
-        .map(|summary| summary.suspect_areas.as_slice())
-        .unwrap_or(&[]);
-    let failure_mode = protocol_flow_failure_mode(flow, finding_summary);
-    let failure_detail = protocol_flow_failure_detail(flow, finding_summary);
-    let failure_confidence = protocol_flow_failure_confidence(flow, finding_summary);
-    let failure_basis = protocol_flow_failure_basis(flow, finding_summary);
-    format!(
-        "{{\"program_flow\":{},\"process\":{},\"operation\":\"{}\",\"network_module_kind\":\"{}\",\"network_module_kinds\":{},\"status\":\"{}\",\"failure_mode\":\"{}\",\"failure_mode_family\":\"{}\",\"failure_detail\":\"{}\",\"failure_detail_family\":\"{}\",\"failure_confidence\":\"{}\",\"failure_basis\":\"{}\",\"phases\":{},\"last_phase\":{},\"missing_transitions\":{},\"suspect_areas\":{}}}",
-        flow.id.0,
-        process_json(flow.process.as_ref()),
-        operation_label(&flow.operation),
-        network_module_kind,
-        if network_module_kinds.is_empty() {
-            format!("[\"{network_module_kind}\"]")
-        } else {
-            string_list_json(network_module_kinds)
-        },
-        protocol_flow_status(flow, finding_summary),
-        failure_mode,
-        failure_mode_family_label(&failure_mode),
-        failure_detail,
-        failure_detail_family_label(&failure_detail),
-        failure_confidence,
-        failure_basis,
-        string_list_json(&phases),
-        protocol_flow_last_phase(flow)
-            .map(|phase| format!("\"{}\"", phase))
-            .unwrap_or_else(|| "null".into()),
-        string_list_json(missing_transitions),
-        string_list_json(suspect_areas),
     )
+    .to_string();
+    let missing_transitions = finding_summary
+        .map(|summary| summary.missing_transitions.clone())
+        .unwrap_or_default();
+    let network_module_kinds = finding_summary
+        .map(|summary| summary.network_module_kinds.clone())
+        .filter(|items| !items.is_empty())
+        .unwrap_or_else(|| vec![network_module_kind.clone()]);
+    let suspect_areas = finding_summary
+        .map(|summary| summary.suspect_areas.clone())
+        .unwrap_or_default();
+    ProtocolFlowAnalysisSummary {
+        program_flow: flow.id.0,
+        process: flow.process.clone(),
+        operation: operation_label(&flow.operation),
+        network_module_kind,
+        network_module_kinds,
+        status: protocol_flow_status(flow, finding_summary).to_string(),
+        failure_mode: protocol_flow_failure_mode(flow, finding_summary),
+        failure_detail: protocol_flow_failure_detail(flow, finding_summary),
+        failure_confidence: protocol_flow_failure_confidence(flow, finding_summary),
+        failure_basis: protocol_flow_failure_basis(flow, finding_summary),
+        phases,
+        last_phase,
+        missing_transitions,
+        suspect_areas,
+    }
 }
 
-pub(super) fn protocol_flow_summaries_json(export: &ExportBundle) -> String {
+fn protocol_flow_analysis_summaries(export: &ExportBundle) -> Vec<ProtocolFlowAnalysisSummary> {
     let finding_summaries = protocol_flow_finding_summaries(export);
+    export
+        .program_flows
+        .iter()
+        .map(|flow| protocol_flow_analysis_summary(flow, finding_summaries.get(&flow.id)))
+        .collect()
+}
+
+pub(crate) fn protocol_flow_summaries_json_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
     format!(
         "[{}]",
-        export
-            .program_flows
+        snapshot
+            .protocol_flows
             .iter()
-            .map(|flow| protocol_flow_summary_item_json(flow, finding_summaries.get(&flow.id)))
+            .map(|flow| format!(
+                "{{\"program_flow\":{},\"process\":{},\"operation\":\"{}\",\"network_module_kind\":\"{}\",\"network_module_kinds\":{},\"status\":\"{}\",\"failure_mode\":\"{}\",\"failure_mode_family\":\"{}\",\"failure_detail\":\"{}\",\"failure_detail_family\":\"{}\",\"failure_confidence\":\"{}\",\"failure_basis\":\"{}\",\"phases\":{},\"last_phase\":{},\"missing_transitions\":{},\"suspect_areas\":{}}}",
+                flow.program_flow,
+                process_json(flow.process.as_ref()),
+                flow.operation,
+                flow.network_module_kind,
+                string_list_json(&flow.network_module_kinds),
+                flow.status,
+                flow.failure_mode,
+                failure_mode_family_label(&flow.failure_mode),
+                flow.failure_detail,
+                failure_detail_family_label(&flow.failure_detail),
+                flow.failure_confidence,
+                flow.failure_basis,
+                string_list_json(&flow.phases),
+                flow.last_phase
+                    .as_ref()
+                    .map(|phase| format!("\"{}\"", phase))
+                    .unwrap_or_else(|| "null".into()),
+                string_list_json(&flow.missing_transitions),
+                string_list_json(&flow.suspect_areas),
+            ))
             .collect::<Vec<_>>()
             .join(",")
     )
 }
 
-pub(super) fn protocol_flow_summaries_text(export: &ExportBundle) -> String {
+pub(crate) fn protocol_flow_summaries_text_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
     let locale = UiLocale::detect();
-    if export.program_flows.is_empty() {
+    if snapshot.protocol_flows.is_empty() {
         return locale.none().to_string();
     }
-    let finding_summaries = protocol_flow_finding_summaries(export);
-    export
-        .program_flows
+    snapshot
+        .protocol_flows
         .iter()
         .map(|flow| {
-            let phases = protocol_flow_phases(flow);
-            let finding_summary = finding_summaries.get(&flow.id);
-            let network_module_kind = gewyvern::flow::infer_network_module_kind(
-                &flow.operation,
-                protocol_flow_last_phase(flow).as_deref(),
-                None,
-                "network_module",
-            );
-            let missing_transitions = finding_summary
-                .map(|summary| summary.missing_transitions.as_slice())
-                .unwrap_or(&[]);
-            let phase_text = if phases.is_empty() {
+            let phase_text = if flow.phases.is_empty() {
                 locale.none().to_string()
             } else {
-                phases.join(">")
+                flow.phases.join(">")
             };
-            let missing_text = if missing_transitions.is_empty() {
+            let missing_text = if flow.missing_transitions.is_empty() {
                 String::new()
             } else {
-                format!(" missing={}", missing_transitions.join("|"))
+                format!(" missing={}", flow.missing_transitions.join("|"))
             };
-            let failure_mode = protocol_flow_failure_mode(flow, finding_summary);
-            let failure_detail = protocol_flow_failure_detail(flow, finding_summary);
-            let failure_confidence = protocol_flow_failure_confidence(flow, finding_summary);
-            let failure_basis = protocol_flow_failure_basis(flow, finding_summary);
             format!(
                 "{}[kind={} status={} failure_mode={} failure_detail={} confidence={} basis={} phases={}{}]",
-                operation_label(&flow.operation),
-                network_module_kind,
-                protocol_flow_status(flow, finding_summary),
-                failure_mode,
-                failure_detail,
-                failure_confidence,
-                failure_basis,
+                flow.operation,
+                flow.network_module_kind,
+                flow.status,
+                flow.failure_mode,
+                flow.failure_detail,
+                flow.failure_confidence,
+                flow.failure_basis,
                 phase_text,
                 missing_text
             )
@@ -1110,10 +1153,13 @@ pub(super) fn process_network_profile_summaries(
     profiles
 }
 
-pub(super) fn process_network_profiles_json(export: &ExportBundle) -> String {
+pub(crate) fn process_network_profiles_json_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
     format!(
         "[{}]",
-        process_network_profile_summaries(export)
+        snapshot
+            .process_profiles
+            .iter()
+            .cloned()
             .into_iter()
             .map(|profile| format!(
                 "{{\"pid\":{},\"comm\":\"{}\",\"status\":\"{}\",\"ambiguous\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"competing_hypotheses\":{},\"operations\":{},\"module_kinds\":{},\"phases\":{},\"missing_transitions\":{},\"suspect_areas\":{},\"suspect_modules\":{},\"healthy_flows\":{},\"attention_flows\":{}}}",
@@ -1146,9 +1192,14 @@ pub(super) fn process_network_profiles_json(export: &ExportBundle) -> String {
     )
 }
 
-pub(super) fn process_network_profiles_text(export: &ExportBundle) -> String {
+#[cfg(test)]
+pub(crate) fn process_network_profiles_json(export: &ExportBundle) -> String {
+    process_network_profiles_json_from_snapshot(&analysis_snapshot(export))
+}
+
+pub(crate) fn process_network_profiles_text_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
     let locale = UiLocale::detect();
-    let profiles = process_network_profile_summaries(export);
+    let profiles = snapshot.process_profiles.clone();
     if profiles.is_empty() {
         return locale.none().to_string();
     }
@@ -1198,22 +1249,9 @@ pub(super) fn process_network_profiles_text(export: &ExportBundle) -> String {
         .join(",")
 }
 
-pub(super) fn primary_process_profile_ambiguous_for_export(export: &ExportBundle) -> bool {
-    primary_process_profile_for_export(export)
-        .map(|profile| profile.ambiguous)
-        .unwrap_or(false)
-}
-
-pub(super) fn competing_hypotheses_for_export(export: &ExportBundle) -> String {
-    primary_process_profile_for_export(export)
-        .map(|profile| string_list_json(&profile.competing_hypotheses))
-        .unwrap_or_else(|| "[]".into())
-}
-
-pub(super) fn primary_process_profile_for_export(
-    export: &ExportBundle,
+fn primary_process_profile_from_profiles(
+    mut profiles: Vec<ProcessNetworkProfileSummary>,
 ) -> Option<ProcessNetworkProfileSummary> {
-    let mut profiles = process_network_profile_summaries(export);
     profiles.sort_by(|left, right| {
         let left_rank = match left.status.as_str() {
             "attention" => 0,
@@ -1235,121 +1273,175 @@ pub(super) fn primary_process_profile_for_export(
     profiles.into_iter().next()
 }
 
+pub(crate) fn analysis_snapshot(export: &ExportBundle) -> AnalysisSnapshot {
+    analysis_snapshot_with(export, &[])
+}
+
+pub(crate) fn analysis_snapshot_with(
+    export: &ExportBundle,
+    augmenters: &[&dyn AnalysisAugmenter],
+) -> AnalysisSnapshot {
+    let process_profiles = process_network_profile_summaries(export);
+    let primary_process_profile = primary_process_profile_from_profiles(process_profiles.clone());
+    let primary_module_kind = if let Some(profile) = primary_process_profile.as_ref() {
+        profile.primary_module_kind.clone()
+    } else if let Some(finding) = export.program_findings.first() {
+        finding.network_module_kind.clone()
+    } else {
+        export
+            .program_flows
+            .first()
+            .map(|flow| {
+                gewyvern::flow::infer_network_module_kind(
+                    &flow.operation,
+                    protocol_flow_last_phase(flow).as_deref(),
+                    None,
+                    "network_module",
+                )
+                .to_string()
+            })
+            .unwrap_or_else(|| "none".into())
+    };
+    let primary_failure_stage = if let Some(profile) = primary_process_profile.as_ref() {
+        profile.primary_failure_stage.clone()
+    } else if let Some(finding) = export.program_findings.first() {
+        finding
+            .phase_transition
+            .clone()
+            .or_else(|| finding.phase.clone())
+            .unwrap_or_else(|| "none".into())
+    } else {
+        export
+            .program_flows
+            .iter()
+            .filter_map(protocol_flow_last_phase)
+            .next_back()
+            .unwrap_or_else(|| "none".into())
+    };
+    let suspect_areas = export
+        .program_findings
+        .iter()
+        .map(|finding| finding.suspect_area.clone())
+        .collect::<Vec<_>>();
+    let primary_failure_mode = if let Some(profile) = primary_process_profile.as_ref() {
+        profile.primary_failure_mode.clone()
+    } else {
+        failure_mode_label(
+            scan_target_status(export).label(),
+            &primary_module_kind,
+            &primary_failure_stage,
+            &suspect_areas,
+        )
+        .to_string()
+    };
+    let primary_failure_detail = if let Some(profile) = primary_process_profile.as_ref() {
+        profile.primary_failure_detail.clone()
+    } else {
+        failure_detail_label(
+            scan_target_status(export).label(),
+            &primary_module_kind,
+            &primary_failure_stage,
+            &suspect_areas,
+        )
+        .to_string()
+    };
+    let primary_failure_confidence = if let Some(profile) = primary_process_profile.as_ref() {
+        profile.primary_failure_confidence.clone()
+    } else {
+        failure_confidence_label(
+            scan_target_status(export).label(),
+            &primary_module_kind,
+            &primary_failure_stage,
+            &suspect_areas,
+        )
+        .to_string()
+    };
+    let primary_failure_basis = if let Some(profile) = primary_process_profile.as_ref() {
+        profile.primary_failure_basis.clone()
+    } else {
+        failure_basis_label(
+            scan_target_status(export).label(),
+            &primary_module_kind,
+            &primary_failure_stage,
+            &suspect_areas,
+        )
+        .to_string()
+    };
+    let suspect_modules = if let Some(profile) = primary_process_profile.as_ref() {
+        profile.suspect_modules.clone()
+    } else {
+        export
+            .program_findings
+            .iter()
+            .map(|finding| finding.module_label.clone())
+            .collect()
+    };
+    let competing_hypotheses = primary_process_profile
+        .as_ref()
+        .map(|profile| profile.competing_hypotheses.clone())
+        .unwrap_or_default();
+    let mut snapshot = AnalysisSnapshot {
+        target_status: scan_target_status(export),
+        primary_process_profile_ambiguous: primary_process_profile
+            .as_ref()
+            .map(|profile| profile.ambiguous)
+            .unwrap_or(false),
+        primary_module_kind,
+        primary_failure_stage,
+        primary_failure_mode,
+        primary_failure_detail,
+        primary_failure_confidence,
+        primary_failure_basis,
+        competing_hypotheses,
+        suspect_modules,
+        primary_process_profile,
+        process_profiles,
+        protocol_flows: protocol_flow_analysis_summaries(export),
+    };
+    for augmenter in augmenters {
+        augmenter.augment(export, &mut snapshot);
+    }
+    snapshot
+}
+
+pub(super) fn primary_process_profile_ambiguous_for_export(export: &ExportBundle) -> bool {
+    analysis_snapshot(export).primary_process_profile_ambiguous
+}
+
+pub(super) fn primary_process_profile_for_export(
+    export: &ExportBundle,
+) -> Option<ProcessNetworkProfileSummary> {
+    analysis_snapshot(export).primary_process_profile
+}
+
 pub(super) fn primary_module_kind_for_export(export: &ExportBundle) -> String {
-    if let Some(profile) = primary_process_profile_for_export(export) {
-        return profile.primary_module_kind;
-    }
-    if let Some(finding) = export.program_findings.first() {
-        return finding.network_module_kind.clone();
-    }
-    export
-        .program_flows
-        .first()
-        .map(|flow| {
-            gewyvern::flow::infer_network_module_kind(
-                &flow.operation,
-                protocol_flow_last_phase(flow).as_deref(),
-                None,
-                "network_module",
-            )
-            .to_string()
-        })
-        .unwrap_or_else(|| "none".into())
+    analysis_snapshot(export).primary_module_kind
 }
 
 pub(super) fn primary_failure_stage_for_export(export: &ExportBundle) -> String {
-    if let Some(profile) = primary_process_profile_for_export(export) {
-        return profile.primary_failure_stage;
-    }
-    if let Some(finding) = export.program_findings.first() {
-        if let Some(transition) = &finding.phase_transition {
-            return transition.clone();
-        }
-        if let Some(phase) = &finding.phase {
-            return phase.clone();
-        }
-    }
-    export
-        .program_flows
-        .iter()
-        .filter_map(protocol_flow_last_phase)
-        .next_back()
-        .unwrap_or_else(|| "none".into())
+    analysis_snapshot(export).primary_failure_stage
 }
 
 pub(super) fn primary_failure_mode_for_export(export: &ExportBundle) -> String {
-    if let Some(profile) = primary_process_profile_for_export(export) {
-        return profile.primary_failure_mode;
-    }
-    failure_mode_label(
-        scan_target_status(export).label(),
-        &primary_module_kind_for_export(export),
-        &primary_failure_stage_for_export(export),
-        &export
-            .program_findings
-            .iter()
-            .map(|finding| finding.suspect_area.clone())
-            .collect::<Vec<_>>(),
-    )
-    .to_string()
+    analysis_snapshot(export).primary_failure_mode
 }
 
 pub(super) fn primary_failure_detail_for_export(export: &ExportBundle) -> String {
-    if let Some(profile) = primary_process_profile_for_export(export) {
-        return profile.primary_failure_detail;
-    }
-    failure_detail_label(
-        scan_target_status(export).label(),
-        &primary_module_kind_for_export(export),
-        &primary_failure_stage_for_export(export),
-        &export
-            .program_findings
-            .iter()
-            .map(|finding| finding.suspect_area.clone())
-            .collect::<Vec<_>>(),
-    )
-    .to_string()
+    analysis_snapshot(export).primary_failure_detail
 }
 
 pub(super) fn primary_failure_confidence_for_export(export: &ExportBundle) -> String {
-    if let Some(profile) = primary_process_profile_for_export(export) {
-        return profile.primary_failure_confidence;
-    }
-    failure_confidence_label(
-        scan_target_status(export).label(),
-        &primary_module_kind_for_export(export),
-        &primary_failure_stage_for_export(export),
-        &export
-            .program_findings
-            .iter()
-            .map(|finding| finding.suspect_area.clone())
-            .collect::<Vec<_>>(),
-    )
-    .to_string()
+    analysis_snapshot(export).primary_failure_confidence
 }
 
 pub(super) fn primary_failure_basis_for_export(export: &ExportBundle) -> String {
-    if let Some(profile) = primary_process_profile_for_export(export) {
-        return profile.primary_failure_basis;
-    }
-    failure_basis_label(
-        scan_target_status(export).label(),
-        &primary_module_kind_for_export(export),
-        &primary_failure_stage_for_export(export),
-        &export
-            .program_findings
-            .iter()
-            .map(|finding| finding.suspect_area.clone())
-            .collect::<Vec<_>>(),
-    )
-    .to_string()
+    analysis_snapshot(export).primary_failure_basis
 }
 
 pub(super) fn suspect_modules_for_export(export: &ExportBundle) -> String {
-    if let Some(profile) = primary_process_profile_for_export(export) {
-        if !profile.suspect_modules.is_empty() {
-            return profile.suspect_modules.join(" | ");
-        }
+    let snapshot = analysis_snapshot(export);
+    if !snapshot.suspect_modules.is_empty() {
+        return snapshot.suspect_modules.join(" | ");
     }
     if export.program_findings.is_empty() {
         "none".into()
