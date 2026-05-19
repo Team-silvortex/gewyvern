@@ -133,6 +133,7 @@ state from parse/front-end through validation, diagnostics, and findings,
 ```bash
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus binding
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --compact
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --emit explain --json --out /tmp/udp-process-explain.json
@@ -150,21 +151,35 @@ reported `line:column`.
 For validation failures around payload coverage, `explain` now also includes a
 lightweight `validation_excerpt` that points at the first failing model/rule
 and its unsupported offsets, so the next debugging step is less guessy.
+It now also adds a short `validation_note` that explains, in plain terms, why
+the first failing rule is outside current fragment coverage.
 
 For diagnostics/rule-support failures, `explain` now includes a matching
 `diagnostics_excerpt` with the first unsupported rule, its missing facts or
 unsupported offsets, and the fragments that are currently supporting it.
+It also adds a short `diagnostics_note` that explains why that first rule still
+is not supportable with the current fragment set.
 
 That keeps `explain --focus diagnostics` useful even when the full diagnostics
 report is large: you get one concrete rule-sized starting point instead of
 having to scan the whole model first.
 
-When you only want one layer, `explain --focus parse|frontend|validation|diagnostics|findings`
+When you only want one layer, `explain --focus parse|frontend|binding|validation|diagnostics|findings`
 keeps the top summary but expands just that section, and
 `frontend --focus functions|includes|graph|expansion` does the same for the
 pipeline front-end view. The `expansion` focus is the quickest way to answer
 "what do entry and functions actually expand into?" without reading the full
 graph first.
+
+The `binding` focus is the matching lowered-side shortcut: it gives a very
+light summary of what the pipeline actually compiled into, including fragment
+count, window/reason/program-model presence, program rule count, fragment
+params, and evidence overrides, before showing the full binding report. It now
+also includes a very-light `frontend -> lowered` delta so you can compare
+function/step/use/include counts against the final fragment/rule shape without
+reading two full reports side by side. It also adds a short `binding_note`
+explaining the most common reason the lowered shape looks larger or more
+collapsed than the frontend shape.
 When you only want the high-level answer, `--compact` keeps `explain` readable
 in a short terminal view without changing the JSON schema.
 

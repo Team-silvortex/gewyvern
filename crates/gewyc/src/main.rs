@@ -348,6 +348,7 @@ fn parse_explain_focus(value: Option<&str>, locale: UiLocale) -> Option<ExplainF
     value.map(|value| match value {
         "parse" => ExplainFocus::Parse,
         "frontend" => ExplainFocus::Frontend,
+        "binding" => ExplainFocus::Binding,
         "validation" => ExplainFocus::Validation,
         "diagnostics" => ExplainFocus::Diagnostics,
         "findings" => ExplainFocus::Findings,
@@ -580,6 +581,22 @@ mod tests {
         )
         .unwrap();
         assert_eq!(cli.focus.as_deref(), Some("validation"));
+    }
+
+    #[test]
+    fn parse_cli_accepts_explain_binding_focus() {
+        let cli = parse_cli(
+            vec![
+                "gewyc".into(),
+                "explain".into(),
+                "dsl/udp_process_debug.gewy".into(),
+                "--focus".into(),
+                "binding".into(),
+            ],
+            UiLocale::En,
+        )
+        .unwrap();
+        assert_eq!(cli.focus.as_deref(), Some("binding"));
     }
 
     #[test]
@@ -886,6 +903,32 @@ mod tests {
         assert!(text.contains("unsupported_payload_offsets="));
         assert!(json.contains("\"focus\":\"validation\""));
         assert!(json.contains("\"focused_report\""));
+    }
+
+    #[test]
+    fn explain_command_focuses_binding_section() {
+        let report = compile_explain_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+        )
+        .unwrap();
+        let text = render_explain_report_with_focus(
+            &report,
+            RenderFormat::Text,
+            Some(ExplainFocus::Binding),
+        );
+        let json = render_explain_report_with_focus(
+            &report,
+            RenderFormat::Json,
+            Some(ExplainFocus::Binding),
+        );
+        assert!(text.contains("focus=binding"));
+        assert!(text.contains("lowered_binding_summary="));
+        assert!(text.contains("binding_delta"));
+        assert!(text.contains("binding_note="));
+        assert!(json.contains("\"focus\":\"binding\""));
+        assert!(json.contains("\"lowered_binding_summary\""));
+        assert!(json.contains("\"frontend_lowering_delta\""));
+        assert!(json.contains("\"binding_shape_note\""));
     }
 
     #[test]

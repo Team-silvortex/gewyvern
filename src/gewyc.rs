@@ -117,6 +117,11 @@ pub struct ExplainReport {
     pub diagnostics: Option<DiagnosticsReport>,
     pub findings: CompilerFindingsReport,
     pub stages: CompilerStagesReport,
+    pub lowered_binding_summary: Option<LoweredBindingSummary>,
+    pub frontend_lowering_delta: Option<FrontendLoweringDelta>,
+    pub binding_shape_note: Option<String>,
+    pub validation_shape_note: Option<String>,
+    pub diagnostics_shape_note: Option<String>,
     pub parse_source_excerpt: Option<SourceExcerpt>,
     pub validation_excerpt: Option<ValidationExcerpt>,
     pub diagnostics_excerpt: Option<DiagnosticsExcerpt>,
@@ -126,9 +131,33 @@ pub struct ExplainReport {
 pub enum ExplainFocus {
     Parse,
     Frontend,
+    Binding,
     Validation,
     Diagnostics,
     Findings,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LoweredBindingSummary {
+    pub fragment_count: usize,
+    pub has_window: bool,
+    pub has_reason_profile: bool,
+    pub has_program_model: bool,
+    pub program_rule_count: usize,
+    pub fragment_param_count: usize,
+    pub evidence_override_count: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendLoweringDelta {
+    pub frontend_function_count: usize,
+    pub frontend_merged_step_count: usize,
+    pub frontend_use_edge_count: usize,
+    pub frontend_include_source_count: usize,
+    pub lowered_fragment_count: usize,
+    pub lowered_program_rule_count: usize,
+    pub lowered_fragment_param_count: usize,
+    pub lowered_evidence_override_count: usize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -907,11 +936,42 @@ fn explain_text(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
                 lines.push("operation=none".into());
             }
             lines.push(format!("fragments={}", binding.fragments.join(",")));
+            if let Some(summary) = &report.lowered_binding_summary {
+                lines.push(format!(
+                    "lowered_binding_summary=fragments:{} window:{} reason:{} program_model:{} program_rules:{} params:{} evidence:{}",
+                    summary.fragment_count,
+                    summary.has_window,
+                    summary.has_reason_profile,
+                    summary.has_program_model,
+                    summary.program_rule_count,
+                    summary.fragment_param_count,
+                    summary.evidence_override_count
+                ));
+            }
+            if let Some(delta) = &report.frontend_lowering_delta {
+                lines.push(format!(
+                    "frontend_lowering_delta=functions:{} merged_steps:{} use_edges:{} includes:{} => fragments:{} program_rules:{} params:{} evidence:{}",
+                    delta.frontend_function_count,
+                    delta.frontend_merged_step_count,
+                    delta.frontend_use_edge_count,
+                    delta.frontend_include_source_count,
+                    delta.lowered_fragment_count,
+                    delta.lowered_program_rule_count,
+                    delta.lowered_fragment_param_count,
+                    delta.lowered_evidence_override_count
+                ));
+            }
+            if let Some(note) = &report.binding_shape_note {
+                lines.push(format!("binding_shape_note={note}"));
+            }
         }
         None => {
             lines.push("template=none".into());
             lines.push("operation=none".into());
             lines.push("fragments=none".into());
+            lines.push("lowered_binding_summary=none".into());
+            lines.push("frontend_lowering_delta=none".into());
+            lines.push("binding_shape_note=none".into());
         }
     }
 
@@ -961,6 +1021,9 @@ fn explain_text(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
             excerpt.supporting_fragments.join(",")
         ));
     }
+    if let Some(note) = &report.validation_shape_note {
+        lines.push(format!("- validation_note={note}"));
+    }
 
     match &report.diagnostics {
         Some(diagnostics) => {
@@ -991,6 +1054,9 @@ fn explain_text(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
                     excerpt.unsupported_payload_offsets,
                     excerpt.supporting_fragments.join(",")
                 ));
+            }
+            if let Some(note) = &report.diagnostics_shape_note {
+                lines.push(format!("- diagnostics_note={note}"));
             }
         }
         None => lines.push("diagnostics=none".into()),
@@ -1046,12 +1112,47 @@ fn explain_text_compact(report: &ExplainReport, focus: Option<ExplainFocus>) -> 
                     lines.push("frontend=none".into());
                 }
             }
+            ExplainFocus::Binding => {
+                if let Some(summary) = &report.lowered_binding_summary {
+                    lines.push(format!(
+                        "binding fragments={} window={} reason={} program_model={} rules={} params={} evidence={}",
+                        summary.fragment_count,
+                        summary.has_window,
+                        summary.has_reason_profile,
+                        summary.has_program_model,
+                        summary.program_rule_count,
+                        summary.fragment_param_count,
+                        summary.evidence_override_count
+                    ));
+                } else {
+                    lines.push("binding=none".into());
+                }
+                if let Some(delta) = &report.frontend_lowering_delta {
+                    lines.push(format!(
+                        "binding_delta frontend_functions={} frontend_steps={} frontend_use_edges={} frontend_includes={} lowered_fragments={} lowered_rules={} lowered_params={} lowered_evidence={}",
+                        delta.frontend_function_count,
+                        delta.frontend_merged_step_count,
+                        delta.frontend_use_edge_count,
+                        delta.frontend_include_source_count,
+                        delta.lowered_fragment_count,
+                        delta.lowered_program_rule_count,
+                        delta.lowered_fragment_param_count,
+                        delta.lowered_evidence_override_count
+                    ));
+                }
+                if let Some(note) = &report.binding_shape_note {
+                    lines.push(format!("binding_note={note}"));
+                }
+            }
             ExplainFocus::Validation => {
                 lines.push(format!(
                     "validation registry={} unsupported_payload_offsets={:?}",
                     report.stages.validation.registry,
                     report.stages.validation.unsupported_payload_offsets
                 ));
+                if let Some(note) = &report.validation_shape_note {
+                    lines.push(format!("validation_note={note}"));
+                }
             }
             ExplainFocus::Diagnostics => {
                 lines.push(format!(
@@ -1068,6 +1169,9 @@ fn explain_text_compact(report: &ExplainReport, focus: Option<ExplainFocus>) -> 
                         ))
                         .unwrap_or_else(|| "none".into())
                 ));
+                if let Some(note) = &report.diagnostics_shape_note {
+                    lines.push(format!("diagnostics_note={note}"));
+                }
             }
             ExplainFocus::Findings => {
                 lines.push(format!("findings={}", report.findings.findings.len()));
@@ -1095,6 +1199,29 @@ fn explain_text_compact(report: &ExplainReport, focus: Option<ExplainFocus>) -> 
             .map(|binding| binding.fragments.len().to_string())
             .unwrap_or_else(|| "0".into())
     ));
+    if let Some(summary) = &report.lowered_binding_summary {
+        lines.push(format!(
+            "lowered=window:{} reason:{} program_model:{} rules:{} params:{} evidence:{}",
+            summary.has_window,
+            summary.has_reason_profile,
+            summary.has_program_model,
+            summary.program_rule_count,
+            summary.fragment_param_count,
+            summary.evidence_override_count
+        ));
+    }
+    if let Some(delta) = &report.frontend_lowering_delta {
+        lines.push(format!(
+            "delta=frontend_functions:{} frontend_steps:{} lowered_fragments:{} lowered_rules:{}",
+            delta.frontend_function_count,
+            delta.frontend_merged_step_count,
+            delta.lowered_fragment_count,
+            delta.lowered_program_rule_count
+        ));
+    }
+    if let Some(note) = &report.binding_shape_note {
+        lines.push(format!("binding_note={note}"));
+    }
     if let Some(excerpt) = &report.parse_source_excerpt {
         lines.push(format!(
             "parse_source={} {}",
@@ -1107,6 +1234,9 @@ fn explain_text_compact(report: &ExplainReport, focus: Option<ExplainFocus>) -> 
             excerpt.model, excerpt.rule_index, excerpt.unsupported_payload_offsets
         ));
     }
+    if let Some(note) = &report.validation_shape_note {
+        lines.push(format!("validation_note={note}"));
+    }
     if let Some(excerpt) = &report.diagnostics_excerpt {
         lines.push(format!(
             "diagnostics_excerpt={}#{} missing={} offsets={:?}",
@@ -1115,6 +1245,9 @@ fn explain_text_compact(report: &ExplainReport, focus: Option<ExplainFocus>) -> 
             excerpt.missing_facts.join(","),
             excerpt.unsupported_payload_offsets
         ));
+    }
+    if let Some(note) = &report.diagnostics_shape_note {
+        lines.push(format!("diagnostics_note={note}"));
     }
     lines.join("\n")
 }
@@ -1153,8 +1286,33 @@ fn explain_json(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
         .as_ref()
         .map(diagnostics_excerpt_json)
         .unwrap_or_else(|| "null".into());
+    let lowered_binding_summary_json = report
+        .lowered_binding_summary
+        .as_ref()
+        .map(lowered_binding_summary_json)
+        .unwrap_or_else(|| "null".into());
+    let frontend_lowering_delta_json = report
+        .frontend_lowering_delta
+        .as_ref()
+        .map(frontend_lowering_delta_json)
+        .unwrap_or_else(|| "null".into());
+    let binding_shape_note_json = report
+        .binding_shape_note
+        .as_ref()
+        .map(|note| format!("\"{}\"", json_escape_string(note)))
+        .unwrap_or_else(|| "null".into());
+    let validation_shape_note_json = report
+        .validation_shape_note
+        .as_ref()
+        .map(|note| format!("\"{}\"", json_escape_string(note)))
+        .unwrap_or_else(|| "null".into());
+    let diagnostics_shape_note_json = report
+        .diagnostics_shape_note
+        .as_ref()
+        .map(|note| format!("\"{}\"", json_escape_string(note)))
+        .unwrap_or_else(|| "null".into());
     format!(
-        "{{\"ok\":{},\"summary\":{{\"parse_ok\":{},\"validation_ok\":{},\"diagnostics_ok\":{},\"template_id\":{},\"operation\":{},\"finding_count\":{},\"next_step\":\"{}\",\"focus\":{},\"parse_source_excerpt\":{},\"validation_excerpt\":{},\"diagnostics_excerpt\":{}}},\"focused_report\":{},\"frontend\":{},\"binding\":{},\"validation\":{},\"diagnostics\":{},\"findings\":{}}}",
+        "{{\"ok\":{},\"summary\":{{\"parse_ok\":{},\"validation_ok\":{},\"diagnostics_ok\":{},\"template_id\":{},\"operation\":{},\"finding_count\":{},\"next_step\":\"{}\",\"focus\":{},\"lowered_binding_summary\":{},\"frontend_lowering_delta\":{},\"binding_shape_note\":{},\"validation_shape_note\":{},\"diagnostics_shape_note\":{},\"parse_source_excerpt\":{},\"validation_excerpt\":{},\"diagnostics_excerpt\":{}}},\"focused_report\":{},\"frontend\":{},\"binding\":{},\"validation\":{},\"diagnostics\":{},\"findings\":{}}}",
         report.ok,
         report.stages.parse.ok,
         report.stages.validation.ok,
@@ -1164,6 +1322,11 @@ fn explain_json(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
         report.findings.findings.len(),
         next_step,
         focus_json,
+        lowered_binding_summary_json,
+        frontend_lowering_delta_json,
+        binding_shape_note_json,
+        validation_shape_note_json,
+        diagnostics_shape_note_json,
         parse_source_excerpt_json,
         validation_excerpt_json,
         diagnostics_excerpt_json,
@@ -1219,6 +1382,26 @@ fn explain_report(envelope: CompilerEnvelope, source: Option<&str>) -> ExplainRe
         .diagnostics
         .as_ref()
         .and_then(diagnostics_excerpt_from_diagnostics);
+    let lowered_binding_summary = envelope
+        .binding
+        .as_ref()
+        .map(lowered_binding_summary_from_binding);
+    let frontend_lowering_delta = envelope
+        .stages
+        .parse
+        .frontend
+        .as_ref()
+        .zip(lowered_binding_summary.as_ref())
+        .map(|(frontend, lowered)| frontend_lowering_delta(frontend, lowered));
+    let binding_shape_note = frontend_lowering_delta
+        .as_ref()
+        .map(binding_shape_note_from_delta);
+    let validation_shape_note = validation_excerpt
+        .as_ref()
+        .map(validation_shape_note_from_excerpt);
+    let diagnostics_shape_note = diagnostics_excerpt
+        .as_ref()
+        .map(diagnostics_shape_note_from_excerpt);
     ExplainReport {
         ok,
         binding: envelope.binding,
@@ -1226,6 +1409,11 @@ fn explain_report(envelope: CompilerEnvelope, source: Option<&str>) -> ExplainRe
         diagnostics: envelope.diagnostics,
         findings: envelope.findings,
         stages: envelope.stages,
+        lowered_binding_summary,
+        frontend_lowering_delta,
+        binding_shape_note,
+        validation_shape_note,
+        diagnostics_shape_note,
         parse_source_excerpt,
         validation_excerpt,
         diagnostics_excerpt,
@@ -1236,6 +1424,7 @@ fn explain_focus_text(focus: ExplainFocus) -> &'static str {
     match focus {
         ExplainFocus::Parse => "parse",
         ExplainFocus::Frontend => "frontend",
+        ExplainFocus::Binding => "binding",
         ExplainFocus::Validation => "validation",
         ExplainFocus::Diagnostics => "diagnostics",
         ExplainFocus::Findings => "findings",
@@ -1270,6 +1459,45 @@ fn explain_focus_text_lines(report: &ExplainReport, focus: ExplainFocus) -> Vec<
             }
             None => vec!["frontend=none".into()],
         },
+        ExplainFocus::Binding => {
+            let mut lines = vec![format!("binding_present={}", report.binding.is_some())];
+            if let Some(summary) = &report.lowered_binding_summary {
+                lines.push(format!(
+                    "lowered_binding_summary=fragments:{} window:{} reason:{} program_model:{} program_rules:{} params:{} evidence:{}",
+                    summary.fragment_count,
+                    summary.has_window,
+                    summary.has_reason_profile,
+                    summary.has_program_model,
+                    summary.program_rule_count,
+                    summary.fragment_param_count,
+                    summary.evidence_override_count
+                ));
+            } else {
+                lines.push("lowered_binding_summary=none".into());
+            }
+            if let Some(delta) = &report.frontend_lowering_delta {
+                lines.push(format!(
+                    "binding_delta frontend_functions={} frontend_steps={} frontend_use_edges={} frontend_includes={} lowered_fragments={} lowered_rules={} lowered_params={} lowered_evidence={}",
+                    delta.frontend_function_count,
+                    delta.frontend_merged_step_count,
+                    delta.frontend_use_edge_count,
+                    delta.frontend_include_source_count,
+                    delta.lowered_fragment_count,
+                    delta.lowered_program_rule_count,
+                    delta.lowered_fragment_param_count,
+                    delta.lowered_evidence_override_count
+                ));
+            }
+            if let Some(note) = &report.binding_shape_note {
+                lines.push(format!("binding_note={note}"));
+            }
+            if let Some(binding) = &report.binding {
+                lines.extend(binding_text(binding).lines().map(|line| line.to_string()));
+            } else {
+                lines.push("binding=none".into());
+            }
+            lines
+        }
         ExplainFocus::Validation => {
             vec![
             format!("validation_ok={}", report.stages.validation.ok),
@@ -1290,6 +1518,11 @@ fn explain_focus_text_lines(report: &ExplainReport, focus: ExplainFocus) -> Vec<
                     excerpt.supporting_fragments.join(",")
                 ))
                 .unwrap_or_else(|| "validation_excerpt=none".into()),
+            report
+                .validation_shape_note
+                .as_ref()
+                .map(|note| format!("validation_note={note}"))
+                .unwrap_or_else(|| "validation_note=none".into()),
             format!(
                 "validation_finding={}",
                 finding_text(report.stages.validation.finding.as_ref())
@@ -1312,6 +1545,13 @@ fn explain_focus_text_lines(report: &ExplainReport, focus: ExplainFocus) -> Vec<
                             excerpt.supporting_fragments.join(",")
                         ))
                         .unwrap_or_else(|| "diagnostics_excerpt=none".into()),
+                );
+                lines.push(
+                    report
+                        .diagnostics_shape_note
+                        .as_ref()
+                        .map(|note| format!("diagnostics_note={note}"))
+                        .unwrap_or_else(|| "diagnostics_note=none".into()),
                 );
                 lines.extend(
                     diagnostics_text(diagnostics)
@@ -1360,22 +1600,54 @@ fn explain_focus_json(report: &ExplainReport, focus: ExplainFocus) -> String {
             "{{\"kind\":\"frontend\",\"report\":{}}}",
             frontend_json(report.frontend.as_ref())
         ),
+        ExplainFocus::Binding => format!(
+            "{{\"kind\":\"binding\",\"lowered_binding_summary\":{},\"frontend_lowering_delta\":{},\"binding_shape_note\":{},\"report\":{}}}",
+            report
+                .lowered_binding_summary
+                .as_ref()
+                .map(lowered_binding_summary_json)
+                .unwrap_or_else(|| "null".to_string()),
+            report
+                .frontend_lowering_delta
+                .as_ref()
+                .map(frontend_lowering_delta_json)
+                .unwrap_or_else(|| "null".to_string()),
+            report
+                .binding_shape_note
+                .as_ref()
+                .map(|note| format!("\"{}\"", json_escape_string(note)))
+                .unwrap_or_else(|| "null".to_string()),
+            report
+                .binding
+                .as_ref()
+                .map_or_else(|| "null".to_string(), binding_json)
+        ),
         ExplainFocus::Validation => format!(
-            "{{\"kind\":\"validation\",\"report\":{},\"validation_excerpt\":{}}}",
+            "{{\"kind\":\"validation\",\"report\":{},\"validation_excerpt\":{},\"validation_shape_note\":{}}}",
             stages_validation_json(&report.stages.validation),
             report
                 .validation_excerpt
                 .as_ref()
                 .map(validation_excerpt_json)
+                .unwrap_or_else(|| "null".to_string()),
+            report
+                .validation_shape_note
+                .as_ref()
+                .map(|note| format!("\"{}\"", json_escape_string(note)))
                 .unwrap_or_else(|| "null".to_string())
         ),
         ExplainFocus::Diagnostics => format!(
-            "{{\"kind\":\"diagnostics\",\"ok\":{},\"diagnostics_excerpt\":{},\"report\":{}}}",
+            "{{\"kind\":\"diagnostics\",\"ok\":{},\"diagnostics_excerpt\":{},\"diagnostics_shape_note\":{},\"report\":{}}}",
             report.stages.diagnostics.ok,
             report
                 .diagnostics_excerpt
                 .as_ref()
                 .map(diagnostics_excerpt_json)
+                .unwrap_or_else(|| "null".to_string()),
+            report
+                .diagnostics_shape_note
+                .as_ref()
+                .map(|note| format!("\"{}\"", json_escape_string(note)))
                 .unwrap_or_else(|| "null".to_string()),
             report
                 .diagnostics
@@ -1386,6 +1658,138 @@ fn explain_focus_json(report: &ExplainReport, focus: ExplainFocus) -> String {
             "{{\"kind\":\"findings\",\"report\":{}}}",
             findings_json(&report.findings)
         ),
+    }
+}
+
+fn lowered_binding_summary_from_binding(binding: &BindingReport) -> LoweredBindingSummary {
+    LoweredBindingSummary {
+        fragment_count: binding.fragments.len(),
+        has_window: binding.window.is_some(),
+        has_reason_profile: binding.reason_profile.is_some(),
+        has_program_model: binding.program_model.is_some(),
+        program_rule_count: binding
+            .program_model
+            .as_ref()
+            .map(|model| model.rules)
+            .unwrap_or(0),
+        fragment_param_count: binding.fragment_params.len(),
+        evidence_override_count: binding.evidence_overrides.len(),
+    }
+}
+
+fn lowered_binding_summary_json(summary: &LoweredBindingSummary) -> String {
+    format!(
+        "{{\"fragment_count\":{},\"has_window\":{},\"has_reason_profile\":{},\"has_program_model\":{},\"program_rule_count\":{},\"fragment_param_count\":{},\"evidence_override_count\":{}}}",
+        summary.fragment_count,
+        summary.has_window,
+        summary.has_reason_profile,
+        summary.has_program_model,
+        summary.program_rule_count,
+        summary.fragment_param_count,
+        summary.evidence_override_count
+    )
+}
+
+fn frontend_lowering_delta(
+    frontend: &FrontendReport,
+    lowered: &LoweredBindingSummary,
+) -> FrontendLoweringDelta {
+    FrontendLoweringDelta {
+        frontend_function_count: frontend.function_count,
+        frontend_merged_step_count: frontend.merged_step_count,
+        frontend_use_edge_count: frontend.use_edges.len(),
+        frontend_include_source_count: frontend.include_sources.len(),
+        lowered_fragment_count: lowered.fragment_count,
+        lowered_program_rule_count: lowered.program_rule_count,
+        lowered_fragment_param_count: lowered.fragment_param_count,
+        lowered_evidence_override_count: lowered.evidence_override_count,
+    }
+}
+
+fn frontend_lowering_delta_json(delta: &FrontendLoweringDelta) -> String {
+    format!(
+        "{{\"frontend_function_count\":{},\"frontend_merged_step_count\":{},\"frontend_use_edge_count\":{},\"frontend_include_source_count\":{},\"lowered_fragment_count\":{},\"lowered_program_rule_count\":{},\"lowered_fragment_param_count\":{},\"lowered_evidence_override_count\":{}}}",
+        delta.frontend_function_count,
+        delta.frontend_merged_step_count,
+        delta.frontend_use_edge_count,
+        delta.frontend_include_source_count,
+        delta.lowered_fragment_count,
+        delta.lowered_program_rule_count,
+        delta.lowered_fragment_param_count,
+        delta.lowered_evidence_override_count
+    )
+}
+
+fn binding_shape_note_from_delta(delta: &FrontendLoweringDelta) -> String {
+    let mut reasons = Vec::new();
+    if delta.frontend_use_edge_count > 0 {
+        reasons.push("use(...) edges inline reusable function bodies into one binding");
+    }
+    if delta.frontend_include_source_count > 0 {
+        reasons.push("include(...) pulls filesystem-backed modules into the same compiled entry");
+    }
+    if delta.lowered_program_rule_count > 0 {
+        reasons.push("program_rule(...) calls lower into explicit program-model rules");
+    }
+    if delta.lowered_fragment_param_count > 0 || delta.lowered_evidence_override_count > 0 {
+        reasons.push("param(...) and evidence(...) survive as binding-level overrides");
+    }
+
+    if reasons.is_empty() {
+        "frontend and lowered binding are close in shape; there are no extra use/include or override layers to explain".into()
+    } else {
+        format!(
+            "lowered binding looks different because {}",
+            reasons.join("; ")
+        )
+    }
+}
+
+fn validation_shape_note_from_excerpt(excerpt: &ValidationExcerpt) -> String {
+    let offset_note = if excerpt.unsupported_payload_offsets.is_empty() {
+        "rule support failed without explicit payload offsets".to_string()
+    } else {
+        format!(
+            "the first failing rule asks for payload offsets {:?} that current fragment coverage does not sample",
+            excerpt.unsupported_payload_offsets
+        )
+    };
+    if excerpt.supporting_fragments.is_empty() {
+        offset_note
+    } else {
+        format!(
+            "{}; current support comes from fragments [{}]",
+            offset_note,
+            excerpt.supporting_fragments.join(", ")
+        )
+    }
+}
+
+fn diagnostics_shape_note_from_excerpt(excerpt: &DiagnosticsExcerpt) -> String {
+    let mut reasons = Vec::new();
+    if !excerpt.missing_facts.is_empty() {
+        reasons.push(format!(
+            "the first unsupported rule still misses facts [{}]",
+            excerpt.missing_facts.join(", ")
+        ));
+    }
+    if !excerpt.unsupported_payload_offsets.is_empty() {
+        reasons.push(format!(
+            "it also references unsampled payload offsets {:?}",
+            excerpt.unsupported_payload_offsets
+        ));
+    }
+    if !excerpt.supporting_fragments.is_empty() {
+        reasons.push(format!(
+            "current support comes from fragments [{}]",
+            excerpt.supporting_fragments.join(", ")
+        ));
+    }
+    if reasons.is_empty() {
+        "the first unsupported rule still lacks enough fragment-backed evidence to be supported"
+            .into()
+    } else {
+        reasons.join("; ")
     }
 }
 
@@ -3422,9 +3826,11 @@ template(:broken_offsets)
         let json = render_explain_report(&report, RenderFormat::Json);
         assert!(text.contains("unsupported_payload_offsets"));
         assert!(text.contains("validation_excerpt=model:broken_offsets_model rule:0"));
+        assert!(text.contains("validation_note="));
         assert!(text.contains("adjust fragment coverage or payload matchers"));
         assert!(json.contains("unsupported_payload_offsets"));
         assert!(json.contains("\"validation_excerpt\""));
+        assert!(json.contains("\"validation_shape_note\""));
         assert!(json.contains("\"model\":\"broken_offsets_model\""));
     }
 
@@ -3448,8 +3854,10 @@ template(:broken_offset_validation)
         );
         let json = render_explain_report(&report, RenderFormat::Json);
         assert!(text.contains("diagnostics_excerpt=model:broken_offset_validation_model"));
+        assert!(text.contains("diagnostics_note="));
         assert!(text.contains("offsets:[8]"));
         assert!(json.contains("\"diagnostics_excerpt\""));
+        assert!(json.contains("\"diagnostics_shape_note\""));
         assert!(json.contains("\"model\":\"broken_offset_validation_model\""));
     }
 

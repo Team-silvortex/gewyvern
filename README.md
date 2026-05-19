@@ -464,6 +464,7 @@ Main commands:
 - `cargo test`
 - `cargo run -p gewyc -- <path.gewy>`
 - `cargo run -p gewyc -- explain <path.gewy>`
+- `cargo run -p gewyc -- explain <path.gewy> --focus binding`
 - `cargo run -p gewyc -- explain <path.gewy> --focus validation`
 - `cargo run -p gewyc -- frontend <path.gewy> --json`
 - `cargo run -p gewyc -- frontend <path.gewy> --focus graph`
@@ -643,6 +644,7 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy 
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --diagnostics --json
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus binding
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus graph
@@ -675,6 +677,7 @@ Current examples:
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy --json
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --focus binding
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --focus parse
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --json
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy --focus includes
