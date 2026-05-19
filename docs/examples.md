@@ -140,6 +140,7 @@ cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --ingest-mode local-advisory
 curl http://127.0.0.1:9100/v1/capabilities
 curl http://127.0.0.1:9100/v1/latest/targets
 curl http://127.0.0.1:9100/v1/latest/summary.json
+curl http://127.0.0.1:9100/v1/latest/analysis.json
 curl http://127.0.0.1:9100/v1/latest/targets/scan:http:request/report.json
 ```
 
@@ -161,6 +162,23 @@ Pay attention to:
 
 That combination tells you both what the runtime thinks and how directly the
 evidence supports that conclusion.
+
+If another service wants a machine-friendly intermediate result instead of a
+rendered report, prefer:
+
+- `/v1/latest/analysis.json`
+- `/v1/latest/targets/<path-segment>/analysis.json`
+
+Those surfaces expose the analysis snapshot directly, including:
+
+- `protocol_flows`
+- `process_network_profiles`
+- `primary_module_kind`
+- `primary_failure_mode`
+- `primary_failure_detail`
+- `primary_failure_confidence`
+- `ambiguous`
+- `competing_hypotheses`
 
 Important:
 

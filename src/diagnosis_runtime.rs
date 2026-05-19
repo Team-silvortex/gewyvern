@@ -1249,6 +1249,62 @@ pub(crate) fn process_network_profiles_text_from_snapshot(snapshot: &AnalysisSna
         .join(",")
 }
 
+fn process_network_profile_summary_json(profile: &ProcessNetworkProfileSummary) -> String {
+    format!(
+        "{{\"pid\":{},\"comm\":\"{}\",\"status\":\"{}\",\"ambiguous\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"competing_hypotheses\":{},\"operations\":{},\"module_kinds\":{},\"phases\":{},\"missing_transitions\":{},\"suspect_areas\":{},\"suspect_modules\":{},\"healthy_flows\":{},\"attention_flows\":{}}}",
+        profile.pid,
+        profile.comm,
+        profile.status,
+        profile.ambiguous,
+        profile.primary_module_kind,
+        profile.primary_module_family,
+        profile.primary_failure_stage,
+        profile.primary_stage_family,
+        profile.primary_failure_mode,
+        failure_mode_family_label(&profile.primary_failure_mode),
+        profile.primary_failure_detail,
+        failure_detail_family_label(&profile.primary_failure_detail),
+        profile.primary_failure_confidence,
+        profile.primary_failure_basis,
+        string_list_json(&profile.competing_hypotheses),
+        string_list_json(&profile.operations),
+        string_list_json(&profile.module_kinds),
+        string_list_json(&profile.phases),
+        string_list_json(&profile.missing_transitions),
+        string_list_json(&profile.suspect_areas),
+        string_list_json(&profile.suspect_modules),
+        profile.healthy_flows,
+        profile.attention_flows,
+    )
+}
+
+pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
+    format!(
+        "{{\"target_status\":\"{}\",\"primary_process_profile\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"suspect_modules\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
+        snapshot.target_status.label(),
+        snapshot
+            .primary_process_profile
+            .as_ref()
+            .map(process_network_profile_summary_json)
+            .unwrap_or_else(|| "null".into()),
+        snapshot.primary_module_kind,
+        module_family_label(&snapshot.primary_module_kind),
+        snapshot.primary_failure_stage,
+        stage_family_label(&snapshot.primary_failure_stage),
+        snapshot.primary_failure_mode,
+        failure_mode_family_label(&snapshot.primary_failure_mode),
+        snapshot.primary_failure_detail,
+        failure_detail_family_label(&snapshot.primary_failure_detail),
+        snapshot.primary_failure_confidence,
+        snapshot.primary_failure_basis,
+        snapshot.primary_process_profile_ambiguous,
+        string_list_json(&snapshot.competing_hypotheses),
+        string_list_json(&snapshot.suspect_modules),
+        process_network_profiles_json_from_snapshot(snapshot),
+        protocol_flow_summaries_json_from_snapshot(snapshot),
+    )
+}
+
 fn primary_process_profile_from_profiles(
     mut profiles: Vec<ProcessNetworkProfileSummary>,
 ) -> Option<ProcessNetworkProfileSummary> {

@@ -7,9 +7,10 @@ use crate::data_api::{
 };
 
 use super::{
-    Cli, SocketTarget, UiLocale, annotate_export_trust, findings_json, findings_text,
-    render_report_outputs, render_scan_outputs, run_binding_session, scan_report_html,
-    scan_report_json, scan_report_text, scan_targets_for_cli, summary_json, summary_line,
+    Cli, SocketTarget, UiLocale, analysis_snapshot, analysis_snapshot_json, annotate_export_trust,
+    findings_json, findings_text, render_report_outputs, render_scan_outputs, run_binding_session,
+    scan_report_html, scan_report_json, scan_report_text, scan_targets_for_cli, summary_json,
+    summary_line,
 };
 
 pub(super) fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {
@@ -169,6 +170,7 @@ fn emit_rendered(
     let summary_text = summary_line(name, export);
     let summary_json_body = summary_json(name, export);
     let findings_json_body = findings_json(name, export);
+    let analysis_json_body = analysis_snapshot_json(&analysis_snapshot(export));
     let export_json_body = export.to_json();
     let report_json_body = scan_report_json(&single);
     let report_html_body = scan_report_html(&single);
@@ -180,6 +182,7 @@ fn emit_rendered(
                 summary_text: summary_text.clone(),
                 summary_json: summary_json_body.clone(),
                 findings_json: findings_json_body.clone(),
+                analysis_json: analysis_json_body.clone(),
                 export_json: export_json_body.clone(),
                 report_json: report_json_body.clone(),
                 report_html: report_html_body.clone(),
@@ -215,6 +218,18 @@ fn emit_scan_outputs(
 ) {
     let scan_summary_text = scan_report_text(outputs);
     let scan_summary_json = scan_report_json(outputs);
+    let scan_analysis_json = format!(
+        "[{}]",
+        outputs
+            .iter()
+            .map(|(name, export)| format!(
+                "{{\"target\":\"{}\",\"analysis\":{}}}",
+                name.replace('\\', "\\\\").replace('"', "\\\""),
+                analysis_snapshot_json(&analysis_snapshot(export)),
+            ))
+            .collect::<Vec<_>>()
+            .join(",")
+    );
     let scan_report_html_body = scan_report_html(outputs);
     if let Some(state) = api_state {
         let targets = outputs
@@ -224,6 +239,7 @@ fn emit_scan_outputs(
                 summary_text: summary_line(name, export),
                 summary_json: summary_json(name, export),
                 findings_json: findings_json(name, export),
+                analysis_json: analysis_snapshot_json(&analysis_snapshot(export)),
                 export_json: export.to_json(),
                 report_json: scan_report_json(&[(name.clone(), export.clone())]),
                 report_html: scan_report_html(&[(name.clone(), export.clone())]),
@@ -234,6 +250,7 @@ fn emit_scan_outputs(
             targets,
             scan_summary_text.clone(),
             scan_summary_json.clone(),
+            scan_analysis_json,
             scan_summary_json.clone(),
             scan_report_html_body.clone(),
         );

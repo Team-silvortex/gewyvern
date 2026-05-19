@@ -793,11 +793,13 @@ Useful API endpoints:
 - `/v1/latest/summary.txt`
 - `/v1/latest/summary.json`
 - `/v1/latest/findings.json`
+- `/v1/latest/analysis.json`
 - `/v1/latest/export.json`
 - `/v1/latest/report.json`
 - `/v1/latest/report.html`
 - `/v1/latest/targets/<name>/summary.json`
 - `/v1/latest/targets/<name>/findings.json`
+- `/v1/latest/targets/<name>/analysis.json`
 - `/v1/latest/targets/<name>/export.json`
 - `/v1/latest/targets/<name>/report.json`
 - `/v1/latest/targets/<name>/report.html`
@@ -805,6 +807,11 @@ Useful API endpoints:
 `--api-socket` is intended for `--serve` mode and exposes only the latest
 session or scan snapshot in memory so that other local services can consume
 `gewyvern` results without parsing terminal output.
+
+If another service wants a composable intermediate analysis result instead of a
+fully rendered report, prefer `analysis.json`. It exposes the target-level
+analysis snapshot directly: `protocol_flows`, `process_network_profiles`,
+primary failure fields, and ambiguity metadata.
 
 For target-specific routes, discover names from `/v1/latest/targets` and prefer
 the returned `target_refs[].path_segment` value when building URLs. The API

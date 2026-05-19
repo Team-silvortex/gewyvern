@@ -3819,12 +3819,12 @@ mod tests {
         update_api_snapshot_for_scan, update_api_snapshot_for_single,
     };
     use super::{
-        AnalysisAugmenter, AnalysisSnapshot, Cli, IngestMode, ReportFormat, analysis_snapshot_with,
-        annotate_export_trust, filter_export_by_pid, findings_json, list_entries_json,
-        list_entries_text, list_protocols_json, list_protocols_text, protocol_dsl_path,
-        render_report_outputs, route_fact, run_binding_demo, scan_report_html, scan_report_json,
-        scan_report_text, scan_targets_for_cli, scan_targets_from_set_file, summary_json,
-        summary_line,
+        AnalysisAugmenter, AnalysisSnapshot, Cli, IngestMode, ReportFormat, analysis_snapshot,
+        analysis_snapshot_json, analysis_snapshot_with, annotate_export_trust,
+        filter_export_by_pid, findings_json, list_entries_json, list_entries_text,
+        list_protocols_json, list_protocols_text, protocol_dsl_path, render_report_outputs,
+        route_fact, run_binding_demo, scan_report_html, scan_report_json, scan_report_text,
+        scan_targets_for_cli, scan_targets_from_set_file, summary_json, summary_line,
     };
     use gewyvern::dsl::compile_file;
     use gewyvern::export::ExportBundle;
@@ -9248,6 +9248,7 @@ mod tests {
                 summary_text: summary_line("dsl_demo", &export),
                 summary_json: summary_json("dsl_demo", &export),
                 findings_json: findings_json("dsl_demo", &export),
+                analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
                 export_json: export.to_json(),
                 report_json: scan_report_json(&[("dsl_demo".to_string(), export.clone())]),
                 report_html: scan_report_html(&[("dsl_demo".to_string(), export.clone())]),
@@ -9259,6 +9260,7 @@ mod tests {
         assert!(meta.contains("\"kind\":\"single\""));
         assert!(meta.contains("\"name\":\"dsl_demo\""));
         assert!(meta.contains("\"target_names\":[\"dsl_demo\"]"));
+        assert!(meta.contains("\"has_analysis_json\":true"));
         assert!(meta.contains("\"has_export_json\":true"));
 
         let (_, _, targets_body) = api_response_for_request("/v1/latest/targets", &snapshot);
@@ -9266,6 +9268,9 @@ mod tests {
 
         let (_, _, summary_body) = api_response_for_request("/v1/latest/summary.json", &snapshot);
         assert!(summary_body.contains("\"demo\":\"dsl_demo\""));
+        let (_, _, analysis_body) = api_response_for_request("/v1/latest/analysis.json", &snapshot);
+        assert!(analysis_body.contains("\"primary_module_kind\""));
+        assert!(analysis_body.contains("\"protocol_flows\""));
 
         let (_, _, export_body) = api_response_for_request("/v1/latest/export.json", &snapshot);
         assert!(export_body.contains("\"template_id\""));
@@ -9273,6 +9278,9 @@ mod tests {
         let (_, _, target_summary_body) =
             api_response_for_request("/v1/latest/targets/dsl_demo/summary.json", &snapshot);
         assert!(target_summary_body.contains("\"demo\":\"dsl_demo\""));
+        let (_, _, target_analysis_body) =
+            api_response_for_request("/v1/latest/targets/dsl_demo/analysis.json", &snapshot);
+        assert!(target_analysis_body.contains("\"primary_failure_mode\""));
     }
 
     #[test]
@@ -9292,6 +9300,7 @@ mod tests {
                 summary_text: summary_line(name, export),
                 summary_json: summary_json(name, export),
                 findings_json: findings_json(name, export),
+                analysis_json: analysis_snapshot_json(&analysis_snapshot(export)),
                 export_json: export.to_json(),
                 report_json: scan_report_json(&[(name.clone(), export.clone())]),
                 report_html: scan_report_html(&[(name.clone(), export.clone())]),
@@ -9302,6 +9311,18 @@ mod tests {
             rendered_targets,
             scan_report_text(&outputs),
             scan_report_json(&outputs),
+            format!(
+                "[{}]",
+                outputs
+                    .iter()
+                    .map(|(name, export)| format!(
+                        "{{\"target\":\"{}\",\"analysis\":{}}}",
+                        name.replace('\\', "\\\\").replace('"', "\\\""),
+                        analysis_snapshot_json(&analysis_snapshot(export)),
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
             scan_report_json(&outputs),
             scan_report_html(&outputs),
         );
@@ -9319,6 +9340,10 @@ mod tests {
             api_response_for_request("/v1/latest/targets", &snapshot);
         assert_eq!(targets_status, 200);
         assert!(targets_body.contains("\"targets\":[\"scan:http:request\"]"));
+        let (analysis_status, _, analysis_body) =
+            api_response_for_request("/v1/latest/analysis.json", &snapshot);
+        assert_eq!(analysis_status, 200);
+        assert!(analysis_body.contains("\"target\":\"scan:http:request\""));
 
         let (report_status, _, report_body) =
             api_response_for_request("/v1/latest/report.json", &snapshot);
@@ -9331,6 +9356,12 @@ mod tests {
         );
         assert_eq!(target_status, 200);
         assert!(target_body.contains("\"target\":\"scan:http:request\""));
+        let (target_analysis_status, _, target_analysis_body) = api_response_for_request(
+            "/v1/latest/targets/scan:http:request/analysis.json",
+            &snapshot,
+        );
+        assert_eq!(target_analysis_status, 200);
+        assert!(target_analysis_body.contains("\"primary_module_kind\""));
 
         let (findings_status, _, _) =
             api_response_for_request("/v1/latest/findings.json", &snapshot);
@@ -9353,6 +9384,7 @@ mod tests {
                 summary_text: summary_line("scan:http request/%", &export),
                 summary_json: summary_json("scan:http request/%", &export),
                 findings_json: findings_json("scan:http request/%", &export),
+                analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
                 export_json: export.to_json(),
                 report_json: scan_report_json(&[(
                     "scan:http request/%".to_string(),
@@ -9381,6 +9413,12 @@ mod tests {
         );
         assert_eq!(target_status, 200);
         assert!(target_body.contains("\"demo\":\"scan:http request/%\""));
+        let (analysis_status, _, analysis_body) = api_response_for_request(
+            "/v1/latest/targets/scan:http%20request%2F%25/analysis.json",
+            &snapshot,
+        );
+        assert_eq!(analysis_status, 200);
+        assert!(analysis_body.contains("\"primary_module_kind\""));
     }
 
     #[test]

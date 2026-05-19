@@ -19,6 +19,7 @@ pub struct ApiSnapshot {
     pub summary_text: Option<String>,
     pub summary_json: Option<String>,
     pub findings_json: Option<String>,
+    pub analysis_json: Option<String>,
     pub export_json: Option<String>,
     pub report_json: Option<String>,
     pub report_html: Option<String>,
@@ -30,6 +31,7 @@ pub struct ApiTargetSnapshot {
     pub summary_text: String,
     pub summary_json: String,
     pub findings_json: String,
+    pub analysis_json: String,
     pub export_json: String,
     pub report_json: String,
     pub report_html: String,
@@ -41,6 +43,7 @@ pub struct ApiRenderedTarget {
     pub summary_text: String,
     pub summary_json: String,
     pub findings_json: String,
+    pub analysis_json: String,
     pub export_json: String,
     pub report_json: String,
     pub report_html: String,
@@ -52,6 +55,7 @@ impl ApiRenderedTarget {
             summary_text: self.summary_text,
             summary_json: self.summary_json,
             findings_json: self.findings_json,
+            analysis_json: self.analysis_json,
             export_json: self.export_json,
             report_json: self.report_json,
             report_html: self.report_html,
@@ -74,6 +78,7 @@ pub fn update_api_snapshot_for_single(state: &ApiState, rendered: ApiRenderedTar
         summary_text: Some(rendered.summary_text),
         summary_json: Some(rendered.summary_json),
         findings_json: Some(rendered.findings_json),
+        analysis_json: Some(rendered.analysis_json),
         export_json: Some(rendered.export_json),
         report_json: Some(rendered.report_json),
         report_html: Some(rendered.report_html),
@@ -86,6 +91,7 @@ pub fn update_api_snapshot_for_scan(
     targets: Vec<ApiRenderedTarget>,
     summary_text: String,
     summary_json: String,
+    analysis_json: String,
     report_json: String,
     report_html: String,
 ) {
@@ -104,6 +110,7 @@ pub fn update_api_snapshot_for_scan(
         target_names,
         summary_text: Some(summary_text),
         summary_json: Some(summary_json),
+        analysis_json: Some(analysis_json),
         findings_json: None,
         export_json: None,
         report_json: Some(report_json),
@@ -114,7 +121,7 @@ pub fn update_api_snapshot_for_scan(
 
 pub fn api_snapshot_meta_json(snapshot: &ApiSnapshot) -> String {
     format!(
-        "{{\"updated_unix_ms\":{},\"kind\":{},\"name\":{},\"target_count\":{},\"target_names\":{},\"target_refs\":{},\"has_summary_text\":{},\"has_summary_json\":{},\"has_findings_json\":{},\"has_export_json\":{},\"has_report_json\":{},\"has_report_html\":{}}}",
+        "{{\"updated_unix_ms\":{},\"kind\":{},\"name\":{},\"target_count\":{},\"target_names\":{},\"target_refs\":{},\"has_summary_text\":{},\"has_summary_json\":{},\"has_findings_json\":{},\"has_analysis_json\":{},\"has_export_json\":{},\"has_report_json\":{},\"has_report_html\":{}}}",
         snapshot.updated_unix_ms,
         json_string(&snapshot.kind),
         optional_json_string(snapshot.name.as_deref()),
@@ -127,6 +134,7 @@ pub fn api_snapshot_meta_json(snapshot: &ApiSnapshot) -> String {
         snapshot.summary_text.is_some(),
         snapshot.summary_json.is_some(),
         snapshot.findings_json.is_some(),
+        snapshot.analysis_json.is_some(),
         snapshot.export_json.is_some(),
         snapshot.report_json.is_some(),
         snapshot.report_html.is_some(),
@@ -186,6 +194,11 @@ pub fn api_response_for_request(path: &str, snapshot: &ApiSnapshot) -> (u16, &'s
                         200,
                         "application/json; charset=utf-8",
                         target.findings_json.clone(),
+                    ),
+                    "analysis.json" => (
+                        200,
+                        "application/json; charset=utf-8",
+                        target.analysis_json.clone(),
                     ),
                     "export.json" => (
                         200,
@@ -249,7 +262,7 @@ pub fn api_response_for_request(path: &str, snapshot: &ApiSnapshot) -> (u16, &'s
         "/v1/capabilities" => (
             200,
             "application/json; charset=utf-8",
-            "{\"service\":\"gewyvern-api\",\"version\":\"0.7.0\",\"latest_snapshot\":true,\"serve_required\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}".into(),
+            "{\"service\":\"gewyvern-api\",\"version\":\"0.7.0\",\"latest_snapshot\":true,\"serve_required\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}".into(),
         ),
         "/v1/latest/summary.txt" => match snapshot.summary_text.as_ref() {
             Some(body) => (200, "text/plain; charset=utf-8", body.clone()),
@@ -262,6 +275,10 @@ pub fn api_response_for_request(path: &str, snapshot: &ApiSnapshot) -> (u16, &'s
         "/v1/latest/findings.json" => match snapshot.findings_json.as_ref() {
             Some(body) => (200, "application/json; charset=utf-8", body.clone()),
             None => (404, "text/plain; charset=utf-8", "no latest findings json available".into()),
+        },
+        "/v1/latest/analysis.json" => match snapshot.analysis_json.as_ref() {
+            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
+            None => (404, "text/plain; charset=utf-8", "no latest analysis json available".into()),
         },
         "/v1/latest/export.json" => match snapshot.export_json.as_ref() {
             Some(body) => (200, "application/json; charset=utf-8", body.clone()),
@@ -278,7 +295,7 @@ pub fn api_response_for_request(path: &str, snapshot: &ApiSnapshot) -> (u16, &'s
         _ => (
             404,
             "application/json; charset=utf-8",
-            "{\"error\":\"not_found\",\"paths\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}".into(),
+            "{\"error\":\"not_found\",\"paths\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}".into(),
         ),
     }
 }
