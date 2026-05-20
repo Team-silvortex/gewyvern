@@ -175,11 +175,14 @@ the fastest:
 11. [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
    Cluster-oriented reading guide for `failure_mode`, `failure_detail`,
    `failure_confidence`, and `failure_basis`.
-12. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+12. [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
+   Minimal contract for append-only external analysis engines that consume
+   `analysis.json` and return `augmentations`.
+13. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
    Gewy language shape, package model, and compiler-facing usage.
-13. [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+14. [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
    Small JSON schema guide for `gewyc frontend --json` and `gewyc explain --json`.
-14. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
+15. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
    Draft formal grammar for the preferred pipeline surface of `gewylang`.
 
 ## Main Entrypoints
@@ -819,6 +822,26 @@ such as `unverified_ingest_lineage`, `competing_hypotheses`, and an
 next-action hint. If you later compose external enrich/rerank passes, prefer
 stacking them on top of the built-in chain rather than replacing it.
 
+If you want `gewyvern` itself to call an external engine and merge those
+augmentations back into its own `analysis.json` and report surfaces, add an
+external hook:
+
+```bash
+cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --serve --api-socket 127.0.0.1:9100 --json --summary-only --external-engine-bin /Users/Shared/chroot/dev/etragon/target/debug/etragon
+```
+
+To route through a Python-backed worker path instead of the engine's default
+Rust pass:
+
+```bash
+cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --serve --api-socket 127.0.0.1:9100 --json --summary-only --external-engine-bin /Users/Shared/chroot/dev/etragon/target/debug/etragon --external-engine-worker /Users/Shared/chroot/dev/etragon/scripts/python_baseline_worker.py
+```
+
+`etragon` is a sibling implementation of that protocol, not a build-time
+dependency of `gewyvern`. The older `--etragon-*` flags still work as
+compatibility aliases, but the generic `--external-engine-*` names are now the
+preferred surface.
+
 For target-specific routes, discover names from `/v1/latest/targets` and prefer
 the returned `target_refs[].path_segment` value when building URLs. The API
 accepts percent-encoded path segments and reports its path-segment contract in
@@ -831,7 +854,26 @@ bash scripts/socket_roundtrip_demo.sh /tmp/gewyvern.sock udp /tmp/gewyvern-out.j
 bash scripts/socket_roundtrip_demo.sh 127.0.0.1:9000 udp /tmp/gewyvern-out.json tcp
 ```
 
-External engine roundtrip demo:
+Generic external-engine roundtrip demo:
+
+```bash
+bash scripts/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json
+```
+
+By default this looks for a sibling `/../etragon` repo and runs:
+
+```bash
+cargo run -- analyze-url
+```
+
+inside that engine root. To point it at a different implementation, set:
+
+```bash
+ENGINE_ROOT=/path/to/external-engine
+EXTERNAL_ENGINE_CMD='cargo run -- analyze-url'
+```
+
+`etragon`-specific wrapper demo:
 
 ```bash
 bash scripts/etragon_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/etragon-augmentations.json
@@ -845,11 +887,11 @@ sixth argument:
 bash scripts/etragon_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/etragon-augmentations.json socket_session
 ```
 
-That script exercises the full bridge:
+Those scripts exercise the full bridge:
 
 1. start `gewyvern` in `--serve` mode with the read-only API enabled
 2. ingest a demo socket session
-3. let the sibling `etragon` engine pull `/v1/latest/analysis.json` directly with `analyze-url`
+3. let an external engine pull `/v1/latest/analysis.json` directly with `analyze-url`
 4. save both the raw analysis snapshot and the external augmentation output
 
 ## Linux eBPF Probe Environment

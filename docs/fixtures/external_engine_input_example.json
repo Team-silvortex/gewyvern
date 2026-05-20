@@ -1,0 +1,100 @@
+{
+  "target_status": "attention",
+  "primary_process_profile": {
+    "pid": 4242,
+    "comm": "curl",
+    "status": "attention",
+    "ambiguous": true,
+    "primary_module_kind": "http_request_response",
+    "primary_module_family": "request-response",
+    "primary_failure_stage": "send_request->receive_response",
+    "primary_stage_family": "request-response",
+    "primary_failure_mode": "no_response",
+    "primary_failure_mode_family": "timeout",
+    "primary_failure_detail": "request_sent_no_reply",
+    "primary_failure_detail_family": "timeout",
+    "primary_failure_confidence": "low",
+    "primary_failure_basis": "missing_transition",
+    "competing_hypotheses": [
+      "module:name_resolution",
+      "module:tls_handshake"
+    ],
+    "operations": [
+      "http_request"
+    ],
+    "module_kinds": [
+      "http_request_response",
+      "name_resolution",
+      "tls_handshake"
+    ],
+    "phases": [
+      "resolve_route",
+      "connect",
+      "send_request"
+    ],
+    "missing_transitions": [
+      "send_request->receive_response"
+    ],
+    "suspect_areas": [
+      "transport_io"
+    ],
+    "suspect_modules": [
+      "http_request_path"
+    ],
+    "healthy_flows": 2,
+    "attention_flows": 1
+  },
+  "primary_module_kind": "http_request_response",
+  "primary_module_family": "request-response",
+  "primary_failure_stage": "send_request->receive_response",
+  "primary_stage_family": "request-response",
+  "primary_failure_mode": "no_response",
+  "primary_failure_mode_family": "timeout",
+  "primary_failure_detail": "request_sent_no_reply",
+  "primary_failure_detail_family": "timeout",
+  "primary_failure_confidence": "low",
+  "primary_failure_basis": "missing_transition",
+  "ambiguous": true,
+  "competing_hypotheses": [
+    "module:name_resolution",
+    "module:tls_handshake"
+  ],
+  "suspect_modules": [
+    "http_request_path"
+  ],
+  "augmentations": [
+    {
+      "kind": "analysis",
+      "name": "competing_hypotheses",
+      "summary": "multiple plausible hypotheses remain; downstream automation should treat the primary conclusion as advisory",
+      "confidence": "advisory",
+      "producer_stage": "advisory",
+      "producer_pass": "BuiltInAdvisoryAugmenter",
+      "data": {
+        "primary_module_kind": "http_request_response",
+        "primary_failure_confidence": "low",
+        "competing_hypotheses": [
+          "module:name_resolution",
+          "module:tls_handshake"
+        ]
+      }
+    },
+    {
+      "kind": "recommendation",
+      "name": "automation_recommendation",
+      "summary": "preserve multiple hypotheses and avoid collapsing to a single remediation path",
+      "confidence": "advisory",
+      "producer_stage": "recommendation",
+      "producer_pass": "BuiltInRecommendationAugmenter",
+      "data": {
+        "action": "keep_multiple_hypotheses",
+        "reason": "competing_hypotheses",
+        "primary_failure_confidence": "low",
+        "primary_failure_basis": "missing_transition",
+        "ambiguous": true
+      }
+    }
+  ],
+  "process_network_profiles": [],
+  "protocol_flows": []
+}

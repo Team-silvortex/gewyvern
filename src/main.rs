@@ -1,5 +1,6 @@
 mod data_api;
 mod diagnosis_runtime;
+mod external_analysis;
 mod render_utils;
 mod report_runtime;
 mod serve_runtime;
@@ -36,6 +37,7 @@ use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 use crate::diagnosis_runtime::*;
+use crate::external_analysis::{ExternalAnalysisConfig, set_external_analysis_config};
 use crate::report_runtime::{
     findings_json, findings_text, http_transactions_json, http_transactions_text,
     render_report_outputs, render_scan_outputs, scan_report_html, scan_report_json,
@@ -722,6 +724,7 @@ fn main() {
         eprintln!("{message}");
         std::process::exit(2);
     });
+    set_external_analysis_config(cli.external_analysis_config());
 
     if cli.list_protocols {
         let rendered = if cli.json {
@@ -1105,6 +1108,9 @@ struct Cli {
     summary_only: bool,
     out_path: Option<String>,
     socket_target: Option<SocketTarget>,
+    external_engine_bin: Option<String>,
+    external_engine_worker: Option<String>,
+    external_engine_python_bin: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1270,6 +1276,9 @@ impl Cli {
         let mut summary_only = false;
         let mut out_path = None;
         let mut socket_target = None;
+        let mut external_engine_bin = None;
+        let mut external_engine_worker = None;
+        let mut external_engine_python_bin = None;
         let mut args = args.into_iter();
 
         while let Some(arg) = args.next() {
@@ -1394,6 +1403,23 @@ impl Cli {
                             .ok_or_else(|| locale.msgf("missing_out", "", None))?,
                     );
                 }
+                "--external-engine-bin" | "--etragon-bin" => {
+                    external_engine_bin =
+                        Some(args.next().ok_or_else(|| {
+                            "missing value for --external-engine-bin".to_string()
+                        })?);
+                }
+                "--external-engine-worker" | "--etragon-python-worker" => {
+                    external_engine_worker =
+                        Some(args.next().ok_or_else(|| {
+                            "missing value for --external-engine-worker".to_string()
+                        })?);
+                }
+                "--external-engine-python-bin" | "--etragon-python-bin" => {
+                    external_engine_python_bin = Some(args.next().ok_or_else(|| {
+                        "missing value for --external-engine-python-bin".to_string()
+                    })?);
+                }
                 "--help" | "-h" => return Err(usage().into()),
                 other => return Err(locale.msgf("unknown_argument", other, None)),
             }
@@ -1470,6 +1496,12 @@ impl Cli {
         {
             return Err(locale.msg("remote_socket_requires_flag").into());
         }
+        if external_engine_worker.is_some() && external_engine_bin.is_none() {
+            return Err("--external-engine-worker requires --external-engine-bin".into());
+        }
+        if external_engine_python_bin.is_some() && external_engine_worker.is_none() {
+            return Err("--external-engine-python-bin requires --external-engine-worker".into());
+        }
 
         if let Some(protocol_name) = protocol.as_deref() {
             let built_in_path = protocol_dsl_path(protocol_name, entry.as_deref())
@@ -1500,7 +1532,20 @@ impl Cli {
             summary_only,
             out_path,
             socket_target,
+            external_engine_bin,
+            external_engine_worker,
+            external_engine_python_bin,
         })
+    }
+
+    fn external_analysis_config(&self) -> Option<ExternalAnalysisConfig> {
+        self.external_engine_bin
+            .as_ref()
+            .map(|engine_bin| ExternalAnalysisConfig {
+                engine_bin: engine_bin.clone(),
+                python_worker: self.external_engine_worker.clone(),
+                python_bin: self.external_engine_python_bin.clone(),
+            })
     }
 }
 
@@ -3818,6 +3863,9 @@ mod tests {
         ApiRenderedTarget, ApiSnapshot, api_response_for_request, api_snapshot_meta_json,
         update_api_snapshot_for_scan, update_api_snapshot_for_single,
     };
+    use super::external_analysis::{
+        ExternalAnalysisConfig, set_external_analysis_config, test_guard,
+    };
     use super::{
         AnalysisAugmenter, AnalysisSnapshot, Cli, IngestMode, ReportFormat, analysis_snapshot,
         analysis_snapshot_json, analysis_snapshot_with_augmenters, annotate_export_trust,
@@ -3837,10 +3885,45 @@ mod tests {
     use gewyvern::runtime::{RuntimeSession, SessionConfig};
     use gewyvern::template::TemplateBinding;
     use std::fs;
+    #[cfg(target_family = "unix")]
+    use std::os::unix::fs::PermissionsExt;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use std::time::Instant;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[cfg(target_family = "unix")]
+    fn with_fake_etragon_hook<T>(output_json: &str, test: impl FnOnce() -> T) -> T {
+        let _guard = test_guard();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after unix epoch")
+            .as_nanos();
+        let script_path = std::env::temp_dir().join(format!("fake-etragon-{unique}.sh"));
+        fs::write(
+            &script_path,
+            format!(
+                "#!/bin/sh\ncat >/dev/null\nprintf '%s\\n' '{}'\n",
+                output_json
+            ),
+        )
+        .expect("fake etragon hook should be writable");
+        let mut permissions = fs::metadata(&script_path)
+            .expect("fake etragon hook should exist")
+            .permissions();
+        permissions.set_mode(0o700);
+        fs::set_permissions(&script_path, permissions)
+            .expect("fake etragon hook should be executable");
+        set_external_analysis_config(Some(ExternalAnalysisConfig {
+            engine_bin: script_path.to_string_lossy().into_owned(),
+            python_worker: None,
+            python_bin: None,
+        }));
+        let outcome = test();
+        set_external_analysis_config(None);
+        let _ = fs::remove_file(&script_path);
+        outcome
+    }
 
     fn synthesize_large_protocol_flow_export() -> gewyvern::export::ExportBundle {
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
@@ -3922,6 +4005,56 @@ mod tests {
         let json = analysis_snapshot_json(&snapshot);
         assert!(json.contains("\"augmentations\":["));
         assert!(json.contains("\"name\":\"ml_rerank_hook\""));
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn analysis_snapshot_merges_external_etragon_augmentations() {
+        with_fake_etragon_hook(
+            "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_targeted_escalation\",\"summary\":\"external engine suggests targeted escalation\",\"confidence\":\"candidate\",\"producer_stage\":\"candidate\",\"producer_pass\":\"fake_etragon\",\"data\":{\"module\":\"http_request_response\"}}]}",
+            || {
+                let binding =
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                        .expect("http_request_path DSL should compile");
+                let export = annotate_export_trust(
+                    run_binding_demo(binding),
+                    &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+                );
+                let snapshot = analysis_snapshot(&export);
+                let json = analysis_snapshot_json(&snapshot);
+                assert!(
+                    snapshot
+                        .augmentations
+                        .iter()
+                        .any(|item| item.name == "ml_candidate_targeted_escalation")
+                );
+                assert!(json.contains("\"producer_pass\":\"fake_etragon\""));
+                assert!(json.contains("\"name\":\"ml_candidate_targeted_escalation\""));
+            },
+        );
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn summary_and_findings_json_expose_external_augmentations() {
+        with_fake_etragon_hook(
+            "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_manual_review\",\"summary\":\"external engine suggests manual review\",\"confidence\":\"candidate\",\"producer_stage\":\"candidate\",\"producer_pass\":\"fake_etragon\",\"data\":{\"module\":\"connection_establishment\"}}]}",
+            || {
+                let binding =
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                        .expect("http_request_path DSL should compile");
+                let export = annotate_export_trust(
+                    run_binding_demo(binding),
+                    &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+                );
+                let summary = summary_json("dsl_demo", &export);
+                let findings = findings_json("dsl_demo", &export);
+                assert!(summary.contains("\"augmentations\":["));
+                assert!(summary.contains("\"name\":\"ml_candidate_manual_review\""));
+                assert!(findings.contains("\"augmentations\":["));
+                assert!(findings.contains("\"producer_pass\":\"fake_etragon\""));
+            },
+        );
     }
 
     #[test]
@@ -4055,6 +4188,8 @@ mod tests {
                 "ml_rerank_hook",
                 "placeholder augmentation slot for future rerank/enrich passes",
                 "advisory",
+                Some("candidate".into()),
+                Some("MlHookAugmenter".into()),
                 Some("{\"source\":\"test\"}".into()),
             );
         }

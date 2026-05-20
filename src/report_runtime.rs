@@ -29,9 +29,10 @@ pub(super) fn summary_line(name: &str, export: &ExportBundle) -> String {
     };
     let protocol_flows = protocol_flow_summaries_text_from_snapshot(&analysis);
     let process_profiles = process_network_profiles_text_from_snapshot(&analysis);
+    let augmentations = analysis_augmentation_names_text(&analysis.augmentations);
     let ingest_mode_note = ingest_mode_note_for_export(export);
     format!(
-        "{name}: {}={} ingest_mode={} ingest_mode_note={} {}={} pid_attribution_status={} ambiguous={} competing_hypotheses={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
+        "{name}: {}={} ingest_mode={} ingest_mode_note={} {}={} pid_attribution_status={} ambiguous={} competing_hypotheses={} augmentations={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
         locale.label("template"),
         export.template_id,
         ingest_mode_for_export(export),
@@ -41,6 +42,7 @@ pub(super) fn summary_line(name: &str, export: &ExportBundle) -> String {
         pid_attribution_status_for_export(export),
         analysis.primary_process_profile_ambiguous,
         string_list_json(&analysis.competing_hypotheses),
+        augmentations,
         locale.label("fragments_loaded"),
         export.debug_summary.fragments_loaded,
         locale.label("hookpoints_failed"),
@@ -95,7 +97,7 @@ pub(super) fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
             let pid_attribution_note = pid_attribution_note_for_export(export);
             let ingest_mode_note = ingest_mode_note_for_export(export);
             format!(
-                "{{\"target\":\"{}\",\"status\":\"{}\",\"ingest_mode\":\"{}\",\"ingest_mode_note\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"suspect_modules\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
+                "{{\"target\":\"{}\",\"status\":\"{}\",\"ingest_mode\":\"{}\",\"ingest_mode_note\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"augmentations\":{},\"suspect_modules\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
                 name,
                 analysis.target_status.label(),
                 ingest_mode_for_export(export),
@@ -115,6 +117,7 @@ pub(super) fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
                 failure_detail_family_label(&analysis.primary_failure_detail),
                 analysis.primary_failure_confidence,
                 analysis.primary_failure_basis,
+                analysis_augmentations_json(&analysis.augmentations),
                 suspect_modules_for_export(export),
                 process_network_profiles_json_from_snapshot(analysis),
                 protocol_flow_summaries_json_from_snapshot(analysis),
@@ -187,6 +190,7 @@ pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
         .into_iter()
         .map(|(name, export)| {
             let status = scan_target_status(export).label();
+            let analysis = analysis_snapshot(export);
             let details_open = if matches!(scan_target_status(export), ScanTargetStatus::Attention)
             {
                 " open"
@@ -222,23 +226,44 @@ pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 })
                 .collect::<Vec<_>>()
                 .join("");
-            let primary_module_kind = primary_module_kind_for_export(export);
-            let primary_failure_stage = primary_failure_stage_for_export(export);
-            let primary_failure_mode = primary_failure_mode_for_export(export);
-            let primary_failure_detail = primary_failure_detail_for_export(export);
-            let primary_failure_confidence = primary_failure_confidence_for_export(export);
-            let primary_failure_basis = primary_failure_basis_for_export(export);
+            let primary_module_kind = analysis.primary_module_kind.clone();
+            let primary_failure_stage = analysis.primary_failure_stage.clone();
+            let primary_failure_mode = analysis.primary_failure_mode.clone();
+            let primary_failure_detail = analysis.primary_failure_detail.clone();
+            let primary_failure_confidence = analysis.primary_failure_confidence.clone();
+            let primary_failure_basis = analysis.primary_failure_basis.clone();
             let pid_attribution_status = pid_attribution_status_for_export(export);
             let pid_attribution_note = pid_attribution_note_for_export(export);
             let ingest_mode_note = ingest_mode_note_for_export(export);
-            let ambiguous = primary_process_profile_ambiguous_for_export(export);
-            let competing_hypotheses = primary_process_profile_for_export(export)
-                .map(|profile| profile.competing_hypotheses.join(" | "))
-                .unwrap_or_else(|| "none".into());
+            let ambiguous = analysis.primary_process_profile_ambiguous;
+            let competing_hypotheses = if analysis.competing_hypotheses.is_empty() {
+                "none".into()
+            } else {
+                analysis.competing_hypotheses.join(" | ")
+            };
             let suspect_modules = suspect_modules_for_export(export);
             let primary_module_family = module_family_label(&primary_module_kind);
             let primary_stage_family = stage_family_label(&primary_failure_stage);
             let primary_failure_mode_family = failure_mode_family_label(&primary_failure_mode);
+            let augmentations = if analysis.augmentations.is_empty() {
+                "<li>none</li>".to_string()
+            } else {
+                analysis
+                    .augmentations
+                    .iter()
+                    .map(|item| {
+                        let producer = item.producer_pass.as_deref().unwrap_or("builtin");
+                        format!(
+                            "<li><span class=\"tag family-{}\">{}</span> confidence={} producer={}</li>",
+                            html_escape(&item.kind),
+                            html_escape(&item.name),
+                            html_escape(&item.confidence),
+                            html_escape(producer),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("")
+            };
             let flow_finding_summaries = protocol_flow_finding_summaries(export);
             let flow_lines = export
                 .program_flows
@@ -271,7 +296,7 @@ pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 .collect::<Vec<_>>()
                 .join("");
             format!(
-                "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>mode:</strong> {} | <strong>trust:</strong> {} | <strong>pid attribution:</strong> {} | <strong>ambiguous:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><p><strong>Mode note:</strong> {}</p><p><strong>PID attribution note:</strong> {}</p><p><strong>Competing hypotheses:</strong> {}</p><h3>Process Profiles</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
+                "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>mode:</strong> {} | <strong>trust:</strong> {} | <strong>pid attribution:</strong> {} | <strong>ambiguous:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><p><strong>Mode note:</strong> {}</p><p><strong>PID attribution note:</strong> {}</p><p><strong>Competing hypotheses:</strong> {}</p><h3>Process Profiles</h3><ul>{}</ul><h3>Augmentations</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
                 html_escape(name),
                 status,
                 html_escape(ingest_mode_for_export(export)),
@@ -296,6 +321,7 @@ pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 html_escape(pid_attribution_note),
                 html_escape(&competing_hypotheses),
                 profiles,
+                augmentations,
                 flow_lines,
             )
         })
@@ -382,7 +408,7 @@ pub(super) fn summary_json(name: &str, export: &ExportBundle) -> String {
             .join(",")
     );
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_mode\":\"{}\",\"ingest_mode_note\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_mode\":\"{}\",\"ingest_mode_note\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"augmentations\":{},\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
         export.template_id,
         ingest_mode_for_export(export),
         ingest_mode_note,
@@ -401,6 +427,7 @@ pub(super) fn summary_json(name: &str, export: &ExportBundle) -> String {
         failure_detail_family_label(&analysis.primary_failure_detail),
         analysis.primary_failure_confidence,
         analysis.primary_failure_basis,
+        analysis_augmentations_json(&analysis.augmentations),
         export.debug_summary.fragments_loaded,
         export.debug_summary.hookpoints_failed,
         export.debug_summary.accepted_facts,
@@ -489,7 +516,7 @@ pub(super) fn findings_json(name: &str, export: &ExportBundle) -> String {
     let pid_attribution_note = pid_attribution_note_for_export(export);
     let ingest_mode_note = ingest_mode_note_for_export(export);
     format!(
-        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_mode\":\"{}\",\"ingest_mode_note\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
+        "{{\"demo\":\"{name}\",\"template_id\":\"{}\",\"ingest_mode\":\"{}\",\"ingest_mode_note\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"augmentations\":{},\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
         export.template_id,
         ingest_mode_for_export(export),
         ingest_mode_note,
@@ -508,6 +535,7 @@ pub(super) fn findings_json(name: &str, export: &ExportBundle) -> String {
         failure_detail_family_label(&analysis.primary_failure_detail),
         analysis.primary_failure_confidence,
         analysis.primary_failure_basis,
+        analysis_augmentations_json(&analysis.augmentations),
         export
             .module_findings
             .iter()

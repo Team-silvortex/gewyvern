@@ -3,6 +3,7 @@ use gewyvern::flow::ProgramFlowId;
 use std::collections::HashMap;
 
 use super::*;
+use crate::external_analysis::append_external_augmentations;
 use crate::render_utils::*;
 
 #[derive(Default)]
@@ -80,6 +81,8 @@ pub(crate) struct AnalysisAugmentation {
     pub(crate) name: String,
     pub(crate) summary: String,
     pub(crate) confidence: String,
+    pub(crate) producer_stage: Option<String>,
+    pub(crate) producer_pass: Option<String>,
     pub(crate) data_json: Option<String>,
 }
 
@@ -102,6 +105,8 @@ impl AnalysisAugmenter for BuiltInAdvisoryAugmenter {
                 "unverified_ingest_lineage",
                 "pid-scoped conclusions are advisory because ingest lineage is unverified",
                 "advisory",
+                Some("advisory".into()),
+                Some("BuiltInAdvisoryAugmenter".into()),
                 Some(format!(
                     "{{\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"unverified\"}}",
                     export.ingest_trust_mode
@@ -116,6 +121,8 @@ impl AnalysisAugmenter for BuiltInAdvisoryAugmenter {
                 "competing_hypotheses",
                 "multiple plausible hypotheses remain; downstream automation should treat the primary conclusion as advisory",
                 "advisory",
+                Some("advisory".into()),
+                Some("BuiltInAdvisoryAugmenter".into()),
                 Some(format!(
                     "{{\"primary_module_kind\":\"{}\",\"primary_failure_confidence\":\"{}\",\"competing_hypotheses\":{}}}",
                     snapshot.primary_module_kind,
@@ -180,6 +187,8 @@ impl AnalysisAugmenter for BuiltInRecommendationAugmenter {
             "automation_recommendation",
             summary,
             "advisory",
+            Some("recommendation".into()),
+            Some("BuiltInRecommendationAugmenter".into()),
             Some(format!(
                 "{{\"action\":\"{}\",\"reason\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"ambiguous\":{}}}",
                 action,
@@ -201,6 +210,8 @@ pub(crate) fn push_analysis_augmentation(
     name: impl Into<String>,
     summary: impl Into<String>,
     confidence: impl Into<String>,
+    producer_stage: Option<String>,
+    producer_pass: Option<String>,
     data_json: Option<String>,
 ) {
     snapshot.augmentations.push(AnalysisAugmentation {
@@ -208,6 +219,8 @@ pub(crate) fn push_analysis_augmentation(
         name: name.into(),
         summary: summary.into(),
         confidence: confidence.into(),
+        producer_stage,
+        producer_pass,
         data_json,
     });
 }
@@ -1441,21 +1454,47 @@ pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
     )
 }
 
-fn analysis_augmentations_json(items: &[AnalysisAugmentation]) -> String {
+pub(crate) fn analysis_augmentations_json(items: &[AnalysisAugmentation]) -> String {
     format!(
         "[{}]",
         items.iter()
             .map(|item| format!(
-                "{{\"kind\":\"{}\",\"name\":\"{}\",\"summary\":\"{}\",\"confidence\":\"{}\",\"data\":{}}}",
+                "{{\"kind\":\"{}\",\"name\":\"{}\",\"summary\":\"{}\",\"confidence\":\"{}\",\"producer_stage\":{},\"producer_pass\":{},\"data\":{}}}",
                 item.kind,
                 item.name,
                 item.summary,
                 item.confidence,
+                item.producer_stage
+                    .as_ref()
+                    .map(|value| format!("\"{}\"", value))
+                    .unwrap_or_else(|| "null".into()),
+                item.producer_pass
+                    .as_ref()
+                    .map(|value| format!("\"{}\"", value))
+                    .unwrap_or_else(|| "null".into()),
                 item.data_json.clone().unwrap_or_else(|| "null".into()),
             ))
             .collect::<Vec<_>>()
             .join(",")
     )
+}
+
+pub(crate) fn analysis_augmentation_names_text(items: &[AnalysisAugmentation]) -> String {
+    if items.is_empty() {
+        UiLocale::detect().none().to_string()
+    } else {
+        items
+            .iter()
+            .map(|item| {
+                if let Some(pass) = item.producer_pass.as_deref() {
+                    format!("{}@{}", item.name, pass)
+                } else {
+                    item.name.clone()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("|")
+    }
 }
 
 fn primary_process_profile_from_profiles(
@@ -1625,41 +1664,28 @@ pub(crate) fn analysis_snapshot_with(
     for augmenter in augmenters {
         augmenter.augment(export, &mut snapshot);
     }
+    let snapshot_json = analysis_snapshot_json(&snapshot);
+    append_external_augmentations(&mut snapshot, &snapshot_json);
     snapshot
-}
-
-pub(super) fn primary_process_profile_ambiguous_for_export(export: &ExportBundle) -> bool {
-    analysis_snapshot(export).primary_process_profile_ambiguous
-}
-
-pub(super) fn primary_process_profile_for_export(
-    export: &ExportBundle,
-) -> Option<ProcessNetworkProfileSummary> {
-    analysis_snapshot(export).primary_process_profile
 }
 
 pub(super) fn primary_module_kind_for_export(export: &ExportBundle) -> String {
     analysis_snapshot(export).primary_module_kind
 }
 
+#[cfg(test)]
 pub(super) fn primary_failure_stage_for_export(export: &ExportBundle) -> String {
     analysis_snapshot(export).primary_failure_stage
 }
 
+#[cfg(test)]
 pub(super) fn primary_failure_mode_for_export(export: &ExportBundle) -> String {
     analysis_snapshot(export).primary_failure_mode
 }
 
+#[cfg(test)]
 pub(super) fn primary_failure_detail_for_export(export: &ExportBundle) -> String {
     analysis_snapshot(export).primary_failure_detail
-}
-
-pub(super) fn primary_failure_confidence_for_export(export: &ExportBundle) -> String {
-    analysis_snapshot(export).primary_failure_confidence
-}
-
-pub(super) fn primary_failure_basis_for_export(export: &ExportBundle) -> String {
-    analysis_snapshot(export).primary_failure_basis
 }
 
 pub(super) fn suspect_modules_for_export(export: &ExportBundle) -> String {

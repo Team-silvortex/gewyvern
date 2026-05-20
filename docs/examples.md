@@ -181,14 +181,32 @@ Those surfaces expose the analysis snapshot directly, including:
 - `augmentations`
 
 `augmentations` is intentionally the extension slot for future enrich/rerank
-passes. Today it is usually empty; later rule-based or ML passes can attach
-machine-readable annotations there without forcing other services to parse the
-human-oriented report surfaces. The built-in chain already emits lightweight
-advisory items such as:
+passes. It already carries both built-in advisory items and any external
+augmentations that `gewyvern` merges back from a sibling engine such as
+`etragon`, without forcing other services to parse the human-oriented report
+surfaces. The built-in chain already emits lightweight advisory items such as:
 
 - `unverified_ingest_lineage`
 - `competing_hypotheses`
 - `automation_recommendation`
+
+If you want `gewyvern` to call an external engine binary itself and merge those
+augmentations back into its own outputs, add:
+
+```bash
+--external-engine-bin /Users/Shared/chroot/dev/etragon/target/debug/etragon
+```
+
+If you want that hook to use a Python-backed worker path instead of the
+engine's default Rust pass, add:
+
+```bash
+--external-engine-worker /Users/Shared/chroot/dev/etragon/scripts/python_baseline_worker.py
+```
+
+`etragon` is the sibling engine we currently use in examples, but `gewyvern`
+only assumes a generic external-engine protocol. The older `--etragon-*` flags
+still work as compatibility aliases.
 
 `automation_recommendation` is the first built-in rerank/enrich style pass. It
 does not replace the core conclusion; it gives downstream automation a
@@ -204,8 +222,26 @@ Important:
 
 - `--pid` is intentionally rejected with socket ingest
 
-If you want to test the first external-engine bridge end to end and you keep
-`etragon` as a sibling repo next to `gewyvern`, run:
+If you want to test the generic external-engine bridge end to end, run:
+
+```bash
+bash scripts/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json
+```
+
+By default that script looks for a sibling `/../etragon` repo and runs:
+
+```bash
+cargo run -- analyze-url
+```
+
+inside that engine root. To point it at a different implementation, set:
+
+```bash
+ENGINE_ROOT=/path/to/external-engine
+EXTERNAL_ENGINE_CMD='cargo run -- analyze-url'
+```
+
+If you specifically want the current `etragon` wrapper, run:
 
 ```bash
 bash scripts/etragon_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/etragon-augmentations.json
@@ -221,12 +257,17 @@ bash scripts/etragon_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/ge
 That gives you:
 
 - a real `gewyvern` `/v1/latest/analysis.json`
-- a real `etragon` external augmentation payload
+- a real external augmentation payload
 - a concrete example of the open analysis chain in action
-- direct `etragon analyze-url` consumption of the live `gewyvern` API
+- direct `analyze-url` consumption of the live `gewyvern` API
 - lineage arriving over socket ingest is treated as unverified
 - `local-advisory` and `remote-advisory` are operator-facing run modes, not proof of trust
 - process-scoped conclusions in this mode should be read as advisory
+
+If you are implementing your own engine instead of using the sibling `etragon`
+repo, see:
+
+- [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
 
 ## Reading Failure Semantics
 

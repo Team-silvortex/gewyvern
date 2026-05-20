@@ -1,0 +1,29 @@
+{
+  "augmentations": [
+    {
+      "kind": "ml-candidate",
+      "name": "ml_candidate_manual_review",
+      "summary": "the current signal is still advisory; keep the case available for manual or model-assisted review",
+      "confidence": "candidate",
+      "producer_stage": "candidate",
+      "producer_pass": "python_baseline_worker",
+      "data": {
+        "module": "http_request_response",
+        "failure_confidence": "low",
+        "failure_basis": "missing_transition"
+      }
+    },
+    {
+      "kind": "recommendation",
+      "name": "ml_recommend_keep_candidate_set_open",
+      "summary": "keep multiple hypotheses visible while the request/response path remains ambiguous",
+      "confidence": "advisory",
+      "producer_stage": "recommendation",
+      "producer_pass": "mock_ml_advisory",
+      "data": {
+        "action": "keep_multiple_hypotheses",
+        "reason": "ml_candidate_manual_review"
+      }
+    }
+  ]
+}
