@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -5,9 +6,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::render_utils::string_list_json;
+use crate::render_utils::append_string_list_json;
 
-pub type ApiState = Arc<Mutex<ApiSnapshot>>;
+pub type ApiState = Arc<Mutex<Arc<ApiSnapshot>>>;
 
 const API_CLIENT_READ_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -71,7 +72,7 @@ pub fn update_api_snapshot_for_single(state: &ApiState, rendered: ApiRenderedTar
     let mut target_snapshots = HashMap::new();
     target_snapshots.insert(target_name.clone(), target_snapshot);
     let mut guard = state.lock().expect("api snapshot mutex poisoned");
-    *guard = ApiSnapshot {
+    *guard = Arc::new(ApiSnapshot {
         updated_unix_ms: current_unix_ms(),
         kind: "single".into(),
         name: Some(target_name.clone()),
@@ -85,7 +86,7 @@ pub fn update_api_snapshot_for_single(state: &ApiState, rendered: ApiRenderedTar
         report_json: Some(rendered.report_json),
         report_html: Some(rendered.report_html),
         target_snapshots,
-    };
+    });
 }
 
 pub fn update_api_snapshot_for_scan(
@@ -104,7 +105,7 @@ pub fn update_api_snapshot_for_scan(
         target_snapshots.insert(rendered.name.clone(), rendered.into_snapshot());
     }
     let mut guard = state.lock().expect("api snapshot mutex poisoned");
-    *guard = ApiSnapshot {
+    *guard = Arc::new(ApiSnapshot {
         updated_unix_ms: current_unix_ms(),
         kind: "scan".into(),
         name: None,
@@ -118,33 +119,41 @@ pub fn update_api_snapshot_for_scan(
         report_json: Some(report_json),
         report_html: Some(report_html),
         target_snapshots,
-    };
+    });
 }
 
 pub fn api_snapshot_meta_json(snapshot: &ApiSnapshot) -> String {
-    format!(
-        "{{\"updated_unix_ms\":{}, {}, {}}}",
-        snapshot.updated_unix_ms,
-        api_snapshot_index_fields_json(snapshot),
-        api_snapshot_presence_fields_json(snapshot),
-    )
+    let mut json = String::with_capacity(estimate_api_snapshot_meta_capacity(snapshot));
+    json.push_str("{\"updated_unix_ms\":");
+    json.push_str(&snapshot.updated_unix_ms.to_string());
+    json.push_str(", ");
+    append_api_snapshot_index_fields_json(&mut json, snapshot);
+    json.push_str(", ");
+    append_api_snapshot_presence_fields_json(&mut json, snapshot);
+    json.push('}');
+    json
 }
 
 fn api_target_list_json(snapshot: &ApiSnapshot) -> String {
-    format!(
-        "{{{},\"targets\":{},\"path_segment_encoding\":\"percent-encoding\",\"direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\"}}",
-        api_snapshot_index_fields_json(snapshot),
-        string_list_json(&snapshot.target_names),
-    )
+    let mut json = String::with_capacity(estimate_api_target_list_capacity(snapshot));
+    json.push('{');
+    append_api_snapshot_index_fields_json(&mut json, snapshot);
+    json.push_str(",\"targets\":");
+    append_string_list_json(&mut json, &snapshot.target_names);
+    json.push_str(",\"path_segment_encoding\":\"percent-encoding\",\"direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\"}");
+    json
 }
 
-pub fn api_response_for_request(path: &str, snapshot: &ApiSnapshot) -> (u16, &'static str, String) {
+pub fn api_response_for_request<'a>(
+    path: &str,
+    snapshot: &'a ApiSnapshot,
+) -> (u16, &'static str, Cow<'a, str>) {
     if let Some(rest) = path.strip_prefix("/v1/latest/targets/") {
         if rest.is_empty() {
             return (
                 404,
                 "application/json; charset=utf-8",
-                "{\"error\":\"not_found\"}".into(),
+                Cow::Borrowed("{\"error\":\"not_found\"}"),
             );
         }
         if let Some((target_name_segment, suffix)) = rest.split_once('/') {
@@ -154,11 +163,11 @@ pub fn api_response_for_request(path: &str, snapshot: &ApiSnapshot) -> (u16, &'s
                     return (
                         400,
                         "application/json; charset=utf-8",
-                        format!(
+                        Cow::Owned(format!(
                             "{{\"error\":\"invalid_target_path_segment\",\"segment\":{},\"message\":{}}}",
                             json_string(target_name_segment),
                             json_string(message),
-                        ),
+                        )),
                     );
                 }
             };
@@ -167,62 +176,68 @@ pub fn api_response_for_request(path: &str, snapshot: &ApiSnapshot) -> (u16, &'s
                     "summary.txt" => (
                         200,
                         "text/plain; charset=utf-8",
-                        target.summary_text.clone(),
+                        Cow::Borrowed(target.summary_text.as_str()),
                     ),
                     "summary.json" => (
                         200,
                         "application/json; charset=utf-8",
-                        target.summary_json.clone(),
+                        Cow::Borrowed(target.summary_json.as_str()),
                     ),
                     "findings.json" => (
                         200,
                         "application/json; charset=utf-8",
-                        target.findings_json.clone(),
+                        Cow::Borrowed(target.findings_json.as_str()),
                     ),
                     "analysis.json" => (
                         200,
                         "application/json; charset=utf-8",
-                        target.analysis_json.clone(),
+                        Cow::Borrowed(target.analysis_json.as_str()),
                     ),
                     "export.json" => (
                         200,
                         "application/json; charset=utf-8",
-                        target.export_json.clone(),
+                        Cow::Borrowed(target.export_json.as_str()),
                     ),
                     "report.json" => (
                         200,
                         "application/json; charset=utf-8",
-                        target.report_json.clone(),
+                        Cow::Borrowed(target.report_json.as_str()),
                     ),
-                    "report.html" => (200, "text/html; charset=utf-8", target.report_html.clone()),
+                    "report.html" => (
+                        200,
+                        "text/html; charset=utf-8",
+                        Cow::Borrowed(target.report_html.as_str()),
+                    ),
                     _ => (
                         404,
                         "application/json; charset=utf-8",
-                        "{\"error\":\"not_found\"}".into(),
+                        Cow::Borrowed("{\"error\":\"not_found\"}"),
                     ),
                 };
             }
             return (
                 404,
                 "application/json; charset=utf-8",
-                format!(
+                Cow::Owned(format!(
                     "{{\"error\":\"unknown_target\",\"target\":{},\"path_segment\":{}}}",
                     json_string(&target_name),
                     json_string(target_name_segment)
-                ),
+                )),
             );
         }
         return (
             400,
             "application/json; charset=utf-8",
-            "{\"error\":\"invalid_target_path\",\"expected\":\"/v1/latest/targets/<path-segment>/<resource>\"}".into(),
+            Cow::Borrowed(
+                "{\"error\":\"invalid_target_path\",\"expected\":\"/v1/latest/targets/<path-segment>/<resource>\"}",
+            ),
         );
     }
     match path {
         "/health" => (
             200,
             "application/json; charset=utf-8",
-            format!(
+            Cow::Owned(format!(
                 "{{\"ok\":true,\"has_snapshot\":{},\"kind\":{},\"updated_unix_ms\":{}}}",
                 !snapshot.kind.is_empty(),
                 if snapshot.kind.is_empty() {
@@ -231,55 +246,115 @@ pub fn api_response_for_request(path: &str, snapshot: &ApiSnapshot) -> (u16, &'s
                     json_string(&snapshot.kind)
                 },
                 snapshot.updated_unix_ms
-            ),
+            )),
         ),
         "/v1/latest/meta" => (
             200,
             "application/json; charset=utf-8",
-            api_snapshot_meta_json(snapshot),
+            Cow::Owned(api_snapshot_meta_json(snapshot)),
         ),
         "/v1/latest/targets" => (
             200,
             "application/json; charset=utf-8",
-            api_target_list_json(snapshot),
+            Cow::Owned(api_target_list_json(snapshot)),
         ),
         "/v1/capabilities" => (
             200,
             "application/json; charset=utf-8",
-            "{\"service\":\"gewyvern-api\",\"version\":\"0.7.0\",\"latest_snapshot\":true,\"serve_required\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}".into(),
+            Cow::Borrowed(
+                "{\"service\":\"gewyvern-api\",\"version\":\"0.7.0\",\"latest_snapshot\":true,\"serve_required\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}",
+            ),
         ),
         "/v1/latest/summary.txt" => match snapshot.summary_text.as_ref() {
-            Some(body) => (200, "text/plain; charset=utf-8", body.clone()),
-            None => (404, "text/plain; charset=utf-8", "no latest summary available".into()),
+            Some(body) => (
+                200,
+                "text/plain; charset=utf-8",
+                Cow::Borrowed(body.as_str()),
+            ),
+            None => (
+                404,
+                "text/plain; charset=utf-8",
+                Cow::Borrowed("no latest summary available"),
+            ),
         },
         "/v1/latest/summary.json" => match snapshot.summary_json.as_ref() {
-            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
-            None => (404, "text/plain; charset=utf-8", "no latest summary json available".into()),
+            Some(body) => (
+                200,
+                "application/json; charset=utf-8",
+                Cow::Borrowed(body.as_str()),
+            ),
+            None => (
+                404,
+                "text/plain; charset=utf-8",
+                Cow::Borrowed("no latest summary json available"),
+            ),
         },
         "/v1/latest/findings.json" => match snapshot.findings_json.as_ref() {
-            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
-            None => (404, "text/plain; charset=utf-8", "no latest findings json available".into()),
+            Some(body) => (
+                200,
+                "application/json; charset=utf-8",
+                Cow::Borrowed(body.as_str()),
+            ),
+            None => (
+                404,
+                "text/plain; charset=utf-8",
+                Cow::Borrowed("no latest findings json available"),
+            ),
         },
         "/v1/latest/analysis.json" => match snapshot.analysis_json.as_ref() {
-            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
-            None => (404, "text/plain; charset=utf-8", "no latest analysis json available".into()),
+            Some(body) => (
+                200,
+                "application/json; charset=utf-8",
+                Cow::Borrowed(body.as_str()),
+            ),
+            None => (
+                404,
+                "text/plain; charset=utf-8",
+                Cow::Borrowed("no latest analysis json available"),
+            ),
         },
         "/v1/latest/export.json" => match snapshot.export_json.as_ref() {
-            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
-            None => (404, "text/plain; charset=utf-8", "no latest export json available".into()),
+            Some(body) => (
+                200,
+                "application/json; charset=utf-8",
+                Cow::Borrowed(body.as_str()),
+            ),
+            None => (
+                404,
+                "text/plain; charset=utf-8",
+                Cow::Borrowed("no latest export json available"),
+            ),
         },
         "/v1/latest/report.json" => match snapshot.report_json.as_ref() {
-            Some(body) => (200, "application/json; charset=utf-8", body.clone()),
-            None => (404, "text/plain; charset=utf-8", "no latest report json available".into()),
+            Some(body) => (
+                200,
+                "application/json; charset=utf-8",
+                Cow::Borrowed(body.as_str()),
+            ),
+            None => (
+                404,
+                "text/plain; charset=utf-8",
+                Cow::Borrowed("no latest report json available"),
+            ),
         },
         "/v1/latest/report.html" => match snapshot.report_html.as_ref() {
-            Some(body) => (200, "text/html; charset=utf-8", body.clone()),
-            None => (404, "text/plain; charset=utf-8", "no latest report html available".into()),
+            Some(body) => (
+                200,
+                "text/html; charset=utf-8",
+                Cow::Borrowed(body.as_str()),
+            ),
+            None => (
+                404,
+                "text/plain; charset=utf-8",
+                Cow::Borrowed("no latest report html available"),
+            ),
         },
         _ => (
             404,
             "application/json; charset=utf-8",
-            "{\"error\":\"not_found\",\"paths\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}".into(),
+            Cow::Borrowed(
+                "{\"error\":\"not_found\",\"paths\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}",
+            ),
         ),
     }
 }
@@ -289,7 +364,7 @@ pub fn start_api_service(addr: &str) -> ApiState {
         eprintln!("failed to bind api socket {}: {}", addr, err);
         std::process::exit(1);
     });
-    let state = Arc::new(Mutex::new(ApiSnapshot::default()));
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
     let thread_state = Arc::clone(&state);
     thread::spawn(move || {
         for stream in listener.incoming() {
@@ -313,11 +388,21 @@ fn current_unix_ms() -> u128 {
 }
 
 fn json_string(value: &str) -> String {
-    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
+    let mut json = String::new();
+    append_json_string(&mut json, value);
+    json
 }
 
-fn optional_json_string(value: Option<&str>) -> String {
-    value.map(json_string).unwrap_or_else(|| "null".into())
+fn append_json_string(target: &mut String, value: &str) {
+    target.push('"');
+    for ch in value.chars() {
+        match ch {
+            '\\' => target.push_str("\\\\"),
+            '"' => target.push_str("\\\""),
+            _ => target.push(ch),
+        }
+    }
+    target.push('"');
 }
 
 fn is_api_target_direct_path_char(byte: u8) -> bool {
@@ -362,50 +447,98 @@ fn decode_api_target_path_segment(segment: &str) -> Result<String, &'static str>
     String::from_utf8(bytes).map_err(|_| "target path segment is not valid UTF-8")
 }
 
-fn api_target_refs_json(target_names: &[String]) -> String {
-    format!(
-        "[{}]",
-        target_names
-            .iter()
-            .map(|name| {
-                let path_segment = api_target_path_segment(name);
-                format!(
-                    "{{\"name\":{},\"path_segment\":{},\"url_path\":{}}}",
-                    json_string(name),
-                    json_string(&path_segment),
-                    json_string(&format!("/v1/latest/targets/{}", path_segment)),
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(",")
-    )
+fn append_api_target_refs_json(target: &mut String, target_names: &[String]) {
+    target.push('[');
+    for (index, name) in target_names.iter().enumerate() {
+        if index > 0 {
+            target.push(',');
+        }
+        let path_segment = api_target_path_segment(name);
+        target.push_str("{\"name\":");
+        append_json_string(target, name);
+        target.push_str(",\"path_segment\":");
+        append_json_string(target, &path_segment);
+        target.push_str(",\"url_path\":\"/v1/latest/targets/");
+        target.push_str(&path_segment);
+        target.push_str("\"}");
+    }
+    target.push(']');
 }
 
-fn api_snapshot_index_fields_json(snapshot: &ApiSnapshot) -> String {
-    format!(
-        "\"kind\":{},\"name\":{},\"target_count\":{},\"target_names\":{},\"target_refs\":{}",
-        json_string(&snapshot.kind),
-        optional_json_string(snapshot.name.as_deref()),
-        snapshot
-            .target_count
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "null".into()),
-        string_list_json(&snapshot.target_names),
-        api_target_refs_json(&snapshot.target_names),
-    )
+fn append_api_snapshot_index_fields_json(target: &mut String, snapshot: &ApiSnapshot) {
+    target.push_str("\"kind\":");
+    append_json_string(target, &snapshot.kind);
+    target.push_str(",\"name\":");
+    if let Some(name) = snapshot.name.as_deref() {
+        append_json_string(target, name);
+    } else {
+        target.push_str("null");
+    }
+    target.push_str(",\"target_count\":");
+    if let Some(count) = snapshot.target_count {
+        target.push_str(&count.to_string());
+    } else {
+        target.push_str("null");
+    }
+    target.push_str(",\"target_names\":");
+    append_string_list_json(target, &snapshot.target_names);
+    target.push_str(",\"target_refs\":");
+    append_api_target_refs_json(target, &snapshot.target_names);
 }
 
-fn api_snapshot_presence_fields_json(snapshot: &ApiSnapshot) -> String {
-    format!(
-        "\"has_summary_text\":{},\"has_summary_json\":{},\"has_findings_json\":{},\"has_analysis_json\":{},\"has_export_json\":{},\"has_report_json\":{},\"has_report_html\":{}",
-        snapshot.summary_text.is_some(),
-        snapshot.summary_json.is_some(),
-        snapshot.findings_json.is_some(),
-        snapshot.analysis_json.is_some(),
-        snapshot.export_json.is_some(),
-        snapshot.report_json.is_some(),
-        snapshot.report_html.is_some(),
-    )
+fn append_api_snapshot_presence_fields_json(target: &mut String, snapshot: &ApiSnapshot) {
+    target.push_str("\"has_summary_text\":");
+    target.push_str(if snapshot.summary_text.is_some() {
+        "true"
+    } else {
+        "false"
+    });
+    target.push_str(",\"has_summary_json\":");
+    target.push_str(if snapshot.summary_json.is_some() {
+        "true"
+    } else {
+        "false"
+    });
+    target.push_str(",\"has_findings_json\":");
+    target.push_str(if snapshot.findings_json.is_some() {
+        "true"
+    } else {
+        "false"
+    });
+    target.push_str(",\"has_analysis_json\":");
+    target.push_str(if snapshot.analysis_json.is_some() {
+        "true"
+    } else {
+        "false"
+    });
+    target.push_str(",\"has_export_json\":");
+    target.push_str(if snapshot.export_json.is_some() {
+        "true"
+    } else {
+        "false"
+    });
+    target.push_str(",\"has_report_json\":");
+    target.push_str(if snapshot.report_json.is_some() {
+        "true"
+    } else {
+        "false"
+    });
+    target.push_str(",\"has_report_html\":");
+    target.push_str(if snapshot.report_html.is_some() {
+        "true"
+    } else {
+        "false"
+    });
+}
+
+fn estimate_api_snapshot_meta_capacity(snapshot: &ApiSnapshot) -> usize {
+    192 + snapshot.kind.len()
+        + snapshot.name.as_ref().map_or(4, String::len)
+        + snapshot.target_names.iter().map(String::len).sum::<usize>() * 3
+}
+
+fn estimate_api_target_list_capacity(snapshot: &ApiSnapshot) -> usize {
+    128 + snapshot.kind.len() + snapshot.target_names.iter().map(String::len).sum::<usize>() * 4
 }
 
 fn write_http_response(
@@ -446,7 +579,7 @@ fn handle_api_client(mut stream: TcpStream, state: ApiState) {
         guard.clone()
     };
     let (status, content_type, body) = api_response_for_request(path, &snapshot);
-    let _ = write_http_response(&mut stream, status, content_type, &body);
+    let _ = write_http_response(&mut stream, status, content_type, body.as_ref());
 }
 
 #[cfg(test)]

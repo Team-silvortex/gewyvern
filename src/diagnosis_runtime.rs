@@ -1343,19 +1343,13 @@ pub(crate) fn append_process_network_profiles_text_from_snapshot(
     }
 }
 
-fn process_network_profile_summary_json(profile: &ProcessNetworkProfileSummary) -> String {
-    let mut json = String::from("{");
-    append_process_network_profile_summary_json(&mut json, profile);
-    json.push('}');
-    json
-}
-
 pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
-    let mut json = String::from("{\"target_status\":\"");
+    let mut json = String::with_capacity(estimate_analysis_snapshot_json_capacity(snapshot));
+    json.push_str("{\"target_status\":\"");
     json.push_str(snapshot.target_status.label());
     json.push_str("\",\"primary_process_profile\":");
     if let Some(profile) = snapshot.primary_process_profile.as_ref() {
-        json.push_str(&process_network_profile_summary_json(profile));
+        append_process_network_profile_summary_json(&mut json, profile);
     } else {
         json.push_str("null");
     }
@@ -1403,6 +1397,28 @@ pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
     json.push(']');
     json.push('}');
     json
+}
+
+fn estimate_analysis_snapshot_json_capacity(snapshot: &AnalysisSnapshot) -> usize {
+    512 + snapshot.primary_module_kind.len()
+        + snapshot.primary_failure_stage.len()
+        + snapshot.primary_failure_mode.len()
+        + snapshot.primary_failure_detail.len()
+        + snapshot.primary_failure_confidence.len()
+        + snapshot.primary_failure_basis.len()
+        + snapshot
+            .competing_hypotheses
+            .iter()
+            .map(String::len)
+            .sum::<usize>()
+        + snapshot
+            .suspect_modules
+            .iter()
+            .map(String::len)
+            .sum::<usize>()
+        + snapshot.augmentations.len() * 160
+        + snapshot.process_profiles.len() * 520
+        + snapshot.protocol_flows.len() * 420
 }
 
 pub(crate) fn suspect_modules_json_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
@@ -1453,7 +1469,7 @@ fn append_process_network_profile_summary_json(
     json: &mut String,
     profile: &ProcessNetworkProfileSummary,
 ) {
-    json.push_str("\"pid\":");
+    json.push_str("{\"pid\":");
     json.push_str(&profile.pid.to_string());
     json.push_str(",\"comm\":\"");
     json.push_str(&profile.comm);
@@ -1499,10 +1515,11 @@ fn append_process_network_profile_summary_json(
     json.push_str(&profile.healthy_flows.to_string());
     json.push_str(",\"attention_flows\":");
     json.push_str(&profile.attention_flows.to_string());
+    json.push('}');
 }
 
 fn append_protocol_flow_summary_json(json: &mut String, flow: &ProtocolFlowAnalysisSummary) {
-    json.push_str("\"program_flow\":");
+    json.push_str("{\"program_flow\":");
     json.push_str(&flow.program_flow.to_string());
     json.push_str(",\"process\":");
     append_process_json(json, flow.process.as_ref());
@@ -1540,6 +1557,7 @@ fn append_protocol_flow_summary_json(json: &mut String, flow: &ProtocolFlowAnaly
     append_string_list_json(json, &flow.missing_transitions);
     json.push_str(",\"suspect_areas\":");
     append_string_list_json(json, &flow.suspect_areas);
+    json.push('}');
 }
 
 pub(crate) fn analysis_augmentation_names_text(items: &[AnalysisAugmentation]) -> String {

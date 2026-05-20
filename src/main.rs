@@ -4263,6 +4263,48 @@ mod tests {
         assert!(json.contains("\"reason\":\"missing_transition\""));
     }
 
+    #[test]
+    fn analysis_and_findings_json_wrap_object_arrays_correctly() {
+        let mut export = annotate_export_trust(
+            run_binding_demo(
+                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                    .expect("http_request_path DSL should compile"),
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "http_request_path",
+            "http_request_response",
+            "receive_response",
+            "receive_payload",
+            "send_request->receive_response",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing response",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let snapshot = analysis_snapshot(&export);
+        let analysis_json = analysis_snapshot_json(&snapshot);
+        let findings = findings_json("dsl_demo", &export);
+
+        assert!(
+            analysis_json.contains("\"process_network_profiles\":[{"),
+            "analysis snapshot should serialize process profiles as object arrays",
+        );
+        assert!(
+            analysis_json.contains("\"protocol_flows\":[{"),
+            "analysis snapshot should serialize protocol flows as object arrays",
+        );
+        assert!(
+            findings.contains("\"program_findings\":[{"),
+            "findings json should serialize program findings as object arrays",
+        );
+    }
+
     struct MlHookAugmenter;
 
     impl AnalysisAugmenter for MlHookAugmenter {
@@ -9652,7 +9694,7 @@ mod tests {
             run_binding_demo(binding),
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
         );
-        let state = Arc::new(Mutex::new(ApiSnapshot::default()));
+        let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
         update_api_snapshot_for_single(
             &state,
             ApiRenderedTarget {
@@ -9706,7 +9748,7 @@ mod tests {
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
         );
         let outputs = vec![("scan:http:request".to_string(), export)];
-        let state = Arc::new(Mutex::new(ApiSnapshot::default()));
+        let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
         let rendered_targets = outputs
             .iter()
             .map(|(name, export)| ApiRenderedTarget {
@@ -9792,7 +9834,7 @@ mod tests {
             run_binding_demo(binding),
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
         );
-        let state = Arc::new(Mutex::new(ApiSnapshot::default()));
+        let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
         update_api_snapshot_for_single(
             &state,
             ApiRenderedTarget {

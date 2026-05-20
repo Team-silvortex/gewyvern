@@ -487,6 +487,7 @@ pub(super) fn http_transactions_json(transactions: &[HttpTransactionView]) -> St
 }
 
 fn append_module_finding_json(json: &mut String, finding: &gewyvern::flow::ModuleFinding) {
+    json.push('{');
     let cause_values = finding
         .causes
         .iter()
@@ -524,10 +525,11 @@ fn append_module_finding_json(json: &mut String, finding: &gewyvern::flow::Modul
     append_string_list_json(json, &finding.summaries);
     json.push_str(",\"evidence_trace\":");
     append_string_list_json(json, &finding.evidence_trace);
+    json.push('}');
 }
 
 fn append_program_finding_json(json: &mut String, finding: &gewyvern::flow::ProgramFinding) {
-    json.push_str("\"program_flow\":");
+    json.push_str("{\"program_flow\":");
     json.push_str(&finding.program_flow.0.to_string());
     json.push_str(",\"module_label\":\"");
     json.push_str(&finding.module_label);
@@ -563,6 +565,7 @@ fn append_program_finding_json(json: &mut String, finding: &gewyvern::flow::Prog
     append_string_list_json(json, &finding.supporting_fragments);
     json.push_str(",\"evidence_trace\":");
     append_string_list_json(json, &finding.evidence_trace);
+    json.push('}');
 }
 
 fn append_http_transaction_json(json: &mut String, transaction: &HttpTransactionView) {
