@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide describes the current `v0.7.0` development workflow.
+This guide describes the current `v0.9.0` development workflow.
 
 ## Quick Start
 

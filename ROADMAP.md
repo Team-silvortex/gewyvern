@@ -5,8 +5,8 @@ This roadmap treats `v1.0.0` as an operational trust milestone, not as a
 
 The working intention is:
 
-- current line: `v0.7.0`
-- pre-1.0 stabilization line: `v0.7.x` through `v0.10.0`
+- current line: `v0.9.0`
+- pre-1.0 stabilization line: `v0.9.x` through `v0.10.0`
 - decision point: if `v0.10.0` satisfies the `1.0` gates, release `v1.0.0`
   directly after validation
 
@@ -44,11 +44,9 @@ Exit criteria:
 - compiler findings and report outputs are stable enough for downstream use
 - core registry/package behavior has broad regression coverage
 
-## v0.7.x
+## v0.7.x (completed)
 
 Focus: improve module-level diagnosis quality.
-
-This is the current active line.
 
 - deepen protocol families that already exist instead of only adding new ones
 - improve failure-path modeling, suspect module inference, and stage inference
@@ -61,7 +59,7 @@ Exit criteria:
 - failure-path coverage is strong for the main supported protocol families
 - report conclusions are noticeably more actionable than raw flow listings
 
-## v0.8.x
+## v0.8.x (completed)
 
 Focus: harden operations and performance.
 
@@ -79,6 +77,8 @@ Exit criteria:
 ## v0.9.x
 
 Focus: freeze the surfaces that infra users depend on.
+
+This is the current active line.
 
 - minimize breaking changes in CLI flags and report structure
 - minimize breaking changes in export JSON and report JSON schema

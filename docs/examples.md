@@ -5,6 +5,11 @@ This guide is the shortest path from "I have the repo" to "I can use
 
 The examples below focus on the operator-facing runtime, not the compiler.
 
+If you need a short contract note for which CLI flags and JSON fields are
+considered stable enough to depend on during `v0.9.x`, read
+[docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
+alongside this guide.
+
 ## When To Use What
 
 Use `--protocol` when:
@@ -43,6 +48,8 @@ This is the fastest way to answer:
 
 Look first at:
 
+- `kind`
+- `name`
 - `primary_module_kind`
 - `primary_failure_stage`
 - `primary_failure_mode`
@@ -96,6 +103,8 @@ This is the fastest way to answer:
 
 Useful fields:
 
+- top-level `kind`
+- top-level `target_count`
 - top-level target counts
 - `targets[*].primary_module_kind`
 - `targets[*].primary_failure_mode`

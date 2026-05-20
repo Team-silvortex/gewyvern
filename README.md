@@ -1,4 +1,4 @@
-# gewyvern v0.7.0
+# gewyvern v0.9.0
 
 Protocol-agnostic network debugging runtime driven by eBPF fragments.
 
@@ -51,8 +51,8 @@ as a visual report.
 
 ## Status
 
-- project version: `0.7.0`
-- stage: pre-1.0 infra candidate with a stabilized workspace, protocol registry, and package-driven DSL/compiler path
+- project version: `0.9.0`
+- stage: pre-1.0 release-freeze candidate with a stabilized workspace, registry-driven protocol surface, and package-driven DSL/compiler path
 - transport support: TCP + UDP
 - protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP, RADIUS, GTP-U, SMTP, SSH, SOCKS5, SIP, LDAP, SNMP, RTSP, DNS-over-TCP
 - input modes: demo facts, Unix socket, TCP socket
@@ -71,8 +71,8 @@ as a visual report.
 
 `gewyvern` is now on a deliberate release path:
 
-- `v0.7.0` is the current stabilization point
-- `v0.7.x` through `v0.9.x` should be used to close the remaining production gaps
+- `v0.9.0` is the current release-freeze point
+- `v0.9.x` is the main compatibility and operational hardening line
 - `v0.10.0` is intended to be the last pre-`1.0` release
 - if the `1.0` gates are satisfied at `v0.10.0`, the project should move
   directly to `v1.0.0`
@@ -160,9 +160,9 @@ the fastest:
 6. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
    High-level architecture and compiler/runtime boundaries.
 7. [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
-   Current `src/` layering for the `v0.8.0` refactor line: what belongs in
+   Current `src/` layering for the `v0.9.0` release-freeze line: what belongs in
    `main`, `serve_runtime`, `report_runtime`, `diagnosis_runtime`, and
-   `data_api`.
+   `data_api`, plus where `external_analysis` fits.
 8. [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
    Operator-facing examples for single-protocol scans, full sweeps, PID-scoped
    reports, and reading failure confidence/basis.
@@ -175,14 +175,17 @@ the fastest:
 11. [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
    Cluster-oriented reading guide for `failure_mode`, `failure_detail`,
    `failure_confidence`, and `failure_basis`.
-12. [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
+12. [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
+   `v0.9.x` note describing which CLI flags, summary fields, analysis fields,
+   and external-engine hooks are stable enough to depend on.
+13. [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
    Minimal contract for append-only external analysis engines that consume
    `analysis.json` and return `augmentations`.
-13. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+14. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
    Gewy language shape, package model, and compiler-facing usage.
-14. [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+15. [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
    Small JSON schema guide for `gewyc frontend --json` and `gewyc explain --json`.
-15. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
+16. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
    Draft formal grammar for the preferred pipeline surface of `gewylang`.
 
 ## Main Entrypoints
@@ -200,7 +203,7 @@ the fastest:
 - `cargo test --workspace`
   Main regression path for the whole workspace.
 
-## What Works In v0.7.0
+## What Works In v0.9.0
 
 - Fragment registry, attach planning, and attach reporting
 - TDD-first runtime and rule specs
@@ -623,7 +626,7 @@ Built-in protocol discovery now comes from scanning gewy project manifests in
 
 ```text
 name=mysql_session
-version=0.7.0
+version=0.9.0
 entry=main.gewy
 register.protocol=mysql
 register.entry=session
@@ -944,7 +947,7 @@ cargo linux-smoke
 
 ## Near-Term Direction
 
-The next meaningful step after `v0.7.0` is not only “more protocol branches”.
+The next meaningful step after `v0.9.0` is not only “more protocol branches”.
 It is continuing to make the DSL and IR more explicit, so protocol behavior is
 described as program-network-module structure rather than as a pile of
 protocol-specific special cases, while steadily closing the remaining gaps on

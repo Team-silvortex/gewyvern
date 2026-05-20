@@ -300,7 +300,7 @@ The current recommended stable subset for `gewylang` is intentionally small:
 - keyword-style `program_rule(...)` and `reason_rule(...)`
 
 This subset is the best target if you want DSLs that are likely to stay stable
-through the `0.7.x` to `1.0` hardening path.
+through the `0.9.x` to `1.0` hardening path.
 
 Features that are still legal but should be thought of as transitional or
 lower-preference surfaces:

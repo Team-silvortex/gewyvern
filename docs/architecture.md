@@ -7,7 +7,7 @@ with [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md).
 
 ## Pipeline
 
-The current `v0.7.0` pipeline in code is:
+The current `v0.9.0` pipeline in code is:
 
 ```text
 Template
@@ -244,5 +244,5 @@ recomputes transport flows, program flows, and reasons.
 - `tc egress` is not implemented in the real Linux probe path yet
 - export JSON is still an internal project format, not a public stable schema
 
-These limits are intentional. `v0.7.0` still prioritizes debugger structure,
+These limits are intentional. `v0.9.0` still prioritizes debugger structure,
 determinism, and a clean path toward protocol-agnostic modeling over breadth.

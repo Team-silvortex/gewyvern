@@ -1,5 +1,5 @@
 name=amqp_session
-version=0.7.0
+version=0.9.0
 entry=main.gewy
 register.protocol=amqp
 register.entry=session

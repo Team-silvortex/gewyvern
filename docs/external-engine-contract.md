@@ -3,6 +3,10 @@
 This note describes the smallest useful contract between `gewyvern` and an
 external analysis engine.
 
+For the broader `v0.9.x` surface-freeze note, including which CLI flags and
+analysis fields are intended to be stable enough for downstream use, see
+[docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md).
+
 The goal is to let `gewyvern` keep ownership of:
 
 - fact ingestion

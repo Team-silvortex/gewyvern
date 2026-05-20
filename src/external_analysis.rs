@@ -1,9 +1,18 @@
-use std::collections::HashMap;
-use std::io::Write;
+use std::collections::{HashMap, VecDeque, hash_map::DefaultHasher};
+use std::hash::{Hash, Hasher};
+use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::sync::{Mutex, OnceLock};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use crate::diagnosis_runtime::{AnalysisAugmentation, AnalysisSnapshot};
+
+const EXTERNAL_ENGINE_TIMEOUT: Duration = Duration::from_secs(5);
+const MAX_EXTERNAL_ENGINE_STDOUT_BYTES: usize = 1024 * 1024;
+const MAX_EXTERNAL_ENGINE_STDERR_BYTES: usize = 256 * 1024;
+const MAX_EXTERNAL_CACHE_ENTRIES: usize = 128;
+const MAX_EXTERNAL_AUGMENTATIONS: usize = 256;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct ExternalAnalysisConfig {
@@ -12,10 +21,17 @@ pub(crate) struct ExternalAnalysisConfig {
     pub(crate) python_bin: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct SnapshotCacheKey {
+    len: usize,
+    hash: u64,
+}
+
 #[derive(Default)]
 struct ExternalAnalysisState {
     config: Option<ExternalAnalysisConfig>,
-    cache: HashMap<String, Vec<AnalysisAugmentation>>,
+    cache: HashMap<SnapshotCacheKey, Vec<AnalysisAugmentation>>,
+    cache_order: VecDeque<SnapshotCacheKey>,
 }
 
 fn state() -> &'static Mutex<ExternalAnalysisState> {
@@ -30,12 +46,13 @@ pub(crate) fn set_external_analysis_config(config: Option<ExternalAnalysisConfig
 }
 
 pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, snapshot_json: &str) {
+    let cache_key = snapshot_cache_key(snapshot_json);
     let cached = {
         let guard = state().lock().expect("external analysis mutex poisoned");
         let Some(config) = guard.config.clone() else {
             return;
         };
-        if let Some(items) = guard.cache.get(snapshot_json) {
+        if let Some(items) = guard.cache.get(&cache_key) {
             items.clone()
         } else {
             drop(guard);
@@ -52,7 +69,15 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
                 }]
             });
             let mut guard = state().lock().expect("external analysis mutex poisoned");
-            guard.cache.insert(snapshot_json.to_string(), items.clone());
+            if !guard.cache.contains_key(&cache_key) {
+                guard.cache_order.push_back(cache_key);
+            }
+            guard.cache.insert(cache_key, items.clone());
+            while guard.cache_order.len() > MAX_EXTERNAL_CACHE_ENTRIES {
+                if let Some(evicted) = guard.cache_order.pop_front() {
+                    guard.cache.remove(&evicted);
+                }
+            }
             items
         }
     };
@@ -93,18 +118,38 @@ fn run_external_analysis(
             .write_all(snapshot_json.as_bytes())
             .map_err(|err| format!("failed to write snapshot to external engine stdin: {err}"))?;
     }
-    let output = child
-        .wait_with_output()
-        .map_err(|err| format!("failed waiting for external engine: {err}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let _ = child.stdin.take();
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "external engine stdout unavailable".to_string())?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "external engine stderr unavailable".to_string())?;
+    let stdout_reader = thread::spawn(move || {
+        read_capped_stream(stdout, MAX_EXTERNAL_ENGINE_STDOUT_BYTES, "stdout")
+    });
+    let stderr_reader = thread::spawn(move || {
+        read_capped_stream(stderr, MAX_EXTERNAL_ENGINE_STDERR_BYTES, "stderr")
+    });
+    let wait_result = wait_for_child_with_timeout(&mut child, EXTERNAL_ENGINE_TIMEOUT);
+    let stdout = stdout_reader
+        .join()
+        .map_err(|_| "external engine stdout reader thread panicked".to_string())??;
+    let stderr = stderr_reader
+        .join()
+        .map_err(|_| "external engine stderr reader thread panicked".to_string())??;
+    let status = wait_result?;
+    if !status.success() {
+        let stderr = String::from_utf8_lossy(&stderr).trim().to_string();
         return Err(if stderr.is_empty() {
-            format!("external engine exited with {}", output.status)
+            format!("external engine exited with {}", status)
         } else {
-            format!("external engine exited with {}: {}", output.status, stderr)
+            format!("external engine exited with {}: {}", status, stderr)
         });
     }
-    parse_external_augmentations(&String::from_utf8_lossy(&output.stdout))
+    parse_external_augmentations(&String::from_utf8_lossy(&stdout))
 }
 
 fn parse_external_augmentations(input: &str) -> Result<Vec<AnalysisAugmentation>, String> {
@@ -112,6 +157,12 @@ fn parse_external_augmentations(input: &str) -> Result<Vec<AnalysisAugmentation>
     let objects = split_top_level_json_objects(inner)?;
     let mut items = Vec::new();
     for object in objects {
+        if items.len() >= MAX_EXTERNAL_AUGMENTATIONS {
+            return Err(format!(
+                "external output contains more than {} augmentations",
+                MAX_EXTERNAL_AUGMENTATIONS
+            ));
+        }
         items.push(AnalysisAugmentation {
             kind: extract_required_json_string(object, "kind")?,
             name: extract_required_json_string(object, "name")?,
@@ -313,6 +364,73 @@ fn escape_json_string(input: &str) -> String {
     input.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+fn snapshot_cache_key(snapshot_json: &str) -> SnapshotCacheKey {
+    let mut hasher = DefaultHasher::new();
+    snapshot_json.hash(&mut hasher);
+    SnapshotCacheKey {
+        len: snapshot_json.len(),
+        hash: hasher.finish(),
+    }
+}
+
+fn wait_for_child_with_timeout(
+    child: &mut std::process::Child,
+    timeout: Duration,
+) -> Result<std::process::ExitStatus, String> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|err| format!("failed waiting for external engine: {err}"))?
+        {
+            return Ok(status);
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(format!(
+                "external engine timed out after {}s",
+                timeout.as_secs().max(1)
+            ));
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+}
+
+fn read_capped_stream<R: Read>(
+    mut reader: R,
+    max_bytes: usize,
+    stream_name: &str,
+) -> Result<Vec<u8>, String> {
+    let mut output = Vec::new();
+    let mut buf = [0u8; 8192];
+    let mut overflowed = false;
+    loop {
+        let read = reader
+            .read(&mut buf)
+            .map_err(|err| format!("failed reading external engine {stream_name}: {err}"))?;
+        if read == 0 {
+            break;
+        }
+        if !overflowed {
+            let remaining = max_bytes.saturating_sub(output.len());
+            let take = remaining.min(read);
+            output.extend_from_slice(&buf[..take]);
+            if take < read {
+                overflowed = true;
+            }
+        }
+    }
+    if overflowed {
+        Err(format!(
+            "external engine {stream_name} exceeded {} bytes",
+            max_bytes
+        ))
+    } else {
+        Ok(output)
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn test_guard() -> std::sync::MutexGuard<'static, ()> {
     static TEST_GUARD: OnceLock<Mutex<()>> = OnceLock::new();
@@ -320,4 +438,35 @@ pub(crate) fn test_guard() -> std::sync::MutexGuard<'static, ()> {
         .get_or_init(|| Mutex::new(()))
         .lock()
         .expect("external analysis test guard poisoned")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_capped_stream_rejects_oversized_output() {
+        let result = read_capped_stream("abcdef".as_bytes(), 4, "stdout");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("exceeded"));
+    }
+
+    #[test]
+    fn parse_external_augmentations_rejects_too_many_items() {
+        let mut payload = String::from("{\"augmentations\":[");
+        for index in 0..=MAX_EXTERNAL_AUGMENTATIONS {
+            if index > 0 {
+                payload.push(',');
+            }
+            payload.push_str(
+                "{\"kind\":\"candidate\",\"name\":\"x\",\"summary\":\"y\",\"confidence\":\"candidate\"}",
+            );
+        }
+        payload.push_str("]}");
+        let err = match parse_external_augmentations(&payload) {
+            Ok(_) => panic!("should reject oversized list"),
+            Err(err) => err,
+        };
+        assert!(err.contains("more than"));
+    }
 }

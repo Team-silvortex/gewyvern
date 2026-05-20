@@ -1,7 +1,7 @@
 # Source Module Boundaries
 
 This document describes the current `src/` layering as `gewyvern` approaches
-`v0.8.0`.
+`v0.9.0`.
 
 The goal is simple:
 
@@ -20,6 +20,9 @@ The current top-level runtime split is:
 - `src/main.rs`
   CLI parsing, mode selection, top-level execution orchestration, and wiring
   between the major runtime subsystems.
+- `src/external_analysis.rs`
+  Runtime hook for append-only external analysis engines, bounded process
+  execution, augmentation parsing, and integration into analysis snapshots.
 - `src/data_api.rs`
   The latest-snapshot read-only API service, target route handling, target path
   encoding/decoding, and HTTP response generation for operator-facing data
@@ -74,11 +77,14 @@ The intended boundary rules are:
 4. `diagnosis_runtime.rs` owns interpretation policy such as
    `failure_mode/detail/confidence/basis`, ambiguity handling, competing
    hypotheses, and process-profile synthesis.
-5. `data_api.rs` exposes already-produced results; it should not become a
+5. `external_analysis.rs` may append machine-facing augmentations, but it
+   should not redefine the built-in diagnosis contract or become a second
+   reporting layer.
+6. `data_api.rs` exposes already-produced results; it should not become a
    second execution engine.
-6. `render_utils.rs` should remain small, pure, and reusable. It is not a home
+7. `render_utils.rs` should remain small, pure, and reusable. It is not a home
    for orchestration or policy logic.
-7. `dsl.rs`, `ir.rs`, `runtime.rs`, `fragment.rs`, and `export.rs` remain the
+8. `dsl.rs`, `ir.rs`, `runtime.rs`, `fragment.rs`, and `export.rs` remain the
    core compiler/runtime substrate and should stay usable outside the CLI entry
    path.
 
@@ -88,6 +94,7 @@ At a high level, the intended dependency flow is:
 
 ```text
 main
+  -> external_analysis
   -> serve_runtime
   -> report_runtime
   -> diagnosis_runtime
@@ -105,6 +112,7 @@ data_api
   -> render_utils
 
 diagnosis_runtime
+  -> external_analysis
   -> flow / export / runtime-facing data types
 ```
 
@@ -132,15 +140,17 @@ As a quick rule of thumb:
   `src/diagnosis_runtime.rs`.
 - If the change is about read-only data export over the API port, start in
   `src/data_api.rs`.
+- If the change is about calling a sibling analysis engine or merging external
+  augmentations, start in `src/external_analysis.rs`.
 - If the change is about shared formatting helpers, start in
   `src/render_utils.rs`.
 - If the change is about the language, IR, fragments, facts, or runtime event
   semantics, start in `src/dsl.rs`, `src/ir.rs`, `src/fragment.rs`,
   `src/runtime.rs`, or `src/export.rs`.
 
-## Near-Term `v0.8.0` Intent
+## Near-Term `v0.9.0` Intent
 
-For the `v0.8.0` line, the intent is not another large redesign. It is to keep
+For the `v0.9.0` line, the intent is not another large redesign. It is to keep
 this split stable while:
 
 - reducing `main.rs` further when a clearly separable subsystem appears

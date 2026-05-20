@@ -1,5 +1,5 @@
 name=smtp
-version=0.7.0
+version=0.9.0
 entry=main.gewy
 register.protocol=smtp
 register.entry=auth

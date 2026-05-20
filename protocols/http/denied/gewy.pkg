@@ -1,5 +1,5 @@
 name=http_connect_denied
-version=0.7.0
+version=0.9.0
 entry=main.gewy
 register.protocol=http
 register.entry=denied

@@ -3,11 +3,13 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::render_utils::string_list_json;
 
 pub type ApiState = Arc<Mutex<ApiSnapshot>>;
+
+const API_CLIENT_READ_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Clone, Debug, Default)]
 pub struct ApiSnapshot {
@@ -121,36 +123,18 @@ pub fn update_api_snapshot_for_scan(
 
 pub fn api_snapshot_meta_json(snapshot: &ApiSnapshot) -> String {
     format!(
-        "{{\"updated_unix_ms\":{},\"kind\":{},\"name\":{},\"target_count\":{},\"target_names\":{},\"target_refs\":{},\"has_summary_text\":{},\"has_summary_json\":{},\"has_findings_json\":{},\"has_analysis_json\":{},\"has_export_json\":{},\"has_report_json\":{},\"has_report_html\":{}}}",
+        "{{\"updated_unix_ms\":{}, {}, {}}}",
         snapshot.updated_unix_ms,
-        json_string(&snapshot.kind),
-        optional_json_string(snapshot.name.as_deref()),
-        snapshot
-            .target_count
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "null".into()),
-        string_list_json(&snapshot.target_names),
-        api_target_refs_json(&snapshot.target_names),
-        snapshot.summary_text.is_some(),
-        snapshot.summary_json.is_some(),
-        snapshot.findings_json.is_some(),
-        snapshot.analysis_json.is_some(),
-        snapshot.export_json.is_some(),
-        snapshot.report_json.is_some(),
-        snapshot.report_html.is_some(),
+        api_snapshot_index_fields_json(snapshot),
+        api_snapshot_presence_fields_json(snapshot),
     )
 }
 
 fn api_target_list_json(snapshot: &ApiSnapshot) -> String {
     format!(
-        "{{\"kind\":{},\"target_count\":{},\"targets\":{},\"target_refs\":{},\"path_segment_encoding\":\"percent-encoding\",\"direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\"}}",
-        json_string(&snapshot.kind),
-        snapshot
-            .target_count
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "null".into()),
+        "{{{},\"targets\":{},\"path_segment_encoding\":\"percent-encoding\",\"direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\"}}",
+        api_snapshot_index_fields_json(snapshot),
         string_list_json(&snapshot.target_names),
-        api_target_refs_json(&snapshot.target_names),
     )
 }
 
@@ -310,7 +294,10 @@ pub fn start_api_service(addr: &str) -> ApiState {
     thread::spawn(move || {
         for stream in listener.incoming() {
             match stream {
-                Ok(stream) => handle_api_client(stream, Arc::clone(&thread_state)),
+                Ok(stream) => {
+                    let client_state = Arc::clone(&thread_state);
+                    thread::spawn(move || handle_api_client(stream, client_state));
+                }
                 Err(_) => continue,
             }
         }
@@ -394,6 +381,33 @@ fn api_target_refs_json(target_names: &[String]) -> String {
     )
 }
 
+fn api_snapshot_index_fields_json(snapshot: &ApiSnapshot) -> String {
+    format!(
+        "\"kind\":{},\"name\":{},\"target_count\":{},\"target_names\":{},\"target_refs\":{}",
+        json_string(&snapshot.kind),
+        optional_json_string(snapshot.name.as_deref()),
+        snapshot
+            .target_count
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "null".into()),
+        string_list_json(&snapshot.target_names),
+        api_target_refs_json(&snapshot.target_names),
+    )
+}
+
+fn api_snapshot_presence_fields_json(snapshot: &ApiSnapshot) -> String {
+    format!(
+        "\"has_summary_text\":{},\"has_summary_json\":{},\"has_findings_json\":{},\"has_analysis_json\":{},\"has_export_json\":{},\"has_report_json\":{},\"has_report_html\":{}",
+        snapshot.summary_text.is_some(),
+        snapshot.summary_json.is_some(),
+        snapshot.findings_json.is_some(),
+        snapshot.analysis_json.is_some(),
+        snapshot.export_json.is_some(),
+        snapshot.report_json.is_some(),
+        snapshot.report_html.is_some(),
+    )
+}
+
 fn write_http_response(
     stream: &mut TcpStream,
     status: u16,
@@ -418,6 +432,7 @@ fn write_http_response(
 }
 
 fn handle_api_client(mut stream: TcpStream, state: ApiState) {
+    let _ = stream.set_read_timeout(Some(API_CLIENT_READ_TIMEOUT));
     let mut buffer = [0u8; 2048];
     let bytes_read = match stream.read(&mut buffer) {
         Ok(bytes) if bytes > 0 => bytes,
@@ -432,4 +447,23 @@ fn handle_api_client(mut stream: TcpStream, state: ApiState) {
     };
     let (status, content_type, body) = api_response_for_request(path, &snapshot);
     let _ = write_http_response(&mut stream, status, content_type, &body);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn api_target_path_segment_percent_encodes_reserved_bytes() {
+        assert_eq!(
+            api_target_path_segment("scan/http request"),
+            "scan%2Fhttp%20request"
+        );
+    }
+
+    #[test]
+    fn decode_api_target_path_segment_rejects_invalid_escape() {
+        let err = decode_api_target_path_segment("%ZZ").expect_err("should reject invalid escape");
+        assert!(err.contains("invalid percent-encoding"));
+    }
 }

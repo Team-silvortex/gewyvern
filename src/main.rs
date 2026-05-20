@@ -109,31 +109,31 @@ impl UiLocale {
     fn usage(self) -> &'static str {
         match self {
             Self::Zh => {
-                "用法: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "用法: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::Ja => {
-                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::Ko => {
-                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::Fr => {
-                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::De => {
-                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::Es => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::Pt => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::Ru => {
-                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::En => {
-                "usage: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--max-sessions n] [--json] [--summary-only] [--out path]"
+                "usage: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
         }
     }
@@ -428,6 +428,9 @@ impl UiLocale {
             }
             (Self::Zh, "serve_requires_socket") => "--serve 需要 --unix-socket 或 --tcp-socket",
             (Self::Zh, "api_requires_serve") => "--api-socket 需要和 --serve 一起使用",
+            (Self::Zh, "remote_api_requires_flag") => {
+                "远程 API 监听默认关闭。只有在你确认要暴露只读分析接口时，才应显式加上 --allow-remote-api"
+            }
             (Self::Zh, "unsupported_fragment_combo") => "不支持的片段组合",
             (Self::Zh, "unix_only") => "unix socket 服务仅支持 unix 平台",
             (Self::Zh, "findings_diagnostics_conflict") => {
@@ -618,6 +621,9 @@ impl UiLocale {
             }
             (_, "serve_requires_socket") => "--serve requires --unix-socket or --tcp-socket",
             (_, "api_requires_serve") => "--api-socket requires --serve",
+            (_, "remote_api_requires_flag") => {
+                "remote API listeners are off by default; only opt in with --allow-remote-api when you intentionally want to expose the read-only analysis API"
+            }
             (_, "unsupported_fragment_combo") => "unsupported fragment combination",
             (_, "unix_only") => "unix socket service is only supported on unix platforms",
             (_, "findings_diagnostics_conflict") => {
@@ -1102,6 +1108,7 @@ struct Cli {
     http_transactions: bool,
     serve: bool,
     api_socket: Option<String>,
+    allow_remote_api: bool,
     max_sessions: Option<usize>,
     json: bool,
     report_format: Option<ReportFormat>,
@@ -1270,6 +1277,7 @@ impl Cli {
         let mut http_transactions = false;
         let mut serve = false;
         let mut api_socket = None;
+        let mut allow_remote_api = false;
         let mut max_sessions = None;
         let mut json = false;
         let mut report_format = None;
@@ -1297,6 +1305,7 @@ impl Cli {
                     report_format = Some(ReportFormat::from_str(&value)?);
                 }
                 "--serve" => serve = true,
+                "--allow-remote-api" => allow_remote_api = true,
                 "--api-socket" => {
                     api_socket = Some(
                         args.next()
@@ -1488,6 +1497,12 @@ impl Cli {
         if api_socket.is_some() && !serve {
             return Err(locale.msg("api_requires_serve").into());
         }
+        if api_socket
+            .as_deref()
+            .is_some_and(|addr| !allow_remote_api && !api_socket_addr_is_local(addr))
+        {
+            return Err(locale.msg("remote_api_requires_flag").into());
+        }
         if matches!(socket_target, Some(SocketTarget::Tcp(_)))
             && ingest_mode != IngestMode::RemoteAdvisory
             && socket_target
@@ -1526,6 +1541,7 @@ impl Cli {
             http_transactions,
             serve,
             api_socket,
+            allow_remote_api,
             max_sessions,
             json,
             report_format,
@@ -1630,6 +1646,10 @@ fn tcp_bind_addr_is_local(addr: &str) -> bool {
     addr.to_socket_addrs()
         .map(|resolved| resolved.into_iter().all(|addr| addr.ip().is_loopback()))
         .unwrap_or_else(|_| addr.starts_with("localhost:"))
+}
+
+fn api_socket_addr_is_local(addr: &str) -> bool {
+    tcp_bind_addr_is_local(addr)
 }
 
 fn filter_export_by_pid(export: &ExportBundle, pid: u32) -> ExportBundle {
@@ -5034,6 +5054,34 @@ mod tests {
     }
 
     #[test]
+    fn cli_rejects_remote_api_socket_without_explicit_flag() {
+        let err = Cli::from_args([
+            "--tcp-socket".to_string(),
+            "127.0.0.1:9000".to_string(),
+            "--serve".to_string(),
+            "--api-socket".to_string(),
+            "0.0.0.0:9100".to_string(),
+        ])
+        .unwrap_err();
+        assert!(err.contains("--allow-remote-api"));
+    }
+
+    #[test]
+    fn cli_accepts_remote_api_socket_with_explicit_flag() {
+        let cli = Cli::from_args([
+            "--tcp-socket".to_string(),
+            "127.0.0.1:9000".to_string(),
+            "--serve".to_string(),
+            "--api-socket".to_string(),
+            "0.0.0.0:9100".to_string(),
+            "--allow-remote-api".to_string(),
+        ])
+        .expect("explicit remote api opt-in should be accepted");
+        assert_eq!(cli.api_socket.as_deref(), Some("0.0.0.0:9100"));
+        assert!(cli.allow_remote_api);
+    }
+
+    #[test]
     fn export_json_carries_ingest_trust_mode() {
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
             .expect("http_request_path DSL should compile");
@@ -5074,6 +5122,20 @@ mod tests {
         assert!(json.contains(
             "\"pid_attribution_note\":\"pid-scoped conclusions are advisory only because ingest lineage is unverified\""
         ));
+    }
+
+    #[test]
+    fn summary_json_exposes_single_object_identity_fields() {
+        let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .expect("http_request_path DSL should compile");
+        let export = annotate_export_trust(
+            run_binding_demo(binding),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"kind\":\"single\""));
+        assert!(json.contains("\"name\":\"dsl_demo\""));
+        assert!(json.contains("\"demo\":\"dsl_demo\""));
     }
 
     #[test]
@@ -5125,6 +5187,9 @@ mod tests {
             ("scan:http:request".to_string(), healthy_export),
             ("scan:http:response".to_string(), attention_export),
         ]);
+        assert!(report.contains("\"kind\":\"scan\""));
+        assert!(report.contains("\"name\":null"));
+        assert!(report.contains("\"target_count\":2"));
         assert!(report.contains("\"scan_all\":true"));
         assert!(report.contains("\"total_targets\":2"));
         assert!(report.contains("\"healthy_targets\":1"));
