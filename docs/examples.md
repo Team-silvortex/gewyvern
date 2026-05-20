@@ -250,17 +250,11 @@ ENGINE_ROOT=/path/to/external-engine
 EXTERNAL_ENGINE_CMD='cargo run -- analyze-url'
 ```
 
-If you specifically want the current `etragon` wrapper, run:
-
-```bash
-bash scripts/etragon_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/etragon-augmentations.json
-```
-
-To make `etragon` consume a target-specific route, pass the target path segment
+To make the bridge consume a target-specific route, pass the target path segment
 as the sixth argument:
 
 ```bash
-bash scripts/etragon_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/etragon-augmentations.json socket_session
+bash scripts/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json socket_session
 ```
 
 That gives you:

@@ -1,0 +1,86 @@
+# Documentation Map
+
+This page is the single entry point for the `gewyvern` documentation set.
+
+If you are not sure where to start, do not browse `docs/` file by file. Start
+here, pick one track, and only drill into specialist pages when you need them.
+
+## The Short Path
+
+For most readers, the right order is:
+
+1. [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
+   Product status, CLI entrypoints, protocol coverage, and current release
+   posture.
+2. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+   System-level layering and the main runtime/compiler boundaries.
+3. [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
+   Operator-facing usage patterns for single-target scans, sweeps, reports, and
+   summary reading.
+4. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+   `gewylang`, package shape, compiler usage, and the preferred stable subset.
+5. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+   Day-to-day contributor workflow, test layout, and where to land changes.
+
+That set is the intended “main shelf”. Everything else below is supporting
+material.
+
+## Core Docs
+
+- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+  High-level system map and stable architecture boundaries.
+- [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
+  Fastest operator path from command invocation to reading conclusions.
+- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+  Language guide for `.gewy`, package composition, predicates, and compiler
+  usage.
+- [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+  TDD workflow, test map, and contributor habits.
+
+## Runtime Internals
+
+- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+  `src/` ownership map: `main`, `serve_runtime`, `report_runtime`,
+  `diagnosis_runtime`, `data_api`, and `external_analysis`.
+- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+  Runtime-pipeline deep dive.
+- [docs/fragments.md](/Users/Shared/chroot/dev/gewyvern/docs/fragments.md)
+  Fragment model, capabilities, and attach/runtime semantics.
+- [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
+  `ExportBundle` and replay/export shape.
+- [docs/walkthrough.md](/Users/Shared/chroot/dev/gewyvern/docs/walkthrough.md)
+  One concrete `.gewy -> binding -> runtime -> export` path.
+
+## Operator Semantics
+
+- [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
+  How to read `process_network_profiles`.
+- [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
+  Meaning of `failure_mode`, `failure_detail`, `confidence`, and `basis`.
+- [docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md)
+  Trust labels, advisory ingest, and PID attribution caution.
+- [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
+  Which `v0.9.x` CLI/report/analysis surfaces are stable enough to depend on.
+
+## Compiler And Tooling
+
+- [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+  JSON guide for `gewyc frontend --json` and `gewyc explain --json`.
+- [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
+  Draft formal grammar for the preferred pipeline surface.
+
+## Extensibility And Performance
+
+- [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
+  Minimal contract for append-only external analysis engines.
+- [docs/performance-baselines.md](/Users/Shared/chroot/dev/gewyvern/docs/performance-baselines.md)
+  Current ignored-benchmark medians and comparison workflow.
+- [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)
+  Linux/eBPF validation path.
+
+## Fixtures And Reference Assets
+
+- [docs/fixtures/external_engine_input_example.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/external_engine_input_example.json)
+  Minimal external-engine input example.
+- [docs/fixtures/external_engine_output_example.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/external_engine_output_example.json)
+  Minimal external-engine output example.

@@ -7,21 +7,18 @@ This guide describes the current `v0.9.0` development workflow.
 Recommended reading before changing code:
 
 - `README.md`
+- `docs/index.md`
 - `docs/system.md`
-- `docs/module-boundaries.md`
-- `docs/architecture.md`
-- `docs/dsl.md`
-- `docs/fragments.md`
-- `docs/export-format.md`
+- `docs/dsl.md` or `docs/fragments.md`, depending on the change
 - `docs/headless-linux.md` when the change touches real eBPF attach/runtime work
 
 The shortest practical orientation path is:
 
 1. `README.md`
-2. `docs/system.md`
-3. `docs/module-boundaries.md`
+2. `docs/index.md`
+3. `docs/system.md`
 4. `docs/dsl.md` or `docs/fragments.md`, depending on whether the change is language-facing or runtime-facing
-5. `docs/architecture.md` when the change crosses runtime reconstruction or reporting paths
+5. `docs/module-boundaries.md` when the change crosses runtime reconstruction or reporting paths
 
 Run the demo binary:
 

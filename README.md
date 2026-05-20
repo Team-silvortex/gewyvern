@@ -144,49 +144,18 @@ boundaries:
 
 ## Repository Reading Order
 
-If you are orienting yourself for the first time, this reading order is usually
-the fastest:
+If you are orienting yourself for the first time, use this shorter path:
 
 1. [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
-   Current product/runtime status, supported protocol families, and operational entrypoints.
-2. [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)
-   Canonical built-in registry packages. This is the best place to see what the runtime actually registers and scans.
-3. [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
-   Underlying protocol-path DSL files. This is the clearest place to inspect concrete modeled network-module behavior.
-4. [src/main.rs](/Users/Shared/chroot/dev/gewyvern/src/main.rs)
-   Runtime CLI, report rendering, protocol scans, and operator-facing execution flow.
-5. [src/ir.rs](/Users/Shared/chroot/dev/gewyvern/src/ir.rs)
-   Core shared IR semantics: predicates, signal semantics, phase kinds, and transport matcher behavior.
-6. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-   High-level architecture and compiler/runtime boundaries.
-7. [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
-   Current `src/` layering for the `v0.9.0` release-freeze line: what belongs in
-   `main`, `serve_runtime`, `report_runtime`, `diagnosis_runtime`, and
-   `data_api`, plus where `external_analysis` fits.
-8. [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
-   Operator-facing examples for single-protocol scans, full sweeps, PID-scoped
-   reports, and reading failure confidence/basis.
-9. [docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md)
-   Operator-facing explanation of advisory ingest modes, trust labeling, and
-   why PID attribution is deliberately downgraded for unverified socket inputs.
-10. [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
-   How to interpret `process_network_profiles` for tools such as `apt`, `curl`,
-   media clients, proxies, and database clients.
-11. [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
-   Cluster-oriented reading guide for `failure_mode`, `failure_detail`,
-   `failure_confidence`, and `failure_basis`.
-12. [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
-   `v0.9.x` note describing which CLI flags, summary fields, analysis fields,
-   and external-engine hooks are stable enough to depend on.
-13. [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
-   Minimal contract for append-only external analysis engines that consume
-   `analysis.json` and return `augmentations`.
-14. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-   Gewy language shape, package model, and compiler-facing usage.
-15. [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
-   Small JSON schema guide for `gewyc frontend --json` and `gewyc explain --json`.
-16. [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
-   Draft formal grammar for the preferred pipeline surface of `gewylang`.
+2. [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
+3. [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)
+4. [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
+5. [src/main.rs](/Users/Shared/chroot/dev/gewyvern/src/main.rs)
+6. [src/ir.rs](/Users/Shared/chroot/dev/gewyvern/src/ir.rs)
+
+The full document map now lives in [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md),
+so the rest of the docs do not each need to carry their own long navigation
+list.
 
 ## Main Entrypoints
 
@@ -901,18 +870,12 @@ ENGINE_ROOT=/path/to/external-engine
 EXTERNAL_ENGINE_CMD='cargo run -- analyze-url'
 ```
 
-`etragon`-specific wrapper demo:
-
-```bash
-bash scripts/etragon_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/etragon-augmentations.json
-```
-
 If you want the bridge to consume a target-specific route instead of the latest
 top-level analysis snapshot, pass the already URL-safe target path segment as a
 sixth argument:
 
 ```bash
-bash scripts/etragon_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/etragon-augmentations.json socket_session
+bash scripts/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json socket_session
 ```
 
 Those scripts exercise the full bridge:
@@ -960,15 +923,11 @@ cargo linux-smoke
 
 ## Repo Docs
 
+- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
-- [docs/walkthrough.md](/Users/Shared/chroot/dev/gewyvern/docs/walkthrough.md)
-- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+- [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-- [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
-- [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
-- [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)
 
 ## Near-Term Direction
 
