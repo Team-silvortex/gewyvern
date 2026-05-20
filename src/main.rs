@@ -39,10 +39,13 @@ use std::time::{Duration, SystemTime};
 use crate::diagnosis_runtime::*;
 use crate::external_analysis::{ExternalAnalysisConfig, set_external_analysis_config};
 use crate::report_runtime::{
-    findings_json, findings_text, http_transactions_json, http_transactions_text,
-    render_report_outputs, render_scan_outputs, scan_report_html, scan_report_json,
-    scan_report_text, summary_json, summary_line,
+    findings_json, findings_json_with_analysis, findings_text, http_transactions_json,
+    http_transactions_text, render_report_outputs, render_scan_outputs, scan_report_html,
+    scan_report_json_with_analyses, scan_report_text_with_analyses, summary_json,
+    summary_json_with_analysis, summary_line, summary_line_with_analysis,
 };
+#[cfg(test)]
+use crate::report_runtime::{scan_report_json, scan_report_text};
 use crate::serve_runtime::serve_socket_sessions;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -3988,6 +3991,15 @@ mod tests {
         export.debug_summary.program_findings = export.program_findings.len() as u64;
         export.debug_summary.module_findings = export.module_findings.len() as u64;
         export
+    }
+
+    fn synthesize_large_scan_outputs(
+        target_count: usize,
+    ) -> Vec<(String, gewyvern::export::ExportBundle)> {
+        let export = synthesize_large_protocol_flow_export();
+        (0..target_count)
+            .map(|index| (format!("scan:http:request:{index}"), export.clone()))
+            .collect()
     }
 
     #[test]
@@ -9811,6 +9823,102 @@ mod tests {
             "benchmark_summary_line_large_protocol_flow_export: iterations=200 flows={} findings={} elapsed_ms={:.3}",
             export.program_flows.len(),
             export.program_findings.len(),
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_analysis_snapshot_large_protocol_flow_export() {
+        let export = synthesize_large_protocol_flow_export();
+        let start = Instant::now();
+        let mut total_flows = 0usize;
+        for _ in 0..200 {
+            total_flows += analysis_snapshot(&export).protocol_flows.len();
+        }
+        let elapsed = start.elapsed();
+        assert!(total_flows > 0);
+        eprintln!(
+            "benchmark_analysis_snapshot_large_protocol_flow_export: iterations=200 flows={} findings={} elapsed_ms={:.3}",
+            export.program_flows.len(),
+            export.program_findings.len(),
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_analysis_snapshot_json_large_protocol_flow_export() {
+        let export = synthesize_large_protocol_flow_export();
+        let snapshot = analysis_snapshot(&export);
+        let start = Instant::now();
+        let mut total_len = 0usize;
+        for _ in 0..200 {
+            total_len += analysis_snapshot_json(&snapshot).len();
+        }
+        let elapsed = start.elapsed();
+        assert!(total_len > 0);
+        eprintln!(
+            "benchmark_analysis_snapshot_json_large_protocol_flow_export: iterations=200 flows={} findings={} elapsed_ms={:.3}",
+            export.program_flows.len(),
+            export.program_findings.len(),
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_scan_report_json_large_protocol_flow_export() {
+        let outputs = synthesize_large_scan_outputs(24);
+        let start = Instant::now();
+        let mut total_len = 0usize;
+        for _ in 0..40 {
+            total_len += scan_report_json(&outputs).len();
+        }
+        let elapsed = start.elapsed();
+        assert!(total_len > 0);
+        eprintln!(
+            "benchmark_scan_report_json_large_protocol_flow_export: iterations=40 targets={} flows_per_target={} elapsed_ms={:.3}",
+            outputs.len(),
+            outputs[0].1.program_flows.len(),
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_scan_report_text_large_protocol_flow_export() {
+        let outputs = synthesize_large_scan_outputs(24);
+        let start = Instant::now();
+        let mut total_len = 0usize;
+        for _ in 0..40 {
+            total_len += scan_report_text(&outputs).len();
+        }
+        let elapsed = start.elapsed();
+        assert!(total_len > 0);
+        eprintln!(
+            "benchmark_scan_report_text_large_protocol_flow_export: iterations=40 targets={} flows_per_target={} elapsed_ms={:.3}",
+            outputs.len(),
+            outputs[0].1.program_flows.len(),
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_scan_report_html_large_protocol_flow_export() {
+        let outputs = synthesize_large_scan_outputs(12);
+        let start = Instant::now();
+        let mut total_len = 0usize;
+        for _ in 0..10 {
+            total_len += scan_report_html(&outputs).len();
+        }
+        let elapsed = start.elapsed();
+        assert!(total_len > 0);
+        eprintln!(
+            "benchmark_scan_report_html_large_protocol_flow_export: iterations=10 targets={} flows_per_target={} elapsed_ms={:.3}",
+            outputs.len(),
+            outputs[0].1.program_flows.len(),
             elapsed.as_secs_f64() * 1000.0
         );
     }

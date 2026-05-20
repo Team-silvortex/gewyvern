@@ -6,6 +6,14 @@ use crate::render_utils::*;
 
 pub(super) fn summary_line(name: &str, export: &ExportBundle) -> String {
     let analysis = analysis_snapshot(export);
+    summary_line_with_analysis(name, export, &analysis)
+}
+
+pub(super) fn summary_line_with_analysis(
+    name: &str,
+    export: &ExportBundle,
+    analysis: &AnalysisSnapshot,
+) -> String {
     let locale = UiLocale::detect();
     let suspect_areas = if export.program_findings.is_empty() {
         locale.none().to_string()
@@ -27,8 +35,8 @@ pub(super) fn summary_line(name: &str, export: &ExportBundle) -> String {
             .collect::<Vec<_>>()
             .join(",")
     };
-    let protocol_flows = protocol_flow_summaries_text_from_snapshot(&analysis);
-    let process_profiles = process_network_profiles_text_from_snapshot(&analysis);
+    let protocol_flows = protocol_flow_summaries_text_from_snapshot(analysis);
+    let process_profiles = process_network_profiles_text_from_snapshot(analysis);
     let augmentations = analysis_augmentation_names_text(&analysis.augmentations);
     let ingest_mode_note = ingest_mode_note_for_export(export);
     format!(
@@ -75,6 +83,13 @@ pub(super) fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
         .iter()
         .map(|(_, export)| analysis_snapshot(export))
         .collect::<Vec<_>>();
+    scan_report_json_with_analyses(outputs, &analyses)
+}
+
+pub(super) fn scan_report_json_with_analyses(
+    outputs: &[(String, ExportBundle)],
+    analyses: &[AnalysisSnapshot],
+) -> String {
     let total_targets = outputs.len();
     let (healthy_targets, attention_targets, idle_targets) = scan_target_status_counts(&analyses);
 
@@ -87,7 +102,7 @@ pub(super) fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
                 name,
                 analysis.target_status.label(),
                 analysis_context_json(export, analysis),
-                suspect_modules_for_export(export),
+                suspect_modules_json_from_snapshot(analysis),
                 process_network_profiles_json_from_snapshot(analysis),
                 protocol_flow_summaries_json_from_snapshot(analysis),
             )
@@ -102,23 +117,16 @@ pub(super) fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
 }
 
 pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
+    let analyses = outputs
+        .iter()
+        .map(|(_, export)| analysis_snapshot(export))
+        .collect::<Vec<_>>();
     let total_targets = outputs.len();
-    let healthy_targets = outputs
-        .iter()
-        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Healthy))
-        .count();
-    let attention_targets = outputs
-        .iter()
-        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Attention))
-        .count();
-    let idle_targets = outputs
-        .iter()
-        .filter(|(_, export)| matches!(scan_target_status(export), ScanTargetStatus::Idle))
-        .count();
+    let (healthy_targets, attention_targets, idle_targets) = scan_target_status_counts(&analyses);
 
     let mut family_counts = std::collections::BTreeMap::<String, usize>::new();
-    for (_, export) in outputs {
-        let family = module_family_label(&primary_module_kind_for_export(export)).to_string();
+    for analysis in &analyses {
+        let family = module_family_label(&analysis.primary_module_kind).to_string();
         *family_counts.entry(family).or_default() += 1;
     }
     let family_summary = family_counts
@@ -134,33 +142,37 @@ pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
 
     let mut sorted_outputs = outputs
         .iter()
-        .map(|(name, export)| (name, export))
+        .zip(analyses.iter())
+        .map(|((name, export), analysis)| (name, export, analysis))
         .collect::<Vec<_>>();
-    sorted_outputs.sort_by(|(left_name, left), (right_name, right)| {
-        let left_rank = match scan_target_status(left) {
-            ScanTargetStatus::Attention => 0,
-            ScanTargetStatus::Healthy => 1,
-            ScanTargetStatus::Idle => 2,
-        };
-        let right_rank = match scan_target_status(right) {
-            ScanTargetStatus::Attention => 0,
-            ScanTargetStatus::Healthy => 1,
-            ScanTargetStatus::Idle => 2,
-        };
-        left_rank
-            .cmp(&right_rank)
-            .then_with(|| {
-                primary_module_kind_for_export(left).cmp(&primary_module_kind_for_export(right))
-            })
-            .then_with(|| left_name.cmp(right_name))
-    });
+    sorted_outputs.sort_by(
+        |(left_name, _, left_analysis), (right_name, _, right_analysis)| {
+            let left_rank = match left_analysis.target_status {
+                ScanTargetStatus::Attention => 0,
+                ScanTargetStatus::Healthy => 1,
+                ScanTargetStatus::Idle => 2,
+            };
+            let right_rank = match right_analysis.target_status {
+                ScanTargetStatus::Attention => 0,
+                ScanTargetStatus::Healthy => 1,
+                ScanTargetStatus::Idle => 2,
+            };
+            left_rank
+                .cmp(&right_rank)
+                .then_with(|| {
+                    left_analysis
+                        .primary_module_kind
+                        .cmp(&right_analysis.primary_module_kind)
+                })
+                .then_with(|| left_name.cmp(right_name))
+        },
+    );
 
     let cards = sorted_outputs
         .into_iter()
-        .map(|(name, export)| {
-            let status = scan_target_status(export).label();
-            let analysis = analysis_snapshot(export);
-            let details_open = if matches!(scan_target_status(export), ScanTargetStatus::Attention)
+        .map(|(name, export, analysis)| {
+            let status = analysis.target_status.label();
+            let details_open = if matches!(analysis.target_status, ScanTargetStatus::Attention)
             {
                 " open"
             } else {
@@ -308,41 +320,33 @@ pub(super) fn scan_report_text(outputs: &[(String, ExportBundle)]) -> String {
         .iter()
         .map(|(_, export)| analysis_snapshot(export))
         .collect::<Vec<_>>();
+    scan_report_text_with_analyses(outputs, &analyses)
+}
+
+pub(super) fn scan_report_text_with_analyses(
+    outputs: &[(String, ExportBundle)],
+    analyses: &[AnalysisSnapshot],
+) -> String {
     let total_targets = outputs.len();
-    let healthy_targets = analyses
-        .iter()
-        .filter(|analysis| matches!(analysis.target_status, ScanTargetStatus::Healthy))
-        .count();
-    let attention_targets = analyses
-        .iter()
-        .filter(|analysis| matches!(analysis.target_status, ScanTargetStatus::Attention))
-        .count();
-    let idle_targets = analyses
-        .iter()
-        .filter(|analysis| matches!(analysis.target_status, ScanTargetStatus::Idle))
-        .count();
-    let mut lines = vec![format!(
+    let (healthy_targets, attention_targets, idle_targets) = scan_target_status_counts(analyses);
+    let mut text = format!(
         "scan_all_report: total_targets={} healthy_targets={} attention_targets={} idle_targets={}",
         total_targets, healthy_targets, attention_targets, idle_targets
-    )];
-    lines.extend(
-        outputs
-            .iter()
-            .zip(analyses.iter())
-            .map(|((name, export), analysis)| {
-                format!(
-                    "{} status={} flows={} findings={} modules={} profiles={} protocol_flows={}",
-                    name,
-                    analysis.target_status.label(),
-                    export.program_flows.len(),
-                    export.program_findings.len(),
-                    export.module_findings.len(),
-                    process_network_profiles_text_from_snapshot(analysis),
-                    protocol_flow_summaries_text_from_snapshot(analysis),
-                )
-            }),
     );
-    lines.join("\n")
+    for ((name, export), analysis) in outputs.iter().zip(analyses.iter()) {
+        text.push('\n');
+        text.push_str(&format!(
+            "{} status={} flows={} findings={} modules={} profiles={} protocol_flows={}",
+            name,
+            analysis.target_status.label(),
+            export.program_flows.len(),
+            export.program_findings.len(),
+            export.module_findings.len(),
+            process_network_profiles_text_from_snapshot(analysis),
+            protocol_flow_summaries_text_from_snapshot(analysis),
+        ));
+    }
+    text
 }
 
 pub(super) fn render_scan_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]) -> String {
@@ -364,6 +368,14 @@ pub(super) fn render_report_outputs(cli: &Cli, outputs: &[(String, ExportBundle)
 
 pub(super) fn summary_json(name: &str, export: &ExportBundle) -> String {
     let analysis = analysis_snapshot(export);
+    summary_json_with_analysis(name, export, &analysis)
+}
+
+pub(super) fn summary_json_with_analysis(
+    name: &str,
+    export: &ExportBundle,
+    analysis: &AnalysisSnapshot,
+) -> String {
     let suspect_modules = format!(
         "[{}]",
         export
@@ -461,6 +473,14 @@ pub(super) fn findings_text(name: &str, export: &ExportBundle) -> String {
 
 pub(super) fn findings_json(name: &str, export: &ExportBundle) -> String {
     let analysis = analysis_snapshot(export);
+    findings_json_with_analysis(name, export, &analysis)
+}
+
+pub(super) fn findings_json_with_analysis(
+    name: &str,
+    export: &ExportBundle,
+    analysis: &AnalysisSnapshot,
+) -> String {
     format!(
         "{{\"kind\":\"single\",\"name\":\"{name}\",\"demo\":\"{name}\",\"template_id\":\"{}\",{},\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
         export.template_id,

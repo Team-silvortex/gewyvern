@@ -46,14 +46,17 @@ pub(crate) fn process_json(process: Option<&ProcessView>) -> String {
 }
 
 pub(crate) fn string_list_json(items: &[String]) -> String {
-    format!(
-        "[{}]",
-        items
-            .iter()
-            .map(|item| format!("\"{}\"", item))
-            .collect::<Vec<_>>()
-            .join(",")
-    )
+    let mut json = String::from("[");
+    for (index, item) in items.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push('"');
+        json.push_str(item);
+        json.push('"');
+    }
+    json.push(']');
+    json
 }
 
 pub(crate) fn operation_label(operation: &ProgramOperation) -> String {

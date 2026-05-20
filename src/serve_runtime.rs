@@ -8,9 +8,10 @@ use crate::data_api::{
 
 use super::{
     Cli, SocketTarget, UiLocale, analysis_snapshot, analysis_snapshot_json, annotate_export_trust,
-    findings_json, findings_text, render_report_outputs, render_scan_outputs, run_binding_session,
-    scan_report_html, scan_report_json, scan_report_text, scan_targets_for_cli, summary_json,
-    summary_line,
+    findings_json_with_analysis, findings_text, render_report_outputs, render_scan_outputs,
+    run_binding_session, scan_report_html, scan_report_json_with_analyses,
+    scan_report_text_with_analyses, scan_targets_for_cli, summary_json_with_analysis,
+    summary_line_with_analysis,
 };
 
 pub(super) fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {
@@ -167,12 +168,13 @@ fn emit_rendered(
     api_state: Option<&ApiState>,
 ) {
     let single = vec![(name.to_string(), export.clone())];
-    let summary_text = summary_line(name, export);
-    let summary_json_body = summary_json(name, export);
-    let findings_json_body = findings_json(name, export);
-    let analysis_json_body = analysis_snapshot_json(&analysis_snapshot(export));
+    let analysis = analysis_snapshot(export);
+    let summary_text = summary_line_with_analysis(name, export, &analysis);
+    let summary_json_body = summary_json_with_analysis(name, export, &analysis);
+    let findings_json_body = findings_json_with_analysis(name, export, &analysis);
+    let analysis_json_body = analysis_snapshot_json(&analysis);
     let export_json_body = export.to_json();
-    let report_json_body = scan_report_json(&single);
+    let report_json_body = scan_report_json_with_analyses(&single, std::slice::from_ref(&analysis));
     let report_html_body = scan_report_html(&single);
     if let Some(state) = api_state {
         update_api_snapshot_for_single(
@@ -216,16 +218,21 @@ fn emit_scan_outputs(
     append: bool,
     api_state: Option<&ApiState>,
 ) {
-    let scan_summary_text = scan_report_text(outputs);
-    let scan_summary_json = scan_report_json(outputs);
+    let analyses = outputs
+        .iter()
+        .map(|(_, export)| analysis_snapshot(export))
+        .collect::<Vec<_>>();
+    let scan_summary_text = scan_report_text_with_analyses(outputs, &analyses);
+    let scan_summary_json = scan_report_json_with_analyses(outputs, &analyses);
     let scan_analysis_json = format!(
         "[{}]",
         outputs
             .iter()
-            .map(|(name, export)| format!(
+            .zip(analyses.iter())
+            .map(|((name, _), analysis)| format!(
                 "{{\"target\":\"{}\",\"analysis\":{}}}",
                 name.replace('\\', "\\\\").replace('"', "\\\""),
-                analysis_snapshot_json(&analysis_snapshot(export)),
+                analysis_snapshot_json(analysis),
             ))
             .collect::<Vec<_>>()
             .join(",")
@@ -234,14 +241,18 @@ fn emit_scan_outputs(
     if let Some(state) = api_state {
         let targets = outputs
             .iter()
-            .map(|(name, export)| ApiRenderedTarget {
+            .zip(analyses.iter())
+            .map(|((name, export), analysis)| ApiRenderedTarget {
                 name: name.clone(),
-                summary_text: summary_line(name, export),
-                summary_json: summary_json(name, export),
-                findings_json: findings_json(name, export),
-                analysis_json: analysis_snapshot_json(&analysis_snapshot(export)),
+                summary_text: summary_line_with_analysis(name, export, analysis),
+                summary_json: summary_json_with_analysis(name, export, analysis),
+                findings_json: findings_json_with_analysis(name, export, analysis),
+                analysis_json: analysis_snapshot_json(analysis),
                 export_json: export.to_json(),
-                report_json: scan_report_json(&[(name.clone(), export.clone())]),
+                report_json: scan_report_json_with_analyses(
+                    &[(name.clone(), export.clone())],
+                    std::slice::from_ref(analysis),
+                ),
                 report_html: scan_report_html(&[(name.clone(), export.clone())]),
             })
             .collect::<Vec<_>>();

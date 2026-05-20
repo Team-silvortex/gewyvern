@@ -483,6 +483,13 @@ Main commands:
 - `cargo run -p gewyc -- <path.gewy> --emit envelope --json --out /tmp/gewyc-envelope.json`
 - `cargo test benchmark_summary_json_large_protocol_flow_export -- --ignored --nocapture`
 - `cargo test benchmark_summary_line_large_protocol_flow_export -- --ignored --nocapture`
+- `cargo test benchmark_analysis_snapshot_large_protocol_flow_export -- --ignored --nocapture`
+- `cargo test benchmark_analysis_snapshot_json_large_protocol_flow_export -- --ignored --nocapture`
+- `cargo test benchmark_scan_report_json_large_protocol_flow_export -- --ignored --nocapture`
+- `cargo test benchmark_scan_report_text_large_protocol_flow_export -- --ignored --nocapture`
+- `cargo test benchmark_scan_report_html_large_protocol_flow_export -- --ignored --nocapture`
+- `bash scripts/benchmark_summary.sh`
+- `bash scripts/benchmark_summary.sh 3 benchmark_scan_report_`
 
 `gewyc stages` now includes a validation summary for payload-byte support:
 
@@ -504,11 +511,20 @@ Current test layers:
 
 Current benchmark entrypoints:
 
+- analysis snapshot construction over many matched protocol flows
+- analysis snapshot JSON rendering over many matched protocol flows
 - summary JSON rendering over many matched protocol flows
 - summary line rendering over many matched protocol flows
+- scan report JSON rendering over many large targets
+- scan report text rendering over many large targets
+- scan report HTML rendering over many large targets
 
 These are lightweight ignored tests today, so they run without adding a
 separate benchmark harness dependency.
+
+For less noisy local measurements, `scripts/benchmark_summary.sh` will run the
+selected benchmark filter multiple times and print `min / median / max / avg`
+for each benchmark line it sees.
 
 ## Quick Start
 
