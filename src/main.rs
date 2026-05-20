@@ -3892,11 +3892,11 @@ mod tests {
     use super::{
         AnalysisAugmenter, AnalysisSnapshot, Cli, IngestMode, ReportFormat, analysis_snapshot,
         analysis_snapshot_json, analysis_snapshot_with_augmenters, annotate_export_trust,
-        filter_export_by_pid, findings_json, list_entries_json, list_entries_text,
-        list_protocols_json, list_protocols_text, protocol_dsl_path, push_analysis_augmentation,
-        render_report_outputs, route_fact, run_binding_demo, scan_report_html, scan_report_json,
-        scan_report_text, scan_targets_for_cli, scan_targets_from_set_file, summary_json,
-        summary_line,
+        filter_export_by_pid, findings_json, findings_json_with_analysis, list_entries_json,
+        list_entries_text, list_protocols_json, list_protocols_text, protocol_dsl_path,
+        push_analysis_augmentation, render_report_outputs, route_fact, run_binding_demo,
+        scan_report_html, scan_report_json, scan_report_text, scan_targets_for_cli,
+        scan_targets_from_set_file, summary_json, summary_line,
     };
     use gewyvern::dsl::compile_file;
     use gewyvern::export::ExportBundle;
@@ -9860,6 +9860,26 @@ mod tests {
         assert!(total_len > 0);
         eprintln!(
             "benchmark_analysis_snapshot_json_large_protocol_flow_export: iterations=200 flows={} findings={} elapsed_ms={:.3}",
+            export.program_flows.len(),
+            export.program_findings.len(),
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_findings_json_large_protocol_flow_export() {
+        let export = synthesize_large_protocol_flow_export();
+        let analysis = analysis_snapshot(&export);
+        let start = Instant::now();
+        let mut total_len = 0usize;
+        for _ in 0..200 {
+            total_len += findings_json_with_analysis("bench", &export, &analysis).len();
+        }
+        let elapsed = start.elapsed();
+        assert!(total_len > 0);
+        eprintln!(
+            "benchmark_findings_json_large_protocol_flow_export: iterations=200 flows={} findings={} elapsed_ms={:.3}",
             export.program_flows.len(),
             export.program_findings.len(),
             elapsed.as_secs_f64() * 1000.0

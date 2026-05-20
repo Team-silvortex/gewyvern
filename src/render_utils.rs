@@ -59,6 +59,15 @@ pub(crate) fn string_list_json(items: &[String]) -> String {
     json
 }
 
+pub(crate) fn push_joined_strings(target: &mut String, items: &[String], separator: &str) {
+    for (index, item) in items.iter().enumerate() {
+        if index > 0 {
+            target.push_str(separator);
+        }
+        target.push_str(item);
+    }
+}
+
 pub(crate) fn operation_label(operation: &ProgramOperation) -> String {
     match operation {
         ProgramOperation::ConnectFlow => "connect_flow".into(),

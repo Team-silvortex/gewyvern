@@ -14,6 +14,14 @@ pub(super) struct ProtocolFlowFindingSummary {
     pub(super) suspect_areas: Vec<String>,
 }
 
+#[derive(Default)]
+struct ProtocolFlowFindingAccumulator {
+    summary: ProtocolFlowFindingSummary,
+    seen_missing_transitions: HashSet<String>,
+    seen_network_module_kinds: HashSet<String>,
+    seen_suspect_areas: HashSet<String>,
+}
+
 #[derive(Clone, Default)]
 pub(crate) struct ProtocolFlowAnalysisSummary {
     pub(crate) program_flow: u64,
@@ -55,6 +63,17 @@ pub(crate) struct ProcessNetworkProfileSummary {
     pub(crate) suspect_modules: Vec<String>,
     pub(crate) healthy_flows: usize,
     pub(crate) attention_flows: usize,
+}
+
+#[derive(Default)]
+struct ProcessNetworkProfileAccumulator {
+    summary: ProcessNetworkProfileSummary,
+    seen_operations: HashSet<String>,
+    seen_module_kinds: HashSet<String>,
+    seen_phases: HashSet<String>,
+    seen_missing_transitions: HashSet<String>,
+    seen_suspect_areas: HashSet<String>,
+    seen_suspect_modules: HashSet<String>,
 }
 
 #[derive(Clone, Default)]
@@ -804,137 +823,38 @@ pub(super) fn protocol_flow_has_terminal_failure(flow: &gewyvern::flow::ProgramF
 pub(super) fn protocol_flow_finding_summaries(
     export: &ExportBundle,
 ) -> HashMap<ProgramFlowId, ProtocolFlowFindingSummary> {
-    let mut summaries = HashMap::<ProgramFlowId, ProtocolFlowFindingSummary>::new();
-    let mut seen_missing_transitions = HashMap::<ProgramFlowId, HashSet<String>>::new();
-    let mut seen_network_module_kinds = HashMap::<ProgramFlowId, HashSet<String>>::new();
-    let mut seen_suspect_areas = HashMap::<ProgramFlowId, HashSet<String>>::new();
+    let mut summaries = HashMap::<ProgramFlowId, ProtocolFlowFindingAccumulator>::new();
     for finding in &export.program_findings {
         let entry = summaries.entry(finding.program_flow).or_default();
-        entry.has_findings = true;
+        entry.summary.has_findings = true;
         if let Some(transition) = &finding.phase_transition {
-            if seen_missing_transitions
-                .entry(finding.program_flow)
-                .or_default()
-                .insert(transition.clone())
-            {
-                entry.missing_transitions.push(transition.clone());
+            if entry.seen_missing_transitions.insert(transition.clone()) {
+                entry.summary.missing_transitions.push(transition.clone());
             }
         }
-        if seen_network_module_kinds
-            .entry(finding.program_flow)
-            .or_default()
+        if entry
+            .seen_network_module_kinds
             .insert(finding.network_module_kind.clone())
         {
             entry
+                .summary
                 .network_module_kinds
                 .push(finding.network_module_kind.clone());
         }
-        if seen_suspect_areas
-            .entry(finding.program_flow)
-            .or_default()
+        if entry
+            .seen_suspect_areas
             .insert(finding.suspect_area.clone())
         {
-            entry.suspect_areas.push(finding.suspect_area.clone());
+            entry
+                .summary
+                .suspect_areas
+                .push(finding.suspect_area.clone());
         }
     }
     summaries
-}
-
-fn protocol_flow_status(
-    flow: &gewyvern::flow::ProgramFlow,
-    finding_summary: Option<&ProtocolFlowFindingSummary>,
-) -> &'static str {
-    if finding_summary.is_some_and(|summary| summary.has_findings)
-        || protocol_flow_has_terminal_failure(flow)
-    {
-        "attention"
-    } else {
-        "healthy"
-    }
-}
-
-pub(super) fn protocol_flow_failure_mode(
-    flow: &gewyvern::flow::ProgramFlow,
-    finding_summary: Option<&ProtocolFlowFindingSummary>,
-) -> String {
-    let status = protocol_flow_status(flow, finding_summary);
-    let last_phase = protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into());
-    let module_kind = gewyvern::flow::infer_network_module_kind(
-        &flow.operation,
-        Some(&last_phase),
-        None,
-        "network_module",
-    );
-    let primary_stage = finding_summary
-        .and_then(|summary| summary.missing_transitions.first().cloned())
-        .unwrap_or(last_phase);
-    let suspect_areas = finding_summary
-        .map(|summary| summary.suspect_areas.as_slice())
-        .unwrap_or(&[]);
-    failure_mode_label(status, module_kind, &primary_stage, suspect_areas).to_string()
-}
-
-pub(super) fn protocol_flow_failure_detail(
-    flow: &gewyvern::flow::ProgramFlow,
-    finding_summary: Option<&ProtocolFlowFindingSummary>,
-) -> String {
-    let status = protocol_flow_status(flow, finding_summary);
-    let last_phase = protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into());
-    let module_kind = gewyvern::flow::infer_network_module_kind(
-        &flow.operation,
-        Some(&last_phase),
-        None,
-        "network_module",
-    );
-    let primary_stage = finding_summary
-        .and_then(|summary| summary.missing_transitions.first().cloned())
-        .unwrap_or(last_phase);
-    let suspect_areas = finding_summary
-        .map(|summary| summary.suspect_areas.as_slice())
-        .unwrap_or(&[]);
-    failure_detail_label(status, module_kind, &primary_stage, suspect_areas).to_string()
-}
-
-pub(super) fn protocol_flow_failure_confidence(
-    flow: &gewyvern::flow::ProgramFlow,
-    finding_summary: Option<&ProtocolFlowFindingSummary>,
-) -> String {
-    let status = protocol_flow_status(flow, finding_summary);
-    let last_phase = protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into());
-    let module_kind = gewyvern::flow::infer_network_module_kind(
-        &flow.operation,
-        Some(&last_phase),
-        None,
-        "network_module",
-    );
-    let primary_stage = finding_summary
-        .and_then(|summary| summary.missing_transitions.first().cloned())
-        .unwrap_or(last_phase);
-    let suspect_areas = finding_summary
-        .map(|summary| summary.suspect_areas.as_slice())
-        .unwrap_or(&[]);
-    failure_confidence_label(status, module_kind, &primary_stage, suspect_areas).to_string()
-}
-
-pub(super) fn protocol_flow_failure_basis(
-    flow: &gewyvern::flow::ProgramFlow,
-    finding_summary: Option<&ProtocolFlowFindingSummary>,
-) -> String {
-    let status = protocol_flow_status(flow, finding_summary);
-    let last_phase = protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into());
-    let module_kind = gewyvern::flow::infer_network_module_kind(
-        &flow.operation,
-        Some(&last_phase),
-        None,
-        "network_module",
-    );
-    let primary_stage = finding_summary
-        .and_then(|summary| summary.missing_transitions.first().cloned())
-        .unwrap_or(last_phase);
-    let suspect_areas = finding_summary
-        .map(|summary| summary.suspect_areas.as_slice())
-        .unwrap_or(&[]);
-    failure_basis_label(status, module_kind, &primary_stage, suspect_areas).to_string()
+        .into_iter()
+        .map(|(flow_id, accumulator)| (flow_id, accumulator.summary))
+        .collect()
 }
 
 fn protocol_flow_analysis_summary(
@@ -1013,14 +933,21 @@ fn protocol_flow_analysis_summaries(export: &ExportBundle) -> Vec<ProtocolFlowAn
 
 pub(crate) fn protocol_flow_summaries_json_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
     let mut json = String::from("[");
+    append_protocol_flow_summaries_json_from_snapshot(&mut json, snapshot);
+    json.push(']');
+    json
+}
+
+pub(crate) fn append_protocol_flow_summaries_json_from_snapshot(
+    json: &mut String,
+    snapshot: &AnalysisSnapshot,
+) {
     for (index, flow) in snapshot.protocol_flows.iter().enumerate() {
         if index > 0 {
             json.push(',');
         }
-        json.push_str(&protocol_flow_summary_json(flow));
+        append_protocol_flow_summary_json(json, flow);
     }
-    json.push(']');
-    json
 }
 
 pub(crate) fn protocol_flow_summaries_text_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
@@ -1033,25 +960,28 @@ pub(crate) fn protocol_flow_summaries_text_from_snapshot(snapshot: &AnalysisSnap
         if index > 0 {
             text.push(',');
         }
-        let phase_text = if flow.phases.is_empty() {
-            locale.none().to_string()
+        text.push_str(&flow.operation);
+        text.push_str("[kind=");
+        text.push_str(&flow.network_module_kind);
+        text.push_str(" status=");
+        text.push_str(&flow.status);
+        text.push_str(" failure_mode=");
+        text.push_str(&flow.failure_mode);
+        text.push_str(" failure_detail=");
+        text.push_str(&flow.failure_detail);
+        text.push_str(" confidence=");
+        text.push_str(&flow.failure_confidence);
+        text.push_str(" basis=");
+        text.push_str(&flow.failure_basis);
+        text.push_str(" phases=");
+        if flow.phases.is_empty() {
+            text.push_str(locale.none());
         } else {
-            flow.phases.join(">")
-        };
-        text.push_str(&format!(
-            "{}[kind={} status={} failure_mode={} failure_detail={} confidence={} basis={} phases={}",
-            flow.operation,
-            flow.network_module_kind,
-            flow.status,
-            flow.failure_mode,
-            flow.failure_detail,
-            flow.failure_confidence,
-            flow.failure_basis,
-            phase_text
-        ));
+            push_joined_strings(&mut text, &flow.phases, ">");
+        }
         if !flow.missing_transitions.is_empty() {
             text.push_str(" missing=");
-            text.push_str(&flow.missing_transitions.join("|"));
+            push_joined_strings(&mut text, &flow.missing_transitions, "|");
         }
         text.push(']');
     }
@@ -1062,46 +992,41 @@ pub(super) fn process_network_profile_summaries(
     export: &ExportBundle,
 ) -> Vec<ProcessNetworkProfileSummary> {
     let finding_summaries = protocol_flow_finding_summaries(export);
-    let mut profiles = HashMap::<(u32, String), ProcessNetworkProfileSummary>::new();
+    let mut profiles = HashMap::<(u32, String), ProcessNetworkProfileAccumulator>::new();
     let mut module_scores = HashMap::<(u32, String), HashMap<String, u32>>::new();
     let mut stage_scores = HashMap::<(u32, String), HashMap<String, u32>>::new();
     let mut suspect_module_scores = HashMap::<(u32, String), HashMap<String, u32>>::new();
-    let mut seen_operations = HashMap::<(u32, String), HashSet<String>>::new();
-    let mut seen_module_kinds = HashMap::<(u32, String), HashSet<String>>::new();
-    let mut seen_phases = HashMap::<(u32, String), HashSet<String>>::new();
-    let mut seen_missing_transitions = HashMap::<(u32, String), HashSet<String>>::new();
-    let mut seen_suspect_areas = HashMap::<(u32, String), HashSet<String>>::new();
-    let mut seen_suspect_modules = HashMap::<(u32, String), HashSet<String>>::new();
 
     for flow in &export.program_flows {
         let Some(process) = flow.process.as_ref() else {
             continue;
         };
         let key = (process.pid, process.comm.clone());
-        let entry = profiles
-            .entry(key.clone())
-            .or_insert_with(|| ProcessNetworkProfileSummary {
-                pid: process.pid,
-                comm: process.comm.clone(),
-                status: "idle".into(),
-                primary_module_kind: "none".into(),
-                primary_module_family: "general".into(),
-                primary_failure_stage: "none".into(),
-                primary_stage_family: "none".into(),
-                primary_failure_mode: "none".into(),
-                primary_failure_detail: "none".into(),
-                primary_failure_confidence: "none".into(),
-                primary_failure_basis: "none".into(),
-                ..Default::default()
-            });
+        let entry =
+            profiles
+                .entry(key.clone())
+                .or_insert_with(|| ProcessNetworkProfileAccumulator {
+                    summary: ProcessNetworkProfileSummary {
+                        pid: process.pid,
+                        comm: process.comm.clone(),
+                        status: "idle".into(),
+                        primary_module_kind: "none".into(),
+                        primary_module_family: "general".into(),
+                        primary_failure_stage: "none".into(),
+                        primary_stage_family: "none".into(),
+                        primary_failure_mode: "none".into(),
+                        primary_failure_detail: "none".into(),
+                        primary_failure_confidence: "none".into(),
+                        primary_failure_basis: "none".into(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                });
+        let summary = &mut entry.summary;
 
         let operation = operation_label(&flow.operation);
-        if seen_operations
-            .entry(key.clone())
-            .or_default()
-            .insert(operation.clone())
-        {
-            entry.operations.push(operation);
+        if entry.seen_operations.insert(operation.clone()) {
+            summary.operations.push(operation);
         }
 
         let inferred_kind = gewyvern::flow::infer_network_module_kind(
@@ -1112,82 +1037,62 @@ pub(super) fn process_network_profile_summaries(
         )
         .to_string();
         let last_phase = protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into());
-        if seen_module_kinds
-            .entry(key.clone())
-            .or_default()
-            .insert(inferred_kind.clone())
-        {
-            entry.module_kinds.push(inferred_kind.clone());
+        if entry.seen_module_kinds.insert(inferred_kind.clone()) {
+            summary.module_kinds.push(inferred_kind.clone());
         }
         bump_score(&mut module_scores, &key, &inferred_kind, 1);
         bump_score(&mut stage_scores, &key, &last_phase, 1);
 
         for phase in protocol_flow_phases(flow) {
-            if seen_phases
-                .entry(key.clone())
-                .or_default()
-                .insert(phase.clone())
-            {
-                entry.phases.push(phase);
+            if entry.seen_phases.insert(phase.clone()) {
+                summary.phases.push(phase);
             }
         }
 
         match finding_summaries.get(&flow.id) {
-            Some(summary) if summary.has_findings => {
-                entry.attention_flows += 1;
-                entry.status = "attention".into();
-                if summary.network_module_kinds.is_empty() {
+            Some(flow_summary) if flow_summary.has_findings => {
+                summary.attention_flows += 1;
+                summary.status = "attention".into();
+                if flow_summary.network_module_kinds.is_empty() {
                     bump_score(&mut module_scores, &key, &inferred_kind, 10);
                 } else {
-                    for module_kind in &summary.network_module_kinds {
+                    for module_kind in &flow_summary.network_module_kinds {
                         bump_score(&mut module_scores, &key, module_kind, 10);
                     }
                 }
-                if summary.missing_transitions.is_empty() {
+                if flow_summary.missing_transitions.is_empty() {
                     bump_score(&mut stage_scores, &key, &last_phase, 10);
                 } else {
-                    for transition in &summary.missing_transitions {
+                    for transition in &flow_summary.missing_transitions {
                         bump_score(&mut stage_scores, &key, transition, 10);
                     }
                 }
-                for module_kind in &summary.network_module_kinds {
-                    if seen_module_kinds
-                        .entry(key.clone())
-                        .or_default()
-                        .insert(module_kind.clone())
-                    {
-                        entry.module_kinds.push(module_kind.clone());
+                for module_kind in &flow_summary.network_module_kinds {
+                    if entry.seen_module_kinds.insert(module_kind.clone()) {
+                        summary.module_kinds.push(module_kind.clone());
                     }
                 }
-                for transition in &summary.missing_transitions {
-                    if seen_missing_transitions
-                        .entry(key.clone())
-                        .or_default()
-                        .insert(transition.clone())
-                    {
-                        entry.missing_transitions.push(transition.clone());
+                for transition in &flow_summary.missing_transitions {
+                    if entry.seen_missing_transitions.insert(transition.clone()) {
+                        summary.missing_transitions.push(transition.clone());
                     }
                 }
-                for suspect_area in &summary.suspect_areas {
-                    if seen_suspect_areas
-                        .entry(key.clone())
-                        .or_default()
-                        .insert(suspect_area.clone())
-                    {
-                        entry.suspect_areas.push(suspect_area.clone());
+                for suspect_area in &flow_summary.suspect_areas {
+                    if entry.seen_suspect_areas.insert(suspect_area.clone()) {
+                        summary.suspect_areas.push(suspect_area.clone());
                     }
                 }
             }
             _ if protocol_flow_has_terminal_failure(flow) => {
-                entry.attention_flows += 1;
-                entry.status = "attention".into();
+                summary.attention_flows += 1;
+                summary.status = "attention".into();
                 bump_score(&mut module_scores, &key, &inferred_kind, 10);
                 bump_score(&mut stage_scores, &key, &last_phase, 10);
             }
             _ => {
-                entry.healthy_flows += 1;
-                if entry.status != "attention" {
-                    entry.status = "healthy".into();
+                summary.healthy_flows += 1;
+                if summary.status != "attention" {
+                    summary.status = "healthy".into();
                 }
             }
         }
@@ -1198,43 +1103,47 @@ pub(super) fn process_network_profile_summaries(
             continue;
         };
         let key = (process.pid, process.comm.clone());
-        let entry = profiles
-            .entry(key.clone())
-            .or_insert_with(|| ProcessNetworkProfileSummary {
-                pid: process.pid,
-                comm: process.comm.clone(),
-                status: "idle".into(),
-                primary_module_kind: "none".into(),
-                primary_module_family: "general".into(),
-                primary_failure_stage: "none".into(),
-                primary_stage_family: "none".into(),
-                primary_failure_mode: "none".into(),
-                primary_failure_detail: "none".into(),
-                primary_failure_confidence: "none".into(),
-                primary_failure_basis: "none".into(),
-                ..Default::default()
-            });
-        entry.status = "attention".into();
-        if seen_module_kinds
-            .entry(key.clone())
-            .or_default()
+        let entry =
+            profiles
+                .entry(key.clone())
+                .or_insert_with(|| ProcessNetworkProfileAccumulator {
+                    summary: ProcessNetworkProfileSummary {
+                        pid: process.pid,
+                        comm: process.comm.clone(),
+                        status: "idle".into(),
+                        primary_module_kind: "none".into(),
+                        primary_module_family: "general".into(),
+                        primary_failure_stage: "none".into(),
+                        primary_stage_family: "none".into(),
+                        primary_failure_mode: "none".into(),
+                        primary_failure_detail: "none".into(),
+                        primary_failure_confidence: "none".into(),
+                        primary_failure_basis: "none".into(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                });
+        let summary = &mut entry.summary;
+        summary.status = "attention".into();
+        if entry
+            .seen_module_kinds
             .insert(finding.network_module_kind.clone())
         {
-            entry.module_kinds.push(finding.network_module_kind.clone());
+            summary
+                .module_kinds
+                .push(finding.network_module_kind.clone());
         }
-        if seen_suspect_areas
-            .entry(key.clone())
-            .or_default()
+        if entry
+            .seen_suspect_areas
             .insert(finding.suspect_area.clone())
         {
-            entry.suspect_areas.push(finding.suspect_area.clone());
+            summary.suspect_areas.push(finding.suspect_area.clone());
         }
-        if seen_suspect_modules
-            .entry(key.clone())
-            .or_default()
+        if entry
+            .seen_suspect_modules
             .insert(finding.module_label.clone())
         {
-            entry.suspect_modules.push(finding.module_label.clone());
+            summary.suspect_modules.push(finding.module_label.clone());
         }
         bump_score(&mut module_scores, &key, &finding.network_module_kind, 20);
         if let Some(phase) = &finding.phase {
@@ -1246,21 +1155,18 @@ pub(super) fn process_network_profile_summaries(
         bump_score(&mut suspect_module_scores, &key, &finding.module_label, 20);
     }
 
-    let mut profiles = profiles.into_values().collect::<Vec<_>>();
+    let mut profiles = profiles
+        .into_values()
+        .map(|accumulator| accumulator.summary)
+        .collect::<Vec<_>>();
     for profile in &mut profiles {
         let key = (profile.pid, profile.comm.clone());
         profile.operations.sort();
-        profile.operations.dedup();
         profile.module_kinds.sort();
-        profile.module_kinds.dedup();
         profile.phases.sort();
-        profile.phases.dedup();
         profile.missing_transitions.sort();
-        profile.missing_transitions.dedup();
         profile.suspect_areas.sort();
-        profile.suspect_areas.dedup();
         profile.suspect_modules.sort();
-        profile.suspect_modules.dedup();
         profile.primary_module_kind = best_scored_value(&module_scores, &key)
             .or_else(|| first_non_none(&profile.module_kinds))
             .unwrap_or_else(|| "none".into());
@@ -1359,14 +1265,21 @@ pub(super) fn process_network_profile_summaries(
 
 pub(crate) fn process_network_profiles_json_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
     let mut json = String::from("[");
+    append_process_network_profiles_json_from_snapshot(&mut json, snapshot);
+    json.push(']');
+    json
+}
+
+pub(crate) fn append_process_network_profiles_json_from_snapshot(
+    json: &mut String,
+    snapshot: &AnalysisSnapshot,
+) {
     for (index, profile) in snapshot.process_profiles.iter().enumerate() {
         if index > 0 {
             json.push(',');
         }
-        json.push_str(&process_network_profile_summary_json(profile));
+        append_process_network_profile_summary_json(json, profile);
     }
-    json.push(']');
-    json
 }
 
 #[cfg(test)]
@@ -1384,42 +1297,50 @@ pub(crate) fn process_network_profiles_text_from_snapshot(snapshot: &AnalysisSna
         if index > 0 {
             text.push(',');
         }
-        let kinds = if profile.module_kinds.is_empty() {
-            locale.none().to_string()
+        text.push_str(&profile.comm);
+        text.push_str("(pid=");
+        text.push_str(&profile.pid.to_string());
+        text.push_str(")[status=");
+        text.push_str(&profile.status);
+        text.push_str(" ambiguous=");
+        text.push_str(if profile.ambiguous { "true" } else { "false" });
+        text.push_str(" primary_kind=");
+        text.push_str(&profile.primary_module_kind);
+        text.push_str(" primary_stage=");
+        text.push_str(&profile.primary_failure_stage);
+        text.push_str(" failure_mode=");
+        text.push_str(&profile.primary_failure_mode);
+        text.push_str(" failure_detail=");
+        text.push_str(&profile.primary_failure_detail);
+        text.push_str(" confidence=");
+        text.push_str(&profile.primary_failure_confidence);
+        text.push_str(" basis=");
+        text.push_str(&profile.primary_failure_basis);
+        text.push_str(" competing=");
+        if profile.competing_hypotheses.is_empty() {
+            text.push_str(locale.none());
         } else {
-            profile.module_kinds.join("|")
-        };
-        let phases = if profile.phases.is_empty() {
-            locale.none().to_string()
+            push_joined_strings(&mut text, &profile.competing_hypotheses, "|");
+        }
+        text.push_str(" kinds=");
+        if profile.module_kinds.is_empty() {
+            text.push_str(locale.none());
         } else {
-            profile.phases.join(">")
-        };
-        let competing = if profile.competing_hypotheses.is_empty() {
-            locale.none().to_string()
+            push_joined_strings(&mut text, &profile.module_kinds, "|");
+        }
+        text.push_str(" healthy=");
+        text.push_str(&profile.healthy_flows.to_string());
+        text.push_str(" attention=");
+        text.push_str(&profile.attention_flows.to_string());
+        text.push_str(" phases=");
+        if profile.phases.is_empty() {
+            text.push_str(locale.none());
         } else {
-            profile.competing_hypotheses.join("|")
-        };
-        text.push_str(&format!(
-            "{}(pid={})[status={} ambiguous={} primary_kind={} primary_stage={} failure_mode={} failure_detail={} confidence={} basis={} competing={} kinds={} healthy={} attention={} phases={}",
-            profile.comm,
-            profile.pid,
-            profile.status,
-            profile.ambiguous,
-            profile.primary_module_kind,
-            profile.primary_failure_stage,
-            profile.primary_failure_mode,
-            profile.primary_failure_detail,
-            profile.primary_failure_confidence,
-            profile.primary_failure_basis,
-            competing,
-            kinds,
-            profile.healthy_flows,
-            profile.attention_flows,
-            phases
-        ));
+            push_joined_strings(&mut text, &profile.phases, ">");
+        }
         if !profile.missing_transitions.is_empty() {
             text.push_str(" missing=");
-            text.push_str(&profile.missing_transitions.join("|"));
+            push_joined_strings(&mut text, &profile.missing_transitions, "|");
         }
         text.push(']');
     }
@@ -1427,60 +1348,65 @@ pub(crate) fn process_network_profiles_text_from_snapshot(snapshot: &AnalysisSna
 }
 
 fn process_network_profile_summary_json(profile: &ProcessNetworkProfileSummary) -> String {
-    format!(
-        "{{\"pid\":{},\"comm\":\"{}\",\"status\":\"{}\",\"ambiguous\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"competing_hypotheses\":{},\"operations\":{},\"module_kinds\":{},\"phases\":{},\"missing_transitions\":{},\"suspect_areas\":{},\"suspect_modules\":{},\"healthy_flows\":{},\"attention_flows\":{}}}",
-        profile.pid,
-        profile.comm,
-        profile.status,
-        profile.ambiguous,
-        profile.primary_module_kind,
-        profile.primary_module_family,
-        profile.primary_failure_stage,
-        profile.primary_stage_family,
-        profile.primary_failure_mode,
-        failure_mode_family_label(&profile.primary_failure_mode),
-        profile.primary_failure_detail,
-        failure_detail_family_label(&profile.primary_failure_detail),
-        profile.primary_failure_confidence,
-        profile.primary_failure_basis,
-        string_list_json(&profile.competing_hypotheses),
-        string_list_json(&profile.operations),
-        string_list_json(&profile.module_kinds),
-        string_list_json(&profile.phases),
-        string_list_json(&profile.missing_transitions),
-        string_list_json(&profile.suspect_areas),
-        string_list_json(&profile.suspect_modules),
-        profile.healthy_flows,
-        profile.attention_flows,
-    )
+    let mut json = String::from("{");
+    append_process_network_profile_summary_json(&mut json, profile);
+    json.push('}');
+    json
 }
 
 pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
-    format!(
-        "{{\"target_status\":\"{}\",\"primary_process_profile\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"suspect_modules\":{},\"augmentations\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
-        snapshot.target_status.label(),
-        snapshot
-            .primary_process_profile
-            .as_ref()
-            .map(process_network_profile_summary_json)
-            .unwrap_or_else(|| "null".into()),
-        snapshot.primary_module_kind,
-        module_family_label(&snapshot.primary_module_kind),
-        snapshot.primary_failure_stage,
-        stage_family_label(&snapshot.primary_failure_stage),
-        snapshot.primary_failure_mode,
-        failure_mode_family_label(&snapshot.primary_failure_mode),
-        snapshot.primary_failure_detail,
-        failure_detail_family_label(&snapshot.primary_failure_detail),
-        snapshot.primary_failure_confidence,
-        snapshot.primary_failure_basis,
-        snapshot.primary_process_profile_ambiguous,
-        string_list_json(&snapshot.competing_hypotheses),
-        string_list_json(&snapshot.suspect_modules),
-        analysis_augmentations_json(&snapshot.augmentations),
-        process_network_profiles_json_from_snapshot(snapshot),
-        protocol_flow_summaries_json_from_snapshot(snapshot),
-    )
+    let mut json = String::from("{\"target_status\":\"");
+    json.push_str(snapshot.target_status.label());
+    json.push_str("\",\"primary_process_profile\":");
+    if let Some(profile) = snapshot.primary_process_profile.as_ref() {
+        json.push_str(&process_network_profile_summary_json(profile));
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"primary_module_kind\":\"");
+    json.push_str(&snapshot.primary_module_kind);
+    json.push_str("\",\"primary_module_family\":\"");
+    json.push_str(module_family_label(&snapshot.primary_module_kind));
+    json.push_str("\",\"primary_failure_stage\":\"");
+    json.push_str(&snapshot.primary_failure_stage);
+    json.push_str("\",\"primary_stage_family\":\"");
+    json.push_str(stage_family_label(&snapshot.primary_failure_stage));
+    json.push_str("\",\"primary_failure_mode\":\"");
+    json.push_str(&snapshot.primary_failure_mode);
+    json.push_str("\",\"primary_failure_mode_family\":\"");
+    json.push_str(failure_mode_family_label(&snapshot.primary_failure_mode));
+    json.push_str("\",\"primary_failure_detail\":\"");
+    json.push_str(&snapshot.primary_failure_detail);
+    json.push_str("\",\"primary_failure_detail_family\":\"");
+    json.push_str(failure_detail_family_label(
+        &snapshot.primary_failure_detail,
+    ));
+    json.push_str("\",\"primary_failure_confidence\":\"");
+    json.push_str(&snapshot.primary_failure_confidence);
+    json.push_str("\",\"primary_failure_basis\":\"");
+    json.push_str(&snapshot.primary_failure_basis);
+    json.push_str("\",\"ambiguous\":");
+    json.push_str(if snapshot.primary_process_profile_ambiguous {
+        "true"
+    } else {
+        "false"
+    });
+    json.push_str(",\"competing_hypotheses\":");
+    json.push_str(&string_list_json(&snapshot.competing_hypotheses));
+    json.push_str(",\"suspect_modules\":");
+    json.push_str(&string_list_json(&snapshot.suspect_modules));
+    json.push_str(",\"augmentations\":");
+    json.push_str(&analysis_augmentations_json(&snapshot.augmentations));
+    json.push_str(",\"process_network_profiles\":");
+    json.push('[');
+    append_process_network_profiles_json_from_snapshot(&mut json, snapshot);
+    json.push(']');
+    json.push_str(",\"protocol_flows\":");
+    json.push('[');
+    append_protocol_flow_summaries_json_from_snapshot(&mut json, snapshot);
+    json.push(']');
+    json.push('}');
+    json
 }
 
 pub(crate) fn suspect_modules_json_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
@@ -1525,29 +1451,97 @@ pub(crate) fn analysis_augmentations_json(items: &[AnalysisAugmentation]) -> Str
     json
 }
 
-fn protocol_flow_summary_json(flow: &ProtocolFlowAnalysisSummary) -> String {
-    format!(
-        "{{\"program_flow\":{},\"process\":{},\"operation\":\"{}\",\"network_module_kind\":\"{}\",\"network_module_kinds\":{},\"status\":\"{}\",\"failure_mode\":\"{}\",\"failure_mode_family\":\"{}\",\"failure_detail\":\"{}\",\"failure_detail_family\":\"{}\",\"failure_confidence\":\"{}\",\"failure_basis\":\"{}\",\"phases\":{},\"last_phase\":{},\"missing_transitions\":{},\"suspect_areas\":{}}}",
-        flow.program_flow,
-        process_json(flow.process.as_ref()),
-        flow.operation,
-        flow.network_module_kind,
-        string_list_json(&flow.network_module_kinds),
-        flow.status,
-        flow.failure_mode,
-        failure_mode_family_label(&flow.failure_mode),
-        flow.failure_detail,
-        failure_detail_family_label(&flow.failure_detail),
-        flow.failure_confidence,
-        flow.failure_basis,
-        string_list_json(&flow.phases),
-        flow.last_phase
-            .as_ref()
-            .map(|phase| format!("\"{}\"", phase))
-            .unwrap_or_else(|| "null".into()),
-        string_list_json(&flow.missing_transitions),
-        string_list_json(&flow.suspect_areas),
-    )
+fn append_process_network_profile_summary_json(
+    json: &mut String,
+    profile: &ProcessNetworkProfileSummary,
+) {
+    json.push_str("\"pid\":");
+    json.push_str(&profile.pid.to_string());
+    json.push_str(",\"comm\":\"");
+    json.push_str(&profile.comm);
+    json.push_str("\",\"status\":\"");
+    json.push_str(&profile.status);
+    json.push_str("\",\"ambiguous\":");
+    json.push_str(if profile.ambiguous { "true" } else { "false" });
+    json.push_str(",\"primary_module_kind\":\"");
+    json.push_str(&profile.primary_module_kind);
+    json.push_str("\",\"primary_module_family\":\"");
+    json.push_str(&profile.primary_module_family);
+    json.push_str("\",\"primary_failure_stage\":\"");
+    json.push_str(&profile.primary_failure_stage);
+    json.push_str("\",\"primary_stage_family\":\"");
+    json.push_str(&profile.primary_stage_family);
+    json.push_str("\",\"primary_failure_mode\":\"");
+    json.push_str(&profile.primary_failure_mode);
+    json.push_str("\",\"primary_failure_mode_family\":\"");
+    json.push_str(failure_mode_family_label(&profile.primary_failure_mode));
+    json.push_str("\",\"primary_failure_detail\":\"");
+    json.push_str(&profile.primary_failure_detail);
+    json.push_str("\",\"primary_failure_detail_family\":\"");
+    json.push_str(failure_detail_family_label(&profile.primary_failure_detail));
+    json.push_str("\",\"primary_failure_confidence\":\"");
+    json.push_str(&profile.primary_failure_confidence);
+    json.push_str("\",\"primary_failure_basis\":\"");
+    json.push_str(&profile.primary_failure_basis);
+    json.push_str("\",\"competing_hypotheses\":");
+    json.push_str(&string_list_json(&profile.competing_hypotheses));
+    json.push_str(",\"operations\":");
+    json.push_str(&string_list_json(&profile.operations));
+    json.push_str(",\"module_kinds\":");
+    json.push_str(&string_list_json(&profile.module_kinds));
+    json.push_str(",\"phases\":");
+    json.push_str(&string_list_json(&profile.phases));
+    json.push_str(",\"missing_transitions\":");
+    json.push_str(&string_list_json(&profile.missing_transitions));
+    json.push_str(",\"suspect_areas\":");
+    json.push_str(&string_list_json(&profile.suspect_areas));
+    json.push_str(",\"suspect_modules\":");
+    json.push_str(&string_list_json(&profile.suspect_modules));
+    json.push_str(",\"healthy_flows\":");
+    json.push_str(&profile.healthy_flows.to_string());
+    json.push_str(",\"attention_flows\":");
+    json.push_str(&profile.attention_flows.to_string());
+}
+
+fn append_protocol_flow_summary_json(json: &mut String, flow: &ProtocolFlowAnalysisSummary) {
+    json.push_str("\"program_flow\":");
+    json.push_str(&flow.program_flow.to_string());
+    json.push_str(",\"process\":");
+    json.push_str(&process_json(flow.process.as_ref()));
+    json.push_str(",\"operation\":\"");
+    json.push_str(&flow.operation);
+    json.push_str("\",\"network_module_kind\":\"");
+    json.push_str(&flow.network_module_kind);
+    json.push_str("\",\"network_module_kinds\":");
+    json.push_str(&string_list_json(&flow.network_module_kinds));
+    json.push_str(",\"status\":\"");
+    json.push_str(&flow.status);
+    json.push_str("\",\"failure_mode\":\"");
+    json.push_str(&flow.failure_mode);
+    json.push_str("\",\"failure_mode_family\":\"");
+    json.push_str(failure_mode_family_label(&flow.failure_mode));
+    json.push_str("\",\"failure_detail\":\"");
+    json.push_str(&flow.failure_detail);
+    json.push_str("\",\"failure_detail_family\":\"");
+    json.push_str(failure_detail_family_label(&flow.failure_detail));
+    json.push_str("\",\"failure_confidence\":\"");
+    json.push_str(&flow.failure_confidence);
+    json.push_str("\",\"failure_basis\":\"");
+    json.push_str(&flow.failure_basis);
+    json.push_str("\",\"phases\":");
+    json.push_str(&string_list_json(&flow.phases));
+    json.push_str(",\"last_phase\":");
+    if let Some(phase) = flow.last_phase.as_deref() {
+        json.push('"');
+        json.push_str(phase);
+        json.push('"');
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"missing_transitions\":");
+    json.push_str(&string_list_json(&flow.missing_transitions));
+    json.push_str(",\"suspect_areas\":");
+    json.push_str(&string_list_json(&flow.suspect_areas));
 }
 
 pub(crate) fn analysis_augmentation_names_text(items: &[AnalysisAugmentation]) -> String {
@@ -1760,6 +1754,7 @@ pub(super) fn primary_failure_detail_for_export(export: &ExportBundle) -> String
     analysis_snapshot(export).primary_failure_detail
 }
 
+#[cfg(test)]
 pub(super) fn suspect_modules_for_export(export: &ExportBundle) -> String {
     let snapshot = analysis_snapshot(export);
     if !snapshot.suspect_modules.is_empty() {

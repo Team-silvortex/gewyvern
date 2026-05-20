@@ -1,5 +1,6 @@
 use gewyvern::export::ExportBundle;
 use gewyvern::http::HttpTransactionView;
+use std::fmt::Write;
 
 use super::*;
 use crate::render_utils::*;
@@ -93,27 +94,34 @@ pub(super) fn scan_report_json_with_analyses(
     let total_targets = outputs.len();
     let (healthy_targets, attention_targets, idle_targets) = scan_target_status_counts(&analyses);
 
-    let items = outputs
-        .iter()
-        .zip(analyses.iter())
-        .map(|((name, export), analysis)| {
-            format!(
-                "{{\"target\":\"{}\",\"status\":\"{}\",{},\"suspect_modules\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
-                name,
-                analysis.target_status.label(),
-                analysis_context_json(export, analysis),
-                suspect_modules_json_from_snapshot(analysis),
-                process_network_profiles_json_from_snapshot(analysis),
-                protocol_flow_summaries_json_from_snapshot(analysis),
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(",");
-
-    format!(
-        "{{\"kind\":\"scan\",\"name\":null,\"target_count\":{},\"scan_all\":true,\"total_targets\":{},\"healthy_targets\":{},\"attention_targets\":{},\"idle_targets\":{},\"targets\":[{}]}}",
-        total_targets, total_targets, healthy_targets, attention_targets, idle_targets, items
-    )
+    let mut json = format!(
+        "{{\"kind\":\"scan\",\"name\":null,\"target_count\":{},\"scan_all\":true,\"total_targets\":{},\"healthy_targets\":{},\"attention_targets\":{},\"idle_targets\":{},\"targets\":[",
+        total_targets, total_targets, healthy_targets, attention_targets, idle_targets
+    );
+    for (index, ((name, export), analysis)) in outputs.iter().zip(analyses.iter()).enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("{\"target\":\"");
+        json.push_str(name);
+        json.push_str("\",\"status\":\"");
+        json.push_str(analysis.target_status.label());
+        json.push_str("\",");
+        json.push_str(&analysis_context_json(export, analysis));
+        json.push_str(",\"suspect_modules\":");
+        json.push_str(&suspect_modules_json_from_snapshot(analysis));
+        json.push_str(",\"process_network_profiles\":");
+        json.push('[');
+        append_process_network_profiles_json_from_snapshot(&mut json, analysis);
+        json.push(']');
+        json.push_str(",\"protocol_flows\":");
+        json.push('[');
+        append_protocol_flow_summaries_json_from_snapshot(&mut json, analysis);
+        json.push(']');
+        json.push('}');
+    }
+    json.push_str("]}");
+    json
 }
 
 pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
@@ -129,16 +137,14 @@ pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
         let family = module_family_label(&analysis.primary_module_kind).to_string();
         *family_counts.entry(family).or_default() += 1;
     }
-    let family_summary = family_counts
-        .into_iter()
-        .map(|(family, count)| {
-            format!(
-                "<div class=\"pill\"><span class=\"tag family-{}\">{}</span> {}</div>",
-                family, family, count
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("");
+    let mut family_summary = String::new();
+    for (family, count) in family_counts {
+        let _ = write!(
+            family_summary,
+            "<div class=\"pill\"><span class=\"tag family-{}\">{}</span> {}</div>",
+            family, family, count
+        );
+    }
 
     let mut sorted_outputs = outputs
         .iter()
@@ -168,146 +174,146 @@ pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
         },
     );
 
-    let cards = sorted_outputs
-        .into_iter()
-        .map(|(name, export, analysis)| {
-            let status = analysis.target_status.label();
-            let details_open = if matches!(analysis.target_status, ScanTargetStatus::Attention)
-            {
-                " open"
+    let mut cards = String::new();
+    for (index, (name, export, analysis)) in sorted_outputs.into_iter().enumerate() {
+        if index > 0 {
+            cards.push('\n');
+        }
+        let status = analysis.target_status.label();
+        let details_open = if matches!(analysis.target_status, ScanTargetStatus::Attention) {
+            " open"
+        } else {
+            ""
+        };
+        let mut profiles = String::new();
+        for profile in &analysis.process_profiles {
+            let suspect_modules = first_or_none(&profile.suspect_modules);
+            let module_kinds = if profile.module_kinds.is_empty() {
+                String::new()
             } else {
-                ""
+                profile.module_kinds.join(" | ")
             };
-            let profiles = process_network_profile_summaries(export)
-                .into_iter()
-                .map(|profile| {
-                    let suspect_modules = first_or_none(&profile.suspect_modules);
-                    format!(
-                        "<li><strong>{}</strong> (pid={}): status={} <span class=\"tag family-{}\">{}</span> <span class=\"tag stage-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> confidence={} basis={} suspect_module={} kinds={} healthy_flows={} attention_flows={} phases={} missing={}</li>",
-                        html_escape(&profile.comm),
-                        profile.pid,
-                        html_escape(&profile.status),
-                        html_escape(&profile.primary_module_family),
-                        html_escape(&profile.primary_module_kind),
-                        html_escape(&profile.primary_stage_family),
-                        html_escape(&profile.primary_failure_stage),
-                        html_escape(failure_mode_family_label(&profile.primary_failure_mode)),
-                        html_escape(&profile.primary_failure_mode),
-                        html_escape(failure_detail_family_label(&profile.primary_failure_detail)),
-                        html_escape(&profile.primary_failure_detail),
-                        html_escape(&profile.primary_failure_confidence),
-                        html_escape(&profile.primary_failure_basis),
-                        html_escape(&suspect_modules),
-                        html_escape(&profile.module_kinds.join(" | ")),
-                        profile.healthy_flows,
-                        profile.attention_flows,
-                        html_escape(&profile.phases.join(" > ")),
-                        html_escape(&profile.missing_transitions.join(" | ")),
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("");
-            let primary_module_kind = analysis.primary_module_kind.clone();
-            let primary_failure_stage = analysis.primary_failure_stage.clone();
-            let primary_failure_mode = analysis.primary_failure_mode.clone();
-            let primary_failure_detail = analysis.primary_failure_detail.clone();
-            let primary_failure_confidence = analysis.primary_failure_confidence.clone();
-            let primary_failure_basis = analysis.primary_failure_basis.clone();
-            let pid_attribution_status = pid_attribution_status_for_export(export);
-            let pid_attribution_note = pid_attribution_note_for_export(export);
-            let ingest_mode_note = ingest_mode_note_for_export(export);
-            let ambiguous = analysis.primary_process_profile_ambiguous;
-            let competing_hypotheses = if analysis.competing_hypotheses.is_empty() {
-                "none".into()
+            let phases = if profile.phases.is_empty() {
+                String::new()
             } else {
-                analysis.competing_hypotheses.join(" | ")
+                profile.phases.join(" > ")
             };
-            let suspect_modules = suspect_modules_for_export(export);
-            let primary_module_family = module_family_label(&primary_module_kind);
-            let primary_stage_family = stage_family_label(&primary_failure_stage);
-            let primary_failure_mode_family = failure_mode_family_label(&primary_failure_mode);
-            let augmentations = if analysis.augmentations.is_empty() {
-                "<li>none</li>".to_string()
+            let missing = if profile.missing_transitions.is_empty() {
+                String::new()
             } else {
-                analysis
-                    .augmentations
-                    .iter()
-                    .map(|item| {
-                        let producer = item.producer_pass.as_deref().unwrap_or("builtin");
-                        format!(
-                            "<li><span class=\"tag family-{}\">{}</span> confidence={} producer={}</li>",
-                            html_escape(&item.kind),
-                            html_escape(&item.name),
-                            html_escape(&item.confidence),
-                            html_escape(producer),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join("")
+                profile.missing_transitions.join(" | ")
             };
-            let flow_finding_summaries = protocol_flow_finding_summaries(export);
-            let flow_lines = export
-                .program_flows
-                .iter()
-                .map(|flow| {
-                    let phase_text = protocol_flow_phases(flow).join(" > ");
-                    let failure_mode =
-                        protocol_flow_failure_mode(flow, flow_finding_summaries.get(&flow.id));
-                    let failure_detail =
-                        protocol_flow_failure_detail(flow, flow_finding_summaries.get(&flow.id));
-                    let failure_confidence = protocol_flow_failure_confidence(
-                        flow,
-                        flow_finding_summaries.get(&flow.id),
-                    );
-                    let failure_basis =
-                        protocol_flow_failure_basis(flow, flow_finding_summaries.get(&flow.id));
-                    format!(
-                        "<li>{}: last_phase={} <span class=\"tag failure-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> confidence={} basis={} phases={}</li>",
-                        html_escape(&operation_label(&flow.operation)),
-                        html_escape(&protocol_flow_last_phase(flow).unwrap_or_else(|| "none".into())),
-                        html_escape(failure_mode_family_label(&failure_mode)),
-                        html_escape(&failure_mode),
-                        html_escape(failure_detail_family_label(&failure_detail)),
-                        html_escape(&failure_detail),
-                        html_escape(&failure_confidence),
-                        html_escape(&failure_basis),
-                        html_escape(&phase_text),
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("");
-            format!(
-                "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>mode:</strong> {} | <strong>trust:</strong> {} | <strong>pid attribution:</strong> {} | <strong>ambiguous:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><p><strong>Mode note:</strong> {}</p><p><strong>PID attribution note:</strong> {}</p><p><strong>Competing hypotheses:</strong> {}</p><h3>Process Profiles</h3><ul>{}</ul><h3>Augmentations</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
-                html_escape(name),
-                status,
-                html_escape(ingest_mode_for_export(export)),
-                html_escape(&export.ingest_trust_mode),
-                html_escape(pid_attribution_status),
-                ambiguous,
-                export.program_flows.len(),
-                export.program_findings.len(),
-                export.module_findings.len(),
-                primary_module_family,
-                html_escape(&primary_module_kind),
-                primary_stage_family,
-                html_escape(&primary_failure_stage),
-                primary_failure_mode_family,
-                html_escape(&primary_failure_mode),
-                failure_detail_family_label(&primary_failure_detail),
-                html_escape(&primary_failure_detail),
-                html_escape(&primary_failure_confidence),
-                html_escape(&primary_failure_basis),
-                html_escape(&suspect_modules),
-                html_escape(ingest_mode_note),
-                html_escape(pid_attribution_note),
-                html_escape(&competing_hypotheses),
+            let _ = write!(
                 profiles,
-                augmentations,
+                "<li><strong>{}</strong> (pid={}): status={} <span class=\"tag family-{}\">{}</span> <span class=\"tag stage-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> confidence={} basis={} suspect_module={} kinds={} healthy_flows={} attention_flows={} phases={} missing={}</li>",
+                html_escape(&profile.comm),
+                profile.pid,
+                html_escape(&profile.status),
+                html_escape(&profile.primary_module_family),
+                html_escape(&profile.primary_module_kind),
+                html_escape(&profile.primary_stage_family),
+                html_escape(&profile.primary_failure_stage),
+                html_escape(failure_mode_family_label(&profile.primary_failure_mode)),
+                html_escape(&profile.primary_failure_mode),
+                html_escape(failure_detail_family_label(&profile.primary_failure_detail)),
+                html_escape(&profile.primary_failure_detail),
+                html_escape(&profile.primary_failure_confidence),
+                html_escape(&profile.primary_failure_basis),
+                html_escape(&suspect_modules),
+                html_escape(&module_kinds),
+                profile.healthy_flows,
+                profile.attention_flows,
+                html_escape(&phases),
+                html_escape(&missing),
+            );
+        }
+        let primary_module_kind = analysis.primary_module_kind.clone();
+        let primary_failure_stage = analysis.primary_failure_stage.clone();
+        let primary_failure_mode = analysis.primary_failure_mode.clone();
+        let primary_failure_detail = analysis.primary_failure_detail.clone();
+        let primary_failure_confidence = analysis.primary_failure_confidence.clone();
+        let primary_failure_basis = analysis.primary_failure_basis.clone();
+        let pid_attribution_status = pid_attribution_status_for_export(export);
+        let pid_attribution_note = pid_attribution_note_for_export(export);
+        let ingest_mode_note = ingest_mode_note_for_export(export);
+        let ambiguous = analysis.primary_process_profile_ambiguous;
+        let competing_hypotheses = if analysis.competing_hypotheses.is_empty() {
+            "none".into()
+        } else {
+            analysis.competing_hypotheses.join(" | ")
+        };
+        let suspect_modules = first_or_none(&analysis.suspect_modules);
+        let primary_module_family = module_family_label(&primary_module_kind);
+        let primary_stage_family = stage_family_label(&primary_failure_stage);
+        let primary_failure_mode_family = failure_mode_family_label(&primary_failure_mode);
+        let mut augmentations = String::new();
+        if analysis.augmentations.is_empty() {
+            augmentations.push_str("<li>none</li>");
+        } else {
+            for item in &analysis.augmentations {
+                let producer = item.producer_pass.as_deref().unwrap_or("builtin");
+                let _ = write!(
+                    augmentations,
+                    "<li><span class=\"tag family-{}\">{}</span> confidence={} producer={}</li>",
+                    html_escape(&item.kind),
+                    html_escape(&item.name),
+                    html_escape(&item.confidence),
+                    html_escape(producer),
+                );
+            }
+        }
+        let mut flow_lines = String::new();
+        for flow in &analysis.protocol_flows {
+            let phase_text = if flow.phases.is_empty() {
+                "none".to_string()
+            } else {
+                flow.phases.join(" > ")
+            };
+            let _ = write!(
                 flow_lines,
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
+                "<li>{}: last_phase={} <span class=\"tag failure-{}\">{}</span> <span class=\"tag failure-{}\">{}</span> confidence={} basis={} phases={}</li>",
+                html_escape(&flow.operation),
+                html_escape(flow.last_phase.as_deref().unwrap_or("none")),
+                html_escape(failure_mode_family_label(&flow.failure_mode)),
+                html_escape(&flow.failure_mode),
+                html_escape(failure_detail_family_label(&flow.failure_detail)),
+                html_escape(&flow.failure_detail),
+                html_escape(&flow.failure_confidence),
+                html_escape(&flow.failure_basis),
+                html_escape(&phase_text),
+            );
+        }
+        let _ = write!(
+            cards,
+            "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>mode:</strong> {} | <strong>trust:</strong> {} | <strong>pid attribution:</strong> {} | <strong>ambiguous:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><p><strong>Mode note:</strong> {}</p><p><strong>PID attribution note:</strong> {}</p><p><strong>Competing hypotheses:</strong> {}</p><h3>Process Profiles</h3><ul>{}</ul><h3>Augmentations</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
+            html_escape(name),
+            status,
+            html_escape(ingest_mode_for_export(export)),
+            html_escape(&export.ingest_trust_mode),
+            html_escape(pid_attribution_status),
+            ambiguous,
+            export.program_flows.len(),
+            export.program_findings.len(),
+            export.module_findings.len(),
+            primary_module_family,
+            html_escape(&primary_module_kind),
+            primary_stage_family,
+            html_escape(&primary_failure_stage),
+            primary_failure_mode_family,
+            html_escape(&primary_failure_mode),
+            failure_detail_family_label(&primary_failure_detail),
+            html_escape(&primary_failure_detail),
+            html_escape(&primary_failure_confidence),
+            html_escape(&primary_failure_basis),
+            html_escape(&suspect_modules),
+            html_escape(ingest_mode_note),
+            html_escape(pid_attribution_note),
+            html_escape(&competing_hypotheses),
+            profiles,
+            augmentations,
+            flow_lines,
+        );
+    }
 
     format!(
         "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>gewyvern scan report</title><style>body{{font-family:ui-sans-serif,system-ui,sans-serif;background:#f6f7fb;color:#18202a;margin:0;padding:24px}}h1,h2,h3{{margin:0 0 12px}}.summary{{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 24px}}.summary-note{{margin:-10px 0 24px;color:#475569;font-size:14px}}.pill{{background:#fff;border:1px solid #d8dee9;border-radius:999px;padding:10px 14px;font-size:14px}}.tag{{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}}.family-dns{{background:#dbeafe;color:#1d4ed8}}.family-route{{background:#e0f2fe;color:#0369a1}}.family-connect{{background:#ede9fe;color:#6d28d9}}.family-handshake{{background:#fae8ff;color:#a21caf}}.family-request-response{{background:#dcfce7;color:#166534}}.family-database{{background:#fef3c7;color:#92400e}}.family-auth{{background:#fee2e2;color:#b91c1c}}.family-directory{{background:#ecfccb;color:#3f6212}}.family-messaging{{background:#ffedd5;color:#c2410c}}.family-relay{{background:#d1fae5;color:#047857}}.family-service{{background:#e2e8f0;color:#334155}}.family-general{{background:#f3f4f6;color:#374151}}.stage-dns{{background:#dbeafe;color:#1d4ed8}}.stage-connect{{background:#ede9fe;color:#6d28d9}}.stage-handshake{{background:#fae8ff;color:#a21caf}}.stage-request-response{{background:#dcfce7;color:#166534}}.stage-auth{{background:#fee2e2;color:#b91c1c}}.stage-general{{background:#f3f4f6;color:#374151}}.stage-none{{background:#e5e7eb;color:#6b7280}}.failure-blocked{{background:#fef3c7;color:#92400e}}.failure-timeout{{background:#fee2e2;color:#b91c1c}}.failure-setup{{background:#e0e7ff;color:#4338ca}}.failure-semantic{{background:#ffedd5;color:#c2410c}}.failure-denied{{background:#fce7f3;color:#be185d}}.failure-peer{{background:#d1fae5;color:#047857}}.failure-none{{background:#e5e7eb;color:#6b7280}}.failure-general{{background:#f3f4f6;color:#374151}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}}.card{{background:#fff;border:1px solid #d8dee9;border-radius:16px;padding:0;box-shadow:0 6px 24px rgba(15,23,42,0.06);overflow:hidden}}.card summary{{list-style:none;cursor:pointer;padding:18px}}.card summary::-webkit-details-marker{{display:none}}.card-title p{{margin:0}}.card-body{{padding:0 18px 18px}}.conclusion{{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 0}}.status-attention{{border-color:#f0b429}}.status-healthy{{border-color:#68b984}}.status-idle{{border-color:#cbd5e1}}ul{{padding-left:18px}}li{{margin:6px 0}}</style></head><body><h1>gewyvern Scan Report</h1><div class=\"summary\"><div class=\"pill\">total targets: {}</div><div class=\"pill\">healthy: {}</div><div class=\"pill\">attention: {}</div><div class=\"pill\">idle: {}</div></div><p class=\"summary-note\">attention targets are shown first and expanded by default so the highest-risk paths are easier to inspect.</p><div class=\"summary\">{}</div><div class=\"grid\">{}</div></body></html>",
@@ -376,32 +382,47 @@ pub(super) fn summary_json_with_analysis(
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
 ) -> String {
-    let suspect_modules = format!(
-        "[{}]",
-        export
-            .program_findings
-            .iter()
-            .map(|finding| format!("\"{}\"", finding.module_label))
-            .collect::<Vec<_>>()
-            .join(",")
-    );
-    format!(
-        "{{\"kind\":\"single\",\"name\":\"{name}\",\"demo\":\"{name}\",\"template_id\":\"{}\",{},\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{},\"suspect_modules\":{},\"protocol_flows\":{},\"process_network_profiles\":{}}}",
-        export.template_id,
-        analysis_context_json(export, &analysis),
-        export.debug_summary.fragments_loaded,
-        export.debug_summary.hookpoints_failed,
-        export.debug_summary.accepted_facts,
-        export.debug_summary.rejected_facts,
-        export.debug_summary.flows,
-        export.debug_summary.program_findings,
-        export.debug_summary.module_findings,
-        export.debug_summary.reasons,
-        export.debug_summary.degraded,
-        suspect_modules,
-        protocol_flow_summaries_json_from_snapshot(&analysis),
-        process_network_profiles_json_from_snapshot(&analysis),
-    )
+    let mut json = String::from("{\"kind\":\"single\",\"name\":\"");
+    json.push_str(name);
+    json.push_str("\",\"demo\":\"");
+    json.push_str(name);
+    json.push_str("\",\"template_id\":\"");
+    json.push_str(&export.template_id);
+    json.push_str("\",");
+    json.push_str(&analysis_context_json(export, analysis));
+    json.push_str(",\"fragments_loaded\":");
+    json.push_str(&export.debug_summary.fragments_loaded.to_string());
+    json.push_str(",\"hookpoints_failed\":");
+    json.push_str(&export.debug_summary.hookpoints_failed.to_string());
+    json.push_str(",\"accepted_facts\":");
+    json.push_str(&export.debug_summary.accepted_facts.to_string());
+    json.push_str(",\"rejected_facts\":");
+    json.push_str(&export.debug_summary.rejected_facts.to_string());
+    json.push_str(",\"flows\":");
+    json.push_str(&export.debug_summary.flows.to_string());
+    json.push_str(",\"program_findings\":");
+    json.push_str(&export.debug_summary.program_findings.to_string());
+    json.push_str(",\"module_findings\":");
+    json.push_str(&export.debug_summary.module_findings.to_string());
+    json.push_str(",\"reasons\":");
+    json.push_str(&export.debug_summary.reasons.to_string());
+    json.push_str(",\"degraded\":");
+    json.push_str(&export.debug_summary.degraded.to_string());
+    json.push_str(",\"suspect_modules\":[");
+    for (index, finding) in export.program_findings.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push('"');
+        json.push_str(&finding.module_label);
+        json.push('"');
+    }
+    json.push_str("],\"protocol_flows\":");
+    json.push_str(&protocol_flow_summaries_json_from_snapshot(analysis));
+    json.push_str(",\"process_network_profiles\":");
+    json.push_str(&process_network_profiles_json_from_snapshot(analysis));
+    json.push('}');
+    json
 }
 
 pub(super) fn findings_text(name: &str, export: &ExportBundle) -> String {
@@ -481,24 +502,32 @@ pub(super) fn findings_json_with_analysis(
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
 ) -> String {
-    format!(
-        "{{\"kind\":\"single\",\"name\":\"{name}\",\"demo\":\"{name}\",\"template_id\":\"{}\",{},\"module_findings\":[{}],\"program_findings\":[{}],\"process_network_profiles\":{}}}",
-        export.template_id,
-        analysis_context_json(export, &analysis),
-        export
-            .module_findings
-            .iter()
-            .map(module_finding_json)
-            .collect::<Vec<_>>()
-            .join(","),
-        export
-            .program_findings
-            .iter()
-            .map(program_finding_json)
-            .collect::<Vec<_>>()
-            .join(","),
-        process_network_profiles_json_from_snapshot(&analysis),
-    )
+    let mut json = String::from("{\"kind\":\"single\",\"name\":\"");
+    json.push_str(name);
+    json.push_str("\",\"demo\":\"");
+    json.push_str(name);
+    json.push_str("\",\"template_id\":\"");
+    json.push_str(&export.template_id);
+    json.push_str("\",");
+    json.push_str(&analysis_context_json(export, analysis));
+    json.push_str(",\"module_findings\":[");
+    for (index, finding) in export.module_findings.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        append_module_finding_json(&mut json, finding);
+    }
+    json.push_str("],\"program_findings\":[");
+    for (index, finding) in export.program_findings.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        append_program_finding_json(&mut json, finding);
+    }
+    json.push_str("],\"process_network_profiles\":");
+    json.push_str(&process_network_profiles_json_from_snapshot(analysis));
+    json.push('}');
+    json
 }
 
 pub(super) fn http_transactions_text(transactions: &[HttpTransactionView]) -> String {
@@ -558,171 +587,220 @@ pub(super) fn http_transactions_text(transactions: &[HttpTransactionView]) -> St
 }
 
 pub(super) fn http_transactions_json(transactions: &[HttpTransactionView]) -> String {
-    format!(
-        "[{}]",
-        transactions
-            .iter()
-            .map(http_transaction_json)
-            .collect::<Vec<_>>()
-            .join(",")
-    )
+    let mut json = String::from("[");
+    for (index, transaction) in transactions.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        append_http_transaction_json(&mut json, transaction);
+    }
+    json.push(']');
+    json
 }
 
-fn http_transaction_json(transaction: &HttpTransactionView) -> String {
-    format!(
-        "{{\"id\":{},\"client_process\":{},\"server_process\":{},\"verdict\":\"{}\",\"severity\":{},\"degraded\":{},\"suspect_sides\":{},\"phases\":{},\"components\":{},\"finding_summaries\":{},\"summaries\":{}}}",
-        transaction.id.0,
-        process_json(transaction.client_process.as_ref()),
-        process_json(transaction.server_process.as_ref()),
-        http_transaction_verdict_label(&transaction.verdict),
-        transaction
-            .severity
-            .as_ref()
-            .map(|severity| format!("\"{}\"", module_severity_label(severity)))
-            .unwrap_or_else(|| "null".into()),
-        transaction.degraded,
-        string_list_json(
-            &transaction
-                .suspect_sides
-                .iter()
-                .map(|side| http_suspect_side_label(side).to_string())
-                .collect::<Vec<_>>()
-        ),
-        string_list_json(&transaction.phases),
-        format!(
-            "[{}]",
-            transaction
-                .components
-                .iter()
-                .map(http_component_json)
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-        string_list_json(&transaction.finding_summaries),
-        string_list_json(&transaction.summaries),
-    )
+fn append_module_finding_json(json: &mut String, finding: &gewyvern::flow::ModuleFinding) {
+    let cause_values = finding
+        .causes
+        .iter()
+        .map(finding_cause_label)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    json.push_str("\"module_label\":\"");
+    json.push_str(&finding.module_label);
+    json.push_str("\",\"severity\":\"");
+    json.push_str(module_severity_label(&finding.severity));
+    json.push_str("\",\"process\":");
+    json.push_str(&process_json(finding.process.as_ref()));
+    json.push_str(",\"operation\":\"");
+    json.push_str(&operation_label(&finding.operation));
+    json.push_str("\",\"network_module_kinds\":");
+    json.push_str(&string_list_json(&finding.network_module_kinds));
+    json.push_str(",\"phases\":");
+    json.push_str(&string_list_json(&finding.phases));
+    json.push_str(",\"phase_transitions\":");
+    json.push_str(&string_list_json(&finding.phase_transitions));
+    json.push_str(",\"suspect_areas\":");
+    json.push_str(&string_list_json(&finding.suspect_areas));
+    json.push_str(",\"causes\":");
+    json.push_str(&string_list_json(&cause_values));
+    json.push_str(",\"supporting_fragments\":");
+    json.push_str(&string_list_json(&finding.supporting_fragments));
+    json.push_str(",\"program_flows\":[");
+    for (index, flow) in finding.program_flows.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str(&flow.0.to_string());
+    }
+    json.push_str("],\"summaries\":");
+    json.push_str(&string_list_json(&finding.summaries));
+    json.push_str(",\"evidence_trace\":");
+    json.push_str(&string_list_json(&finding.evidence_trace));
 }
 
-fn http_component_json(component: &gewyvern::http::HttpComponentRef) -> String {
-    format!(
-        "{{\"template_id\":\"{}\",\"kind\":\"{}\",\"operation\":\"{}\"}}",
-        component.template_id,
-        http_component_kind_label(&component.kind),
-        operation_label(&component.operation),
-    )
+fn append_program_finding_json(json: &mut String, finding: &gewyvern::flow::ProgramFinding) {
+    json.push_str("\"program_flow\":");
+    json.push_str(&finding.program_flow.0.to_string());
+    json.push_str(",\"module_label\":\"");
+    json.push_str(&finding.module_label);
+    json.push_str("\",\"network_module_kind\":\"");
+    json.push_str(&finding.network_module_kind);
+    json.push_str("\",\"phase\":");
+    if let Some(phase) = finding.phase.as_deref() {
+        json.push('"');
+        json.push_str(phase);
+        json.push('"');
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"phase_transition\":");
+    if let Some(transition) = finding.phase_transition.as_deref() {
+        json.push('"');
+        json.push_str(transition);
+        json.push('"');
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"suspect_area\":\"");
+    json.push_str(&finding.suspect_area);
+    json.push_str("\",\"cause\":\"");
+    json.push_str(finding_cause_label(&finding.cause));
+    json.push_str("\",\"process\":");
+    json.push_str(&process_json(finding.process.as_ref()));
+    json.push_str(",\"operation\":\"");
+    json.push_str(&operation_label(&finding.operation));
+    json.push_str("\",\"summary\":\"");
+    json.push_str(&finding.summary);
+    json.push_str("\",\"supporting_fragments\":");
+    json.push_str(&string_list_json(&finding.supporting_fragments));
+    json.push_str(",\"evidence_trace\":");
+    json.push_str(&string_list_json(&finding.evidence_trace));
 }
 
-fn module_finding_json(finding: &gewyvern::flow::ModuleFinding) -> String {
-    format!(
-        "{{\"module_label\":\"{}\",\"severity\":\"{}\",\"process\":{},\"operation\":\"{}\",\"network_module_kinds\":{},\"phases\":{},\"phase_transitions\":{},\"suspect_areas\":{},\"causes\":{},\"supporting_fragments\":{},\"program_flows\":{},\"summaries\":{},\"evidence_trace\":{}}}",
-        finding.module_label,
-        module_severity_label(&finding.severity),
-        process_json(finding.process.as_ref()),
-        operation_label(&finding.operation),
-        string_list_json(&finding.network_module_kinds),
-        string_list_json(&finding.phases),
-        string_list_json(&finding.phase_transitions),
-        string_list_json(&finding.suspect_areas),
-        string_list_json(
-            &finding
-                .causes
-                .iter()
-                .map(finding_cause_label)
-                .map(str::to_string)
-                .collect::<Vec<_>>()
-        ),
-        string_list_json(&finding.supporting_fragments),
-        format!(
-            "[{}]",
-            finding
-                .program_flows
-                .iter()
-                .map(|flow| flow.0.to_string())
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-        string_list_json(&finding.summaries),
-        string_list_json(&finding.evidence_trace),
-    )
+fn append_http_transaction_json(json: &mut String, transaction: &HttpTransactionView) {
+    let suspect_sides = transaction
+        .suspect_sides
+        .iter()
+        .map(|side| http_suspect_side_label(side).to_string())
+        .collect::<Vec<_>>();
+    json.push_str("{\"id\":");
+    json.push_str(&transaction.id.0.to_string());
+    json.push_str(",\"client_process\":");
+    json.push_str(&process_json(transaction.client_process.as_ref()));
+    json.push_str(",\"server_process\":");
+    json.push_str(&process_json(transaction.server_process.as_ref()));
+    json.push_str(",\"verdict\":\"");
+    json.push_str(http_transaction_verdict_label(&transaction.verdict));
+    json.push_str("\",\"severity\":");
+    if let Some(severity) = transaction.severity.as_ref() {
+        json.push('"');
+        json.push_str(module_severity_label(severity));
+        json.push('"');
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"degraded\":");
+    json.push_str(if transaction.degraded {
+        "true"
+    } else {
+        "false"
+    });
+    json.push_str(",\"suspect_sides\":");
+    json.push_str(&string_list_json(&suspect_sides));
+    json.push_str(",\"phases\":");
+    json.push_str(&string_list_json(&transaction.phases));
+    json.push_str(",\"components\":[");
+    for (index, component) in transaction.components.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        append_http_component_json(json, component);
+    }
+    json.push_str("],\"finding_summaries\":");
+    json.push_str(&string_list_json(&transaction.finding_summaries));
+    json.push_str(",\"summaries\":");
+    json.push_str(&string_list_json(&transaction.summaries));
+    json.push('}');
 }
 
-fn program_finding_json(finding: &gewyvern::flow::ProgramFinding) -> String {
-    format!(
-        "{{\"program_flow\":{},\"module_label\":\"{}\",\"network_module_kind\":\"{}\",\"phase\":{},\"phase_transition\":{},\"suspect_area\":\"{}\",\"cause\":\"{}\",\"process\":{},\"operation\":\"{}\",\"summary\":\"{}\",\"supporting_fragments\":{},\"evidence_trace\":{}}}",
-        finding.program_flow.0,
-        finding.module_label,
-        finding.network_module_kind,
-        finding
-            .phase
-            .as_ref()
-            .map_or("null".to_string(), |phase| format!("\"{}\"", phase)),
-        finding
-            .phase_transition
-            .as_ref()
-            .map_or("null".to_string(), |transition| format!(
-                "\"{}\"",
-                transition
-            )),
-        finding.suspect_area,
-        finding_cause_label(&finding.cause),
-        process_json(finding.process.as_ref()),
-        operation_label(&finding.operation),
-        finding.summary,
-        string_list_json(&finding.supporting_fragments),
-        string_list_json(&finding.evidence_trace),
-    )
+fn append_http_component_json(json: &mut String, component: &gewyvern::http::HttpComponentRef) {
+    json.push_str("{\"template_id\":\"");
+    json.push_str(&component.template_id);
+    json.push_str("\",\"kind\":\"");
+    json.push_str(http_component_kind_label(&component.kind));
+    json.push_str("\",\"operation\":\"");
+    json.push_str(&operation_label(&component.operation));
+    json.push_str("\"}");
 }
 
 fn analysis_context_json(export: &ExportBundle, analysis: &AnalysisSnapshot) -> String {
-    format!(
-        "{},{}",
-        ingest_context_json(export),
-        analysis_spine_json(analysis)
-    )
+    let mut json = ingest_context_json(export);
+    json.push(',');
+    json.push_str(&analysis_spine_json(analysis));
+    json
 }
 
 fn ingest_context_json(export: &ExportBundle) -> String {
-    format!(
-        "\"ingest_mode\":\"{}\",\"ingest_mode_note\":\"{}\",\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"{}\",\"pid_attribution_note\":\"{}\"",
-        ingest_mode_for_export(export),
-        ingest_mode_note_for_export(export),
-        export.ingest_trust_mode,
-        pid_attribution_status_for_export(export),
-        pid_attribution_note_for_export(export),
-    )
+    let mut json = String::from("\"ingest_mode\":\"");
+    json.push_str(ingest_mode_for_export(export));
+    json.push_str("\",\"ingest_mode_note\":\"");
+    json.push_str(&ingest_mode_note_for_export(export));
+    json.push_str("\",\"ingest_trust_mode\":\"");
+    json.push_str(&export.ingest_trust_mode);
+    json.push_str("\",\"pid_attribution_status\":\"");
+    json.push_str(pid_attribution_status_for_export(export));
+    json.push_str("\",\"pid_attribution_note\":\"");
+    json.push_str(&pid_attribution_note_for_export(export));
+    json.push('"');
+    json
 }
 
 fn analysis_spine_json(analysis: &AnalysisSnapshot) -> String {
-    format!(
-        "\"ambiguous\":{},\"competing_hypotheses\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"augmentations\":{}",
-        analysis.primary_process_profile_ambiguous,
-        string_list_json(&analysis.competing_hypotheses),
-        analysis.primary_module_kind,
-        module_family_label(&analysis.primary_module_kind),
-        analysis.primary_failure_stage,
-        stage_family_label(&analysis.primary_failure_stage),
-        analysis.primary_failure_mode,
-        failure_mode_family_label(&analysis.primary_failure_mode),
-        analysis.primary_failure_detail,
-        failure_detail_family_label(&analysis.primary_failure_detail),
-        analysis.primary_failure_confidence,
-        analysis.primary_failure_basis,
-        analysis_augmentations_json(&analysis.augmentations),
-    )
+    let mut json = String::from("\"ambiguous\":");
+    json.push_str(if analysis.primary_process_profile_ambiguous {
+        "true"
+    } else {
+        "false"
+    });
+    json.push_str(",\"competing_hypotheses\":");
+    json.push_str(&string_list_json(&analysis.competing_hypotheses));
+    json.push_str(",\"primary_module_kind\":\"");
+    json.push_str(&analysis.primary_module_kind);
+    json.push_str("\",\"primary_module_family\":\"");
+    json.push_str(module_family_label(&analysis.primary_module_kind));
+    json.push_str("\",\"primary_failure_stage\":\"");
+    json.push_str(&analysis.primary_failure_stage);
+    json.push_str("\",\"primary_stage_family\":\"");
+    json.push_str(stage_family_label(&analysis.primary_failure_stage));
+    json.push_str("\",\"primary_failure_mode\":\"");
+    json.push_str(&analysis.primary_failure_mode);
+    json.push_str("\",\"primary_failure_mode_family\":\"");
+    json.push_str(failure_mode_family_label(&analysis.primary_failure_mode));
+    json.push_str("\",\"primary_failure_detail\":\"");
+    json.push_str(&analysis.primary_failure_detail);
+    json.push_str("\",\"primary_failure_detail_family\":\"");
+    json.push_str(failure_detail_family_label(
+        &analysis.primary_failure_detail,
+    ));
+    json.push_str("\",\"primary_failure_confidence\":\"");
+    json.push_str(&analysis.primary_failure_confidence);
+    json.push_str("\",\"primary_failure_basis\":\"");
+    json.push_str(&analysis.primary_failure_basis);
+    json.push_str("\",\"augmentations\":");
+    json.push_str(&analysis_augmentations_json(&analysis.augmentations));
+    json
 }
 
 fn scan_target_status_counts(analyses: &[AnalysisSnapshot]) -> (usize, usize, usize) {
-    let healthy = analyses
-        .iter()
-        .filter(|analysis| matches!(analysis.target_status, ScanTargetStatus::Healthy))
-        .count();
-    let attention = analyses
-        .iter()
-        .filter(|analysis| matches!(analysis.target_status, ScanTargetStatus::Attention))
-        .count();
-    let idle = analyses
-        .iter()
-        .filter(|analysis| matches!(analysis.target_status, ScanTargetStatus::Idle))
-        .count();
+    let mut healthy = 0;
+    let mut attention = 0;
+    let mut idle = 0;
+    for analysis in analyses {
+        match analysis.target_status {
+            ScanTargetStatus::Healthy => healthy += 1,
+            ScanTargetStatus::Attention => attention += 1,
+            ScanTargetStatus::Idle => idle += 1,
+        }
+    }
     (healthy, attention, idle)
 }
