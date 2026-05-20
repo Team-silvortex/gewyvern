@@ -3820,11 +3820,12 @@ mod tests {
     };
     use super::{
         AnalysisAugmenter, AnalysisSnapshot, Cli, IngestMode, ReportFormat, analysis_snapshot,
-        analysis_snapshot_json, analysis_snapshot_with, annotate_export_trust,
+        analysis_snapshot_json, analysis_snapshot_with_augmenters, annotate_export_trust,
         filter_export_by_pid, findings_json, list_entries_json, list_entries_text,
-        list_protocols_json, list_protocols_text, protocol_dsl_path, render_report_outputs,
-        route_fact, run_binding_demo, scan_report_html, scan_report_json, scan_report_text,
-        scan_targets_for_cli, scan_targets_from_set_file, summary_json, summary_line,
+        list_protocols_json, list_protocols_text, protocol_dsl_path, push_analysis_augmentation,
+        render_report_outputs, route_fact, run_binding_demo, scan_report_html, scan_report_json,
+        scan_report_text, scan_targets_for_cli, scan_targets_from_set_file, summary_json,
+        summary_line,
     };
     use gewyvern::dsl::compile_file;
     use gewyvern::export::ExportBundle;
@@ -3895,7 +3896,7 @@ mod tests {
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
         );
         let augmenter = MlHookAugmenter;
-        let snapshot = analysis_snapshot_with(&export, &[&augmenter]);
+        let snapshot = analysis_snapshot_with_augmenters(&export, &[&augmenter]);
 
         assert_eq!(snapshot.primary_failure_confidence, "ml-candidate");
         assert!(
@@ -3904,6 +3905,140 @@ mod tests {
                 .contains(&"augmenter:ml_rerank_hook".to_string()),
             "augmenters should be able to enrich the shared analysis snapshot",
         );
+        assert!(
+            snapshot
+                .augmentations
+                .iter()
+                .any(|item| item.name == "ml_rerank_hook"),
+            "external augmenters should append custom machine-readable annotations"
+        );
+        assert!(
+            snapshot
+                .augmentations
+                .iter()
+                .any(|item| item.name == "automation_recommendation"),
+            "built-in augmenters should remain active when external augmenters are composed"
+        );
+        let json = analysis_snapshot_json(&snapshot);
+        assert!(json.contains("\"augmentations\":["));
+        assert!(json.contains("\"name\":\"ml_rerank_hook\""));
+    }
+
+    #[test]
+    fn analysis_snapshot_adds_unverified_ingest_augmentation() {
+        let cli =
+            Cli::from_args(["--tcp-socket".to_string(), "127.0.0.1:9000".to_string()]).unwrap();
+        let export = annotate_export_trust(
+            run_binding_demo(
+                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                    .expect("http_request_path DSL should compile"),
+            ),
+            &cli,
+        );
+        let snapshot = analysis_snapshot(&export);
+        let json = analysis_snapshot_json(&snapshot);
+        assert!(
+            snapshot
+                .augmentations
+                .iter()
+                .any(|item| item.name == "unverified_ingest_lineage"),
+            "snapshot should expose an advisory trust augmentation"
+        );
+        assert!(json.contains("\"name\":\"unverified_ingest_lineage\""));
+        assert!(json.contains("\"kind\":\"trust\""));
+        assert!(json.contains("\"name\":\"automation_recommendation\""));
+        assert!(json.contains("\"action\":\"avoid_pid_strong_actions\""));
+    }
+
+    #[test]
+    fn analysis_snapshot_adds_competing_hypotheses_augmentation() {
+        let process = synthetic_process_view(9101, "curl");
+        let dns_export = coerce_export_process(
+            annotate_export_trust(
+                run_binding_demo(
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
+                        .expect("dns_udp_process DSL should compile"),
+                ),
+                &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+            ),
+            &process,
+        );
+        let mut http_export = coerce_export_process(
+            annotate_export_trust(
+                run_binding_demo(
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                        .expect("http_request_path DSL should compile"),
+                ),
+                &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+            ),
+            &process,
+        );
+        let http_flow = http_export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut http_export,
+            &http_flow,
+            "http_request_path",
+            "http_request_response",
+            "receive_response",
+            "receive_payload",
+            "send_request->receive_response",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing response",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let export = merge_exports_for_tests(vec![dns_export, http_export]);
+        let snapshot = analysis_snapshot(&export);
+        let json = analysis_snapshot_json(&snapshot);
+        assert!(
+            snapshot
+                .augmentations
+                .iter()
+                .any(|item| item.name == "competing_hypotheses"),
+            "snapshot should expose an advisory ambiguity augmentation"
+        );
+        assert!(json.contains("\"name\":\"competing_hypotheses\""));
+        assert!(json.contains("\"kind\":\"analysis\""));
+        assert!(json.contains("\"name\":\"automation_recommendation\""));
+        assert!(json.contains("\"action\":\"keep_multiple_hypotheses\""));
+    }
+
+    #[test]
+    fn analysis_snapshot_adds_missing_transition_recommendation() {
+        let mut export = annotate_export_trust(
+            run_binding_demo(
+                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                    .expect("http_request_path DSL should compile"),
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let flow = export.program_flows[0].clone();
+        push_synthetic_missing_stage_finding(
+            &mut export,
+            &flow,
+            "http_request_path",
+            "http_request_response",
+            "receive_response",
+            "receive_payload",
+            "send_request->receive_response",
+            "emit_payload->receive_payload",
+            "transport_io",
+            "synthetic missing response",
+            "tcp_packet_meta_fragment",
+            "missing_signal:packet_observed",
+        );
+        let snapshot = analysis_snapshot(&export);
+        let json = analysis_snapshot_json(&snapshot);
+        assert!(
+            snapshot
+                .augmentations
+                .iter()
+                .any(|item| item.name == "automation_recommendation"),
+            "snapshot should expose an automation-friendly recommendation augmentation"
+        );
+        assert!(json.contains("\"action\":\"collect_more_runtime_evidence\""));
+        assert!(json.contains("\"reason\":\"missing_transition\""));
     }
 
     struct MlHookAugmenter;
@@ -3914,6 +4049,14 @@ mod tests {
             snapshot
                 .competing_hypotheses
                 .push("augmenter:ml_rerank_hook".into());
+            push_analysis_augmentation(
+                snapshot,
+                "ml-hook",
+                "ml_rerank_hook",
+                "placeholder augmentation slot for future rerank/enrich passes",
+                "advisory",
+                Some("{\"source\":\"test\"}".into()),
+            );
         }
     }
 
@@ -9271,6 +9414,8 @@ mod tests {
         let (_, _, analysis_body) = api_response_for_request("/v1/latest/analysis.json", &snapshot);
         assert!(analysis_body.contains("\"primary_module_kind\""));
         assert!(analysis_body.contains("\"protocol_flows\""));
+        assert!(analysis_body.contains("\"augmentations\":["));
+        assert!(analysis_body.contains("\"name\":\"automation_recommendation\""));
 
         let (_, _, export_body) = api_response_for_request("/v1/latest/export.json", &snapshot);
         assert!(export_body.contains("\"template_id\""));
@@ -9344,6 +9489,8 @@ mod tests {
             api_response_for_request("/v1/latest/analysis.json", &snapshot);
         assert_eq!(analysis_status, 200);
         assert!(analysis_body.contains("\"target\":\"scan:http:request\""));
+        assert!(analysis_body.contains("\"augmentations\":["));
+        assert!(analysis_body.contains("\"name\":\"automation_recommendation\""));
 
         let (report_status, _, report_body) =
             api_response_for_request("/v1/latest/report.json", &snapshot);

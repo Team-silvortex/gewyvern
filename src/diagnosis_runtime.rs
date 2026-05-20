@@ -69,12 +69,147 @@ pub(crate) struct AnalysisSnapshot {
     pub(crate) primary_process_profile_ambiguous: bool,
     pub(crate) competing_hypotheses: Vec<String>,
     pub(crate) suspect_modules: Vec<String>,
+    pub(crate) augmentations: Vec<AnalysisAugmentation>,
     pub(crate) process_profiles: Vec<ProcessNetworkProfileSummary>,
     pub(crate) protocol_flows: Vec<ProtocolFlowAnalysisSummary>,
 }
 
+#[derive(Clone, Default)]
+pub(crate) struct AnalysisAugmentation {
+    pub(crate) kind: String,
+    pub(crate) name: String,
+    pub(crate) summary: String,
+    pub(crate) confidence: String,
+    pub(crate) data_json: Option<String>,
+}
+
 pub(crate) trait AnalysisAugmenter {
     fn augment(&self, export: &ExportBundle, snapshot: &mut AnalysisSnapshot);
+}
+
+struct BuiltInAdvisoryAugmenter;
+struct BuiltInRecommendationAugmenter;
+
+impl AnalysisAugmenter for BuiltInAdvisoryAugmenter {
+    fn augment(&self, export: &ExportBundle, snapshot: &mut AnalysisSnapshot) {
+        if matches!(
+            export.ingest_trust_mode.as_str(),
+            "unverified-local" | "unverified-remote"
+        ) {
+            push_analysis_augmentation(
+                snapshot,
+                "trust",
+                "unverified_ingest_lineage",
+                "pid-scoped conclusions are advisory because ingest lineage is unverified",
+                "advisory",
+                Some(format!(
+                    "{{\"ingest_trust_mode\":\"{}\",\"pid_attribution_status\":\"unverified\"}}",
+                    export.ingest_trust_mode
+                )),
+            );
+        }
+
+        if snapshot.primary_process_profile_ambiguous && !snapshot.competing_hypotheses.is_empty() {
+            push_analysis_augmentation(
+                snapshot,
+                "analysis",
+                "competing_hypotheses",
+                "multiple plausible hypotheses remain; downstream automation should treat the primary conclusion as advisory",
+                "advisory",
+                Some(format!(
+                    "{{\"primary_module_kind\":\"{}\",\"primary_failure_confidence\":\"{}\",\"competing_hypotheses\":{}}}",
+                    snapshot.primary_module_kind,
+                    snapshot.primary_failure_confidence,
+                    string_list_json(&snapshot.competing_hypotheses)
+                )),
+            );
+        }
+    }
+}
+
+impl AnalysisAugmenter for BuiltInRecommendationAugmenter {
+    fn augment(&self, _export: &ExportBundle, snapshot: &mut AnalysisSnapshot) {
+        let (action, summary, reason) = if snapshot
+            .augmentations
+            .iter()
+            .any(|item| item.name == "unverified_ingest_lineage")
+        {
+            (
+                "avoid_pid_strong_actions",
+                "avoid strong pid-scoped automation until lineage can be verified",
+                "unverified_ingest_lineage",
+            )
+        } else if snapshot.primary_process_profile_ambiguous
+            && snapshot
+                .augmentations
+                .iter()
+                .any(|item| item.name == "competing_hypotheses")
+        {
+            (
+                "keep_multiple_hypotheses",
+                "preserve multiple hypotheses and avoid collapsing to a single remediation path",
+                "competing_hypotheses",
+            )
+        } else if snapshot.primary_failure_confidence == "high"
+            && snapshot.primary_failure_basis == "direct_protocol_signal"
+        {
+            (
+                "safe_to_escalate_protocol_signal",
+                "direct protocol evidence is strong enough for targeted downstream escalation",
+                "direct_protocol_signal",
+            )
+        } else if snapshot.primary_failure_confidence == "medium"
+            && snapshot.primary_failure_basis == "missing_transition"
+        {
+            (
+                "collect_more_runtime_evidence",
+                "collect another observation window before taking a strong automated action",
+                "missing_transition",
+            )
+        } else {
+            (
+                "manual_review",
+                "fall back to a human-oriented review path because the current signal is advisory",
+                "heuristic_summary",
+            )
+        };
+
+        push_analysis_augmentation(
+            snapshot,
+            "recommendation",
+            "automation_recommendation",
+            summary,
+            "advisory",
+            Some(format!(
+                "{{\"action\":\"{}\",\"reason\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"ambiguous\":{}}}",
+                action,
+                reason,
+                snapshot.primary_failure_confidence,
+                snapshot.primary_failure_basis,
+                snapshot.primary_process_profile_ambiguous
+            )),
+        );
+    }
+}
+
+// Kept as an explicit extension helper so future rule-based or ML passes can
+// append machine-readable annotations without re-shaping the core snapshot.
+#[allow(dead_code)]
+pub(crate) fn push_analysis_augmentation(
+    snapshot: &mut AnalysisSnapshot,
+    kind: impl Into<String>,
+    name: impl Into<String>,
+    summary: impl Into<String>,
+    confidence: impl Into<String>,
+    data_json: Option<String>,
+) {
+    snapshot.augmentations.push(AnalysisAugmentation {
+        kind: kind.into(),
+        name: name.into(),
+        summary: summary.into(),
+        confidence: confidence.into(),
+        data_json,
+    });
 }
 
 pub(super) fn first_or_none(items: &[String]) -> String {
@@ -1280,7 +1415,7 @@ fn process_network_profile_summary_json(profile: &ProcessNetworkProfileSummary) 
 
 pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
     format!(
-        "{{\"target_status\":\"{}\",\"primary_process_profile\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"suspect_modules\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
+        "{{\"target_status\":\"{}\",\"primary_process_profile\":{},\"primary_module_kind\":\"{}\",\"primary_module_family\":\"{}\",\"primary_failure_stage\":\"{}\",\"primary_stage_family\":\"{}\",\"primary_failure_mode\":\"{}\",\"primary_failure_mode_family\":\"{}\",\"primary_failure_detail\":\"{}\",\"primary_failure_detail_family\":\"{}\",\"primary_failure_confidence\":\"{}\",\"primary_failure_basis\":\"{}\",\"ambiguous\":{},\"competing_hypotheses\":{},\"suspect_modules\":{},\"augmentations\":{},\"process_network_profiles\":{},\"protocol_flows\":{}}}",
         snapshot.target_status.label(),
         snapshot
             .primary_process_profile
@@ -1300,8 +1435,26 @@ pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
         snapshot.primary_process_profile_ambiguous,
         string_list_json(&snapshot.competing_hypotheses),
         string_list_json(&snapshot.suspect_modules),
+        analysis_augmentations_json(&snapshot.augmentations),
         process_network_profiles_json_from_snapshot(snapshot),
         protocol_flow_summaries_json_from_snapshot(snapshot),
+    )
+}
+
+fn analysis_augmentations_json(items: &[AnalysisAugmentation]) -> String {
+    format!(
+        "[{}]",
+        items.iter()
+            .map(|item| format!(
+                "{{\"kind\":\"{}\",\"name\":\"{}\",\"summary\":\"{}\",\"confidence\":\"{}\",\"data\":{}}}",
+                item.kind,
+                item.name,
+                item.summary,
+                item.confidence,
+                item.data_json.clone().unwrap_or_else(|| "null".into()),
+            ))
+            .collect::<Vec<_>>()
+            .join(",")
     )
 }
 
@@ -1330,7 +1483,21 @@ fn primary_process_profile_from_profiles(
 }
 
 pub(crate) fn analysis_snapshot(export: &ExportBundle) -> AnalysisSnapshot {
-    analysis_snapshot_with(export, &[])
+    analysis_snapshot_with_augmenters(export, &[])
+}
+
+pub(crate) fn analysis_snapshot_with_augmenters(
+    export: &ExportBundle,
+    augmenters: &[&dyn AnalysisAugmenter],
+) -> AnalysisSnapshot {
+    let built_in = BuiltInAdvisoryAugmenter;
+    let recommendation = BuiltInRecommendationAugmenter;
+    let mut all_augmenters = vec![
+        &built_in as &dyn AnalysisAugmenter,
+        &recommendation as &dyn AnalysisAugmenter,
+    ];
+    all_augmenters.extend_from_slice(augmenters);
+    analysis_snapshot_with(export, &all_augmenters)
 }
 
 pub(crate) fn analysis_snapshot_with(
@@ -1450,6 +1617,7 @@ pub(crate) fn analysis_snapshot_with(
         primary_failure_basis,
         competing_hypotheses,
         suspect_modules,
+        augmentations: Vec::new(),
         primary_process_profile,
         process_profiles,
         protocol_flows: protocol_flow_analysis_summaries(export),

@@ -178,11 +178,52 @@ Those surfaces expose the analysis snapshot directly, including:
 - `primary_failure_detail`
 - `primary_failure_confidence`
 - `ambiguous`
+- `augmentations`
+
+`augmentations` is intentionally the extension slot for future enrich/rerank
+passes. Today it is usually empty; later rule-based or ML passes can attach
+machine-readable annotations there without forcing other services to parse the
+human-oriented report surfaces. The built-in chain already emits lightweight
+advisory items such as:
+
+- `unverified_ingest_lineage`
+- `competing_hypotheses`
+- `automation_recommendation`
+
+`automation_recommendation` is the first built-in rerank/enrich style pass. It
+does not replace the core conclusion; it gives downstream automation a
+conservative next-action hint such as:
+
+- `avoid_pid_strong_actions`
+- `keep_multiple_hypotheses`
+- `safe_to_escalate_protocol_signal`
+- `collect_more_runtime_evidence`
 - `competing_hypotheses`
 
 Important:
 
 - `--pid` is intentionally rejected with socket ingest
+
+If you want to test the first external-engine bridge end to end and you keep
+`etragon` as a sibling repo next to `gewyvern`, run:
+
+```bash
+bash scripts/etragon_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/etragon-augmentations.json
+```
+
+To make `etragon` consume a target-specific route, pass the target path segment
+as the sixth argument:
+
+```bash
+bash scripts/etragon_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/etragon-augmentations.json socket_session
+```
+
+That gives you:
+
+- a real `gewyvern` `/v1/latest/analysis.json`
+- a real `etragon` external augmentation payload
+- a concrete example of the open analysis chain in action
+- direct `etragon analyze-url` consumption of the live `gewyvern` API
 - lineage arriving over socket ingest is treated as unverified
 - `local-advisory` and `remote-advisory` are operator-facing run modes, not proof of trust
 - process-scoped conclusions in this mode should be read as advisory

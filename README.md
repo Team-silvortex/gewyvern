@@ -811,7 +811,13 @@ session or scan snapshot in memory so that other local services can consume
 If another service wants a composable intermediate analysis result instead of a
 fully rendered report, prefer `analysis.json`. It exposes the target-level
 analysis snapshot directly: `protocol_flows`, `process_network_profiles`,
-primary failure fields, and ambiguity metadata.
+primary failure fields, ambiguity metadata, and an `augmentations` array that
+future rule-based or ML passes can append to without changing the core report
+surfaces. The built-in chain already uses that slot for advisory machine hints
+such as `unverified_ingest_lineage`, `competing_hypotheses`, and an
+`automation_recommendation` item that gives downstream services a conservative
+next-action hint. If you later compose external enrich/rerank passes, prefer
+stacking them on top of the built-in chain rather than replacing it.
 
 For target-specific routes, discover names from `/v1/latest/targets` and prefer
 the returned `target_refs[].path_segment` value when building URLs. The API
@@ -824,6 +830,27 @@ Roundtrip demo:
 bash scripts/socket_roundtrip_demo.sh /tmp/gewyvern.sock udp /tmp/gewyvern-out.json unix
 bash scripts/socket_roundtrip_demo.sh 127.0.0.1:9000 udp /tmp/gewyvern-out.json tcp
 ```
+
+External engine roundtrip demo:
+
+```bash
+bash scripts/etragon_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/etragon-augmentations.json
+```
+
+If you want the bridge to consume a target-specific route instead of the latest
+top-level analysis snapshot, pass the already URL-safe target path segment as a
+sixth argument:
+
+```bash
+bash scripts/etragon_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/etragon-augmentations.json socket_session
+```
+
+That script exercises the full bridge:
+
+1. start `gewyvern` in `--serve` mode with the read-only API enabled
+2. ingest a demo socket session
+3. let the sibling `etragon` engine pull `/v1/latest/analysis.json` directly with `analyze-url`
+4. save both the raw analysis snapshot and the external augmentation output
 
 ## Linux eBPF Probe Environment
 
