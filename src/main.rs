@@ -1079,7 +1079,6 @@ fn main() {
                 .join("\n")
         }
     };
-
     if let Some(path) = cli.out_path.as_deref() {
         fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
             eprintln!(
@@ -3892,15 +3891,19 @@ mod tests {
     use super::{
         AnalysisAugmenter, AnalysisSnapshot, Cli, IngestMode, ReportFormat, analysis_snapshot,
         analysis_snapshot_json, analysis_snapshot_with_augmenters, annotate_export_trust,
-        filter_export_by_pid, findings_json, findings_json_with_analysis, list_entries_json,
-        list_entries_text, list_protocols_json, list_protocols_text, protocol_dsl_path,
-        push_analysis_augmentation, render_report_outputs, route_fact, run_binding_demo,
-        scan_report_html, scan_report_json, scan_report_text, scan_targets_for_cli,
-        scan_targets_from_set_file, summary_json, summary_line,
+        filter_export_by_pid, findings_json, findings_json_with_analysis, http_transactions_json,
+        http_transactions_text, list_entries_json, list_entries_text, list_protocols_json,
+        list_protocols_text, protocol_dsl_path, push_analysis_augmentation, render_report_outputs,
+        route_fact, run_binding_demo, scan_report_html, scan_report_json, scan_report_text,
+        scan_targets_for_cli, scan_targets_from_set_file, summary_json, summary_line,
     };
     use gewyvern::dsl::compile_file;
     use gewyvern::export::ExportBundle;
     use gewyvern::flow::{ProcessView, ProgramFinding, ProgramFindingCause, ProgramOperation};
+    use gewyvern::http::{
+        HttpComponentKind, HttpComponentRef, HttpSuspectSide, HttpTransactionId,
+        HttpTransactionVerdict, HttpTransactionView,
+    };
     use gewyvern::ledger::{
         CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, SessionId,
         SockLineageFact, TcpStateFact,
@@ -3999,6 +4002,60 @@ mod tests {
         let export = synthesize_large_protocol_flow_export();
         (0..target_count)
             .map(|index| (format!("scan:http:request:{index}"), export.clone()))
+            .collect()
+    }
+
+    fn synthesize_large_http_transactions() -> Vec<HttpTransactionView> {
+        let transaction_count = 256u64;
+        (0..transaction_count)
+            .map(|offset| HttpTransactionView {
+                id: HttpTransactionId(offset + 1),
+                client_process: Some(ProcessView {
+                    pid: 10_000 + offset as u32,
+                    tid: 20_000 + offset as u32,
+                    cgroup_id: 30_000 + offset,
+                    comm: "curl".into(),
+                }),
+                server_process: Some(ProcessView {
+                    pid: 40_000 + offset as u32,
+                    tid: 50_000 + offset as u32,
+                    cgroup_id: 60_000 + offset,
+                    comm: "nginx".into(),
+                }),
+                components: vec![
+                    HttpComponentRef {
+                        template_id: "dns_udp_process".into(),
+                        kind: HttpComponentKind::DnsLookup,
+                        operation: ProgramOperation::DatagramExchange,
+                    },
+                    HttpComponentRef {
+                        template_id: "http_request_path".into(),
+                        kind: HttpComponentKind::ClientRequest,
+                        operation: ProgramOperation::Custom("http_request_response".into()),
+                    },
+                    HttpComponentRef {
+                        template_id: "http_server_response_path".into(),
+                        kind: HttpComponentKind::ServerResponse,
+                        operation: ProgramOperation::Custom("http_request_response".into()),
+                    },
+                ],
+                phases: vec![
+                    "resolve".into(),
+                    "send_request".into(),
+                    "receive_response".into(),
+                ],
+                phase_kinds: vec![
+                    "resolve_name".into(),
+                    "emit_payload".into(),
+                    "receive_payload".into(),
+                ],
+                verdict: HttpTransactionVerdict::SuspectClientResponseGap,
+                severity: Some(gewyvern::flow::ModuleSeverity::Medium),
+                degraded: true,
+                suspect_sides: vec![HttpSuspectSide::Client],
+                finding_summaries: vec!["missing client response".into()],
+                summaries: vec!["http client transaction".into()],
+            })
             .collect()
     }
 
@@ -9882,6 +9939,42 @@ mod tests {
             "benchmark_findings_json_large_protocol_flow_export: iterations=200 flows={} findings={} elapsed_ms={:.3}",
             export.program_flows.len(),
             export.program_findings.len(),
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_http_transactions_json_large_view() {
+        let transactions = synthesize_large_http_transactions();
+        let start = Instant::now();
+        let mut total_len = 0usize;
+        for _ in 0..200 {
+            total_len += http_transactions_json(&transactions).len();
+        }
+        let elapsed = start.elapsed();
+        assert!(total_len > 0);
+        eprintln!(
+            "benchmark_http_transactions_json_large_view: iterations=200 transactions={} elapsed_ms={:.3}",
+            transactions.len(),
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_http_transactions_text_large_view() {
+        let transactions = synthesize_large_http_transactions();
+        let start = Instant::now();
+        let mut total_len = 0usize;
+        for _ in 0..200 {
+            total_len += http_transactions_text(&transactions).len();
+        }
+        let elapsed = start.elapsed();
+        assert!(total_len > 0);
+        eprintln!(
+            "benchmark_http_transactions_text_large_view: iterations=200 transactions={} elapsed_ms={:.3}",
+            transactions.len(),
             elapsed.as_secs_f64() * 1000.0
         );
     }

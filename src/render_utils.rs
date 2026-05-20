@@ -35,28 +35,40 @@ pub(crate) fn http_transaction_verdict_label(verdict: &HttpTransactionVerdict) -
     }
 }
 
-pub(crate) fn process_json(process: Option<&ProcessView>) -> String {
+pub(crate) fn append_process_json(target: &mut String, process: Option<&ProcessView>) {
     match process {
-        Some(process) => format!(
-            "{{\"pid\":{},\"tid\":{},\"cgroup_id\":{},\"comm\":\"{}\"}}",
-            process.pid, process.tid, process.cgroup_id, process.comm
-        ),
-        None => "null".into(),
+        Some(process) => {
+            target.push_str("{\"pid\":");
+            target.push_str(&process.pid.to_string());
+            target.push_str(",\"tid\":");
+            target.push_str(&process.tid.to_string());
+            target.push_str(",\"cgroup_id\":");
+            target.push_str(&process.cgroup_id.to_string());
+            target.push_str(",\"comm\":\"");
+            target.push_str(&process.comm);
+            target.push_str("\"}");
+        }
+        None => target.push_str("null"),
     }
 }
 
 pub(crate) fn string_list_json(items: &[String]) -> String {
-    let mut json = String::from("[");
+    let mut json = String::new();
+    append_string_list_json(&mut json, items);
+    json
+}
+
+pub(crate) fn append_string_list_json(target: &mut String, items: &[String]) {
+    target.push('[');
     for (index, item) in items.iter().enumerate() {
         if index > 0 {
-            json.push(',');
+            target.push(',');
         }
-        json.push('"');
-        json.push_str(item);
-        json.push('"');
+        target.push('"');
+        target.push_str(item);
+        target.push('"');
     }
-    json.push(']');
-    json
+    target.push(']');
 }
 
 pub(crate) fn push_joined_strings(target: &mut String, items: &[String], separator: &str) {
@@ -69,11 +81,17 @@ pub(crate) fn push_joined_strings(target: &mut String, items: &[String], separat
 }
 
 pub(crate) fn operation_label(operation: &ProgramOperation) -> String {
+    let mut label = String::new();
+    append_operation_label(&mut label, operation);
+    label
+}
+
+pub(crate) fn append_operation_label(target: &mut String, operation: &ProgramOperation) {
     match operation {
-        ProgramOperation::ConnectFlow => "connect_flow".into(),
-        ProgramOperation::DatagramExchange => "datagram_exchange".into(),
-        ProgramOperation::Custom(value) => value.clone(),
-        ProgramOperation::Unknown => "unknown".into(),
+        ProgramOperation::ConnectFlow => target.push_str("connect_flow"),
+        ProgramOperation::DatagramExchange => target.push_str("datagram_exchange"),
+        ProgramOperation::Custom(value) => target.push_str(value),
+        ProgramOperation::Unknown => target.push_str("unknown"),
     }
 }
 

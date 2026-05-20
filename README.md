@@ -485,9 +485,12 @@ Main commands:
 - `cargo test benchmark_summary_line_large_protocol_flow_export -- --ignored --nocapture`
 - `cargo test benchmark_analysis_snapshot_large_protocol_flow_export -- --ignored --nocapture`
 - `cargo test benchmark_analysis_snapshot_json_large_protocol_flow_export -- --ignored --nocapture`
+- `cargo test benchmark_findings_json_large_protocol_flow_export -- --ignored --nocapture`
 - `cargo test benchmark_scan_report_json_large_protocol_flow_export -- --ignored --nocapture`
 - `cargo test benchmark_scan_report_text_large_protocol_flow_export -- --ignored --nocapture`
 - `cargo test benchmark_scan_report_html_large_protocol_flow_export -- --ignored --nocapture`
+- `cargo test benchmark_http_transactions_json_large_view -- --ignored --nocapture`
+- `cargo test benchmark_http_transactions_text_large_view -- --ignored --nocapture`
 - `bash scripts/benchmark_summary.sh`
 - `bash scripts/benchmark_summary.sh 3 benchmark_scan_report_`
 
@@ -513,11 +516,14 @@ Current benchmark entrypoints:
 
 - analysis snapshot construction over many matched protocol flows
 - analysis snapshot JSON rendering over many matched protocol flows
+- findings JSON rendering over many matched protocol flows
 - summary JSON rendering over many matched protocol flows
 - summary line rendering over many matched protocol flows
 - scan report JSON rendering over many large targets
 - scan report text rendering over many large targets
 - scan report HTML rendering over many large targets
+- HTTP transaction JSON rendering over a large composed transaction view
+- HTTP transaction text rendering over a large composed transaction view
 
 These are lightweight ignored tests today, so they run without adding a
 separate benchmark harness dependency.
@@ -525,6 +531,9 @@ separate benchmark harness dependency.
 For less noisy local measurements, `scripts/benchmark_summary.sh` will run the
 selected benchmark filter multiple times and print `min / median / max / avg`
 for each benchmark line it sees.
+
+Current local reference medians are tracked in
+[performance-baselines.md](/Users/Shared/chroot/dev/gewyvern/docs/performance-baselines.md).
 
 ## Quick Start
 
