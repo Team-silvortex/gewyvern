@@ -1,7 +1,7 @@
 # Source Module Boundaries
 
 This document describes the current `src/` layering as `gewyvern` approaches
-`v0.9.0`.
+its `1.0` contract freeze.
 
 The goal is simple:
 
@@ -148,9 +148,9 @@ As a quick rule of thumb:
   semantics, start in `src/dsl.rs`, `src/ir.rs`, `src/fragment.rs`,
   `src/runtime.rs`, or `src/export.rs`.
 
-## Near-Term `v0.9.0` Intent
+## Near-Term Intent
 
-For the `v0.9.0` line, the intent is not another large redesign. It is to keep
+The current intent is not another large redesign. It is to keep
 this split stable while:
 
 - reducing `main.rs` further when a clearly separable subsystem appears

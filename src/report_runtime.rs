@@ -41,7 +41,7 @@ pub(super) fn summary_line_with_analysis(
     let augmentations = analysis_augmentation_names_text(&analysis.augmentations);
     let ingest_mode_note = ingest_mode_note_for_export(export);
     format!(
-        "{name}: {}={} ingest_mode={} ingest_mode_note={} {}={} pid_attribution_status={} ambiguous={} competing_hypotheses={} augmentations={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
+        "{name}: {}={} ingest_mode={} ingest_mode_note={} {}={} pid_attribution_status={} operator_guidance_status={} operator_guidance_action={} operator_guidance_reason={} ambiguous={} competing_hypotheses={} augmentations={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
         locale.label("template"),
         export.template_id,
         ingest_mode_for_export(export),
@@ -49,6 +49,9 @@ pub(super) fn summary_line_with_analysis(
         "ingest_trust_mode",
         export.ingest_trust_mode,
         pid_attribution_status_for_export(export),
+        analysis.operator_guidance_status,
+        analysis.operator_guidance_action,
+        analysis.operator_guidance_reason,
         analysis.primary_process_profile_ambiguous,
         string_list_json(&analysis.competing_hypotheses),
         augmentations,
@@ -679,6 +682,14 @@ fn append_analysis_spine_json(json: &mut String, analysis: &AnalysisSnapshot) {
     json.push_str(&analysis.primary_failure_confidence);
     json.push_str("\",\"primary_failure_basis\":\"");
     json.push_str(&analysis.primary_failure_basis);
+    json.push_str("\",\"operator_guidance_status\":\"");
+    json.push_str(&analysis.operator_guidance_status);
+    json.push_str("\",\"operator_guidance_action\":\"");
+    json.push_str(&analysis.operator_guidance_action);
+    json.push_str("\",\"operator_guidance_reason\":\"");
+    json.push_str(&analysis.operator_guidance_reason);
+    json.push_str("\",\"operator_guidance_summary\":\"");
+    json.push_str(&analysis.operator_guidance_summary);
     json.push_str("\",\"augmentations\":");
     append_analysis_augmentations_json(json, &analysis.augmentations);
 }

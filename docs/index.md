@@ -27,6 +27,8 @@ material.
 
 ## Core Docs
 
+- [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md)
+  Short release-readiness checklist for the final `v0.10.0 -> v1.0.0` path.
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
   High-level system map and stable architecture boundaries.
 - [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
@@ -42,6 +44,9 @@ material.
 - [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
   `src/` ownership map: `main`, `serve_runtime`, `report_runtime`,
   `diagnosis_runtime`, `data_api`, and `external_analysis`.
+- [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
+  Restart, failure, degraded-mode, and latest-snapshot expectations for
+  `--serve`, API, and external-engine hook operation.
 - [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
   Runtime-pipeline deep dive.
 - [docs/fragments.md](/Users/Shared/chroot/dev/gewyvern/docs/fragments.md)
@@ -60,7 +65,11 @@ material.
 - [docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md)
   Trust labels, advisory ingest, and PID attribution caution.
 - [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
-  Which `v0.9.x` CLI/report/analysis surfaces are stable enough to depend on.
+  Primary CLI/report/analysis contract candidate and explicit non-contract
+  areas.
+- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
+  Narrow machine-facing contract for `summary.json`, `analysis.json`, and API
+  target routing.
 
 ## Compiler And Tooling
 
@@ -73,6 +82,8 @@ material.
 
 - [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
   Minimal contract for append-only external analysis engines.
+- [docs/collaboration-boundary.md](/Users/Shared/chroot/dev/gewyvern/docs/collaboration-boundary.md)
+  Role split between `gewyvern`, `etragon`, and `leserpent`.
 - [docs/performance-baselines.md](/Users/Shared/chroot/dev/gewyvern/docs/performance-baselines.md)
   Current ignored-benchmark medians and comparison workflow.
 - [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)

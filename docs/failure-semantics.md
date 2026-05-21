@@ -9,6 +9,8 @@ The goal is not only to know that a result is `attention`, but to read:
 - `failure_detail`
 - `failure_confidence`
 - `failure_basis`
+- `operator_guidance_status`
+- `operator_guidance_action`
 
 as a compact operator diagnosis.
 
@@ -69,6 +71,56 @@ Typical meanings:
   summary
 - `low + heuristic_summary`
   the runtime is intentionally being cautious
+
+## Built-In Operator Guidance
+
+`gewyvern` now also exposes a built-in next-step guidance layer:
+
+- `operator_guidance_status`
+- `operator_guidance_action`
+- `operator_guidance_reason`
+- `operator_guidance_summary`
+
+This layer does not replace the diagnosis spine.
+
+It is the runtime's conservative translation of that spine into a safer
+operator or automation next step.
+
+Read it after:
+
+1. `failure_mode`
+2. `failure_detail`
+3. `failure_confidence`
+4. `failure_basis`
+
+### Common Guidance Shapes
+
+Typical guidance meanings:
+
+- `advisory_only + avoid_pid_strong_actions`
+  the evidence source is unverified enough that strong PID-scoped automation
+  would overclaim
+- `ambiguous + keep_multiple_hypotheses`
+  the runtime sees multiple still-plausible explanations and is refusing to
+  collapse them too early
+- `targeted_ready + safe_to_escalate_protocol_signal`
+  the diagnosis is backed by a strong direct protocol signal and is ready for a
+  narrower downstream action
+- `observe_more + collect_more_runtime_evidence`
+  the current result is useful, but still better treated as an observation lead
+  than a strong action trigger
+- `manual_review + manual_review`
+  the runtime is intentionally falling back to a human-oriented path because
+  the signal is still mostly advisory
+
+### How To Use It
+
+Practical guidance:
+
+- prefer `operator_guidance_*` for built-in next-step behavior
+- prefer `primary_failure_*` when you need the underlying conservative diagnosis
+- prefer `augmentations` only when you intentionally want additive enrich/rerank
+  hints on top of the built-in runtime judgement
 
 ## Proxy And Relay Cluster
 

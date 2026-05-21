@@ -33,6 +33,8 @@ The most important fields are:
 - `primary_failure_detail`
 - `primary_failure_confidence`
 - `primary_failure_basis`
+- `operator_guidance_status`
+- `operator_guidance_action`
 
 ## How To Read It
 
@@ -53,6 +55,8 @@ Read a process profile in this order:
 7. `primary_failure_basis`
    Did the system see a direct protocol signal, a missing transition, or a
    weaker phase-level inference?
+8. `operator_guidance_action`
+   Given the current evidence quality, what is the safest built-in next step?
 
 Then use:
 

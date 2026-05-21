@@ -15,9 +15,9 @@ reverse-engineer the emitted JSON from source.
 
 ## Stability
 
-During the `v0.9.x` line, these JSON shapes should be treated as:
+These JSON shapes should be treated as:
 
-- stable enough for local tooling and editor integration
+- current contract candidates for local tooling and editor integration
 - small, human-oriented summaries rather than lossless compiler internals
 - append-only where practical
 

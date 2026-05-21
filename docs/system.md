@@ -1,8 +1,8 @@
 # System Guide
 
-This document is the `v0.9.0` system-level map for `gewyvern`.
+This document is the current system-level map for `gewyvern`.
 
-It explains how the current pre-`1.0` runtime is layered, what each layer is
+It explains how the current runtime is layered, what each layer is
 responsible for, and where the main architectural boundaries are.
 
 ## One-Sentence Model
@@ -286,7 +286,7 @@ These are outer system surfaces, not the core runtime itself.
 
 ## Current Stable System Boundaries
 
-For `v0.9.0`, these boundaries are intentional and important:
+These boundaries are intentional and important:
 
 - DSL compiles to `TemplateBinding`, not kernel bytecode
 - all actual kernel-facing behavior comes from built-in fragment templates
@@ -310,7 +310,7 @@ Today the system already supports:
 
 ## What Still Intentionally Hasn’t Happened
 
-These are explicitly not part of `v0.9.0`:
+These are explicitly not part of the current core:
 
 - generating eBPF from DSL
 - treating `ProgramModel` as final DSL design

@@ -6,7 +6,7 @@ This guide is the shortest path from "I have the repo" to "I can use
 The examples below focus on the operator-facing runtime, not the compiler.
 
 If you need a short contract note for which CLI flags and JSON fields are
-considered stable enough to depend on during `v0.9.x`, read
+are the current machine-facing contract candidates, read
 [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
 alongside this guide.
 
@@ -214,8 +214,20 @@ engine's default Rust pass, add:
 ```
 
 `etragon` is the sibling engine we currently use in examples, but `gewyvern`
-only assumes a generic external-engine protocol. The older `--etragon-*` flags
-still work as compatibility aliases.
+only assumes a generic external-engine protocol.
+
+If another service is deciding between:
+
+- `summary.json`
+- `analysis.json`
+- `report.json`
+
+prefer:
+
+- `summary.json` for one conservative rendered conclusion per target
+- `analysis.json` for machine-facing enrich/rerank/sidecar integration
+- `report.json` only when you intentionally want the richer rendered report
+  payload, not the narrowest long-lived automation contract
 
 `automation_recommendation` is the first built-in rerank/enrich style pass. It
 does not replace the core conclusion; it gives downstream automation a

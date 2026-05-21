@@ -2,10 +2,12 @@ use gewyvern::dsl::build_lockfile;
 use gewyvern::gewyc::{
     CompilerEnvelope, ExplainFocus, FrontendFocus, RenderFormat, compile_envelope_file,
     compile_explain_report_file, compile_frontend_report_file, render_binding_report,
-    render_diagnostics_report, render_envelope_report, render_explain_report,
-    render_explain_report_with_options, render_findings_report,
+    render_diagnostics_report, render_envelope_report, render_explain_report_with_options,
+    render_findings_report,
     render_frontend_report_with_options, render_stages_report,
 };
+#[cfg(test)]
+use gewyvern::gewyc::render_explain_report;
 use std::env;
 use std::fs;
 

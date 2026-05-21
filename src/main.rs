@@ -112,31 +112,31 @@ impl UiLocale {
     fn usage(self) -> &'static str {
         match self {
             Self::Zh => {
-                "用法: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
+                "用法: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::Ja => {
-                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
+                "使い方: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::Ko => {
-                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
+                "사용법: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::Fr => {
-                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
+                "Utilisation : gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::De => {
-                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
+                "Verwendung: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::Es => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::Pt => {
-                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
+                "Uso: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::Ru => {
-                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
+                "Использование: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
             Self::En => {
-                "usage: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory|--socket-trust trusted-local|unsafe-remote|--allow-remote-socket] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
+                "usage: gewyvern [--demo tcp|udp|both] [--dsl path|--protocol name [--entry mode]|--scan-all [--protocol-set path] [--report-format html|json]] [--list-protocols|--list-entries protocol] [--pid n] [--diagnostics] [--findings] [--http-transactions] [--template tcp|udp] [--unix-socket path|--tcp-socket host:port] [--ingest-mode local-advisory|remote-advisory] [--serve] [--api-socket host:port] [--allow-remote-api] [--max-sessions n] [--json] [--summary-only] [--out path] [--external-engine-bin path [--external-engine-worker path] [--external-engine-python-bin path]]"
             }
         }
     }
@@ -1414,19 +1414,19 @@ impl Cli {
                             .ok_or_else(|| locale.msgf("missing_out", "", None))?,
                     );
                 }
-                "--external-engine-bin" | "--etragon-bin" => {
+                "--external-engine-bin" => {
                     external_engine_bin =
                         Some(args.next().ok_or_else(|| {
                             "missing value for --external-engine-bin".to_string()
                         })?);
                 }
-                "--external-engine-worker" | "--etragon-python-worker" => {
+                "--external-engine-worker" => {
                     external_engine_worker =
                         Some(args.next().ok_or_else(|| {
                             "missing value for --external-engine-worker".to_string()
                         })?);
                 }
-                "--external-engine-python-bin" | "--etragon-python-bin" => {
+                "--external-engine-python-bin" => {
                     external_engine_python_bin = Some(args.next().ok_or_else(|| {
                         "missing value for --external-engine-python-bin".to_string()
                     })?);
@@ -4170,6 +4170,9 @@ mod tests {
         assert!(json.contains("\"kind\":\"trust\""));
         assert!(json.contains("\"name\":\"automation_recommendation\""));
         assert!(json.contains("\"action\":\"avoid_pid_strong_actions\""));
+        assert!(json.contains("\"operator_guidance_status\":\"advisory_only\""));
+        assert!(json.contains("\"operator_guidance_action\":\"avoid_pid_strong_actions\""));
+        assert!(json.contains("\"operator_guidance_reason\":\"unverified_ingest_lineage\""));
     }
 
     #[test]
@@ -4224,6 +4227,9 @@ mod tests {
         assert!(json.contains("\"kind\":\"analysis\""));
         assert!(json.contains("\"name\":\"automation_recommendation\""));
         assert!(json.contains("\"action\":\"keep_multiple_hypotheses\""));
+        assert!(json.contains("\"operator_guidance_status\":\"ambiguous\""));
+        assert!(json.contains("\"operator_guidance_action\":\"keep_multiple_hypotheses\""));
+        assert!(json.contains("\"operator_guidance_reason\":\"competing_hypotheses\""));
     }
 
     #[test]
@@ -4261,6 +4267,60 @@ mod tests {
         );
         assert!(json.contains("\"action\":\"collect_more_runtime_evidence\""));
         assert!(json.contains("\"reason\":\"missing_transition\""));
+        assert!(json.contains("\"operator_guidance_status\":\"observe_more\""));
+        assert!(json.contains("\"operator_guidance_action\":\"collect_more_runtime_evidence\""));
+        assert!(json.contains("\"operator_guidance_reason\":\"missing_transition\""));
+    }
+
+    #[test]
+    fn summary_json_carries_operator_guidance_for_direct_protocol_signal() {
+        let binding = compile_file(
+            "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_auth_required_path.gewy",
+        )
+        .expect("http_connect_auth_required_path DSL should compile");
+        let export = annotate_export_trust(
+            export_from_test_facts(
+                binding,
+                vec![
+                    sock_lineage_fact_for_tests(1, 99001, 53100, "proxy-client"),
+                    route_fact(
+                        2,
+                        SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                        99001,
+                        7,
+                        SessionId(1),
+                    ),
+                    tcp_state_fact_with_ports_for_tests(3, 99001, 1, 2, 53100, 8080),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        4,
+                        99001,
+                        0x18,
+                        PacketDir::Egress,
+                        Some(53100),
+                        Some(8080),
+                        Some(0x43),
+                        Some(0x434f),
+                        Some(0x434f4e4e),
+                    ),
+                    packet_fact_with_dir_and_payload_for_tests(
+                        5,
+                        99001,
+                        0x18,
+                        PacketDir::Ingress,
+                        Some(53100),
+                        Some(8080),
+                        Some(0x34),
+                        Some(0x3430),
+                        Some(0x34303720),
+                    ),
+                ],
+            ),
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        );
+        let json = summary_json("dsl_demo", &export);
+        assert!(json.contains("\"operator_guidance_status\":\"targeted_ready\""));
+        assert!(json.contains("\"operator_guidance_action\":\"safe_to_escalate_protocol_signal\""));
+        assert!(json.contains("\"operator_guidance_reason\":\"direct_protocol_signal\""));
     }
 
     #[test]

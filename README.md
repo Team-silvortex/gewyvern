@@ -84,6 +84,17 @@ reliable HTML/JSON reporting, and predictable operational performance.
 
 The detailed milestone plan lives in [ROADMAP.md](/Users/Shared/chroot/dev/gewyvern/ROADMAP.md).
 
+For the shorter release-readiness checklist that turns that roadmap into a
+practical `v0.10.0 -> v1.0.0` gate, see
+[docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md).
+
+For the narrow machine-facing contract that downstream automation, sidecars,
+and enrich/rerank pipelines should consume, see
+[docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md).
+
+For long-lived `--serve` / API / external-engine operational behavior, see
+[docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md).
+
 ## Supported Protocol Families
 
 - Web, secure transport, and modern proxying:
@@ -148,10 +159,11 @@ If you are orienting yourself for the first time, use this shorter path:
 
 1. [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
 2. [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
-3. [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)
-4. [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
-5. [src/main.rs](/Users/Shared/chroot/dev/gewyvern/src/main.rs)
-6. [src/ir.rs](/Users/Shared/chroot/dev/gewyvern/src/ir.rs)
+3. [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md)
+4. [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)
+5. [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
+6. [src/main.rs](/Users/Shared/chroot/dev/gewyvern/src/main.rs)
+7. [src/ir.rs](/Users/Shared/chroot/dev/gewyvern/src/ir.rs)
 
 The full document map now lives in [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md),
 so the rest of the docs do not each need to carry their own long navigation
@@ -503,6 +515,8 @@ for each benchmark line it sees.
 
 Current local reference medians are tracked in
 [performance-baselines.md](/Users/Shared/chroot/dev/gewyvern/docs/performance-baselines.md).
+That page also serves as the current pre-`1.0` release-candidate acceptance
+baseline for the main hot paths.
 
 ## Quick Start
 
@@ -819,6 +833,10 @@ such as `unverified_ingest_lineage`, `competing_hypotheses`, and an
 next-action hint. If you later compose external enrich/rerank passes, prefer
 stacking them on top of the built-in chain rather than replacing it.
 
+`report.json` remains useful as a richer rendered report surface, but it should
+not be treated as the narrow primary machine contract when `summary.json` or
+`analysis.json` already fits the integration.
+
 If you want `gewyvern` itself to call an external engine and merge those
 augmentations back into its own `analysis.json` and report surfaces, add an
 external hook:
@@ -928,6 +946,7 @@ cargo linux-smoke
 - [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+- [docs/collaboration-boundary.md](/Users/Shared/chroot/dev/gewyvern/docs/collaboration-boundary.md)
 
 ## Near-Term Direction
 

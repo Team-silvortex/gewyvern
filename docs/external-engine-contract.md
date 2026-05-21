@@ -3,8 +3,11 @@
 This note describes the smallest useful contract between `gewyvern` and an
 external analysis engine.
 
-For the broader `v0.9.x` surface-freeze note, including which CLI flags and
-analysis fields are intended to be stable enough for downstream use, see
+For the broader role split between `gewyvern`, `etragon`, and `leserpent`, see
+[docs/collaboration-boundary.md](/Users/Shared/chroot/dev/gewyvern/docs/collaboration-boundary.md).
+
+For the broader surface contract note, including which CLI flags and analysis
+fields are current contract candidates for downstream use, see
 [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md).
 
 The goal is to let `gewyvern` keep ownership of:
@@ -19,7 +22,9 @@ while an external engine adds:
 - advisory enrichments
 - rerank hints
 - ML-derived candidates
-- automation-oriented recommendations
+- evidence-chain enrichments
+- when the learned or inferred state is sufficiently stable, more direct
+  diagnostic opinions
 
 without changing the core `gewyvern` analysis model.
 
@@ -34,6 +39,7 @@ In practice:
 
 - `etragon -> gewyvern` at the contract level
 - `gewyvern -> external engine` only through a process boundary
+- `leserpent` remains the multi-instance orchestrator above both
 
 `gewyvern` should not require a specific engine implementation at build time.
 
@@ -127,6 +133,10 @@ Recommended fields for each augmentation:
 - `data`
   - optional machine-friendly JSON object with pass-specific details
 
+If an engine also exposes richer sidecar-native routes or summaries, those are
+best treated as companion diagnosis-partner surfaces rather than part of
+`gewyvern`'s base analysis contract.
+
 ## Producer Metadata
 
 External engines should populate:
@@ -164,6 +174,7 @@ External engines should stay conservative:
 - do not assume ambiguous cases are resolved unless evidence is much stronger
 - prefer adding recommendations or candidate hints over rewriting facts
 - preserve competing hypotheses when uncertainty remains
+- treat `diagnostic_opinion` as a higher bar than recommendation or candidate output
 
 Good external behavior:
 

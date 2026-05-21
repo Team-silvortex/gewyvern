@@ -1,16 +1,26 @@
 # Surface Stability
 
-This note records the operator-facing surfaces that `gewyvern` intends to keep
-stable throughout the `v0.9.x` release-freeze line.
+This note records the operator-facing surfaces that should now be treated as
+the current compatibility contract candidate for `gewyvern`.
 
-It is not a forever compatibility promise yet. It is the practical answer to:
-"which CLI flags, report fields, and analysis shapes should downstream users
-start depending on now?"
+It is the practical answer to:
 
-## Stable-Enough CLI Surface For `v0.9.x`
+- which CLI flags downstream users should depend on
+- which JSON/API fields are part of the diagnosis contract
+- which areas are intentionally still presentation-level or pass-specific
 
-The current day-to-day CLI surface that should be treated as stable enough for
-scripts, operators, and automation is:
+This is not a promise that every output byte is frozen forever.
+
+It is the narrower and more useful promise that:
+
+- the diagnosis spine should stop churning
+- the primary CLI surface should stop drifting
+- incidental presentation details should not be treated as contract
+
+## Primary CLI Contract
+
+The current day-to-day CLI surface that scripts, operators, and automation
+should treat as the primary contract is:
 
 - `--protocol <name>`
 - `--entry <name>`
@@ -35,13 +45,21 @@ Compatibility aliases such as:
 
 - `--socket-trust ...`
 - `--allow-remote-socket`
-- `--etragon-bin`
-- `--etragon-python-worker`
-- `--etragon-python-bin`
 
 still work, but they should be treated as transitional, not preferred.
 
-## Stable-Enough Summary Fields
+They are intentionally no longer part of the primary help/usage surface. New
+scripts and operators should start from the preferred generic flags above.
+
+The intended direction is:
+
+- keep the socket-ingest aliases as supported compatibility entrypoints
+- remove implementation-specific external-engine aliases before `v1.0.0`
+
+That preserves old ingest scripts without tying the public `gewyvern` surface
+to one specific external-engine implementation.
+
+## Summary Contract
 
 For `--summary-only --json`, the fields downstream users should prefer are:
 
@@ -53,6 +71,10 @@ For `--summary-only --json`, the fields downstream users should prefer are:
 - `primary_failure_detail`
 - `primary_failure_confidence`
 - `primary_failure_basis`
+- `operator_guidance_status`
+- `operator_guidance_action`
+- `operator_guidance_reason`
+- `operator_guidance_summary`
 - `ambiguous`
 - `competing_hypotheses`
 - `ingest_mode`
@@ -62,11 +84,11 @@ For `--summary-only --json`, the fields downstream users should prefer are:
 - `pid_attribution_note`
 - `augmentations`
 
-These fields are the main `v0.9.x` contract for operator-facing summary logic.
+These fields are the main operator-facing summary contract.
 
 ### Object Identity Semantics
 
-During `v0.9.x`, the intended identity semantics are:
+The intended identity semantics are:
 
 - `kind="single"`
   - this payload describes one rendered target
@@ -88,7 +110,7 @@ Practical guidance:
 - treat `target` as the item label inside scan result arrays
 - treat `target_count` as the summary count field for scan/API listing surfaces
 
-## Stable-Enough Analysis Snapshot Fields
+## Analysis Snapshot Contract
 
 For:
 
@@ -98,23 +120,30 @@ For:
 the fields downstream tools should prioritize are:
 
 - `target_status`
+- `primary_process_profile`
 - `protocol_flows`
 - `process_network_profiles`
 - `primary_module_kind`
+- `primary_failure_stage`
 - `primary_failure_mode`
 - `primary_failure_detail`
 - `primary_failure_confidence`
 - `primary_failure_basis`
+- `operator_guidance_status`
+- `operator_guidance_action`
+- `operator_guidance_reason`
+- `operator_guidance_summary`
 - `ambiguous`
 - `competing_hypotheses`
+- `suspect_modules`
 - `augmentations`
 
 This is the best machine-facing surface for enrich, rerank, and external-engine
-integration during `v0.9.x`.
+integration.
 
-## Stable-Enough Scan Report Header Fields
+## Scan Report Header Contract
 
-For scan-level report JSON, the stable-enough top fields are:
+For scan-level report JSON, the top contract fields are:
 
 - `kind`
 - `name`
@@ -125,13 +154,13 @@ For scan-level report JSON, the stable-enough top fields are:
 - `attention_targets`
 - `idle_targets`
 
-For `v0.9.x`, `target_count` and `total_targets` intentionally carry the same
-count. `target_count` is the more general object-identity field; `total_targets`
-is kept as the older scan-oriented label.
+`target_count` and `total_targets` intentionally carry the same count.
+`target_count` is the more general object-identity field; `total_targets` is
+kept as the older scan-oriented label.
 
-## External-Engine Stability
+## External-Engine Contract
 
-For `v0.9.x`, the stable-enough external-engine contract is:
+The external-engine contract is:
 
 - `gewyvern` owns the core analysis snapshot
 - external engines append to `augmentations`
@@ -146,9 +175,23 @@ For `v0.9.x`, the stable-enough external-engine contract is:
 
 The external engine should not replace or delete built-in conclusions.
 
-## Things Still Expected To Evolve
+## API Target Routing Contract
 
-The following areas should still be treated as evolving:
+For the API target-routing surface, downstream consumers should treat the
+following as stable:
+
+- `/v1/latest/targets`
+- `target_refs[].name`
+- `target_refs[].path_segment`
+- `target_refs[].url_path`
+
+New integrations should prefer `path_segment` and `url_path` over inventing
+target routes from display names.
+
+## Explicitly Non-Contract Areas
+
+The following areas should still be treated as evolving and should not be used
+as compatibility anchors:
 
 - exact HTML layout and wording
 - the full `report.json` shape outside the main diagnosis fields
@@ -162,7 +205,7 @@ In other words:
 
 ## Practical Guidance
 
-If you are integrating against `gewyvern` during `v0.9.x`:
+If you are integrating against `gewyvern`:
 
 1. prefer `summary.json` for operator-focused automation
 2. prefer `analysis.json` for enrich/rerank/ML pipelines

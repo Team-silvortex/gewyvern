@@ -86,6 +86,10 @@ pub(crate) struct AnalysisSnapshot {
     pub(crate) primary_failure_detail: String,
     pub(crate) primary_failure_confidence: String,
     pub(crate) primary_failure_basis: String,
+    pub(crate) operator_guidance_status: String,
+    pub(crate) operator_guidance_action: String,
+    pub(crate) operator_guidance_reason: String,
+    pub(crate) operator_guidance_summary: String,
     pub(crate) primary_process_profile_ambiguous: bool,
     pub(crate) competing_hypotheses: Vec<String>,
     pub(crate) suspect_modules: Vec<String>,
@@ -111,6 +115,60 @@ pub(crate) trait AnalysisAugmenter {
 
 struct BuiltInAdvisoryAugmenter;
 struct BuiltInRecommendationAugmenter;
+
+fn built_in_operator_guidance(
+    snapshot: &AnalysisSnapshot,
+) -> (&'static str, &'static str, &'static str, &'static str) {
+    if snapshot
+        .augmentations
+        .iter()
+        .any(|item| item.name == "unverified_ingest_lineage")
+    {
+        (
+            "advisory_only",
+            "avoid_pid_strong_actions",
+            "unverified_ingest_lineage",
+            "avoid strong pid-scoped automation until lineage can be verified",
+        )
+    } else if snapshot.primary_process_profile_ambiguous
+        && snapshot
+            .augmentations
+            .iter()
+            .any(|item| item.name == "competing_hypotheses")
+    {
+        (
+            "ambiguous",
+            "keep_multiple_hypotheses",
+            "competing_hypotheses",
+            "preserve multiple hypotheses and avoid collapsing to a single remediation path",
+        )
+    } else if snapshot.primary_failure_confidence == "high"
+        && snapshot.primary_failure_basis == "direct_protocol_signal"
+    {
+        (
+            "targeted_ready",
+            "safe_to_escalate_protocol_signal",
+            "direct_protocol_signal",
+            "direct protocol evidence is strong enough for targeted downstream escalation",
+        )
+    } else if snapshot.primary_failure_confidence == "medium"
+        && snapshot.primary_failure_basis == "missing_transition"
+    {
+        (
+            "observe_more",
+            "collect_more_runtime_evidence",
+            "missing_transition",
+            "collect another observation window before taking a strong automated action",
+        )
+    } else {
+        (
+            "manual_review",
+            "manual_review",
+            "heuristic_summary",
+            "fall back to a human-oriented review path because the current signal is advisory",
+        )
+    }
+}
 
 impl AnalysisAugmenter for BuiltInAdvisoryAugmenter {
     fn augment(&self, export: &ExportBundle, snapshot: &mut AnalysisSnapshot) {
@@ -155,50 +213,7 @@ impl AnalysisAugmenter for BuiltInAdvisoryAugmenter {
 
 impl AnalysisAugmenter for BuiltInRecommendationAugmenter {
     fn augment(&self, _export: &ExportBundle, snapshot: &mut AnalysisSnapshot) {
-        let (action, summary, reason) = if snapshot
-            .augmentations
-            .iter()
-            .any(|item| item.name == "unverified_ingest_lineage")
-        {
-            (
-                "avoid_pid_strong_actions",
-                "avoid strong pid-scoped automation until lineage can be verified",
-                "unverified_ingest_lineage",
-            )
-        } else if snapshot.primary_process_profile_ambiguous
-            && snapshot
-                .augmentations
-                .iter()
-                .any(|item| item.name == "competing_hypotheses")
-        {
-            (
-                "keep_multiple_hypotheses",
-                "preserve multiple hypotheses and avoid collapsing to a single remediation path",
-                "competing_hypotheses",
-            )
-        } else if snapshot.primary_failure_confidence == "high"
-            && snapshot.primary_failure_basis == "direct_protocol_signal"
-        {
-            (
-                "safe_to_escalate_protocol_signal",
-                "direct protocol evidence is strong enough for targeted downstream escalation",
-                "direct_protocol_signal",
-            )
-        } else if snapshot.primary_failure_confidence == "medium"
-            && snapshot.primary_failure_basis == "missing_transition"
-        {
-            (
-                "collect_more_runtime_evidence",
-                "collect another observation window before taking a strong automated action",
-                "missing_transition",
-            )
-        } else {
-            (
-                "manual_review",
-                "fall back to a human-oriented review path because the current signal is advisory",
-                "heuristic_summary",
-            )
-        };
+        let (_, action, reason, summary) = built_in_operator_guidance(snapshot);
 
         push_analysis_augmentation(
             snapshot,
@@ -1375,6 +1390,14 @@ pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
     json.push_str(&snapshot.primary_failure_confidence);
     json.push_str("\",\"primary_failure_basis\":\"");
     json.push_str(&snapshot.primary_failure_basis);
+    json.push_str("\",\"operator_guidance_status\":\"");
+    json.push_str(&snapshot.operator_guidance_status);
+    json.push_str("\",\"operator_guidance_action\":\"");
+    json.push_str(&snapshot.operator_guidance_action);
+    json.push_str("\",\"operator_guidance_reason\":\"");
+    json.push_str(&snapshot.operator_guidance_reason);
+    json.push_str("\",\"operator_guidance_summary\":\"");
+    json.push_str(&snapshot.operator_guidance_summary);
     json.push_str("\",\"ambiguous\":");
     json.push_str(if snapshot.primary_process_profile_ambiguous {
         "true"
@@ -1406,6 +1429,10 @@ fn estimate_analysis_snapshot_json_capacity(snapshot: &AnalysisSnapshot) -> usiz
         + snapshot.primary_failure_detail.len()
         + snapshot.primary_failure_confidence.len()
         + snapshot.primary_failure_basis.len()
+        + snapshot.operator_guidance_status.len()
+        + snapshot.operator_guidance_action.len()
+        + snapshot.operator_guidance_reason.len()
+        + snapshot.operator_guidance_summary.len()
         + snapshot
             .competing_hypotheses
             .iter()
@@ -1734,6 +1761,10 @@ pub(crate) fn analysis_snapshot_with(
         primary_failure_detail,
         primary_failure_confidence,
         primary_failure_basis,
+        operator_guidance_status: String::new(),
+        operator_guidance_action: String::new(),
+        operator_guidance_reason: String::new(),
+        operator_guidance_summary: String::new(),
         competing_hypotheses,
         suspect_modules,
         augmentations: Vec::new(),
@@ -1744,6 +1775,12 @@ pub(crate) fn analysis_snapshot_with(
     for augmenter in augmenters {
         augmenter.augment(export, &mut snapshot);
     }
+    let (guidance_status, guidance_action, guidance_reason, guidance_summary) =
+        built_in_operator_guidance(&snapshot);
+    snapshot.operator_guidance_status = guidance_status.into();
+    snapshot.operator_guidance_action = guidance_action.into();
+    snapshot.operator_guidance_reason = guidance_reason.into();
+    snapshot.operator_guidance_summary = guidance_summary.into();
     let snapshot_json = analysis_snapshot_json(&snapshot);
     append_external_augmentations(&mut snapshot, &snapshot_json);
     snapshot

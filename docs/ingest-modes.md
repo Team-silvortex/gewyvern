@@ -171,7 +171,8 @@ These still work as compatibility aliases:
 - `--socket-trust trusted-local|unsafe-remote`
 - `--allow-remote-socket`
 
-But the preferred public interface is now:
+They are expected to remain as compatibility entrypoints, even as the preferred
+public interface stays:
 
 - `--ingest-mode local-advisory`
 - `--ingest-mode remote-advisory`

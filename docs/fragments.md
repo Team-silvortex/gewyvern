@@ -1,7 +1,7 @@
 # Fragment Guide
 
-This document describes how fragments are modeled in the current `v0.9.0`
-runtime and how new fragments should be introduced.
+This document describes how fragments are modeled in the current runtime and
+how new fragments should be introduced.
 
 ## What A Fragment Is
 
