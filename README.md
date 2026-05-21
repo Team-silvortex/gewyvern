@@ -1,4 +1,4 @@
-# gewyvern v0.9.0
+# gewyvern v0.10.0
 
 Protocol-agnostic network debugging runtime driven by eBPF fragments.
 
@@ -51,8 +51,8 @@ as a visual report.
 
 ## Status
 
-- project version: `0.9.0`
-- stage: pre-1.0 release-freeze candidate with a stabilized workspace, registry-driven protocol surface, and package-driven DSL/compiler path
+- project version: `0.10.0`
+- stage: pre-1.0 field-validation and release-candidate line with a stabilized workspace, registry-driven protocol surface, and package-driven DSL/compiler path
 - transport support: TCP + UDP
 - protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP, RADIUS, GTP-U, SMTP, SSH, SOCKS5, SIP, LDAP, SNMP, RTSP, DNS-over-TCP
 - input modes: demo facts, Unix socket, TCP socket
@@ -71,8 +71,8 @@ as a visual report.
 
 `gewyvern` is now on a deliberate release path:
 
-- `v0.9.0` is the current release-freeze point
-- `v0.9.x` is the main compatibility and operational hardening line
+- `v0.10.0` is the current field-validation and release-candidate line
+- `v0.9.x` remains the completed compatibility and operational hardening line
 - `v0.10.0` is intended to be the last pre-`1.0` release
 - if the `1.0` gates are satisfied at `v0.10.0`, the project should move
   directly to `v1.0.0`
@@ -184,7 +184,7 @@ list.
 - `cargo test --workspace`
   Main regression path for the whole workspace.
 
-## What Works In v0.9.0
+## What Works In v0.10.0
 
 - Fragment registry, attach planning, and attach reporting
 - TDD-first runtime and rule specs
@@ -634,7 +634,7 @@ Built-in protocol discovery now comes from scanning gewy project manifests in
 
 ```text
 name=mysql_session
-version=0.9.0
+version=0.10.0
 entry=main.gewy
 register.protocol=mysql
 register.entry=session
@@ -853,9 +853,8 @@ cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --serve --api-socket 127.0.0
 ```
 
 `etragon` is a sibling implementation of that protocol, not a build-time
-dependency of `gewyvern`. The older `--etragon-*` flags still work as
-compatibility aliases, but the generic `--external-engine-*` names are now the
-preferred surface.
+dependency of `gewyvern`. The generic `--external-engine-*` names are the
+supported public surface.
 
 For target-specific routes, discover names from `/v1/latest/targets` and prefer
 the returned `target_refs[].path_segment` value when building URLs. The API
@@ -950,7 +949,7 @@ cargo linux-smoke
 
 ## Near-Term Direction
 
-The next meaningful step after `v0.9.0` is not only “more protocol branches”.
+The next meaningful step after `v0.10.0` is not only “more protocol branches”.
 It is continuing to make the DSL and IR more explicit, so protocol behavior is
 described as program-network-module structure rather than as a pile of
 protocol-specific special cases, while steadily closing the remaining gaps on

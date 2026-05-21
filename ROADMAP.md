@@ -5,7 +5,7 @@ This roadmap treats `v1.0.0` as an operational trust milestone, not as a
 
 The working intention is:
 
-- current line: `v0.9.0`
+- current line: `v0.10.0`
 - pre-1.0 stabilization line: `v0.9.x` through `v0.10.0`
 - decision point: if `v0.10.0` satisfies the `1.0` gates, release `v1.0.0`
   directly after validation
@@ -74,11 +74,9 @@ Exit criteria:
 - scan/report behavior remains predictable under larger registered protocol sets
 - no obvious safety or operational footguns remain in the default flow
 
-## v0.9.x
+## v0.9.x (completed)
 
 Focus: freeze the surfaces that infra users depend on.
-
-This is the current active line.
 
 - minimize breaking changes in CLI flags and report structure
 - minimize breaking changes in export JSON and report JSON schema
@@ -91,11 +89,14 @@ Exit criteria:
 - docs accurately describe the real operational behavior of the system
 - remaining work is mostly polish, reliability, and acceptance validation
 
-## v0.10.0
+## v0.10.0 (current)
 
-Focus: final pre-1.0 validation.
+Focus: final pre-1.0 field validation and release-candidate discipline.
 
 - run the project with release-candidate discipline
+- validate real operator workflows and long-lived `--serve` usage
+- validate collaboration boundaries before broader `gewyvern` + `etragon` +
+  `leserpent` coordination
 - validate production-like usage patterns and failure reporting quality
 - confirm documentation, examples, and reports are good enough for handoff
 - confirm that the project is ready to be treated as infra

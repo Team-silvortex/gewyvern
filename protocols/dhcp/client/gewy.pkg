@@ -1,5 +1,5 @@
 name=dhcp_client
-version=0.9.0
+version=0.10.0
 entry=main.gewy
 register.protocol=dhcp
 register.entry=client
