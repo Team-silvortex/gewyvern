@@ -95,6 +95,13 @@ and enrich/rerank pipelines should consume, see
 For long-lived `--serve` / API / external-engine operational behavior, see
 [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md).
 
+For the concrete `v0.10.0` field-validation matrix and local smoke entrypoint,
+see [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md).
+
+For protocol-registry drift specifically, use
+[scripts/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/registry_validation.sh)
+to validate scanned gewy packages one by one.
+
 ## Supported Protocol Families
 
 - Web, secure transport, and modern proxying:

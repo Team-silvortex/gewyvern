@@ -699,16 +699,16 @@ fn binding_json(report: &BindingReport) -> String {
                 .find(|(fragment, _)| fragment == &param.fragment)
             {
                 entries.push(format!(
-                    "\"{}\":{}",
-                    param.key,
+                    "{}:{}",
+                    json_string(&param.key),
                     fragment_param_json(&param.value)
                 ));
             } else {
                 acc.push((
                     param.fragment.clone(),
                     vec![format!(
-                        "\"{}\":{}",
-                        param.key,
+                        "{}:{}",
+                        json_string(&param.key),
                         fragment_param_json(&param.value)
                     )],
                 ));
@@ -716,13 +716,19 @@ fn binding_json(report: &BindingReport) -> String {
             acc
         })
         .into_iter()
-        .map(|(fragment, entries)| format!("\"{fragment}\":{{{}}}", entries.join(",")))
+        .map(|(fragment, entries)| format!("{}:{{{}}}", json_string(&fragment), entries.join(",")))
         .collect::<Vec<_>>()
         .join(",");
     let evidence_overrides = report
         .evidence_overrides
         .iter()
-        .map(|evidence| format!("\"{}\":\"{}\"", evidence.fact_kind, evidence.tier))
+        .map(|evidence| {
+            format!(
+                "{}:{}",
+                json_string(&evidence.fact_kind),
+                json_string(&evidence.tier)
+            )
+        })
         .collect::<Vec<_>>()
         .join(",");
 
@@ -738,19 +744,16 @@ fn binding_json(report: &BindingReport) -> String {
             "\"evidence_overrides\":{{{}}}",
             "}}"
         ),
-        report.template_id,
-        report
-            .fragments
-            .iter()
-            .map(|fragment| format!("\"{fragment}\""))
-            .collect::<Vec<_>>()
-            .join(","),
+        json_escape_string(&report.template_id),
+        string_json_list(&report.fragments),
         report
             .window
             .as_ref()
             .map_or("null".into(), |window| format!(
-                "{{\"id\":\"{}\",\"duration_ms\":{},\"lateness_ms\":{}}}",
-                window.id, window.duration_ms, window.lateness_ms
+                "{{\"id\":{},\"duration_ms\":{},\"lateness_ms\":{}}}",
+                json_string(&window.id),
+                window.duration_ms,
+                window.lateness_ms
             )),
         report
             .reason_profile
@@ -760,8 +763,10 @@ fn binding_json(report: &BindingReport) -> String {
             .program_model
             .as_ref()
             .map_or("null".into(), |model| format!(
-                "{{\"id\":\"{}\",\"operation\":\"{}\",\"rules\":{}}}",
-                model.id, model.operation, model.rules
+                "{{\"id\":{},\"operation\":{},\"rules\":{}}}",
+                json_string(&model.id),
+                json_string(&model.operation),
+                model.rules
             )),
         fragment_params,
         evidence_overrides
@@ -819,13 +824,8 @@ fn diagnostics_json(report: &DiagnosticsReport) -> String {
             "\"reason_model\":{}",
             "}}"
         ),
-        report.template_id,
-        report
-            .fragments
-            .iter()
-            .map(|fragment| format!("\"{fragment}\""))
-            .collect::<Vec<_>>()
-            .join(","),
+        json_escape_string(&report.template_id),
+        string_json_list(&report.fragments),
         report
             .program_model
             .as_ref()
@@ -1257,16 +1257,16 @@ fn explain_json(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
     let template_id = report
         .binding
         .as_ref()
-        .map(|binding| format!("\"{}\"", binding.template_id))
+        .map(|binding| json_string(&binding.template_id))
         .unwrap_or_else(|| "null".into());
     let operation = report
         .binding
         .as_ref()
         .and_then(|binding| binding.program_model.as_ref())
-        .map(|model| format!("\"{}\"", model.operation))
+        .map(|model| json_string(&model.operation))
         .unwrap_or_else(|| "null".into());
     let focus_json = focus
-        .map(|focus| format!("\"{}\"", explain_focus_text(focus)))
+        .map(|focus| json_string(explain_focus_text(focus)))
         .unwrap_or_else(|| "null".into());
     let focused_report_json = focus
         .map(|focus| explain_focus_json(report, focus))
@@ -1320,7 +1320,7 @@ fn explain_json(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
         template_id,
         operation,
         report.findings.findings.len(),
-        next_step,
+        json_escape_string(next_step),
         focus_json,
         lowered_binding_summary_json,
         frontend_lowering_delta_json,
@@ -1349,7 +1349,7 @@ fn stages_validation_json(report: &ValidationReport) -> String {
     format!(
         "{{\"ok\":{},\"registry\":\"{}\",\"fragment_count\":{},\"program_rule_count\":{},\"reason_rule_count\":{},\"checks\":[{}],\"sampled_payload_offsets\":[{}],\"required_payload_offsets\":[{}],\"unsupported_payload_offsets\":[{}],\"finding\":{}}}",
         report.ok,
-        report.registry,
+        json_escape_string(&report.registry),
         report.fragment_count,
         report.program_rule_count,
         report.reason_rule_count,
@@ -1850,6 +1850,10 @@ fn source_excerpt_json(excerpt: &SourceExcerpt) -> String {
     )
 }
 
+fn json_string(value: &str) -> String {
+    format!("\"{}\"", json_escape_string(value))
+}
+
 fn validation_excerpt_from_diagnostics(
     diagnostics: &DiagnosticsReport,
 ) -> Option<ValidationExcerpt> {
@@ -1994,14 +1998,14 @@ fn stages_json(report: &CompilerStagesReport) -> String {
 fn model_diagnostics_json(model: &ModelDiagnosticsReport) -> String {
     format!(
         "{{\"model\":\"{}\",\"rules\":[{}]}}",
-        model.model,
+        json_escape_string(&model.model),
         model
             .rules
             .iter()
             .map(|rule| format!(
                 "{{\"rule_index\":{},\"tier\":\"{}\",\"supported\":{},\"required_facts\":[{}],\"supporting_fragments\":[{}],\"missing_facts\":[{}],\"unsupported_payload_offsets\":[{}]}}",
                 rule.rule_index,
-                rule.tier,
+                json_escape_string(&rule.tier),
                 rule.supported,
                 string_json_list(&rule.required_facts),
                 string_json_list(&rule.supporting_fragments),
@@ -2021,7 +2025,7 @@ fn model_diagnostics_json(model: &ModelDiagnosticsReport) -> String {
 fn string_json_list(items: &[String]) -> String {
     items
         .iter()
-        .map(|item| format!("\"{item}\""))
+        .map(|item| json_string(item))
         .collect::<Vec<_>>()
         .join(",")
 }
@@ -2327,14 +2331,14 @@ fn frontend_report_text_compact(report: &FrontendReport, focus: Option<FrontendF
 
 fn frontend_report_json(report: &FrontendReport, focus: Option<FrontendFocus>) -> String {
     let focus_json = focus
-        .map(|focus| format!("\"{}\"", frontend_focus_text(focus)))
+        .map(|focus| json_string(frontend_focus_text(focus)))
         .unwrap_or_else(|| "null".into());
     let focused_report_json = focus
         .map(|focus| frontend_focus_json(report, focus))
         .unwrap_or_else(|| "null".into());
     format!(
         "{{\"summary\":{{\"kind\":\"{}\",\"function_count\":{},\"merged_step_count\":{},\"focus\":{}}},\"focused_report\":{},\"report\":{}}}",
-        report.kind,
+        json_escape_string(&report.kind),
         report.function_count,
         report.merged_step_count,
         focus_json,
@@ -2432,8 +2436,9 @@ fn frontend_focus_json(report: &FrontendReport, focus: FrontendFocus) -> String 
                 .function_nodes
                 .iter()
                 .map(|node| format!(
-                    "{{\"name\":\"{}\",\"step_count\":{}}}",
-                    node.name, node.step_count
+                    "{{\"name\":{},\"step_count\":{}}}",
+                    json_string(&node.name),
+                    node.step_count
                 ))
                 .collect::<Vec<_>>()
                 .join(",")
@@ -2449,12 +2454,15 @@ fn frontend_focus_json(report: &FrontendReport, focus: FrontendFocus) -> String 
                 .iter()
                 .map(|node| match node.step_count {
                     Some(step_count) => format!(
-                        "{{\"id\":\"{}\",\"kind\":\"{}\",\"step_count\":{}}}",
-                        node.id, node.kind, step_count
+                        "{{\"id\":{},\"kind\":{},\"step_count\":{}}}",
+                        json_string(&node.id),
+                        json_string(&node.kind),
+                        step_count
                     ),
                     None => format!(
-                        "{{\"id\":\"{}\",\"kind\":\"{}\",\"step_count\":null}}",
-                        node.id, node.kind
+                        "{{\"id\":{},\"kind\":{},\"step_count\":null}}",
+                        json_string(&node.id),
+                        json_string(&node.kind)
                     ),
                 })
                 .collect::<Vec<_>>()
@@ -2463,8 +2471,11 @@ fn frontend_focus_json(report: &FrontendReport, focus: FrontendFocus) -> String 
                 .graph_edges
                 .iter()
                 .map(|edge| format!(
-                    "{{\"from\":\"{}\",\"to\":\"{}\",\"kind\":\"{}\",\"line\":{}}}",
-                    edge.from, edge.to, edge.kind, edge.line
+                    "{{\"from\":{},\"to\":{},\"kind\":{},\"line\":{}}}",
+                    json_string(&edge.from),
+                    json_string(&edge.to),
+                    json_string(&edge.kind),
+                    edge.line
                 ))
                 .collect::<Vec<_>>()
                 .join(",")
@@ -2485,14 +2496,15 @@ fn frontend_json(frontend: Option<&FrontendReport>) -> String {
     match frontend {
         Some(frontend) => format!(
             "{{\"kind\":\"{}\",\"function_count\":{},\"function_nodes\":[{}],\"merged_step_count\":{},\"include_sources\":[{}],\"use_edges\":[{}],\"graph_nodes\":[{}],\"graph_edges\":[{}],\"expansion_previews\":[{}]}}",
-            frontend.kind,
+            json_escape_string(&frontend.kind),
             frontend.function_count,
             frontend
                 .function_nodes
                 .iter()
                 .map(|node| format!(
-                    "{{\"name\":\"{}\",\"step_count\":{}}}",
-                    node.name, node.step_count
+                    "{{\"name\":{},\"step_count\":{}}}",
+                    json_string(&node.name),
+                    node.step_count
                 ))
                 .collect::<Vec<_>>()
                 .join(","),
@@ -2502,8 +2514,10 @@ fn frontend_json(frontend: Option<&FrontendReport>) -> String {
                 .use_edges
                 .iter()
                 .map(|edge| format!(
-                    "{{\"from\":\"{}\",\"to\":\"{}\",\"line\":{}}}",
-                    edge.from, edge.to, edge.line
+                    "{{\"from\":{},\"to\":{},\"line\":{}}}",
+                    json_string(&edge.from),
+                    json_string(&edge.to),
+                    edge.line
                 ))
                 .collect::<Vec<_>>()
                 .join(","),
@@ -2512,12 +2526,15 @@ fn frontend_json(frontend: Option<&FrontendReport>) -> String {
                 .iter()
                 .map(|node| match node.step_count {
                     Some(step_count) => format!(
-                        "{{\"id\":\"{}\",\"kind\":\"{}\",\"step_count\":{}}}",
-                        node.id, node.kind, step_count
+                        "{{\"id\":{},\"kind\":{},\"step_count\":{}}}",
+                        json_string(&node.id),
+                        json_string(&node.kind),
+                        step_count
                     ),
                     None => format!(
-                        "{{\"id\":\"{}\",\"kind\":\"{}\",\"step_count\":null}}",
-                        node.id, node.kind
+                        "{{\"id\":{},\"kind\":{},\"step_count\":null}}",
+                        json_string(&node.id),
+                        json_string(&node.kind)
                     ),
                 })
                 .collect::<Vec<_>>()
@@ -2526,8 +2543,11 @@ fn frontend_json(frontend: Option<&FrontendReport>) -> String {
                 .graph_edges
                 .iter()
                 .map(|edge| format!(
-                    "{{\"from\":\"{}\",\"to\":\"{}\",\"kind\":\"{}\",\"line\":{}}}",
-                    edge.from, edge.to, edge.kind, edge.line
+                    "{{\"from\":{},\"to\":{},\"kind\":{},\"line\":{}}}",
+                    json_string(&edge.from),
+                    json_string(&edge.to),
+                    json_string(&edge.kind),
+                    edge.line
                 ))
                 .collect::<Vec<_>>()
                 .join(","),
@@ -2566,8 +2586,8 @@ fn frontend_expansion_preview_text(preview: &FrontendExpansionPreviewReport) -> 
 
 fn frontend_expansion_preview_json(preview: &FrontendExpansionPreviewReport) -> String {
     format!(
-        "{{\"scope\":\"{}\",\"local_bindings\":[{}],\"steps\":[{}],\"use_targets\":[{}]}}",
-        preview.scope,
+        "{{\"scope\":{},\"local_bindings\":[{}],\"steps\":[{}],\"use_targets\":[{}]}}",
+        json_string(&preview.scope),
         string_json_list(&preview.local_bindings),
         string_json_list(&preview.steps),
         string_json_list(&preview.use_targets),
@@ -2820,11 +2840,12 @@ fn reason_profile_text(profile: &ReasonProfileReport) -> String {
 fn reason_profile_json(profile: &ReasonProfileReport) -> String {
     match profile {
         ReasonProfileReport::Builtin { id } => {
-            format!("{{\"kind\":\"builtin\",\"id\":\"{id}\"}}")
+            format!("{{\"kind\":\"builtin\",\"id\":{}}}", json_string(id))
         }
         ReasonProfileReport::Declarative { id, rules } => format!(
-            "{{\"kind\":\"declarative\",\"id\":\"{}\",\"rules\":{}}}",
-            id, rules
+            "{{\"kind\":\"declarative\",\"id\":{},\"rules\":{}}}",
+            json_string(id),
+            rules
         ),
     }
 }
@@ -2850,7 +2871,7 @@ fn fragment_param_json(value: &ParamValueReport) -> String {
     match value {
         ParamValueReport::Bool(value) => value.to_string(),
         ParamValueReport::U64(value) => value.to_string(),
-        ParamValueReport::String(value) => format!("\"{value}\""),
+        ParamValueReport::String(value) => json_string(value),
     }
 }
 
@@ -2985,6 +3006,30 @@ fn json_escape(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    fn assert_valid_json_document(json: &str) {
+        let mut child = Command::new("python3")
+            .args(["-c", "import json, sys; json.load(sys.stdin)"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(json.as_bytes())
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "invalid json: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 
     #[test]
     fn binding_json_mentions_template_id() {
@@ -4061,5 +4106,24 @@ fn udp_core() {
             report.validation.unsupported_payload_offsets,
             Vec::<u16>::new()
         );
+    }
+
+    #[test]
+    fn envelope_json_is_valid_for_stable_subset_entry() {
+        let report =
+            compile_envelope_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                .unwrap();
+        let json = render_envelope_report(&report, RenderFormat::Json);
+        assert_valid_json_document(&json);
+    }
+
+    #[test]
+    fn envelope_json_is_valid_for_registry_amqp_publish_entry() {
+        let report = compile_envelope_file(
+            "/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy",
+        )
+        .unwrap();
+        let json = render_envelope_report(&report, RenderFormat::Json);
+        assert_valid_json_document(&json);
     }
 }

@@ -1,27 +1,33 @@
-template=amqp_publish_session
-window=default_5s
-reason_model=amqp_publish_session_reason
-fragment=tcp_state_fragment
-fragment=tcp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-program_model=amqp_publish_session_model
-operation=amqp_publish_session
-rule=process_bound;process_bound;process_bound;true;amqp_publish_session;bind
-rule=socket_state_observed:remote:amqp;socket_state_transition;static:program initiated or advanced an AMQP socket state transition;false;amqp_publish_session;connect
-rule=socket_state_observed:remote:amqp:established;socket_state_transition;static:program reached an established AMQP socket state;true;amqp_publish_session;establish
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this AMQP publish session;true;amqp_publish_session;resolve_upstream
-rule=packet_observed:tcp:remote:amqp:local_to_remote:prefix4:0x414d5150;packet_observed;transport_payload_sent;true;amqp_publish_session;send_protocol_header
-rule=packet_observed:tcp:remote:amqp:remote_to_local:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0a;packet_observed;transport_payload_received;true;amqp_publish_session;receive_start
-rule=packet_observed:tcp:remote:amqp:local_to_remote:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0b;packet_observed;transport_payload_sent;true;amqp_publish_session;send_start_ok
-rule=packet_observed:tcp:remote:amqp:local_to_remote:byte0_mask:0xff:0x01:byte_at:10:0xff:0x28;packet_observed;transport_payload_sent;true;amqp_publish_session;send_publish
-rule=packet_observed:tcp:remote:amqp:remote_to_local:byte0_mask:0xff:0x01:byte_at:10:0xff:0x50;packet_observed;transport_payload_received;true;amqp_publish_session;receive_ack
-reason.rule=process_bound;process_identified;process_bound;true;amqp_publish_session;bind
-reason.rule=socket_state_observed:remote:amqp;state_change;tcp_state_transition;false;amqp_publish_session;connect
-reason.rule=socket_state_observed:remote:amqp:established;state_change;tcp_state_transition;true;amqp_publish_session;establish
-reason.rule=route_resolved;route_changed;route_changed;true;amqp_publish_session;resolve_upstream
-reason.rule=packet_observed:tcp:remote:amqp:local_to_remote:prefix4:0x414d5150;packet_observed;transport_payload_sent;true;amqp_publish_session;send_protocol_header
-reason.rule=packet_observed:tcp:remote:amqp:remote_to_local:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0a;packet_observed;transport_payload_received;true;amqp_publish_session;receive_start
-reason.rule=packet_observed:tcp:remote:amqp:local_to_remote:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0b;packet_observed;transport_payload_sent;true;amqp_publish_session;send_start_ok
-reason.rule=packet_observed:tcp:remote:amqp:local_to_remote:byte0_mask:0xff:0x01:byte_at:10:0xff:0x28;packet_observed;transport_payload_sent;true;amqp_publish_session;send_publish
-reason.rule=packet_observed:tcp:remote:amqp:remote_to_local:byte0_mask:0xff:0x01:byte_at:10:0xff:0x50;packet_observed;transport_payload_received;true;amqp_publish_session;receive_ack
+# gewyvern stable-subset protocol path
+
+fn amqp_publish_session_rules() =
+  let module_name = :amqp_publish_session
+  let route_narrative = "static:program resolved an upstream route for this AMQP publish session"
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:amqp_publish_session)
+  |> reason_model(:amqp_publish_session_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: "socket_state_observed:remote:amqp", stage: :socket_state_transition, narrative: "static:program initiated or advanced an AMQP socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "socket_state_observed:remote:amqp:established", stage: :socket_state_transition, narrative: "static:program reached an established AMQP socket state", dedupe: true, module: ${module_name}, phase: :establish)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "packet_observed:tcp:remote:amqp:local_to_remote:prefix4:0x414d5150", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_protocol_header)
+  |> program_rule(predicate: "packet_observed:tcp:remote:amqp:remote_to_local:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0a", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_start)
+  |> program_rule(predicate: "packet_observed:tcp:remote:amqp:local_to_remote:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0b", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_start_ok)
+  |> program_rule(predicate: "packet_observed:tcp:remote:amqp:local_to_remote:byte0_mask:0xff:0x01:byte_at:10:0xff:0x28", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_publish)
+  |> program_rule(predicate: "packet_observed:tcp:remote:amqp:remote_to_local:byte0_mask:0xff:0x01:byte_at:10:0xff:0x50", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_ack)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: "socket_state_observed:remote:amqp", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "socket_state_observed:remote:amqp:established", key_event: :state_change, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :establish)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:amqp:local_to_remote:prefix4:0x414d5150", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_protocol_header)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:amqp:remote_to_local:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0a", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_start)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:amqp:local_to_remote:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0b", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_start_ok)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:amqp:local_to_remote:byte0_mask:0xff:0x01:byte_at:10:0xff:0x28", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_publish)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:amqp:remote_to_local:byte0_mask:0xff:0x01:byte_at:10:0xff:0x50", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_ack)
+
+template(:amqp_publish_session)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:amqp_publish_session_rules)
