@@ -1,17 +1,23 @@
-template=wireguard_handshake_path
-window=default_5s
-reason=udp_datagram_l1
-reason_model=wireguard_handshake_path_reason
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-program_model=wireguard_handshake_path_model
-operation=wireguard_handshake
-rule=process_bound;process_bound;process_bound;true;wireguard_handshake_path;bind
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this WireGuard handshake path;true;wireguard_handshake_path;resolve_upstream
-rule=datagram_observed:udp:remote:wireguard:local_to_remote:byte0_mask:0xff:0x01;datagram_observed;udp_datagram_sent;true;wireguard_handshake_path;send_initiation
-rule=datagram_observed:udp:remote:wireguard:remote_to_local:byte0_mask:0xff:0x02;datagram_observed;udp_datagram_received;true;wireguard_handshake_path;receive_response
-reason.rule=process_bound;process_identified;process_bound;true;wireguard_handshake_path;bind
-reason.rule=route_resolved;route_changed;route_changed;true;wireguard_handshake_path;resolve_upstream
-reason.rule=datagram_observed:udp:remote:wireguard:local_to_remote:byte0_mask:0xff:0x01;udp_datagram_seen;udp_datagram_sent;true;wireguard_handshake_path;send_initiation
-reason.rule=datagram_observed:udp:remote:wireguard:remote_to_local:byte0_mask:0xff:0x02;udp_datagram_seen;udp_datagram_received;true;wireguard_handshake_path;receive_response
+# gewyvern stable-subset protocol path
+
+fn wireguard_handshake_rules() =
+  let module_name = :wireguard_handshake_path
+  let route_narrative = "static:program resolved an upstream route for this WireGuard handshake path"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:wireguard_handshake)
+  |> reason_model(:wireguard_handshake_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "datagram_observed:udp:remote:wireguard:local_to_remote:byte0_mask:0xff:0x01", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_initiation)
+  |> program_rule(predicate: "datagram_observed:udp:remote:wireguard:remote_to_local:byte0_mask:0xff:0x02", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_response)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:wireguard:local_to_remote:byte0_mask:0xff:0x01", key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_initiation)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:wireguard:remote_to_local:byte0_mask:0xff:0x02", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_response)
+
+template(:wireguard_handshake_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:wireguard_handshake_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

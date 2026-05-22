@@ -1,25 +1,30 @@
-# gewyvern DSL v0
-template=postgres_auth_path
-window.duration_ms=5000
-window.lateness_ms=200
-reason_model=postgres_auth_path_reason
-fragment=tcp_state_fragment
-fragment=tcp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=postgres_auth
-rule=process_bound;process_bound;process_bound;true;postgres_auth_path;bind
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this PostgreSQL auth path;true;postgres_auth_path;resolve_upstream
-rule=socket_state_observed:remote:postgres;socket_state_transition;static:program initiated or advanced a PostgreSQL socket state transition;false;postgres_auth_path;connect
-rule=socket_state_observed:remote:postgres:established;socket_state_transition;static:program reached an established PostgreSQL socket state;true;postgres_auth_path;establish
-rule=packet_observed:tcp:remote:postgres:remote_to_local:byte0_mask:0xff:0x52;packet_observed;transport_payload_received;true;postgres_auth_path;receive_auth
-rule=packet_observed:tcp:remote:postgres:local_to_remote:byte0_mask:0xff:0x70;packet_observed;transport_payload_sent;true;postgres_auth_path;send_password
-rule=packet_observed:tcp:remote:postgres:remote_to_local:byte0_mask:0xff:0x5a;packet_observed;transport_payload_received;true;postgres_auth_path;receive_ready
-reason.rule=process_bound;process_identified;process_bound;true;postgres_auth_path;bind
-reason.rule=route_resolved;route_changed;route_changed;true;postgres_auth_path;resolve_upstream
-reason.rule=socket_state_observed:remote:postgres;state_change;tcp_state_transition;false;postgres_auth_path;connect
-reason.rule=socket_state_observed:remote:postgres:established;state_change;tcp_state_transition;true;postgres_auth_path;establish
-reason.rule=packet_observed:tcp:remote:postgres:remote_to_local:byte0_mask:0xff:0x52;packet_observed;transport_payload_received;true;postgres_auth_path;receive_auth
-reason.rule=packet_observed:tcp:remote:postgres:local_to_remote:byte0_mask:0xff:0x70;packet_observed;transport_payload_sent;true;postgres_auth_path;send_password
-reason.rule=packet_observed:tcp:remote:postgres:remote_to_local:byte0_mask:0xff:0x5a;packet_observed;transport_payload_received;true;postgres_auth_path;receive_ready
-param=sock_lineage_fragment.capture_comm=true
+# gewyvern stable-subset protocol path
+
+fn postgres_auth_rules() =
+  let module_name = :postgres_auth_path
+  let route_narrative = "static:program resolved an upstream route for this PostgreSQL auth path"
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:postgres_auth)
+  |> reason_model(:postgres_auth_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "socket_state_observed:remote:postgres", stage: :socket_state_transition, narrative: "static:program initiated or advanced a PostgreSQL socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "socket_state_observed:remote:postgres:established", stage: :socket_state_transition, narrative: "static:program reached an established PostgreSQL socket state", dedupe: true, module: ${module_name}, phase: :establish)
+  |> program_rule(predicate: "packet_observed:tcp:remote:postgres:remote_to_local:byte0_mask:0xff:0x52", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_auth)
+  |> program_rule(predicate: "packet_observed:tcp:remote:postgres:local_to_remote:byte0_mask:0xff:0x70", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_password)
+  |> program_rule(predicate: "packet_observed:tcp:remote:postgres:remote_to_local:byte0_mask:0xff:0x5a", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_ready)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "socket_state_observed:remote:postgres", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "socket_state_observed:remote:postgres:established", key_event: :state_change, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :establish)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:postgres:remote_to_local:byte0_mask:0xff:0x52", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_auth)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:postgres:local_to_remote:byte0_mask:0xff:0x70", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_password)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:postgres:remote_to_local:byte0_mask:0xff:0x5a", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_ready)
+
+template(:postgres_auth_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:postgres_auth_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

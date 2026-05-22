@@ -117,6 +117,7 @@ Purpose:
 Current commands to keep exercising:
 
 - [scripts/socket_roundtrip_demo.sh](/Users/Shared/chroot/dev/gewyvern/scripts/socket_roundtrip_demo.sh)
+- [scripts/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/runtime_operator_validation.sh)
 - local `--serve` plus read-only API usage
 
 Expected qualities:
@@ -202,6 +203,7 @@ The current local smoke entry point is:
 
 - [scripts/field_validation_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/field_validation_smoke.sh)
 - [scripts/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/registry_validation.sh)
+- [scripts/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/runtime_operator_validation.sh)
 
 It is intentionally small.
 
@@ -219,6 +221,13 @@ The registry validator is the shortest repeatable check that:
 - machine-facing compiler JSON has not silently drifted
 - failures are isolated to concrete packages instead of only surfacing as a
   broad `--scan-all` break
+
+The runtime/operator validator is the shortest repeatable check that:
+
+- live `--serve` plus read-only API works on a clean local bind
+- repeated socket-fed sessions refresh the latest snapshot
+- operator-facing `summary.json`, `export.json`, and `analysis.json` stay
+  readable through a real service workflow
 
 ## What This Phase Still Does Not Replace
 

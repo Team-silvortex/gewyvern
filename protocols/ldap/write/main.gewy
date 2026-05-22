@@ -1,25 +1,30 @@
-template=ldap_directory_write_session
-window=default_5s
-reason_model=ldap_directory_write_session_reason
-fragment=tcp_state_fragment
-fragment=tcp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-program_model=ldap_directory_write_session_model
-operation=ldap_directory_write_session
-rule=process_bound;process_bound;process_bound;true;ldap_directory_write_session;bind
-rule=socket_state_observed:remote:ldap;socket_state_transition;static:program initiated or advanced an LDAP socket state transition;false;ldap_directory_write_session;connect
-rule=socket_state_observed:remote:ldap:established;socket_state_transition;static:program reached an established LDAP socket state;true;ldap_directory_write_session;establish
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this LDAP directory write session;true;ldap_directory_write_session;resolve_upstream
-rule=packet_observed:tcp:remote:ldap:local_to_remote:byte_at:5:0xff:0x60;packet_observed;transport_payload_sent;true;ldap_directory_write_session;send_bind
-rule=packet_observed:tcp:remote:ldap:remote_to_local:byte_at:5:0xff:0x61;packet_observed;transport_payload_received;true;ldap_directory_write_session;receive_bind_response
-rule=packet_observed:tcp:remote:ldap:local_to_remote:byte_at:5:0xff:0x66;packet_observed;transport_payload_sent;true;ldap_directory_write_session;send_modify
-rule=packet_observed:tcp:remote:ldap:remote_to_local:byte_at:5:0xff:0x67:byte_at:9:0xff:0x00;packet_observed;transport_payload_received;true;ldap_directory_write_session;receive_modify_response
-reason.rule=process_bound;process_identified;process_bound;true;ldap_directory_write_session;bind
-reason.rule=socket_state_observed:remote:ldap;state_change;tcp_state_transition;false;ldap_directory_write_session;connect
-reason.rule=socket_state_observed:remote:ldap:established;state_change;tcp_state_transition;true;ldap_directory_write_session;establish
-reason.rule=route_resolved;route_changed;route_changed;true;ldap_directory_write_session;resolve_upstream
-reason.rule=packet_observed:tcp:remote:ldap:local_to_remote:byte_at:5:0xff:0x60;packet_observed;transport_payload_sent;true;ldap_directory_write_session;send_bind
-reason.rule=packet_observed:tcp:remote:ldap:remote_to_local:byte_at:5:0xff:0x61;packet_observed;transport_payload_received;true;ldap_directory_write_session;receive_bind_response
-reason.rule=packet_observed:tcp:remote:ldap:local_to_remote:byte_at:5:0xff:0x66;packet_observed;transport_payload_sent;true;ldap_directory_write_session;send_modify
-reason.rule=packet_observed:tcp:remote:ldap:remote_to_local:byte_at:5:0xff:0x67:byte_at:9:0xff:0x00;packet_observed;transport_payload_received;true;ldap_directory_write_session;receive_modify_response
+fn ldap_directory_write_session_rules() =
+  let module_name = :ldap_directory_write_session
+  let route_narrative = "static:program resolved an upstream route for this LDAP directory write session"
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> program_model(:ldap_directory_write_session_model)
+  |> operation(:ldap_directory_write_session)
+  |> reason_model(:ldap_directory_write_session_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: "socket_state_observed:remote:ldap", stage: :socket_state_transition, narrative: "static:program initiated or advanced an LDAP socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "socket_state_observed:remote:ldap:established", stage: :socket_state_transition, narrative: "static:program reached an established LDAP socket state", dedupe: true, module: ${module_name}, phase: :establish)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "packet_observed:tcp:remote:ldap:local_to_remote:byte_at:5:0xff:0x60", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_bind)
+  |> program_rule(predicate: "packet_observed:tcp:remote:ldap:remote_to_local:byte_at:5:0xff:0x61", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_bind_response)
+  |> program_rule(predicate: "packet_observed:tcp:remote:ldap:local_to_remote:byte_at:5:0xff:0x66", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_modify)
+  |> program_rule(predicate: "packet_observed:tcp:remote:ldap:remote_to_local:byte_at:5:0xff:0x67:byte_at:9:0xff:0x00", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_modify_response)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: "socket_state_observed:remote:ldap", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "socket_state_observed:remote:ldap:established", key_event: :state_change, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :establish)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:ldap:local_to_remote:byte_at:5:0xff:0x60", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_bind)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:ldap:remote_to_local:byte_at:5:0xff:0x61", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_bind_response)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:ldap:local_to_remote:byte_at:5:0xff:0x66", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_modify)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:ldap:remote_to_local:byte_at:5:0xff:0x67:byte_at:9:0xff:0x00", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_modify_response)
+
+template(:ldap_directory_write_session)
+|> window(:default_5s)
+|> use(:ldap_directory_write_session_rules)

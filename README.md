@@ -102,6 +102,9 @@ For protocol-registry drift specifically, use
 [scripts/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/registry_validation.sh)
 to validate scanned gewy packages one by one.
 
+For live standalone `--serve` plus read-only API validation, use
+[scripts/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/runtime_operator_validation.sh).
+
 ## Supported Protocol Families
 
 - Web, secure transport, and modern proxying:

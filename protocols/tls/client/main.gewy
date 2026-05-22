@@ -1,18 +1,25 @@
-template=tls_client_path
-window.duration_ms=5000
-window.lateness_ms=200
-fragment=tcp_state_fragment
-fragment=tcp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=tls_client
-rule=process_bound;process_bound;process_bound;true;tls_client_path;bind
-rule=route_resolved;route_resolved;route_changed;true;tls_client_path;resolve_upstream
-rule=socket_state_observed:remote:https;socket_state_transition;tcp_state_transition;true;tls_client_path;connect
-rule=socket_state_observed:remote:https:established;socket_state_transition;tcp_state_transition;true;tls_client_path;establish
-rule=packet_observed:tcp:local_to_remote;packet_observed;transport_payload_sent;true;tls_client_path;send_client_hello
-reason.rule=process_bound;process_bound;process_bound;true;tls_client_path;bind
-reason.rule=route_resolved;route_resolved;route_changed;true;tls_client_path;resolve_upstream
-reason.rule=socket_state_observed:remote:https;socket_state_transition;tcp_state_transition;true;tls_client_path;connect
-reason.rule=socket_state_observed:remote:https:established;socket_state_transition;tcp_state_transition;true;tls_client_path;establish
-reason.rule=packet_observed:tcp:local_to_remote;packet_observed;transport_payload_sent;true;tls_client_path;send_client_hello
+# gewyvern stable-subset protocol path
+
+fn tls_client_rules() =
+  let module_name = :tls_client_path
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:tls_client)
+  |> reason_model(:tls_client_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "socket_state_observed:remote:https", stage: :socket_state_transition, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "socket_state_observed:remote:https:established", stage: :socket_state_transition, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :establish)
+  |> program_rule(predicate: "packet_observed:tcp:local_to_remote", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_client_hello)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "socket_state_observed:remote:https", key_event: :state_change, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "socket_state_observed:remote:https:established", key_event: :state_change, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :establish)
+  |> reason_rule(predicate: "packet_observed:tcp:local_to_remote", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_client_hello)
+
+template(:tls_client_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:tls_client_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

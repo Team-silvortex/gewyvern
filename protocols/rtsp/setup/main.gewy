@@ -1,1 +1,36 @@
-include("/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_setup_path.gewy")
+# gewyvern stable-subset protocol path
+
+fn rtsp_setup_rules() =
+  let module_name = :rtsp_setup_path
+  let route_narrative = "static:program resolved an upstream route for this RTSP setup session"
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:rtsp_setup)
+  |> reason_model(:rtsp_setup_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "socket_state_observed:remote:rtsp", stage: :socket_state_transition, narrative: "static:program initiated or advanced an RTSP socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "socket_state_observed:remote:rtsp:established", stage: :socket_state_transition, narrative: "static:program reached an established RTSP socket state", dedupe: true, module: ${module_name}, phase: :establish)
+  |> program_rule(predicate: "packet_observed:tcp:remote:rtsp:local_to_remote:prefix4:0x4f505449", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_options)
+  |> program_rule(predicate: "packet_observed:tcp:remote:rtsp:remote_to_local:prefix4:0x52545350:bytes_at:9:0x32,0x30,0x30:bytes_at:17:0x50,0x75,0x62,0x6c", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_options_ok)
+  |> program_rule(predicate: "packet_observed:tcp:remote:rtsp:local_to_remote:prefix4:0x44455343", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_describe)
+  |> program_rule(predicate: "packet_observed:tcp:remote:rtsp:remote_to_local:prefix4:0x52545350:bytes_at:9:0x32,0x30,0x30:bytes_at:17:0x43,0x6f,0x6e,0x74", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_describe_ok)
+  |> program_rule(predicate: "packet_observed:tcp:remote:rtsp:local_to_remote:prefix4:0x53455455", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_setup)
+  |> program_rule(predicate: "packet_observed:tcp:remote:rtsp:remote_to_local:prefix4:0x52545350:bytes_at:9:0x32,0x30,0x30:bytes_at:17:0x53,0x65,0x73,0x73", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_setup_ok)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "socket_state_observed:remote:rtsp", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "socket_state_observed:remote:rtsp:established", key_event: :state_change, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :establish)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:rtsp:local_to_remote:prefix4:0x4f505449", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_options)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:rtsp:remote_to_local:prefix4:0x52545350:bytes_at:9:0x32,0x30,0x30:bytes_at:17:0x50,0x75,0x62,0x6c", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_options_ok)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:rtsp:local_to_remote:prefix4:0x44455343", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_describe)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:rtsp:remote_to_local:prefix4:0x52545350:bytes_at:9:0x32,0x30,0x30:bytes_at:17:0x43,0x6f,0x6e,0x74", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_describe_ok)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:rtsp:local_to_remote:prefix4:0x53455455", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_setup)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:rtsp:remote_to_local:prefix4:0x52545350:bytes_at:9:0x32,0x30,0x30:bytes_at:17:0x53,0x65,0x73,0x73", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_setup_ok)
+
+template(:rtsp_setup_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:rtsp_setup_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

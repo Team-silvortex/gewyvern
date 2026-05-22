@@ -1,1 +1,26 @@
-include("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_auth_required_path.gewy")
+# gewyvern stable-subset protocol path
+
+fn http_connect_auth_required_rules() =
+  let module_name = :http_connect_auth_required_path
+  let route_narrative = "static:program resolved an upstream route for this HTTP CONNECT auth-required path"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:http_connect_auth_required)
+  |> reason_model(:http_connect_auth_required_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "socket_state_observed:remote:8080", stage: :socket_state_transition, narrative: "static:program initiated or advanced an HTTP proxy socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "packet_observed:tcp:remote:8080:local_to_remote:prefix4:0x434f4e4e", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_connect_request)
+  |> program_rule(predicate: "packet_observed:tcp:remote:8080:remote_to_local:prefix4:0x34303720", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_auth_required)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "socket_state_observed:remote:8080", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:8080:local_to_remote:prefix4:0x434f4e4e", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_connect_request)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:8080:remote_to_local:prefix4:0x34303720", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_auth_required)
+
+template(:http_connect_auth_required_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:http_connect_auth_required_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

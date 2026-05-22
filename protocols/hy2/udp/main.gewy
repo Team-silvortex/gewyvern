@@ -1,30 +1,32 @@
-# gewyvern DSL v0
-template=hy2_udp_relay_path
-window.duration_ms=5000
-window.lateness_ms=200
-reason_model=hy2_udp_relay_path_reason
-fragment=udp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-operation=hy2_udp_relay
-rule=process_bound;process_bound;process_bound;true;hy2_udp_relay_path;bind
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this Hysteria 2 UDP relay path;true;hy2_udp_relay_path;resolve_upstream
-rule=quic_packet_observed:remote:hy2:local_to_remote:min_len:1200:long_header:true:type:initial;datagram_observed;udp_datagram_sent;true;hy2_udp_relay_path;send_initial
-rule=quic_frame_observed:remote:hy2:local_to_remote:type:initial:frame:crypto;packet_observed;transport_payload_sent;true;hy2_udp_relay_path;send_crypto
-rule=quic_packet_observed:remote:hy2:remote_to_local:long_header:true:type:handshake;datagram_observed;udp_datagram_received;true;hy2_udp_relay_path;receive_handshake
-rule=quic_frame_observed:remote:hy2:remote_to_local:type:handshake:frame:crypto;packet_observed;transport_payload_received;true;hy2_udp_relay_path;receive_crypto
-rule=quic_frame_observed:remote:hy2:local_to_remote:frame:stream;packet_observed;transport_payload_sent;true;hy2_udp_relay_path;send_auth_request_stream
-rule=quic_frame_observed:remote:hy2:remote_to_local:frame:stream;packet_observed;transport_payload_received;true;hy2_udp_relay_path;receive_auth_ok_stream
-rule=quic_frame_observed:remote:hy2:local_to_remote:frame:datagram;datagram_observed;udp_datagram_sent;true;hy2_udp_relay_path;send_udp_relay_datagram
-rule=quic_frame_observed:remote:hy2:remote_to_local:frame:datagram;datagram_observed;udp_datagram_received;true;hy2_udp_relay_path;receive_udp_relay_datagram
-reason.rule=process_bound;process_identified;process_bound;true;hy2_udp_relay_path;bind
-reason.rule=route_resolved;route_changed;route_changed;true;hy2_udp_relay_path;resolve_upstream
-reason.rule=quic_packet_observed:remote:hy2:local_to_remote:min_len:1200:long_header:true:type:initial;udp_datagram_seen;udp_datagram_sent;true;hy2_udp_relay_path;send_initial
-reason.rule=quic_frame_observed:remote:hy2:local_to_remote:type:initial:frame:crypto;packet_observed;transport_payload_sent;true;hy2_udp_relay_path;send_crypto
-reason.rule=quic_packet_observed:remote:hy2:remote_to_local:long_header:true:type:handshake;udp_datagram_seen;udp_datagram_received;true;hy2_udp_relay_path;receive_handshake
-reason.rule=quic_frame_observed:remote:hy2:remote_to_local:type:handshake:frame:crypto;packet_observed;transport_payload_received;true;hy2_udp_relay_path;receive_crypto
-reason.rule=quic_frame_observed:remote:hy2:local_to_remote:frame:stream;packet_observed;transport_payload_sent;true;hy2_udp_relay_path;send_auth_request_stream
-reason.rule=quic_frame_observed:remote:hy2:remote_to_local:frame:stream;packet_observed;transport_payload_received;true;hy2_udp_relay_path;receive_auth_ok_stream
-reason.rule=quic_frame_observed:remote:hy2:local_to_remote:frame:datagram;udp_datagram_seen;udp_datagram_sent;true;hy2_udp_relay_path;send_udp_relay_datagram
-reason.rule=quic_frame_observed:remote:hy2:remote_to_local:frame:datagram;udp_datagram_seen;udp_datagram_received;true;hy2_udp_relay_path;receive_udp_relay_datagram
-param=sock_lineage_fragment.capture_comm=true
+fn hy2_udp_relay_rules() = {
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:hy2_udp_relay)
+  |> reason_model(:hy2_udp_relay_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :hy2_udp_relay_path, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: :hy2_udp_relay_path, phase: :resolve_upstream)
+  |> program_rule(predicate: :quic_packet_observed:remote:hy2:local_to_remote:min_len:1200:long_header:true:type:initial, stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: :hy2_udp_relay_path, phase: :send_initial)
+  |> program_rule(predicate: :quic_frame_observed:remote:hy2:local_to_remote:type:initial:frame:crypto, stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :hy2_udp_relay_path, phase: :send_crypto)
+  |> program_rule(predicate: :quic_packet_observed:remote:hy2:remote_to_local:long_header:true:type:handshake, stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: :hy2_udp_relay_path, phase: :receive_handshake)
+  |> program_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:type:handshake:frame:crypto, stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :hy2_udp_relay_path, phase: :receive_crypto)
+  |> program_rule(predicate: :quic_frame_observed:remote:hy2:local_to_remote:frame:stream, stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :hy2_udp_relay_path, phase: :send_auth_request_stream)
+  |> program_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:frame:stream, stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :hy2_udp_relay_path, phase: :receive_auth_ok_stream)
+  |> program_rule(predicate: :quic_frame_observed:remote:hy2:local_to_remote:frame:datagram, stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: :hy2_udp_relay_path, phase: :send_udp_relay_datagram)
+  |> program_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:frame:datagram, stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: :hy2_udp_relay_path, phase: :receive_udp_relay_datagram)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: :hy2_udp_relay_path, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: :hy2_udp_relay_path, phase: :resolve_upstream)
+  |> reason_rule(predicate: :quic_packet_observed:remote:hy2:local_to_remote:min_len:1200:long_header:true:type:initial, key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: :hy2_udp_relay_path, phase: :send_initial)
+  |> reason_rule(predicate: :quic_frame_observed:remote:hy2:local_to_remote:type:initial:frame:crypto, key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :hy2_udp_relay_path, phase: :send_crypto)
+  |> reason_rule(predicate: :quic_packet_observed:remote:hy2:remote_to_local:long_header:true:type:handshake, key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: :hy2_udp_relay_path, phase: :receive_handshake)
+  |> reason_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:type:handshake:frame:crypto, key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :hy2_udp_relay_path, phase: :receive_crypto)
+  |> reason_rule(predicate: :quic_frame_observed:remote:hy2:local_to_remote:frame:stream, key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :hy2_udp_relay_path, phase: :send_auth_request_stream)
+  |> reason_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:frame:stream, key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :hy2_udp_relay_path, phase: :receive_auth_ok_stream)
+  |> reason_rule(predicate: :quic_frame_observed:remote:hy2:local_to_remote:frame:datagram, key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: :hy2_udp_relay_path, phase: :send_udp_relay_datagram)
+  |> reason_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:frame:datagram, key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: :hy2_udp_relay_path, phase: :receive_udp_relay_datagram)
+}
+
+template(:hy2_udp_relay_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:hy2_udp_relay_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

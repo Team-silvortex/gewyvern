@@ -1,21 +1,28 @@
-template=mysql_query_session
-window=default_5s
-reason_model=mysql_query_session_reason
-fragment=tcp_state_fragment
-fragment=tcp_packet_meta_fragment
-fragment=route_meta_fragment
-fragment=sock_lineage_fragment
-program_model=mysql_query_session_model
-operation=mysql_query_session
-rule=process_bound;process_bound;process_bound;true;mysql_query_session;bind
-rule=socket_state_observed:remote:mysql;socket_state_transition;static:program initiated or advanced a MySQL socket state transition;false;mysql_query_session;connect
-rule=socket_state_observed:remote:mysql:established;socket_state_transition;static:program reached an established MySQL socket state;true;mysql_query_session;establish
-rule=route_resolved;route_resolved;static:program resolved an upstream route for this MySQL query session;true;mysql_query_session;resolve_upstream
-rule=packet_observed:tcp:remote:mysql:local_to_remote:byte_at:4:0xff:0x03;packet_observed;transport_payload_sent;true;mysql_query_session;send_query
-rule=packet_observed:tcp:remote:mysql:remote_to_local:byte_at:4:0xff:0x00;packet_observed;transport_payload_received;true;mysql_query_session;receive_ok
-reason.rule=process_bound;process_identified;process_bound;true;mysql_query_session;bind
-reason.rule=socket_state_observed:remote:mysql;state_change;tcp_state_transition;false;mysql_query_session;connect
-reason.rule=socket_state_observed:remote:mysql:established;state_change;tcp_state_transition;true;mysql_query_session;establish
-reason.rule=route_resolved;route_changed;route_changed;true;mysql_query_session;resolve_upstream
-reason.rule=packet_observed:tcp:remote:mysql:local_to_remote:byte_at:4:0xff:0x03;packet_observed;transport_payload_sent;true;mysql_query_session;send_query
-reason.rule=packet_observed:tcp:remote:mysql:remote_to_local:byte_at:4:0xff:0x00;packet_observed;transport_payload_received;true;mysql_query_session;receive_ok
+# gewyvern stable-subset protocol path
+
+fn mysql_query_session_rules() =
+  let module_name = :mysql_query_session
+  let route_narrative = "static:program resolved an upstream route for this MySQL query session"
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> program_model(:mysql_query_session_model)
+  |> operation(:mysql_query_session)
+  |> reason_model(:mysql_query_session_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: "socket_state_observed:remote:mysql", stage: :socket_state_transition, narrative: "static:program initiated or advanced a MySQL socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "socket_state_observed:remote:mysql:established", stage: :socket_state_transition, narrative: "static:program reached an established MySQL socket state", dedupe: true, module: ${module_name}, phase: :establish)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "packet_observed:tcp:remote:mysql:local_to_remote:byte_at:4:0xff:0x03", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_query)
+  |> program_rule(predicate: "packet_observed:tcp:remote:mysql:remote_to_local:byte_at:4:0xff:0x00", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_ok)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: "socket_state_observed:remote:mysql", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "socket_state_observed:remote:mysql:established", key_event: :state_change, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :establish)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:mysql:local_to_remote:byte_at:4:0xff:0x03", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_query)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:mysql:remote_to_local:byte_at:4:0xff:0x00", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_ok)
+
+template(:mysql_query_session)
+|> window(:default_5s)
+|> use(:mysql_query_session_rules)
