@@ -11,6 +11,8 @@ use crate::render_utils::append_string_list_json;
 pub type ApiState = Arc<Mutex<Arc<ApiSnapshot>>>;
 
 const API_CLIENT_READ_TIMEOUT: Duration = Duration::from_secs(3);
+const API_VERSION: &str = env!("CARGO_PKG_VERSION");
+const API_ENDPOINTS_JSON: &str = "[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]";
 
 #[derive(Clone, Debug, Default)]
 pub struct ApiSnapshot {
@@ -261,9 +263,11 @@ pub fn api_response_for_request<'a>(
         "/v1/capabilities" => (
             200,
             "application/json; charset=utf-8",
-            Cow::Borrowed(
-                "{\"service\":\"gewyvern-api\",\"version\":\"0.7.0\",\"latest_snapshot\":true,\"serve_required\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}",
-            ),
+            Cow::Owned(format!(
+                "{{\"service\":\"gewyvern-api\",\"version\":{},\"latest_snapshot\":true,\"serve_required\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":{}}}",
+                json_string(API_VERSION),
+                API_ENDPOINTS_JSON,
+            )),
         ),
         "/v1/latest/summary.txt" => match snapshot.summary_text.as_ref() {
             Some(body) => (

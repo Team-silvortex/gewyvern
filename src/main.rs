@@ -9851,6 +9851,7 @@ mod tests {
         let (cap_status, _, cap_body) = api_response_for_request("/v1/capabilities", &snapshot);
         assert_eq!(cap_status, 200);
         assert!(cap_body.contains("\"service\":\"gewyvern-api\""));
+        assert!(cap_body.contains(&format!("\"version\":\"{}\"", env!("CARGO_PKG_VERSION"))));
 
         let (targets_status, _, targets_body) =
             api_response_for_request("/v1/latest/targets", &snapshot);

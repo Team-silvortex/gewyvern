@@ -124,6 +124,7 @@ Expected qualities:
 
 - bounded socket ingest still accepts healthy local sessions
 - latest snapshot output is refreshed correctly
+- malformed sessions do not kill the `--serve` loop
 - operator-facing JSON remains readable after a real session path
 
 This track may require local socket-bind permissions that are not available in

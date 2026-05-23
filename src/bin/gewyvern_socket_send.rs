@@ -25,7 +25,7 @@ fn main() {
                     std::process::exit(1);
                 });
 
-                write_facts(&mut stream, cli.template_mode);
+                write_payload(&mut stream, &cli.payload_mode);
                 return;
             }
 
@@ -42,7 +42,7 @@ fn main() {
                 std::process::exit(1);
             });
 
-            write_facts(&mut stream, cli.template_mode);
+            write_payload(&mut stream, &cli.payload_mode);
             return;
         }
     }
@@ -51,7 +51,7 @@ fn main() {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Cli {
     socket_target: SocketTarget,
-    template_mode: TemplateMode,
+    payload_mode: PayloadMode,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -64,6 +64,12 @@ enum TemplateMode {
 enum SocketTarget {
     Unix(String),
     Tcp(String),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum PayloadMode {
+    Template(TemplateMode),
+    RawLine(String),
 }
 
 impl TemplateMode {
@@ -84,7 +90,7 @@ impl Cli {
         I: IntoIterator<Item = String>,
     {
         let mut socket_target = None;
-        let mut template_mode = TemplateMode::Udp;
+        let mut payload_mode = PayloadMode::Template(TemplateMode::Udp);
         let mut args = args.into_iter();
 
         while let Some(arg) = args.next() {
@@ -103,7 +109,12 @@ impl Cli {
                     let value = args.next().ok_or_else(|| {
                         "missing value for --template, expected tcp or udp".to_string()
                     })?;
-                    template_mode = TemplateMode::from_str(&value)?;
+                    payload_mode = PayloadMode::Template(TemplateMode::from_str(&value)?);
+                }
+                "--raw-line" => {
+                    payload_mode = PayloadMode::RawLine(args.next().ok_or_else(|| {
+                        "missing value for --raw-line, expected one literal line".to_string()
+                    })?);
                 }
                 "--help" | "-h" => return Err(usage().into()),
                 other => return Err(format!("unknown argument '{other}'\n{}", usage())),
@@ -114,17 +125,27 @@ impl Cli {
             socket_target: socket_target.ok_or_else(|| {
                 "missing required --socket <path> or --tcp-socket <host:port>".to_string()
             })?,
-            template_mode,
+            payload_mode,
         })
     }
 }
 
-fn write_facts<W: Write>(stream: &mut W, template_mode: TemplateMode) {
-    for fact in sample_facts(template_mode) {
-        writeln!(stream, "{}", fact_to_json(&fact)).unwrap_or_else(|err| {
-            eprintln!("failed to write fact to socket: {err}");
-            std::process::exit(1);
-        });
+fn write_payload<W: Write>(stream: &mut W, payload_mode: &PayloadMode) {
+    match payload_mode {
+        PayloadMode::Template(template_mode) => {
+            for fact in sample_facts(*template_mode) {
+                writeln!(stream, "{}", fact_to_json(&fact)).unwrap_or_else(|err| {
+                    eprintln!("failed to write fact to socket: {err}");
+                    std::process::exit(1);
+                });
+            }
+        }
+        PayloadMode::RawLine(line) => {
+            writeln!(stream, "{line}").unwrap_or_else(|err| {
+                eprintln!("failed to write raw line to socket: {err}");
+                std::process::exit(1);
+            });
+        }
     }
 }
 
@@ -242,5 +263,38 @@ fn route_fact(id: u64, ts: SystemTime, cookie: u64, oif: u32, session: SessionId
 }
 
 fn usage() -> &'static str {
-    "usage: gewyvern_socket_send (--socket path|--tcp-socket host:port) [--template tcp|udp]"
+    "usage: gewyvern_socket_send (--socket path|--tcp-socket host:port) [--template tcp|udp|--raw-line literal]"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Cli, PayloadMode, SocketTarget, TemplateMode};
+
+    #[test]
+    fn parse_cli_accepts_raw_line_payload() {
+        let cli = Cli::from_args([
+            "--tcp-socket".to_string(),
+            "127.0.0.1:9000".to_string(),
+            "--raw-line".to_string(),
+            "{\"broken\":true".to_string(),
+        ])
+        .unwrap();
+
+        assert_eq!(
+            cli.socket_target,
+            SocketTarget::Tcp("127.0.0.1:9000".into())
+        );
+        assert_eq!(
+            cli.payload_mode,
+            PayloadMode::RawLine("{\"broken\":true".into())
+        );
+    }
+
+    #[test]
+    fn parse_cli_defaults_to_udp_template_mode() {
+        let cli =
+            Cli::from_args(["--tcp-socket".to_string(), "127.0.0.1:9000".to_string()]).unwrap();
+
+        assert_eq!(cli.payload_mode, PayloadMode::Template(TemplateMode::Udp));
+    }
 }

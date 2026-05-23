@@ -61,6 +61,11 @@ send_template() {
   "${SOCKET_SEND_BIN}" --tcp-socket "${socket_addr}" --template "${template}"
 }
 
+send_invalid_session() {
+  local socket_addr="$1"
+  "${SOCKET_SEND_BIN}" --tcp-socket "${socket_addr}" --raw-line '{"broken":true'
+}
+
 stop_server() {
   local pid="$1"
   kill "${pid}" >/dev/null 2>&1 || true
@@ -95,6 +100,15 @@ send_template "${TCP_SOCKET}" tcp
 wait_for_snapshot_json "http://${TCP_API}/v1/latest/summary.json" "${TCP_SUMMARY}"
 curl -fsS "http://${TCP_API}/v1/latest/export.json" >"${TCP_EXPORT}"
 expect_contains "${TCP_SUMMARY}" '"accepted_facts":3'
+
+send_invalid_session "${TCP_SOCKET}"
+wait_for_http_body "http://${TCP_API}/health" "${TMP_DIR}/tcp-health-after-bad.txt"
+expect_contains "${TMP_DIR}/tcp-health-after-bad.txt" '"ok":true'
+expect_contains "${TCP_SUMMARY}" '"name":"socket_session"'
+
+send_template "${TCP_SOCKET}" tcp
+wait_for_snapshot_json "http://${TCP_API}/v1/latest/summary.json" "${TCP_SUMMARY}"
+expect_contains "${TCP_SUMMARY}" '"template_id":"handshake_debug"'
 stop_server "${TCP_PID}"
 
 echo "[2/2] udp serve publishes datagram-oriented latest snapshot through API"
