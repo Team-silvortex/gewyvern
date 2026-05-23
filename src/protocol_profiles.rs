@@ -1230,7 +1230,7 @@ mod tests {
         fs::create_dir_all(&package_dir).unwrap();
         fs::write(
             package_dir.join("gewy.pkg"),
-            "name=mysql_session\nversion=0.7.0\nentry=main.gewy\nregister.protocol=mysql\nregister.entry=session\nregister.default=true\n",
+            "name=mysql_session\nversion=0.10.0\nentry=main.gewy\nregister.protocol=mysql\nregister.entry=session\nregister.default=true\n",
         )
         .unwrap();
         fs::write(package_dir.join("main.gewy"), "template(:mysql_session)\n").unwrap();

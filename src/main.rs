@@ -6165,6 +6165,16 @@ mod tests {
             "json={}",
             json
         );
+        assert!(
+            json.contains("\"operator_guidance_status\":\"ambiguous\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"operator_guidance_action\":\"keep_multiple_hypotheses\""),
+            "json={}",
+            json
+        );
         assert!(json.contains("\"module:name_resolution\""), "json={}", json);
         assert!(json.contains("\"module:tls_handshake\""), "json={}", json);
     }
@@ -6215,6 +6225,16 @@ mod tests {
         assert!(json.contains("\"ambiguous\":true"), "json={}", json);
         assert!(
             json.contains("\"primary_failure_confidence\":\"low\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"operator_guidance_status\":\"ambiguous\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"operator_guidance_action\":\"keep_multiple_hypotheses\""),
             "json={}",
             json
         );
@@ -6287,6 +6307,16 @@ mod tests {
         assert!(json.contains("\"ambiguous\":true"), "json={}", json);
         assert!(
             json.contains("\"primary_failure_confidence\":\"low\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"operator_guidance_status\":\"ambiguous\""),
+            "json={}",
+            json
+        );
+        assert!(
+            json.contains("\"operator_guidance_action\":\"keep_multiple_hypotheses\""),
             "json={}",
             json
         );

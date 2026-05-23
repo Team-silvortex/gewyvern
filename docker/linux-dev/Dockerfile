@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     clang \
     curl \
+    dpkg-dev \
     git \
     iproute2 \
     jq \
@@ -21,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     llvm \
     make \
     pkg-config \
+    rpm \
     zlib1g-dev \
  && rm -rf /var/lib/apt/lists/*
 

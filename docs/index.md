@@ -31,6 +31,8 @@ material.
   Short release-readiness checklist for the final `v0.10.0 -> v1.0.0` path.
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
   Real-world validation matrix for the `v0.10.0` line.
+- [docs/prelaunch-focus.md](/Users/Shared/chroot/dev/gewyvern/docs/prelaunch-focus.md)
+  Narrow prelaunch scope: deepen common paths, avoid broad protocol or IR expansion.
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
   High-level system map and stable architecture boundaries.
 - [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
@@ -90,6 +92,8 @@ material.
   Current ignored-benchmark medians and comparison workflow.
 - [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)
   Linux/eBPF validation path.
+- [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
+  Native Linux packaging layout and DEB/RPM packaging entrypoints.
 
 ## Fixtures And Reference Assets
 

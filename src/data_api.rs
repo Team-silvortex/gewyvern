@@ -356,9 +356,10 @@ pub fn api_response_for_request<'a>(
         _ => (
             404,
             "application/json; charset=utf-8",
-            Cow::Borrowed(
-                "{\"error\":\"not_found\",\"paths\":[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]}",
-            ),
+            Cow::Owned(format!(
+                "{{\"error\":\"not_found\",\"paths\":{}}}",
+                API_ENDPOINTS_JSON
+            )),
         ),
     }
 }

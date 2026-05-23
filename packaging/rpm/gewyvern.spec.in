@@ -1,0 +1,47 @@
+%global __strip /usr/bin/strip
+%global debug_package %{nil}
+
+Name:           @PACKAGE_NAME@
+Version:        @VERSION@
+Release:        @RELEASE%@DIST@
+Summary:        Standalone network debugging runtime and compiler tools
+License:        Proprietary
+URL:            https://example.invalid/gewyvern
+BuildArch:      @RPM_ARCH@
+
+%description
+gewyvern packages the standalone runtime, compiler CLI, helper sender binary,
+protocol registry, and built-in DSL assets used for process-level network
+debugging workflows.
+
+%prep
+
+%build
+
+%install
+rm -rf %{buildroot}
+install -d %{buildroot}/usr/bin
+install -d %{buildroot}/usr/share/gewyvern
+install -d %{buildroot}/usr/share/doc/gewyvern
+
+install -m 0755 @BINARIES_ROOT@/gewyvern %{buildroot}/usr/bin/gewyvern
+install -m 0755 @BINARIES_ROOT@/gewyvern_socket_send %{buildroot}/usr/bin/gewyvern_socket_send
+install -m 0755 @BINARIES_ROOT@/gewyc %{buildroot}/usr/bin/gewyc
+
+cp -a @SOURCE_ROOT@/dsl %{buildroot}/usr/share/gewyvern/dsl
+cp -a @SOURCE_ROOT@/protocols %{buildroot}/usr/share/gewyvern/protocols
+cp -a @SOURCE_ROOT@/docs %{buildroot}/usr/share/doc/gewyvern/docs
+install -m 0644 @SOURCE_ROOT@/README.md %{buildroot}/usr/share/doc/gewyvern/README.md
+
+%files
+/usr/bin/gewyvern
+/usr/bin/gewyvern_socket_send
+/usr/bin/gewyc
+/usr/share/gewyvern/dsl
+/usr/share/gewyvern/protocols
+/usr/share/doc/gewyvern/README.md
+/usr/share/doc/gewyvern/docs
+
+%changelog
+* Sat May 23 2026 OpenAI Codex <codex@example.invalid> - @VERSION@-@RELEASE@
+- Package gewyvern standalone runtime, compiler CLI, registry, and docs

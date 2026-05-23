@@ -64,6 +64,7 @@ Current commands to keep exercising:
 - `cargo run -- --demo udp --json --summary-only`
 - `cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy --json --summary-only`
 - `cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy --json`
+- [scripts/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/high_frequency_validation.sh)
 
 Expected qualities:
 
@@ -203,6 +204,7 @@ For this phase, treat the following as pass conditions:
 The current local smoke entry point is:
 
 - [scripts/field_validation_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/field_validation_smoke.sh)
+- [scripts/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/high_frequency_validation.sh)
 - [scripts/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/registry_validation.sh)
 - [scripts/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/runtime_operator_validation.sh)
 
@@ -215,6 +217,12 @@ It is the shortest repeatable check that:
 - the standalone CLI still works
 - the compiler/debugger surface still works
 - socket roundtrip still works
+
+The high-frequency validator is the shortest repeatable check that:
+
+- common operator paths still map to the expected primary module families
+- mixed-flow regression tests still preserve conservative collapse
+- built-in operator guidance remains coherent on high-frequency standalone paths
 
 The registry validator is the shortest repeatable check that:
 

@@ -98,12 +98,21 @@ For long-lived `--serve` / API / external-engine operational behavior, see
 For the concrete `v0.10.0` field-validation matrix and local smoke entrypoint,
 see [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md).
 
+For the narrow prelaunch protocol/IR scope, see
+[docs/prelaunch-focus.md](/Users/Shared/chroot/dev/gewyvern/docs/prelaunch-focus.md).
+
 For protocol-registry drift specifically, use
 [scripts/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/registry_validation.sh)
 to validate scanned gewy packages one by one.
 
 For live standalone `--serve` plus read-only API validation, use
 [scripts/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/runtime_operator_validation.sh).
+
+For concentrated high-frequency protocol and mixed-flow checks, use
+[scripts/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/high_frequency_validation.sh).
+
+For native Linux packaging layout, DEB control metadata, and RPM spec
+generation, see [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md).
 
 ## Supported Protocol Families
 
@@ -162,6 +171,8 @@ boundaries:
   Headless Linux dev/smoke environment support.
 - [scripts](/Users/Shared/chroot/dev/gewyvern/scripts)
   Small helper scripts for demos and roundtrips.
+- [packaging](/Users/Shared/chroot/dev/gewyvern/packaging)
+  Native Linux packaging templates for DEB/RPM metadata.
 
 ## Repository Reading Order
 
@@ -193,6 +204,9 @@ list.
   Resolve a gewy package manifest into a `gewy.lock` snapshot.
 - `cargo test --workspace`
   Main regression path for the whole workspace.
+- `bash /Users/Shared/chroot/dev/gewyvern/scripts/build_packages.sh --layout-only`
+  Stage the Linux install tree and render DEB/RPM metadata without requiring
+  host package-manager tools.
 
 ## What Works In v0.10.0
 
