@@ -211,6 +211,8 @@ The current local smoke entry point is:
 
 - [scripts/field_validation_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/field_validation_smoke.sh)
 - [scripts/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/high_frequency_validation.sh)
+- [scripts/release_container_check.sh](/Users/Shared/chroot/dev/gewyvern/scripts/release_container_check.sh)
+- [scripts/container_validation_summary.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_validation_summary.sh)
 - [scripts/container_protocol_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh)
 - [scripts/container_operator_path_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_operator_path_validation.sh)
 - [scripts/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/registry_validation.sh)
@@ -233,12 +235,30 @@ The high-frequency validator is the shortest repeatable check that:
 - mixed-flow regression tests still preserve conservative collapse
 - built-in operator guidance remains coherent on high-frequency standalone paths
 
+The container validation summary is the shortest repeatable check that:
+
+- packaged Linux container validation can be run from one entrypoint
+- packaged protocol validation and packaged operator-path validation stay in
+  sync as a single routine
+
+The release container check is the shortest repeatable check that:
+
+- packaged install, runtime, protocol, and operator-path validation can all be
+  exercised from one release-minded entrypoint
+- the prelaunch Linux packaging path can be treated like a single checklist
+  step rather than a loose collection of commands
+
 The container protocol validator is the shortest repeatable check that:
 
 - packaged protocol support still works after native install
-- high-frequency protocol families such as DNS, HTTP, TLS, HTTP/3, QUIC, SSH,
-  SOCKS5, MySQL, PostgreSQL, SMTP, and LDAP keep their expected
-  module/guidance shape in clean Linux environments
+- grouped high-frequency protocol families keep their expected module/guidance
+  shape in clean Linux environments:
+  - resolution, web, and secure transport:
+    DNS, HTTP, TLS, HTTP/3, QUIC
+  - remote access and proxy:
+    SSH, SOCKS5
+  - database, messaging, and directory:
+    MySQL, PostgreSQL, SMTP, LDAP
 - packaged `--scan-all` still works outside the development host
 
 The registry validator is the shortest repeatable check that:
@@ -265,15 +285,16 @@ The container runtime validator is the shortest repeatable check that:
 The container operator-path validator is the shortest repeatable check that:
 
 - packaged Linux installs preserve high-value operator-path protocol chains
-- `DNS -> QUIC -> HTTP/3` keeps a conservative handoff from name resolution to
-  transport setup to application response
-- `DNS -> TLS -> HTTPS CONNECT` keeps a conservative secure-transport /
-  tunnel-establishment posture in clean Linux environments
-- `DNS -> SOCKS5 -> HTTPS CONNECT` keeps a conservative proxy-auth /
-  tunnel-establishment posture in clean Linux environments
-- `DNS -> TLS -> Postgres` keeps a conservative secure-database /
-  query-establishment posture in clean Linux environments
-- `DNS -> SMTP` keeps its expected setup-incomplete / observe-more posture
+- advisory resolution/application paths such as `DNS -> QUIC -> HTTP/3` keep a
+  conservative handoff from name resolution to transport setup to application
+  response
+- secure transport/tunnel paths such as `DNS -> TLS -> HTTPS CONNECT` and
+  `DNS -> SOCKS5 -> HTTPS CONNECT` keep a conservative tunnel-establishment
+  posture in clean Linux environments
+- secure database/mail paths such as `DNS -> TLS -> Postgres`,
+  `DNS -> TLS -> MySQL`, `DNS -> TLS -> SMTP auth`, and `DNS -> SMTP` keep
+  their current observe-more / setup-incomplete posture in clean Linux
+  environments
 - current packaged denied demos such as `SOCKS5 auth denied` must not
   over-collapse into stronger failure claims when the synthetic evidence is
   still only a setup-incomplete path

@@ -154,18 +154,13 @@ bash /Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh
 That path installs the latest package and then verifies:
 
 - packaged `--list-protocols`
-- high-frequency packaged protocol summaries for:
-  - DNS
-  - HTTP
-  - TLS
-  - HTTP/3
-  - QUIC
-  - SSH
-  - SOCKS5
-  - MySQL
-  - PostgreSQL
-  - SMTP
-  - LDAP
+- grouped high-frequency packaged protocol summaries for:
+  - resolution, web, and secure transport:
+    `DNS`, `HTTP`, `TLS`, `HTTP/3`, `QUIC`
+  - remote access and proxy:
+    `SSH`, `SOCKS5`
+  - database, messaging, and directory:
+    `MySQL`, `PostgreSQL`, `SMTP`, `LDAP`
 - packaged `--scan-all --json --summary-only`
 
 If you only want one package family, use:
@@ -173,6 +168,49 @@ If you only want one package family, use:
 ```bash
 bash /Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh --deb
 bash /Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh --rpm
+```
+
+## Container Validation Summary
+
+To run the packaged Linux container validation suite through one summary
+entrypoint, use:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/container_validation_summary.sh
+```
+
+That wrapper runs, in order:
+
+- [container_protocol_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh)
+- [container_operator_path_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_operator_path_validation.sh)
+
+If you only want one package family, use:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/container_validation_summary.sh --deb
+bash /Users/Shared/chroot/dev/gewyvern/scripts/container_validation_summary.sh --rpm
+```
+
+## Release Container Check
+
+To run the current release-oriented packaged Linux validation suite through one
+entrypoint, use:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/release_container_check.sh
+```
+
+That wrapper runs, in order:
+
+- [package_install_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/package_install_smoke.sh)
+- [container_runtime_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_runtime_validation.sh)
+- [container_validation_summary.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_validation_summary.sh)
+
+If you only want one package family, use:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/release_container_check.sh --deb
+bash /Users/Shared/chroot/dev/gewyvern/scripts/release_container_check.sh --rpm
 ```
 
 ## Container Operator-Path Validation
@@ -186,26 +224,38 @@ bash /Users/Shared/chroot/dev/gewyvern/scripts/container_operator_path_validatio
 That path installs the latest package and then verifies these chained protocol
 families in clean Linux environments:
 
-- `DNS -> QUIC -> HTTP/3`
-- `DNS -> TLS -> HTTPS CONNECT`
-- `DNS -> SOCKS5 -> HTTPS CONNECT`
-- `DNS -> TLS -> Postgres`
-- `DNS -> SMTP`
-- a conservative negative-path guard for `SOCKS5 auth denied`
+- Advisory resolution and application path:
+  `DNS -> QUIC -> HTTP/3`
+- Secure transport and tunnel paths:
+  `DNS -> TLS -> HTTPS CONNECT`,
+  `DNS -> SOCKS5 -> HTTPS CONNECT`
+- Secure database and mail paths:
+  `DNS -> TLS -> Postgres`,
+  `DNS -> TLS -> MySQL`,
+  `DNS -> TLS -> SMTP auth`,
+  `DNS -> SMTP`
+- Conservative negative-path guard:
+  `SOCKS5 auth denied`
 
-The check keeps the same machine-facing expectations as the standalone runtime:
+The check keeps the same machine-facing expectations as the standalone runtime,
+grouped into the same buckets:
 
-- DNS remains a conservative `name_resolution` advisory path
-- TLS and HTTPS CONNECT remain healthy-but-advisory secure transport paths
-- SOCKS5 auth remains a `missing_transition` proxy-auth path that recommends
-  collecting more runtime evidence before strong automation
-- the current packaged `SOCKS5 auth denied` demo still stays in that same
-  conservative posture instead of over-collapsing to a stronger denial claim
-- PostgreSQL query remains a `missing_transition` database path that recommends
-  collecting more runtime evidence before strong automation
-- QUIC and SMTP remain `missing_transition` paths that recommend collecting
-  more runtime evidence
-- HTTP/3 remains a healthy-but-advisory application-layer path
+- Advisory resolution/application:
+  DNS remains a conservative advisory path,
+  HTTP/3 remains a healthy-but-advisory application-layer path,
+  and QUIC remains a `missing_transition` path that recommends collecting more
+  runtime evidence.
+- Secure transport/tunnel:
+  TLS and HTTPS CONNECT remain healthy-but-advisory secure transport paths,
+  while SOCKS5 auth remains a `missing_transition` proxy-auth path that
+  recommends collecting more runtime evidence before strong automation.
+- Secure database/mail:
+  PostgreSQL query, MySQL session, SMTP auth, and SMTP session remain
+  `missing_transition` paths that recommend collecting more runtime evidence
+  before strong automation.
+- Negative-path guard:
+  the current packaged `SOCKS5 auth denied` demo still stays in a conservative
+  posture instead of over-collapsing to a stronger denial claim.
 
 If you only want one package family, use:
 

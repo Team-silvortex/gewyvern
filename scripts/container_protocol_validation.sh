@@ -76,6 +76,8 @@ expect_contains() {
   fi
 }
 
+echo "[protocol] validating protocol registry visibility"
+
 gewyvern --list-protocols >/tmp/list-protocols.txt
 expect_contains /tmp/list-protocols.txt 'dns (default: udp)'
 expect_contains /tmp/list-protocols.txt 'http (default: request)'
@@ -89,18 +91,13 @@ expect_contains /tmp/list-protocols.txt 'postgres (default: query)'
 expect_contains /tmp/list-protocols.txt 'smtp (default: session)'
 expect_contains /tmp/list-protocols.txt 'ldap (default: sync)'
 
+echo "[protocol] validating resolution, web, and secure transport families"
+
 gewyvern --protocol dns --entry udp --json --summary-only >/tmp/dns.json
 gewyvern --protocol http --entry request --json --summary-only >/tmp/http.json
 gewyvern --protocol tls --entry client --json --summary-only >/tmp/tls.json
 gewyvern --protocol http3 --entry request --json --summary-only >/tmp/http3.json
 gewyvern --protocol quic --entry initial --json --summary-only >/tmp/quic.json
-gewyvern --protocol ssh --entry session --json --summary-only >/tmp/ssh.json
-gewyvern --protocol socks5 --entry auth --json --summary-only >/tmp/socks5.json
-gewyvern --protocol mysql --entry session --json --summary-only >/tmp/mysql.json
-gewyvern --protocol postgres --entry query --json --summary-only >/tmp/postgres.json
-gewyvern --protocol smtp --entry session --json --summary-only >/tmp/smtp.json
-gewyvern --protocol ldap --entry sync --json --summary-only >/tmp/ldap.json
-gewyvern --scan-all --json --summary-only >/tmp/scan-all.json
 
 expect_contains /tmp/dns.json '"primary_module_kind":"name_resolution"'
 expect_contains /tmp/dns.json '"operator_guidance_action":"manual_review"'
@@ -112,10 +109,24 @@ expect_contains /tmp/http3.json '"primary_module_kind":"http3_request_response"'
 expect_contains /tmp/http3.json '"operator_guidance_action":"manual_review"'
 expect_contains /tmp/quic.json '"primary_module_kind":"quic_handshake"'
 expect_contains /tmp/quic.json '"operator_guidance_action":"collect_more_runtime_evidence"'
+
+echo "[protocol] validating remote access and proxy families"
+
+gewyvern --protocol ssh --entry session --json --summary-only >/tmp/ssh.json
+gewyvern --protocol socks5 --entry auth --json --summary-only >/tmp/socks5.json
+
 expect_contains /tmp/ssh.json '"primary_module_kind":"remote_access_session"'
 expect_contains /tmp/ssh.json '"operator_guidance_action":"collect_more_runtime_evidence"'
 expect_contains /tmp/socks5.json '"primary_module_kind":"proxy_authentication"'
 expect_contains /tmp/socks5.json '"operator_guidance_action":"collect_more_runtime_evidence"'
+
+echo "[protocol] validating database, messaging, and directory families"
+
+gewyvern --protocol mysql --entry session --json --summary-only >/tmp/mysql.json
+gewyvern --protocol postgres --entry query --json --summary-only >/tmp/postgres.json
+gewyvern --protocol smtp --entry session --json --summary-only >/tmp/smtp.json
+gewyvern --protocol ldap --entry sync --json --summary-only >/tmp/ldap.json
+
 expect_contains /tmp/mysql.json '"primary_module_kind":"database_query"'
 expect_contains /tmp/mysql.json '"operator_guidance_action":"collect_more_runtime_evidence"'
 expect_contains /tmp/postgres.json '"primary_module_kind":"database_query"'
@@ -124,6 +135,10 @@ expect_contains /tmp/smtp.json '"primary_module_kind":"mail_session"'
 expect_contains /tmp/smtp.json '"operator_guidance_action":"collect_more_runtime_evidence"'
 expect_contains /tmp/ldap.json '"primary_module_kind":"directory_sync"'
 expect_contains /tmp/ldap.json '"operator_guidance_action":"collect_more_runtime_evidence"'
+
+echo "[protocol] validating full packaged registry sweep"
+
+gewyvern --scan-all --json --summary-only >/tmp/scan-all.json
 expect_contains /tmp/scan-all.json '"total_targets":'
 
 echo "container protocol validation: ok"

@@ -76,6 +76,9 @@ expect_contains() {
   fi
 }
 
+echo "[operator-path] validating advisory resolution and application paths"
+
+# Advisory resolution and application paths
 # DNS -> QUIC -> HTTP/3 operator path
 gewyvern --protocol dns --entry udp --json --summary-only >/tmp/path-dns.json
 gewyvern --protocol quic --entry initial --json --summary-only >/tmp/path-quic.json
@@ -89,6 +92,9 @@ expect_contains /tmp/path-quic.json '"operator_guidance_action":"collect_more_ru
 expect_contains /tmp/path-http3.json '"primary_module_kind":"http3_request_response"'
 expect_contains /tmp/path-http3.json '"operator_guidance_action":"manual_review"'
 
+echo "[operator-path] validating secure transport and tunnel paths"
+
+# Secure transport and tunnel paths
 # DNS -> TLS -> HTTPS CONNECT operator path
 gewyvern --protocol tls --entry client --json --summary-only >/tmp/path-tls.json
 gewyvern --protocol https --entry connect --json --summary-only >/tmp/path-https-connect.json
@@ -105,6 +111,9 @@ expect_contains /tmp/path-socks5-auth.json '"primary_module_kind":"proxy_authent
 expect_contains /tmp/path-socks5-auth.json '"primary_failure_basis":"missing_transition"'
 expect_contains /tmp/path-socks5-auth.json '"operator_guidance_action":"collect_more_runtime_evidence"'
 
+echo "[operator-path] validating secure database and mail paths"
+
+# Secure database and mail paths
 # DNS -> TLS -> Postgres operator path
 gewyvern --protocol postgres --entry query --json --summary-only >/tmp/path-postgres.json
 
@@ -112,12 +121,19 @@ expect_contains /tmp/path-postgres.json '"primary_module_kind":"database_query"'
 expect_contains /tmp/path-postgres.json '"primary_failure_basis":"missing_transition"'
 expect_contains /tmp/path-postgres.json '"operator_guidance_action":"collect_more_runtime_evidence"'
 
-# Negative-path guard: SOCKS5 auth denied should stay conservative in packaged installs
-gewyvern --protocol socks5 --entry auth-denied --json --summary-only >/tmp/path-socks5-auth-denied.json
+# DNS -> TLS -> MySQL operator path
+gewyvern --protocol mysql --entry session --json --summary-only >/tmp/path-mysql.json
 
-expect_contains /tmp/path-socks5-auth-denied.json '"primary_module_kind":"proxy_authentication"'
-expect_contains /tmp/path-socks5-auth-denied.json '"primary_failure_basis":"missing_transition"'
-expect_contains /tmp/path-socks5-auth-denied.json '"operator_guidance_action":"collect_more_runtime_evidence"'
+expect_contains /tmp/path-mysql.json '"primary_module_kind":"database_query"'
+expect_contains /tmp/path-mysql.json '"primary_failure_basis":"missing_transition"'
+expect_contains /tmp/path-mysql.json '"operator_guidance_action":"collect_more_runtime_evidence"'
+
+# DNS -> TLS -> SMTP auth operator path
+gewyvern --protocol smtp --entry auth --json --summary-only >/tmp/path-smtp-auth.json
+
+expect_contains /tmp/path-smtp-auth.json '"primary_module_kind":"authentication_exchange"'
+expect_contains /tmp/path-smtp-auth.json '"primary_failure_basis":"missing_transition"'
+expect_contains /tmp/path-smtp-auth.json '"operator_guidance_action":"collect_more_runtime_evidence"'
 
 # DNS -> SMTP operator path
 gewyvern --protocol smtp --entry session --json --summary-only >/tmp/path-smtp.json
@@ -125,6 +141,15 @@ gewyvern --protocol smtp --entry session --json --summary-only >/tmp/path-smtp.j
 expect_contains /tmp/path-smtp.json '"primary_module_kind":"mail_session"'
 expect_contains /tmp/path-smtp.json '"primary_failure_basis":"missing_transition"'
 expect_contains /tmp/path-smtp.json '"operator_guidance_action":"collect_more_runtime_evidence"'
+
+echo "[operator-path] validating conservative negative-path guard"
+
+# Negative-path guard: packaged denied demos should not over-collapse
+gewyvern --protocol socks5 --entry auth-denied --json --summary-only >/tmp/path-socks5-auth-denied.json
+
+expect_contains /tmp/path-socks5-auth-denied.json '"primary_module_kind":"proxy_authentication"'
+expect_contains /tmp/path-socks5-auth-denied.json '"primary_failure_basis":"missing_transition"'
+expect_contains /tmp/path-socks5-auth-denied.json '"operator_guidance_action":"collect_more_runtime_evidence"'
 
 echo "container operator path validation: ok"
 EOF

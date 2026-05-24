@@ -221,6 +221,14 @@ list.
 - `bash /Users/Shared/chroot/dev/gewyvern/scripts/container_runtime_validation.sh`
   Install the latest local native packages into clean Linux containers and run
   a real packaged `--serve` plus API validation path.
+- `bash /Users/Shared/chroot/dev/gewyvern/scripts/release_container_check.sh`
+  Run the current release-oriented packaged Linux validation suite from one
+  entrypoint, covering install smoke, packaged runtime validation, and the
+  packaged protocol/operator summary checks.
+- `bash /Users/Shared/chroot/dev/gewyvern/scripts/container_validation_summary.sh`
+  Run the packaged Linux container validation suite from one entrypoint,
+  covering both packaged protocol validation and packaged operator-path
+  validation.
 - `bash /Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh`
   Install the latest local native packages into clean Linux containers and
   verify packaged high-frequency protocol support across DNS, HTTP, TLS,
@@ -229,8 +237,8 @@ list.
   Install the latest local native packages into clean Linux containers and
   verify packaged operator-path chains for `DNS -> QUIC -> HTTP/3`,
   `DNS -> TLS -> HTTPS CONNECT`, `DNS -> SOCKS5 -> HTTPS CONNECT`,
-  `DNS -> TLS -> Postgres`, `DNS -> SMTP`, and a conservative `SOCKS5 auth denied`
-  negative-path guard.
+  `DNS -> TLS -> Postgres`, `DNS -> TLS -> MySQL`, `DNS -> TLS -> SMTP auth`,
+  `DNS -> SMTP`, and a conservative `SOCKS5 auth denied` negative-path guard.
 
 ## What Works In v0.10.0
 
