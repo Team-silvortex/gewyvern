@@ -1,0 +1,163 @@
+# Field Findings
+
+This note records the highest-signal findings from the current `v0.10.0`
+field-validation phase.
+
+It is intentionally short.
+
+It is not a replacement for:
+
+- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
+- [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md)
+
+Instead, it answers a narrower question:
+
+- what has already been observed in real validation work
+- what currently looks stable
+- what still looks conservative rather than strongly diagnostic
+
+## Current Stable Findings
+
+### 1. Registry Validation Is Fully Green
+
+The built-in protocol registry currently contains `90` package entries, and the
+entire scanned registry now passes:
+
+- machine-facing `gewyc envelope --json` validation
+- `gewyvern --scan-all --json --summary-only`
+
+This means the current stable protocol shelf is no longer drifting at the
+compiler/package level.
+
+### 2. Packaged Linux Protocol Support Works After Real Install
+
+Both native package families now pass packaged protocol validation inside clean
+containers:
+
+- Debian-family install via `.deb`
+- RPM-family install via `.rpm`
+
+The packaged validation path now covers:
+
+- `DNS`
+- `HTTP`
+- `TLS`
+- `HTTP/3`
+- `QUIC`
+- `SSH`
+- `SOCKS5`
+- `MySQL`
+- `PostgreSQL`
+- `SMTP`
+- `LDAP`
+- packaged `--scan-all`
+
+This matters because it confirms that installed asset lookup, protocol registry
+discovery, and packaged CLI behavior are working outside the development tree.
+
+### 3. Packaged Standalone Runtime Works In Clean Linux Containers
+
+Installed `.deb` and `.rpm` packages now pass real packaged runtime validation:
+
+- packaged `--serve`
+- packaged socket ingest
+- packaged `/health`
+- packaged `/v1/latest/summary.json`
+- packaged `/v1/latest/analysis.json`
+- packaged `/v1/latest/export.json`
+
+Malformed ingest was also exercised without killing the packaged service loop.
+
+That gives us a stronger signal than unit tests alone that the standalone
+runtime shape survives real install workflows.
+
+### 4. High-Value Operator Paths Already Look Conservative And Coherent
+
+Packaged operator-path validation in clean Linux containers now covers:
+
+- `DNS -> QUIC -> HTTP/3`
+- `DNS -> TLS -> HTTPS CONNECT`
+- `DNS -> SOCKS5 -> HTTPS CONNECT`
+- `DNS -> TLS -> Postgres`
+- `DNS -> SMTP`
+
+The current important observation is not that all of these paths land in strong
+final diagnosis.
+
+The important observation is that they land in coherent, non-wildly-drifting
+states:
+
+- DNS remains a conservative advisory path
+- TLS and HTTPS CONNECT remain healthy-but-advisory paths
+- QUIC, SOCKS5 auth, PostgreSQL query, and SMTP session remain
+  `missing_transition` paths with `collect_more_runtime_evidence`
+
+That is a good prelaunch shape for a standalone debugger: the runtime is
+preferring stable conservatism over premature collapse.
+
+## Current Conservative Findings
+
+### 1. Some “Denied” Demo Entries Do Not Yet Produce Strong Denial Semantics
+
+Current packaged and local synthetic demo validation shows that entries such as:
+
+- `socks5 auth-denied`
+- `socks5 auth-connect-denied`
+- `smtp rcpt-denied`
+- `smtp data-denied`
+
+still resolve to:
+
+- `primary_failure_basis = "missing_transition"`
+- a DNS/setup-oriented failure posture
+- `operator_guidance_action = "collect_more_runtime_evidence"`
+
+instead of a stronger denial-style diagnosis.
+
+For the current line, this is treated as a conservative result rather than a
+bug, because it avoids over-claiming on synthetic evidence that does not yet
+drive the path far enough.
+
+It does mean that these demo entries should currently be read as:
+
+- “do not overtrust strong denial semantics here yet”
+
+rather than:
+
+- “this path is already a rich negative diagnosis oracle”
+
+### 2. Packaged Negative-Path Validation Currently Focuses On Non-Overcollapse
+
+The strongest current negative-path guarantee in packaged validation is:
+
+- denial-style demo entries do not over-collapse into stronger claims when the
+  evidence is still only setup-incomplete
+
+That is useful and intentional, but it is not the same thing as saying:
+
+- every negative demo path already yields a strong, human-like final diagnosis
+
+## Practical Read Of The Current Line
+
+The current `v0.10.0` line now looks strong in these ways:
+
+- protocol/package shelf is stable
+- packaged standalone runtime works
+- packaged high-frequency protocol families work
+- packaged operator paths stay conservative and coherent
+
+The current line should still be read cautiously in these ways:
+
+- some synthetic “denied” entries are still setup-shaped rather than richly
+  denial-shaped
+- the runtime is currently more trustworthy as a conservative diagnosis engine
+  than as an aggressively collapsing one
+
+That is still a good prelaunch posture.
+
+It is much safer for first release validation than a system that appears more
+confident than its evidence really supports.
+
+For the small set of already-visible issues that should be improved after
+launch rather than treated as prelaunch blockers, see
+[docs/postlaunch-backlog.md](/Users/Shared/chroot/dev/gewyvern/docs/postlaunch-backlog.md).

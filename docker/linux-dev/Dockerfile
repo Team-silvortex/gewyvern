@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     clang \
     curl \
     dpkg-dev \
+    file \
     git \
     iproute2 \
     jq \
@@ -22,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     llvm \
     make \
     pkg-config \
+    python3 \
     rpm \
     zlib1g-dev \
  && rm -rf /var/lib/apt/lists/*

@@ -98,6 +98,12 @@ For long-lived `--serve` / API / external-engine operational behavior, see
 For the concrete `v0.10.0` field-validation matrix and local smoke entrypoint,
 see [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md).
 
+For the shorter running record of what packaged/runtime validation has already
+demonstrated, see [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md).
+
+For the small set of already-visible follow-ups that should stay out of the
+prelaunch line, see [docs/postlaunch-backlog.md](/Users/Shared/chroot/dev/gewyvern/docs/postlaunch-backlog.md).
+
 For the narrow prelaunch protocol/IR scope, see
 [docs/prelaunch-focus.md](/Users/Shared/chroot/dev/gewyvern/docs/prelaunch-focus.md).
 
@@ -207,6 +213,24 @@ list.
 - `bash /Users/Shared/chroot/dev/gewyvern/scripts/build_packages.sh --layout-only`
   Stage the Linux install tree and render DEB/RPM metadata without requiring
   host package-manager tools.
+- `bash /Users/Shared/chroot/dev/gewyvern/scripts/build_packages_in_container.sh --format all`
+  Build real `.deb` and `.rpm` artifacts inside the bundled Linux container.
+- `bash /Users/Shared/chroot/dev/gewyvern/scripts/package_install_smoke.sh`
+  Install the latest local `.deb` and `.rpm` into clean Linux containers and
+  verify the packaged binaries and assets come up correctly.
+- `bash /Users/Shared/chroot/dev/gewyvern/scripts/container_runtime_validation.sh`
+  Install the latest local native packages into clean Linux containers and run
+  a real packaged `--serve` plus API validation path.
+- `bash /Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh`
+  Install the latest local native packages into clean Linux containers and
+  verify packaged high-frequency protocol support across DNS, HTTP, TLS,
+  HTTP/3, QUIC, SSH, SOCKS5, MySQL, PostgreSQL, SMTP, LDAP, plus `--scan-all`.
+- `bash /Users/Shared/chroot/dev/gewyvern/scripts/container_operator_path_validation.sh`
+  Install the latest local native packages into clean Linux containers and
+  verify packaged operator-path chains for `DNS -> QUIC -> HTTP/3`,
+  `DNS -> TLS -> HTTPS CONNECT`, `DNS -> SOCKS5 -> HTTPS CONNECT`,
+  `DNS -> TLS -> Postgres`, `DNS -> SMTP`, and a conservative `SOCKS5 auth denied`
+  negative-path guard.
 
 ## What Works In v0.10.0
 

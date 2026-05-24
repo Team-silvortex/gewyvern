@@ -18,6 +18,9 @@ This is the bridge between:
 For the narrower release checklist, see
 [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md).
 
+For the short running record of what this validation has already shown in
+practice, see [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md).
+
 ## What Counts As Validation
 
 Validation here means:
@@ -27,6 +30,7 @@ Validation here means:
 - socket ingest behavior
 - repeated reading of `summary.json`, `analysis.json`, and target routing
 - realistic protocol mixes and failure paths
+- packaged Linux protocol behavior after real install
 
 It does not mean only unit tests or synthetic compiler checks.
 
@@ -188,6 +192,8 @@ Core things to observe:
 - bad sessions do not kill the serve loop
 - read-only API behavior remains coherent
 - degraded/external-engine failure behavior stays additive, not catastrophic
+- packaged Linux installs can pass the same standalone runtime checks inside
+  clean containers
 
 ## Initial Acceptance Rules
 
@@ -205,8 +211,11 @@ The current local smoke entry point is:
 
 - [scripts/field_validation_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/field_validation_smoke.sh)
 - [scripts/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/high_frequency_validation.sh)
+- [scripts/container_protocol_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh)
+- [scripts/container_operator_path_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_operator_path_validation.sh)
 - [scripts/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/registry_validation.sh)
 - [scripts/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/runtime_operator_validation.sh)
+- [scripts/container_runtime_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_runtime_validation.sh)
 
 It is intentionally small.
 
@@ -224,6 +233,14 @@ The high-frequency validator is the shortest repeatable check that:
 - mixed-flow regression tests still preserve conservative collapse
 - built-in operator guidance remains coherent on high-frequency standalone paths
 
+The container protocol validator is the shortest repeatable check that:
+
+- packaged protocol support still works after native install
+- high-frequency protocol families such as DNS, HTTP, TLS, HTTP/3, QUIC, SSH,
+  SOCKS5, MySQL, PostgreSQL, SMTP, and LDAP keep their expected
+  module/guidance shape in clean Linux environments
+- packaged `--scan-all` still works outside the development host
+
 The registry validator is the shortest repeatable check that:
 
 - scanned protocol packages still compile through the current path
@@ -237,6 +254,29 @@ The runtime/operator validator is the shortest repeatable check that:
 - repeated socket-fed sessions refresh the latest snapshot
 - operator-facing `summary.json`, `export.json`, and `analysis.json` stay
   readable through a real service workflow
+
+The container runtime validator is the shortest repeatable check that:
+
+- the packaged Linux runtime still works after a real install step
+- `--serve`, socket ingest, and the read-only API stay coherent in clean
+  Linux environments
+- malformed ingest does not kill the packaged service loop
+
+The container operator-path validator is the shortest repeatable check that:
+
+- packaged Linux installs preserve high-value operator-path protocol chains
+- `DNS -> QUIC -> HTTP/3` keeps a conservative handoff from name resolution to
+  transport setup to application response
+- `DNS -> TLS -> HTTPS CONNECT` keeps a conservative secure-transport /
+  tunnel-establishment posture in clean Linux environments
+- `DNS -> SOCKS5 -> HTTPS CONNECT` keeps a conservative proxy-auth /
+  tunnel-establishment posture in clean Linux environments
+- `DNS -> TLS -> Postgres` keeps a conservative secure-database /
+  query-establishment posture in clean Linux environments
+- `DNS -> SMTP` keeps its expected setup-incomplete / observe-more posture
+- current packaged denied demos such as `SOCKS5 auth denied` must not
+  over-collapse into stronger failure claims when the synthetic evidence is
+  still only a setup-incomplete path
 
 ## What This Phase Still Does Not Replace
 

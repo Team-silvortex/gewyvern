@@ -31,6 +31,10 @@ material.
   Short release-readiness checklist for the final `v0.10.0 -> v1.0.0` path.
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
   Real-world validation matrix for the `v0.10.0` line.
+- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
+  Short record of what real validation has already shown in practice.
+- [docs/postlaunch-backlog.md](/Users/Shared/chroot/dev/gewyvern/docs/postlaunch-backlog.md)
+  Small set of already-visible follow-ups that should stay out of prelaunch scope.
 - [docs/prelaunch-focus.md](/Users/Shared/chroot/dev/gewyvern/docs/prelaunch-focus.md)
   Narrow prelaunch scope: deepen common paths, avoid broad protocol or IR expansion.
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)

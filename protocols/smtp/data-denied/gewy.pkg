@@ -1,3 +1,4 @@
+name=smtp_data_denied
 version=0.10.0
 entry=main.gewy
 register.protocol=smtp

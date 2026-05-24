@@ -3,7 +3,7 @@
 
 Name:           @PACKAGE_NAME@
 Version:        @VERSION@
-Release:        @RELEASE%@DIST@
+Release:        @RELEASE@@DIST@
 Summary:        Standalone network debugging runtime and compiler tools
 License:        Proprietary
 URL:            https://example.invalid/gewyvern

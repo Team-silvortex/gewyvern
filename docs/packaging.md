@@ -91,6 +91,129 @@ and writes artifacts back into:
 
 - `/Users/Shared/chroot/dev/gewyvern/target/packages`
 
+## Container Install Smoke
+
+After building native artifacts, verify that they install cleanly in fresh
+Linux containers:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/package_install_smoke.sh
+```
+
+That smoke path:
+
+- installs the latest local `.deb` in a clean Ubuntu container
+- installs the latest local `.rpm` in a clean Fedora container
+- runs:
+  - `gewyvern --list-protocols`
+  - `gewyc /usr/share/gewyvern/dsl/http_request_path.gewy --json`
+- checks that packaged DSL and protocol assets exist under
+  `/usr/share/gewyvern`
+- checks that `gewyvern`, `gewyc`, and `gewyvern_socket_send` are present on
+  `PATH`
+
+If you only want one package family, use:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/package_install_smoke.sh --deb
+bash /Users/Shared/chroot/dev/gewyvern/scripts/package_install_smoke.sh --rpm
+```
+
+## Container Runtime Validation
+
+To go beyond install smoke and validate the packaged standalone runtime itself,
+use:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/container_runtime_validation.sh
+```
+
+That path installs the latest package into a clean Linux container and then:
+
+- starts packaged `gewyvern` in `--serve` mode
+- feeds repeated TCP and UDP sessions with packaged `gewyvern_socket_send`
+- injects a malformed line and confirms the service stays alive
+- checks `/health`, `/v1/latest/summary.json`, `/v1/latest/analysis.json`, and
+  `/v1/latest/export.json`
+
+If you only want one package family, use:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/container_runtime_validation.sh --deb
+bash /Users/Shared/chroot/dev/gewyvern/scripts/container_runtime_validation.sh --rpm
+```
+
+## Container Protocol Validation
+
+To validate packaged protocol support on a clean Linux install, use:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh
+```
+
+That path installs the latest package and then verifies:
+
+- packaged `--list-protocols`
+- high-frequency packaged protocol summaries for:
+  - DNS
+  - HTTP
+  - TLS
+  - HTTP/3
+  - QUIC
+  - SSH
+  - SOCKS5
+  - MySQL
+  - PostgreSQL
+  - SMTP
+  - LDAP
+- packaged `--scan-all --json --summary-only`
+
+If you only want one package family, use:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh --deb
+bash /Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh --rpm
+```
+
+## Container Operator-Path Validation
+
+To validate more realistic packaged operator-path chains after install, use:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/container_operator_path_validation.sh
+```
+
+That path installs the latest package and then verifies these chained protocol
+families in clean Linux environments:
+
+- `DNS -> QUIC -> HTTP/3`
+- `DNS -> TLS -> HTTPS CONNECT`
+- `DNS -> SOCKS5 -> HTTPS CONNECT`
+- `DNS -> TLS -> Postgres`
+- `DNS -> SMTP`
+- a conservative negative-path guard for `SOCKS5 auth denied`
+
+The check keeps the same machine-facing expectations as the standalone runtime:
+
+- DNS remains a conservative `name_resolution` advisory path
+- TLS and HTTPS CONNECT remain healthy-but-advisory secure transport paths
+- SOCKS5 auth remains a `missing_transition` proxy-auth path that recommends
+  collecting more runtime evidence before strong automation
+- the current packaged `SOCKS5 auth denied` demo still stays in that same
+  conservative posture instead of over-collapsing to a stronger denial claim
+- PostgreSQL query remains a `missing_transition` database path that recommends
+  collecting more runtime evidence before strong automation
+- QUIC and SMTP remain `missing_transition` paths that recommend collecting
+  more runtime evidence
+- HTTP/3 remains a healthy-but-advisory application-layer path
+
+If you only want one package family, use:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/container_operator_path_validation.sh --deb
+bash /Users/Shared/chroot/dev/gewyvern/scripts/container_operator_path_validation.sh --rpm
+```
+
 ## Notes
 
 - packaging is Linux-oriented even if the staging script is run from another

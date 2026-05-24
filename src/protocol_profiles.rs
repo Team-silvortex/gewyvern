@@ -1,6 +1,7 @@
 use std::collections::{BTreeSet, HashSet};
+use std::env;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Copy)]
 struct ProtocolEntryProfile {
@@ -23,6 +24,7 @@ struct ProtocolAlias {
 }
 
 const PROTOCOL_REGISTRY_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/protocols");
+const PACKAGED_SHARE_ROOT: &str = "/usr/share/gewyvern";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedProtocolProfile {
@@ -989,7 +991,7 @@ pub fn resolve_protocol_profile(
         .map(|item| ResolvedProtocolProfile {
             protocol: profile.name.to_string(),
             entry: item.mode.to_string(),
-            dsl_path: item.dsl_path.to_string(),
+            dsl_path: resolve_built_in_dsl_path(item.dsl_path),
         })
 }
 
@@ -1015,7 +1017,12 @@ pub fn default_protocol_scan_set_from_dir(dir: &str) -> Option<Vec<ResolvedProto
 }
 
 fn scan_protocol_registry() -> Option<Vec<RegistryManifest>> {
-    scan_protocol_registry_in(Path::new(PROTOCOL_REGISTRY_ROOT))
+    for root in protocol_registry_roots() {
+        if let Some(registry) = scan_protocol_registry_in(&root) {
+            return Some(registry);
+        }
+    }
+    None
 }
 
 fn scan_protocol_registry_in(root: &Path) -> Option<Vec<RegistryManifest>> {
@@ -1027,6 +1034,65 @@ fn scan_protocol_registry_in(root: &Path) -> Option<Vec<RegistryManifest>> {
     } else {
         Some(manifests)
     }
+}
+
+fn protocol_registry_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if let Ok(root) = env::var("GEWY_PROTOCOL_REGISTRY_ROOT") {
+        roots.push(PathBuf::from(root));
+    }
+    roots.push(PathBuf::from(PROTOCOL_REGISTRY_ROOT));
+    for share_root in packaged_share_roots() {
+        roots.push(share_root.join("protocols"));
+    }
+    dedup_paths(roots)
+}
+
+fn packaged_share_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if let Ok(root) = env::var("GEWY_SHARE_ROOT") {
+        roots.push(PathBuf::from(root));
+    }
+    roots.push(PathBuf::from(PACKAGED_SHARE_ROOT));
+    if let Ok(exe) = env::current_exe() {
+        if let Some(bin_dir) = exe.parent() {
+            if let Some(prefix) = bin_dir.parent() {
+                roots.push(prefix.join("share").join("gewyvern"));
+            }
+        }
+    }
+    dedup_paths(roots)
+}
+
+fn dedup_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut seen = BTreeSet::new();
+    let mut deduped = Vec::new();
+    for path in paths {
+        let key = path.to_string_lossy().into_owned();
+        if seen.insert(key) {
+            deduped.push(path);
+        }
+    }
+    deduped
+}
+
+fn resolve_built_in_dsl_path(raw: &str) -> String {
+    if Path::new(raw).exists() {
+        return raw.to_string();
+    }
+    let relative = raw
+        .split("/dsl/")
+        .nth(1)
+        .or_else(|| Path::new(raw).file_name().and_then(|name| name.to_str()));
+    if let Some(relative) = relative {
+        for share_root in packaged_share_roots() {
+            let candidate = share_root.join("dsl").join(relative);
+            if candidate.exists() {
+                return candidate.to_string_lossy().into_owned();
+            }
+        }
+    }
+    raw.to_string()
 }
 
 fn default_protocol_scan_set_from_registry(
@@ -1190,10 +1256,39 @@ fn split_protocol_alias(protocol: &str) -> (&str, Option<&str>) {
 
 #[cfg(test)]
 mod tests {
-    use super::{protocol_dsl_path, protocol_entries};
+    use super::{protocol_dsl_path, protocol_entries, resolve_built_in_dsl_path};
     use std::fs;
     #[cfg(target_family = "unix")]
     use std::os::unix::fs as unix_fs;
+    use std::path::PathBuf;
+
+    struct EnvGuard {
+        key: &'static str,
+        previous: Option<String>,
+    }
+
+    impl EnvGuard {
+        fn set(key: &'static str, value: String) -> Self {
+            let previous = std::env::var(key).ok();
+            unsafe {
+                std::env::set_var(key, value);
+            }
+            Self { key, previous }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            match &self.previous {
+                Some(value) => unsafe {
+                    std::env::set_var(self.key, value);
+                },
+                None => unsafe {
+                    std::env::remove_var(self.key);
+                },
+            }
+        }
+    }
 
     #[test]
     fn http_entry_aliases_resolve_to_canonical_registry_targets() {
@@ -1214,6 +1309,59 @@ mod tests {
         assert!(entries.contains(&"response".to_string()));
         assert!(!entries.contains(&"client".to_string()));
         assert!(!entries.contains(&"server".to_string()));
+    }
+
+    #[test]
+    fn built_in_dsl_path_falls_back_to_packaged_share_root() {
+        let root = std::env::temp_dir().join(format!(
+            "gewyvern-packaged-dsl-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let dsl_dir = root.join("dsl");
+        fs::create_dir_all(&dsl_dir).unwrap();
+        let file = dsl_dir.join("http_request_path.gewy");
+        fs::write(&file, "template(:http_request_path)\n").unwrap();
+        let _guard = EnvGuard::set("GEWY_SHARE_ROOT", root.to_string_lossy().into_owned());
+
+        let resolved = resolve_built_in_dsl_path("/definitely/missing/dsl/http_request_path.gewy");
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(PathBuf::from(resolved), file);
+    }
+
+    #[test]
+    fn packaged_registry_root_is_used_when_explicitly_set() {
+        let root = std::env::temp_dir().join(format!(
+            "gewyvern-packaged-protocol-registry-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let package_dir = root.join("http").join("request");
+        fs::create_dir_all(&package_dir).unwrap();
+        fs::write(
+            package_dir.join("gewy.pkg"),
+            "name=http_request\nversion=0.10.0\nentry=main.gewy\nregister.protocol=http\nregister.entry=request\nregister.default=true\n",
+        )
+        .unwrap();
+        fs::write(package_dir.join("main.gewy"), "template(:http_request)\n").unwrap();
+        let _guard = EnvGuard::set(
+            "GEWY_PROTOCOL_REGISTRY_ROOT",
+            root.to_string_lossy().into_owned(),
+        );
+
+        let resolved = protocol_dsl_path("http", Some("request"));
+        let expected = fs::canonicalize(&package_dir)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(resolved, Some(expected));
     }
 
     #[cfg(target_family = "unix")]
