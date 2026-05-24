@@ -153,35 +153,43 @@ fn run_external_analysis(
 }
 
 fn parse_external_augmentations(input: &str) -> Result<Vec<AnalysisAugmentation>, String> {
-    let inner = extract_json_array_contents(input, "augmentations")?;
-    let objects = split_top_level_json_objects(inner)?;
     let mut items = Vec::new();
-    for object in objects {
-        if items.len() >= MAX_EXTERNAL_AUGMENTATIONS {
-            return Err(format!(
-                "external output contains more than {} augmentations",
-                MAX_EXTERNAL_AUGMENTATIONS
-            ));
+    if let Some(inner) = extract_optional_json_array_contents(input, "augmentations")? {
+        let objects = split_top_level_json_objects(inner)?;
+        for object in objects {
+            if items.len() >= MAX_EXTERNAL_AUGMENTATIONS {
+                return Err(format!(
+                    "external output contains more than {} augmentations",
+                    MAX_EXTERNAL_AUGMENTATIONS
+                ));
+            }
+            items.push(AnalysisAugmentation {
+                kind: extract_required_json_string(object, "kind")?,
+                name: extract_required_json_string(object, "name")?,
+                summary: extract_required_json_string(object, "summary")?,
+                confidence: extract_required_json_string(object, "confidence")?,
+                producer_stage: extract_optional_json_string(object, "producer_stage"),
+                producer_pass: extract_optional_json_string(object, "producer_pass"),
+                data_json: extract_optional_json_value(object, "data"),
+            });
         }
-        items.push(AnalysisAugmentation {
-            kind: extract_required_json_string(object, "kind")?,
-            name: extract_required_json_string(object, "name")?,
-            summary: extract_required_json_string(object, "summary")?,
-            confidence: extract_required_json_string(object, "confidence")?,
-            producer_stage: extract_optional_json_string(object, "producer_stage"),
-            producer_pass: extract_optional_json_string(object, "producer_pass"),
-            data_json: extract_optional_json_value(object, "data"),
-        });
+    }
+    append_external_merge_hint_augmentations(&mut items, input)?;
+    if items.is_empty() {
+        return Err("missing 'augmentations' array in external output".to_string());
     }
     Ok(items)
 }
 
-fn extract_json_array_contents<'a>(input: &'a str, key: &str) -> Result<&'a str, String> {
+fn extract_optional_json_array_contents<'a>(
+    input: &'a str,
+    key: &str,
+) -> Result<Option<&'a str>, String> {
     let needle = format!("\"{}\":[", key);
-    let start = input
-        .find(&needle)
-        .ok_or_else(|| format!("missing '{}' array in external output", key))?
-        + needle.len();
+    let Some(offset) = input.find(&needle) else {
+        return Ok(None);
+    };
+    let start = offset + needle.len();
     let bytes = input.as_bytes();
     let mut depth = 1usize;
     let mut in_string = false;
@@ -204,7 +212,7 @@ fn extract_json_array_contents<'a>(input: &'a str, key: &str) -> Result<&'a str,
                 ']' => {
                     depth -= 1;
                     if depth == 0 {
-                        return Ok(&input[start..index]);
+                        return Ok(Some(&input[start..index]));
                     }
                 }
                 _ => {}
@@ -213,6 +221,90 @@ fn extract_json_array_contents<'a>(input: &'a str, key: &str) -> Result<&'a str,
         index += 1;
     }
     Err(format!("unterminated '{}' array in external output", key))
+}
+
+fn append_external_merge_hint_augmentations(
+    items: &mut Vec<AnalysisAugmentation>,
+    input: &str,
+) -> Result<(), String> {
+    if let Some(object) = extract_optional_json_value(input, "evidence_chain_enrichment") {
+        if items.len() >= MAX_EXTERNAL_AUGMENTATIONS {
+            return Err(format!(
+                "external output contains more than {} augmentations",
+                MAX_EXTERNAL_AUGMENTATIONS
+            ));
+        }
+        let summary = extract_required_json_string(&object, "summary")?;
+        let handoff_readiness = extract_optional_json_string(&object, "handoff_readiness")
+            .unwrap_or_else(|| "advisory_only".to_string());
+        let merge_hint = extract_optional_json_string(&object, "gewyvern_merge_hint")
+            .unwrap_or_else(|| "augmentations_only".to_string());
+        items.push(AnalysisAugmentation {
+            kind: "external-enrichment".into(),
+            name: "external_evidence_chain_enrichment".into(),
+            summary,
+            confidence: external_hint_confidence(&handoff_readiness).into(),
+            producer_stage: Some("external".into()),
+            producer_pass: Some("external-engine-merge-prototype".into()),
+            data_json: Some(object_with_merge_metadata(
+                &object,
+                &handoff_readiness,
+                &merge_hint,
+            )),
+        });
+    }
+    if let Some(object) = extract_optional_json_value(input, "diagnostic_opinion") {
+        if object != "null" {
+            if items.len() >= MAX_EXTERNAL_AUGMENTATIONS {
+                return Err(format!(
+                    "external output contains more than {} augmentations",
+                    MAX_EXTERNAL_AUGMENTATIONS
+                ));
+            }
+            let summary = extract_required_json_string(&object, "summary")?;
+            let handoff_readiness = extract_optional_json_string(&object, "handoff_readiness")
+                .unwrap_or_else(|| "mergeable".to_string());
+            let merge_hint = extract_optional_json_string(&object, "gewyvern_merge_hint")
+                .unwrap_or_else(|| "sidecar_only_opinion".to_string());
+            items.push(AnalysisAugmentation {
+                kind: "external-opinion".into(),
+                name: "external_diagnostic_opinion".into(),
+                summary,
+                confidence: external_hint_confidence(&handoff_readiness).into(),
+                producer_stage: Some("external".into()),
+                producer_pass: Some("external-engine-merge-prototype".into()),
+                data_json: Some(object_with_merge_metadata(
+                    &object,
+                    &handoff_readiness,
+                    &merge_hint,
+                )),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn object_with_merge_metadata(object: &str, handoff_readiness: &str, merge_hint: &str) -> String {
+    let trimmed = object.trim();
+    if !trimmed.ends_with('}') {
+        return trimmed.to_string();
+    }
+    let inner = trimmed.trim_end_matches('}');
+    format!(
+        "{}{}\"external_handoff_readiness\":\"{}\",\"external_merge_hint\":\"{}\"}}",
+        inner,
+        if inner.ends_with('{') { "" } else { "," },
+        escape_json_string(handoff_readiness),
+        escape_json_string(merge_hint)
+    )
+}
+
+fn external_hint_confidence(handoff_readiness: &str) -> &'static str {
+    match handoff_readiness {
+        "automation_worthy" => "candidate",
+        "mergeable" => "advisory",
+        _ => "advisory",
+    }
 }
 
 fn split_top_level_json_objects(input: &str) -> Result<Vec<&str>, String> {
@@ -437,7 +529,7 @@ pub(crate) fn test_guard() -> std::sync::MutexGuard<'static, ()> {
     TEST_GUARD
         .get_or_init(|| Mutex::new(()))
         .lock()
-        .expect("external analysis test guard poisoned")
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 #[cfg(test)]
@@ -468,5 +560,55 @@ mod tests {
             Err(err) => err,
         };
         assert!(err.contains("more than"));
+    }
+
+    #[test]
+    fn parse_external_augmentations_includes_merge_hint_contexts() {
+        let payload = "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_targeted_escalation\",\"summary\":\"external engine suggests targeted escalation\",\"confidence\":\"candidate\"}],\"evidence_chain_enrichment\":{\"status\":\"reinforced\",\"primary_label\":\"targeted_escalation\",\"summary\":\"reinforced evidence chain\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"augmentations_with_operator_guidance_support\"},\"diagnostic_opinion\":{\"status\":\"ready\",\"diagnosis_kind\":\"direct_protocol_failure\",\"label\":\"targeted_escalation\",\"summary\":\"direct protocol failure is now the most direct opinion\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"operator_guidance_candidate\"}}";
+        let items = parse_external_augmentations(payload).expect("payload should parse");
+        assert_eq!(items.len(), 3);
+        assert!(
+            items
+                .iter()
+                .any(|item| item.name == "external_evidence_chain_enrichment"
+                    && item.summary == "reinforced evidence chain")
+        );
+        assert!(
+            items
+                .iter()
+                .any(|item| item.name == "external_diagnostic_opinion"
+                    && item.summary == "direct protocol failure is now the most direct opinion")
+        );
+        let evidence = items
+            .iter()
+            .find(|item| item.name == "external_evidence_chain_enrichment")
+            .expect("synthetic evidence enrichment should exist");
+        assert_eq!(evidence.confidence, "candidate");
+        assert!(
+            evidence.data_json.as_deref().unwrap_or_default().contains(
+                "\"external_merge_hint\":\"augmentations_with_operator_guidance_support\""
+            )
+        );
+        let opinion = items
+            .iter()
+            .find(|item| item.name == "external_diagnostic_opinion")
+            .expect("synthetic diagnostic opinion should exist");
+        assert_eq!(opinion.confidence, "candidate");
+        assert!(
+            opinion
+                .data_json
+                .as_deref()
+                .unwrap_or_default()
+                .contains("\"external_merge_hint\":\"operator_guidance_candidate\"")
+        );
+    }
+
+    #[test]
+    fn parse_external_augmentations_accepts_merge_only_payload() {
+        let payload = "{\"evidence_chain_enrichment\":{\"status\":\"emerging\",\"primary_label\":\"network_observe_longer\",\"summary\":\"still maturing\",\"handoff_readiness\":\"advisory_only\",\"gewyvern_merge_hint\":\"augmentations_only\"}}";
+        let items = parse_external_augmentations(payload).expect("merge-only payload should parse");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "external_evidence_chain_enrichment");
+        assert_eq!(items[0].confidence, "advisory");
     }
 }

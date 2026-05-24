@@ -1410,6 +1410,8 @@ pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
     append_string_list_json(&mut json, &snapshot.suspect_modules);
     json.push_str(",\"augmentations\":");
     append_analysis_augmentations_json(&mut json, &snapshot.augmentations);
+    json.push_str(",\"external_sidecar_context\":");
+    append_external_sidecar_context_json(&mut json, snapshot);
     json.push_str(",\"process_network_profiles\":");
     json.push('[');
     append_process_network_profiles_json_from_snapshot(&mut json, snapshot);
@@ -1446,6 +1448,84 @@ fn estimate_analysis_snapshot_json_capacity(snapshot: &AnalysisSnapshot) -> usiz
         + snapshot.augmentations.len() * 160
         + snapshot.process_profiles.len() * 520
         + snapshot.protocol_flows.len() * 420
+}
+
+pub(crate) fn append_external_sidecar_context_json(json: &mut String, snapshot: &AnalysisSnapshot) {
+    json.push_str("{\"evidence_chain_enrichment\":");
+    append_external_sidecar_item_json(json, snapshot, "external_evidence_chain_enrichment");
+    json.push_str(",\"diagnostic_opinion\":");
+    append_external_sidecar_item_json(json, snapshot, "external_diagnostic_opinion");
+    json.push('}');
+}
+
+fn append_external_sidecar_item_json(
+    json: &mut String,
+    snapshot: &AnalysisSnapshot,
+    item_name: &str,
+) {
+    let Some(item) = snapshot
+        .augmentations
+        .iter()
+        .find(|item| item.name == item_name)
+    else {
+        json.push_str("null");
+        return;
+    };
+    json.push_str("{\"summary\":\"");
+    json.push_str(&item.summary);
+    json.push_str("\",\"confidence\":\"");
+    json.push_str(&item.confidence);
+    json.push_str("\",\"producer_stage\":");
+    if let Some(stage) = item.producer_stage.as_deref() {
+        json.push('"');
+        json.push_str(stage);
+        json.push('"');
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"producer_pass\":");
+    if let Some(pass) = item.producer_pass.as_deref() {
+        json.push('"');
+        json.push_str(pass);
+        json.push('"');
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"handoff_readiness\":");
+    append_optional_embedded_json_string_field(
+        json,
+        item.data_json.as_deref(),
+        "external_handoff_readiness",
+    );
+    json.push_str(",\"merge_hint\":");
+    append_optional_embedded_json_string_field(
+        json,
+        item.data_json.as_deref(),
+        "external_merge_hint",
+    );
+    json.push('}');
+}
+
+fn append_optional_embedded_json_string_field(
+    json: &mut String,
+    data_json: Option<&str>,
+    key: &str,
+) {
+    if let Some(value) = data_json.and_then(|data| extract_embedded_json_string_value(data, key)) {
+        json.push('"');
+        json.push_str(&value);
+        json.push('"');
+    } else {
+        json.push_str("null");
+    }
+}
+
+fn extract_embedded_json_string_value(input: &str, key: &str) -> Option<String> {
+    let needle = format!("\"{}\":\"", key);
+    let start = input.find(&needle)? + needle.len();
+    let rest = &input[start..];
+    let end = rest.find('"')?;
+    Some(rest[..end].to_string())
 }
 
 pub(crate) fn suspect_modules_json_from_snapshot(snapshot: &AnalysisSnapshot) -> String {

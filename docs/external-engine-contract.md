@@ -102,6 +102,20 @@ The external engine should return a JSON object with:
 
 Only the top-level `augmentations` array is required.
 
+If an external engine also wants to publish a higher-level diagnosis-partner
+surface in the same payload, `gewyvern` now tolerates these optional top-level
+objects as additive context:
+
+- `evidence_chain_enrichment`
+- `diagnostic_opinion`
+
+When present, `gewyvern` currently folds them back into synthetic external
+augmentations rather than treating them as changes to the core diagnosis spine.
+It also exposes a machine-facing `external_sidecar_context` block in
+`analysis.json`, `summary.json`, and `findings.json` so nearby consumers do not
+have to reverse-engineer augmentation internals just to understand sidecar
+handoff state.
+
 Ready-to-use examples live here:
 
 - [docs/fixtures/external_engine_input_example.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/external_engine_input_example.json)
@@ -136,6 +150,19 @@ Recommended fields for each augmentation:
 If an engine also exposes richer sidecar-native routes or summaries, those are
 best treated as companion diagnosis-partner surfaces rather than part of
 `gewyvern`'s base analysis contract.
+
+For those richer companion objects, a sidecar may also include:
+
+- `handoff_readiness`
+- `gewyvern_merge_hint`
+
+These values are not part of `gewyvern`'s narrow built-in analysis contract.
+They are a very-light collaboration hint that helps `gewyvern` decide whether a
+sidecar result is best surfaced as:
+
+- augmentation-only context
+- augmentation plus operator-guidance context
+- or a stronger sidecar-only diagnostic opinion candidate
 
 ## Producer Metadata
 

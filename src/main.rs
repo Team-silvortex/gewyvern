@@ -3920,6 +3920,17 @@ mod tests {
 
     #[cfg(target_family = "unix")]
     fn with_fake_etragon_hook<T>(output_json: &str, test: impl FnOnce() -> T) -> T {
+        struct FakeEtragonHookGuard {
+            script_path: std::path::PathBuf,
+        }
+
+        impl Drop for FakeEtragonHookGuard {
+            fn drop(&mut self) {
+                set_external_analysis_config(None);
+                let _ = fs::remove_file(&self.script_path);
+            }
+        }
+
         let _guard = test_guard();
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -3945,9 +3956,11 @@ mod tests {
             python_worker: None,
             python_bin: None,
         }));
+        let cleanup = FakeEtragonHookGuard {
+            script_path: script_path.clone(),
+        };
         let outcome = test();
-        set_external_analysis_config(None);
-        let _ = fs::remove_file(&script_path);
+        drop(cleanup);
         outcome
     }
 
@@ -4127,7 +4140,7 @@ mod tests {
     #[test]
     fn summary_and_findings_json_expose_external_augmentations() {
         with_fake_etragon_hook(
-            "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_manual_review\",\"summary\":\"external engine suggests manual review\",\"confidence\":\"candidate\",\"producer_stage\":\"candidate\",\"producer_pass\":\"fake_etragon\",\"data\":{\"module\":\"connection_establishment\"}}]}",
+            "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_manual_review\",\"summary\":\"external engine suggests manual review\",\"confidence\":\"candidate\",\"producer_stage\":\"candidate\",\"producer_pass\":\"fake_etragon\",\"data\":{\"module\":\"connection_establishment\"}}],\"evidence_chain_enrichment\":{\"status\":\"reinforced\",\"primary_label\":\"manual_review\",\"summary\":\"manual review is still the safest evidence-chain reading\",\"handoff_readiness\":\"mergeable\",\"gewyvern_merge_hint\":\"augmentations_and_guidance_context\"},\"diagnostic_opinion\":{\"status\":\"advisory\",\"diagnosis_kind\":\"manual_review_required\",\"label\":\"manual_review\",\"summary\":\"manual review remains the safest top-level opinion\",\"handoff_readiness\":\"advisory_only\",\"gewyvern_merge_hint\":\"sidecar_only_opinion\"}}",
             || {
                 let binding =
                     compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
@@ -4140,8 +4153,95 @@ mod tests {
                 let findings = findings_json("dsl_demo", &export);
                 assert!(summary.contains("\"augmentations\":["));
                 assert!(summary.contains("\"name\":\"ml_candidate_manual_review\""));
+                assert!(summary.contains("\"external_sidecar_context\":{"));
+                assert!(summary.contains("\"merge_hint\":\"augmentations_and_guidance_context\""));
                 assert!(findings.contains("\"augmentations\":["));
                 assert!(findings.contains("\"producer_pass\":\"fake_etragon\""));
+                assert!(findings.contains("\"external_sidecar_context\":{"));
+                assert!(findings.contains("\"merge_hint\":\"sidecar_only_opinion\""));
+            },
+        );
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn summary_line_and_html_surface_external_sidecar_hints() {
+        with_fake_etragon_hook(
+            "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_targeted_escalation\",\"summary\":\"external engine suggests targeted escalation\",\"confidence\":\"candidate\",\"producer_stage\":\"candidate\",\"producer_pass\":\"fake_etragon\",\"data\":{\"module\":\"http_request_response\"}}],\"evidence_chain_enrichment\":{\"status\":\"reinforced\",\"primary_label\":\"targeted_escalation\",\"summary\":\"reinforced evidence chain\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"augmentations_with_operator_guidance_support\"},\"diagnostic_opinion\":{\"status\":\"ready\",\"diagnosis_kind\":\"direct_protocol_failure\",\"label\":\"targeted_escalation\",\"summary\":\"direct protocol failure is now the most direct opinion\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"operator_guidance_candidate\"}}",
+            || {
+                let binding =
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                        .expect("http_request_path DSL should compile");
+                let export = annotate_export_trust(
+                    run_binding_demo(binding),
+                    &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+                );
+                let summary = summary_line("dsl_demo", &export);
+                let html = scan_report_html(&[("dsl_demo".to_string(), export)]);
+                assert!(summary.contains(
+                    "external_enrichment_hint=automation_worthy+augmentations_with_operator_guidance_support"
+                ));
+                assert!(summary.contains(
+                    "external_diagnostic_opinion_hint=automation_worthy+operator_guidance_candidate"
+                ));
+                assert!(html.contains("external_evidence_chain_enrichment"));
+                assert!(html.contains("handoff=automation_worthy"));
+                assert!(html.contains("merge_hint=augmentations_with_operator_guidance_support"));
+                assert!(html.contains("external_diagnostic_opinion"));
+                assert!(html.contains("merge_hint=operator_guidance_candidate"));
+            },
+        );
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn analysis_snapshot_merges_external_sidecar_context_hints() {
+        with_fake_etragon_hook(
+            "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_targeted_escalation\",\"summary\":\"external engine suggests targeted escalation\",\"confidence\":\"candidate\",\"producer_stage\":\"candidate\",\"producer_pass\":\"fake_etragon\",\"data\":{\"module\":\"http_request_response\"}}],\"evidence_chain_enrichment\":{\"status\":\"reinforced\",\"primary_label\":\"targeted_escalation\",\"summary\":\"reinforced evidence chain\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"augmentations_with_operator_guidance_support\"},\"diagnostic_opinion\":{\"status\":\"ready\",\"diagnosis_kind\":\"direct_protocol_failure\",\"label\":\"targeted_escalation\",\"summary\":\"direct protocol failure is now the most direct opinion\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"operator_guidance_candidate\"}}",
+            || {
+                let binding =
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                        .expect("http_request_path DSL should compile");
+                let export = annotate_export_trust(
+                    run_binding_demo(binding),
+                    &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+                );
+                let snapshot = analysis_snapshot(&export);
+                let json = analysis_snapshot_json(&snapshot);
+                let augmentation_names = snapshot
+                    .augmentations
+                    .iter()
+                    .map(|item| item.name.clone())
+                    .collect::<Vec<_>>();
+                assert!(
+                    snapshot
+                        .augmentations
+                        .iter()
+                        .any(|item| item.name == "external_evidence_chain_enrichment"),
+                    "missing synthetic enrichment augmentation in {:?}",
+                    augmentation_names
+                );
+                assert!(
+                    snapshot
+                        .augmentations
+                        .iter()
+                        .any(|item| item.name == "external_diagnostic_opinion"),
+                    "missing synthetic diagnostic opinion augmentation in {:?}",
+                    augmentation_names
+                );
+                assert!(json.contains("\"name\":\"external_evidence_chain_enrichment\""));
+                assert!(json.contains("\"name\":\"external_diagnostic_opinion\""));
+                assert!(json.contains(
+                    "\"external_merge_hint\":\"augmentations_with_operator_guidance_support\""
+                ));
+                assert!(json.contains("\"external_merge_hint\":\"operator_guidance_candidate\""));
+                assert!(json.contains("\"external_sidecar_context\":{"));
+                assert!(json.contains(
+                    "\"evidence_chain_enrichment\":{\"summary\":\"reinforced evidence chain\""
+                ));
+                assert!(json.contains("\"diagnostic_opinion\":{\"summary\":\"direct protocol failure is now the most direct opinion\""));
+                assert!(json.contains("\"handoff_readiness\":\"automation_worthy\""));
+                assert!(json.contains("\"merge_hint\":\"operator_guidance_candidate\""));
             },
         );
     }
@@ -9778,6 +9878,8 @@ mod tests {
 
     #[test]
     fn api_snapshot_meta_and_routes_cover_single_export() {
+        let _guard = test_guard();
+        set_external_analysis_config(None);
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
             .expect("http_request_path DSL should compile");
         let export = annotate_export_trust(
@@ -9806,6 +9908,9 @@ mod tests {
         assert!(meta.contains("\"target_names\":[\"dsl_demo\"]"));
         assert!(meta.contains("\"has_analysis_json\":true"));
         assert!(meta.contains("\"has_export_json\":true"));
+        assert!(meta.contains("\"has_external_sidecar_context\":false"));
+        assert!(meta.contains("\"has_external_evidence_chain_enrichment\":false"));
+        assert!(meta.contains("\"has_external_diagnostic_opinion\":false"));
 
         let (_, _, targets_body) = api_response_for_request("/v1/latest/targets", &snapshot);
         assert!(targets_body.contains("\"targets\":[\"dsl_demo\"]"));
@@ -9831,6 +9936,8 @@ mod tests {
 
     #[test]
     fn api_snapshot_routes_cover_scan_export() {
+        let _guard = test_guard();
+        set_external_analysis_config(None);
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
             .expect("http_request_path DSL should compile");
         let export = annotate_export_trust(
@@ -9882,6 +9989,7 @@ mod tests {
         assert_eq!(cap_status, 200);
         assert!(cap_body.contains("\"service\":\"gewyvern-api\""));
         assert!(cap_body.contains(&format!("\"version\":\"{}\"", env!("CARGO_PKG_VERSION"))));
+        assert!(cap_body.contains("\"external_sidecar_context\":true"));
 
         let (targets_status, _, targets_body) =
             api_response_for_request("/v1/latest/targets", &snapshot);
@@ -9919,6 +10027,8 @@ mod tests {
 
     #[test]
     fn api_target_list_exposes_url_safe_path_segments() {
+        let _guard = test_guard();
+        set_external_analysis_config(None);
         let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
             .expect("http_request_path DSL should compile");
         let export = annotate_export_trust(
@@ -9968,6 +10078,42 @@ mod tests {
         );
         assert_eq!(analysis_status, 200);
         assert!(analysis_body.contains("\"primary_module_kind\""));
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn api_meta_marks_external_sidecar_context_presence() {
+        with_fake_etragon_hook(
+            "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_targeted_escalation\",\"summary\":\"external engine suggests targeted escalation\",\"confidence\":\"candidate\",\"producer_stage\":\"candidate\",\"producer_pass\":\"fake_etragon\",\"data\":{\"module\":\"http_request_response\"}}],\"evidence_chain_enrichment\":{\"status\":\"reinforced\",\"primary_label\":\"targeted_escalation\",\"summary\":\"reinforced evidence chain\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"augmentations_with_operator_guidance_support\"},\"diagnostic_opinion\":{\"status\":\"ready\",\"diagnosis_kind\":\"direct_protocol_failure\",\"label\":\"targeted_escalation\",\"summary\":\"direct protocol failure is now the most direct opinion\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"operator_guidance_candidate\"}}",
+            || {
+                let binding =
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                        .expect("http_request_path DSL should compile");
+                let export = annotate_export_trust(
+                    run_binding_demo(binding),
+                    &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+                );
+                let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+                update_api_snapshot_for_single(
+                    &state,
+                    ApiRenderedTarget {
+                        name: "dsl_demo".into(),
+                        summary_text: summary_line("dsl_demo", &export),
+                        summary_json: summary_json("dsl_demo", &export),
+                        findings_json: findings_json("dsl_demo", &export),
+                        analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
+                        export_json: export.to_json(),
+                        report_json: scan_report_json(&[("dsl_demo".to_string(), export.clone())]),
+                        report_html: scan_report_html(&[("dsl_demo".to_string(), export.clone())]),
+                    },
+                );
+                let snapshot = state.lock().unwrap().clone();
+                let meta = api_snapshot_meta_json(&snapshot);
+                assert!(meta.contains("\"has_external_sidecar_context\":true"));
+                assert!(meta.contains("\"has_external_evidence_chain_enrichment\":true"));
+                assert!(meta.contains("\"has_external_diagnostic_opinion\":true"));
+            },
+        );
     }
 
     #[test]

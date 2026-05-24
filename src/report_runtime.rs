@@ -3,7 +3,54 @@ use gewyvern::http::HttpTransactionView;
 use std::fmt::Write;
 
 use super::*;
+use crate::diagnosis_runtime::append_external_sidecar_context_json;
 use crate::render_utils::*;
+
+fn external_sidecar_hint_summary(analysis: &AnalysisSnapshot) -> (String, String) {
+    let mut enrichment = "none".to_string();
+    let mut opinion = "none".to_string();
+    for item in &analysis.augmentations {
+        if item.name == "external_evidence_chain_enrichment" {
+            let handoff = item
+                .data_json
+                .as_deref()
+                .and_then(|data| extract_json_string_value(data, "external_handoff_readiness"))
+                .unwrap_or_else(|| "advisory_only".to_string());
+            let merge_hint = item
+                .data_json
+                .as_deref()
+                .and_then(|data| extract_json_string_value(data, "external_merge_hint"))
+                .unwrap_or_else(|| "augmentations_only".to_string());
+            enrichment = format!("{}+{}", handoff, merge_hint);
+        } else if item.name == "external_diagnostic_opinion" {
+            let handoff = item
+                .data_json
+                .as_deref()
+                .and_then(|data| extract_json_string_value(data, "external_handoff_readiness"))
+                .unwrap_or_else(|| "mergeable".to_string());
+            let merge_hint = item
+                .data_json
+                .as_deref()
+                .and_then(|data| extract_json_string_value(data, "external_merge_hint"))
+                .unwrap_or_else(|| "sidecar_only_opinion".to_string());
+            opinion = format!("{}+{}", handoff, merge_hint);
+        }
+    }
+    (enrichment, opinion)
+}
+
+fn extract_json_string_value(input: &str, key: &str) -> Option<String> {
+    let needle = format!("\"{}\":\"", key);
+    let start = input.find(&needle)? + needle.len();
+    let rest = &input[start..];
+    let end = rest.find('"')?;
+    Some(rest[..end].to_string())
+}
+
+fn append_external_sidecar_context_field(json: &mut String, analysis: &AnalysisSnapshot) {
+    json.push_str(",\"external_sidecar_context\":");
+    append_external_sidecar_context_json(json, analysis);
+}
 
 pub(super) fn summary_line(name: &str, export: &ExportBundle) -> String {
     let analysis = analysis_snapshot(export);
@@ -39,9 +86,10 @@ pub(super) fn summary_line_with_analysis(
     let protocol_flows = protocol_flow_summaries_text_from_snapshot(analysis);
     let process_profiles = process_network_profiles_text_from_snapshot(analysis);
     let augmentations = analysis_augmentation_names_text(&analysis.augmentations);
+    let (sidecar_enrichment, sidecar_opinion) = external_sidecar_hint_summary(analysis);
     let ingest_mode_note = ingest_mode_note_for_export(export);
     format!(
-        "{name}: {}={} ingest_mode={} ingest_mode_note={} {}={} pid_attribution_status={} operator_guidance_status={} operator_guidance_action={} operator_guidance_reason={} ambiguous={} competing_hypotheses={} augmentations={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
+        "{name}: {}={} ingest_mode={} ingest_mode_note={} {}={} pid_attribution_status={} operator_guidance_status={} operator_guidance_action={} operator_guidance_reason={} ambiguous={} competing_hypotheses={} augmentations={} external_enrichment_hint={} external_diagnostic_opinion_hint={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
         locale.label("template"),
         export.template_id,
         ingest_mode_for_export(export),
@@ -55,6 +103,8 @@ pub(super) fn summary_line_with_analysis(
         analysis.primary_process_profile_ambiguous,
         string_list_json(&analysis.competing_hypotheses),
         augmentations,
+        sidecar_enrichment,
+        sidecar_opinion,
         locale.label("fragments_loaded"),
         export.debug_summary.fragments_loaded,
         locale.label("hookpoints_failed"),
@@ -292,6 +342,7 @@ pub(super) fn summary_json_with_analysis(
     json.push_str(&protocol_flow_summaries_json_from_snapshot(analysis));
     json.push_str(",\"process_network_profiles\":");
     json.push_str(&process_network_profiles_json_from_snapshot(analysis));
+    append_external_sidecar_context_field(&mut json, analysis);
     json.push('}');
     json
 }
@@ -397,6 +448,7 @@ pub(super) fn findings_json_with_analysis(
     }
     json.push_str("],\"process_network_profiles\":");
     json.push_str(&process_network_profiles_json_from_snapshot(analysis));
+    append_external_sidecar_context_field(&mut json, analysis);
     json.push('}');
     json
 }
@@ -692,6 +744,7 @@ fn append_analysis_spine_json(json: &mut String, analysis: &AnalysisSnapshot) {
     json.push_str(&analysis.operator_guidance_summary);
     json.push_str("\",\"augmentations\":");
     append_analysis_augmentations_json(json, &analysis.augmentations);
+    append_external_sidecar_context_field(json, analysis);
 }
 
 fn estimate_scan_target_json_capacity(
@@ -883,14 +936,40 @@ fn append_scan_target_html_card(
     } else {
         for item in &analysis.augmentations {
             let producer = item.producer_pass.as_deref().unwrap_or("builtin");
-            let _ = write!(
-                augmentations,
-                "<li><span class=\"tag family-{}\">{}</span> confidence={} producer={}</li>",
-                html_escape(&item.kind),
-                html_escape(&item.name),
-                html_escape(&item.confidence),
-                html_escape(producer),
-            );
+            if matches!(
+                item.name.as_str(),
+                "external_evidence_chain_enrichment" | "external_diagnostic_opinion"
+            ) {
+                let handoff = item
+                    .data_json
+                    .as_deref()
+                    .and_then(|data| extract_json_string_value(data, "external_handoff_readiness"))
+                    .unwrap_or_else(|| "unknown".to_string());
+                let merge_hint = item
+                    .data_json
+                    .as_deref()
+                    .and_then(|data| extract_json_string_value(data, "external_merge_hint"))
+                    .unwrap_or_else(|| "unknown".to_string());
+                let _ = write!(
+                    augmentations,
+                    "<li><span class=\"tag family-{}\">{}</span> confidence={} producer={} handoff={} merge_hint={}</li>",
+                    html_escape(&item.kind),
+                    html_escape(&item.name),
+                    html_escape(&item.confidence),
+                    html_escape(producer),
+                    html_escape(&handoff),
+                    html_escape(&merge_hint),
+                );
+            } else {
+                let _ = write!(
+                    augmentations,
+                    "<li><span class=\"tag family-{}\">{}</span> confidence={} producer={}</li>",
+                    html_escape(&item.kind),
+                    html_escape(&item.name),
+                    html_escape(&item.confidence),
+                    html_escape(producer),
+                );
+            }
         }
     }
     let mut flow_lines = String::new();

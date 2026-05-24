@@ -138,6 +138,7 @@ downstream tools should treat the following fields as the stable core:
 - `competing_hypotheses`
 - `suspect_modules`
 - `augmentations`
+- `external_sidecar_context`
 - `process_network_profiles`
 - `protocol_flows`
 
@@ -154,6 +155,9 @@ downstream tools should treat the following fields as the stable core:
 - `suspect_modules`
   - additive module-level suspicion hints, not the primary contract on their
     own
+- `external_sidecar_context`
+  - the additive machine-facing summary of richer sidecar collaboration output
+    when an external diagnosis partner publishes higher-level context
 
 ### Stable Subshape: `primary_process_profile`
 
@@ -247,6 +251,28 @@ The contract expectation is:
 - `url_path`
   - ready-to-use route path for direct fetches
 
+## Additive Contract: API Meta Presence Signals
+
+For lightweight polling, `/v1/latest/meta` may also expose additive presence
+signals for richer sidecar collaboration context:
+
+- `has_external_sidecar_context`
+- `has_external_evidence_chain_enrichment`
+- `has_external_diagnostic_opinion`
+
+These fields are intended as cheap routing hints:
+
+- pollers can decide whether they need to fetch `analysis.json`
+- consumers can distinguish "no sidecar context at all" from "sidecar context
+  exists but only one collaboration surface is present"
+
+`/v1/capabilities` also declares:
+
+- `external_sidecar_context`
+
+to indicate that the running API surface knows how to publish these additive
+presence signals.
+
 ## Additive Contract: Augmentations
 
 `augmentations` are append-only.
@@ -270,6 +296,38 @@ Recommended stable subfields on each augmentation:
 Only the outer augmentation shape should be treated as stable by default.
 Pass-specific `data` internals should be treated as looser unless separately
 documented.
+
+## Additive Contract: External Sidecar Context
+
+When an external engine publishes richer diagnosis-partner output such as
+`evidence_chain_enrichment` or `diagnostic_opinion`, `gewyvern` may surface an
+additive top-level:
+
+- `external_sidecar_context`
+
+This field is intended to be easier for machine consumers to read than parsing
+augmentation internals directly.
+
+Current subshape:
+
+- `evidence_chain_enrichment`
+- `diagnostic_opinion`
+
+Each subobject may be `null` or carry:
+
+- `summary`
+- `confidence`
+- `producer_stage`
+- `producer_pass`
+- `handoff_readiness`
+- `merge_hint`
+
+Contract expectation:
+
+- the core diagnosis spine remains authoritative
+- sidecar context is additive only
+- `handoff_readiness` and `merge_hint` should be treated as collaboration hints
+  rather than replacements for built-in `operator_guidance_*`
 
 ## Explicitly Non-Contract Areas
 

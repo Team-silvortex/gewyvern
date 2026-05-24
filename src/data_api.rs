@@ -146,6 +146,17 @@ fn api_target_list_json(snapshot: &ApiSnapshot) -> String {
     json
 }
 
+fn snapshot_external_sidecar_presence(snapshot: &ApiSnapshot) -> (bool, bool, bool) {
+    let Some(body) = snapshot.analysis_json.as_deref() else {
+        return (false, false, false);
+    };
+    let has_enrichment = body.contains("\"external_sidecar_context\":{")
+        && body.contains("\"evidence_chain_enrichment\":{");
+    let has_opinion = body.contains("\"external_sidecar_context\":{")
+        && body.contains("\"diagnostic_opinion\":{");
+    (has_enrichment || has_opinion, has_enrichment, has_opinion)
+}
+
 pub fn api_response_for_request<'a>(
     path: &str,
     snapshot: &'a ApiSnapshot,
@@ -264,7 +275,7 @@ pub fn api_response_for_request<'a>(
             200,
             "application/json; charset=utf-8",
             Cow::Owned(format!(
-                "{{\"service\":\"gewyvern-api\",\"version\":{},\"latest_snapshot\":true,\"serve_required\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":{}}}",
+                "{{\"service\":\"gewyvern-api\",\"version\":{},\"latest_snapshot\":true,\"serve_required\":true,\"external_sidecar_context\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":{}}}",
                 json_string(API_VERSION),
                 API_ENDPOINTS_JSON,
             )),
@@ -534,10 +545,18 @@ fn append_api_snapshot_presence_fields_json(target: &mut String, snapshot: &ApiS
     } else {
         "false"
     });
+    let (has_sidecar_context, has_enrichment, has_opinion) =
+        snapshot_external_sidecar_presence(snapshot);
+    target.push_str(",\"has_external_sidecar_context\":");
+    target.push_str(if has_sidecar_context { "true" } else { "false" });
+    target.push_str(",\"has_external_evidence_chain_enrichment\":");
+    target.push_str(if has_enrichment { "true" } else { "false" });
+    target.push_str(",\"has_external_diagnostic_opinion\":");
+    target.push_str(if has_opinion { "true" } else { "false" });
 }
 
 fn estimate_api_snapshot_meta_capacity(snapshot: &ApiSnapshot) -> usize {
-    192 + snapshot.kind.len()
+    320 + snapshot.kind.len()
         + snapshot.name.as_ref().map_or(4, String::len)
         + snapshot.target_names.iter().map(String::len).sum::<usize>() * 3
 }
