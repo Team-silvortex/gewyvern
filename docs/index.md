@@ -33,10 +33,6 @@ material.
   Real-world validation matrix for the `v0.10.0` line.
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
   Short record of what real validation has already shown in practice.
-- [docs/postlaunch-backlog.md](/Users/Shared/chroot/dev/gewyvern/docs/postlaunch-backlog.md)
-  Small set of already-visible follow-ups that should stay out of prelaunch scope.
-- [docs/prelaunch-focus.md](/Users/Shared/chroot/dev/gewyvern/docs/prelaunch-focus.md)
-  Narrow prelaunch scope: deepen common paths, avoid broad protocol or IR expansion.
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
   High-level system map and stable architecture boundaries.
 - [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
@@ -90,6 +86,9 @@ material.
 
 - [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
   Minimal contract for append-only external analysis engines.
+- [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
+  How `gewyvern` exposes additive nearby sidecar context without surrendering
+  the core diagnosis spine.
 - [docs/collaboration-boundary.md](/Users/Shared/chroot/dev/gewyvern/docs/collaboration-boundary.md)
   Role split between `gewyvern`, `etragon`, and `leserpent`.
 - [docs/performance-baselines.md](/Users/Shared/chroot/dev/gewyvern/docs/performance-baselines.md)

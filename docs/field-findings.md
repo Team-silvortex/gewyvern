@@ -158,6 +158,49 @@ That is still a good prelaunch posture.
 It is much safer for first release validation than a system that appears more
 confident than its evidence really supports.
 
-For the small set of already-visible issues that should be improved after
-launch rather than treated as prelaunch blockers, see
-[docs/postlaunch-backlog.md](/Users/Shared/chroot/dev/gewyvern/docs/postlaunch-backlog.md).
+## Visible Postlaunch Follow-Ups
+
+These items are already visible, but they should stay out of the prelaunch
+line unless field validation shows drift rather than conservatism.
+
+### 1. Richer Negative-Path Semantics For Denied Demo Entries
+
+Observed today:
+
+- `socks5 auth-denied`
+- `socks5 auth-connect-denied`
+- `smtp rcpt-denied`
+- `smtp data-denied`
+
+currently stay in a setup-shaped conservative posture:
+
+- `primary_failure_basis = "missing_transition"`
+- DNS/setup-oriented stage selection
+- `operator_guidance_action = "collect_more_runtime_evidence"`
+
+This is not a prelaunch blocker because it avoids false strong conclusions.
+It is still worth revisiting after launch so these entries can eventually carry
+stronger denial semantics when the synthetic path genuinely drives far enough.
+
+### 2. Stronger Failure-Oriented Packaged Operator Paths
+
+Observed today:
+
+- packaged operator-path validation is strong on conservative mixed/setup paths
+- it is still thinner on richly denial-shaped packaged paths
+
+This is not a prelaunch blocker because the more important guarantee is that
+packaged installs behave coherently and do not invent overconfident conclusions.
+
+### 3. Better Separation Between Advisory Paths And Stronger Final Diagnoses
+
+Observed today:
+
+- the runtime is more trustworthy as a conservative diagnosis engine than as an
+  aggressively collapsing one
+- this is good for launch trust, but it leaves some demo paths more advisory
+  than an operator may hope
+
+That is still the right prelaunch posture. After launch, high-value protocol
+families can be revisited one by one to decide where stronger final diagnoses
+are actually justified by evidence.

@@ -4184,11 +4184,49 @@ mod tests {
                 assert!(summary.contains(
                     "external_diagnostic_opinion_hint=automation_worthy+operator_guidance_candidate"
                 ));
+                assert!(
+                    summary
+                        .contains("external_collaboration_state=automation_worthy_sidecar_opinion")
+                );
+                assert!(
+                    summary
+                        .contains("external_operator_guidance_support=operator_guidance_candidate")
+                );
                 assert!(html.contains("external_evidence_chain_enrichment"));
                 assert!(html.contains("handoff=automation_worthy"));
                 assert!(html.contains("merge_hint=augmentations_with_operator_guidance_support"));
                 assert!(html.contains("external_diagnostic_opinion"));
                 assert!(html.contains("merge_hint=operator_guidance_candidate"));
+                assert!(html.contains("External sidecar context:"));
+                assert!(html.contains("External operator-guidance support:"));
+                assert!(html.contains("automation_worthy_sidecar_opinion"));
+                assert!(html.contains("operator_guidance_candidate"));
+            },
+        );
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn summary_line_and_html_mark_advisory_only_sidecar_context() {
+        with_fake_etragon_hook(
+            "{\"augmentations\":[],\"evidence_chain_enrichment\":{\"status\":\"reinforced\",\"primary_label\":\"manual_review\",\"summary\":\"manual review is still the safest evidence-chain reading\",\"handoff_readiness\":\"advisory_only\",\"gewyvern_merge_hint\":\"augmentations_only\"},\"diagnostic_opinion\":{\"status\":\"advisory\",\"diagnosis_kind\":\"manual_review_required\",\"label\":\"manual_review\",\"summary\":\"manual review remains the safest top-level opinion\",\"handoff_readiness\":\"advisory_only\",\"gewyvern_merge_hint\":\"sidecar_only_opinion\"}}",
+            || {
+                let binding =
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                        .expect("http_request_path DSL should compile");
+                let export = annotate_export_trust(
+                    run_binding_demo(binding),
+                    &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+                );
+                let summary = summary_line("dsl_demo", &export);
+                let html = scan_report_html(&[("dsl_demo".to_string(), export)]);
+                assert!(
+                    summary.contains("external_collaboration_state=advisory_only_sidecar_context")
+                );
+                assert!(summary.contains("external_operator_guidance_support=none"));
+                assert!(html.contains("advisory_only_sidecar_context"));
+                assert!(html.contains("should not be treated as a direct merged conclusion"));
+                assert!(!html.contains("External operator-guidance support:"));
             },
         );
     }
@@ -5558,6 +5596,28 @@ mod tests {
         let report = scan_report_html(&[("scan:http:attention".to_string(), attention_export)]);
         assert!(report.contains("<details class=\"card status-attention\" open>"));
         assert!(report.contains("scan:http:attention"));
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn scan_report_html_rolls_up_sidecar_collaboration_counts() {
+        with_fake_etragon_hook(
+            "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_targeted_escalation\",\"summary\":\"external engine suggests targeted escalation\",\"confidence\":\"candidate\",\"producer_stage\":\"candidate\",\"producer_pass\":\"fake_etragon\",\"data\":{\"module\":\"http_request_response\"}}],\"evidence_chain_enrichment\":{\"status\":\"reinforced\",\"primary_label\":\"targeted_escalation\",\"summary\":\"reinforced evidence chain\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"augmentations_with_operator_guidance_support\"},\"diagnostic_opinion\":{\"status\":\"ready\",\"diagnosis_kind\":\"direct_protocol_failure\",\"label\":\"targeted_escalation\",\"summary\":\"direct protocol failure is now the most direct opinion\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"operator_guidance_candidate\"}}",
+            || {
+                let binding =
+                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                        .expect("http_request_path DSL should compile");
+                let export = annotate_export_trust(
+                    run_binding_demo(binding),
+                    &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+                );
+                let report = scan_report_html(&[
+                    ("scan:http:request".to_string(), export.clone()),
+                    ("scan:http:request-2".to_string(), export),
+                ]);
+                assert!(report.contains("automation-worthy sidecar targets:</strong> 2"));
+            },
+        );
     }
 
     #[test]
@@ -9895,6 +9955,9 @@ mod tests {
                 summary_json: summary_json("dsl_demo", &export),
                 findings_json: findings_json("dsl_demo", &export),
                 analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
+                has_external_sidecar_context: false,
+                has_external_evidence_chain_enrichment: false,
+                has_external_diagnostic_opinion: false,
                 export_json: export.to_json(),
                 report_json: scan_report_json(&[("dsl_demo".to_string(), export.clone())]),
                 report_html: scan_report_html(&[("dsl_demo".to_string(), export.clone())]),
@@ -9914,6 +9977,9 @@ mod tests {
 
         let (_, _, targets_body) = api_response_for_request("/v1/latest/targets", &snapshot);
         assert!(targets_body.contains("\"targets\":[\"dsl_demo\"]"));
+        assert!(targets_body.contains("\"has_external_sidecar_context\":false"));
+        assert!(targets_body.contains("\"has_external_evidence_chain_enrichment\":false"));
+        assert!(targets_body.contains("\"has_external_diagnostic_opinion\":false"));
 
         let (_, _, summary_body) = api_response_for_request("/v1/latest/summary.json", &snapshot);
         assert!(summary_body.contains("\"demo\":\"dsl_demo\""));
@@ -9948,15 +10014,26 @@ mod tests {
         let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
         let rendered_targets = outputs
             .iter()
-            .map(|(name, export)| ApiRenderedTarget {
-                name: name.clone(),
-                summary_text: summary_line(name, export),
-                summary_json: summary_json(name, export),
-                findings_json: findings_json(name, export),
-                analysis_json: analysis_snapshot_json(&analysis_snapshot(export)),
-                export_json: export.to_json(),
-                report_json: scan_report_json(&[(name.clone(), export.clone())]),
-                report_html: scan_report_html(&[(name.clone(), export.clone())]),
+            .map(|(name, export)| {
+                let analysis = analysis_snapshot(export);
+                let (
+                    has_external_sidecar_context,
+                    has_external_evidence_chain_enrichment,
+                    has_external_diagnostic_opinion,
+                ) = crate::diagnosis_runtime::external_sidecar_presence(&analysis);
+                ApiRenderedTarget {
+                    name: name.clone(),
+                    summary_text: summary_line(name, export),
+                    summary_json: summary_json(name, export),
+                    findings_json: findings_json(name, export),
+                    analysis_json: analysis_snapshot_json(&analysis),
+                    has_external_sidecar_context,
+                    has_external_evidence_chain_enrichment,
+                    has_external_diagnostic_opinion,
+                    export_json: export.to_json(),
+                    report_json: scan_report_json(&[(name.clone(), export.clone())]),
+                    report_html: scan_report_html(&[(name.clone(), export.clone())]),
+                }
             })
             .collect::<Vec<_>>();
         update_api_snapshot_for_scan(
@@ -10044,6 +10121,9 @@ mod tests {
                 summary_json: summary_json("scan:http request/%", &export),
                 findings_json: findings_json("scan:http request/%", &export),
                 analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
+                has_external_sidecar_context: false,
+                has_external_evidence_chain_enrichment: false,
+                has_external_diagnostic_opinion: false,
                 export_json: export.to_json(),
                 report_json: scan_report_json(&[(
                     "scan:http request/%".to_string(),
@@ -10065,6 +10145,7 @@ mod tests {
         assert!(
             targets_body.contains("\"url_path\":\"/v1/latest/targets/scan:http%20request%2F%25\"")
         );
+        assert!(targets_body.contains("\"has_external_sidecar_context\":false"));
 
         let (target_status, _, target_body) = api_response_for_request(
             "/v1/latest/targets/scan:http%20request%2F%25/summary.json",
@@ -10102,6 +10183,9 @@ mod tests {
                         summary_json: summary_json("dsl_demo", &export),
                         findings_json: findings_json("dsl_demo", &export),
                         analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
+                        has_external_sidecar_context: true,
+                        has_external_evidence_chain_enrichment: true,
+                        has_external_diagnostic_opinion: true,
                         export_json: export.to_json(),
                         report_json: scan_report_json(&[("dsl_demo".to_string(), export.clone())]),
                         report_html: scan_report_html(&[("dsl_demo".to_string(), export.clone())]),
@@ -10112,6 +10196,11 @@ mod tests {
                 assert!(meta.contains("\"has_external_sidecar_context\":true"));
                 assert!(meta.contains("\"has_external_evidence_chain_enrichment\":true"));
                 assert!(meta.contains("\"has_external_diagnostic_opinion\":true"));
+                let (_, _, targets_body) =
+                    api_response_for_request("/v1/latest/targets", &snapshot);
+                assert!(targets_body.contains("\"has_external_sidecar_context\":true"));
+                assert!(targets_body.contains("\"has_external_evidence_chain_enrichment\":true"));
+                assert!(targets_body.contains("\"has_external_diagnostic_opinion\":true"));
             },
         );
     }

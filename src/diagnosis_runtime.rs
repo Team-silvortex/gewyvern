@@ -1471,23 +1471,19 @@ fn append_external_sidecar_item_json(
         json.push_str("null");
         return;
     };
-    json.push_str("{\"summary\":\"");
-    json.push_str(&item.summary);
-    json.push_str("\",\"confidence\":\"");
-    json.push_str(&item.confidence);
-    json.push_str("\",\"producer_stage\":");
+    json.push_str("{\"summary\":");
+    append_json_string(json, &item.summary);
+    json.push_str(",\"confidence\":");
+    append_json_string(json, &item.confidence);
+    json.push_str(",\"producer_stage\":");
     if let Some(stage) = item.producer_stage.as_deref() {
-        json.push('"');
-        json.push_str(stage);
-        json.push('"');
+        append_json_string(json, stage);
     } else {
         json.push_str("null");
     }
     json.push_str(",\"producer_pass\":");
     if let Some(pass) = item.producer_pass.as_deref() {
-        json.push('"');
-        json.push_str(pass);
-        json.push('"');
+        append_json_string(json, pass);
     } else {
         json.push_str("null");
     }
@@ -1512,20 +1508,26 @@ fn append_optional_embedded_json_string_field(
     key: &str,
 ) {
     if let Some(value) = data_json.and_then(|data| extract_embedded_json_string_value(data, key)) {
-        json.push('"');
-        json.push_str(&value);
-        json.push('"');
+        append_json_string(json, &value);
     } else {
         json.push_str("null");
     }
 }
 
 fn extract_embedded_json_string_value(input: &str, key: &str) -> Option<String> {
-    let needle = format!("\"{}\":\"", key);
-    let start = input.find(&needle)? + needle.len();
-    let rest = &input[start..];
-    let end = rest.find('"')?;
-    Some(rest[..end].to_string())
+    extract_json_string_field(input, key)
+}
+
+pub(crate) fn external_sidecar_presence(snapshot: &AnalysisSnapshot) -> (bool, bool, bool) {
+    let has_enrichment = snapshot
+        .augmentations
+        .iter()
+        .any(|item| item.name == "external_evidence_chain_enrichment");
+    let has_opinion = snapshot
+        .augmentations
+        .iter()
+        .any(|item| item.name == "external_diagnostic_opinion");
+    (has_enrichment || has_opinion, has_enrichment, has_opinion)
 }
 
 pub(crate) fn suspect_modules_json_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
@@ -1541,27 +1543,23 @@ pub(crate) fn append_analysis_augmentations_json(
         if index > 0 {
             json.push(',');
         }
-        json.push_str("{\"kind\":\"");
-        json.push_str(&item.kind);
-        json.push_str("\",\"name\":\"");
-        json.push_str(&item.name);
-        json.push_str("\",\"summary\":\"");
-        json.push_str(&item.summary);
-        json.push_str("\",\"confidence\":\"");
-        json.push_str(&item.confidence);
-        json.push_str("\",\"producer_stage\":");
+        json.push_str("{\"kind\":");
+        append_json_string(json, &item.kind);
+        json.push_str(",\"name\":");
+        append_json_string(json, &item.name);
+        json.push_str(",\"summary\":");
+        append_json_string(json, &item.summary);
+        json.push_str(",\"confidence\":");
+        append_json_string(json, &item.confidence);
+        json.push_str(",\"producer_stage\":");
         if let Some(stage) = item.producer_stage.as_deref() {
-            json.push('"');
-            json.push_str(stage);
-            json.push('"');
+            append_json_string(json, stage);
         } else {
             json.push_str("null");
         }
         json.push_str(",\"producer_pass\":");
         if let Some(pass) = item.producer_pass.as_deref() {
-            json.push('"');
-            json.push_str(pass);
-            json.push('"');
+            append_json_string(json, pass);
         } else {
             json.push_str("null");
         }

@@ -251,6 +251,16 @@ The contract expectation is:
 - `url_path`
   - ready-to-use route path for direct fetches
 
+`target_refs[]` may also expose additive presence hints:
+
+- `has_external_sidecar_context`
+- `has_external_evidence_chain_enrichment`
+- `has_external_diagnostic_opinion`
+
+These flags do not change the routing contract. They are lightweight polling
+hints that help consumers choose which targets are worth deeper sidecar-aware
+fetches.
+
 ## Additive Contract: API Meta Presence Signals
 
 For lightweight polling, `/v1/latest/meta` may also expose additive presence

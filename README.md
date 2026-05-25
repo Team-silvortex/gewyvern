@@ -92,6 +92,10 @@ For the narrow machine-facing contract that downstream automation, sidecars,
 and enrich/rerank pipelines should consume, see
 [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md).
 
+For the dedicated note on how nearby sidecars such as `etragon` are surfaced
+as additive collaboration context, see
+[docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md).
+
 For long-lived `--serve` / API / external-engine operational behavior, see
 [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md).
 
@@ -101,11 +105,10 @@ see [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-vali
 For the shorter running record of what packaged/runtime validation has already
 demonstrated, see [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md).
 
-For the small set of already-visible follow-ups that should stay out of the
-prelaunch line, see [docs/postlaunch-backlog.md](/Users/Shared/chroot/dev/gewyvern/docs/postlaunch-backlog.md).
-
-For the narrow prelaunch protocol/IR scope, see
-[docs/prelaunch-focus.md](/Users/Shared/chroot/dev/gewyvern/docs/prelaunch-focus.md).
+The current narrow prelaunch protocol/IR scope now lives in
+[docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md),
+and the already-visible postlaunch follow-ups now live in
+[docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md).
 
 For protocol-registry drift specifically, use
 [scripts/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/registry_validation.sh)

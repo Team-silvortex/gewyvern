@@ -25,6 +25,9 @@ pub struct ApiSnapshot {
     pub summary_json: Option<String>,
     pub findings_json: Option<String>,
     pub analysis_json: Option<String>,
+    pub has_external_sidecar_context: bool,
+    pub has_external_evidence_chain_enrichment: bool,
+    pub has_external_diagnostic_opinion: bool,
     pub export_json: Option<String>,
     pub report_json: Option<String>,
     pub report_html: Option<String>,
@@ -37,6 +40,9 @@ pub struct ApiTargetSnapshot {
     pub summary_json: String,
     pub findings_json: String,
     pub analysis_json: String,
+    pub has_external_sidecar_context: bool,
+    pub has_external_evidence_chain_enrichment: bool,
+    pub has_external_diagnostic_opinion: bool,
     pub export_json: String,
     pub report_json: String,
     pub report_html: String,
@@ -49,6 +55,9 @@ pub struct ApiRenderedTarget {
     pub summary_json: String,
     pub findings_json: String,
     pub analysis_json: String,
+    pub has_external_sidecar_context: bool,
+    pub has_external_evidence_chain_enrichment: bool,
+    pub has_external_diagnostic_opinion: bool,
     pub export_json: String,
     pub report_json: String,
     pub report_html: String,
@@ -61,6 +70,9 @@ impl ApiRenderedTarget {
             summary_json: self.summary_json,
             findings_json: self.findings_json,
             analysis_json: self.analysis_json,
+            has_external_sidecar_context: self.has_external_sidecar_context,
+            has_external_evidence_chain_enrichment: self.has_external_evidence_chain_enrichment,
+            has_external_diagnostic_opinion: self.has_external_diagnostic_opinion,
             export_json: self.export_json,
             report_json: self.report_json,
             report_html: self.report_html,
@@ -70,6 +82,9 @@ impl ApiRenderedTarget {
 
 pub fn update_api_snapshot_for_single(state: &ApiState, rendered: ApiRenderedTarget) {
     let target_name = rendered.name.clone();
+    let has_external_sidecar_context = rendered.has_external_sidecar_context;
+    let has_external_evidence_chain_enrichment = rendered.has_external_evidence_chain_enrichment;
+    let has_external_diagnostic_opinion = rendered.has_external_diagnostic_opinion;
     let target_snapshot = rendered.clone().into_snapshot();
     let mut target_snapshots = HashMap::new();
     target_snapshots.insert(target_name.clone(), target_snapshot);
@@ -84,6 +99,9 @@ pub fn update_api_snapshot_for_single(state: &ApiState, rendered: ApiRenderedTar
         summary_json: Some(rendered.summary_json),
         findings_json: Some(rendered.findings_json),
         analysis_json: Some(rendered.analysis_json),
+        has_external_sidecar_context,
+        has_external_evidence_chain_enrichment,
+        has_external_diagnostic_opinion,
         export_json: Some(rendered.export_json),
         report_json: Some(rendered.report_json),
         report_html: Some(rendered.report_html),
@@ -102,7 +120,13 @@ pub fn update_api_snapshot_for_scan(
 ) {
     let mut target_snapshots = HashMap::new();
     let mut target_names = Vec::with_capacity(targets.len());
+    let mut has_external_sidecar_context = false;
+    let mut has_external_evidence_chain_enrichment = false;
+    let mut has_external_diagnostic_opinion = false;
     for rendered in targets {
+        has_external_sidecar_context |= rendered.has_external_sidecar_context;
+        has_external_evidence_chain_enrichment |= rendered.has_external_evidence_chain_enrichment;
+        has_external_diagnostic_opinion |= rendered.has_external_diagnostic_opinion;
         target_names.push(rendered.name.clone());
         target_snapshots.insert(rendered.name.clone(), rendered.into_snapshot());
     }
@@ -116,6 +140,9 @@ pub fn update_api_snapshot_for_scan(
         summary_text: Some(summary_text),
         summary_json: Some(summary_json),
         analysis_json: Some(analysis_json),
+        has_external_sidecar_context,
+        has_external_evidence_chain_enrichment,
+        has_external_diagnostic_opinion,
         findings_json: None,
         export_json: None,
         report_json: Some(report_json),
@@ -144,17 +171,6 @@ fn api_target_list_json(snapshot: &ApiSnapshot) -> String {
     append_string_list_json(&mut json, &snapshot.target_names);
     json.push_str(",\"path_segment_encoding\":\"percent-encoding\",\"direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\"}");
     json
-}
-
-fn snapshot_external_sidecar_presence(snapshot: &ApiSnapshot) -> (bool, bool, bool) {
-    let Some(body) = snapshot.analysis_json.as_deref() else {
-        return (false, false, false);
-    };
-    let has_enrichment = body.contains("\"external_sidecar_context\":{")
-        && body.contains("\"evidence_chain_enrichment\":{");
-    let has_opinion = body.contains("\"external_sidecar_context\":{")
-        && body.contains("\"diagnostic_opinion\":{");
-    (has_enrichment || has_opinion, has_enrichment, has_opinion)
 }
 
 pub fn api_response_for_request<'a>(
@@ -463,20 +479,40 @@ fn decode_api_target_path_segment(segment: &str) -> Result<String, &'static str>
     String::from_utf8(bytes).map_err(|_| "target path segment is not valid UTF-8")
 }
 
-fn append_api_target_refs_json(target: &mut String, target_names: &[String]) {
+fn append_api_target_refs_json(
+    target: &mut String,
+    target_names: &[String],
+    target_snapshots: &HashMap<String, ApiTargetSnapshot>,
+) {
     target.push('[');
     for (index, name) in target_names.iter().enumerate() {
         if index > 0 {
             target.push(',');
         }
         let path_segment = api_target_path_segment(name);
+        let (has_sidecar_context, has_enrichment, has_opinion) = target_snapshots
+            .get(name)
+            .map(|target| {
+                (
+                    target.has_external_sidecar_context,
+                    target.has_external_evidence_chain_enrichment,
+                    target.has_external_diagnostic_opinion,
+                )
+            })
+            .unwrap_or((false, false, false));
         target.push_str("{\"name\":");
         append_json_string(target, name);
         target.push_str(",\"path_segment\":");
         append_json_string(target, &path_segment);
         target.push_str(",\"url_path\":\"/v1/latest/targets/");
         target.push_str(&path_segment);
-        target.push_str("\"}");
+        target.push_str("\",\"has_external_sidecar_context\":");
+        target.push_str(if has_sidecar_context { "true" } else { "false" });
+        target.push_str(",\"has_external_evidence_chain_enrichment\":");
+        target.push_str(if has_enrichment { "true" } else { "false" });
+        target.push_str(",\"has_external_diagnostic_opinion\":");
+        target.push_str(if has_opinion { "true" } else { "false" });
+        target.push('}');
     }
     target.push(']');
 }
@@ -499,7 +535,7 @@ fn append_api_snapshot_index_fields_json(target: &mut String, snapshot: &ApiSnap
     target.push_str(",\"target_names\":");
     append_string_list_json(target, &snapshot.target_names);
     target.push_str(",\"target_refs\":");
-    append_api_target_refs_json(target, &snapshot.target_names);
+    append_api_target_refs_json(target, &snapshot.target_names, &snapshot.target_snapshots);
 }
 
 fn append_api_snapshot_presence_fields_json(target: &mut String, snapshot: &ApiSnapshot) {
@@ -545,14 +581,24 @@ fn append_api_snapshot_presence_fields_json(target: &mut String, snapshot: &ApiS
     } else {
         "false"
     });
-    let (has_sidecar_context, has_enrichment, has_opinion) =
-        snapshot_external_sidecar_presence(snapshot);
     target.push_str(",\"has_external_sidecar_context\":");
-    target.push_str(if has_sidecar_context { "true" } else { "false" });
+    target.push_str(if snapshot.has_external_sidecar_context {
+        "true"
+    } else {
+        "false"
+    });
     target.push_str(",\"has_external_evidence_chain_enrichment\":");
-    target.push_str(if has_enrichment { "true" } else { "false" });
+    target.push_str(if snapshot.has_external_evidence_chain_enrichment {
+        "true"
+    } else {
+        "false"
+    });
     target.push_str(",\"has_external_diagnostic_opinion\":");
-    target.push_str(if has_opinion { "true" } else { "false" });
+    target.push_str(if snapshot.has_external_diagnostic_opinion {
+        "true"
+    } else {
+        "false"
+    });
 }
 
 fn estimate_api_snapshot_meta_capacity(snapshot: &ApiSnapshot) -> usize {

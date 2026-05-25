@@ -21,6 +21,57 @@ For the narrower release checklist, see
 For the short running record of what this validation has already shown in
 practice, see [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md).
 
+## Current Prelaunch Scope
+
+Keep the `v0.10.0` field-validation line intentionally narrow.
+
+The question is not "what else could `gewyvern` support".
+
+The question is:
+
+- what most improves trust before the first stable release line
+- what should stay frozen until after that release
+
+### Do Next
+
+1. Deepen high-frequency protocol stability:
+   - `HTTP / HTTPS / TLS`
+   - `DNS`
+   - `SSH`
+   - `SOCKS5 / proxy`
+   - `MySQL / PostgreSQL`
+   - `QUIC / HTTP/3`
+2. Strengthen mixed-flow conservatism:
+   - `DNS + TLS + HTTP`
+   - `proxy auth + upstream request`
+   - `QUIC + HTTP/3`
+3. Tune built-in operator guidance only in small, standalone-useful ways:
+   - `observe_more`
+   - `manual_review`
+   - `targeted_ready`
+4. Accept only small IR improvements that reduce boilerplate or improve
+   lowering/diagnostic stability.
+
+### Do Not Expand Right Now
+
+Keep the following out of the prelaunch scope:
+
+- adding whole new protocol families for coverage alone
+- introducing new major IR layers
+- renaming the core diagnosis spine
+- widening the DSL in ways that would reactivate registry churn
+
+### Working Rule
+
+Before taking a protocol or IR change, ask:
+
+1. does this improve trust in a common operator workflow?
+2. does this reduce ambiguity or drift in an already-supported high-frequency path?
+3. can this be done without reactivating broad surface churn?
+
+If the answer is "no", it probably belongs after the prelaunch line rather than
+before it.
+
 ## What Counts As Validation
 
 Validation here means:

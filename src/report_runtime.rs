@@ -14,24 +14,24 @@ fn external_sidecar_hint_summary(analysis: &AnalysisSnapshot) -> (String, String
             let handoff = item
                 .data_json
                 .as_deref()
-                .and_then(|data| extract_json_string_value(data, "external_handoff_readiness"))
+                .and_then(|data| extract_json_string_field(data, "external_handoff_readiness"))
                 .unwrap_or_else(|| "advisory_only".to_string());
             let merge_hint = item
                 .data_json
                 .as_deref()
-                .and_then(|data| extract_json_string_value(data, "external_merge_hint"))
+                .and_then(|data| extract_json_string_field(data, "external_merge_hint"))
                 .unwrap_or_else(|| "augmentations_only".to_string());
             enrichment = format!("{}+{}", handoff, merge_hint);
         } else if item.name == "external_diagnostic_opinion" {
             let handoff = item
                 .data_json
                 .as_deref()
-                .and_then(|data| extract_json_string_value(data, "external_handoff_readiness"))
+                .and_then(|data| extract_json_string_field(data, "external_handoff_readiness"))
                 .unwrap_or_else(|| "mergeable".to_string());
             let merge_hint = item
                 .data_json
                 .as_deref()
-                .and_then(|data| extract_json_string_value(data, "external_merge_hint"))
+                .and_then(|data| extract_json_string_field(data, "external_merge_hint"))
                 .unwrap_or_else(|| "sidecar_only_opinion".to_string());
             opinion = format!("{}+{}", handoff, merge_hint);
         }
@@ -39,12 +39,101 @@ fn external_sidecar_hint_summary(analysis: &AnalysisSnapshot) -> (String, String
     (enrichment, opinion)
 }
 
-fn extract_json_string_value(input: &str, key: &str) -> Option<String> {
-    let needle = format!("\"{}\":\"", key);
-    let start = input.find(&needle)? + needle.len();
-    let rest = &input[start..];
-    let end = rest.find('"')?;
-    Some(rest[..end].to_string())
+fn external_sidecar_collaboration_note(analysis: &AnalysisSnapshot) -> Option<(String, String)> {
+    let mut enrichment_handoff = None;
+    let mut opinion_handoff = None;
+    for item in &analysis.augmentations {
+        if item.name == "external_evidence_chain_enrichment" {
+            enrichment_handoff = item
+                .data_json
+                .as_deref()
+                .and_then(|data| extract_json_string_field(data, "external_handoff_readiness"));
+        } else if item.name == "external_diagnostic_opinion" {
+            opinion_handoff = item
+                .data_json
+                .as_deref()
+                .and_then(|data| extract_json_string_field(data, "external_handoff_readiness"));
+        }
+    }
+    match opinion_handoff.as_deref() {
+        Some("automation_worthy") => Some((
+            "automation_worthy_sidecar_opinion".to_string(),
+            "external sidecar offers an automation-worthy diagnostic opinion that can be treated as strong nearby context".to_string(),
+        )),
+        Some("mergeable") => Some((
+            "mergeable_sidecar_opinion".to_string(),
+            "external sidecar offers a mergeable diagnostic opinion that can safely enrich operator-facing interpretation".to_string(),
+        )),
+        Some(_) => Some((
+            "advisory_only_sidecar_context".to_string(),
+            "external sidecar is contributing only advisory diagnostic context and should not be treated as a direct merged conclusion".to_string(),
+        )),
+        None => match enrichment_handoff.as_deref() {
+            Some("automation_worthy") | Some("mergeable") => Some((
+                "mergeable_sidecar_enrichment".to_string(),
+                "external sidecar is reinforcing the evidence chain strongly enough to be treated as mergeable context".to_string(),
+            )),
+            Some(_) => Some((
+                "advisory_only_sidecar_context".to_string(),
+                "external sidecar is contributing only advisory evidence-chain context and should remain additive".to_string(),
+            )),
+            None => None,
+        },
+    }
+}
+
+fn external_sidecar_rollup_counts(analyses: &[AnalysisSnapshot]) -> (usize, usize, usize) {
+    let mut mergeable = 0;
+    let mut automation_worthy = 0;
+    let mut advisory_only = 0;
+    for analysis in analyses {
+        if let Some((state, _)) = external_sidecar_collaboration_note(analysis) {
+            match state.as_str() {
+                "automation_worthy_sidecar_opinion" => automation_worthy += 1,
+                "mergeable_sidecar_opinion" | "mergeable_sidecar_enrichment" => mergeable += 1,
+                "advisory_only_sidecar_context" => advisory_only += 1,
+                _ => {}
+            }
+        }
+    }
+    (mergeable, automation_worthy, advisory_only)
+}
+
+fn external_operator_guidance_support_note(
+    analysis: &AnalysisSnapshot,
+) -> Option<(String, String)> {
+    let mut enrichment_merge_hint = None;
+    let mut opinion_merge_hint = None;
+    for item in &analysis.augmentations {
+        if item.name == "external_evidence_chain_enrichment" {
+            enrichment_merge_hint = item
+                .data_json
+                .as_deref()
+                .and_then(|data| extract_json_string_field(data, "external_merge_hint"));
+        } else if item.name == "external_diagnostic_opinion" {
+            opinion_merge_hint = item
+                .data_json
+                .as_deref()
+                .and_then(|data| extract_json_string_field(data, "external_merge_hint"));
+        }
+    }
+    match opinion_merge_hint.as_deref() {
+        Some("operator_guidance_candidate") => Some((
+            "operator_guidance_candidate".to_string(),
+            "external sidecar opinion is strong enough to be treated as a nearby operator-guidance candidate".to_string(),
+        )),
+        _ => match enrichment_merge_hint.as_deref() {
+            Some("augmentations_with_operator_guidance_support") => Some((
+                "guidance_supporting_enrichment".to_string(),
+                "external sidecar enrichment reinforces the current built-in operator guidance without replacing it".to_string(),
+            )),
+            Some("augmentations_and_guidance_context") => Some((
+                "guidance_context_only".to_string(),
+                "external sidecar adds operator-guidance context but should still be read as additive support only".to_string(),
+            )),
+            _ => None,
+        },
+    }
 }
 
 fn append_external_sidecar_context_field(json: &mut String, analysis: &AnalysisSnapshot) {
@@ -87,9 +176,15 @@ pub(super) fn summary_line_with_analysis(
     let process_profiles = process_network_profiles_text_from_snapshot(analysis);
     let augmentations = analysis_augmentation_names_text(&analysis.augmentations);
     let (sidecar_enrichment, sidecar_opinion) = external_sidecar_hint_summary(analysis);
+    let sidecar_collaboration_state = external_sidecar_collaboration_note(analysis)
+        .map(|(state, _)| state)
+        .unwrap_or_else(|| "none".to_string());
+    let sidecar_guidance_support = external_operator_guidance_support_note(analysis)
+        .map(|(state, _)| state)
+        .unwrap_or_else(|| "none".to_string());
     let ingest_mode_note = ingest_mode_note_for_export(export);
     format!(
-        "{name}: {}={} ingest_mode={} ingest_mode_note={} {}={} pid_attribution_status={} operator_guidance_status={} operator_guidance_action={} operator_guidance_reason={} ambiguous={} competing_hypotheses={} augmentations={} external_enrichment_hint={} external_diagnostic_opinion_hint={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
+        "{name}: {}={} ingest_mode={} ingest_mode_note={} {}={} pid_attribution_status={} operator_guidance_status={} operator_guidance_action={} operator_guidance_reason={} ambiguous={} competing_hypotheses={} augmentations={} external_enrichment_hint={} external_diagnostic_opinion_hint={} external_collaboration_state={} external_operator_guidance_support={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
         locale.label("template"),
         export.template_id,
         ingest_mode_for_export(export),
@@ -105,6 +200,8 @@ pub(super) fn summary_line_with_analysis(
         augmentations,
         sidecar_enrichment,
         sidecar_opinion,
+        sidecar_collaboration_state,
+        sidecar_guidance_support,
         locale.label("fragments_loaded"),
         export.debug_summary.fragments_loaded,
         locale.label("hookpoints_failed"),
@@ -189,6 +286,29 @@ pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
             family_summary,
             "<div class=\"pill\"><span class=\"tag family-{}\">{}</span> {}</div>",
             family, family, count
+        );
+    }
+    let (mergeable_sidecar_targets, automation_worthy_sidecar_targets, advisory_sidecar_targets) =
+        external_sidecar_rollup_counts(&analyses);
+    if mergeable_sidecar_targets > 0 {
+        let _ = write!(
+            family_summary,
+            "<div class=\"pill\"><strong>mergeable sidecar targets:</strong> {}</div>",
+            mergeable_sidecar_targets
+        );
+    }
+    if automation_worthy_sidecar_targets > 0 {
+        let _ = write!(
+            family_summary,
+            "<div class=\"pill\"><strong>automation-worthy sidecar targets:</strong> {}</div>",
+            automation_worthy_sidecar_targets
+        );
+    }
+    if advisory_sidecar_targets > 0 {
+        let _ = write!(
+            family_summary,
+            "<div class=\"pill\"><strong>advisory-only sidecar targets:</strong> {}</div>",
+            advisory_sidecar_targets
         );
     }
 
@@ -930,6 +1050,8 @@ fn append_scan_target_html_card(
     let primary_module_family = module_family_label(&analysis.primary_module_kind);
     let primary_stage_family = stage_family_label(&analysis.primary_failure_stage);
     let primary_failure_mode_family = failure_mode_family_label(&analysis.primary_failure_mode);
+    let sidecar_collaboration_note = external_sidecar_collaboration_note(analysis);
+    let sidecar_guidance_support_note = external_operator_guidance_support_note(analysis);
     let mut augmentations = String::new();
     if analysis.augmentations.is_empty() {
         augmentations.push_str("<li>none</li>");
@@ -943,12 +1065,12 @@ fn append_scan_target_html_card(
                 let handoff = item
                     .data_json
                     .as_deref()
-                    .and_then(|data| extract_json_string_value(data, "external_handoff_readiness"))
+                    .and_then(|data| extract_json_string_field(data, "external_handoff_readiness"))
                     .unwrap_or_else(|| "unknown".to_string());
                 let merge_hint = item
                     .data_json
                     .as_deref()
-                    .and_then(|data| extract_json_string_value(data, "external_merge_hint"))
+                    .and_then(|data| extract_json_string_field(data, "external_merge_hint"))
                     .unwrap_or_else(|| "unknown".to_string());
                 let _ = write!(
                     augmentations,
@@ -995,7 +1117,7 @@ fn append_scan_target_html_card(
     }
     let _ = write!(
         cards,
-        "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>mode:</strong> {} | <strong>trust:</strong> {} | <strong>pid attribution:</strong> {} | <strong>ambiguous:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><p><strong>Mode note:</strong> {}</p><p><strong>PID attribution note:</strong> {}</p><p><strong>Competing hypotheses:</strong> {}</p><h3>Process Profiles</h3><ul>{}</ul><h3>Augmentations</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
+        "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>mode:</strong> {} | <strong>trust:</strong> {} | <strong>pid attribution:</strong> {} | <strong>ambiguous:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><p><strong>Mode note:</strong> {}</p><p><strong>PID attribution note:</strong> {}</p><p><strong>Competing hypotheses:</strong> {}</p>{}{}<h3>Process Profiles</h3><ul>{}</ul><h3>Augmentations</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
         html_escape(name),
         status,
         html_escape(ingest_mode_for_export(export)),
@@ -1019,6 +1141,22 @@ fn append_scan_target_html_card(
         html_escape(ingest_mode_note),
         html_escape(pid_attribution_note),
         html_escape(&competing_hypotheses),
+        sidecar_collaboration_note
+            .as_ref()
+            .map(|(state, note)| format!(
+                "<p><strong>External sidecar context:</strong> {} ({})</p>",
+                html_escape(note),
+                html_escape(state)
+            ))
+            .unwrap_or_default(),
+        sidecar_guidance_support_note
+            .as_ref()
+            .map(|(state, note)| format!(
+                "<p><strong>External operator-guidance support:</strong> {} ({})</p>",
+                html_escape(note),
+                html_escape(state)
+            ))
+            .unwrap_or_default(),
         profiles,
         augmentations,
         flow_lines,

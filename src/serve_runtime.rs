@@ -5,6 +5,7 @@ use crate::data_api::{
     ApiRenderedTarget, ApiState, start_api_service, update_api_snapshot_for_scan,
     update_api_snapshot_for_single,
 };
+use crate::diagnosis_runtime::external_sidecar_presence;
 
 use super::{
     Cli, SocketTarget, UiLocale, analysis_snapshot, analysis_snapshot_json, annotate_export_trust,
@@ -176,6 +177,11 @@ fn emit_rendered(
     let export_json_body = export.to_json();
     let report_json_body = scan_report_json_with_analyses(&single, std::slice::from_ref(&analysis));
     let report_html_body = scan_report_html(&single);
+    let (
+        has_external_sidecar_context,
+        has_external_evidence_chain_enrichment,
+        has_external_diagnostic_opinion,
+    ) = external_sidecar_presence(&analysis);
     if let Some(state) = api_state {
         update_api_snapshot_for_single(
             state,
@@ -185,6 +191,9 @@ fn emit_rendered(
                 summary_json: summary_json_body.clone(),
                 findings_json: findings_json_body.clone(),
                 analysis_json: analysis_json_body.clone(),
+                has_external_sidecar_context,
+                has_external_evidence_chain_enrichment,
+                has_external_diagnostic_opinion,
                 export_json: export_json_body.clone(),
                 report_json: report_json_body.clone(),
                 report_html: report_html_body.clone(),
@@ -242,18 +251,28 @@ fn emit_scan_outputs(
         let targets = outputs
             .iter()
             .zip(analyses.iter())
-            .map(|((name, export), analysis)| ApiRenderedTarget {
-                name: name.clone(),
-                summary_text: summary_line_with_analysis(name, export, analysis),
-                summary_json: summary_json_with_analysis(name, export, analysis),
-                findings_json: findings_json_with_analysis(name, export, analysis),
-                analysis_json: analysis_snapshot_json(analysis),
-                export_json: export.to_json(),
-                report_json: scan_report_json_with_analyses(
-                    &[(name.clone(), export.clone())],
-                    std::slice::from_ref(analysis),
-                ),
-                report_html: scan_report_html(&[(name.clone(), export.clone())]),
+            .map(|((name, export), analysis)| {
+                let (
+                    has_external_sidecar_context,
+                    has_external_evidence_chain_enrichment,
+                    has_external_diagnostic_opinion,
+                ) = external_sidecar_presence(analysis);
+                ApiRenderedTarget {
+                    name: name.clone(),
+                    summary_text: summary_line_with_analysis(name, export, analysis),
+                    summary_json: summary_json_with_analysis(name, export, analysis),
+                    findings_json: findings_json_with_analysis(name, export, analysis),
+                    analysis_json: analysis_snapshot_json(analysis),
+                    has_external_sidecar_context,
+                    has_external_evidence_chain_enrichment,
+                    has_external_diagnostic_opinion,
+                    export_json: export.to_json(),
+                    report_json: scan_report_json_with_analyses(
+                        &[(name.clone(), export.clone())],
+                        std::slice::from_ref(analysis),
+                    ),
+                    report_html: scan_report_html(&[(name.clone(), export.clone())]),
+                }
             })
             .collect::<Vec<_>>();
         update_api_snapshot_for_scan(
