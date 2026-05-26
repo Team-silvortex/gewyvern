@@ -242,6 +242,13 @@ list.
   `DNS -> TLS -> HTTPS CONNECT`, `DNS -> SOCKS5 -> HTTPS CONNECT`,
   `DNS -> TLS -> Postgres`, `DNS -> TLS -> MySQL`, `DNS -> TLS -> SMTP auth`,
   `DNS -> SMTP`, and a conservative `SOCKS5 auth denied` negative-path guard.
+- `bash /Users/Shared/chroot/dev/gewyvern/scripts/three_module_stack_smoke.sh`
+  Build local Linux binaries for `gewyvern` and `etragon`, start two nearby
+  `gewyvern` instances in Docker, attach one resident `etragon` sidecar to one
+  runtime, then register both runtimes into a live `leserpent` control plane
+  and verify the resulting fleet summary plus one directly observed paired
+  sidecar runtime. This is the current multi-instance collaboration smoke for
+  the `gewyvern + etragon + leserpent` stack.
 
 ## What Works In v0.10.0
 
