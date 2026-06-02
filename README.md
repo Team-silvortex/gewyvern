@@ -52,7 +52,9 @@ as a visual report.
 ## Status
 
 - project version: `0.10.0`
-- stage: pre-1.0 field-validation and release-candidate line with a stabilized workspace, registry-driven protocol surface, and package-driven DSL/compiler path
+- stage: pre-`0.13.0` preparation line focused on documentation convergence,
+  security-boundary clarity, and a stabilized workspace, registry-driven
+  protocol surface, and package-driven DSL/compiler path
 - transport support: TCP + UDP
 - protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP, RADIUS, GTP-U, SMTP, SSH, SOCKS5, SIP, LDAP, SNMP, RTSP, DNS-over-TCP
 - input modes: demo facts, Unix socket, TCP socket
@@ -71,11 +73,12 @@ as a visual report.
 
 `gewyvern` is now on a deliberate release path:
 
-- `v0.10.0` is the current field-validation and release-candidate line
-- `v0.9.x` remains the completed compatibility and operational hardening line
-- `v0.10.0` is intended to be the last pre-`1.0` release
-- if the `1.0` gates are satisfied at `v0.10.0`, the project should move
-  directly to `v1.0.0`
+- `v0.10.0` remains the last fully documented validation baseline
+- `v0.13.0` is the next preparation line for release-readiness convergence
+- the current focus is documentation cleanup, security-boundary clarity, and
+  narrowing what still blocks a future stable release
+- `v1.0.0` should follow only after the `v0.13.0` preparation line closes the
+  remaining release-judgment gaps
 
 The goal is not “every protocol under the sun”. The `1.0.0` bar is that
 `gewyvern` is trustworthy enough to serve as infra for process-level network
@@ -84,8 +87,8 @@ reliable HTML/JSON reporting, and predictable operational performance.
 
 The detailed milestone plan lives in [ROADMAP.md](/Users/Shared/chroot/dev/gewyvern/ROADMAP.md).
 
-For the shorter release-readiness checklist that turns that roadmap into a
-practical `v0.10.0 -> v1.0.0` gate, see
+For the shorter release-readiness checklist that turns that roadmap into the
+current pre-`1.0` preparation gate, see
 [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md).
 
 For the narrow machine-facing contract that downstream automation, sidecars,
@@ -99,7 +102,11 @@ as additive collaboration context, see
 For long-lived `--serve` / API / external-engine operational behavior, see
 [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md).
 
-For the concrete `v0.10.0` field-validation matrix and local smoke entrypoint,
+For the dedicated note on standalone runtime boundaries, exposure posture, and
+what `gewyvern` should not be treated as before `v0.13.0`, see
+[docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md).
+
+For the concrete field-validation matrix and local smoke entrypoint,
 see [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md).
 
 For the shorter running record of what packaged/runtime validation has already
@@ -250,7 +257,7 @@ list.
   sidecar runtime. This is the current multi-instance collaboration smoke for
   the `gewyvern + etragon + leserpent` stack.
 
-## What Works In v0.10.0
+## What Works In The Current Pre-1.0 Line
 
 - Fragment registry, attach planning, and attach reporting
 - TDD-first runtime and rule specs
@@ -538,8 +545,10 @@ Main commands:
 - `cargo test benchmark_scan_report_html_large_protocol_flow_export -- --ignored --nocapture`
 - `cargo test benchmark_http_transactions_json_large_view -- --ignored --nocapture`
 - `cargo test benchmark_http_transactions_text_large_view -- --ignored --nocapture`
+- `cargo test benchmark_gewyc_ -- --ignored --nocapture`
 - `bash scripts/benchmark_summary.sh`
 - `bash scripts/benchmark_summary.sh 3 benchmark_scan_report_`
+- `bash scripts/benchmark_summary.sh 3 benchmark_gewyc_`
 
 `gewyc stages` now includes a validation summary for payload-byte support:
 
@@ -581,8 +590,8 @@ for each benchmark line it sees.
 
 Current local reference medians are tracked in
 [performance-baselines.md](/Users/Shared/chroot/dev/gewyvern/docs/performance-baselines.md).
-That page also serves as the current pre-`1.0` release-candidate acceptance
-baseline for the main hot paths.
+That page also serves as the current pre-`1.0` acceptance baseline for the
+main hot paths.
 
 ## Quick Start
 
@@ -1011,13 +1020,12 @@ cargo linux-smoke
 - [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
-- [docs/collaboration-boundary.md](/Users/Shared/chroot/dev/gewyvern/docs/collaboration-boundary.md)
 
 ## Near-Term Direction
 
-The next meaningful step after `v0.10.0` is not only “more protocol branches”.
+The next meaningful step is not only “more protocol branches”.
 It is continuing to make the DSL and IR more explicit, so protocol behavior is
 described as program-network-module structure rather than as a pile of
-protocol-specific special cases, while steadily closing the remaining gaps on
-the path to `v1.0.0`. The concrete release path is tracked in
+protocol-specific special cases, while steadily closing the remaining gaps in
+the `v0.13.0` preparation line and beyond. The concrete release path is tracked in
 [ROADMAP.md](/Users/Shared/chroot/dev/gewyvern/ROADMAP.md).

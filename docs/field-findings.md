@@ -1,6 +1,6 @@
 # Field Findings
 
-This note records the highest-signal findings from the current `v0.10.0`
+This note records the highest-signal findings from the current pre-`1.0`
 field-validation phase.
 
 It is intentionally short.
@@ -139,7 +139,7 @@ That is useful and intentional, but it is not the same thing as saying:
 
 ## Practical Read Of The Current Line
 
-The current `v0.10.0` line now looks strong in these ways:
+The current pre-`1.0` line now looks strong in these ways:
 
 - protocol/package shelf is stable
 - packaged standalone runtime works

@@ -37,6 +37,35 @@ A sidecar may contribute:
 These are treated as collaboration context, not as replacements for the
 built-in diagnosis spine.
 
+## Broader Stack Boundary
+
+The nearby-sidecar story also sits inside a broader three-part stack:
+
+- `gewyvern`
+  - single-runtime authority for facts, protocol/runtime analysis, and the
+    conservative diagnosis spine
+- `etragon`
+  - near-runtime diagnosis partner that enriches evidence chains and may emit a
+    more direct `diagnostic_opinion` only when its learned state is stable
+- `leserpent`
+  - multi-instance control plane above both, responsible for orchestration,
+    policy, UI, and fleet browsing
+
+The intended relationship remains:
+
+```text
+etragon <-> gewyvern
+leserpent -> many gewyvern instances
+leserpent -> optional etragon services
+```
+
+That boundary matters because:
+
+- `gewyvern` should remain the source of runtime truth
+- `etragon` should remain additive and nearby, not become the orchestrator
+- `leserpent` may consume outputs from both, but should not collapse their
+  roles together
+
 ## Merge Posture
 
 When a sidecar returns richer top-level context, `gewyvern` currently:

@@ -3,8 +3,8 @@
 This note describes the smallest useful contract between `gewyvern` and an
 external analysis engine.
 
-For the broader role split between `gewyvern`, `etragon`, and `leserpent`, see
-[docs/collaboration-boundary.md](/Users/Shared/chroot/dev/gewyvern/docs/collaboration-boundary.md).
+For the broader nearby-sidecar and stack boundary note, see
+[docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md).
 
 For the broader surface contract note, including which CLI flags and analysis
 fields are current contract candidates for downstream use, see

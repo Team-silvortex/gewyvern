@@ -7,6 +7,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::diagnosis_runtime::{AnalysisAugmentation, AnalysisSnapshot};
+use crate::render_utils::{append_json_string, extract_json_string_field};
 
 const EXTERNAL_ENGINE_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_EXTERNAL_ENGINE_STDOUT_BYTES: usize = 1024 * 1024;
@@ -34,18 +35,59 @@ struct ExternalAnalysisState {
     cache_order: VecDeque<SnapshotCacheKey>,
 }
 
+#[cfg(test)]
+thread_local! {
+    static TEST_EXTERNAL_ANALYSIS_CONFIG: std::cell::RefCell<Option<ExternalAnalysisConfig>> =
+        const { std::cell::RefCell::new(None) };
+}
+
 fn state() -> &'static Mutex<ExternalAnalysisState> {
     static STATE: OnceLock<Mutex<ExternalAnalysisState>> = OnceLock::new();
     STATE.get_or_init(|| Mutex::new(ExternalAnalysisState::default()))
 }
 
 pub(crate) fn set_external_analysis_config(config: Option<ExternalAnalysisConfig>) {
+    #[cfg(test)]
+    {
+        TEST_EXTERNAL_ANALYSIS_CONFIG.with(|slot| {
+            *slot.borrow_mut() = config;
+        });
+        return;
+    }
+
+    #[allow(unreachable_code)]
+    {
     let mut guard = state().lock().expect("external analysis mutex poisoned");
     guard.config = config;
     guard.cache.clear();
+    guard.cache_order.clear();
+    }
 }
 
 pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, snapshot_json: &str) {
+    #[cfg(test)]
+    {
+        let config = TEST_EXTERNAL_ANALYSIS_CONFIG.with(|slot| slot.borrow().clone());
+        let Some(config) = config else {
+            return;
+        };
+        let items = run_external_analysis(&config, snapshot_json).unwrap_or_else(|err| {
+            vec![AnalysisAugmentation {
+                kind: "external-engine".into(),
+                name: "external_engine_failed".into(),
+                summary: "external analysis engine failed; keeping built-in analysis only".into(),
+                confidence: "advisory".into(),
+                producer_stage: Some("external".into()),
+                producer_pass: Some("external-engine-hook".into()),
+                data_json: Some(single_json_string_field("message", &err)),
+            }]
+        });
+        snapshot.augmentations.extend(items);
+        return;
+    }
+
+    #[allow(unreachable_code)]
+    {
     let cache_key = snapshot_cache_key(snapshot_json);
     let cached = {
         let guard = state().lock().expect("external analysis mutex poisoned");
@@ -65,7 +107,7 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
                     confidence: "advisory".into(),
                     producer_stage: Some("external".into()),
                     producer_pass: Some("external-engine-hook".into()),
-                    data_json: Some(format!("{{\"message\":\"{}\"}}", escape_json_string(&err))),
+                    data_json: Some(single_json_string_field("message", &err)),
                 }]
             });
             let mut guard = state().lock().expect("external analysis mutex poisoned");
@@ -82,6 +124,7 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
         }
     };
     snapshot.augmentations.extend(cached);
+    }
 }
 
 fn run_external_analysis(
@@ -362,11 +405,7 @@ fn extract_required_json_string(input: &str, key: &str) -> Result<String, String
 }
 
 fn extract_optional_json_string(input: &str, key: &str) -> Option<String> {
-    let needle = format!("\"{}\":\"", key);
-    let start = input.find(&needle)? + needle.len();
-    let rest = &input[start..];
-    let end = rest.find('"')?;
-    Some(rest[..end].to_string())
+    extract_json_string_field(input, key)
 }
 
 fn extract_optional_json_value(input: &str, key: &str) -> Option<String> {
@@ -453,7 +492,23 @@ fn consume_json_value(input: &str) -> Option<usize> {
 }
 
 fn escape_json_string(input: &str) -> String {
-    input.replace('\\', "\\\\").replace('"', "\\\"")
+    let mut escaped = String::new();
+    append_json_string(&mut escaped, input);
+    escaped
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .unwrap_or(escaped.as_str())
+        .to_string()
+}
+
+fn single_json_string_field(key: &str, value: &str) -> String {
+    let mut json = String::new();
+    json.push('{');
+    append_json_string(&mut json, key);
+    json.push(':');
+    append_json_string(&mut json, value);
+    json.push('}');
+    json
 }
 
 fn snapshot_cache_key(snapshot_json: &str) -> SnapshotCacheKey {
@@ -610,5 +665,14 @@ mod tests {
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name, "external_evidence_chain_enrichment");
         assert_eq!(items[0].confidence, "advisory");
+    }
+
+    #[test]
+    fn parse_external_augmentations_decodes_escaped_strings() {
+        let payload = r#"{"augmentations":[{"kind":"ml-candidate","name":"quoted","summary":"sidecar said \"wait more\"","confidence":"candidate","producer_stage":"candidate","producer_pass":"worker\\runner"}]}"#;
+        let items = parse_external_augmentations(payload).expect("escaped strings should parse");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].summary, "sidecar said \"wait more\"");
+        assert_eq!(items[0].producer_pass.as_deref(), Some("worker\\runner"));
     }
 }

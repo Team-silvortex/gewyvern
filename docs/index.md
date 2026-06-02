@@ -28,11 +28,15 @@ material.
 ## Core Docs
 
 - [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md)
-  Short release-readiness checklist for the final `v0.10.0 -> v1.0.0` path.
+  Short release-readiness checklist for the current pre-`1.0` preparation
+  path.
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
-  Real-world validation matrix for the `v0.10.0` line.
+  Real-world validation matrix for the current pre-`1.0` line.
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
   Short record of what real validation has already shown in practice.
+- [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
+  Standalone security boundary, ingest trust posture, and what `gewyvern`
+  should not be treated as before the `v0.13.0` preparation line closes.
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
   High-level system map and stable architecture boundaries.
 - [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
@@ -89,8 +93,6 @@ material.
 - [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
   How `gewyvern` exposes additive nearby sidecar context without surrendering
   the core diagnosis spine.
-- [docs/collaboration-boundary.md](/Users/Shared/chroot/dev/gewyvern/docs/collaboration-boundary.md)
-  Role split between `gewyvern`, `etragon`, and `leserpent`.
 - [docs/performance-baselines.md](/Users/Shared/chroot/dev/gewyvern/docs/performance-baselines.md)
   Current ignored-benchmark medians and comparison workflow.
 - [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)

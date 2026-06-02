@@ -39,6 +39,14 @@ The hot paths that matter most are:
 - `benchmark_scan_report_text_large_protocol_flow_export`
 - `benchmark_scan_report_html_large_protocol_flow_export`
 
+For `gewylang` / `gewyc`, the first useful compiler-facing benchmark family is:
+
+- `benchmark_gewyc_binding_report_udp_process_debug`
+- `benchmark_gewyc_frontend_report_udp_process_debug`
+- `benchmark_gewyc_explain_report_udp_process_debug`
+- `benchmark_gewyc_envelope_report_udp_process_debug`
+- `benchmark_gewyc_lockfile_protocol_publish_package`
+
 The expected workflow before calling a release candidate acceptable is:
 
 1. run the targeted benchmark with `scripts/benchmark_summary.sh`
@@ -75,4 +83,5 @@ bash scripts/benchmark_summary.sh 3 benchmark_analysis_snapshot_large_protocol_f
 bash scripts/benchmark_summary.sh 3 benchmark_scan_report_
 bash scripts/benchmark_summary.sh 3 benchmark_findings_json_large_protocol_flow_export
 bash scripts/benchmark_summary.sh 3 benchmark_http_transactions_
+bash scripts/benchmark_summary.sh 3 benchmark_gewyc_
 ```

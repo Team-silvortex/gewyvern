@@ -643,7 +643,18 @@ fn handle_api_client(mut stream: TcpStream, state: ApiState) {
     };
     let request = String::from_utf8_lossy(&buffer[..bytes_read]);
     let first_line = request.lines().next().unwrap_or_default();
-    let path = first_line.split_whitespace().nth(1).unwrap_or("/health");
+    let mut parts = first_line.split_whitespace();
+    let method = parts.next().unwrap_or_default();
+    let path = parts.next().unwrap_or("/health");
+    if method != "GET" {
+        let _ = write_http_response(
+            &mut stream,
+            405,
+            "application/json; charset=utf-8",
+            "{\"error\":\"method_not_allowed\",\"allowed\":\"GET\"}",
+        );
+        return;
+    }
     let snapshot = {
         let guard = state.lock().expect("api snapshot mutex poisoned");
         guard.clone()

@@ -5,10 +5,12 @@ This roadmap treats `v1.0.0` as an operational trust milestone, not as a
 
 The working intention is:
 
-- current line: `v0.10.0`
-- pre-1.0 stabilization line: `v0.9.x` through `v0.10.0`
-- decision point: if `v0.10.0` satisfies the `1.0` gates, release `v1.0.0`
-  directly after validation
+- last fully validated baseline: `v0.10.0`
+- next preparation line: `v0.13.0`
+- current pre-1.0 work: converge documentation, security posture, and release
+  judgment rather than widen surfaces
+- later decision point: if the `v0.13.0` line satisfies the `1.0` gates,
+  release `v1.0.0` after deliberate review
 
 ## 1.0 Definition
 
@@ -89,7 +91,7 @@ Exit criteria:
 - docs accurately describe the real operational behavior of the system
 - remaining work is mostly polish, reliability, and acceptance validation
 
-## v0.10.0 (current)
+## v0.10.0 (completed baseline)
 
 Focus: final pre-1.0 field validation and release-candidate discipline.
 
@@ -106,6 +108,28 @@ Exit criteria:
 - all `1.0` gates are met
 - no known critical schema, runtime, or diagnosis blockers remain
 - operators can reliably use the tool without repository-specific context
+
+## v0.13.0 (current preparation line)
+
+Focus: converge the pre-`1.0` story without pretending the project is already
+at final release judgment.
+
+- tighten and simplify documentation entry points
+- make standalone security/resource boundaries explicit
+- keep release-readiness criteria honest and current
+- continue fixing real safety or contract gaps before widening scope again
+- preserve the conservative standalone debugger posture while collaboration
+  layers above it continue to mature
+
+Exit criteria:
+
+- README, roadmap, and docs index no longer describe `v0.10.0` as the current
+  line
+- standalone runtime exposure, ingest trust, and extensibility boundaries are
+  documented in one coherent place
+- no obvious doc/runtime contradictions remain around service shape or trust
+  semantics
+- remaining work before `v1.0.0` is release judgment, not version-story drift
 
 ## 1.0 Gates
 

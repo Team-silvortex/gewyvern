@@ -1,7 +1,7 @@
 # Field Validation
 
-This note defines the practical field-validation phase for `gewyvern`
-`v0.10.0`.
+This note defines the practical field-validation phase for the current
+pre-`1.0` line.
 
 The goal is simple:
 
@@ -23,7 +23,7 @@ practice, see [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/fi
 
 ## Current Prelaunch Scope
 
-Keep the `v0.10.0` field-validation line intentionally narrow.
+Keep the current pre-`1.0` field-validation line intentionally narrow.
 
 The question is not "what else could `gewyvern` support".
 
@@ -359,5 +359,6 @@ This note does not replace:
 - real operator feedback
 - later multi-project collaboration validation with `etragon` and `leserpent`
 
-It exists so `v0.10.0` has a concrete "start validating for real" shelf rather
+It exists so the current pre-`1.0` line has a concrete "start validating for
+real" shelf rather
 than only architecture cleanup.

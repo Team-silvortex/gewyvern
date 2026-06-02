@@ -495,6 +495,7 @@ mod tests {
         render_explain_report_with_options, render_frontend_report,
         render_frontend_report_with_focus, render_frontend_report_with_options,
     };
+    use std::time::Instant;
 
     #[test]
     fn parse_cli_defaults_to_compile_command() {
@@ -967,5 +968,105 @@ mod tests {
         assert!(lock.contains("name=lock_demo"));
         assert!(lock.contains("source.local="));
         assert!(lock.contains("dep.std="));
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_gewyc_binding_report_udp_process_debug() {
+        let path = "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy";
+        let start = Instant::now();
+        let mut total_rules = 0usize;
+        for _ in 0..200 {
+            let report = compile_binding_report_file(path).unwrap();
+            total_rules += report
+                .program_model
+                .as_ref()
+                .map(|model| model.rules)
+                .unwrap_or(0);
+        }
+        let elapsed = start.elapsed();
+        assert!(total_rules > 0);
+        eprintln!(
+            "benchmark_gewyc_binding_report_udp_process_debug: iterations=200 total_rules={} elapsed_ms={:.3}",
+            total_rules,
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_gewyc_frontend_report_udp_process_debug() {
+        let path = "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy";
+        let start = Instant::now();
+        let mut total_functions = 0usize;
+        for _ in 0..200 {
+            let report = compile_frontend_report_file(path).unwrap();
+            total_functions += report.function_count;
+        }
+        let elapsed = start.elapsed();
+        assert!(total_functions > 0);
+        eprintln!(
+            "benchmark_gewyc_frontend_report_udp_process_debug: iterations=200 total_functions={} elapsed_ms={:.3}",
+            total_functions,
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_gewyc_explain_report_udp_process_debug() {
+        let path = "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy";
+        let start = Instant::now();
+        let mut total_findings = 0usize;
+        for _ in 0..100 {
+            let report = compile_explain_report_file(path).unwrap();
+            total_findings += report.findings.findings.len();
+        }
+        let elapsed = start.elapsed();
+        eprintln!(
+            "benchmark_gewyc_explain_report_udp_process_debug: iterations=100 total_findings={} elapsed_ms={:.3}",
+            total_findings,
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_gewyc_envelope_report_udp_process_debug() {
+        let path = "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy";
+        let start = Instant::now();
+        let mut total_stage_count = 0usize;
+        for _ in 0..100 {
+            let report = compile_envelope_file(path).unwrap();
+            total_stage_count += report.stages.parse.ok as usize;
+            total_stage_count += report.stages.validation.ok as usize;
+            total_stage_count += report.stages.diagnostics.ok as usize;
+        }
+        let elapsed = start.elapsed();
+        assert!(total_stage_count > 0);
+        eprintln!(
+            "benchmark_gewyc_envelope_report_udp_process_debug: iterations=100 stage_flags={} elapsed_ms={:.3}",
+            total_stage_count,
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+
+    #[test]
+    #[ignore = "benchmark"]
+    fn benchmark_gewyc_lockfile_protocol_publish_package() {
+        let root = "/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish";
+        let start = Instant::now();
+        let mut total_len = 0usize;
+        for _ in 0..100 {
+            let lock = gewyvern::dsl::build_lockfile(root).unwrap();
+            total_len += lock.len();
+        }
+        let elapsed = start.elapsed();
+        assert!(total_len > 0);
+        eprintln!(
+            "benchmark_gewyc_lockfile_protocol_publish_package: iterations=100 total_len={} elapsed_ms={:.3}",
+            total_len,
+            elapsed.as_secs_f64() * 1000.0
+        );
     }
 }
