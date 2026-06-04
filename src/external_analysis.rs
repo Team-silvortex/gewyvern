@@ -60,10 +60,10 @@ pub(crate) fn set_external_analysis_config(config: Option<ExternalAnalysisConfig
 
     #[allow(unreachable_code)]
     {
-    let mut guard = state().lock().expect("external analysis mutex poisoned");
-    guard.config = config;
-    guard.cache.clear();
-    guard.cache_order.clear();
+        let mut guard = state().lock().expect("external analysis mutex poisoned");
+        guard.config = config;
+        guard.cache.clear();
+        guard.cache_order.clear();
     }
 }
 
@@ -91,42 +91,42 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
 
     #[allow(unreachable_code)]
     {
-    let cache_key = snapshot_cache_key(snapshot_json);
-    let cached = {
-        let guard = state().lock().expect("external analysis mutex poisoned");
-        let Some(config) = guard.config.clone() else {
-            return;
-        };
-        if let Some(items) = guard.cache.get(&cache_key) {
-            items.clone()
-        } else {
-            drop(guard);
-            let items = run_external_analysis(&config, snapshot_json).unwrap_or_else(|err| {
-                vec![AnalysisAugmentation {
-                    kind: "external-engine".into(),
-                    name: "external_engine_failed".into(),
-                    summary: "external analysis engine failed; keeping built-in analysis only"
-                        .into(),
-                    confidence: "advisory".into(),
-                    producer_stage: Some("external".into()),
-                    producer_pass: Some("external-engine-hook".into()),
-                    data_json: Some(single_json_string_field("message", &err)),
-                }]
-            });
-            let mut guard = state().lock().expect("external analysis mutex poisoned");
-            if !guard.cache.contains_key(&cache_key) {
-                guard.cache_order.push_back(cache_key);
-            }
-            guard.cache.insert(cache_key, items.clone());
-            while guard.cache_order.len() > MAX_EXTERNAL_CACHE_ENTRIES {
-                if let Some(evicted) = guard.cache_order.pop_front() {
-                    guard.cache.remove(&evicted);
+        let cache_key = snapshot_cache_key(snapshot_json);
+        let cached = {
+            let guard = state().lock().expect("external analysis mutex poisoned");
+            let Some(config) = guard.config.clone() else {
+                return;
+            };
+            if let Some(items) = guard.cache.get(&cache_key) {
+                items.clone()
+            } else {
+                drop(guard);
+                let items = run_external_analysis(&config, snapshot_json).unwrap_or_else(|err| {
+                    vec![AnalysisAugmentation {
+                        kind: "external-engine".into(),
+                        name: "external_engine_failed".into(),
+                        summary: "external analysis engine failed; keeping built-in analysis only"
+                            .into(),
+                        confidence: "advisory".into(),
+                        producer_stage: Some("external".into()),
+                        producer_pass: Some("external-engine-hook".into()),
+                        data_json: Some(single_json_string_field("message", &err)),
+                    }]
+                });
+                let mut guard = state().lock().expect("external analysis mutex poisoned");
+                if !guard.cache.contains_key(&cache_key) {
+                    guard.cache_order.push_back(cache_key);
                 }
+                guard.cache.insert(cache_key, items.clone());
+                while guard.cache_order.len() > MAX_EXTERNAL_CACHE_ENTRIES {
+                    if let Some(evicted) = guard.cache_order.pop_front() {
+                        guard.cache.remove(&evicted);
+                    }
+                }
+                items
             }
-            items
-        }
-    };
-    snapshot.augmentations.extend(cached);
+        };
+        snapshot.augmentations.extend(cached);
     }
 }
 
@@ -284,5 +284,4 @@ mod tests {
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("exceeded"));
     }
-
 }

@@ -3,7 +3,9 @@ use crate::render_utils::{append_json_string, extract_json_string_field};
 
 use super::MAX_EXTERNAL_AUGMENTATIONS;
 
-pub(super) fn parse_external_augmentations(input: &str) -> Result<Vec<AnalysisAugmentation>, String> {
+pub(super) fn parse_external_augmentations(
+    input: &str,
+) -> Result<Vec<AnalysisAugmentation>, String> {
     let mut items = Vec::new();
     if let Some(inner) = extract_optional_json_array_contents(input, "augmentations")? {
         let objects = split_top_level_json_objects(inner)?;

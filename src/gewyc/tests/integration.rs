@@ -1,0 +1,355 @@
+use super::*;
+
+#[test]
+fn envelope_json_contains_all_frontend_surfaces() {
+    let input =
+        crate::dsl::read_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
+            .unwrap();
+    let envelope = compile_envelope_str(&input);
+    let json = render_envelope_report(&envelope, RenderFormat::Json);
+    assert!(json.contains("\"binding\":"));
+    assert!(json.contains("\"diagnostics\":"));
+    assert!(json.contains("\"findings\":{\"findings\":[]}"));
+    assert!(json.contains("\"stages\":"));
+    assert!(json.contains("\"template_id\":\"udp_process_debug\""));
+}
+
+#[test]
+fn compile_frontend_report_file_materializes_pipeline_summary() {
+    let report = compile_frontend_report_file(
+        "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
+    )
+    .unwrap();
+    assert_eq!(report.kind, "pipeline");
+    assert!(!report.function_nodes.is_empty());
+    assert!(!report.graph_nodes.is_empty());
+    assert!(!report.graph_edges.is_empty());
+    assert!(!report.expansion_previews.is_empty());
+    assert_eq!(report.expansion_previews[0].scope, "entry");
+    assert!(
+        report.expansion_previews[0]
+            .steps
+            .iter()
+            .any(|step| step.starts_with("use("))
+    );
+}
+
+#[test]
+fn compile_explain_report_file_materializes_human_summary_surface() {
+    let report =
+        compile_explain_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
+            .unwrap();
+    assert!(report.ok);
+    assert!(report.binding.is_some());
+    assert!(report.frontend.is_some());
+    assert!(report.findings.findings.is_empty());
+    let text = render_explain_report(&report, RenderFormat::Text);
+    let json = render_explain_report(&report, RenderFormat::Json);
+    assert!(text.contains("surface=explain"));
+    assert!(text.contains("validation:"));
+    assert!(text.contains("next_step="));
+    assert!(json.contains("\"summary\""));
+    assert!(json.contains("\"next_step\""));
+}
+
+#[test]
+fn explain_report_suggests_frontend_for_parse_failure() {
+    let report = compile_explain_report_str(
+        r#"
+template(:broken_parse)
+|> window(:default_5s)
+|> use(:missing_function)
+"#,
+    );
+    let text = render_explain_report(&report, RenderFormat::Text);
+    assert!(text.contains("next_step=fix the parse finding first"));
+    assert!(text.contains("gewyc frontend"));
+}
+
+#[test]
+fn explain_report_includes_parse_source_excerpt() {
+    let report = compile_explain_report_str(
+        r#"
+template(:demo)
+fn broken( =
+  |> fragment(:udp_packet_meta_fragment)
+"#,
+    );
+    let text = render_explain_report(&report, RenderFormat::Text);
+    let json = render_explain_report(&report, RenderFormat::Json);
+    assert!(text.contains("parse_source_excerpt=fn broken( ="));
+    assert!(text.contains("parse_source_marker="));
+    assert!(json.contains("\"parse_source_excerpt\""));
+    assert!(json.contains("\"line_text\":\"fn broken( =\""));
+}
+
+#[test]
+fn explain_report_suggests_unsupported_offsets_for_validation_failure() {
+    let report = compile_explain_report_str(
+        r#"
+template(:broken_offsets)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> operation(:snmp_query)
+|> program_model(:broken_offsets_model)
+|> program_rule(predicate: "packet_observed:tcp:remote:mysql:byte_at:42:255:1", stage: :packet_observed, narrative: "static:test", dedupe: true)
+"#,
+    );
+    let text = render_explain_report(&report, RenderFormat::Text);
+    let json = render_explain_report(&report, RenderFormat::Json);
+    assert!(text.contains("unsupported_payload_offsets"));
+    assert!(text.contains("validation_excerpt=model:broken_offsets_model rule:0"));
+    assert!(text.contains("validation_note="));
+    assert!(text.contains("adjust fragment coverage or payload matchers"));
+    assert!(json.contains("unsupported_payload_offsets"));
+    assert!(json.contains("\"validation_excerpt\""));
+    assert!(json.contains("\"validation_shape_note\""));
+    assert!(json.contains("\"model\":\"broken_offsets_model\""));
+}
+
+#[test]
+fn explain_report_includes_diagnostics_excerpt_for_rule_support_failures() {
+    let report = compile_explain_report_str(
+        r#"
+template(:broken_offset_validation)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> program_model(:broken_offset_validation_model)
+|> operation(:snmp_get)
+|> program_rule(predicate: "datagram_observed:udp:remote:snmp:byte_at:8:0xff:0xa0", stage: :datagram_observed, narrative: "static:snmp seen", dedupe: true)
+"#,
+    );
+    let text = render_explain_report_with_focus(
+        &report,
+        RenderFormat::Text,
+        Some(ExplainFocus::Diagnostics),
+    );
+    let json = render_explain_report(&report, RenderFormat::Json);
+    assert!(text.contains("diagnostics_excerpt=model:broken_offset_validation_model"));
+    assert!(text.contains("diagnostics_note="));
+    assert!(text.contains("offsets:[8]"));
+    assert!(json.contains("\"diagnostics_excerpt\""));
+    assert!(json.contains("\"diagnostics_shape_note\""));
+    assert!(json.contains("\"model\":\"broken_offset_validation_model\""));
+}
+
+#[test]
+fn stages_json_includes_parse_and_diagnostics_sections() {
+    let report =
+        compile_stages_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
+            .unwrap();
+    let json = render_stages_report(&report, RenderFormat::Json);
+    assert!(json.contains("\"parse\":{\"ok\":true"));
+    assert!(json.contains("\"frontend\":"));
+    assert!(json.contains("\"function_nodes\""));
+    assert!(json.contains("\"use_edges\""));
+    assert!(json.contains("\"graph_nodes\""));
+    assert!(json.contains("\"graph_edges\""));
+    assert!(json.contains("\"validation\":{\"ok\":true"));
+    assert!(json.contains("\"registry\":\"builtin\""));
+    assert!(json.contains(
+        "\"checks\":[\"binding_schema\",\"fragment_params\",\"rule_evidence\",\"payload_offsets\"]"
+    ));
+    assert!(json.contains("\"sampled_payload_offsets\":[0,1,4,5,9,10,13]"));
+    assert!(json.contains("\"required_payload_offsets\":[]"));
+    assert!(json.contains("\"unsupported_payload_offsets\":[]"));
+    assert!(json.contains("\"finding\":null"));
+    assert!(json.contains("\"diagnostics\":{\"ok\":true"));
+    assert!(json.contains("\"report\":"));
+    assert!(json.contains("\"template_id\":\"udp_process_debug\""));
+}
+
+#[test]
+fn stages_report_includes_pipeline_frontend_summary() {
+    let report = compile_stages_report_str(
+        r#"
+fn udp_rules() {
+  |> operation(:datagram_exchange)
+  |> program_model(:frontend_summary_model)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :frontend_summary, phase: :bind)
+}
+
+fn udp_core() {
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> use(:udp_rules)
+}
+
+template(:frontend_summary)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core)
+"#,
+    );
+    let frontend = report.parse.frontend.as_ref().unwrap();
+    assert_eq!(frontend.kind, "pipeline");
+    assert_eq!(frontend.function_count, 2);
+    assert_eq!(
+        frontend.function_nodes,
+        vec![
+            FrontendFunctionReport {
+                name: "udp_core".to_string(),
+                step_count: 3,
+            },
+            FrontendFunctionReport {
+                name: "udp_rules".to_string(),
+                step_count: 3,
+            }
+        ]
+    );
+    assert_eq!(frontend.merged_step_count, 9);
+    assert_eq!(
+        frontend.use_edges,
+        vec![
+            FrontendUseEdgeReport {
+                from: "entry".to_string(),
+                to: "udp_core".to_string(),
+                line: 17,
+            },
+            FrontendUseEdgeReport {
+                from: "udp_core".to_string(),
+                to: "udp_rules".to_string(),
+                line: 11,
+            }
+        ]
+    );
+    assert_eq!(
+        frontend.graph_nodes,
+        vec![
+            FrontendGraphNodeReport {
+                id: "entry".to_string(),
+                kind: "entry".to_string(),
+                step_count: Some(3),
+            },
+            FrontendGraphNodeReport {
+                id: "fn:udp_core".to_string(),
+                kind: "function".to_string(),
+                step_count: Some(3),
+            },
+            FrontendGraphNodeReport {
+                id: "fn:udp_rules".to_string(),
+                kind: "function".to_string(),
+                step_count: Some(3),
+            }
+        ]
+    );
+    assert_eq!(
+        frontend.graph_edges,
+        vec![
+            FrontendGraphEdgeReport {
+                from: "entry".to_string(),
+                to: "fn:udp_core".to_string(),
+                kind: "use".to_string(),
+                line: 17,
+            },
+            FrontendGraphEdgeReport {
+                from: "fn:udp_core".to_string(),
+                to: "fn:udp_rules".to_string(),
+                kind: "use".to_string(),
+                line: 11,
+            }
+        ]
+    );
+}
+
+#[test]
+fn stages_report_lists_include_sources_in_parse_frontend_summary() {
+    let package_dir =
+        std::env::temp_dir().join(format!("gewyc-frontend-summary-{}", std::process::id()));
+    std::fs::create_dir_all(&package_dir).unwrap();
+    std::fs::write(
+        package_dir.join("gewy.pkg"),
+        "name=frontend_summary_pkg\nversion=0.1.0\nentry=main.gewy\n",
+    )
+    .unwrap();
+    std::fs::write(
+        package_dir.join("main.gewy"),
+        r#"
+template(:frontend_summary_pkg)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> include("./module.gewy")
+|> use(:udp_core)
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        package_dir.join("module.gewy"),
+        r#"
+fn udp_core() {
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:datagram_exchange)
+  |> program_model(:frontend_summary_pkg_model)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :frontend_summary_pkg, phase: :bind)
+}
+"#,
+    )
+    .unwrap();
+
+    let report = compile_stages_report_file(package_dir.to_str().unwrap()).unwrap();
+    let frontend = report.parse.frontend.as_ref().unwrap();
+    assert_eq!(frontend.kind, "pipeline");
+    assert_eq!(frontend.function_count, 1);
+    assert_eq!(
+        frontend.function_nodes,
+        vec![FrontendFunctionReport {
+            name: "udp_core".to_string(),
+            step_count: 5,
+        }]
+    );
+    assert_eq!(frontend.include_sources.len(), 1);
+    assert!(frontend.include_sources[0].ends_with("module.gewy"));
+    assert_eq!(
+        frontend.use_edges,
+        vec![FrontendUseEdgeReport {
+            from: "entry".to_string(),
+            to: "udp_core".to_string(),
+            line: 6,
+        }]
+    );
+    assert!(frontend.graph_nodes.iter().any(|node| node.kind == "entry"));
+    assert!(frontend.graph_nodes.iter().any(|node| node.kind == "file"));
+    assert!(
+        frontend
+            .graph_edges
+            .iter()
+            .any(|edge| edge.kind == "include" && edge.line == 5)
+    );
+}
+
+#[test]
+fn stages_report_summarizes_payload_offset_support() {
+    let report =
+        compile_stages_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")
+            .unwrap();
+    assert_eq!(
+        report.validation.sampled_payload_offsets,
+        vec![0, 1, 4, 5, 9, 10, 13]
+    );
+    assert_eq!(report.validation.required_payload_offsets, vec![13]);
+    assert_eq!(
+        report.validation.unsupported_payload_offsets,
+        Vec::<u16>::new()
+    );
+}
+
+#[test]
+fn envelope_json_is_valid_for_stable_subset_entry() {
+    let report =
+        compile_envelope_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .unwrap();
+    let json = render_envelope_report(&report, RenderFormat::Json);
+    assert_valid_json_document(&json);
+}
+
+#[test]
+fn envelope_json_is_valid_for_registry_amqp_publish_entry() {
+    let report =
+        compile_envelope_file("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy")
+            .unwrap();
+    let json = render_envelope_report(&report, RenderFormat::Json);
+    assert_valid_json_document(&json);
+}
