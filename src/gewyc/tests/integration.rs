@@ -544,6 +544,28 @@ template(:frontend_defaults)
 }
 
 #[test]
+fn explain_report_rejects_narrative_inference_mismatches_for_pipeline_arguments() {
+    let report = compile_explain_report_str(
+        r#"
+fn rule_module(narrative_value = :process_bound) =
+  |> program_model(:narrative_model)
+  |> operation(:datagram_exchange)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: ${narrative_value}, dedupe: true, module: :predicate_module, phase: :bind)
+
+template(:frontend_defaults)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:rule_module, narrative_value: "free text")
+"#,
+    );
+    assert!(!report.ok);
+    let text = render_explain_report(&report, RenderFormat::Text);
+    assert!(text.contains("expects narrative-compatible value"));
+    assert!(text.contains("narrative_value"));
+    assert!(text.contains("static:"));
+}
+
+#[test]
 fn stages_report_summarizes_payload_offset_support() {
     let report =
         compile_stages_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")

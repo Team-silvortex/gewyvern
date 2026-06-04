@@ -1,5 +1,6 @@
 use super::{
     DslError, PipelineCall, PipelineLetBinding, PipelineParam, parse_bool, parse_flow_predicate,
+    predicate::parse_narrative_template,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -51,7 +52,9 @@ pub(super) fn validate_pipeline_param_value_kind(
                 ))
             })?;
         }
-        PipelineValueKind::Narrative => {}
+        PipelineValueKind::Narrative => {
+            validate_narrative_value(raw_value, &normalized, context)?;
+        }
     }
     Ok(())
 }
@@ -75,6 +78,41 @@ fn validate_atom_like_value(
     Err(DslError::InvalidValue(format!(
         "{context} expects atom-like identifier value, got '{raw_value}'"
     )))
+}
+
+fn validate_narrative_value(
+    raw_value: &str,
+    normalized: &str,
+    context: &str,
+) -> Result<(), DslError> {
+    if normalized.is_empty() {
+        return Err(DslError::InvalidValue(format!(
+            "{context} expects narrative-compatible value, got empty input"
+        )));
+    }
+    if is_known_narrative_template(normalized) || normalized.starts_with("static:") {
+        let _ = parse_narrative_template(normalized);
+        return Ok(());
+    }
+    Err(DslError::InvalidValue(format!(
+        "{context} expects narrative-compatible value, got '{raw_value}'. Use a built-in narrative template or explicit static:... text"
+    )))
+}
+
+fn is_known_narrative_template(value: &str) -> bool {
+    matches!(
+        value,
+        "none"
+            | "process_bound"
+            | "packet_observed"
+            | "transport_payload_sent"
+            | "transport_payload_received"
+            | "tcp_state_transition"
+            | "route_changed"
+            | "udp_datagram_observed"
+            | "udp_datagram_sent"
+            | "udp_datagram_received"
+    )
 }
 
 pub(super) fn infer_pipeline_param_kinds(
