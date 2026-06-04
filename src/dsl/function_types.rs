@@ -1,6 +1,6 @@
 use super::{
-    DslError, PipelineCall, PipelineLetBinding, PipelineParam, parse_bool, parse_flow_predicate,
-    predicate::parse_narrative_template,
+    DslError, PipelineCall, PipelineLetBinding, PipelineParam, legacy::parse_stage, parse_bool,
+    parse_flow_predicate, predicate::parse_narrative_template, predicate::parse_reason_key_event,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -11,6 +11,8 @@ pub(super) enum PipelineValueKind {
     U64,
     Predicate,
     Narrative,
+    Stage,
+    KeyEvent,
 }
 
 pub(super) fn pipeline_value_kind_text(kind: PipelineValueKind) -> &'static str {
@@ -20,6 +22,8 @@ pub(super) fn pipeline_value_kind_text(kind: PipelineValueKind) -> &'static str 
         PipelineValueKind::U64 => "u64",
         PipelineValueKind::Predicate => "predicate",
         PipelineValueKind::Narrative => "narrative",
+        PipelineValueKind::Stage => "stage",
+        PipelineValueKind::KeyEvent => "key_event",
     }
 }
 
@@ -54,6 +58,20 @@ pub(super) fn validate_pipeline_param_value_kind(
         }
         PipelineValueKind::Narrative => {
             validate_narrative_value(raw_value, &normalized, context)?;
+        }
+        PipelineValueKind::Stage => {
+            parse_stage(&normalized).map_err(|_| {
+                DslError::InvalidValue(format!(
+                    "{context} expects stage-compatible value, got '{raw_value}'"
+                ))
+            })?;
+        }
+        PipelineValueKind::KeyEvent => {
+            parse_reason_key_event(&normalized).map_err(|_| {
+                DslError::InvalidValue(format!(
+                    "{context} expects key_event-compatible value, got '{raw_value}'"
+                ))
+            })?;
         }
     }
     Ok(())
@@ -201,7 +219,11 @@ fn infer_call_placeholder_kinds(
                         "predicate" => {
                             note_placeholders(output, value, PipelineValueKind::Predicate)?
                         }
-                        "stage" | "key_event" | "module" | "phase" => {
+                        "stage" => note_placeholders(output, value, PipelineValueKind::Stage)?,
+                        "key_event" => {
+                            note_placeholders(output, value, PipelineValueKind::KeyEvent)?
+                        }
+                        "module" | "phase" => {
                             note_placeholders(output, value, PipelineValueKind::Atom)?
                         }
                         "narrative" => {

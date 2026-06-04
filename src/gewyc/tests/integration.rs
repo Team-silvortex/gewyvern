@@ -566,6 +566,47 @@ template(:frontend_defaults)
 }
 
 #[test]
+fn explain_report_rejects_stage_inference_mismatches_for_pipeline_arguments() {
+    let report = compile_explain_report_str(
+        r#"
+fn stage_module(stage_value = :process_bound) =
+  |> program_model(:stage_model)
+  |> operation(:datagram_exchange)
+  |> program_rule(predicate: :process_bound, stage: ${stage_value}, narrative: :process_bound, dedupe: true, module: :stage_module, phase: :bind)
+
+template(:frontend_defaults)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:stage_module, stage_value: :not_a_real_stage)
+"#,
+    );
+    assert!(!report.ok);
+    let text = render_explain_report(&report, RenderFormat::Text);
+    assert!(text.contains("expects stage-compatible value"));
+    assert!(text.contains("stage_value"));
+}
+
+#[test]
+fn explain_report_rejects_key_event_inference_mismatches_for_pipeline_arguments() {
+    let report = compile_explain_report_str(
+        r#"
+fn reason_module(event_value = :process_identified) =
+  |> reason_model(:reason_model)
+  |> reason_rule(predicate: :process_bound, key_event: ${event_value}, narrative: :process_bound, dedupe: true, module: :reason_module, phase: :bind)
+
+template(:frontend_defaults)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:reason_module, event_value: :not_a_real_event)
+"#,
+    );
+    assert!(!report.ok);
+    let text = render_explain_report(&report, RenderFormat::Text);
+    assert!(text.contains("expects key_event-compatible value"));
+    assert!(text.contains("event_value"));
+}
+
+#[test]
 fn stages_report_summarizes_payload_offset_support() {
     let report =
         compile_stages_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")
