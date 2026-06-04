@@ -607,6 +607,28 @@ template(:frontend_defaults)
 }
 
 #[test]
+fn explain_report_rejects_phase_inference_mismatches_for_pipeline_arguments() {
+    let report = compile_explain_report_str(
+        r#"
+fn phase_module(phase_value = :send_request) =
+  |> program_model(:phase_model)
+  |> operation(:datagram_exchange)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :phase_module, phase: ${phase_value})
+
+template(:frontend_defaults)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:phase_module, phase_value: :send-request)
+"#,
+    );
+    assert!(!report.ok);
+    let text = render_explain_report(&report, RenderFormat::Text);
+    assert!(text.contains("expects phase-compatible value"));
+    assert!(text.contains("phase_value"));
+    assert!(text.contains("snake_case"));
+}
+
+#[test]
 fn stages_report_summarizes_payload_offset_support() {
     let report =
         compile_stages_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")

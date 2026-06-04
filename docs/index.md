@@ -25,11 +25,25 @@ For most readers, the right order is:
 That set is the intended “main shelf”. Everything else below is supporting
 material.
 
+## Book Framework
+
+For a more structured reading experience, use the book-style tracks:
+
+- [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
+  Entry point for the full documentation spine.
+- [docs/book/tutorials.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorials.md)
+- [docs/book/how-to.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to.md)
+- [docs/book/reference.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference.md)
+- [docs/book/explanation.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation.md)
+- [docs/book/conventions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/conventions.md)
+
 ## Core Docs
 
 - [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md)
   Short release-readiness checklist for the current pre-`1.0` preparation
   path.
+- [docs/v0.13-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.13-posture.md)
+  What the current preparation line should already mean in practical use.
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
   Real-world validation matrix for the current pre-`1.0` line.
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)

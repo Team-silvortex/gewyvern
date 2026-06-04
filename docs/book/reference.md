@@ -1,0 +1,46 @@
+# Reference
+
+This track is for exact lookup. Use it when you need syntax, schema, or a
+stable contract, not a walkthrough.
+
+## Language And Compiler
+
+- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+  `gewylang` syntax, function units, pipeline structure, package shape, and
+  stable subset.
+- [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
+  Draft formal grammar.
+- [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+  `gewyc` frontend/explain JSON output.
+
+## Runtime And Export Contracts
+
+- [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
+  Export bundle structure.
+- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
+  Machine-facing JSON and API contract candidate.
+- [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
+  Stable versus intentionally unstable surfaces.
+
+## Semantics
+
+- [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
+  Failure labels, basis, and confidence.
+- [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
+  Process-network profile meaning.
+- [docs/fragments.md](/Users/Shared/chroot/dev/gewyvern/docs/fragments.md)
+  Fragment capabilities and attach semantics.
+
+## Extensibility
+
+- [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
+  External analysis interface.
+- [docs/fixtures/external_engine_input_example.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/external_engine_input_example.json)
+  Example external-engine input.
+- [docs/fixtures/external_engine_output_example.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/external_engine_output_example.json)
+  Example external-engine output.
+
+## Future Shape
+
+As the project approaches `v0.13.0`, new exact-lookup material should prefer
+this shelf instead of adding more ad hoc “format note” pages at the top level.

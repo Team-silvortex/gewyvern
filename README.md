@@ -91,6 +91,10 @@ For the shorter release-readiness checklist that turns that roadmap into the
 current pre-`1.0` preparation gate, see
 [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md).
 
+For the narrower statement of what the current `v0.13.0` line should already
+feel like in practice, see
+[docs/v0.13-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.13-posture.md).
+
 For the narrow machine-facing contract that downstream automation, sidecars,
 and enrich/rerank pipelines should consume, see
 [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md).
@@ -205,6 +209,12 @@ If you are orienting yourself for the first time, use this shorter path:
 The full document map now lives in [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md),
 so the rest of the docs do not each need to carry their own long navigation
 list.
+
+For a more book-like reading frame, use
+[docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md),
+which reorganizes the existing material into tutorial, how-to, reference, and
+explanation tracks. The documentation house rules for that structure live in
+[docs/book/conventions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/conventions.md).
 
 ## Main Entrypoints
 

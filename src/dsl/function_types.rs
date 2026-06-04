@@ -13,6 +13,7 @@ pub(super) enum PipelineValueKind {
     Narrative,
     Stage,
     KeyEvent,
+    Phase,
 }
 
 pub(super) fn pipeline_value_kind_text(kind: PipelineValueKind) -> &'static str {
@@ -24,6 +25,7 @@ pub(super) fn pipeline_value_kind_text(kind: PipelineValueKind) -> &'static str 
         PipelineValueKind::Narrative => "narrative",
         PipelineValueKind::Stage => "stage",
         PipelineValueKind::KeyEvent => "key_event",
+        PipelineValueKind::Phase => "phase",
     }
 }
 
@@ -72,6 +74,9 @@ pub(super) fn validate_pipeline_param_value_kind(
                     "{context} expects key_event-compatible value, got '{raw_value}'"
                 ))
             })?;
+        }
+        PipelineValueKind::Phase => {
+            validate_phase_value(raw_value, &normalized, context)?;
         }
     }
     Ok(())
@@ -131,6 +136,34 @@ fn is_known_narrative_template(value: &str) -> bool {
             | "udp_datagram_sent"
             | "udp_datagram_received"
     )
+}
+
+fn validate_phase_value(raw_value: &str, normalized: &str, context: &str) -> Result<(), DslError> {
+    if normalized.is_empty() {
+        return Err(DslError::InvalidValue(format!(
+            "{context} expects phase-compatible value, got empty input"
+        )));
+    }
+    let mut chars = normalized.chars();
+    let Some(first) = chars.next() else {
+        return Err(DslError::InvalidValue(format!(
+            "{context} expects phase-compatible value, got empty input"
+        )));
+    };
+    if !first.is_ascii_lowercase() {
+        return Err(DslError::InvalidValue(format!(
+            "{context} expects phase-compatible value, got '{raw_value}'. Use lowercase snake_case phase names"
+        )));
+    }
+    if chars.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
+        && !normalized.ends_with('_')
+        && !normalized.contains("__")
+    {
+        return Ok(());
+    }
+    Err(DslError::InvalidValue(format!(
+        "{context} expects phase-compatible value, got '{raw_value}'. Use lowercase snake_case phase names"
+    )))
 }
 
 pub(super) fn infer_pipeline_param_kinds(
@@ -223,9 +256,8 @@ fn infer_call_placeholder_kinds(
                         "key_event" => {
                             note_placeholders(output, value, PipelineValueKind::KeyEvent)?
                         }
-                        "module" | "phase" => {
-                            note_placeholders(output, value, PipelineValueKind::Atom)?
-                        }
+                        "module" => note_placeholders(output, value, PipelineValueKind::Atom)?,
+                        "phase" => note_placeholders(output, value, PipelineValueKind::Phase)?,
                         "narrative" => {
                             note_placeholders(output, value, PipelineValueKind::Narrative)?
                         }
