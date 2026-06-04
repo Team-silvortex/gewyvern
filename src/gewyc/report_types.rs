@@ -168,7 +168,7 @@ pub struct FrontendReport {
     pub function_count: usize,
     pub function_nodes: Vec<FrontendFunctionReport>,
     pub merged_step_count: usize,
-    pub include_sources: Vec<String>,
+    pub include_sources: Vec<FrontendIncludeSourceReport>,
     pub use_edges: Vec<FrontendUseEdgeReport>,
     pub graph_nodes: Vec<FrontendGraphNodeReport>,
     pub graph_edges: Vec<FrontendGraphEdgeReport>,
@@ -176,9 +176,28 @@ pub struct FrontendReport {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendIncludeSourceReport {
+    pub request: String,
+    pub resolved_path: String,
+    pub kind: String,
+    pub dependency: Option<String>,
+    pub package_scope: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FrontendFunctionReport {
     pub name: String,
     pub step_count: usize,
+    pub source_id: String,
+    pub package_scope: String,
+    pub params: Vec<FrontendFunctionParamReport>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendFunctionParamReport {
+    pub name: String,
+    pub has_default: bool,
+    pub inferred_kind: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -192,6 +211,8 @@ pub struct FrontendUseEdgeReport {
 pub struct FrontendGraphNodeReport {
     pub id: String,
     pub kind: String,
+    pub label: String,
+    pub package_scope: String,
     pub step_count: Option<usize>,
 }
 

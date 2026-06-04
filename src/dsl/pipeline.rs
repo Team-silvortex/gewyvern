@@ -1,5 +1,20 @@
-use super::{DslError, PipelineCall, PipelineLetBinding, PipelineModule, frontend, legacy};
+use super::{
+    DslError, PipelineCall, PipelineFunction, PipelineLetBinding, PipelineModule, PipelineParam,
+    frontend, function_types::validate_pipeline_param_value_kind, legacy,
+};
 use std::collections::BTreeMap;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PipelineProvidedArg {
+    raw: String,
+    value: String,
+}
+
+pub(super) struct PipelineUseCall {
+    function_name: String,
+    positional_args: Vec<PipelineProvidedArg>,
+    named_args: BTreeMap<String, PipelineProvidedArg>,
+}
 
 pub(super) fn push_pipeline_function_call(
     module: &mut PipelineModule,
@@ -148,8 +163,9 @@ fn lower_pipeline_call(
             ));
         }
         "use" => {
-            let (function_name, actuals) = parse_pipeline_use_call(&resolved_args)
+            let use_call = parse_pipeline_use_call(&resolved_args)
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
+            let function_name = use_call.function_name.clone();
             if use_stack.contains(&function_name) {
                 return Err(DslError::InvalidValue(format!(
                     "pipeline use cycle detected at function '{function_name}'"
@@ -160,21 +176,8 @@ fn lower_pipeline_call(
                 DslError::InvalidValue(format!("unknown pipeline function '{function_name}'"))
                     .at_line(line_no)
             })?;
-            if function.params.len() != actuals.len() {
-                return Err(DslError::InvalidValue(format!(
-                    "pipeline function '{function_name}' expects {} args, got {}",
-                    function.params.len(),
-                    actuals.len()
-                ))
-                .at_line(line_no));
-            }
-            let function_bindings = function
-                .params
-                .iter()
-                .cloned()
-                .zip(actuals)
-                .collect::<BTreeMap<_, _>>();
-            let mut function_bindings = function_bindings;
+            let mut function_bindings = build_pipeline_function_bindings(function, &use_call)
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
             for binding in &function.local_bindings {
                 let resolved = substitute_pipeline_arg(&binding.value, &function_bindings)
                     .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
@@ -286,7 +289,7 @@ pub(super) fn parse_pipeline_call(
 
 pub(super) fn parse_pipeline_function_signature(
     signature: &str,
-) -> Result<(String, Vec<String>), DslError> {
+) -> Result<(String, Vec<PipelineParam>), DslError> {
     let open = signature.find('(').ok_or_else(|| {
         DslError::InvalidValue(format!("invalid function signature '{signature}'"))
             .at_line_column(0, Some(signature.len() + 1))
@@ -314,10 +317,46 @@ pub(super) fn parse_pipeline_function_signature(
     } else {
         split_pipeline_args(params_src)
             .into_iter()
-            .map(|param| parse_pipeline_param_name(&param))
+            .map(|param| parse_pipeline_param(&param))
             .collect::<Result<Vec<_>, _>>()?
     };
+    if let Some(non_trailing_required) =
+        params.windows(2).find_map(
+            |pair| match (&pair[0].default_value, &pair[1].default_value) {
+                (Some(_), None) => Some(pair[1].name.clone()),
+                _ => None,
+            },
+        )
+    {
+        return Err(DslError::InvalidValue(format!(
+            "pipeline function required parameter '{non_trailing_required}' cannot follow a defaulted parameter"
+        ))
+        .at_line_column(0, Some(open + 2)));
+    }
     Ok((name.to_string(), params))
+}
+
+fn parse_pipeline_param(param: &str) -> Result<PipelineParam, DslError> {
+    let trimmed = param.trim();
+    let (name_src, default_value) = match trimmed.split_once('=') {
+        Some((name, default)) => {
+            let default = default.trim();
+            if default.is_empty() {
+                return Err(DslError::InvalidValue(format!(
+                    "pipeline parameter '{}' requires a default value after '='",
+                    name.trim()
+                ))
+                .at_line_column(0, Some(trimmed.len() + 1)));
+            }
+            (name, Some(default.to_string()))
+        }
+        None => (trimmed, None),
+    };
+    Ok(PipelineParam {
+        name: parse_pipeline_param_name(name_src)?,
+        default_value,
+        inferred_kind: None,
+    })
 }
 
 pub(super) fn parse_pipeline_param_name(param: &str) -> Result<String, DslError> {
@@ -393,7 +432,7 @@ pub(super) fn parse_pipeline_single_arg(args: &[String], step: &str) -> Result<S
     Ok(parse_pipeline_literal(&args[0]))
 }
 
-pub(super) fn parse_pipeline_use_call(args: &[String]) -> Result<(String, Vec<String>), DslError> {
+pub(super) fn parse_pipeline_use_call(args: &[String]) -> Result<PipelineUseCall, DslError> {
     if args.is_empty() {
         return Err(DslError::InvalidValue(
             "pipeline step 'use' expects at least one argument".into(),
@@ -401,11 +440,167 @@ pub(super) fn parse_pipeline_use_call(args: &[String]) -> Result<(String, Vec<St
         .at_line_column(0, Some(1)));
     }
     let function_name = parse_pipeline_literal(&args[0]);
-    let actuals = args[1..]
+    let mut positional_args = Vec::new();
+    let mut named_args = BTreeMap::new();
+    let mut named_section_started = false;
+
+    for arg in &args[1..] {
+        if looks_like_pipeline_keyword_arg(arg) {
+            named_section_started = true;
+            let (name, value) = arg.split_once(':').ok_or_else(|| {
+                DslError::InvalidValue(format!(
+                    "pipeline step 'use' expected named argument, got '{arg}'"
+                ))
+                .at_line_column(0, Some(1))
+            })?;
+            let name = parse_pipeline_param_name(name)?;
+            if named_args.contains_key(&name) {
+                return Err(DslError::InvalidValue(format!(
+                    "pipeline step 'use' received duplicate named argument '{name}'"
+                ))
+                .at_line_column(0, Some(1)));
+            }
+            let value = value.trim();
+            if value.is_empty() {
+                return Err(DslError::InvalidValue(format!(
+                    "pipeline step 'use' named argument '{name}' requires a value"
+                ))
+                .at_line_column(0, Some(1)));
+            }
+            named_args.insert(
+                name,
+                PipelineProvidedArg {
+                    raw: value.to_string(),
+                    value: parse_pipeline_literal(value),
+                },
+            );
+        } else {
+            if named_section_started {
+                return Err(DslError::InvalidValue(
+                    "pipeline step 'use' cannot place positional arguments after named arguments"
+                        .into(),
+                )
+                .at_line_column(0, Some(1)));
+            }
+            positional_args.push(PipelineProvidedArg {
+                raw: arg.to_string(),
+                value: parse_pipeline_literal(arg),
+            });
+        }
+    }
+
+    Ok(PipelineUseCall {
+        function_name,
+        positional_args,
+        named_args,
+    })
+}
+
+fn build_pipeline_function_bindings(
+    function: &PipelineFunction,
+    use_call: &PipelineUseCall,
+) -> Result<BTreeMap<String, String>, DslError> {
+    let function_name = &use_call.function_name;
+    let required_count = function
+        .params
         .iter()
-        .map(|arg| parse_pipeline_literal(arg))
-        .collect::<Vec<_>>();
-    Ok((function_name, actuals))
+        .filter(|param| param.default_value.is_none())
+        .count();
+    if use_call.positional_args.len() > function.params.len() {
+        return Err(DslError::InvalidValue(format!(
+            "pipeline function '{function_name}' expects at most {} positional args, got {}",
+            function.params.len(),
+            use_call.positional_args.len()
+        ))
+        .at_line_column(0, Some(1)));
+    }
+    if use_call.positional_args.len() + use_call.named_args.len() < required_count
+        || use_call.positional_args.len() + use_call.named_args.len() > function.params.len()
+    {
+        let arity = if required_count == function.params.len() {
+            format!("{}", function.params.len())
+        } else {
+            format!("{} to {}", required_count, function.params.len())
+        };
+        return Err(DslError::InvalidValue(format!(
+            "pipeline function '{function_name}' expects {arity} args, got {}",
+            use_call.positional_args.len() + use_call.named_args.len()
+        ))
+        .at_line_column(0, Some(1)));
+    }
+
+    let mut bindings = BTreeMap::new();
+    let mut consumed_named = BTreeMap::<String, ()>::new();
+    for param in function.params.iter().take(use_call.positional_args.len()) {
+        if use_call.named_args.contains_key(&param.name) {
+            return Err(DslError::InvalidValue(format!(
+                "pipeline function '{function_name}' received both positional and named values for parameter '{}'",
+                param.name
+            ))
+            .at_line_column(0, Some(1)));
+        }
+    }
+    for (index, param) in function.params.iter().enumerate() {
+        if let Some(actual) = use_call.positional_args.get(index) {
+            if let Some(kind) = param.inferred_kind {
+                validate_pipeline_param_value_kind(
+                    &actual.raw,
+                    kind,
+                    &format!(
+                        "pipeline function '{function_name}' parameter '{}'",
+                        param.name
+                    ),
+                )?;
+            }
+            bindings.insert(param.name.clone(), actual.value.clone());
+            continue;
+        }
+        if let Some(actual) = use_call.named_args.get(&param.name) {
+            if let Some(kind) = param.inferred_kind {
+                validate_pipeline_param_value_kind(
+                    &actual.raw,
+                    kind,
+                    &format!(
+                        "pipeline function '{function_name}' parameter '{}'",
+                        param.name
+                    ),
+                )?;
+            }
+            bindings.insert(param.name.clone(), actual.value.clone());
+            consumed_named.insert(param.name.clone(), ());
+            continue;
+        }
+        let default_value = param.default_value.as_ref().ok_or_else(|| {
+            DslError::InvalidValue(format!(
+                "pipeline function '{function_name}' is missing required parameter '{}'",
+                param.name
+            ))
+            .at_line_column(0, Some(1))
+        })?;
+        let resolved = substitute_pipeline_arg(default_value, &bindings)?;
+        if let Some(kind) = param.inferred_kind {
+            validate_pipeline_param_value_kind(
+                &resolved,
+                kind,
+                &format!(
+                    "default value for pipeline function '{function_name}' parameter '{}'",
+                    param.name
+                ),
+            )?;
+        }
+        bindings.insert(param.name.clone(), parse_pipeline_literal(&resolved));
+    }
+    if let Some(unknown_name) = use_call
+        .named_args
+        .keys()
+        .find(|name| !consumed_named.contains_key(*name))
+    {
+        return Err(DslError::InvalidValue(format!(
+            "pipeline function '{function_name}' does not define a parameter named '{unknown_name}'"
+        ))
+        .at_line_column(0, Some(1)));
+    }
+    Ok(bindings)
 }
 
 pub(super) fn substitute_pipeline_arg(

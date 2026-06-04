@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct PackageContext {
+    pub(super) package_scope: String,
     pub(super) root_dir: PathBuf,
     pub(super) entry_file: String,
     pub(super) dependencies: BTreeMap<String, PathBuf>,
@@ -62,6 +63,7 @@ pub(super) fn resolve_package_context(path: &str) -> Result<PackageContext, DslE
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from("."));
         return Ok(PackageContext {
+            package_scope: "standalone".to_string(),
             root_dir,
             entry_file,
             dependencies: BTreeMap::new(),
@@ -78,6 +80,7 @@ pub(super) fn resolve_package_context(path: &str) -> Result<PackageContext, DslE
         path.to_path_buf()
     } else {
         return Ok(PackageContext {
+            package_scope: "standalone".to_string(),
             entry_file: path.to_string_lossy().into_owned(),
             root_dir: path
                 .parent()
@@ -96,6 +99,7 @@ pub(super) fn resolve_package_context(path: &str) -> Result<PackageContext, DslE
     let entry_path = canonicalize_existing_path(&package_root.join(manifest.entry))?;
     ensure_within_root(&entry_path, &package_root)?;
     Ok(PackageContext {
+        package_scope: manifest.name,
         entry_file: entry_path.to_string_lossy().into_owned(),
         root_dir: package_root,
         dependencies: manifest.dependencies,

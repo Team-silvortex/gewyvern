@@ -4,18 +4,22 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod entry;
 mod frontend;
+mod function_types;
 mod legacy;
 mod package;
 mod pipeline;
 mod predicate;
 
+pub use self::entry::{compile_file, parse_file_unvalidated, parse_str_unvalidated};
 pub use self::frontend::{
-    FrontendDslKind, FrontendExpansionPreview, FrontendFunctionNode, FrontendGraphEdge,
-    FrontendGraphEdgeKind, FrontendGraphNode, FrontendGraphNodeKind, FrontendModuleSummary,
-    FrontendUseEdge, summarize_frontend_file, summarize_frontend_str,
+    FrontendDslKind, FrontendExpansionPreview, FrontendFunctionNode, FrontendFunctionParam,
+    FrontendGraphEdge, FrontendGraphEdgeKind, FrontendGraphNode, FrontendGraphNodeKind,
+    FrontendIncludeSource, FrontendIncludeSourceKind, FrontendModuleSummary, FrontendUseEdge,
+    summarize_frontend_file, summarize_frontend_str,
 };
-use self::legacy::parse_legacy_str_unvalidated;
+use self::function_types::{PipelineValueKind, infer_pipeline_param_kinds};
 use self::package::PackageContext;
 pub use self::package::build_lockfile;
 use self::pipeline::{
@@ -44,68 +48,31 @@ pub fn read_file(path: &str) -> Result<String, DslError> {
     fs::read_to_string(path).map_err(|err| DslError::Io(err.to_string()))
 }
 
-pub fn parse_file_unvalidated(path: &str) -> Result<TemplateBinding, DslError> {
-    let package = package::resolve_package_context(path)?;
-    let resolved = package.entry_file.clone();
-    let input = read_file(&resolved)?;
-    parse_str_unvalidated_with_base(&input, Some(&package))
-}
-
-pub fn compile_file(path: &str) -> Result<TemplateBinding, DslError> {
-    let binding = parse_file_unvalidated(path)?;
-    validate_compiled_binding(&binding).map_err(DslError::Registry)?;
-    Ok(binding)
-}
-
-pub fn parse_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError> {
-    parse_str_unvalidated_with_base(input, None)
-}
-
-fn parse_str_unvalidated_with_base(
-    input: &str,
-    package: Option<&PackageContext>,
-) -> Result<TemplateBinding, DslError> {
-    if looks_like_pipeline_dsl(input) {
-        let legacy = pipeline_to_legacy(input, package)?;
-        return parse_legacy_str_unvalidated(&legacy);
-    }
-    Err(DslError::InvalidValue(
-        "gewylang now only supports the pipeline stable subset".into(),
-    ))
-}
-
-fn looks_like_pipeline_dsl(input: &str) -> bool {
-    input
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .next()
-        .is_some_and(|line| {
-            (line.starts_with("template(") && line.ends_with(')'))
-                || parse_pipeline_function_head(line).is_some()
-        })
-}
-
-fn pipeline_to_legacy(input: &str, package: Option<&PackageContext>) -> Result<String, DslError> {
-    let module = parse_pipeline_module(input, package, true)?;
-    lower_pipeline_module_to_legacy(&module, true)
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct PipelineModule {
+    package_scope: String,
     template: Option<PipelineCall>,
     body: Vec<PipelineCall>,
     functions: BTreeMap<String, PipelineFunction>,
-    include_sources: Vec<String>,
+    include_sources: Vec<FrontendIncludeSource>,
     include_edges: Vec<FrontendGraphEdge>,
     use_edges: Vec<FrontendUseEdge>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct PipelineFunction {
-    params: Vec<String>,
+    params: Vec<PipelineParam>,
     local_bindings: Vec<PipelineLetBinding>,
     body: Vec<PipelineCall>,
+    source_id: String,
+    package_scope: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PipelineParam {
+    name: String,
+    default_value: Option<String>,
+    inferred_kind: Option<PipelineValueKind>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -135,6 +102,9 @@ fn parse_pipeline_module(
     allow_template_head: bool,
 ) -> Result<PipelineModule, DslError> {
     let mut module = PipelineModule {
+        package_scope: package
+            .map(|package| package.package_scope.clone())
+            .unwrap_or_else(|| "inline".to_string()),
         template: None,
         body: Vec::new(),
         functions: BTreeMap::new(),
@@ -253,12 +223,25 @@ fn parse_pipeline_module_into(
                     }
                 }
             }
+            let inferred_param_kinds = infer_pipeline_param_kinds(&params, &local_bindings, &body)
+                .map_err(|err| err.reanchor_line_column(line_no, signature_column))?;
+            let params = params
+                .into_iter()
+                .map(|mut param| {
+                    param.inferred_kind = inferred_param_kinds.get(&param.name).copied();
+                    Ok(param)
+                })
+                .collect::<Result<Vec<_>, DslError>>()?;
             module.functions.insert(
                 name.to_string(),
                 PipelineFunction {
                     params,
                     local_bindings,
                     body,
+                    source_id: source_graph_id.to_string(),
+                    package_scope: package
+                        .map(|package| package.package_scope.clone())
+                        .unwrap_or_else(|| "inline".to_string()),
                 },
             );
             continue;
@@ -316,9 +299,22 @@ fn parse_pipeline_module_into(
                     ))
                     .at_line(line_no));
                 }
-                module
-                    .include_sources
-                    .push(include_path.to_string_lossy().into_owned());
+                module.include_sources.push(FrontendIncludeSource {
+                    request: include.clone(),
+                    resolved_path: include_path.to_string_lossy().into_owned(),
+                    kind: if include.split_once(':').is_some() {
+                        FrontendIncludeSourceKind::Dependency
+                    } else {
+                        FrontendIncludeSourceKind::Local
+                    },
+                    dependency: include
+                        .split_once(':')
+                        .map(|(dependency, _)| dependency.to_string()),
+                    package_scope: include
+                        .split_once(':')
+                        .map(|(dependency, _)| dependency.to_string())
+                        .unwrap_or_else(|| package.package_scope.clone()),
+                });
                 module.include_edges.push(FrontendGraphEdge {
                     from: source_graph_id.to_string(),
                     to: format!("file:{}", include_path.to_string_lossy()),
@@ -332,6 +328,10 @@ fn parse_pipeline_module_into(
                     .map(Path::to_path_buf)
                     .unwrap_or_else(|| package.root_dir.clone());
                 let include_package = PackageContext {
+                    package_scope: include
+                        .split_once(':')
+                        .map(|(dependency, _)| dependency.to_string())
+                        .unwrap_or_else(|| package.package_scope.clone()),
                     root_dir: include_root,
                     entry_file: include_path.to_string_lossy().into_owned(),
                     dependencies: package.dependencies.clone(),
@@ -413,7 +413,7 @@ fn parse_pipeline_function_body_line(
     raw_body_line: &str,
     body_line: &str,
     line_no: usize,
-    params: &[String],
+    params: &[PipelineParam],
     local_bindings: &mut Vec<PipelineLetBinding>,
     output: &mut Vec<PipelineCall>,
 ) -> Result<(), DslError> {
@@ -424,7 +424,7 @@ fn parse_pipeline_function_body_line(
     if let Some(binding) = parse_pipeline_let_binding(body_line)
         .map_err(|err| err.reanchor_line_column(line_no, body_column))?
     {
-        if params.iter().any(|param| param == &binding.name)
+        if params.iter().any(|param| param.name == binding.name)
             || local_bindings
                 .iter()
                 .any(|existing| existing.name == binding.name)

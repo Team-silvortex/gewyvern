@@ -242,6 +242,82 @@ fn network_module(model_name, op_name) =>
   |> program_model(${model_name})
 ```
 
+Tail parameters may also carry defaults:
+
+```text
+fn network_module(model_name, op_name = :datagram_exchange) =>
+  |> fragment(:udp_packet_meta_fragment)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+```
+
+That lets `use(:network_module, :demo_model)` override the first parameter while
+still falling back to the default operation.
+
+`use(...)` may also pass named arguments:
+
+```text
+fn network_module(model_name, op_name = :datagram_exchange) =>
+  |> fragment(:udp_packet_meta_fragment)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+
+template(:demo_app)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:network_module, op_name: :stream_exchange, model_name: :demo_model)
+```
+
+The current rule is intentionally narrow:
+
+- the first `use(...)` argument is still the function name
+- positional arguments may come first
+- named arguments may follow
+- positional arguments may not appear after named arguments
+- named arguments must match declared parameter names
+
+Function parameters also carry a lightweight inferred kind surface. `gewylang`
+does not implement a full global type system, but it does infer parameter
+intent from how placeholders are used inside a function body.
+
+Current inferred kinds are:
+
+- `atom`
+- `bool`
+- `u64`
+- `predicate`
+- `narrative`
+
+That inference is surfaced through `gewyc frontend`, `gewyc explain`, and the
+JSON report types so function summaries can show each parameter's expected
+role.
+
+Example:
+
+```text
+fn udp_core(model_name, op_name = :datagram_exchange, dedupe_flag = true, duration_ms = 5000) =>
+  |> window(duration_ms: ${duration_ms}, lateness_ms: 200)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: ${dedupe_flag}, module: :frontend_summary, phase: :bind)
+```
+
+In that function:
+
+- `model_name` infers as `atom`
+- `op_name` infers as `atom`
+- `dedupe_flag` infers as `bool`
+- `duration_ms` infers as `u64`
+
+The current validation boundary is intentionally narrow:
+
+- inferred `bool` parameters are validated at `use(...)` application time
+- inferred `u64` parameters are validated at `use(...)` application time
+- other inferred kinds are advisory/reporting-only for now
+
+This keeps the language lightweight while still making reusable modules easier
+to understand and safer to call.
+
 The original block form is still supported for compatibility:
 
 ```text
@@ -278,6 +354,8 @@ Current semantics:
 - local `let` bindings are immutable and scoped to one function unit
 - `let` values may reference earlier parameters or earlier local bindings via
   `${name}` placeholders
+- trailing function parameters may provide defaults, and omitted call-site
+  arguments will fall back to those defaults
 - expression-style functions consume the following `|>` lines until the next
   top-level declaration
 - they may not define `template(...)`
@@ -285,6 +363,7 @@ Current semantics:
   entry compile path
 - nested `use(:other_function)` composition is supported
 - `use(:fn_name, ...)` supports positional arguments for parameterized function units
+- `use(:fn_name, key: value, ...)` supports named arguments for parameterized function units
 - there is no cross-file global variable state
 
 ## Stable Subset
@@ -295,6 +374,8 @@ The current recommended stable subset for `gewylang` is intentionally small:
 - pipeline steps with one call per line
 - pure function units declared with either `fn ... =` or `fn ... { ... }`
 - positional `use(:fn_name, ...)` function application
+- positional-then-named `use(:fn_name, ..., key: value)` function application
+- trailing default parameters for function units
 - local immutable `let` bindings inside function units
 - `include(...)` for file composition
 - keyword-style `program_rule(...)` and `reason_rule(...)`

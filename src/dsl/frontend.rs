@@ -1,6 +1,8 @@
+use super::entry::looks_like_pipeline_dsl;
+use super::function_types::pipeline_value_kind_text;
 use super::{
-    DslError, PackageContext, PipelineCall, PipelineModule, looks_like_pipeline_dsl,
-    parse_pipeline_module, parse_pipeline_single_arg,
+    DslError, PackageContext, PipelineCall, PipelineModule, parse_pipeline_module,
+    parse_pipeline_single_arg,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -14,17 +16,42 @@ pub struct FrontendModuleSummary {
     pub function_count: usize,
     pub function_nodes: Vec<FrontendFunctionNode>,
     pub merged_step_count: usize,
-    pub include_sources: Vec<String>,
+    pub include_sources: Vec<FrontendIncludeSource>,
     pub use_edges: Vec<FrontendUseEdge>,
     pub graph_nodes: Vec<FrontendGraphNode>,
     pub graph_edges: Vec<FrontendGraphEdge>,
     pub expansion_previews: Vec<FrontendExpansionPreview>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FrontendIncludeSourceKind {
+    Local,
+    Dependency,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendIncludeSource {
+    pub request: String,
+    pub resolved_path: String,
+    pub kind: FrontendIncludeSourceKind,
+    pub dependency: Option<String>,
+    pub package_scope: String,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FrontendFunctionNode {
     pub name: String,
     pub step_count: usize,
+    pub source_id: String,
+    pub package_scope: String,
+    pub params: Vec<FrontendFunctionParam>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendFunctionParam {
+    pub name: String,
+    pub has_default: bool,
+    pub inferred_kind: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -45,6 +72,8 @@ pub enum FrontendGraphNodeKind {
 pub struct FrontendGraphNode {
     pub id: String,
     pub kind: FrontendGraphNodeKind,
+    pub label: String,
+    pub package_scope: String,
     pub step_count: Option<usize>,
 }
 
@@ -93,6 +122,20 @@ fn summarize_frontend_str_with_base(
             .map(|(name, function)| FrontendFunctionNode {
                 name: name.clone(),
                 step_count: function.body.len(),
+                source_id: function.source_id.clone(),
+                package_scope: function.package_scope.clone(),
+                params: function
+                    .params
+                    .iter()
+                    .map(|param| FrontendFunctionParam {
+                        name: param.name.clone(),
+                        has_default: param.default_value.is_some(),
+                        inferred_kind: param
+                            .inferred_kind
+                            .map(pipeline_value_kind_text)
+                            .map(str::to_string),
+                    })
+                    .collect(),
             })
             .collect();
         let merged_step_count = module.body.len()
@@ -154,12 +197,16 @@ fn pipeline_graph_nodes(module: &PipelineModule) -> Vec<FrontendGraphNode> {
     nodes.push(FrontendGraphNode {
         id: "entry".to_string(),
         kind: FrontendGraphNodeKind::Entry,
+        label: "entry".to_string(),
+        package_scope: module.package_scope.clone(),
         step_count: Some(module.body.len()),
     });
     for source in &module.include_sources {
         nodes.push(FrontendGraphNode {
-            id: format!("file:{source}"),
+            id: format!("file:{}", source.resolved_path),
             kind: FrontendGraphNodeKind::File,
+            label: frontend_include_label(&source.resolved_path),
+            package_scope: source.package_scope.clone(),
             step_count: None,
         });
     }
@@ -167,6 +214,8 @@ fn pipeline_graph_nodes(module: &PipelineModule) -> Vec<FrontendGraphNode> {
         nodes.push(FrontendGraphNode {
             id: format!("fn:{name}"),
             kind: FrontendGraphNodeKind::Function,
+            label: name.clone(),
+            package_scope: function.package_scope.clone(),
             step_count: Some(function.body.len()),
         });
     }
@@ -248,4 +297,12 @@ pub(super) fn frontend_graph_edge_kind_rank(kind: FrontendGraphEdgeKind) -> u8 {
         FrontendGraphEdgeKind::Include => 0,
         FrontendGraphEdgeKind::Use => 1,
     }
+}
+
+fn frontend_include_label(path: &str) -> String {
+    std::path::Path::new(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(path)
+        .to_string()
 }

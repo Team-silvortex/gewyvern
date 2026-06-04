@@ -192,10 +192,16 @@ template(:frontend_summary)
             FrontendFunctionReport {
                 name: "udp_core".to_string(),
                 step_count: 3,
+                source_id: "entry".to_string(),
+                package_scope: "inline".to_string(),
+                params: Vec::new(),
             },
             FrontendFunctionReport {
                 name: "udp_rules".to_string(),
                 step_count: 3,
+                source_id: "entry".to_string(),
+                package_scope: "inline".to_string(),
+                params: Vec::new(),
             }
         ]
     );
@@ -221,16 +227,22 @@ template(:frontend_summary)
             FrontendGraphNodeReport {
                 id: "entry".to_string(),
                 kind: "entry".to_string(),
+                label: "entry".to_string(),
+                package_scope: "inline".to_string(),
                 step_count: Some(3),
             },
             FrontendGraphNodeReport {
                 id: "fn:udp_core".to_string(),
                 kind: "function".to_string(),
+                label: "udp_core".to_string(),
+                package_scope: "inline".to_string(),
                 step_count: Some(3),
             },
             FrontendGraphNodeReport {
                 id: "fn:udp_rules".to_string(),
                 kind: "function".to_string(),
+                label: "udp_rules".to_string(),
+                package_scope: "inline".to_string(),
                 step_count: Some(3),
             }
         ]
@@ -293,15 +305,32 @@ fn udp_core() {
     let frontend = report.parse.frontend.as_ref().unwrap();
     assert_eq!(frontend.kind, "pipeline");
     assert_eq!(frontend.function_count, 1);
+    assert_eq!(frontend.function_nodes.len(), 1);
+    assert_eq!(frontend.function_nodes[0].name, "udp_core");
+    assert_eq!(frontend.function_nodes[0].step_count, 5);
     assert_eq!(
-        frontend.function_nodes,
-        vec![FrontendFunctionReport {
-            name: "udp_core".to_string(),
-            step_count: 5,
-        }]
+        frontend.function_nodes[0].package_scope,
+        "frontend_summary_pkg"
+    );
+    assert!(frontend.function_nodes[0].params.is_empty());
+    assert!(
+        frontend.function_nodes[0]
+            .source_id
+            .ends_with("module.gewy")
     );
     assert_eq!(frontend.include_sources.len(), 1);
-    assert!(frontend.include_sources[0].ends_with("module.gewy"));
+    assert_eq!(frontend.include_sources[0].request, "./module.gewy");
+    assert_eq!(frontend.include_sources[0].kind, "local");
+    assert_eq!(frontend.include_sources[0].dependency, None);
+    assert_eq!(
+        frontend.include_sources[0].package_scope,
+        "frontend_summary_pkg"
+    );
+    assert!(
+        frontend.include_sources[0]
+            .resolved_path
+            .ends_with("module.gewy")
+    );
     assert_eq!(
         frontend.use_edges,
         vec![FrontendUseEdgeReport {
@@ -314,10 +343,204 @@ fn udp_core() {
     assert!(frontend.graph_nodes.iter().any(|node| node.kind == "file"));
     assert!(
         frontend
+            .graph_nodes
+            .iter()
+            .any(|node| node.label == "module.gewy")
+    );
+    assert!(
+        frontend
+            .graph_nodes
+            .iter()
+            .any(|node| node.kind == "file" && node.package_scope == "frontend_summary_pkg")
+    );
+    assert!(
+        frontend
             .graph_edges
             .iter()
             .any(|edge| edge.kind == "include" && edge.line == 5)
     );
+}
+
+#[test]
+fn stages_report_infers_pipeline_function_parameter_kinds() {
+    let report = compile_stages_report_str(
+        r#"
+fn udp_core(model_name, op_name = :datagram_exchange, dedupe_flag = true, duration_ms = 5000) =
+  |> window(duration_ms: ${duration_ms}, lateness_ms: 200)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: ${dedupe_flag}, module: :frontend_summary, phase: :bind)
+
+template(:frontend_summary)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core, :typed_model)
+"#,
+    );
+    let frontend = report.parse.frontend.as_ref().unwrap();
+    let function = frontend
+        .function_nodes
+        .iter()
+        .find(|node| node.name == "udp_core")
+        .unwrap();
+    assert_eq!(
+        function.params,
+        vec![
+            FrontendFunctionParamReport {
+                name: "model_name".to_string(),
+                has_default: false,
+                inferred_kind: Some("atom".to_string()),
+            },
+            FrontendFunctionParamReport {
+                name: "op_name".to_string(),
+                has_default: true,
+                inferred_kind: Some("atom".to_string()),
+            },
+            FrontendFunctionParamReport {
+                name: "dedupe_flag".to_string(),
+                has_default: true,
+                inferred_kind: Some("bool".to_string()),
+            },
+            FrontendFunctionParamReport {
+                name: "duration_ms".to_string(),
+                has_default: true,
+                inferred_kind: Some("u64".to_string()),
+            },
+        ]
+    );
+}
+
+#[test]
+fn explain_report_uses_default_pipeline_function_arguments() {
+    let report = compile_explain_report_str(
+        r#"
+fn udp_client(model_name = :default_model, op_name = :datagram_exchange) =
+  let module_name = :udp_client
+  |> fragment(:udp_packet_meta_fragment)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+
+template(:frontend_defaults)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_client)
+"#,
+    );
+    assert!(report.ok);
+    let binding = report.binding.as_ref().unwrap();
+    let model = binding.program_model.as_ref().unwrap();
+    assert_eq!(model.id, "default_model");
+    assert_eq!(model.operation, "datagram_exchange");
+}
+
+#[test]
+fn explain_report_allows_partial_override_of_default_pipeline_function_arguments() {
+    let report = compile_explain_report_str(
+        r#"
+fn udp_client(model_name = :default_model, op_name = :datagram_exchange) =
+  let module_name = :udp_client
+  |> fragment(:udp_packet_meta_fragment)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+
+template(:frontend_defaults)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_client, :custom_model)
+"#,
+    );
+    assert!(report.ok);
+    let binding = report.binding.as_ref().unwrap();
+    let model = binding.program_model.as_ref().unwrap();
+    assert_eq!(model.id, "custom_model");
+    assert_eq!(model.operation, "datagram_exchange");
+}
+
+#[test]
+fn explain_report_supports_named_pipeline_function_arguments() {
+    let report = compile_explain_report_str(
+        r#"
+fn udp_client(model_name = :default_model, op_name = :datagram_exchange) =
+  let module_name = :udp_client
+  |> fragment(:udp_packet_meta_fragment)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+
+template(:frontend_defaults)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_client, op_name: :custom_exchange, model_name: :named_model)
+"#,
+    );
+    assert!(report.ok);
+    let binding = report.binding.as_ref().unwrap();
+    let model = binding.program_model.as_ref().unwrap();
+    assert_eq!(model.id, "named_model");
+    assert_eq!(model.operation, "custom_exchange");
+}
+
+#[test]
+fn explain_report_supports_positional_then_named_pipeline_function_arguments() {
+    let report = compile_explain_report_str(
+        r#"
+fn udp_client(model_name, op_name = :datagram_exchange) =
+  |> fragment(:udp_packet_meta_fragment)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+
+template(:frontend_defaults)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_client, :mixed_model, op_name: :custom_exchange)
+"#,
+    );
+    assert!(report.ok);
+    let binding = report.binding.as_ref().unwrap();
+    let model = binding.program_model.as_ref().unwrap();
+    assert_eq!(model.id, "mixed_model");
+    assert_eq!(model.operation, "custom_exchange");
+}
+
+#[test]
+fn explain_report_rejects_atom_inference_mismatches_for_pipeline_arguments() {
+    let report = compile_explain_report_str(
+        r#"
+fn udp_client(model_name, op_name = :datagram_exchange) =
+  |> fragment(:udp_packet_meta_fragment)
+  |> operation(${op_name})
+  |> program_model(${model_name})
+
+template(:frontend_defaults)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_client, "unsafe model")
+"#,
+    );
+    assert!(!report.ok);
+    let text = render_explain_report(&report, RenderFormat::Text);
+    assert!(text.contains("expects atom-like identifier value"));
+    assert!(text.contains("model_name"));
+}
+
+#[test]
+fn explain_report_rejects_predicate_inference_mismatches_for_pipeline_arguments() {
+    let report = compile_explain_report_str(
+        r#"
+fn rule_module(predicate_name = :process_bound) =
+  |> program_model(:predicate_model)
+  |> operation(:datagram_exchange)
+  |> program_rule(predicate: ${predicate_name}, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :predicate_module, phase: :bind)
+
+template(:frontend_defaults)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:rule_module, predicate_name: :not_a_real_predicate)
+"#,
+    );
+    assert!(!report.ok);
+    let text = render_explain_report(&report, RenderFormat::Text);
+    assert!(text.contains("expects predicate-compatible value"));
+    assert!(text.contains("predicate_name"));
 }
 
 #[test]
