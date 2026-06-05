@@ -1,6 +1,26 @@
 # Development Guide
 
-This guide describes the current development workflow.
+Use this page when you need the current contributor workflow for `gewyvern`.
+
+This page is intentionally a durable contributor guide. It focuses on:
+
+- local orientation
+- test workflow
+- where different classes of tests live
+- how to approach changes without drifting the runtime
+
+This page is not the best first stop for:
+
+- the top-level docs map
+- the system architecture
+- language or fragment semantics
+
+For those, use:
+
+- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
+- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+- [docs/fragments.md](/Users/Shared/chroot/dev/gewyvern/docs/fragments.md)
 
 ## Quick Start
 

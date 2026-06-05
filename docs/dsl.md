@@ -1,6 +1,28 @@
 # DSL Guide
 
-This document describes the current `.gewy` DSL used by `gewyvern`.
+Use this page when you need the current stable shape of the `.gewy` language
+itself.
+
+This page is intentionally a durable language guide. It describes:
+
+- what `.gewy` compiles to
+- what the current pipeline/package surface looks like
+- which constructs are considered stable
+- which parameter boundaries are intentionally enforced
+
+This page is not the best first stop for:
+
+- your first end-to-end run
+- your first package walkthrough
+- exact package/module lookup
+- compiler JSON surface details
+
+For those, use:
+
+- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
+- [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
+- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+- [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
 
 ## Goal
 
@@ -19,34 +41,35 @@ Its compile target is `TemplateBinding`, which carries:
 That boundary is intentional. The DSL is for selecting and parameterizing
 existing fragment templates, not for generating arbitrary kernel programs.
 
-## File Extension
+## File Extension And Source Shelves
 
 `gewyvern` DSL files use the `.gewy` extension.
 
-The repository now has two main ways to inspect built-in language usage:
+The repository has two durable source shelves for current language usage:
 
 - [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)
-  Canonical registry packages and runtime-facing built-in entries.
+  Canonical registry packages and runtime-facing package entries.
 - [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
-  Underlying protocol-path source files and debug/compiler baselines.
+  Underlying protocol-path source files and compiler/debug baselines.
 
-Useful anchor examples:
+If you want a few anchor examples instead of browsing the whole tree, these are
+good starting points:
 
 - debug/compiler baselines:
   [dsl/handshake_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy),
   [dsl/pipeline_udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/pipeline_udp_process_debug.gewy),
   [dsl/structured_udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/structured_udp_process_debug.gewy)
-- modern transport and proxying:
+- transport and proxy paths:
   [dsl/tls_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy),
   [dsl/quic_stream_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_stream_session_path.gewy),
   [dsl/http3_request_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy),
   [dsl/hy2_tcp_relay_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy)
-- classical request/auth/session paths:
+- request/auth/session paths:
   [dsl/http_request_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy),
   [dsl/postgres_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy),
   [dsl/mysql_query_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy),
   [dsl/ldap_directory_sync_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy)
-- classic infrastructure control protocols:
+- infrastructure control protocols:
   [dsl/ssh_channel_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssh_channel_session_path.gewy),
   [dsl/socks5_auth_connect_denied_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_connect_denied_path.gewy),
   [dsl/ftp_active_retr_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_retr_path.gewy),
@@ -86,8 +109,8 @@ template(:structured_udp_process_debug)
 |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :structured_udp_process_debug, phase: :bind)
 ```
 
-The pipeline parser now first merges files and function units into a single
-pipeline module IR, then lowers that IR into the current compiler surface; it
+The pipeline parser first merges files and function units into a single
+pipeline module IR, then lowers that IR into the current compiler surface. It
 does not generate eBPF bytecode directly.
 
 For QUIC-family protocols, `quic_frame_observed` now accepts
@@ -97,17 +120,26 @@ and `bytes_at:<offset>:<byte>,<byte>,...`, which lets DSLs express both
 stream-oriented and datagram-oriented QUIC modules without falling back to raw
 UDP payload offsets.
 
-That merged front-end IR is now also reflected in compiler-facing reports, so
-`gewyc stages` can surface function counts, merged step counts, and resolved
-`include(...)` sources for a package entry, along with a minimal front-end
-graph whose nodes cover entry/file/function identities and whose edges capture
-both `include()` and `use()` relationships, including the source line that
-produced each edge.
-Pipeline projects can also resolve through a `gewy.pkg` manifest with one
-`main.gewy` entry and `include("...")` expansion.
+Pipeline projects can resolve through a `gewy.pkg` manifest with one
+`main.gewy` entry and `include("...")` expansion. That merged front-end IR is
+also reflected in compiler-facing reports, so `gewyc stages` can surface:
+
+- function counts
+- merged step counts
+- resolved `include(...)` sources
+- a minimal front-end graph for entry/file/function identities
+- `include()` and `use()` edges, including the source line that produced them
+
+The best companion pages for those surfaces are:
+
+- [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
+- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+- [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+
+## Frontend And Explain Surfaces
 
 If you only want the front-end shape without the full staged compiler report,
-`gewyc frontend` now renders that pipeline/package summary directly:
+`gewyc frontend` renders that pipeline/package summary directly:
 
 ```bash
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
@@ -118,7 +150,7 @@ cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --emit frontend --json --out /tmp/udp-process-frontend.json
 ```
 
-The text form is intentionally optimized for human inspection: it prints
+The text form is intentionally optimized for human inspection. It prints
 `include_sources`, `function_nodes`, `use_edges`, `graph_nodes`, and
 `graph_edges` as separate multi-line sections instead of a single compact line.
 When you only want one part, `--focus functions|includes|graph` keeps the top
@@ -565,7 +597,14 @@ gewyc lock .
 
 By default this writes `gewy.lock` next to the resolved package entry.
 
-## Top-Level Keys
+For exact package/module lookup rules, see
+[docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md).
+
+## Legacy Key Surface
+
+The current preferred `gewylang` surface is the pipeline DSL. The flat
+top-level key form remains supported as a compatibility surface for existing
+fixtures, migration work, and older bindings.
 
 Legacy supported keys are:
 
@@ -1050,13 +1089,22 @@ param=udp_packet_meta_fragment.min_len=false
 
 ## CLI Usage
 
-Compile and run a DSL-driven demo:
+The most common command families are:
+
+- compile a `.gewy` file into a binding
+- inspect the front-end/package surface
+- inspect diagnostics/findings/stages
+- run a DSL-backed runtime session
+
+Typical examples:
+
+- compile and run a DSL-backed session:
 
 ```bash
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --summary-only
 ```
 
-Compile a `.gewy` file without starting the runtime:
+- compile a `.gewy` file without starting the runtime:
 
 ```bash
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
@@ -1064,33 +1112,19 @@ cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.ge
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --out /tmp/udp-process-binding.json
 ```
 
-Inspect the full compiler envelope through the shared front-end surface:
+- inspect the front-end/package surface:
 
 ```bash
-cargo run -p gewyc -- envelope /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
-cargo run -p gewyc -- envelope /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
-cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --emit envelope --json --out /tmp/udp-process-envelope.json
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus graph
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation
 ```
 
-Inspect binding diagnostics through the dedicated compiler surface:
+- inspect diagnostics/findings/stages:
 
 ```bash
 cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
-cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
-cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --emit diagnostics --json --out /tmp/udp-process-diagnostics.json
-```
-
-Inspect compiler findings through the dedicated compiler surface:
-
-```bash
-cargo run -p gewyc -- findings /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
 cargo run -p gewyc -- findings /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
-```
-
-Inspect staged compiler output through the dedicated compiler surface:
-
-```bash
-cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
 cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
 ```
 
@@ -1106,11 +1140,17 @@ stage-local finding, so frontends can inspect partial compiler state without
 falling back to an unstructured error string. Only outer file read failures stay
 outside the staged report surface.
 
-Run a socket session from a DSL file:
+- run a socket session from a DSL file:
 
 ```bash
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --unix-socket /tmp/gewyvern.sock --json
 ```
+
+For task-oriented compiler and runtime validation flows, prefer:
+
+- [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
+- [docs/book/how-to-add-or-debug-protocol-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-add-or-debug-protocol-package.md)
+- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 
 ## Current Limits
 
@@ -1124,10 +1164,19 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy 
 - `gewyc` is currently a separate workspace crate that still reuses
   `gewyvern`'s shared DSL/compiler library surface
 
-## Related Files
+## Implementation Anchors
+
+If you are changing the language or debugging compiler behavior, these are the
+most relevant implementation shelves:
 
 - [src/dsl.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl.rs)
+- [src/dsl/pipeline.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl/pipeline.rs)
+- [src/dsl/predicate.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl/predicate.rs)
+- [src/dsl/package.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl/package.rs)
+- [src/dsl/frontend.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl/frontend.rs)
 - [src/template.rs](/Users/Shared/chroot/dev/gewyvern/src/template.rs)
 - [src/program.rs](/Users/Shared/chroot/dev/gewyvern/src/program.rs)
 - [src/fragment.rs](/Users/Shared/chroot/dev/gewyvern/src/fragment.rs)
+- [src/gewyc/frontend.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/frontend.rs)
+- [src/gewyc/explain.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/explain.rs)
 - [tests/dsl_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/dsl_tdd.rs)

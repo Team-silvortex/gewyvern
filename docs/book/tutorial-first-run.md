@@ -10,10 +10,8 @@ It is intentionally narrow:
 - one report path
 - one reading strategy
 
-If you want broader command examples, see
-[docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md).
 If you want the lower-level compiler/runtime story, see
-[docs/walkthrough.md](/Users/Shared/chroot/dev/gewyvern/docs/walkthrough.md).
+[docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md).
 
 ## What You Will Do
 
@@ -24,6 +22,7 @@ By the end of this tutorial, you will have:
 3. run a broader sweep
 4. rendered an HTML report
 5. learned the minimum set of fields to read first
+6. seen when to use serve/API and socket ingest
 
 ## Step 1: Discover What Is Built In
 
@@ -146,7 +145,46 @@ Use:
 
 If you are using the serve/API path later, this distinction still holds.
 
-## Step 7: What “Good Enough To Start Using” Means
+## Step 7: Use Serve/API And Socket Ingest When Needed
+
+Once the focused and sweep paths feel normal, the next useful operator shape is
+the local service/API surface.
+
+If facts are arriving over a local socket producer:
+
+```bash
+cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --ingest-mode local-advisory --summary-only --report-format html --out /tmp/process-scan.html
+```
+
+If another local service needs the latest result over HTTP:
+
+```bash
+cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --ingest-mode local-advisory --serve --api-socket 127.0.0.1:9100 --json --summary-only
+curl http://127.0.0.1:9100/v1/capabilities
+curl http://127.0.0.1:9100/v1/latest/targets
+curl http://127.0.0.1:9100/v1/latest/summary.json
+curl http://127.0.0.1:9100/v1/latest/analysis.json
+```
+
+Read this combination carefully:
+
+- `ingest_mode`
+- `ingest_trust_mode`
+- `pid_attribution_status`
+- `primary_failure_confidence`
+- `primary_failure_basis`
+
+That tells you both what the runtime thinks and how directly the input supports
+that conclusion.
+
+Important boundary:
+
+- `--pid` is intentionally rejected with socket ingest
+- `local-advisory` and `remote-advisory` are operator-facing run modes, not
+  proof of trust
+- process-scoped conclusions in this mode should be read as advisory
+
+## Step 8: What “Good Enough To Start Using” Means
 
 The current `v0.13.0` line is not claiming final forever-frozen `1.0`
 stability, but it is already meant to be usable on purpose.
@@ -163,9 +201,9 @@ For the broader release posture, see
 
 ## Where To Go Next
 
-- If you want more operator examples:
-  [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
 - If you want to understand the runtime pipeline:
-  [docs/walkthrough.md](/Users/Shared/chroot/dev/gewyvern/docs/walkthrough.md)
+  [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+- If you want the full runtime validation ladder:
+  [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 - If you want to start authoring `gewylang`:
   [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)

@@ -1,17 +1,32 @@
 # `gewyc` JSON Surfaces
 
-This note is the small, practical schema guide for the human-facing `gewyc`
-debugging surfaces that are most likely to be consumed by editors, scripts, or
-lightweight IDE tooling:
+Use this page when you need the current JSON contract shape for the
+human-oriented `gewyc` compiler surfaces.
+
+This page is intentionally a narrow reference. It focuses on the JSON emitted
+by the higher-level debugging surfaces most likely to be consumed by editors,
+scripts, or lightweight IDE tooling:
 
 - `gewyc frontend --json`
 - `gewyc frontend --focus ... --json`
 - `gewyc explain --json`
 - `gewyc explain --focus ... --json`
 
-It is intentionally narrower than the full compiler envelope. The goal here is
-to make the higher-level debugging surfaces easy to consume without having to
-reverse-engineer the emitted JSON from source.
+It is intentionally narrower than the full compiler envelope. The goal is to
+make these higher-level surfaces easy to consume without reverse-engineering
+the emitted JSON from source.
+
+This page is not the best place for:
+
+- your first `gewylang` package walkthrough
+- the full language surface
+- task-oriented validation flows
+
+For those, use:
+
+- [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
+- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+- [docs/book/how-to-add-or-debug-protocol-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-add-or-debug-protocol-package.md)
 
 ## Stability
 
@@ -263,7 +278,7 @@ Example validation focus:
 }
 ```
 
-## Small Integration Examples
+## Consumer Patterns
 
 ### Shell / `jq`: grab the first parse excerpt
 
@@ -308,17 +323,22 @@ That sequence keeps the UI small and progressive:
 - validation gets payload-coverage feedback second
 - diagnostics gets rule-support feedback last
 
-## When To Use Which Surface
+## Surface Selection
 
 - Use `frontend --json` when you want function/include/graph structure.
 - Use `frontend --focus graph --json` when you only care about graph shape.
-- Use `explain --json` when you want a single human-oriented compiler summary.
+- Use `explain --json` when you want one human-oriented compiler summary.
 - Use `explain --focus parse --json` when you are building editor diagnostics.
 - Use `explain --focus validation --json` when you are building coverage/debug tooling.
 - Use `explain --focus diagnostics --json` when you want the first unsupported rule-sized entry point.
 
-## Related Docs
+## Companion References
 
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+  Stable language surface and current preferred subset.
+- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+  Exact package/module lookup rules.
 - [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
+  Draft formal grammar.
 - [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+  Source-layering note for contributors changing compiler internals.

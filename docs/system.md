@@ -1,9 +1,27 @@
 # System Guide
 
-This document is the current system-level map for `gewyvern`.
+Use this page when you need the current system-level map for `gewyvern`.
 
-It explains how the current runtime is layered, what each layer is
-responsible for, and where the main architectural boundaries are.
+This page is intentionally a durable architecture note. It explains:
+
+- how the current runtime is layered
+- what each layer is responsible for
+- where the main architectural boundaries are
+- which capabilities are intentionally in scope today
+
+This page is not the best first stop for:
+
+- a first operator run
+- exact diagnosis field lookup
+- exact `gewylang` package/module lookup
+- task-oriented validation steps
+
+For those, use:
+
+- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
+- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 
 ## One-Sentence Model
 
@@ -318,13 +336,17 @@ These are explicitly not part of the current core:
 - distributed multi-host runtime
 - stable public schema guarantees
 
-## Recommended Reading Order
+## Companion Guides
 
-1. [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
-2. [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
-3. [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
-4. [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
-5. [docs/fragments.md](/Users/Shared/chroot/dev/gewyvern/docs/fragments.md)
-6. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-7. [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
-8. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+  Source-layering note for the current repository layout.
+- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+  Broader project architecture and major component relationships.
+- [docs/fragments.md](/Users/Shared/chroot/dev/gewyvern/docs/fragments.md)
+  Fragment capabilities, attach semantics, and evidence surfaces.
+- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+  Stable `gewylang` language surface and current preferred subset.
+- [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
+  Replay/export contract and top-level bundle shape.
+- [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+  Contributor-oriented development workflow and local project practice.

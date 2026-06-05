@@ -14,9 +14,9 @@ For most readers, the right order is:
    posture.
 2. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
    System-level layering and the main runtime/compiler boundaries.
-3. [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
-   Operator-facing usage patterns for single-target scans, sweeps, reports, and
-   summary reading.
+3. [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
+   Operator-facing first-use path for single-target scans, sweeps, reports,
+   and summary reading.
 4. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
    `gewylang`, package shape, compiler usage, and the preferred stable subset.
 5. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
@@ -39,43 +39,33 @@ For a more structured reading experience, use the book-style tracks:
 
 ## Core Docs
 
-- [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md)
-  Short release-readiness checklist for the current pre-`1.0` preparation
-  path.
+If you only want the durable top-level project pages, read these first:
+
 - [docs/v0.13-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.13-posture.md)
-  What the current preparation line should already mean in practical use.
-- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
-  Real-world validation matrix for the current pre-`1.0` line.
-- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
-  Short record of what real validation has already shown in practice.
 - [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
-  Standalone security boundary, ingest trust posture, and what `gewyvern`
-  should not be treated as before the `v0.13.0` preparation line closes.
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-  High-level system map and stable architecture boundaries.
-- [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
-  Fastest operator path from command invocation to reading conclusions.
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-  Language guide for `.gewy`, package composition, predicates, and compiler
-  usage.
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
-  TDD workflow, test map, and contributor habits.
+
+Release/readiness and evidence pages live beside them:
+
+- [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md)
+- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
+- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
 
 ## Runtime Internals
 
 - [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
-  `src/` ownership map: `main`, `serve_runtime`, `report_runtime`,
-  `diagnosis_runtime`, `data_api`, and `external_analysis`.
+  Source ownership map across the main runtime modules.
 - [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
-  Restart, failure, degraded-mode, and latest-snapshot expectations for
-  `--serve`, API, and external-engine hook operation.
+  Long-lived `--serve`, API, and degraded-mode expectations.
 - [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
   Runtime-pipeline deep dive.
 - [docs/fragments.md](/Users/Shared/chroot/dev/gewyvern/docs/fragments.md)
-  Fragment model, capabilities, and attach/runtime semantics.
+  Fragment model and attach/runtime semantics.
 - [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
   `ExportBundle` and replay/export shape.
-- [docs/walkthrough.md](/Users/Shared/chroot/dev/gewyvern/docs/walkthrough.md)
+- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
   One concrete `.gewy -> binding -> runtime -> export` path.
 
 ## Operator Semantics
@@ -105,8 +95,7 @@ For a more structured reading experience, use the book-style tracks:
 - [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
   Minimal contract for append-only external analysis engines.
 - [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
-  How `gewyvern` exposes additive nearby sidecar context without surrendering
-  the core diagnosis spine.
+  How nearby sidecars stay additive instead of replacing the diagnosis spine.
 - [docs/performance-baselines.md](/Users/Shared/chroot/dev/gewyvern/docs/performance-baselines.md)
   Current ignored-benchmark medians and comparison workflow.
 - [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)

@@ -1,7 +1,12 @@
 # Failure Semantics
 
-This guide explains how to interpret `gewyvern` failure language across
-different protocol clusters.
+This page is a durable semantics reference for `gewyvern` failure language
+across protocol clusters.
+
+If you want the operator onboarding path first, use:
+
+- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
+- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
 
 The goal is not only to know that a result is `attention`, but to read:
 

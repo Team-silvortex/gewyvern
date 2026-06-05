@@ -1,7 +1,7 @@
 # Surface Stability
 
-This note records the operator-facing surfaces that should now be treated as
-the current compatibility contract candidate for `gewyvern`.
+Use this page when you need the current compatibility-contract candidate for
+operator-facing `gewyvern` surfaces.
 
 It is the practical answer to:
 
@@ -16,6 +16,18 @@ It is the narrower and more useful promise that:
 - the diagnosis spine should stop churning
 - the primary CLI surface should stop drifting
 - incidental presentation details should not be treated as contract
+
+This page is not the best first stop for:
+
+- exact diagnosis field meanings
+- export bundle structure
+- first-run CLI usage
+
+For those, use:
+
+- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
+- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
 
 ## Primary CLI Contract
 

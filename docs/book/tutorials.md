@@ -9,7 +9,7 @@ walking through a path, not by skimming every reference page.
    First operator path from repo checkout to a real run.
 2. [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
    First package-authoring path for `gewylang`.
-3. [docs/walkthrough.md](/Users/Shared/chroot/dev/gewyvern/docs/walkthrough.md)
+3. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
    One full `.gewy -> binding -> runtime -> export` flow.
 4. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
    The stable `gewylang` subset and package model.
@@ -21,7 +21,6 @@ walking through a path, not by skimming every reference page.
 ### Operator Path
 
 - [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-- [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
 
@@ -35,7 +34,7 @@ walking through a path, not by skimming every reference page.
 ### Runtime Internals Path
 
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-- [docs/walkthrough.md](/Users/Shared/chroot/dev/gewyvern/docs/walkthrough.md)
+- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
 - [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
 
 ## Future Shape

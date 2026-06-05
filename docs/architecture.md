@@ -1,9 +1,24 @@
 # Runtime Architecture
 
-This document is the runtime-pipeline deep dive.
+Use this page when you need the runtime-pipeline deep dive.
 
-For the higher-level system map and current compiler/runtime boundaries, start
-with [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md).
+This page is intentionally a durable internals note. It focuses on:
+
+- the runtime pipeline
+- the core IR-bearing concepts
+- how plans, sessions, flows, and replay fit together
+
+This page is not the best first stop for:
+
+- the top-level system map
+- first-run operator validation
+- exact CLI/API contract lookup
+
+For those, start with:
+
+- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+- [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
 
 ## Pipeline
 

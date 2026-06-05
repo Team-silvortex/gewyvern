@@ -1,6 +1,6 @@
-# Walkthrough
+# Explanation: One `.gewy` Path Through The System
 
-This walkthrough follows one concrete path through `gewyvern`:
+This chapter follows one concrete path through `gewyvern`:
 
 ```text
 .gewy file
@@ -13,6 +13,32 @@ This walkthrough follows one concrete path through `gewyvern`:
 It uses the built-in UDP process-aware example:
 
 - [dsl/udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy)
+
+This page is best read after:
+
+- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
+- [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
+
+and alongside:
+
+- [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
+- [docs/book/explanation-gewylang-lightweight-types.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-lightweight-types.md)
+
+## Best Used For
+
+Use this page when you want to understand:
+
+- how a `.gewy` file becomes a binding
+- where planner diagnostics fit
+- where runtime materialization begins
+- how export/replay fits into the system story
+
+Do not use this page as the fastest operational checklist.
+
+For that, use:
+
+- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
+- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 
 ## Step 1: Start With A `.gewy` File
 
@@ -78,8 +104,8 @@ In code, this boundary lives in:
 
 ## Step 3: Inspect Planner Diagnostics
 
-Before starting a runtime session, you can inspect whether the selected fragment
-set actually supports the declared rules:
+Before starting a runtime session, you can inspect whether the selected
+fragment set actually supports the declared rules:
 
 ```bash
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --diagnostics --json
@@ -121,8 +147,8 @@ This path lives across:
 - [src/program.rs](/Users/Shared/chroot/dev/gewyvern/src/program.rs)
 - [src/reason.rs](/Users/Shared/chroot/dev/gewyvern/src/reason.rs)
 
-For the built-in CLI demo path, the runtime feeds a small deterministic fact set
-through this binding and then exports the session.
+For the built-in CLI demo path, the runtime feeds a small deterministic fact
+set through this binding and then exports the session.
 
 ## Step 5: Look At The Runtime Result
 
@@ -159,12 +185,13 @@ For more operator-facing runs, modern `summary_json` output also carries:
 
 Those fields are more useful when the session is diagnosing a real failure than
 this tiny healthy UDP baseline. See
-[docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md) for
-practical report-reading examples.
+[docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
+for practical report-reading examples.
 
 ## Step 6: Understand What Was Materialized
 
-Under that summary, the runtime has already constructed several different views:
+Under that summary, the runtime has already constructed several different
+views:
 
 ### Transport Flow
 
@@ -229,3 +256,12 @@ This example shows the intended system boundary for the current line:
 That is the foundation for the future protocol-agnostic direction: new
 protocols should arrive primarily as new fragment templates, params, and DSL
 rule combinations, not as a DSL that directly emits new kernel bytecode.
+
+## Where To Go Next
+
+- If you want to author or debug packages directly:
+  [docs/book/how-to-add-or-debug-protocol-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-add-or-debug-protocol-package.md)
+- If you want exact package/module rules:
+  [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+- If you want the internal source ownership map:
+  [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)

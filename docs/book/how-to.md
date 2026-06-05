@@ -5,8 +5,8 @@ This track is task-first. Use it when you already know roughly what
 
 ## Operate The Runtime
 
-- [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
-  Run a single target, a sweep, or generate reports.
+- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
+  Run a first focused target, a sweep, or the serve/API path on purpose.
 - [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
   Understand `--serve`, restart, degraded mode, and API behavior.
 - [docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md)

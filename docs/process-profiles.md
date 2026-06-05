@@ -1,7 +1,14 @@
 # Process Profiles
 
-This guide explains how to read `gewyvern` when the goal is not "what protocol
-matched?" but "what kind of network module is this process failing in?"
+This page is a durable semantics note for `process_network_profiles`.
+
+Use it when the question is not "what protocol matched?" but "what kind of
+network module is this process failing in?"
+
+If you want a first-use operator path instead of a semantics page, start with:
+
+- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
+- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 
 The key runtime view is:
 

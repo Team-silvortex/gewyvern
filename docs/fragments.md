@@ -1,7 +1,26 @@
 # Fragment Guide
 
-This document describes how fragments are modeled in the current runtime and
-how new fragments should be introduced.
+Use this page when you need the current fragment model and attach-capability
+surface.
+
+This page is intentionally a durable runtime note. It focuses on:
+
+- what a fragment is
+- what a fragment is not allowed to do
+- how descriptor fields should be interpreted
+- how new fragments should be introduced
+
+This page is not the best first stop for:
+
+- the top-level system map
+- first-run operator behavior
+- exact diagnosis field lookup
+
+For those, use:
+
+- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
+- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
 
 ## What A Fragment Is
 

@@ -7,6 +7,8 @@ understand why the project is shaped the way it is.
 
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
   Main runtime/compiler boundary and system map.
+- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+  One concrete `.gewy -> binding -> runtime -> export` path.
 - [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
   Deeper runtime-pipeline explanation.
 - [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
@@ -14,6 +16,11 @@ understand why the project is shaped the way it is.
 
 ## Semantics And Interpretation
 
+- [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
+  Why the runtime prefers conservative diagnosis over premature collapse.
+- [docs/book/explanation-gewylang-lightweight-types.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-lightweight-types.md)
+  Why `gewylang` adds lightweight parameter boundaries instead of a full type
+  system.
 - [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
 - [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
 - [docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md)

@@ -1,7 +1,9 @@
 # Source Module Boundaries
 
-This document describes the current `src/` layering as `gewyvern` approaches
-its `1.0` contract freeze.
+This page is the durable source-layering note for `gewyvern`.
+
+It describes the current `src/` layering as the project converges on a more
+stable release line.
 
 The goal is simple:
 
@@ -11,7 +13,7 @@ The goal is simple:
 - keep shared formatting helpers small and reusable
 
 This is not a public stability guarantee yet, but it is the intended internal
-shape we want to preserve while the project moves toward `1.0.0`.
+shape we want to preserve while the project matures.
 
 ## Top-Level Shape
 

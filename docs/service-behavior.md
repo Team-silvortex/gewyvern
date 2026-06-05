@@ -1,7 +1,10 @@
 # Service Behavior
 
-This note describes the long-lived operational behavior of `gewyvern` when it
-is used as a standalone CLI/service with:
+This page is a durable operational note for long-lived `gewyvern` service
+behavior.
+
+It describes what to expect when `gewyvern` is used as a standalone
+CLI/service with:
 
 - `--serve`
 - `--api-socket`
@@ -14,6 +17,10 @@ For the higher-level system map, see
 
 For the machine-facing data contract, see
 [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md).
+
+If you want a task-first validation path instead of a behavior note, use:
+
+- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 
 ## Scope
 

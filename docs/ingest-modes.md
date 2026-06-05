@@ -190,6 +190,6 @@ failure of the tool. It is the runtime deliberately refusing to overclaim.
 
 For companion reading:
 
-- [examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
+- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
 - [process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
 - [failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)

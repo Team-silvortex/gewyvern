@@ -194,27 +194,24 @@ boundaries:
 - [packaging](/Users/Shared/chroot/dev/gewyvern/packaging)
   Native Linux packaging templates for DEB/RPM metadata.
 
-## Repository Reading Order
+## Documentation Entrypoints
 
-If you are orienting yourself for the first time, use this shorter path:
+Use the docs in two layers:
+
+- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
+  The durable top-level map for project, runtime, DSL, validation, and
+  packaging pages.
+- [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
+  The structured reading spine for tutorials, how-to, reference, and
+  explanation.
+
+If you are orienting yourself for the first time, the shortest useful order is:
 
 1. [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
 2. [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
-3. [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md)
-4. [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)
-5. [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
-6. [src/main.rs](/Users/Shared/chroot/dev/gewyvern/src/main.rs)
-7. [src/ir.rs](/Users/Shared/chroot/dev/gewyvern/src/ir.rs)
-
-The full document map now lives in [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md),
-so the rest of the docs do not each need to carry their own long navigation
-list.
-
-For a more book-like reading frame, use
-[docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md),
-which reorganizes the existing material into tutorial, how-to, reference, and
-explanation tracks. The documentation house rules for that structure live in
-[docs/book/conventions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/conventions.md).
+3. [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
+4. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+5. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
 
 ## Main Entrypoints
 
@@ -1027,7 +1024,7 @@ cargo linux-smoke
 
 - [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-- [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
+- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
 

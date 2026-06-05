@@ -232,6 +232,39 @@ Look first at:
 Treat this as environment or packaging drift, not necessarily a core diagnosis
 failure.
 
+## Step 7: Validate The Serve/API And External-Engine Bridge
+
+When the question is not only "does the runtime compile?" but also "can other
+local tools safely consume it?", validate the serve/API chain directly.
+
+For a local socket ingest plus API surface:
+
+```bash
+cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --ingest-mode local-advisory --serve --api-socket 127.0.0.1:9100 --json --summary-only
+curl http://127.0.0.1:9100/v1/capabilities
+curl http://127.0.0.1:9100/v1/latest/targets
+curl http://127.0.0.1:9100/v1/latest/summary.json
+curl http://127.0.0.1:9100/v1/latest/analysis.json
+```
+
+If you also want to smoke the generic external-engine bridge end to end:
+
+```bash
+bash scripts/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json
+```
+
+To target one specific route, pass a path segment as the sixth argument:
+
+```bash
+bash scripts/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json socket_session
+```
+
+Use this when you need confidence in:
+
+- `summary.json` versus `analysis.json`
+- target route discovery through `/v1/latest/targets`
+- local sidecar/enrich chains rather than just CLI rendering
+
 ## What “Healthy Enough For v0.13.0” Means
 
 For the current line, the runtime surface is in a good state when:

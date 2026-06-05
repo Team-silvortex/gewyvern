@@ -256,7 +256,7 @@ predictable.
 
 If the package adds a meaningful new family or entry, update at least one of:
 
-- [docs/examples.md](/Users/Shared/chroot/dev/gewyvern/docs/examples.md)
+- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
 - [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
 - [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
