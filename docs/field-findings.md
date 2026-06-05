@@ -95,6 +95,46 @@ states:
 That is a good prelaunch shape for a standalone debugger: the runtime is
 preferring stable conservatism over premature collapse.
 
+### 5. A Release-Style Packaged Linux Checklist Already Passes
+
+The Debian release-style container validation path now passes as one deliberate
+checklist run:
+
+- package install smoke
+- packaged runtime validation
+- packaged protocol validation
+- packaged operator-path validation
+
+This matters because it is stronger than saying “individual scripts look good”.
+
+It means the packaged Linux path can already be exercised as one release-minded
+routine, not only as disconnected local checks.
+
+### 6. The Three-Module Stack Already Works In Containers
+
+The current collaboration topology:
+
+- `leserpent -> many gewyvern`
+- `etragon <-> one nearby gewyvern`
+
+now passes a real Docker smoke through:
+
+- two `gewyvern` runtimes
+- one nearby `etragon` sidecar
+- one `leserpent` control plane
+
+The stack smoke currently verifies:
+
+- both `gewyvern` runtimes publish latest snapshot state
+- `etragon` publishes additive output with augmentations
+- `leserpent` can register both runtimes
+- fleet summary reflects the paired sidecar correctly
+- runtime detail reflects both plain and sidecar-backed nodes correctly
+
+This is one of the highest-signal findings in the current line, because it
+shows that the collaboration model is not only documented; it already works in
+an isolated container environment close to the intended topology.
+
 ## Current Conservative Findings
 
 ### 1. Some “Denied” Demo Entries Do Not Yet Produce Strong Denial Semantics
@@ -145,6 +185,8 @@ The current pre-`1.0` line now looks strong in these ways:
 - packaged standalone runtime works
 - packaged high-frequency protocol families work
 - packaged operator paths stay conservative and coherent
+- packaged Linux release-style validation can run as one checklist
+- the current three-module collaboration topology already works in Docker
 
 The current line should still be read cautiously in these ways:
 

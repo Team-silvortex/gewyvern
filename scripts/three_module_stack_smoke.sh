@@ -288,14 +288,18 @@ wait_http "http://127.0.0.1:${LESP_PORT}/health" || {
 curl -fsS \
   -X POST "http://127.0.0.1:${LESP_PORT}/v1/runtimes/register" \
   -H 'content-type: application/json' \
+  -H 'X-Leserpent-Intent: mutate' \
   --data "$(register_runtime "gw-stack-a" "http://127.0.0.1:${GW_A_API_PORT}" "stack" "local" "with-sidecar" "http://127.0.0.1:${ET_A_API_PORT}")" >/dev/null
 
 curl -fsS \
   -X POST "http://127.0.0.1:${LESP_PORT}/v1/runtimes/register" \
   -H 'content-type: application/json' \
+  -H 'X-Leserpent-Intent: mutate' \
   --data "$(register_runtime "gw-stack-b" "http://127.0.0.1:${GW_B_API_PORT}" "stack" "local" "plain")" >/dev/null
 
-curl -fsS -X POST "http://127.0.0.1:${LESP_PORT}/v1/fleet/refresh-all?environment=stack" >/dev/null
+curl -fsS \
+  -X POST "http://127.0.0.1:${LESP_PORT}/v1/fleet/refresh-all?environment=stack" \
+  -H 'X-Leserpent-Intent: mutate' >/dev/null
 
 SUMMARY_JSON="$(curl -fsS "http://127.0.0.1:${LESP_PORT}/v1/fleet/summary?environment=stack")"
 RUNTIMES_JSON="$(curl -fsS "http://127.0.0.1:${LESP_PORT}/v1/runtimes?environment=stack")"
