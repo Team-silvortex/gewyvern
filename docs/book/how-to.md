@@ -14,6 +14,9 @@ This track is task-first. Use it when you already know roughly what
 
 ## Validate The Current Surface
 
+- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+  Practical validation ladder for the current CLI, compiler, registry, and
+  container/runtime surfaces.
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
   Current validation matrix and local entrypoints.
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
@@ -30,6 +33,16 @@ This track is task-first. Use it when you already know roughly what
 - [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
   DEB/RPM packaging and container validation.
 
+## Add Or Debug Protocol Packages
+
+- [docs/book/how-to-add-or-debug-protocol-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-add-or-debug-protocol-package.md)
+  Build or repair a registry package without guessing where drift entered.
+- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+  Language surface and current stable subset.
+- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+  Internal source layering when a package change spills into runtime/compiler
+  code.
+
 ## Extend With External Analysis
 
 - [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
@@ -44,11 +57,10 @@ This track is task-first. Use it when you already know roughly what
 - [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
   Security and exposure boundaries.
 
-## Future Shape
+## Next How-To Chapters
 
-Over time, task-specific pages should move here more explicitly, for example:
+The next high-value task pages are likely:
 
-- how to author a protocol package
 - how to read a missing-transition diagnosis
 - how to wire `etragon` as a nearby sidecar
 - how to validate a packaged Linux runtime end to end

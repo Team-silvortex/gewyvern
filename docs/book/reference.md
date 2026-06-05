@@ -5,6 +5,9 @@ stable contract, not a walkthrough.
 
 ## Language And Compiler
 
+- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+  Current package shape, `gewy.pkg`, `include(...)`, function units, and
+  `use(...)` parameter boundary rules.
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
   `gewylang` syntax, function units, pipeline structure, package shape, and
   stable subset.
@@ -15,6 +18,8 @@ stable contract, not a walkthrough.
 
 ## Runtime And Export Contracts
 
+- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+  Exact meanings for `primary_failure_*`, guidance, and ambiguity fields.
 - [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
   Export bundle structure.
 - [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
