@@ -95,9 +95,12 @@ expect_contains() {
 wait_for_http_body() {
   local url="$1"
   local out="$2"
+  local fragment="${3:-}"
   for _ in $(seq 1 120); do
     if curl -fsS "$url" >"$out" 2>/dev/null; then
-      return 0
+      if [ -z "${fragment}" ] || grep -q "${fragment}" "$out"; then
+        return 0
+      fi
     fi
     sleep 0.1
   done
@@ -136,14 +139,14 @@ trap 'stop_server "${TCP_PID:-}"; stop_server "${UDP_PID:-}"' EXIT
 
 wait_for_http_body "http://${TCP_API}/health" /tmp/tcp-health.txt
 send_template "${TCP_SOCKET}" tcp
-wait_for_http_body "http://${TCP_API}/v1/latest/summary.json" "${TCP_SUMMARY}"
-curl -fsS "http://${TCP_API}/v1/latest/export.json" >"${TCP_EXPORT}"
+wait_for_http_body "http://${TCP_API}/v1/latest/summary.json" "${TCP_SUMMARY}" '"primary_module_kind":"connection_establishment"'
+wait_for_http_body "http://${TCP_API}/v1/latest/export.json" "${TCP_EXPORT}" '"template_id":"handshake_debug"'
 expect_contains "${TCP_SUMMARY}" '"primary_module_kind":"connection_establishment"'
 expect_contains "${TCP_SUMMARY}" '"operator_guidance_action":"avoid_pid_strong_actions"'
 expect_contains "${TCP_EXPORT}" '"template_id":"handshake_debug"'
 
 send_template "${TCP_SOCKET}" tcp
-wait_for_http_body "http://${TCP_API}/v1/latest/summary.json" "${TCP_SUMMARY}"
+wait_for_http_body "http://${TCP_API}/v1/latest/summary.json" "${TCP_SUMMARY}" '"accepted_facts":3'
 expect_contains "${TCP_SUMMARY}" '"accepted_facts":3'
 
 send_invalid_session "${TCP_SOCKET}"
@@ -151,15 +154,15 @@ wait_for_http_body "http://${TCP_API}/health" /tmp/tcp-health-after-bad.txt
 expect_contains /tmp/tcp-health-after-bad.txt '"ok":true'
 
 send_template "${TCP_SOCKET}" tcp
-wait_for_http_body "http://${TCP_API}/v1/latest/analysis.json" "${TCP_ANALYSIS}"
+wait_for_http_body "http://${TCP_API}/v1/latest/analysis.json" "${TCP_ANALYSIS}" '"protocol_flows"'
 expect_contains "${TCP_ANALYSIS}" '"protocol_flows"'
 stop_server "${TCP_PID}"
 
 UDP_PID="$(start_server udp "${UDP_SOCKET}" "${UDP_API}" /tmp/udp-serve.log)"
 wait_for_http_body "http://${UDP_API}/health" /tmp/udp-health.txt
 send_template "${UDP_SOCKET}" udp
-wait_for_http_body "http://${UDP_API}/v1/latest/summary.json" "${UDP_SUMMARY}"
-curl -fsS "http://${UDP_API}/v1/latest/analysis.json" >"${UDP_ANALYSIS}"
+wait_for_http_body "http://${UDP_API}/v1/latest/summary.json" "${UDP_SUMMARY}" '"primary_module_kind":"datagram_exchange"'
+wait_for_http_body "http://${UDP_API}/v1/latest/analysis.json" "${UDP_ANALYSIS}" '"primary_failure_mode":"none"'
 expect_contains "${UDP_SUMMARY}" '"primary_module_kind":"datagram_exchange"'
 expect_contains "${UDP_SUMMARY}" '"operator_guidance_action":"avoid_pid_strong_actions"'
 expect_contains "${UDP_ANALYSIS}" '"primary_failure_mode":"none"'

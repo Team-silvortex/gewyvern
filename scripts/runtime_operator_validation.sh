@@ -32,13 +32,32 @@ wait_for_http_body() {
 wait_for_snapshot_json() {
   local url="$1"
   local out="$2"
+  local fragment="${3:-}"
   for _ in $(seq 1 120); do
     if curl -fsS "$url" >"$out" 2>/dev/null; then
-      return 0
+      if [ -z "${fragment}" ] || grep -q "${fragment}" "$out"; then
+        return 0
+      fi
     fi
     sleep 0.1
   done
   echo "timed out waiting for latest snapshot at ${url}" >&2
+  exit 1
+}
+
+wait_for_http_fragment() {
+  local url="$1"
+  local out="$2"
+  local fragment="$3"
+  for _ in $(seq 1 120); do
+    if curl -fsS "$url" >"$out" 2>/dev/null; then
+      if grep -q "${fragment}" "$out"; then
+        return 0
+      fi
+    fi
+    sleep 0.1
+  done
+  echo "timed out waiting for ${fragment} at ${url}" >&2
   exit 1
 }
 
@@ -90,14 +109,14 @@ trap 'kill "${TCP_PID}" >/dev/null 2>&1 || true; rm -rf "${TMP_DIR}"' EXIT
 
 wait_for_http_body "http://${TCP_API}/health" "${TMP_DIR}/tcp-health.txt"
 send_template "${TCP_SOCKET}" tcp
-wait_for_snapshot_json "http://${TCP_API}/v1/latest/summary.json" "${TCP_SUMMARY}"
-curl -fsS "http://${TCP_API}/v1/latest/export.json" >"${TCP_EXPORT}"
+wait_for_snapshot_json "http://${TCP_API}/v1/latest/summary.json" "${TCP_SUMMARY}" '"primary_module_kind":"connection_establishment"'
+wait_for_http_fragment "http://${TCP_API}/v1/latest/export.json" "${TCP_EXPORT}" '"template_id":"handshake_debug"'
 expect_contains "${TCP_SUMMARY}" '"primary_module_kind":"connection_establishment"'
 expect_contains "${TCP_SUMMARY}" '"operator_guidance_action":"avoid_pid_strong_actions"'
 expect_contains "${TCP_EXPORT}" '"template_id":"handshake_debug"'
 
 send_template "${TCP_SOCKET}" tcp
-wait_for_snapshot_json "http://${TCP_API}/v1/latest/summary.json" "${TCP_SUMMARY}"
+wait_for_snapshot_json "http://${TCP_API}/v1/latest/summary.json" "${TCP_SUMMARY}" '"accepted_facts":3'
 curl -fsS "http://${TCP_API}/v1/latest/export.json" >"${TCP_EXPORT}"
 expect_contains "${TCP_SUMMARY}" '"accepted_facts":3'
 
@@ -107,7 +126,7 @@ expect_contains "${TMP_DIR}/tcp-health-after-bad.txt" '"ok":true'
 expect_contains "${TCP_SUMMARY}" '"name":"socket_session"'
 
 send_template "${TCP_SOCKET}" tcp
-wait_for_snapshot_json "http://${TCP_API}/v1/latest/summary.json" "${TCP_SUMMARY}"
+wait_for_snapshot_json "http://${TCP_API}/v1/latest/summary.json" "${TCP_SUMMARY}" '"template_id":"handshake_debug"'
 expect_contains "${TCP_SUMMARY}" '"template_id":"handshake_debug"'
 stop_server "${TCP_PID}"
 
@@ -123,8 +142,8 @@ trap 'kill "${UDP_PID}" >/dev/null 2>&1 || true; rm -rf "${TMP_DIR}"' EXIT
 
 wait_for_http_body "http://${UDP_API}/health" "${TMP_DIR}/udp-health.txt"
 send_template "${UDP_SOCKET}" udp
-wait_for_snapshot_json "http://${UDP_API}/v1/latest/summary.json" "${UDP_SUMMARY}"
-curl -fsS "http://${UDP_API}/v1/latest/analysis.json" >"${UDP_ANALYSIS}"
+wait_for_snapshot_json "http://${UDP_API}/v1/latest/summary.json" "${UDP_SUMMARY}" '"primary_module_kind":"datagram_exchange"'
+wait_for_http_fragment "http://${UDP_API}/v1/latest/analysis.json" "${UDP_ANALYSIS}" '"primary_failure_mode":"none"'
 expect_contains "${UDP_SUMMARY}" '"primary_module_kind":"datagram_exchange"'
 expect_contains "${UDP_SUMMARY}" '"operator_guidance_action":"avoid_pid_strong_actions"'
 expect_contains "${UDP_ANALYSIS}" '"protocol_flows"'

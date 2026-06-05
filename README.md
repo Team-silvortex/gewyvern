@@ -249,7 +249,8 @@ If you are orienting yourself for the first time, the shortest useful order is:
 - `bash /Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh`
   Install the latest local native packages into clean Linux containers and
   verify packaged high-frequency protocol support across DNS, HTTP, TLS,
-  HTTP/3, QUIC, SSH, SOCKS5, MySQL, PostgreSQL, SMTP, LDAP, plus `--scan-all`.
+  HTTP/3, QUIC, SSH, SOCKS5, MySQL, PostgreSQL, SMTP, LDAP, Redis, MQTT,
+  AMQP, RADIUS, SNMP, FTP, IMAP, POP3, Kerberos, RTSP, plus `--scan-all`.
 - `bash /Users/Shared/chroot/dev/gewyvern/scripts/container_operator_path_validation.sh`
   Install the latest local native packages into clean Linux containers and
   verify packaged operator-path chains for `DNS -> QUIC -> HTTP/3`,

@@ -181,6 +181,49 @@ wait_for_json_fragment() {
   return 1
 }
 
+wait_for_json_any_fragment() {
+  local url="$1"
+  shift
+  for _ in $(seq 1 240); do
+    local body
+    if body="$(curl -fsS "${url}" 2>/dev/null)"; then
+      for fragment in "$@"; do
+        if [[ "${body}" == *"${fragment}"* ]]; then
+          printf '%s' "${body}"
+          return 0
+        fi
+      done
+    fi
+    sleep 0.25
+  done
+  return 1
+}
+
+wait_for_sidecar_health() {
+  local url="$1"
+  local runtime_name="$2"
+  for _ in $(seq 1 240); do
+    local body
+    if body="$(curl -fsS "${url}" 2>/dev/null)"; then
+      if printf '%s' "${body}" | python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+target = sys.argv[1]
+for runtime in payload.get("runtimes", []):
+    if runtime.get("name") == target:
+        sidecar = runtime.get("sidecarStatus") or {}
+        print("true" if sidecar.get("healthy") is True else "false")
+        raise SystemExit(0)
+print("false")
+' "${runtime_name}" | grep -qx 'true'; then
+        printf '%s' "${body}"
+        return 0
+      fi
+    fi
+    sleep 0.25
+  done
+  return 1
+}
+
 ingest_template() {
   local container_name="$1"
   local template="$2"
@@ -257,6 +300,22 @@ wait_http "http://127.0.0.1:${ET_A_API_PORT}/health" || {
   exit 1
 }
 
+ETRAGON_STATUS_JSON="$(wait_for_json_any_fragment "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/status" "\"status\":\"ready\"" "\"status\":\"degraded\"")" || {
+  echo "etragon sidecar never reached ready/degraded daemon status" >&2
+  curl -fsS "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/status" >&2 || true
+  docker logs "${ET_A_NAME}" >&2 || true
+  exit 1
+}
+printf '%s' "${ETRAGON_STATUS_JSON}" | python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+assert payload["status"] in {"ready", "degraded"}, payload
+print("etragon-status-ok")' || {
+  echo "etragon status validation failed" >&2
+  echo "${ETRAGON_STATUS_JSON}" >&2
+  docker logs "${ET_A_NAME}" >&2 || true
+  exit 1
+}
+
 ETRAGON_OUTPUT_JSON="$(wait_for_json_fragment "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/output.json" "\"augmentations\"")" || {
   echo "etragon sidecar never published output_json with augmentations" >&2
   curl -fsS "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/output.json" >&2 || true
@@ -301,8 +360,14 @@ curl -fsS \
   -X POST "http://127.0.0.1:${LESP_PORT}/v1/fleet/refresh-all?environment=stack" \
   -H 'X-Leserpent-Intent: mutate' >/dev/null
 
+RUNTIMES_JSON="$(wait_for_sidecar_health "http://127.0.0.1:${LESP_PORT}/v1/runtimes?environment=stack" "gw-stack-a")" || {
+  echo "leserpent never observed a healthy sidecar for gw-stack-a" >&2
+  curl -fsS "http://127.0.0.1:${LESP_PORT}/v1/runtimes?environment=stack" >&2 || true
+  docker logs "${ET_A_NAME}" >&2 || true
+  cat "${LESP_LOG}" >&2 || true
+  exit 1
+}
 SUMMARY_JSON="$(curl -fsS "http://127.0.0.1:${LESP_PORT}/v1/fleet/summary?environment=stack")"
-RUNTIMES_JSON="$(curl -fsS "http://127.0.0.1:${LESP_PORT}/v1/runtimes?environment=stack")"
 
 printf '%s' "${SUMMARY_JSON}" | python3 -c 'import json, sys
 payload = json.load(sys.stdin)

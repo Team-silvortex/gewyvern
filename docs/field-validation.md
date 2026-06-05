@@ -83,6 +83,16 @@ Validation here means:
 - realistic protocol mixes and failure paths
 - packaged Linux protocol behavior after real install
 
+The packaged protocol path is no longer just the first high-frequency shelf.
+It now also exercises a second grouped family covering:
+
+- cache access and brokers:
+  `Redis`, `MQTT`, `AMQP`
+- auth and identity exchanges:
+  `RADIUS`, `FTP`, `IMAP`, `POP3`, `Kerberos`
+- management and signaling:
+  `SNMP`, `RTSP`
+
 It does not mean only unit tests or synthetic compiler checks.
 
 ## Stability Anchors

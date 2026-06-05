@@ -161,6 +161,9 @@ That path installs the latest package and then verifies:
     `SSH`, `SOCKS5`
   - database, messaging, and directory:
     `MySQL`, `PostgreSQL`, `SMTP`, `LDAP`
+  - cache, broker, auth, management, and signaling:
+    `Redis`, `MQTT`, `AMQP`, `RADIUS`, `SNMP`, `FTP`, `IMAP`, `POP3`,
+    `Kerberos`, `RTSP`
 - packaged `--scan-all --json --summary-only`
 
 If you only want one package family, use:

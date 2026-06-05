@@ -49,6 +49,22 @@ cleanup() {
 }
 trap cleanup EXIT
 
+wait_for_json_fragment() {
+  local url="$1"
+  local fragment="$2"
+  for _ in $(seq 1 240); do
+    local body
+    if body="$(curl -fsS "${url}" 2>/dev/null)"; then
+      if [[ "${body}" == *"${fragment}"* ]]; then
+        printf '%s' "${body}"
+        return 0
+      fi
+    fi
+    sleep 0.05
+  done
+  return 1
+}
+
 for _ in $(seq 1 120); do
   if curl -fsS "http://${API_ADDR}/health" >/dev/null 2>&1; then
     break
@@ -66,6 +82,13 @@ fi
   cargo run --bin gewyvern_socket_send -- --tcp-socket "${INGEST_ADDR}" --template "${TEMPLATE}"
 )
 
+ANALYSIS_BODY="$(wait_for_json_fragment "http://${API_ADDR}${ANALYSIS_ROUTE}" "\"operator_guidance_action\"")" || {
+  echo "gewyvern never published a complete analysis payload at ${ANALYSIS_ROUTE}" >&2
+  curl -fsS "http://${API_ADDR}${ANALYSIS_ROUTE}" >&2 || true
+  exit 1
+}
+printf '%s' "${ANALYSIS_BODY}" > "${ANALYSIS_OUT}"
+
 if [ -z "${ENGINE_ROOT}" ]; then
   echo "external engine root is not set and no sibling /../etragon repo was found" >&2
   echo "set ENGINE_ROOT=/path/to/external-engine or ETRAGON_ROOT=/path/to/etragon" >&2
@@ -76,8 +99,6 @@ fi
   cd "${ENGINE_ROOT}"
   sh -c "${ENGINE_CMD} \"http://${API_ADDR}${ANALYSIS_ROUTE}\""
 ) > "${ENGINE_OUT}"
-
-curl -fsS "http://${API_ADDR}${ANALYSIS_ROUTE}" > "${ANALYSIS_OUT}"
 
 echo "analysis_json=${ANALYSIS_OUT}"
 echo "external_engine_output=${ENGINE_OUT}"
