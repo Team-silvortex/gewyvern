@@ -4,7 +4,7 @@ This page defines how documentation should be organized in the current
 `gewyvern` repository.
 
 The goal is not to force every page into a rigid template. The goal is to keep
-the documentation set coherent as the `v0.13.0` line converges.
+the documentation set coherent as the `1.4.x` line evolves.
 
 ## Primary Rule
 
@@ -134,7 +134,7 @@ Avoid:
 
 ## Release-Line Discipline
 
-During the `v0.13.0` line, documentation changes should bias toward:
+During the current `1.4.x` line, documentation changes should bias toward:
 
 - clarifying current behavior
 - reducing contradiction
@@ -164,7 +164,7 @@ Before adding a new page, ask:
 - does this belong in tutorial, how-to, reference, or explanation?
 - can an existing page be expanded instead?
 - does this introduce a second page that says almost the same thing?
-- does it help the `v0.13.0` line feel more whole?
+- does it help the `1.4.x` line feel more whole?
 
 If the answer to the last question is no, it is probably the wrong page for
 this phase.

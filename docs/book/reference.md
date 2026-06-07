@@ -47,5 +47,5 @@ stable contract, not a walkthrough.
 
 ## Future Shape
 
-As the project approaches `v0.13.0`, new exact-lookup material should prefer
+As the current `1.4.x` line continues, new exact-lookup material should prefer
 this shelf instead of adding more ad hoc “format note” pages at the top level.

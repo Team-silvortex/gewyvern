@@ -1,4 +1,4 @@
-# gewyvern v0.10.0
+# gewyvern v1.4.0
 
 Protocol-agnostic network debugging runtime driven by eBPF fragments.
 
@@ -51,10 +51,10 @@ as a visual report.
 
 ## Status
 
-- project version: `0.10.0`
-- stage: pre-`0.13.0` preparation line focused on documentation convergence,
-  security-boundary clarity, and a stabilized workspace, registry-driven
-  protocol surface, and package-driven DSL/compiler path
+- project version: `1.4.0`
+- stage: active `1.4.x` line focused on protocol depth, compiler ergonomics,
+  runtime/report stability, and cleaner collaboration surfaces across
+  `gewyvern`, `etragon`, and `leserpent`
 - transport support: TCP + UDP
 - protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP, WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP, RADIUS, GTP-U, SMTP, SSH, SOCKS5, SIP, LDAP, SNMP, RTSP, DNS-over-TCP
 - input modes: demo facts, Unix socket, TCP socket
@@ -69,31 +69,28 @@ as a visual report.
 - workspace shape: `gewyvern` runtime crate + `gewyc` compiler CLI crate
 - protocol registry shape: scanned gewy project packages under `protocols/`
 
-## Road To 1.0
+## Current Release Line
 
-`gewyvern` is now on a deliberate release path:
+`gewyvern` is no longer a pre-`1.0` convergence story. The current line is:
 
-- `v0.10.0` remains the last fully documented validation baseline
-- `v0.13.0` is the next preparation line for release-readiness convergence
-- the current focus is documentation cleanup, security-boundary clarity, and
-  narrowing what still blocks a future stable release
-- `v1.0.0` should follow only after the `v0.13.0` preparation line closes the
-  remaining release-judgment gaps
+- historical validation baseline: `v0.10.0`
+- current release line: `v1.4.0`
+- current focus: deepen protocol quality, keep runtime/report/compiler behavior
+  predictable, and make cross-project collaboration (`gewyvern` + `etragon` +
+  `leserpent`) more deliberate without bloating the standalone debugger core
+- next likely work line: `v1.5.x`, unless a later architectural break justifies
+  a deliberately chosen `v2.0`
 
-The goal is not “every protocol under the sun”. The `1.0.0` bar is that
+The goal is still not “every protocol under the sun”. The `1.x` bar is that
 `gewyvern` is trustworthy enough to serve as infra for process-level network
-debugging: stable CLI/runtime behavior, stable DSL/IR/compiler boundaries,
+debugging: stable CLI/runtime behavior, stable DSL/compiler boundaries,
 reliable HTML/JSON reporting, and predictable operational performance.
 
 The detailed milestone plan lives in [ROADMAP.md](/Users/Shared/chroot/dev/gewyvern/ROADMAP.md).
 
-For the shorter release-readiness checklist that turns that roadmap into the
-current pre-`1.0` preparation gate, see
-[docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md).
-
-For the narrower statement of what the current `v0.13.0` line should already
+For the shorter statement of what the current `v1.4.0` line should already
 feel like in practice, see
-[docs/v0.13-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.13-posture.md).
+[docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md).
 
 For the narrow machine-facing contract that downstream automation, sidecars,
 and enrich/rerank pipelines should consume, see
@@ -107,7 +104,7 @@ For long-lived `--serve` / API / external-engine operational behavior, see
 [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md).
 
 For the dedicated note on standalone runtime boundaries, exposure posture, and
-what `gewyvern` should not be treated as before `v0.13.0`, see
+what `gewyvern` should not be treated as in the current `1.4.x` line, see
 [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md).
 
 For the concrete field-validation matrix and local smoke entrypoint,
@@ -598,8 +595,8 @@ for each benchmark line it sees.
 
 Current local reference medians are tracked in
 [performance-baselines.md](/Users/Shared/chroot/dev/gewyvern/docs/performance-baselines.md).
-That page also serves as the current pre-`1.0` acceptance baseline for the
-main hot paths.
+That page also serves as the current `1.4.x` acceptance baseline for the main
+hot paths.
 
 ## Quick Start
 
@@ -1035,5 +1032,5 @@ The next meaningful step is not only “more protocol branches”.
 It is continuing to make the DSL and IR more explicit, so protocol behavior is
 described as program-network-module structure rather than as a pile of
 protocol-specific special cases, while steadily closing the remaining gaps in
-the `v0.13.0` preparation line and beyond. The concrete release path is tracked in
+the active `1.4.x` line and beyond. The concrete release path is tracked in
 [ROADMAP.md](/Users/Shared/chroot/dev/gewyvern/ROADMAP.md).

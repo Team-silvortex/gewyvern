@@ -1,6 +1,6 @@
 # Field Findings
 
-This note records the highest-signal findings from the current pre-`1.0`
+This note records the highest-signal findings from the current `1.4.x`
 field-validation phase.
 
 It is intentionally short.
@@ -8,7 +8,7 @@ It is intentionally short.
 It is not a replacement for:
 
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
-- [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md)
+- [docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md)
 
 Instead, it answers a narrower question:
 
@@ -179,7 +179,7 @@ That is useful and intentional, but it is not the same thing as saying:
 
 ## Practical Read Of The Current Line
 
-The current pre-`1.0` line now looks strong in these ways:
+The current `1.4.x` line now looks strong in these ways:
 
 - protocol/package shelf is stable
 - packaged standalone runtime works

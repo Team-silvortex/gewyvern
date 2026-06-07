@@ -1,7 +1,7 @@
 # Field Validation
 
 This note defines the practical field-validation phase for the current
-pre-`1.0` line.
+`1.4.x` line.
 
 The goal is simple:
 
@@ -13,24 +13,24 @@ This is the bridge between:
 
 - contract freeze
 - benchmark acceptance
-- eventual `v1.0.0` release judgment
+- current release judgment for the active `1.x` line
 
-For the narrower release checklist, see
-[docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md).
+For the current release posture, see
+[docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md).
 
 For the short running record of what this validation has already shown in
 practice, see [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md).
 
 ## Current Prelaunch Scope
 
-Keep the current pre-`1.0` field-validation line intentionally narrow.
+Keep the current `1.4.x` field-validation line intentionally narrow.
 
 The question is not "what else could `gewyvern` support".
 
 The question is:
 
-- what most improves trust before the first stable release line
-- what should stay frozen until after that release
+- what most improves trust in the current stable release line
+- what should stay frozen until the next deliberate line change
 
 ### Do Next
 
@@ -369,6 +369,6 @@ This note does not replace:
 - real operator feedback
 - later multi-project collaboration validation with `etragon` and `leserpent`
 
-It exists so the current pre-`1.0` line has a concrete "start validating for
+It exists so the current `1.4.x` line has a concrete "start validating for
 real" shelf rather
 than only architecture cleanup.

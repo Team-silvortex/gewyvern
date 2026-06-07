@@ -47,9 +47,10 @@ but they do not replace the core diagnosis spine.
 
 ## Release Readiness And Scope
 
-- [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md)
+- [docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md)
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
 
-Together these explain why the current line is still a preparation line and
+Together these explain why the current line is stable but still deliberately
+scoped, and
 what confidence has already been earned.

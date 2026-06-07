@@ -186,8 +186,8 @@ Important boundary:
 
 ## Step 8: What “Good Enough To Start Using” Means
 
-The current `v0.13.0` line is not claiming final forever-frozen `1.0`
-stability, but it is already meant to be usable on purpose.
+The current `v1.4.0` line is not claiming forever-frozen stability across
+every surface, but it is already meant to be usable on purpose.
 
 That means:
 
@@ -197,7 +197,7 @@ That means:
 - the documentation should be enough to get another engineer moving
 
 For the broader release posture, see
-[docs/v0.13-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.13-posture.md).
+[docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md).
 
 ## Where To Go Next
 

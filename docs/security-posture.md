@@ -8,7 +8,7 @@ to a narrower question:
 
 - what `gewyvern` is safe to treat as
 - what `gewyvern` is intentionally not trying to be
-- which boundaries matter before the `v0.13.0` preparation line is judged
+- which boundaries matter in the current `1.4.x` line
 
 For long-lived runtime behavior, see
 [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md).
@@ -137,9 +137,9 @@ If a deployment needs:
 that should live above `gewyvern`, not be inferred from its current local
 service shape.
 
-## Practical Pre-`0.13.0` Goal
+## Practical `1.4.x` Goal
 
-For the `v0.13.0` preparation line, the security goal is not “become a control
+For the current `1.4.x` line, the security goal is not “become a control
 plane”.
 
 The goal is narrower:

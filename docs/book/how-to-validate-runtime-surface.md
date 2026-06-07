@@ -18,7 +18,7 @@ For the current running record of what has already passed, see
 Use this guide when you are:
 
 - checking whether a checkout is still healthy
-- preparing a `v0.13.0` judgment call
+- preparing a `v1.4.x` release judgment call
 - validating a branch after runtime, report, or DSL changes
 - trying to narrow "what broke?" before reading code
 
@@ -125,7 +125,7 @@ This is usually the fastest way to answer:
 
 ## Step 5: Exercise The High-Frequency Shelf
 
-For the current pre-`1.0` line, the most valuable operator surface is the
+For the current `1.x` line, the most valuable operator surface is the
 high-frequency protocol shelf.
 
 Run:
@@ -265,7 +265,7 @@ Use this when you need confidence in:
 - target route discovery through `/v1/latest/targets`
 - local sidecar/enrich chains rather than just CLI rendering
 
-## What “Healthy Enough For v0.13.0” Means
+## What “Healthy Enough For v1.4.x” Means
 
 For the current line, the runtime surface is in a good state when:
 
@@ -282,4 +282,4 @@ That is enough to say:
 - but it is already usable on purpose
 
 For the release posture around that judgment, see
-[docs/v0.13-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.13-posture.md).
+[docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md).

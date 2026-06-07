@@ -66,7 +66,8 @@ scripts and operators should start from the preferred generic flags above.
 The intended direction is:
 
 - keep the socket-ingest aliases as supported compatibility entrypoints
-- remove implementation-specific external-engine aliases before `v1.0.0`
+- remove implementation-specific external-engine aliases before a deliberate
+  future surface break
 
 That preserves old ingest scripts without tying the public `gewyvern` surface
 to one specific external-engine implementation.

@@ -1,179 +1,111 @@
 # gewyvern Roadmap
 
-This roadmap treats `v1.0.0` as an operational trust milestone, not as a
-“feature complete forever” milestone.
+This roadmap now treats `v1.4.0` as the current operational line.
 
-The working intention is:
+`gewyvern` is no longer trying to prove it deserves `1.0`. That milestone is
+behind us. The current question is how to keep the `1.x` line useful, stable,
+and disciplined while protocol depth, compiler ergonomics, and collaboration
+surfaces continue to mature.
 
-- last fully validated baseline: `v0.10.0`
-- next preparation line: `v0.13.0`
-- current pre-1.0 work: converge documentation, security posture, and release
-  judgment rather than widen surfaces
-- later decision point: if the `v0.13.0` line satisfies the `1.0` gates,
-  release `v1.0.0` after deliberate review
+## Current Line
 
-## 1.0 Definition
+- last fully documented historical validation baseline: `v0.10.0`
+- current release line: `v1.4.0`
+- immediate follow-on line: `v1.5.x`
+- later decision point: consider `v2.0` only if the DSL/runtime/report
+  contract needs a deliberate breaking reset
 
-`gewyvern` should be considered `1.0.0` only when all of the following are
-true:
+## What `v1.4.0` Means
 
-- protocol and process-network analysis is stable enough for day-to-day infra
-  use
-- DSL, compiler, and IR boundaries are stable enough to support compatibility
-  promises
-- HTML and JSON reports are reliable enough for operators and automation
-- runtime performance and safety are predictable under realistic scan loads
-- the system is documented well enough that another engineer can operate and
-  extend it without tribal knowledge
+`v1.4.0` should be interpreted as:
 
-`1.0.0` does not mean “all protocols are implemented”. It means the core
-runtime, reporting surface, and modeling pipeline are trustworthy.
+- a usable standalone debugger/runtime
+- a stable-enough `gewylang` and `gewyc` surface for real package authoring
+- a predictable JSON/HTML/reporting surface for operators and automation
+- a project that can collaborate with nearby layers like `etragon` and
+  `leserpent` without surrendering its own runtime boundaries
 
-## Release Path
+It should not be interpreted as:
 
-## v0.6.x (completed)
+- a broad observability platform
+- a generic control plane
+- a promise that every protocol family is fully modeled
+- a license to widen core surfaces without discipline
 
-Focus: stabilize the language and package boundary.
+## Current Priorities
 
-- tighten `gewylang` function semantics and package composition rules
-- keep `gewyc`, `gewy.pkg`, `gewy.lock`, and registry behavior predictable
-- reduce avoidable churn in DSL syntax and compiler-facing outputs
-- continue cleaning dead edges in CLI/reporting/runtime integration
+### 1. Protocol Quality Over Protocol Vanity
 
-Exit criteria:
+- deepen existing protocol families before adding shallow new ones
+- improve healthy-path and failure-path modeling together
+- keep pushing from “protocol matched” toward “which module failed, where, and
+  why”
 
-- no major ambiguity in package entry, include, and function composition
-- compiler findings and report outputs are stable enough for downstream use
-- core registry/package behavior has broad regression coverage
+### 2. Compiler And Package Ergonomics
 
-## v0.7.x (completed)
+- keep `gewylang` function/package composition predictable
+- continue lightweight safety-oriented type boundaries
+- improve module provenance, graph output, and explain surfaces without growing
+  a heavyweight static type system
 
-Focus: improve module-level diagnosis quality.
+### 3. Reporting And Machine Surfaces
 
-- deepen protocol families that already exist instead of only adding new ones
-- improve failure-path modeling, suspect module inference, and stage inference
-- keep pushing from “protocol matched” toward “which network module failed”
-- continue refining QUIC, HTTP/3, HY2, database, and directory-service flows
+- keep the diagnosis spine stable and readable
+- keep HTML and JSON outputs aligned
+- preserve additive sidecar/extensibility semantics rather than leaking
+  implementation-specific assumptions into the core contracts
 
-Exit criteria:
+### 4. Cross-Project Collaboration
 
-- process-level reports consistently identify useful `primary_module_kind`
-- failure-path coverage is strong for the main supported protocol families
-- report conclusions are noticeably more actionable than raw flow listings
+- keep `gewyvern` viable on its own
+- let `etragon` enrich rather than replace diagnosis
+- let `leserpent` orchestrate rather than dictate runtime internals
 
-## v0.8.x (completed)
+### 5. Operational Discipline
 
-Focus: harden operations and performance.
+- keep container/package validation green
+- keep multi-instance and readiness races visible in integration harnesses
+- preserve conservative defaults around ingest, serve, and external analysis
 
-- expand benchmark coverage for scan, summary, and report generation
-- pressure-test `--scan-all`, PID-scoped scans, and socket ingest paths
-- tighten operational error handling and quality-of-result signaling
-- continue refining trust-mode behavior and runtime resource boundaries
+## Historical Milestones
 
-Exit criteria:
+Earlier lines still matter as reference points:
 
-- benchmark baselines exist for the critical runtime/report paths
-- scan/report behavior remains predictable under larger registered protocol sets
-- no obvious safety or operational footguns remain in the default flow
+- `v0.6.x`
+  stabilized package and language composition rules
+- `v0.7.x`
+  improved module-level diagnosis quality
+- `v0.8.x`
+  hardened operations and performance
+- `v0.9.x`
+  narrowed the surfaces operators depend on
+- `v0.10.0`
+  established the last fully documented early validation baseline
 
-## v0.9.x (completed)
+Those lines are part of the project's history, but they are no longer the
+current release story.
 
-Focus: freeze the surfaces that infra users depend on.
+## Exit Criteria For The `1.4.x` Line
 
-- minimize breaking changes in CLI flags and report structure
-- minimize breaking changes in export JSON and report JSON schema
-- minimize breaking changes in DSL/compiler surface that operators depend on
-- prefer fixes, cleanup, and compatibility work over broad new abstractions
+The `1.4.x` line should keep converging toward:
 
-Exit criteria:
+- clearer protocol/module conclusions
+- safer and more explicit extensibility boundaries
+- stronger packaging and container confidence
+- better compiler/package authoring ergonomics
+- cleaner documentation entry points and reference surfaces
 
-- release candidates can be exercised without churn in core interfaces
-- docs accurately describe the real operational behavior of the system
-- remaining work is mostly polish, reliability, and acceptance validation
-
-## v0.10.0 (completed baseline)
-
-Focus: final pre-1.0 field validation and release-candidate discipline.
-
-- run the project with release-candidate discipline
-- validate real operator workflows and long-lived `--serve` usage
-- validate collaboration boundaries before broader `gewyvern` + `etragon` +
-  `leserpent` coordination
-- validate production-like usage patterns and failure reporting quality
-- confirm documentation, examples, and reports are good enough for handoff
-- confirm that the project is ready to be treated as infra
-
-Exit criteria:
-
-- all `1.0` gates are met
-- no known critical schema, runtime, or diagnosis blockers remain
-- operators can reliably use the tool without repository-specific context
-
-## v0.13.0 (current preparation line)
-
-Focus: converge the pre-`1.0` story without pretending the project is already
-at final release judgment.
-
-- tighten and simplify documentation entry points
-- make standalone security/resource boundaries explicit
-- keep release-readiness criteria honest and current
-- continue fixing real safety or contract gaps before widening scope again
-- preserve the conservative standalone debugger posture while collaboration
-  layers above it continue to mature
-
-Exit criteria:
-
-- README, roadmap, and docs index no longer describe `v0.10.0` as the current
-  line
-- standalone runtime exposure, ingest trust, and extensibility boundaries are
-  documented in one coherent place
-- no obvious doc/runtime contradictions remain around service shape or trust
-  semantics
-- remaining work before `v1.0.0` is release judgment, not version-story drift
-
-## 1.0 Gates
-
-The `v1.0.0` decision should require explicit confirmation that the following
-areas are in good shape:
-
-### Analysis Quality
-
-- major supported protocol families have both healthy and failure-path coverage
-- process-level summaries identify useful primary module and stage conclusions
-- scan reports are useful enough to narrow issues without manual spelunking
-
-### Surface Stability
-
-- CLI flags used in day-to-day operations are stable
-- HTML and JSON reports are stable enough for both humans and automation
-- DSL/compiler outputs are stable enough for package- and registry-driven use
-
-### Operational Safety
-
-- trust modes and socket ingest defaults are safe by default
-- package/include/path handling remains bounded and predictable
-- loader/probe execution surfaces stay constrained and documented
-
-### Performance
-
-- benchmark coverage exists for the critical hot paths
-- scan-all and report generation costs are understood and acceptable
-- no obvious quadratic or unbounded paths remain in core operational flows
-
-### Documentation
-
-- README onboarding is accurate
-- system, DSL, and development docs reflect the current architecture
-- upgrade expectations and operational usage are clear
+If a proposed change does not improve one of those areas, it should face a
+higher bar before entering the current line.
 
 ## Guiding Principle
 
-The path to `v1.0.0` should bias toward:
+The path forward should bias toward:
 
-- stronger diagnosis
-- clearer reports
-- safer defaults
-- more predictable runtime behavior
-- fewer breaking changes
+- better diagnosis
+- clearer contracts
+- steadier runtime behavior
+- stronger integration evidence
+- less accidental surface area
 
-and not toward raw protocol-count vanity.
+and not toward novelty for its own sake.

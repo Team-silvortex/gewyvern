@@ -41,15 +41,14 @@ For a more structured reading experience, use the book-style tracks:
 
 If you only want the durable top-level project pages, read these first:
 
-- [docs/v0.13-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.13-posture.md)
+- [docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md)
 - [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
 
-Release/readiness and evidence pages live beside them:
+Release/evidence pages live beside them:
 
-- [docs/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/1.0-readiness.md)
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
 

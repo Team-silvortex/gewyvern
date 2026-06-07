@@ -141,9 +141,9 @@ That is why guidance can legitimately say things like:
 
 even when the diagnosis spine already has a reasonable primary story.
 
-## Why This Fits v0.13.0
+## Why This Fits v1.4.0
 
-The `v0.13.0` line is supposed to be usable on purpose, not theatrically
+The `v1.4.0` line is supposed to be usable on purpose, not theatrically
 confident.
 
 A conservative diagnosis model helps with that because it:
@@ -155,7 +155,7 @@ A conservative diagnosis model helps with that because it:
 
 It also matches the current evidence posture of the repository: the project
 already has enough runtime, packaged, and Docker validation to be useful, but
-it is still deliberately converging before `1.0`.
+it is still deliberately evolving within the `1.x` line.
 
 ## What This Does Not Mean
 
