@@ -3,4 +3,5 @@ version=0.10.0
 entry=main.gewy
 register.protocol=rtsp
 register.entry=setup
+register.aliases=rtsp-setup,rtsp_setup
 description=RTSP OPTIONS plus DESCRIBE plus SETUP exchange

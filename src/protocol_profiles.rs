@@ -263,6 +263,22 @@ mod tests {
     }
 
     #[test]
+    fn rtsp_package_aliases_resolve_to_canonical_entries() {
+        assert_eq!(
+            protocol_dsl_path("rtsp-options", None),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/options".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("rtsp-describe", None),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/describe".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("rtsp-setup", None),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/setup".to_string())
+        );
+    }
+
+    #[test]
     fn built_in_dsl_path_falls_back_to_packaged_share_root() {
         let root = std::env::temp_dir().join(format!(
             "gewyvern-packaged-dsl-{}",

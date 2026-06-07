@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=rtsp
 register.entry=options
 register.default=true
+register.aliases=rtsp-options,rtsp_options
 description=RTSP OPTIONS exchange
