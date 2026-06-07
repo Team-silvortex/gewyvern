@@ -5,6 +5,7 @@ pub(super) fn explain_focus_text(focus: ExplainFocus) -> &'static str {
         ExplainFocus::Parse => "parse",
         ExplainFocus::Frontend => "frontend",
         ExplainFocus::Binding => "binding",
+        ExplainFocus::Ir => "ir",
         ExplainFocus::Validation => "validation",
         ExplainFocus::Diagnostics => "diagnostics",
         ExplainFocus::Findings => "findings",
@@ -78,6 +79,22 @@ pub(super) fn explain_focus_text_lines(report: &ExplainReport, focus: ExplainFoc
             }
             lines
         }
+        ExplainFocus::Ir => match &report.ir_report {
+            Some(ir_report) => {
+                let mut lines = vec!["ir:".to_string()];
+                if let Some(delta) = &report.ir_lowering_delta {
+                    lines.extend(ir_lowering_delta_text_lines(delta));
+                } else {
+                    lines.push("ir_delta=none".into());
+                }
+                if let Some(note) = &report.ir_shape_note {
+                    lines.push(format!("ir_note={note}"));
+                }
+                lines.extend(ir_text(ir_report).lines().map(|line| line.to_string()));
+                lines
+            }
+            None => vec!["ir=none".into()],
+        },
         ExplainFocus::Validation => {
             vec![
             format!("validation_ok={}", report.stages.validation.ok),
@@ -201,6 +218,24 @@ pub(super) fn explain_focus_json(report: &ExplainReport, focus: ExplainFocus) ->
                 .binding
                 .as_ref()
                 .map_or_else(|| "null".to_string(), binding_json)
+        ),
+        ExplainFocus::Ir => format!(
+            "{{\"kind\":\"ir\",\"ir_lowering_delta\":{},\"ir_shape_note\":{},\"report\":{}}}",
+            report
+                .ir_lowering_delta
+                .as_ref()
+                .map(ir_lowering_delta_json)
+                .unwrap_or_else(|| "null".to_string()),
+            report
+                .ir_shape_note
+                .as_ref()
+                .map(|note| format!("\"{}\"", json_escape_string(note)))
+                .unwrap_or_else(|| "null".to_string()),
+            report
+                .ir_report
+                .as_ref()
+                .map(ir_json)
+                .unwrap_or_else(|| "null".to_string())
         ),
         ExplainFocus::Validation => format!(
             "{{\"kind\":\"validation\",\"report\":{},\"validation_excerpt\":{},\"validation_shape_note\":{}}}",

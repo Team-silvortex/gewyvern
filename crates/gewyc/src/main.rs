@@ -348,6 +348,7 @@ fn parse_explain_focus(value: Option<&str>, locale: UiLocale) -> Option<ExplainF
         "parse" => ExplainFocus::Parse,
         "frontend" => ExplainFocus::Frontend,
         "binding" => ExplainFocus::Binding,
+        "ir" => ExplainFocus::Ir,
         "validation" => ExplainFocus::Validation,
         "diagnostics" => ExplainFocus::Diagnostics,
         "findings" => ExplainFocus::Findings,

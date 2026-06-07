@@ -133,12 +133,15 @@ expect_contains /tmp/socks5.json '"operator_guidance_action":"collect_more_runti
 echo "[protocol] validating database, messaging, and directory families"
 
 gewyvern --protocol mysql --entry session --json --summary-only >/tmp/mysql.json
+gewyvern --protocol mysql --entry query --json --summary-only >/tmp/mysql-query.json
 gewyvern --protocol postgres --entry query --json --summary-only >/tmp/postgres.json
 gewyvern --protocol smtp --entry session --json --summary-only >/tmp/smtp.json
 gewyvern --protocol ldap --entry sync --json --summary-only >/tmp/ldap.json
 
 expect_contains /tmp/mysql.json '"primary_module_kind":"database_query"'
 expect_contains /tmp/mysql.json '"operator_guidance_action":"collect_more_runtime_evidence"'
+expect_contains /tmp/mysql-query.json '"primary_module_kind":"database_query"'
+expect_contains /tmp/mysql-query.json '"operator_guidance_action":"collect_more_runtime_evidence"'
 expect_contains /tmp/postgres.json '"primary_module_kind":"database_query"'
 expect_contains /tmp/postgres.json '"operator_guidance_action":"collect_more_runtime_evidence"'
 expect_contains /tmp/smtp.json '"primary_module_kind":"mail_session"'

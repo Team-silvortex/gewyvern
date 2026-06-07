@@ -14,6 +14,7 @@ mod explain;
 mod explain_support;
 mod frontend;
 mod frontend_focus;
+mod ir_focus;
 mod render;
 mod render_support;
 mod report_types;
@@ -22,6 +23,7 @@ use self::explain::*;
 use self::explain_support::*;
 use self::frontend::*;
 use self::frontend_focus::*;
+use self::ir_focus::*;
 pub use self::render::*;
 use self::render_support::*;
 pub use self::report_types::*;
@@ -119,6 +121,7 @@ fn compile_envelope_from_parse_result(
         Ok(binding) => {
             let binding_report = binding_report(&binding);
             let diagnostics_result = collect_binding_diagnostics(&binding);
+            let ir_report = ir_report_from_binding(&binding, diagnostics_result.as_ref().ok());
             let validation_result = validate_compiled_binding(&binding);
             let validation = validation_report(
                 &binding,
@@ -144,6 +147,7 @@ fn compile_envelope_from_parse_result(
                 diagnostics,
                 findings,
                 stages,
+                ir_report: Some(ir_report),
             }
         }
         Err(err) => {
@@ -168,6 +172,7 @@ fn compile_envelope_from_parse_result(
                     validation,
                     diagnostics,
                 },
+                ir_report: None,
             }
         }
     }

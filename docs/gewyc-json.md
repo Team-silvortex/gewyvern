@@ -250,6 +250,8 @@ Supported focus values:
 
 - `parse`
 - `frontend`
+- `binding`
+- `ir`
 - `validation`
 - `diagnostics`
 - `findings`
@@ -277,6 +279,76 @@ Example validation focus:
   }
 }
 ```
+
+### IR focus
+
+Command:
+
+```bash
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy --focus ir --json
+```
+
+Shape:
+
+```json
+{
+  "summary": {
+    "focus": "ir"
+  },
+  "focused_report": {
+    "kind": "ir",
+    "report": {
+      "program_models": [
+        {
+          "id": "amqp_basic_publish_model",
+          "kind": "program_model",
+          "operation": "amqp_basic_publish",
+          "rules": [
+            {
+              "rule_index": 0,
+              "predicate": "packet_observed(l4_proto=6,dir=egress,local_port=none,remote_port=5672,payload_offsets=[10])",
+              "signal": "FlowConditionObserved",
+              "narrative": "transport_payload_sent",
+              "dedupe": true,
+              "module": "amqp_publish_sequence",
+              "phase": "send_publish",
+              "phase_kind": "emit_payload",
+              "required_facts": ["PacketMeta"],
+              "supporting_fragments": ["tcp_packet_meta_fragment"],
+              "missing_facts": [],
+              "unsupported_payload_offsets": [],
+              "supported": true
+            }
+          ]
+        }
+      ],
+      "reason_models": [
+        {
+          "id": "amqp_basic_publish_path_reason",
+          "kind": "declarative_reason_model",
+          "rules": []
+        }
+      ]
+    }
+  }
+}
+```
+
+`ir` is the best fit when you want a stable, lowered view for:
+
+- protocol authoring and review
+- IR evolution work
+- debugging `module` / `phase` / `phase_kind`
+- checking rule support and reason-model provenance
+
+The focused IR report now also carries:
+
+- `ir_lowering_delta`
+  A compact compare view between the front-end module graph and the lowered IR.
+  It includes front-end counts plus lowered rule counts, support counts,
+  modules, phases, and phase kinds.
+- `ir_shape_note`
+  A short human-oriented summary of the most important drift pattern.
 
 ## Consumer Patterns
 
@@ -329,6 +401,8 @@ That sequence keeps the UI small and progressive:
 - Use `frontend --focus graph --json` when you only care about graph shape.
 - Use `explain --json` when you want one human-oriented compiler summary.
 - Use `explain --focus parse --json` when you are building editor diagnostics.
+- Use `explain --focus binding --json` when you want the compact compiled shape.
+- Use `explain --focus ir --json` when you want lowered rule/program/reason detail.
 - Use `explain --focus validation --json` when you are building coverage/debug tooling.
 - Use `explain --focus diagnostics --json` when you want the first unsupported rule-sized entry point.
 

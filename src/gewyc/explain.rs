@@ -243,6 +243,43 @@ pub(super) fn explain_text_compact(report: &ExplainReport, focus: Option<Explain
                     lines.push(format!("binding_note={note}"));
                 }
             }
+            ExplainFocus::Ir => {
+                if let Some(ir_report) = &report.ir_report {
+                    let program_rules = ir_report
+                        .program_model
+                        .as_ref()
+                        .map(|model| model.rules.len())
+                        .unwrap_or(0);
+                    let reason_rules = ir_report
+                        .reason_model
+                        .as_ref()
+                        .map(|model| model.rules.len())
+                        .unwrap_or(0);
+                    lines.push(format!(
+                        "ir program_rules={} reason_rules={}",
+                        program_rules, reason_rules
+                    ));
+                    if let Some(delta) = &report.ir_lowering_delta {
+                        lines.push(format!(
+                            "ir_delta frontend_functions={} frontend_includes={} frontend_use_edges={} frontend_graph_nodes={} frontend_graph_edges={} lowered_program_rules={} lowered_reason_rules={} lowered_supported_rules={} lowered_unsupported_rules={}",
+                            delta.frontend_function_count,
+                            delta.frontend_include_source_count,
+                            delta.frontend_use_edge_count,
+                            delta.frontend_graph_node_count,
+                            delta.frontend_graph_edge_count,
+                            delta.lowered_program_rule_count,
+                            delta.lowered_reason_rule_count,
+                            delta.lowered_supported_rule_count,
+                            delta.lowered_unsupported_rule_count,
+                        ));
+                    }
+                    if let Some(note) = &report.ir_shape_note {
+                        lines.push(format!("ir_note={note}"));
+                    }
+                } else {
+                    lines.push("ir=none".into());
+                }
+            }
             ExplainFocus::Validation => {
                 lines.push(format!(
                     "validation registry={} unsupported_payload_offsets={:?}",
@@ -495,6 +532,14 @@ pub(super) fn explain_report(envelope: CompilerEnvelope, source: Option<&str>) -
     let binding_shape_note = frontend_lowering_delta
         .as_ref()
         .map(binding_shape_note_from_delta);
+    let ir_lowering_delta = envelope
+        .stages
+        .parse
+        .frontend
+        .as_ref()
+        .zip(envelope.ir_report.as_ref())
+        .map(|(frontend, ir_report)| ir_lowering_delta(frontend, ir_report));
+    let ir_shape_note = ir_lowering_delta.as_ref().map(ir_shape_note_from_delta);
     let validation_shape_note = validation_excerpt
         .as_ref()
         .map(validation_shape_note_from_excerpt);
@@ -508,9 +553,12 @@ pub(super) fn explain_report(envelope: CompilerEnvelope, source: Option<&str>) -
         diagnostics: envelope.diagnostics,
         findings: envelope.findings,
         stages: envelope.stages,
+        ir_report: envelope.ir_report,
         lowered_binding_summary,
         frontend_lowering_delta,
         binding_shape_note,
+        ir_lowering_delta,
+        ir_shape_note,
         validation_shape_note,
         diagnostics_shape_note,
         parse_source_excerpt,

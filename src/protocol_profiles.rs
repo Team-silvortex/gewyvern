@@ -255,6 +255,14 @@ mod tests {
     }
 
     #[test]
+    fn mysql_query_entry_resolves_to_dedicated_query_package() {
+        assert_eq!(
+            protocol_dsl_path("mysql", Some("query")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/query".to_string())
+        );
+    }
+
+    #[test]
     fn built_in_dsl_path_falls_back_to_packaged_share_root() {
         let root = std::env::temp_dir().join(format!(
             "gewyvern-packaged-dsl-{}",

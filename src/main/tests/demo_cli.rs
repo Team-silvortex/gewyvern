@@ -380,8 +380,13 @@ fn list_entries_output_marks_default_entry() {
     assert!(text.contains("sync (default)"));
     assert!(text.contains("bind"));
 
+    let text = list_entries_text("mysql").expect("mysql should be present");
+    assert!(text.contains("query"));
+    assert!(text.contains("session (default)"));
+
     let json = list_entries_json("mysql").expect("mysql should be present");
     assert!(json.contains("\"protocol\":\"mysql\""));
+    assert!(json.contains("\"mode\":\"query\",\"default\":false"));
     assert!(json.contains("\"mode\":\"session\",\"default\":true"));
 }
 

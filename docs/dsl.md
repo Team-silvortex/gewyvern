@@ -166,6 +166,7 @@ state from parse/front-end through validation, diagnostics, and findings,
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus binding
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus ir
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --compact
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --emit explain --json --out /tmp/udp-process-explain.json
@@ -196,7 +197,25 @@ That keeps `explain --focus diagnostics` useful even when the full diagnostics
 report is large: you get one concrete rule-sized starting point instead of
 having to scan the whole model first.
 
-When you only want one layer, `explain --focus parse|frontend|binding|validation|diagnostics|findings`
+When you want to inspect the lowered declarative shape that sits between the
+pipeline front-end and runtime-facing reasoning, `explain --focus ir` gives a
+purpose-built IR view. It surfaces:
+
+- program models and their operations
+- lowered program rules with `module`, `phase`, and `phase_kind`
+- rule support such as required facts, supporting fragments, missing facts, and
+  unsupported payload offsets
+- reason models as either `builtin_reason_profile` or
+  `declarative_reason_model`
+- a structured `ir_delta` that compares front-end graph shape against lowered
+  rule counts, support counts, modules, phases, and phase kinds
+
+That makes `ir` the most direct protocol-authoring and IR-evolution view. It
+is especially useful when you want to answer "what did this package really
+lower into?" without reading the full binding, diagnostics, and findings
+reports together.
+
+When you only want one layer, `explain --focus parse|frontend|binding|ir|validation|diagnostics|findings`
 keeps the top summary but expands just that section, and
 `frontend --focus functions|includes|graph|expansion` does the same for the
 pipeline front-end view. The `expansion` focus is the quickest way to answer
@@ -212,6 +231,11 @@ function/step/use/include counts against the final fragment/rule shape without
 reading two full reports side by side. It also adds a short `binding_note`
 explaining the most common reason the lowered shape looks larger or more
 collapsed than the frontend shape.
+
+The `ir` focus sits one layer closer to protocol authorship than `binding`.
+`binding` is the best compact view of the whole compiled surface; `ir` is the
+best focused view when you care about lowered rules, phases, support facts, and
+reason-model provenance.
 When you only want the high-level answer, `--compact` keeps `explain` readable
 in a short terminal view without changing the JSON schema.
 

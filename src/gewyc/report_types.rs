@@ -93,6 +93,7 @@ pub struct CompilerEnvelope {
     pub diagnostics: Option<DiagnosticsReport>,
     pub findings: CompilerFindingsReport,
     pub stages: CompilerStagesReport,
+    pub ir_report: Option<IrReport>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -103,9 +104,12 @@ pub struct ExplainReport {
     pub diagnostics: Option<DiagnosticsReport>,
     pub findings: CompilerFindingsReport,
     pub stages: CompilerStagesReport,
+    pub ir_report: Option<IrReport>,
     pub lowered_binding_summary: Option<LoweredBindingSummary>,
     pub frontend_lowering_delta: Option<FrontendLoweringDelta>,
     pub binding_shape_note: Option<String>,
+    pub ir_lowering_delta: Option<IrLoweringDelta>,
+    pub ir_shape_note: Option<String>,
     pub validation_shape_note: Option<String>,
     pub diagnostics_shape_note: Option<String>,
     pub parse_source_excerpt: Option<SourceExcerpt>,
@@ -118,9 +122,42 @@ pub enum ExplainFocus {
     Parse,
     Frontend,
     Binding,
+    Ir,
     Validation,
     Diagnostics,
     Findings,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IrReport {
+    pub template_id: String,
+    pub program_model: Option<IrModelReport>,
+    pub reason_model: Option<IrModelReport>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IrModelReport {
+    pub kind: String,
+    pub id: String,
+    pub operation: Option<String>,
+    pub rules: Vec<IrRuleReport>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IrRuleReport {
+    pub rule_index: usize,
+    pub predicate: String,
+    pub signal: Option<String>,
+    pub narrative: String,
+    pub dedupe: bool,
+    pub module: Option<String>,
+    pub phase: Option<String>,
+    pub phase_kind: Option<String>,
+    pub required_facts: Vec<String>,
+    pub supporting_fragments: Vec<String>,
+    pub missing_facts: Vec<String>,
+    pub unsupported_payload_offsets: Vec<u16>,
+    pub supported: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -144,6 +181,22 @@ pub struct FrontendLoweringDelta {
     pub lowered_program_rule_count: usize,
     pub lowered_fragment_param_count: usize,
     pub lowered_evidence_override_count: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IrLoweringDelta {
+    pub frontend_function_count: usize,
+    pub frontend_include_source_count: usize,
+    pub frontend_use_edge_count: usize,
+    pub frontend_graph_node_count: usize,
+    pub frontend_graph_edge_count: usize,
+    pub lowered_program_rule_count: usize,
+    pub lowered_reason_rule_count: usize,
+    pub lowered_supported_rule_count: usize,
+    pub lowered_unsupported_rule_count: usize,
+    pub lowered_modules: Vec<String>,
+    pub lowered_phases: Vec<String>,
+    pub lowered_phase_kinds: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
