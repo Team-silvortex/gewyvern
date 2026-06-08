@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=smtp
 register.entry=mail
 register.default=false
+register.entry_aliases=sender
 description=SMTP authenticated MAIL FROM path

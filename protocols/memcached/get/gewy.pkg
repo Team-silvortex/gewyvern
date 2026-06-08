@@ -5,3 +5,4 @@ register.protocol=memcached
 register.entry=get
 register.default=true
 register.aliases=memcached-get,memcached_get
+register.entry_aliases=read

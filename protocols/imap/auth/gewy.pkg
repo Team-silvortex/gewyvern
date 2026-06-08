@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=imap
 register.entry=auth
 register.default=true
+register.entry_aliases=login
 description=IMAP banner and LOGIN success path

@@ -279,6 +279,166 @@ mod tests {
     }
 
     #[test]
+    fn http_connect_family_aliases_resolve_to_canonical_entries() {
+        assert_eq!(
+            protocol_dsl_path("http-connect-auth-required", None),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/http/auth-required".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("http-connect-auth-tunnel", None),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/http/auth-tunnel".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("http-connect-denied", None),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/http/denied".to_string())
+        );
+    }
+
+    #[test]
+    fn memcached_entry_aliases_resolve_to_canonical_entries() {
+        assert_eq!(
+            protocol_dsl_path("memcached", Some("read")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/memcached/get".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("memcached", Some("write")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/memcached/set".to_string())
+        );
+    }
+
+    #[test]
+    fn mail_retrieval_entry_aliases_resolve_to_canonical_entries() {
+        assert_eq!(
+            protocol_dsl_path("imap", Some("login")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/imap/auth".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("imap", Some("login-denied")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/imap/auth-denied".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("imap", Some("mailbox")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/imap/select".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("pop3", Some("login")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/pop3/auth".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("pop3", Some("login-denied")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/pop3/auth-denied".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("pop3", Some("mailbox")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/pop3/list".to_string())
+        );
+    }
+
+    #[test]
+    fn smtp_entry_aliases_resolve_to_canonical_entries() {
+        assert_eq!(
+            protocol_dsl_path("smtp", Some("login")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/auth".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("smtp", Some("sender")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/mail".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("smtp", Some("recipient")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/rcpt".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("smtp", Some("message")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/data".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("smtp", Some("recipient-denied")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/rcpt-denied".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("smtp", Some("message-denied")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/data-denied".to_string())
+        );
+    }
+
+    #[test]
+    fn ftp_entry_aliases_resolve_to_canonical_entries() {
+        assert_eq!(
+            protocol_dsl_path("ftp", Some("login")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/session".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("ftp", Some("control")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/session".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("ftp", Some("directory")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/list".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("ftp", Some("download")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/retr".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("ftp", Some("upload")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/stor".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("ftp", Some("active-directory")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/active-list".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("ftp", Some("active-download")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/active-retr".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("ftp", Some("active-upload")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/active-stor".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("ftp", Some("login-denied")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/denied".to_string())
+        );
+    }
+
+    #[test]
+    fn auth_family_entry_aliases_resolve_to_canonical_entries() {
+        assert_eq!(
+            protocol_dsl_path("kerberos", Some("login")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/as".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("kerberos", Some("initial-auth")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/as".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("kerberos", Some("ticket")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/tgs".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("kerberos", Some("service-ticket")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/tgs".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("kerberos", Some("login-denied")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/as-error".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("kerberos", Some("initial-auth-error")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/as-error".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("radius", Some("login")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/radius/access".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("radius", Some("auth")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/radius/access".to_string())
+        );
+    }
+
+    #[test]
     fn built_in_dsl_path_falls_back_to_packaged_share_root() {
         let root = std::env::temp_dir().join(format!(
             "gewyvern-packaged-dsl-{}",

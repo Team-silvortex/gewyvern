@@ -4,3 +4,4 @@ entry=main.gewy
 register.protocol=http
 register.entry=denied
 register.default=false
+register.aliases=http-connect-denied,http_connect_denied

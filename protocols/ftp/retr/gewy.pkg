@@ -3,3 +3,4 @@ version=0.10.0
 entry=main.gewy
 register.protocol=ftp
 register.entry=retr
+register.entry_aliases=download

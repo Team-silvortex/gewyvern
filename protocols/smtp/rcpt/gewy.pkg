@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=smtp
 register.entry=rcpt
 register.default=false
+register.entry_aliases=recipient
 description=SMTP recipient flow (EHLO, AUTH, MAIL FROM, RCPT TO)

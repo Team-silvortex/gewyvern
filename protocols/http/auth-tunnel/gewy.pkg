@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=http
 register.entry=auth-tunnel
 register.default=false
+register.aliases=http-connect-auth-tunnel,http_connect_auth_tunnel
 description=HTTP CONNECT tunnel established after proxy authentication

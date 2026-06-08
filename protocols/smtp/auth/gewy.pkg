@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=smtp
 register.entry=auth
 register.default=false
+register.entry_aliases=login
 description=SMTP EHLO and AUTH success path

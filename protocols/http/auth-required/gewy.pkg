@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=http
 register.entry=auth-required
 register.default=false
+register.aliases=http-connect-auth-required,http_connect_auth_required
 description=HTTP CONNECT proxy authentication required path

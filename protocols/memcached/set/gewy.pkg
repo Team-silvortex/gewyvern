@@ -5,3 +5,4 @@ register.protocol=memcached
 register.entry=set
 register.default=false
 register.aliases=memcached-set,memcached_set
+register.entry_aliases=write

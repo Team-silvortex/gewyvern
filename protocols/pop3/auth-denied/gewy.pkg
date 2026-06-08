@@ -3,4 +3,5 @@ version=0.10.0
 entry=main.gewy
 register.protocol=pop3
 register.entry=auth-denied
+register.entry_aliases=login-denied
 description=POP3 USER/PASS denied path

@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=imap
 register.entry=select
 register.default=false
+register.entry_aliases=mailbox
 description=IMAP mailbox select success path

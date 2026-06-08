@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=kerberos
 register.entry=as
 register.default=true
+register.entry_aliases=login,initial-auth
 description=Kerberos AS-REQ to AS-REP exchange

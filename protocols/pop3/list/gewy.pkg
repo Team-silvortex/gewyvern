@@ -3,4 +3,5 @@ version=0.10.0
 entry=main.gewy
 register.protocol=pop3
 register.entry=list
+register.entry_aliases=mailbox
 description=POP3 mailbox LIST path

@@ -3,4 +3,5 @@ version=0.10.0
 entry=main.gewy
 register.protocol=kerberos
 register.entry=tgs
+register.entry_aliases=ticket,service-ticket
 description=Kerberos TGS-REQ to TGS-REP exchange

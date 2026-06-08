@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=smtp
 register.entry=rcpt-denied
 register.default=false
+register.entry_aliases=recipient-denied
 description=SMTP recipient rejected before DATA

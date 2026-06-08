@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=smtp
 register.entry=data-denied
 register.default=false
+register.entry_aliases=message-denied
 description=SMTP message submission rejected after DATA
