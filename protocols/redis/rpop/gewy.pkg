@@ -1,0 +1,7 @@
+name=redis_rpop
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=rpop
+register.default=false
+register.entry_aliases=list-pop-right,right-pop

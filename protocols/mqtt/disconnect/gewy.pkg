@@ -1,0 +1,7 @@
+name=mqtt_disconnect
+version=0.10.0
+entry=main.gewy
+register.protocol=mqtt
+register.entry=disconnect
+register.default=false
+register.entry_aliases=close,teardown

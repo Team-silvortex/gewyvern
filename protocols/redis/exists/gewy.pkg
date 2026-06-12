@@ -1,0 +1,7 @@
+name=redis_exists
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=exists
+register.default=false
+register.entry_aliases=present,key-check

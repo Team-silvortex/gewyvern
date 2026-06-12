@@ -1,0 +1,7 @@
+name=redis_hmget
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=hmget
+register.default=false
+register.entry_aliases=hash-multi-read,fields-read

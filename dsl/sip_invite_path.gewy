@@ -1,0 +1,23 @@
+# gewyvern stable-subset protocol path
+
+fn sip_invite_rules() =
+  let module_name = :sip_invite_path
+  let route_narrative = "static:program resolved a route for this SIP invite path"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:sip_invite)
+  |> reason_model(:sip_invite_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "datagram_observed:udp:remote:sip:local_to_remote:prefix4:0x494e5649", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_invite)
+  |> program_rule(predicate: "datagram_observed:udp:remote:sip:remote_to_local:prefix4:0x5349502f", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_ok)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:sip:local_to_remote:prefix4:0x494e5649", key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_invite)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:sip:remote_to_local:prefix4:0x5349502f", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_ok)
+
+template(:sip_invite_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:sip_invite_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

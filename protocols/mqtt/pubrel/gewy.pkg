@@ -1,0 +1,7 @@
+name=mqtt_pubrel
+version=0.10.0
+entry=main.gewy
+register.protocol=mqtt
+register.entry=pubrel
+register.default=false
+register.entry_aliases=qos2-release,resume

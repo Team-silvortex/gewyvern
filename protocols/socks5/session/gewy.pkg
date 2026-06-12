@@ -5,3 +5,4 @@ register.protocol=socks5
 register.entry=session
 register.default=true
 register.aliases=socks,socks5-session,socks5_session
+register.entry_aliases=connect,proxy

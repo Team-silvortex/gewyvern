@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=ssh
 register.entry=channel
 register.default=false
+register.entry_aliases=shell
 description=SSH authenticated channel session path

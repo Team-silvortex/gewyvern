@@ -439,6 +439,97 @@ mod tests {
     }
 
     #[test]
+    fn access_and_messaging_entry_aliases_resolve_to_canonical_entries() {
+        assert_eq!(
+            protocol_dsl_path("ssh", Some("connect")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ssh/session".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("ssh", Some("login")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ssh/auth".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("ssh", Some("shell")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ssh/channel".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("socks5", Some("proxy")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/socks5/session".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("socks5", Some("userpass")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/socks5/auth".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("socks5", Some("connect-denied")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/socks5/denied".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("socks5", Some("login-connect-denied")),
+            Some(
+                "/Users/Shared/chroot/dev/gewyvern/protocols/socks5/auth-connect-denied"
+                    .to_string()
+            )
+        );
+        assert_eq!(
+            protocol_dsl_path("ldap", Some("login")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ldap/bind".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("ldap", Some("directory")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ldap/search".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("ldap", Some("directory-session")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ldap/session".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("ldap", Some("replication")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/ldap/sync".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("snmp", Some("query")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/get".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("sip", Some("login")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/sip/register".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("rtsp", Some("probe")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/options".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("rtsp", Some("metadata")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/describe".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("rtsp", Some("stream")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/setup".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("amqp", Some("login")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/start".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("amqp", Some("connect")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/session".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("amqp", Some("send")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("mqtt", Some("session")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/connect".to_string())
+        );
+        assert_eq!(
+            protocol_dsl_path("redis", Some("health")),
+            Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/ping".to_string())
+        );
+    }
+
+    #[test]
     fn built_in_dsl_path_falls_back_to_packaged_share_root() {
         let root = std::env::temp_dir().join(format!(
             "gewyvern-packaged-dsl-{}",

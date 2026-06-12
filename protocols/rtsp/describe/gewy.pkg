@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=rtsp
 register.entry=describe
 register.aliases=rtsp-describe,rtsp_describe
+register.entry_aliases=metadata
 description=RTSP OPTIONS plus DESCRIBE exchange

@@ -4,3 +4,4 @@ entry=main.gewy
 register.protocol=sip
 register.entry=register
 register.default=true
+register.entry_aliases=login

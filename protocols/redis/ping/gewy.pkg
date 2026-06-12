@@ -5,3 +5,4 @@ register.protocol=redis
 register.entry=ping
 register.default=true
 register.aliases=redis-ping,redis_ping
+register.entry_aliases=health

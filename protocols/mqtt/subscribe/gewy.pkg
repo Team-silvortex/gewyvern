@@ -1,0 +1,7 @@
+name=mqtt_subscribe
+version=0.10.0
+entry=main.gewy
+register.protocol=mqtt
+register.entry=subscribe
+register.default=false
+register.entry_aliases=read,listen

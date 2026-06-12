@@ -1,0 +1,7 @@
+name=redis_decr
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=decr
+register.default=false
+register.entry_aliases=decrement,count-down

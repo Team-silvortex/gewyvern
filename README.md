@@ -323,6 +323,7 @@ If you are orienting yourself for the first time, the shortest useful order is:
   - SOCKS5 method negotiation/connect-request/connect-success exchanges
   - HTTP CONNECT tunnel-request/tunnel-established exchanges
   - SIP REGISTER/200 OK exchanges
+  - SIP INVITE/200 OK exchanges
   - LDAP bind request/response exchanges
   - LDAP search request/result exchanges
   - LDAP bind + search directory session paths
@@ -446,12 +447,12 @@ The repository now includes first-class DSL files that compile into
   GTP-U,
   SIP
 - Data stores and brokers:
-  PostgreSQL connect/auth/query/error,
+  PostgreSQL connect/auth/query/session/error,
   MySQL connect/query/session/error,
-  Redis ping,
+  Redis ping/session/get/set,
   Memcached get/set,
-  MQTT connect,
-  AMQP start/publish/session
+  MQTT connect/publish/subscribe/pubrec/pubrel/pubcomp/disconnect,
+  AMQP start/publish/session/consume
 - Mail, directory, and access protocols:
   SMTP session/auth/mail/rcpt/data and denied branches,
   IMAP auth/auth-denied/select mailbox branches,
@@ -536,6 +537,7 @@ differentiate:
 - SOCKS5 method-selection/connect-request/connect-success sequences
 - HTTP CONNECT tunnel-request/tunnel-established sequences
 - SIP REGISTER/200 OK pairs
+- SIP INVITE/200 OK pairs
 - LDAP bind request/response pairs
 - LDAP search request/result pairs
 - LDAP bind + search directory-session paths
@@ -668,12 +670,42 @@ cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gew
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mysql_connect_process.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_session.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/amqp_publish_session.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_consume_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_session_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_get_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_set_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_del_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_incr_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_decr_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_mget_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_mset_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_exists_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_expire_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_ttl_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_pttl_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_hget_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_hset_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_hmget_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_hmset_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_lpush_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_rpush_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_lpop_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/redis_rpop_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mqtt_publish_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mqtt_subscribe_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mqtt_pubrec_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mqtt_pubrel_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mqtt_pubcomp_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/mqtt_disconnect_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/sip_bye_path.gewy --json --summary-only
+cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/rtsp_play_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy --json --summary-only
 cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy --json --summary-only

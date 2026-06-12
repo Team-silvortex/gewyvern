@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=socks5
 register.entry=auth-connect-denied
 register.default=false
+register.entry_aliases=login-connect-denied,userpass-connect-denied
 description=SOCKS5 authenticated connect denied path

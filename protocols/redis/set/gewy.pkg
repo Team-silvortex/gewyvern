@@ -1,0 +1,8 @@
+name=redis_set
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=set
+register.default=false
+register.aliases=redis-set,redis_set
+register.entry_aliases=write,kv-write

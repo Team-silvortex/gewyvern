@@ -3,3 +3,4 @@ version=0.10.0
 entry=main.gewy
 register.protocol=socks5
 register.entry=auth
+register.entry_aliases=login,userpass

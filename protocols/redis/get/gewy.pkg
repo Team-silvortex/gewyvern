@@ -1,0 +1,8 @@
+name=redis_get
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=get
+register.default=false
+register.aliases=redis-get,redis_get
+register.entry_aliases=read,kv-read

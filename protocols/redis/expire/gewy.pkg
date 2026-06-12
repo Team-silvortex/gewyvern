@@ -1,0 +1,7 @@
+name=redis_expire
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=expire
+register.default=false
+register.entry_aliases=set-ttl,expiry

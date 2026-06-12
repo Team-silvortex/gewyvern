@@ -5,3 +5,4 @@ register.protocol=ldap
 register.entry=bind
 register.default=false
 register.aliases=ldap-bind,ldap_bind
+register.entry_aliases=login,auth

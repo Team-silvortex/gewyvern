@@ -5,3 +5,4 @@ register.protocol=amqp
 register.entry=session
 register.default=true
 register.aliases=amqp-session,amqp_session
+register.entry_aliases=connect

@@ -1,0 +1,7 @@
+name=sip_bye
+version=0.10.0
+entry=main.gewy
+register.protocol=sip
+register.entry=bye
+register.default=false
+register.entry_aliases=hangup,terminate

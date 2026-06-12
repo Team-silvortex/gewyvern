@@ -5,3 +5,4 @@ register.protocol=ldap
 register.entry=session
 register.default=false
 register.aliases=ldap-session,ldap_session
+register.entry_aliases=directory-session

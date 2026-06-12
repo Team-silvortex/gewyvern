@@ -1,0 +1,8 @@
+name=redis_session
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=session
+register.default=false
+register.aliases=redis-session,redis_session
+register.entry_aliases=connect,roundtrip

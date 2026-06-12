@@ -5,4 +5,5 @@ register.protocol=rtsp
 register.entry=options
 register.default=true
 register.aliases=rtsp-options,rtsp_options
+register.entry_aliases=probe
 description=RTSP OPTIONS exchange

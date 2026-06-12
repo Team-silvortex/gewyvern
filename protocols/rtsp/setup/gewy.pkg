@@ -4,4 +4,5 @@ entry=main.gewy
 register.protocol=rtsp
 register.entry=setup
 register.aliases=rtsp-setup,rtsp_setup
+register.entry_aliases=stream
 description=RTSP OPTIONS plus DESCRIBE plus SETUP exchange

@@ -67,7 +67,38 @@ good starting points:
 - request/auth/session paths:
   [dsl/http_request_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy),
   [dsl/postgres_auth_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy),
+  [dsl/postgres_query_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_session.gewy),
   [dsl/mysql_query_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy),
+  [dsl/redis_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_session_path.gewy),
+  [dsl/redis_get_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_get_path.gewy),
+  [dsl/redis_set_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_set_path.gewy),
+  [dsl/redis_del_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_del_path.gewy),
+  [dsl/redis_incr_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_incr_path.gewy),
+  [dsl/redis_decr_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_decr_path.gewy),
+  [dsl/redis_mget_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_mget_path.gewy),
+  [dsl/redis_mset_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_mset_path.gewy),
+  [dsl/redis_exists_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_exists_path.gewy),
+  [dsl/redis_expire_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_expire_path.gewy),
+  [dsl/redis_ttl_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_ttl_path.gewy),
+  [dsl/redis_pttl_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_pttl_path.gewy),
+  [dsl/redis_hget_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_hget_path.gewy),
+  [dsl/redis_hset_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_hset_path.gewy),
+  [dsl/redis_hmget_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_hmget_path.gewy),
+  [dsl/redis_hmset_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_hmset_path.gewy),
+  [dsl/redis_lpush_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_lpush_path.gewy),
+  [dsl/redis_rpush_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_rpush_path.gewy),
+  [dsl/redis_lpop_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_lpop_path.gewy),
+  [dsl/redis_rpop_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_rpop_path.gewy),
+  [dsl/amqp_basic_consume_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_consume_path.gewy),
+  [dsl/mqtt_connect_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy),
+  [dsl/mqtt_publish_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_publish_path.gewy),
+  [dsl/mqtt_subscribe_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_subscribe_path.gewy),
+  [dsl/mqtt_pubrec_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_pubrec_path.gewy),
+  [dsl/mqtt_pubrel_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_pubrel_path.gewy),
+  [dsl/mqtt_pubcomp_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_pubcomp_path.gewy),
+  [dsl/mqtt_disconnect_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_disconnect_path.gewy),
+  [dsl/sip_invite_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/sip_invite_path.gewy),
+  [dsl/sip_bye_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/sip_bye_path.gewy),
   [dsl/ldap_directory_sync_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy)
 - infrastructure control protocols:
   [dsl/ssh_channel_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ssh_channel_session_path.gewy),
@@ -77,7 +108,8 @@ good starting points:
   [dsl/imap_select_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/imap_select_path.gewy),
   [dsl/pop3_list_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/pop3_list_path.gewy),
   [dsl/kerberos_tgs_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/kerberos_tgs_path.gewy),
-  [dsl/rtsp_setup_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_setup_path.gewy)
+  [dsl/rtsp_setup_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_setup_path.gewy),
+  [dsl/rtsp_play_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_play_path.gewy)
 
 ## Current Shape
 

@@ -1,0 +1,8 @@
+name=amqp_consume
+version=0.10.0
+entry=main.gewy
+register.protocol=amqp
+register.entry=consume
+register.default=false
+register.aliases=amqp-consume,amqp_consume
+register.entry_aliases=receive,deliver

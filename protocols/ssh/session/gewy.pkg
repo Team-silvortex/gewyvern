@@ -4,3 +4,4 @@ entry=main.gewy
 register.protocol=ssh
 register.entry=session
 register.default=true
+register.entry_aliases=connect,handshake

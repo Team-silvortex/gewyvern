@@ -4,3 +4,4 @@ entry=main.gewy
 register.protocol=socks5
 register.entry=denied
 register.default=false
+register.entry_aliases=connect-denied

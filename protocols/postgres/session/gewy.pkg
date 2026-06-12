@@ -1,0 +1,8 @@
+name=postgres_session
+version=0.10.0
+entry=main.gewy
+register.protocol=postgres
+register.entry=session
+register.default=false
+register.aliases=postgres-session,postgres_session
+register.entry_aliases=query-session,auth-query

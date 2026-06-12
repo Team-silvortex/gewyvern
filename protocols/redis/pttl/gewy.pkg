@@ -1,0 +1,7 @@
+name=redis_pttl
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=pttl
+register.default=false
+register.entry_aliases=precise-ttl,ms-ttl

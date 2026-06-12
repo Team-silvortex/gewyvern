@@ -1,0 +1,7 @@
+name=redis_mset
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=mset
+register.default=false
+register.entry_aliases=multi-write,bulk-write

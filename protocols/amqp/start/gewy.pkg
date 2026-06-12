@@ -5,3 +5,4 @@ register.protocol=amqp
 register.entry=start
 register.default=false
 register.aliases=amqp-start,amqp_start
+register.entry_aliases=login,negotiate

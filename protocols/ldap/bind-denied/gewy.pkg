@@ -5,3 +5,4 @@ register.protocol=ldap
 register.entry=bind-denied
 register.default=false
 register.aliases=ldap-bind-denied,ldap_bind_denied
+register.entry_aliases=login-denied,auth-denied

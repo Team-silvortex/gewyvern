@@ -1,0 +1,7 @@
+name=redis_incr
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=incr
+register.default=false
+register.entry_aliases=increment,count-up

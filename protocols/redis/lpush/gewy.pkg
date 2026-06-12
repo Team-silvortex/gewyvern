@@ -1,0 +1,7 @@
+name=redis_lpush
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=lpush
+register.default=false
+register.entry_aliases=list-prepend,left-push

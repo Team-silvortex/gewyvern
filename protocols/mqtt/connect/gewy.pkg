@@ -4,3 +4,4 @@ entry=main.gewy
 register.protocol=mqtt
 register.entry=connect
 register.default=true
+register.entry_aliases=session,login

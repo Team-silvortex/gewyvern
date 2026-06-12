@@ -1,0 +1,8 @@
+name=rtsp
+version=0.10.0
+entry=main.gewy
+register.protocol=rtsp
+register.entry=play
+register.aliases=rtsp-play,rtsp_play
+register.entry_aliases=start
+description=RTSP OPTIONS plus DESCRIBE plus SETUP plus PLAY exchange
