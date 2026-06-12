@@ -1,0 +1,7 @@
+name=redis_zrank
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=zrank
+register.default=false
+register.entry_aliases=sorted-member-rank,score-rank-member

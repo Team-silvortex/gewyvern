@@ -259,6 +259,15 @@ pub(super) fn explain_text_compact(report: &ExplainReport, focus: Option<Explain
                         "ir program_rules={} reason_rules={}",
                         program_rules, reason_rules
                     ));
+                    if let Some(compare) = ir_report.compare_models() {
+                        lines.push(format!(
+                            "ir_compare rule_delta={} supported_delta={} shared_modules={} shared_phases={}",
+                            compare.rule_count_delta,
+                            compare.supported_rule_count_delta,
+                            compare.shared_modules.join(","),
+                            compare.shared_phases.join(",")
+                        ));
+                    }
                     if let Some(delta) = &report.ir_lowering_delta {
                         lines.push(format!(
                             "ir_delta frontend_functions={} frontend_includes={} frontend_use_edges={} frontend_graph_nodes={} frontend_graph_edges={} lowered_program_rules={} lowered_reason_rules={} lowered_supported_rules={} lowered_unsupported_rules={}",

@@ -1,0 +1,7 @@
+name=redis_xrange
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=xrange
+register.default=false
+register.entry_aliases=stream-range,stream-history

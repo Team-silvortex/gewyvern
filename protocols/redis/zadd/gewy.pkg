@@ -1,0 +1,7 @@
+name=redis_zadd
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=zadd
+register.default=false
+register.entry_aliases=sorted-add,score-add

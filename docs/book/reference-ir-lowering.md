@@ -114,6 +114,12 @@ For machine-facing inspection, use:
 cargo run -p gewyc -- explain /absolute/path/to/main.gewy --focus ir --json
 ```
 
+For the deliberately compact archival form, use:
+
+```bash
+cargo run --bin gewyc_ir_snapshot -- /absolute/path/to/main.gewy --json
+```
+
 The focused IR view is the preferred surface when you need:
 
 - protocol review
@@ -162,6 +168,8 @@ The focused IR report currently centers on:
 - `program_model`
 - `reason_model`
 - `ir_lowering_delta`
+- `model_compare`
+- `history_snapshot`
 - `ir_shape_note`
 
 Within `ir_lowering_delta`, the current compact compare view includes:
@@ -192,6 +200,48 @@ full rule list:
 1. Did the front-end lower into the model shape I expected?
 2. Did the lowered `program_model` and `reason_model` stay aligned?
 
+### `history_snapshot`
+
+`history_snapshot` is the deliberately compact archival form of the focused IR
+surface.
+
+It is meant for:
+
+- minor-line release notes
+- contract review diffs
+- future snapshot tooling that wants a smaller, version-record-friendly shape
+
+Its current shape mirrors the stable parts of the IR view:
+
+- `template_id`
+- `operation`
+- `program_model`
+- `reason_model`
+- `model_compare`
+
+Each model snapshot currently keeps:
+
+- `id`
+- `kind`
+- `rule_count`
+- `supported_rule_count`
+- `unsupported_rule_count`
+- `modules`
+- `phases`
+
+This is intentionally narrower than the full rule list. It exists so later
+historical records can say "this was the lowered shape of the line" without
+copying every rule-level detail into the archival layer.
+
+If you want a Markdown-ready block for a release-history page, the repository
+also carries:
+
+```bash
+scripts/render_minor_line_ir_snapshot.sh \
+  --title "v1.4.x IR Baseline" \
+  amqp-publish=protocols/amqp/publish/main.gewy
+```
+
 ## Stability Guidance
 
 For the `0.13.*` line and the current `1.4.x` maturity track, the intended
@@ -201,6 +251,8 @@ practical stability is:
 - the distinction between `program_model` and `reason_model` is deliberate
 - module/phase/phase-kind visibility is deliberate
 - `ir_lowering_delta` as a compact compare surface is deliberate
+- `model_compare` as the direct program-vs-reason alignment summary is deliberate
+- `history_snapshot` as the archival lowered-shape summary is deliberate
 - `lowered_models` as a per-model summary surface is deliberate
 
 Still evolving:

@@ -1,0 +1,28 @@
+# gewyvern stable-subset protocol path
+
+fn redis_zrem_rules() =
+  let module_name = :redis_zrem_path
+  let route_narrative = "static:program resolved an upstream route for this Redis ZREM path"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> program_model(:redis_zrem_path_model)
+  |> operation(:redis_zrem)
+  |> reason_model(:redis_zrem_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: "socket_state_observed:remote:redis", stage: :socket_state_transition, narrative: "static:program initiated or advanced a Redis socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "socket_state_observed:remote:redis:established", stage: :socket_state_transition, narrative: "static:program reached an established Redis socket state", dedupe: true, module: ${module_name}, phase: :establish)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "packet_observed:tcp:remote:redis:local_to_remote:prefix4:0x2a330d0a:byte_at:8:0xff:0x5a:byte_at:9:0xff:0x52:byte_at:10:0xff:0x45:byte_at:11:0xff:0x4d", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_zrem)
+  |> program_rule(predicate: "packet_observed:tcp:remote:redis:remote_to_local:byte0_mask:0xff:0x3a", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_integer)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: "socket_state_observed:remote:redis", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "socket_state_observed:remote:redis:established", key_event: :state_change, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :establish)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:redis:local_to_remote:prefix4:0x2a330d0a:byte_at:8:0xff:0x5a:byte_at:9:0xff:0x52:byte_at:10:0xff:0x45:byte_at:11:0xff:0x4d", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_zrem)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:redis:remote_to_local:byte0_mask:0xff:0x3a", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_integer)
+
+template(:redis_zrem_path)
+|> window(:default_5s)
+|> use(:redis_zrem_rules)

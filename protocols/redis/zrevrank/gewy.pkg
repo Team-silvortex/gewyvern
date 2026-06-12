@@ -1,0 +1,7 @@
+name=redis_zrevrank
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=zrevrank
+register.default=false
+register.entry_aliases=sorted-member-revrank,score-revrank-member

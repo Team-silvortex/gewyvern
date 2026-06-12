@@ -1,0 +1,7 @@
+name=redis_sadd
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=sadd
+register.default=false
+register.entry_aliases=set-add,member-add

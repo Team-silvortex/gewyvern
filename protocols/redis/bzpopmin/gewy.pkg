@@ -1,0 +1,7 @@
+name=redis_bzpopmin
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=bzpopmin
+register.default=false
+register.entry_aliases=sorted-blocking-pop-min,score-blocking-pop-lowest

@@ -1,0 +1,7 @@
+name=redis_zincrby
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=zincrby
+register.default=false
+register.entry_aliases=sorted-score-increment,score-bump

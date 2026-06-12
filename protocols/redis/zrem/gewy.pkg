@@ -1,0 +1,7 @@
+name=redis_zrem
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=zrem
+register.default=false
+register.entry_aliases=sorted-remove,score-remove

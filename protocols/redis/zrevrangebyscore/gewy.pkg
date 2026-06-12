@@ -1,0 +1,7 @@
+name=redis_zrevrangebyscore
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=zrevrangebyscore
+register.default=false
+register.entry_aliases=sorted-revrange-score,score-window-read-reverse

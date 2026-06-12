@@ -59,6 +59,13 @@ Use a minor-line snapshot when you want to answer:
 - what was still intentionally incomplete
 - what evidence existed for that judgment
 
+For the IR-side archival baseline that can accompany one of these pages, the
+repo now includes:
+
+- [scripts/render_minor_line_ir_snapshot.sh](/Users/Shared/chroot/dev/gewyvern/scripts/render_minor_line_ir_snapshot.sh)
+  Thin helper that renders Markdown-ready IR history snapshot blocks from one
+  or more `.gewy` inputs.
+
 Use other pages when you want something else:
 
 - for the current top-level documentation map, use

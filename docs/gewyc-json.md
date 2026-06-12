@@ -297,38 +297,34 @@ Shape:
   },
   "focused_report": {
     "kind": "ir",
+    "ir_lowering_delta": {
+      "lowered_program_rule_count": 6,
+      "lowered_reason_rule_count": 6
+    },
     "report": {
-      "program_models": [
-        {
-          "id": "amqp_basic_publish_model",
-          "kind": "program_model",
-          "operation": "amqp_basic_publish",
-          "rules": [
-            {
-              "rule_index": 0,
-              "predicate": "packet_observed(l4_proto=6,dir=egress,local_port=none,remote_port=5672,payload_offsets=[10])",
-              "signal": "FlowConditionObserved",
-              "narrative": "transport_payload_sent",
-              "dedupe": true,
-              "module": "amqp_publish_sequence",
-              "phase": "send_publish",
-              "phase_kind": "emit_payload",
-              "required_facts": ["PacketMeta"],
-              "supporting_fragments": ["tcp_packet_meta_fragment"],
-              "missing_facts": [],
-              "unsupported_payload_offsets": [],
-              "supported": true
-            }
-          ]
+      "template_id": "amqp_basic_publish_path",
+      "program_model": {
+        "id": "amqp_basic_publish_path_dsl_model",
+        "kind": "program_model",
+        "operation": "amqp_basic_publish",
+        "rules": []
+      },
+      "reason_model": {
+        "id": "amqp_basic_publish_path_reason",
+        "kind": "declarative_reason_model",
+        "rules": []
+      },
+      "model_compare": {
+        "rule_count_delta": 0,
+        "shared_modules": ["amqp_basic_publish_path"]
+      },
+      "history_snapshot": {
+        "template_id": "amqp_basic_publish_path",
+        "operation": "amqp_basic_publish",
+        "model_compare": {
+          "rule_count_delta": 0
         }
-      ],
-      "reason_models": [
-        {
-          "id": "amqp_basic_publish_path_reason",
-          "kind": "declarative_reason_model",
-          "rules": []
-        }
-      ]
+      }
     }
   }
 }
@@ -348,6 +344,11 @@ The focused IR report now also carries:
   It includes front-end counts plus lowered rule counts, support counts,
   modules, phases, phase kinds, and per-model lowered summaries for the
   `program_model` and `reason_model`.
+- `report.model_compare`
+  A direct compare block between `program_model` and `reason_model` when both
+  exist. It carries rule-count deltas, supported-rule deltas, and shared vs.
+  side-specific `modules` / `phases` so snapshot tooling can reason about IR
+  alignment without re-deriving the relation client-side.
 - `ir_shape_note`
   A short human-oriented summary of the most important drift pattern.
 

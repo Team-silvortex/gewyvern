@@ -1,0 +1,7 @@
+name=redis_zcount
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=zcount
+register.default=false
+register.entry_aliases=sorted-range-count,score-window-count

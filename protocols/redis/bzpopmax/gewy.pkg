@@ -1,0 +1,7 @@
+name=redis_bzpopmax
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=bzpopmax
+register.default=false
+register.entry_aliases=sorted-blocking-pop-max,score-blocking-pop-highest

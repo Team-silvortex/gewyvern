@@ -1,0 +1,7 @@
+name=redis_zpopmin
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=zpopmin
+register.default=false
+register.entry_aliases=sorted-pop-min,score-pop-lowest

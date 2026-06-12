@@ -69,6 +69,21 @@ pub fn compile_diagnostics_report_file(
     })
 }
 
+pub fn compile_ir_report_file(path: &str) -> Result<IrReport, DslError> {
+    compile_envelope_file(path).and_then(|envelope| {
+        envelope
+            .ir_report
+            .ok_or_else(|| DslError::InvalidValue("ir report unavailable".into()))
+    })
+}
+
+pub fn compile_ir_report_str(input: &str) -> Result<IrReport, DslError> {
+    let envelope = compile_envelope_str(input);
+    envelope
+        .ir_report
+        .ok_or_else(|| DslError::InvalidValue("ir report unavailable".into()))
+}
+
 pub fn compile_stages_report_file(path: &str) -> Result<CompilerStagesReport, CompileStagesError> {
     let envelope = compile_envelope_file(path)?;
     Ok(envelope.stages)

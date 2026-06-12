@@ -1,0 +1,7 @@
+name=redis_zrangebyscore
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=zrangebyscore
+register.default=false
+register.entry_aliases=sorted-range-score,score-window-read

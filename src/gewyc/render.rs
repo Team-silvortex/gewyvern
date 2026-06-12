@@ -98,6 +98,14 @@ pub fn render_explain_report_with_options(
     }
 }
 
+pub fn render_ir_history_snapshot(report: &IrReport, format: RenderFormat) -> String {
+    let snapshot = ir_history_snapshot(report);
+    match format {
+        RenderFormat::Text => ir_history_snapshot_text(&snapshot),
+        RenderFormat::Json => ir_history_snapshot_json(&snapshot),
+    }
+}
+
 pub fn binding_report(binding: &TemplateBinding) -> BindingReport {
     BindingReport {
         template_id: binding.template.id.to_string(),

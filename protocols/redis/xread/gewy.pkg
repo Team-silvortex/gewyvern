@@ -1,0 +1,7 @@
+name=redis_xread
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=xread
+register.default=false
+register.entry_aliases=stream-read,stream-consume
