@@ -346,9 +346,13 @@ The focused IR report now also carries:
 - `ir_lowering_delta`
   A compact compare view between the front-end module graph and the lowered IR.
   It includes front-end counts plus lowered rule counts, support counts,
-  modules, phases, and phase kinds.
+  modules, phases, phase kinds, and per-model lowered summaries for the
+  `program_model` and `reason_model`.
 - `ir_shape_note`
   A short human-oriented summary of the most important drift pattern.
+
+For the exact lowering contract candidate behind these IR-focused fields, see
+[docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md).
 
 ## Consumer Patterns
 

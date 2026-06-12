@@ -121,6 +121,17 @@ pub(super) fn ir_lowering_delta(frontend: &FrontendReport, ir: &IrReport) -> IrL
             .filter_map(|rule| rule.phase_kind.clone())
             .collect::<Vec<_>>(),
     );
+    let lowered_models = [
+        ir.program_model
+            .as_ref()
+            .map(|model| ir_model_shape_summary("program_model", model)),
+        ir.reason_model
+            .as_ref()
+            .map(|model| ir_model_shape_summary("reason_model", model)),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>();
     let supported_rule_count = program_rules
         .iter()
         .chain(reason_rules.iter())
@@ -140,6 +151,7 @@ pub(super) fn ir_lowering_delta(frontend: &FrontendReport, ir: &IrReport) -> IrL
         lowered_modules,
         lowered_phases,
         lowered_phase_kinds,
+        lowered_models,
     }
 }
 
@@ -194,6 +206,14 @@ pub(super) fn ir_lowering_delta_text_lines(delta: &IrLoweringDelta) -> Vec<Strin
             list_or_none(&delta.lowered_phase_kinds)
         ),
     ]
+    .into_iter()
+    .chain(
+        delta
+            .lowered_models
+            .iter()
+            .flat_map(ir_model_shape_summary_text_lines),
+    )
+    .collect()
 }
 
 pub(super) fn ir_lowering_delta_json(delta: &IrLoweringDelta) -> String {
@@ -211,7 +231,8 @@ pub(super) fn ir_lowering_delta_json(delta: &IrLoweringDelta) -> String {
             "\"lowered_unsupported_rule_count\":{},",
             "\"lowered_modules\":[{}],",
             "\"lowered_phases\":[{}],",
-            "\"lowered_phase_kinds\":[{}]",
+            "\"lowered_phase_kinds\":[{}],",
+            "\"lowered_models\":[{}]",
             "}}"
         ),
         delta.frontend_function_count,
@@ -226,6 +247,12 @@ pub(super) fn ir_lowering_delta_json(delta: &IrLoweringDelta) -> String {
         string_json_list(&delta.lowered_modules),
         string_json_list(&delta.lowered_phases),
         string_json_list(&delta.lowered_phase_kinds),
+        delta
+            .lowered_models
+            .iter()
+            .map(ir_model_shape_summary_json)
+            .collect::<Vec<_>>()
+            .join(","),
     )
 }
 
@@ -416,6 +443,88 @@ fn list_or_none(items: &[String]) -> String {
     } else {
         items.join(",")
     }
+}
+
+fn ir_model_shape_summary(label: &str, model: &IrModelReport) -> IrModelShapeSummary {
+    let supported_rule_count = model.rules.iter().filter(|rule| rule.supported).count();
+    let modules = unique_strings(
+        model
+            .rules
+            .iter()
+            .filter_map(|rule| rule.module.clone())
+            .collect::<Vec<_>>(),
+    );
+    let phases = unique_strings(
+        model
+            .rules
+            .iter()
+            .filter_map(|rule| rule.phase.clone())
+            .collect::<Vec<_>>(),
+    );
+    IrModelShapeSummary {
+        label: label.to_string(),
+        id: model.id.clone(),
+        kind: model.kind.clone(),
+        rule_count: model.rules.len(),
+        supported_rule_count,
+        unsupported_rule_count: model.rules.len().saturating_sub(supported_rule_count),
+        modules,
+        phases,
+    }
+}
+
+fn ir_model_shape_summary_text_lines(summary: &IrModelShapeSummary) -> Vec<String> {
+    vec![
+        format!("ir_delta.model.{}.id={}", summary.label, summary.id),
+        format!("ir_delta.model.{}.kind={}", summary.label, summary.kind),
+        format!(
+            "ir_delta.model.{}.rules={}",
+            summary.label, summary.rule_count
+        ),
+        format!(
+            "ir_delta.model.{}.supported_rules={}",
+            summary.label, summary.supported_rule_count
+        ),
+        format!(
+            "ir_delta.model.{}.unsupported_rules={}",
+            summary.label, summary.unsupported_rule_count
+        ),
+        format!(
+            "ir_delta.model.{}.modules={}",
+            summary.label,
+            list_or_none(&summary.modules)
+        ),
+        format!(
+            "ir_delta.model.{}.phases={}",
+            summary.label,
+            list_or_none(&summary.phases)
+        ),
+    ]
+}
+
+fn ir_model_shape_summary_json(summary: &IrModelShapeSummary) -> String {
+    format!(
+        concat!(
+            "{{",
+            "\"label\":{},",
+            "\"id\":{},",
+            "\"kind\":{},",
+            "\"rule_count\":{},",
+            "\"supported_rule_count\":{},",
+            "\"unsupported_rule_count\":{},",
+            "\"modules\":[{}],",
+            "\"phases\":[{}]",
+            "}}"
+        ),
+        json_string(&summary.label),
+        json_string(&summary.id),
+        json_string(&summary.kind),
+        summary.rule_count,
+        summary.supported_rule_count,
+        summary.unsupported_rule_count,
+        string_json_list(&summary.modules),
+        string_json_list(&summary.phases),
+    )
 }
 
 fn unique_strings(mut items: Vec<String>) -> Vec<String> {

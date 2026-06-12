@@ -23,6 +23,12 @@ For those, use:
 - [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
 - [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 
+If you already understand the architecture and only need the exact contract
+companions for the protocol shelf or compiler IR surface, jump to:
+
+- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+
 ## One-Sentence Model
 
 `gewyvern` is a protocol-agnostic, window-bounded network debugger where a DSL

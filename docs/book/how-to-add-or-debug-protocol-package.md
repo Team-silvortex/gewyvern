@@ -10,6 +10,9 @@ This page assumes you already understand the basics of `gewylang`.
 If not, start with
 [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md).
 
+For the exact protocol family/entry resolution contract behind this shelf, see
+[docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md).
+
 ## What A Protocol Package Is
 
 In the current repository shape, a protocol package usually means:

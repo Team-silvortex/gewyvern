@@ -197,6 +197,19 @@ pub struct IrLoweringDelta {
     pub lowered_modules: Vec<String>,
     pub lowered_phases: Vec<String>,
     pub lowered_phase_kinds: Vec<String>,
+    pub lowered_models: Vec<IrModelShapeSummary>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IrModelShapeSummary {
+    pub label: String,
+    pub id: String,
+    pub kind: String,
+    pub rule_count: usize,
+    pub supported_rule_count: usize,
+    pub unsupported_rule_count: usize,
+    pub modules: Vec<String>,
+    pub phases: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

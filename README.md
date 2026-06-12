@@ -92,9 +92,25 @@ For the shorter statement of what the current `v1.4.0` line should already
 feel like in practice, see
 [docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md).
 
+For the historical minor-line record starting with the deliberate `v0.13.x`
+convergence line, see
+[docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md).
+That page now also keeps a compact release-line ledger for `v0.10.0`,
+`v0.13.x`, `v1.4.x`, and the next reserved minor slot.
+
 For the narrow machine-facing contract that downstream automation, sidecars,
 and enrich/rerank pipelines should consume, see
 [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md).
+
+For the two core compiler/runtime contract shelves that now anchor protocol
+authoring and IR review, see:
+
+- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+  Canonical protocol families, entries, aliases, defaults, and registry/CLI
+  resolution.
+- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+  Lowered `program_model` / `reason_model` shape, `ir_lowering_delta`, and
+  `gewyc explain --focus ir` contract candidate.
 
 For the dedicated note on how nearby sidecars such as `etragon` are surfaced
 as additive collaboration context, see
@@ -201,6 +217,15 @@ Use the docs in two layers:
 - [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
   The structured reading spine for tutorials, how-to, reference, and
   explanation.
+
+If you only want the project's current core contract surfaces, start with:
+
+- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
+  Narrow machine-facing runtime and analysis contract.
+- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+  Protocol family/entry shelf contract.
+- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+  Compiler IR lowering contract.
 
 If you are orienting yourself for the first time, the shortest useful order is:
 

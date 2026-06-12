@@ -140,6 +140,7 @@ During the current `1.4.x` line, documentation changes should bias toward:
 - reducing contradiction
 - making the project easier to adopt intentionally
 - making stable versus evolving surfaces clearer
+- recording each new minor line with one durable historical snapshot
 
 Documentation should not drift ahead of the runtime.
 
@@ -168,3 +169,24 @@ Before adding a new page, ask:
 
 If the answer to the last question is no, it is probably the wrong page for
 this phase.
+
+## Minor Line History
+
+The documentation set now keeps one durable snapshot per **minor** line.
+
+For this project, the middle numeric version component is the minor line:
+
+- `v0.13.x`
+- `v1.4.x`
+- future lines such as `v1.5.x`
+
+When a new minor line begins:
+
+- add one new page under
+  [docs/history](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md)
+- describe what that line means
+- describe what was already whole enough
+- describe what was still intentionally incomplete
+
+Do not create a separate history page for every patch version unless the patch
+series fundamentally changes the line's meaning.

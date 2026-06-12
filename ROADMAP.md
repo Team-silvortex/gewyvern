@@ -15,6 +15,9 @@ surfaces continue to mature.
 - later decision point: consider `v2.0` only if the DSL/runtime/report
   contract needs a deliberate breaking reset
 
+For the durable minor-line record, see
+[docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md).
+
 ## What `v1.4.0` Means
 
 `v1.4.0` should be interpreted as:
@@ -84,6 +87,13 @@ Earlier lines still matter as reference points:
 
 Those lines are part of the project's history, but they are no longer the
 current release story.
+
+From `v0.13.x` onward, that history is now tracked through explicit minor-line
+snapshot pages rather than only through scattered posture notes. Start with:
+
+- [docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md)
+- [docs/history/v0.13.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.13.x.md)
+- [docs/history/v1.4.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v1.4.x.md)
 
 ## Exit Criteria For The `1.4.x` Line
 

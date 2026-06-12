@@ -208,12 +208,18 @@ purpose-built IR view. It surfaces:
 - reason models as either `builtin_reason_profile` or
   `declarative_reason_model`
 - a structured `ir_delta` that compares front-end graph shape against lowered
-  rule counts, support counts, modules, phases, and phase kinds
+  rule counts, support counts, modules, phases, and phase kinds, while also
+  summarizing the lowered `program_model` and `reason_model`
 
 That makes `ir` the most direct protocol-authoring and IR-evolution view. It
 is especially useful when you want to answer "what did this package really
 lower into?" without reading the full binding, diagnostics, and findings
 reports together.
+
+For the exact lowering contract candidate behind that view, including the
+current `program_model` / `reason_model` summary surface and
+`ir_lowering_delta` expectations, see
+[docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md).
 
 When you only want one layer, `explain --focus parse|frontend|binding|ir|validation|diagnostics|findings`
 keeps the top summary but expands just that section, and

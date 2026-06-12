@@ -49,10 +49,17 @@ fn explain_ir_focus_reports_protocol_phase_and_support_details() {
     assert!(text.contains(
         "reason_model=amqp_basic_publish_path_reason kind=declarative_reason_model rules=6"
     ));
+    assert!(text.contains("ir_delta.model.program_model.id=amqp_basic_publish_path_dsl_model"));
+    assert!(text.contains("ir_delta.model.program_model.modules=amqp_basic_publish_path"));
+    assert!(text.contains("ir_delta.model.reason_model.id=amqp_basic_publish_path_reason"));
     assert!(json.contains("\"lowered_modules\":[\"amqp_basic_publish_path\"]"));
     assert!(json.contains(
         "\"lowered_phase_kinds\":[\"bind_process\",\"emit_payload\",\"establish_connection\",\"initiate_connection\",\"receive_payload\",\"resolve_route\"]"
     ));
+    assert!(json.contains("\"lowered_models\":[{"));
+    assert!(json.contains("\"label\":\"program_model\""));
+    assert!(json.contains("\"supported_rule_count\":6"));
+    assert!(json.contains("\"label\":\"reason_model\""));
     assert!(json.contains("\"phase_kind\":\"emit_payload\""));
     assert!(json.contains("\"supporting_fragments\":[\"tcp_packet_meta_fragment\"]"));
     assert!(json.contains("\"kind\":\"declarative_reason_model\""));

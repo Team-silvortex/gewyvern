@@ -51,6 +51,7 @@ Release/evidence pages live beside them:
 
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
+- [docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md)
 
 ## Runtime Internals
 
@@ -86,6 +87,12 @@ Release/evidence pages live beside them:
 
 - [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
   JSON guide for `gewyc frontend --json` and `gewyc explain --json`.
+- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+  Exact lookup page for lowered IR shape, `ir_lowering_delta`, and per-model
+  summaries.
+- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+  Exact lookup page for protocol family/entry resolution, aliases, and
+  registry behavior.
 - [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
   Draft formal grammar for the preferred pipeline surface.
 
@@ -101,6 +108,20 @@ Release/evidence pages live beside them:
   Linux/eBPF validation path.
 - [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
   Native Linux packaging layout and DEB/RPM packaging entrypoints.
+
+## Release History
+
+- [docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md)
+  Minor-line snapshots starting at `v0.13.x`, plus the compact release-line
+  ledger.
+- [docs/history/v0.10.0.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.10.0.md)
+  Last fully documented early validation baseline.
+- [docs/history/v0.13.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.13.x.md)
+  First deliberate convergence line.
+- [docs/history/v1.4.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v1.4.x.md)
+  Current active `1.x` maturity line.
+- [docs/history/v1.5.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v1.5.x.md)
+  Reserved next minor-line slot.
 
 ## Fixtures And Reference Assets
 

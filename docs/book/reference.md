@@ -15,6 +15,12 @@ stable contract, not a walkthrough.
   Draft formal grammar.
 - [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
   `gewyc` frontend/explain JSON output.
+- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+  Current lowering contract candidate for `program_model`, `reason_model`, and
+  `ir_lowering_delta`.
+- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+  Registry and CLI contract candidate for canonical protocol families,
+  entries, aliases, and default resolution.
 
 ## Runtime And Export Contracts
 
