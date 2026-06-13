@@ -7,6 +7,7 @@ use crate::render_utils::*;
 
 mod http_render;
 mod scan;
+mod scan_surface;
 mod sidecar;
 
 use self::sidecar::append_external_sidecar_context_field;

@@ -44,6 +44,7 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
     assert!(targets_body.contains("\"has_external_sidecar_context\":false"));
     assert!(targets_body.contains("\"has_external_evidence_chain_enrichment\":false"));
     assert!(targets_body.contains("\"has_external_diagnostic_opinion\":false"));
+    assert!(targets_body.contains("\"has_protocol_surface\":false"));
 
     let (_, _, summary_body) = api_response_for_request("/v1/latest/summary.json", &snapshot);
     assert!(summary_body.contains("\"demo\":\"dsl_demo\""));
@@ -62,6 +63,12 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
     let (_, _, target_analysis_body) =
         api_response_for_request("/v1/latest/targets/dsl_demo/analysis.json", &snapshot);
     assert!(target_analysis_body.contains("\"primary_failure_mode\""));
+    let (surface_status, _, surface_body) = api_response_for_request(
+        "/v1/latest/targets/dsl_demo/protocol-surface.json",
+        &snapshot,
+    );
+    assert_eq!(surface_status, 404);
+    assert!(surface_body.contains("no protocol surface available"));
 }
 
 #[test]
@@ -136,6 +143,11 @@ fn api_snapshot_routes_cover_scan_export() {
         api_response_for_request("/v1/latest/targets", &snapshot);
     assert_eq!(targets_status, 200);
     assert!(targets_body.contains("\"targets\":[\"scan:http:request\"]"));
+    assert!(targets_body.contains("\"has_protocol_surface\":true"));
+    assert!(targets_body.contains("\"protocol\":\"http\""));
+    assert!(targets_body.contains("\"entry\":\"request\""));
+    assert!(targets_body.contains("\"default_entry\":\"request\""));
+    assert!(targets_body.contains("\"selected_is_default\":true"));
     let (analysis_status, _, analysis_body) =
         api_response_for_request("/v1/latest/analysis.json", &snapshot);
     assert_eq!(analysis_status, 200);
@@ -160,6 +172,15 @@ fn api_snapshot_routes_cover_scan_export() {
     );
     assert_eq!(target_analysis_status, 200);
     assert!(target_analysis_body.contains("\"primary_module_kind\""));
+    let (surface_status, _, surface_body) = api_response_for_request(
+        "/v1/latest/targets/scan:http:request/protocol-surface.json",
+        &snapshot,
+    );
+    assert_eq!(surface_status, 200);
+    assert!(surface_body.contains("\"protocol\":\"http\""));
+    assert!(surface_body.contains("\"entry\":\"request\""));
+    assert!(surface_body.contains("\"default_entry\":\"request\""));
+    assert!(surface_body.contains("\"selected_is_default\":true"));
 
     let (findings_status, _, _) = api_response_for_request("/v1/latest/findings.json", &snapshot);
     assert_eq!(findings_status, 404);
@@ -201,6 +222,7 @@ fn api_target_list_exposes_url_safe_path_segments() {
     assert!(targets_body.contains("\"path_segment_encoding\":\"percent-encoding\""));
     assert!(targets_body.contains("\"url_path\":\"/v1/latest/targets/scan:http%20request%2F%25\""));
     assert!(targets_body.contains("\"has_external_sidecar_context\":false"));
+    assert!(targets_body.contains("\"has_protocol_surface\":false"));
 
     let (target_status, _, target_body) = api_response_for_request(
         "/v1/latest/targets/scan:http%20request%2F%25/summary.json",

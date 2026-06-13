@@ -85,16 +85,49 @@ fn append_api_target_refs_json(
             target.push(',');
         }
         let path_segment = api_target_path_segment(name);
-        let (has_sidecar_context, has_enrichment, has_opinion) = target_snapshots
+        let (
+            has_sidecar_context,
+            has_enrichment,
+            has_opinion,
+            protocol,
+            entry,
+            default_entry,
+            selected_is_default,
+            shelf_key,
+            shelf_label,
+        ) = target_snapshots
             .get(name)
             .map(|target| {
                 (
                     target.has_external_sidecar_context,
                     target.has_external_evidence_chain_enrichment,
                     target.has_external_diagnostic_opinion,
+                    target
+                        .protocol_surface
+                        .as_ref()
+                        .map(|surface| surface.protocol.as_str()),
+                    target
+                        .protocol_surface
+                        .as_ref()
+                        .map(|surface| surface.entry.as_str()),
+                    target
+                        .protocol_surface
+                        .as_ref()
+                        .map(|surface| surface.default_entry.as_str()),
+                    target
+                        .protocol_surface
+                        .as_ref()
+                        .is_some_and(|surface| surface.selected_is_default),
+                    target
+                        .protocol_surface
+                        .as_ref()
+                        .and_then(|surface| surface.shelf.as_ref().map(|shelf| shelf.key.as_str())),
+                    target.protocol_surface.as_ref().and_then(|surface| {
+                        surface.shelf.as_ref().map(|shelf| shelf.label.as_str())
+                    }),
                 )
             })
-            .unwrap_or((false, false, false));
+            .unwrap_or((false, false, false, None, None, None, false, None, None));
         target.push_str("{\"name\":");
         append_json_string(target, name);
         target.push_str(",\"path_segment\":");
@@ -107,6 +140,35 @@ fn append_api_target_refs_json(
         target.push_str(if has_enrichment { "true" } else { "false" });
         target.push_str(",\"has_external_diagnostic_opinion\":");
         target.push_str(if has_opinion { "true" } else { "false" });
+        target.push_str(",\"has_protocol_surface\":");
+        target.push_str(if protocol.is_some() { "true" } else { "false" });
+        target.push_str(",\"protocol\":");
+        match protocol {
+            Some(value) => append_json_string(target, value),
+            None => target.push_str("null"),
+        }
+        target.push_str(",\"entry\":");
+        match entry {
+            Some(value) => append_json_string(target, value),
+            None => target.push_str("null"),
+        }
+        target.push_str(",\"default_entry\":");
+        match default_entry {
+            Some(value) => append_json_string(target, value),
+            None => target.push_str("null"),
+        }
+        target.push_str(",\"selected_is_default\":");
+        target.push_str(if selected_is_default { "true" } else { "false" });
+        target.push_str(",\"shelf_key\":");
+        match shelf_key {
+            Some(value) => append_json_string(target, value),
+            None => target.push_str("null"),
+        }
+        target.push_str(",\"shelf_label\":");
+        match shelf_label {
+            Some(value) => append_json_string(target, value),
+            None => target.push_str("null"),
+        }
         target.push('}');
     }
     target.push(']');
@@ -209,6 +271,8 @@ fn estimate_api_target_list_capacity(snapshot: &ApiSnapshot) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data_api::{ApiSnapshot, ApiTargetSnapshot};
+    use gewyvern::protocol_profiles::{ProtocolShelfSummary, ProtocolSurfaceSummary};
 
     #[test]
     fn api_target_path_segment_percent_encodes_reserved_bytes() {
@@ -222,5 +286,49 @@ mod tests {
     fn decode_api_target_path_segment_rejects_invalid_escape() {
         let err = decode_api_target_path_segment("%ZZ").expect_err("should reject invalid escape");
         assert!(err.contains("invalid percent-encoding"));
+    }
+
+    #[test]
+    fn api_target_refs_include_protocol_shelf_summary_when_available() {
+        let mut snapshot = ApiSnapshot {
+            kind: "scan".into(),
+            target_count: Some(1),
+            target_names: vec!["scan:redis:zadd".into()],
+            ..ApiSnapshot::default()
+        };
+        snapshot.target_snapshots.insert(
+            "scan:redis:zadd".into(),
+            ApiTargetSnapshot {
+                summary_text: String::new(),
+                summary_json: String::new(),
+                findings_json: String::new(),
+                analysis_json: String::new(),
+                protocol_surface_json: None,
+                protocol_surface: Some(ProtocolSurfaceSummary {
+                    protocol: "redis".into(),
+                    entry: "zadd".into(),
+                    default_entry: "session".into(),
+                    selected_is_default: false,
+                    protocol_aliases: vec!["redis-session".into()],
+                    entry_aliases: vec!["sorted-write".into()],
+                    sibling_entries: vec!["zadd".into(), "zrange".into()],
+                    shelf: Some(ProtocolShelfSummary {
+                        key: "sorted-set".into(),
+                        label: "Sorted Set".into(),
+                        page: "docs/book/reference-redis-sorted-set-surface.md".into(),
+                        entries: vec!["zadd".into(), "zrange".into()],
+                    }),
+                }),
+                has_external_sidecar_context: false,
+                has_external_evidence_chain_enrichment: false,
+                has_external_diagnostic_opinion: false,
+                export_json: String::new(),
+                report_json: String::new(),
+                report_html: String::new(),
+            },
+        );
+        let body = api_target_list_json(&snapshot);
+        assert!(body.contains("\"shelf_key\":\"sorted-set\""));
+        assert!(body.contains("\"shelf_label\":\"Sorted Set\""));
     }
 }

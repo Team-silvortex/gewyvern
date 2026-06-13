@@ -114,6 +114,9 @@ fn scan_report_json_summarizes_all_targets() {
     assert!(report.contains("\"attention_targets\":1"));
     assert!(report.contains("\"target\":\"scan:http:request\""));
     assert!(report.contains("\"target\":\"scan:http:response\""));
+    assert!(report.contains("\"protocol_surface\":{\"protocol\":\"http\""));
+    assert!(report.contains("\"entry\":\"request\""));
+    assert!(report.contains("\"sibling_entries\":[\"auth-required\",\"auth-tunnel\",\"connect\",\"denied\",\"request\",\"response\"]"));
     assert!(report.contains("\"ingest_mode\":\"demo\""));
     assert!(report.contains("\"ingest_mode_note\":\"synthetic demo mode: useful for exercising flows and reports, not for real process attribution\""));
     assert!(report.contains("\"ingest_trust_mode\":\"synthetic-demo\""));
@@ -132,6 +135,9 @@ fn scan_report_html_renders_visual_summary() {
     assert!(report.contains("<!DOCTYPE html>"));
     assert!(report.contains("gewyvern Scan Report"));
     assert!(report.contains("scan:http:request"));
+    assert!(report.contains("Protocol Surface"));
+    assert!(report.contains("default entry:</strong> request (selected)"));
+    assert!(report.contains("sibling entries:</strong> auth-required | auth-tunnel | connect | denied | request | response"));
     assert!(report.contains("Process Profiles"));
     assert!(report.contains("primary module:"));
     assert!(report.contains("primary stage:"));
@@ -204,6 +210,22 @@ fn scan_report_html_expands_attention_targets_by_default() {
     let report = scan_report_html(&[("scan:http:attention".to_string(), attention_export)]);
     assert!(report.contains("<details class=\"card status-attention\" open>"));
     assert!(report.contains("scan:http:attention"));
+}
+
+#[test]
+fn scan_report_text_includes_protocol_surface_summary() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+        .expect("mysql_query_session DSL should compile");
+    let export = annotate_export_trust(
+        run_binding_demo(binding),
+        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+    );
+    let report = scan_report_text(&[("scan:mysql:session".to_string(), export)]);
+    assert!(report.contains("protocol_surface=mysql"));
+    assert!(report.contains("entry=session"));
+    assert!(report.contains("default=session"));
+    assert!(report.contains("selected_default=true"));
+    assert!(report.contains("entry_aliases=mysql-session | mysql_session"));
 }
 
 #[cfg(target_family = "unix")]

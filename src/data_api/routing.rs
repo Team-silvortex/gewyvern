@@ -69,6 +69,14 @@ pub(crate) fn api_response_for_request<'a>(
                         "text/html; charset=utf-8",
                         Cow::Borrowed(target.report_html.as_str()),
                     ),
+                    "protocol-surface.json" => match target.protocol_surface_json.as_deref() {
+                        Some(body) => (200, "application/json; charset=utf-8", Cow::Borrowed(body)),
+                        None => (
+                            404,
+                            "text/plain; charset=utf-8",
+                            Cow::Borrowed("no protocol surface available for target"),
+                        ),
+                    },
                     _ => (
                         404,
                         "application/json; charset=utf-8",

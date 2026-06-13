@@ -1,7 +1,9 @@
 mod aliases;
 mod profiles;
 mod registry;
+mod shelves;
 mod summary;
+mod surface;
 
 use aliases::split_protocol_alias;
 use profiles::{PROTOCOL_PROFILES, find_protocol_profile};
@@ -13,6 +15,7 @@ use summary::{
     built_in_protocol_summaries, built_in_protocol_summary, protocol_summaries_from_registry,
     protocol_summary_from_registry,
 };
+use surface::built_in_protocol_surface;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedProtocolProfile {
@@ -34,6 +37,26 @@ pub struct ProtocolSummary {
     pub default_entry: String,
     pub aliases: Vec<String>,
     pub entries: Vec<ProtocolEntrySummary>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProtocolShelfSummary {
+    pub key: String,
+    pub label: String,
+    pub page: String,
+    pub entries: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProtocolSurfaceSummary {
+    pub protocol: String,
+    pub entry: String,
+    pub default_entry: String,
+    pub selected_is_default: bool,
+    pub protocol_aliases: Vec<String>,
+    pub entry_aliases: Vec<String>,
+    pub sibling_entries: Vec<String>,
+    pub shelf: Option<ProtocolShelfSummary>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -62,6 +85,17 @@ pub fn protocol_summary(protocol: &str) -> Option<ProtocolSummary> {
         return protocol_summary_from_registry(registry, protocol);
     }
     built_in_protocol_summary(protocol)
+}
+
+pub fn protocol_surface(protocol: &str, entry: &str) -> Option<ProtocolSurfaceSummary> {
+    let summary = protocol_summary(protocol)?;
+    let selected_entry = summary
+        .entries
+        .iter()
+        .find(|item| item.mode == entry || item.aliases.iter().any(|alias| alias == entry))?
+        .mode
+        .clone();
+    Some(built_in_protocol_surface(summary, selected_entry))
 }
 
 pub fn protocol_names() -> Vec<String> {

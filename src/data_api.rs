@@ -4,6 +4,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use gewyvern::protocol_profiles::{ProtocolSurfaceSummary, protocol_surface};
+
+use crate::render_utils::{append_json_string, append_string_list_json};
+
 mod json;
 mod routing;
 
@@ -13,7 +17,7 @@ pub type ApiState = Arc<Mutex<Arc<ApiSnapshot>>>;
 
 const API_CLIENT_READ_TIMEOUT: Duration = Duration::from_secs(3);
 const API_VERSION: &str = env!("CARGO_PKG_VERSION");
-const API_ENDPOINTS_JSON: &str = "[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\"]";
+const API_ENDPOINTS_JSON: &str = "[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\",\"/v1/latest/targets/<name>/protocol-surface.json\"]";
 
 #[derive(Clone, Debug, Default)]
 pub struct ApiSnapshot {
@@ -41,6 +45,8 @@ pub struct ApiTargetSnapshot {
     pub summary_json: String,
     pub findings_json: String,
     pub analysis_json: String,
+    pub protocol_surface_json: Option<String>,
+    pub protocol_surface: Option<ProtocolSurfaceSummary>,
     pub has_external_sidecar_context: bool,
     pub has_external_evidence_chain_enrichment: bool,
     pub has_external_diagnostic_opinion: bool,
@@ -66,11 +72,15 @@ pub struct ApiRenderedTarget {
 
 impl ApiRenderedTarget {
     pub fn into_snapshot(self) -> ApiTargetSnapshot {
+        let protocol_surface = api_protocol_surface_for_target(&self.name);
+        let protocol_surface_json = protocol_surface.as_ref().map(api_protocol_surface_json);
         ApiTargetSnapshot {
             summary_text: self.summary_text,
             summary_json: self.summary_json,
             findings_json: self.findings_json,
             analysis_json: self.analysis_json,
+            protocol_surface_json,
+            protocol_surface,
             has_external_sidecar_context: self.has_external_sidecar_context,
             has_external_evidence_chain_enrichment: self.has_external_evidence_chain_enrichment,
             has_external_diagnostic_opinion: self.has_external_diagnostic_opinion,
@@ -191,4 +201,52 @@ fn current_unix_ms() -> u128 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis()
+}
+
+fn api_protocol_surface_for_target(name: &str) -> Option<ProtocolSurfaceSummary> {
+    let mut parts = name.splitn(3, ':');
+    if parts.next()? != "scan" {
+        return None;
+    }
+    let protocol = parts.next()?;
+    let entry = parts.next()?;
+    protocol_surface(protocol, entry)
+}
+
+fn api_protocol_surface_json(surface: &ProtocolSurfaceSummary) -> String {
+    let mut json = String::from("{\"protocol\":");
+    append_json_string(&mut json, &surface.protocol);
+    json.push_str(",\"entry\":");
+    append_json_string(&mut json, &surface.entry);
+    json.push_str(",\"default_entry\":");
+    append_json_string(&mut json, &surface.default_entry);
+    json.push_str(",\"selected_is_default\":");
+    json.push_str(if surface.selected_is_default {
+        "true"
+    } else {
+        "false"
+    });
+    json.push_str(",\"protocol_aliases\":");
+    append_string_list_json(&mut json, &surface.protocol_aliases);
+    json.push_str(",\"entry_aliases\":");
+    append_string_list_json(&mut json, &surface.entry_aliases);
+    json.push_str(",\"sibling_entries\":");
+    append_string_list_json(&mut json, &surface.sibling_entries);
+    json.push_str(",\"shelf\":");
+    if let Some(shelf) = surface.shelf.as_ref() {
+        json.push('{');
+        json.push_str("\"key\":");
+        append_json_string(&mut json, &shelf.key);
+        json.push_str(",\"label\":");
+        append_json_string(&mut json, &shelf.label);
+        json.push_str(",\"page\":");
+        append_json_string(&mut json, &shelf.page);
+        json.push_str(",\"entries\":");
+        append_string_list_json(&mut json, &shelf.entries);
+        json.push('}');
+    } else {
+        json.push_str("null");
+    }
+    json.push('}');
+    json
 }

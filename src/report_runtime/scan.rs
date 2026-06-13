@@ -1,3 +1,7 @@
+use super::scan_surface::{
+    append_protocol_surface_json, protocol_surface_for_target, protocol_surface_html,
+    protocol_surface_text,
+};
 use super::sidecar::{
     external_operator_guidance_support_note, external_sidecar_collaboration_note,
     external_sidecar_rollup_counts,
@@ -218,6 +222,7 @@ pub(super) fn append_scan_target_json(
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
 ) {
+    let protocol_surface = protocol_surface_for_target(name);
     json.push_str("{\"target\":\"");
     json.push_str(name);
     json.push_str("\",\"status\":\"");
@@ -234,6 +239,7 @@ pub(super) fn append_scan_target_json(
     json.push('[');
     append_protocol_flow_summaries_json_from_snapshot(json, analysis);
     json.push(']');
+    append_protocol_surface_json(json, protocol_surface.as_ref());
     json.push('}');
 }
 
@@ -256,6 +262,7 @@ pub(super) fn append_scan_target_text(
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
 ) {
+    let protocol_surface = protocol_surface_for_target(name);
     text.push_str(name);
     text.push_str(" status=");
     text.push_str(analysis.target_status.label());
@@ -269,6 +276,8 @@ pub(super) fn append_scan_target_text(
     append_process_network_profiles_text_from_snapshot(text, analysis);
     text.push_str(" protocol_flows=");
     append_protocol_flow_summaries_text_from_snapshot(text, analysis);
+    text.push(' ');
+    text.push_str(&protocol_surface_text(protocol_surface.as_ref()));
 }
 
 pub(super) fn estimate_scan_target_html_capacity(
@@ -306,6 +315,7 @@ pub(super) fn append_scan_target_html_card(
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
 ) {
+    let protocol_surface = protocol_surface_for_target(name);
     let status = analysis.target_status.label();
     let details_open = if matches!(analysis.target_status, ScanTargetStatus::Attention) {
         " open"
@@ -369,6 +379,7 @@ pub(super) fn append_scan_target_html_card(
     let primary_failure_mode_family = failure_mode_family_label(&analysis.primary_failure_mode);
     let sidecar_collaboration_note = external_sidecar_collaboration_note(analysis);
     let sidecar_guidance_support_note = external_operator_guidance_support_note(analysis);
+    let protocol_surface_section = protocol_surface_html(protocol_surface.as_ref());
     let mut augmentations = String::new();
     if analysis.augmentations.is_empty() {
         augmentations.push_str("<li>none</li>");
@@ -434,7 +445,7 @@ pub(super) fn append_scan_target_html_card(
     }
     let _ = write!(
         cards,
-        "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>mode:</strong> {} | <strong>trust:</strong> {} | <strong>pid attribution:</strong> {} | <strong>ambiguous:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><p><strong>Mode note:</strong> {}</p><p><strong>PID attribution note:</strong> {}</p><p><strong>Competing hypotheses:</strong> {}</p>{}{}<h3>Process Profiles</h3><ul>{}</ul><h3>Augmentations</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
+        "<details class=\"card status-{status}\"{details_open}><summary><div class=\"card-title\"><h2>{}</h2><p><strong>status:</strong> {} | <strong>mode:</strong> {} | <strong>trust:</strong> {} | <strong>pid attribution:</strong> {} | <strong>ambiguous:</strong> {} | <strong>flows:</strong> {} | <strong>findings:</strong> {} | <strong>modules:</strong> {}</p></div><div class=\"conclusion\"><div class=\"pill\"><strong>primary module:</strong> <span class=\"tag family-{}\">{}</span></div><div class=\"pill\"><strong>primary stage:</strong> <span class=\"tag stage-{}\">{}</span></div><div class=\"pill\"><strong>failure mode:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>failure detail:</strong> <span class=\"tag failure-{}\">{}</span></div><div class=\"pill\"><strong>confidence:</strong> {}</div><div class=\"pill\"><strong>basis:</strong> {}</div><div class=\"pill\"><strong>suspect modules:</strong> {}</div></div></summary><div class=\"card-body\"><p><strong>Mode note:</strong> {}</p><p><strong>PID attribution note:</strong> {}</p><p><strong>Competing hypotheses:</strong> {}</p>{}{}{}<h3>Process Profiles</h3><ul>{}</ul><h3>Augmentations</h3><ul>{}</ul><h3>Protocol Flows</h3><ul>{}</ul></div></details>",
         html_escape(name),
         status,
         html_escape(ingest_mode_for_export(export)),
@@ -474,6 +485,7 @@ pub(super) fn append_scan_target_html_card(
                 html_escape(state)
             ))
             .unwrap_or_default(),
+        protocol_surface_section,
         profiles,
         augmentations,
         flow_lines,
