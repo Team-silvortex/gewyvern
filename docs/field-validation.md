@@ -1,7 +1,7 @@
 # Field Validation
 
 This note defines the practical field-validation phase for the current
-`1.4.x` line.
+`0.14.x` line.
 
 The goal is simple:
 
@@ -13,17 +13,17 @@ This is the bridge between:
 
 - contract freeze
 - benchmark acceptance
-- current release judgment for the active `1.x` line
+- current release judgment for the active `0.14.x` line
 
 For the current release posture, see
-[docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md).
+[docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md).
 
 For the short running record of what this validation has already shown in
 practice, see [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md).
 
 ## Current Prelaunch Scope
 
-Keep the current `1.4.x` field-validation line intentionally narrow.
+Keep the current `0.14.x` field-validation line intentionally narrow.
 
 The question is not "what else could `gewyvern` support".
 
@@ -308,6 +308,9 @@ The release container check is the shortest repeatable check that:
   exercised from one release-minded entrypoint
 - the prelaunch Linux packaging path can be treated like a single checklist
   step rather than a loose collection of commands
+- the current line is being validated against freshly rebuilt native artifacts,
+  not only whatever package output happened to already exist under
+  `target/packages`
 
 The container protocol validator is the shortest repeatable check that:
 
@@ -318,6 +321,9 @@ The container protocol validator is the shortest repeatable check that:
     DNS, HTTP, TLS, HTTP/3, QUIC
   - remote access and proxy:
     SSH, SOCKS5
+  - current HTTP/3 request posture remains explicitly high-signal:
+    `primary_module_kind = "http3_request_response"` with
+    `operator_guidance_action = "safe_to_escalate_protocol_signal"`
   - database, messaging, and directory:
     MySQL, PostgreSQL, SMTP, LDAP
 - packaged `--scan-all` still works outside the development host
@@ -369,6 +375,6 @@ This note does not replace:
 - real operator feedback
 - later multi-project collaboration validation with `etragon` and `leserpent`
 
-It exists so the current `1.4.x` line has a concrete "start validating for
+It exists so the current `0.14.x` line has a concrete "start validating for
 real" shelf rather
 than only architecture cleanup.

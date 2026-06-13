@@ -9,7 +9,7 @@ It exists to separate:
 - the wider report/presentation payloads that may still evolve
 
 For the broader release posture, see
-[docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md).
+[docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md).
 
 For the operator-facing surface overview, see
 [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md).

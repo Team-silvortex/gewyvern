@@ -12,7 +12,7 @@ usage: scripts/render_minor_line_ir_snapshot.sh [--json|--text] [--title TEXT] l
 
 Examples:
   scripts/render_minor_line_ir_snapshot.sh \
-    --title "v1.4.x IR Baseline" \
+    --title "v0.14.x IR Baseline" \
     amqp-publish=protocols/amqp/publish/main.gewy \
     udp-debug=dsl/udp_process_debug.gewy
 

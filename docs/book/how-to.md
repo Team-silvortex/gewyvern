@@ -52,8 +52,8 @@ This track is task-first. Use it when you already know roughly what
 
 ## Prepare For Release Judgement
 
-- [docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md)
-  Current release posture for the active `1.4.x` line.
+- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+  Current release posture for the active `0.14.x` line.
 - [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
   Security and exposure boundaries.
 

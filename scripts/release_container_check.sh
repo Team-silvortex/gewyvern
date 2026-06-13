@@ -54,19 +54,28 @@ elif [[ "${RUN_DEB}" -eq 0 && "${RUN_RPM}" -eq 1 ]]; then
   mode_label="rpm"
 fi
 
+run_mode_script() {
+  local script_path="$1"
+  if [[ "${#mode_args[@]}" -eq 0 ]]; then
+    bash "${script_path}"
+  else
+    bash "${script_path}" "${mode_args[@]}"
+  fi
+}
+
 echo "[release-check] starting packaged release validation (${mode_label})"
 
 echo "[release-check] ----------------------------------------"
 echo "[release-check] running package install smoke"
-bash "${ROOT}/scripts/package_install_smoke.sh" "${mode_args[@]}"
+run_mode_script "${ROOT}/scripts/package_install_smoke.sh"
 
 echo "[release-check] ----------------------------------------"
 echo "[release-check] running packaged runtime validation"
-bash "${ROOT}/scripts/container_runtime_validation.sh" "${mode_args[@]}"
+run_mode_script "${ROOT}/scripts/container_runtime_validation.sh"
 
 echo "[release-check] ----------------------------------------"
 echo "[release-check] running packaged protocol/operator summary"
-bash "${ROOT}/scripts/container_validation_summary.sh" "${mode_args[@]}"
+run_mode_script "${ROOT}/scripts/container_validation_summary.sh"
 
 echo "[release-check] ----------------------------------------"
 echo "[release-check] packaged release validation: ok (${mode_label})"

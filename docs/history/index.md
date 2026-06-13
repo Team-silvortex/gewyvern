@@ -5,8 +5,8 @@ This section records the project's deliberate **minor-line snapshots**.
 For `gewyvern`, the middle numeric component is treated as the **minor** line:
 
 - `v0.13.x`
-- `v1.4.x`
-- future lines such as `v1.5.x`
+- `v0.14.x`
+- future lines such as `v0.15.x`
 
 The rule from here forward is simple:
 
@@ -26,27 +26,27 @@ background cleanup.
 
 - [docs/history/v0.10.0.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.10.0.md)
   Last fully documented early validation baseline before the later
-  convergence and `1.x` maturity lines.
+  convergence and `0.14.x` maturity line.
 - [docs/history/v0.13.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.13.x.md)
-  First deliberate convergence line before the later `1.x` posture.
-- [docs/history/v1.4.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v1.4.x.md)
-  Current active `1.x` line focused on protocol depth, compiler ergonomics,
+  First deliberate convergence line before the later `0.14.x` posture.
+- [docs/history/v0.14.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.14.x.md)
+  Current active `0.14.x` line focused on protocol depth, compiler ergonomics,
   and runtime/report maturity.
-- [docs/history/v1.5.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v1.5.x.md)
+- [docs/history/v0.15.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15.x.md)
   Reserved next minor-line slot.
 
 ## Release-Line Ledger
 
 | Line | Role | Status | Canonical note |
 | --- | --- | --- | --- |
-| `v0.10.0` | Historical validation baseline before the later convergence and `1.x` posture work | historical baseline | [docs/history/v0.10.0.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.10.0.md) |
+| `v0.10.0` | Historical validation baseline before the later convergence and `0.14.x` posture work | historical baseline | [docs/history/v0.10.0.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.10.0.md) |
 | `v0.13.x` | First deliberate convergence line for documentation, boundaries, and release judgment | recorded | [docs/history/v0.13.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.13.x.md) |
-| `v1.4.x` | Current active `1.x` maturity line | active | [docs/history/v1.4.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v1.4.x.md) |
-| `v1.5.x` | Next minor line slot | reserved | [docs/history/v1.5.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v1.5.x.md) |
+| `v0.14.x` | Current active maturity line | active | [docs/history/v0.14.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.14.x.md) |
+| `v0.15.x` | Next minor line slot | reserved | [docs/history/v0.15.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15.x.md) |
 
 This table is the shortest answer to:
 
-- which line was the pre-`1.x` convergence shelf?
+- which line was the pre-`0.14.x` convergence shelf?
 - which line is active now?
 - which line slot is next?
 
@@ -73,5 +73,5 @@ Use other pages when you want something else:
 - for the current structured reading paths, use
   [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
 - for the current active release posture, use
-  [docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md)
+  [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
 - for the shortest ledger of historical release lines, use this page

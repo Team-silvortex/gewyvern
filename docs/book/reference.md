@@ -56,5 +56,5 @@ stable contract, not a walkthrough.
 
 ## Future Shape
 
-As the current `1.4.x` line continues, new exact-lookup material should prefer
+As the current `0.14.x` line continues, new exact-lookup material should prefer
 this shelf instead of adding more ad hoc “format note” pages at the top level.

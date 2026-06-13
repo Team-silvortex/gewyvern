@@ -47,7 +47,7 @@ but they do not replace the core diagnosis spine.
 
 ## Release Readiness And Scope
 
-- [docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md)
+- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
 

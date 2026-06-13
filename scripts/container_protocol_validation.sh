@@ -116,7 +116,7 @@ expect_contains /tmp/http.json '"operator_guidance_action":"manual_review"'
 expect_contains /tmp/tls.json '"primary_module_kind":"tls_handshake"'
 expect_contains /tmp/tls.json '"operator_guidance_action":"manual_review"'
 expect_contains /tmp/http3.json '"primary_module_kind":"http3_request_response"'
-expect_contains /tmp/http3.json '"operator_guidance_action":"manual_review"'
+expect_contains /tmp/http3.json '"operator_guidance_action":"safe_to_escalate_protocol_signal"'
 expect_contains /tmp/quic.json '"primary_module_kind":"quic_handshake"'
 expect_contains /tmp/quic.json '"operator_guidance_action":"collect_more_runtime_evidence"'
 

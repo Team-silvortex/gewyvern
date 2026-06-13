@@ -53,15 +53,24 @@ elif [[ "${RUN_DEB}" -eq 0 && "${RUN_RPM}" -eq 1 ]]; then
   mode_label="rpm"
 fi
 
+run_mode_script() {
+  local script_path="$1"
+  if [[ "${#mode_args[@]}" -eq 0 ]]; then
+    bash "${script_path}"
+  else
+    bash "${script_path}" "${mode_args[@]}"
+  fi
+}
+
 echo "[summary] starting packaged container validation (${mode_label})"
 
 echo "[summary] ----------------------------------------"
 echo "[summary] running packaged protocol validation"
-bash "${ROOT}/scripts/container_protocol_validation.sh" "${mode_args[@]}"
+run_mode_script "${ROOT}/scripts/container_protocol_validation.sh"
 
 echo "[summary] ----------------------------------------"
 echo "[summary] running packaged operator-path validation"
-bash "${ROOT}/scripts/container_operator_path_validation.sh" "${mode_args[@]}"
+run_mode_script "${ROOT}/scripts/container_operator_path_validation.sh"
 
 echo "[summary] ----------------------------------------"
 echo "[summary] packaged container validation: ok (${mode_label})"

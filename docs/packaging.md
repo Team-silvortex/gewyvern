@@ -216,6 +216,18 @@ bash /Users/Shared/chroot/dev/gewyvern/scripts/release_container_check.sh --deb
 bash /Users/Shared/chroot/dev/gewyvern/scripts/release_container_check.sh --rpm
 ```
 
+For the shorter release-minded decision shelf that also includes the
+three-module integration gate, see:
+
+- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+
+If you want one orchestration command that rebuilds artifacts, runs the
+packaged release check, and then runs the three-module stack smoke, use:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/release_gate.sh
+```
+
 ## Container Operator-Path Validation
 
 To validate more realistic packaged operator-path chains after install, use:

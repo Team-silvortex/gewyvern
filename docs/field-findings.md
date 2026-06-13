@@ -1,6 +1,6 @@
 # Field Findings
 
-This note records the highest-signal findings from the current `1.4.x`
+This note records the highest-signal findings from the current `0.14.x`
 field-validation phase.
 
 It is intentionally short.
@@ -8,7 +8,7 @@ It is intentionally short.
 It is not a replacement for:
 
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
-- [docs/v1.4-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v1.4-posture.md)
+- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
 
 Instead, it answers a narrower question:
 
@@ -29,7 +29,22 @@ entire scanned registry now passes:
 This means the current stable protocol shelf is no longer drifting at the
 compiler/package level.
 
-### 2. Packaged Linux Protocol Support Works After Real Install
+### 2. Current `0.14.0` Native Artifacts Now Drive The Validation Path
+
+The packaged container path is no longer relying on stale historical artifacts.
+
+Fresh `0.14.0` native packages were rebuilt from the current source tree and
+then used as the input for the packaged validation chain:
+
+- `/Users/Shared/chroot/dev/gewyvern/target/packages/gewyvern_0.14.0-1_arm64.deb`
+- `/Users/Shared/chroot/dev/gewyvern/target/packages/rpm/gewyvern-0.14.0-1.aarch64.rpm`
+
+This matters because an earlier validation pass could still succeed while
+quietly exercising an older `0.10.0` package set.
+
+That ambiguity is now gone for the current line.
+
+### 3. Packaged Linux Protocol Support Works After Real Install
 
 Both native package families now pass packaged protocol validation inside clean
 containers:
@@ -55,7 +70,7 @@ The packaged validation path now covers:
 This matters because it confirms that installed asset lookup, protocol registry
 discovery, and packaged CLI behavior are working outside the development tree.
 
-### 3. Packaged Standalone Runtime Works In Clean Linux Containers
+### 4. Packaged Standalone Runtime Works In Clean Linux Containers
 
 Installed `.deb` and `.rpm` packages now pass real packaged runtime validation:
 
@@ -71,7 +86,7 @@ Malformed ingest was also exercised without killing the packaged service loop.
 That gives us a stronger signal than unit tests alone that the standalone
 runtime shape survives real install workflows.
 
-### 4. High-Value Operator Paths Already Look Conservative And Coherent
+### 5. High-Value Operator Paths Already Look Conservative And Coherent
 
 Packaged operator-path validation in clean Linux containers now covers:
 
@@ -95,10 +110,24 @@ states:
 That is a good prelaunch shape for a standalone debugger: the runtime is
 preferring stable conservatism over premature collapse.
 
-### 5. A Release-Style Packaged Linux Checklist Already Passes
+### 6. The Release Wrapper Itself Now Holds Up Under Default `deb+rpm` Mode
 
-The Debian release-style container validation path now passes as one deliberate
-checklist run:
+The release-style wrapper path exposed one real scripting bug during this
+validation cycle:
+
+- `scripts/release_container_check.sh`
+- `scripts/container_validation_summary.sh`
+
+In default `deb+rpm` mode, both scripts could trip `set -u` because they
+expanded an empty `mode_args` array directly.
+
+That is now fixed, so the default wrapper path can be used as a real release
+entrypoint instead of only the explicit `--deb` / `--rpm` submodes.
+
+### 7. A Release-Style Packaged Linux Checklist Already Passes
+
+The current release-style container validation path now passes as one
+deliberate checklist run across both package families:
 
 - package install smoke
 - packaged runtime validation
@@ -110,7 +139,22 @@ This matters because it is stronger than saying â€œindividual scripts look goodâ
 It means the packaged Linux path can already be exercised as one release-minded
 routine, not only as disconnected local checks.
 
-### 6. The Three-Module Stack Already Works In Containers
+### 8. HTTP/3 Validation Expectations Are Now Aligned With Current Guidance
+
+This validation cycle also exposed one important expectation drift:
+
+- the current `http3 request` packaged path now lands in
+  `operator_guidance_action = "safe_to_escalate_protocol_signal"`
+- the older container assertions still expected
+  `operator_guidance_action = "manual_review"`
+
+The implementation and the focused HTTP/3 tests already agreed with the newer
+behavior. What was stale was the packaged validation expectation.
+
+That mismatch is now corrected, so the container suite reflects the current
+diagnosis semantics instead of an older advisory-only assumption.
+
+### 9. The Three-Module Stack Already Works In Containers
 
 The current collaboration topology:
 
@@ -179,13 +223,15 @@ That is useful and intentional, but it is not the same thing as saying:
 
 ## Practical Read Of The Current Line
 
-The current `1.4.x` line now looks strong in these ways:
+The current `0.14.x` line now looks strong in these ways:
 
 - protocol/package shelf is stable
+- current `0.14.0` native artifacts are the ones being exercised
 - packaged standalone runtime works
 - packaged high-frequency protocol families work
 - packaged operator paths stay conservative and coherent
-- packaged Linux release-style validation can run as one checklist
+- packaged Linux release-style validation can run as one checklist in default
+  `deb+rpm` mode
 - the current three-module collaboration topology already works in Docker
 
 The current line should still be read cautiously in these ways:
