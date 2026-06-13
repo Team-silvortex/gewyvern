@@ -3,11 +3,7 @@
 Use this page when you need the current exact lookup surface for Redis
 sorted-set-oriented protocol entries in the built-in shelf.
 
-For the broader family/entry contract, see:
-
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-
-## Canonical Entries
+## Covered Entries
 
 ### Mutation
 
@@ -112,17 +108,11 @@ The current shelf deliberately keeps:
 - one canonical entry per main sorted-set command family
 - aliases as human-facing lookup sugar
 - response-shape modeling at the coarse transport level only
+- covered commands grouped by mutation, rank lookup, score-window lookup, and
+  pop behavior
 
 That means this reference is meant for resolution and operator lookup, not for
 full Redis command-option documentation.
 
-## Validation Surface
-
-The current repository validates this Redis sorted set shelf through:
-
-- [/Users/Shared/chroot/dev/gewyvern/tests/redis_set_protocol_registry_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/redis_set_protocol_registry_tdd.rs)
-- [/Users/Shared/chroot/dev/gewyvern/tests/redis_blocking_pop_protocol_registry_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/redis_blocking_pop_protocol_registry_tdd.rs)
-
-For IR-level support confirmation, use:
-
-- [/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc_ir_snapshot.rs](/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc_ir_snapshot.rs)
+For the broader family map, see
+[docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).

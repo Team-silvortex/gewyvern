@@ -90,6 +90,146 @@ need command-family lookup.
 - Scope:
   Connect/auth, query/session, and query-error lookup.
 
+### HTTP
+
+- Hub:
+  [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md)
+- Subpages:
+  [docs/book/reference-http-message-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-message-surface.md),
+  [docs/book/reference-http-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-connect-surface.md),
+  [docs/book/reference-http-connect-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-connect-auth-surface.md)
+- Scope:
+  Direct request/response, CONNECT tunnel, and proxy-auth CONNECT lookup.
+
+### SOCKS5
+
+- Hub:
+  [docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md)
+- Subpages:
+  [docs/book/reference-socks5-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-session-surface.md),
+  [docs/book/reference-socks5-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-auth-surface.md),
+  [docs/book/reference-socks5-denied-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-denied-surface.md)
+- Scope:
+  Session/connect, username-password auth, and denial-branch lookup.
+
+### MySQL
+
+- Hub:
+  [docs/book/reference-mysql-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-surface.md)
+- Subpages:
+  [docs/book/reference-mysql-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-connect-surface.md),
+  [docs/book/reference-mysql-query-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-query-surface.md),
+  [docs/book/reference-mysql-error-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-error-surface.md)
+- Scope:
+  Connect, query/session, and query-error lookup.
+
+### AMQP
+
+- Hub:
+  [docs/book/reference-amqp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-surface.md)
+- Subpages:
+  [docs/book/reference-amqp-start-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-start-surface.md),
+  [docs/book/reference-amqp-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-session-surface.md),
+  [docs/book/reference-amqp-consume-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-consume-surface.md)
+- Scope:
+  Start negotiation, publish/session, and consume/delivery lookup.
+
+### SSH
+
+- Hub:
+  [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md)
+- Subpages:
+  [docs/book/reference-ssh-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-session-surface.md),
+  [docs/book/reference-ssh-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-auth-surface.md),
+  [docs/book/reference-ssh-channel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-channel-surface.md)
+- Scope:
+  Session startup, auth outcome, and authenticated channel-open lookup.
+
+### RTSP
+
+- Hub:
+  [docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md)
+- Subpages:
+  [docs/book/reference-rtsp-options-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-options-surface.md),
+  [docs/book/reference-rtsp-describe-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-describe-surface.md),
+  [docs/book/reference-rtsp-setup-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-setup-surface.md),
+  [docs/book/reference-rtsp-play-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-play-surface.md)
+- Scope:
+  Probe, metadata lookup, setup, and playback-start lookup.
+
+### QUIC
+
+- Hub:
+  [docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md)
+- Subpages:
+  [docs/book/reference-quic-initial-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-initial-surface.md),
+  [docs/book/reference-quic-crypto-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-crypto-surface.md),
+  [docs/book/reference-quic-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-stream-surface.md),
+  [docs/book/reference-quic-bidi-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-bidi-surface.md)
+- Scope:
+  Initial, crypto-handshake, outbound-stream, and bidirectional-stream lookup.
+
+### DNS
+
+- Hub:
+  [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md)
+- Subpages:
+  [docs/book/reference-dns-udp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-udp-surface.md),
+  [docs/book/reference-dns-tcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-tcp-surface.md)
+- Scope:
+  Default UDP lookup and TCP query lookup.
+
+### HTTP/3
+
+- Hub:
+  [docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md)
+- Subpages:
+  [docs/book/reference-http3-request-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-request-surface.md),
+  [docs/book/reference-http3-server-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-server-surface.md)
+- Scope:
+  Client request posture and local server response posture over QUIC.
+
+### IMAP
+
+- Hub:
+  [docs/book/reference-imap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-surface.md)
+- Subpages:
+  [docs/book/reference-imap-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-auth-surface.md),
+  [docs/book/reference-imap-select-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-select-surface.md)
+- Scope:
+  Login outcome and mailbox-selection lookup.
+
+### SIP
+
+- Hub:
+  [docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md)
+- Subpages:
+  [docs/book/reference-sip-register-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-register-surface.md),
+  [docs/book/reference-sip-invite-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-invite-surface.md),
+  [docs/book/reference-sip-bye-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-bye-surface.md)
+- Scope:
+  Registration, call-setup, and teardown lookup.
+
+### POP3
+
+- Hub:
+  [docs/book/reference-pop3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-surface.md)
+- Subpages:
+  [docs/book/reference-pop3-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-auth-surface.md),
+  [docs/book/reference-pop3-list-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-list-surface.md)
+- Scope:
+  Login outcome and mailbox-list lookup.
+
+### Memcached
+
+- Hub:
+  [docs/book/reference-memcached-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-surface.md)
+- Subpages:
+  [docs/book/reference-memcached-get-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-get-surface.md),
+  [docs/book/reference-memcached-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-set-surface.md)
+- Scope:
+  Binary get/read and set/write lookup.
+
 ## Naming Conventions For Future Shelves
 
 When adding a new family shelf, prefer this shape:
@@ -102,3 +242,59 @@ When adding a new family shelf, prefer this shape:
 
 This keeps the protocol-family reference shelves uniform without forcing the
 top-level book pages to grow every time a new family is added.
+
+## Current Coverage
+
+The first high-yield family shelves are now in place for:
+
+- `redis`
+- `ftp`
+- `smtp`
+- `mqtt`
+- `ldap`
+- `postgres`
+- `http`
+- `socks5`
+- `mysql`
+- `amqp`
+- `ssh`
+- `rtsp`
+- `quic`
+- `dns`
+- `http3`
+- `imap`
+- `sip`
+- `pop3`
+- `memcached`
+
+That means the remaining work is no longer about closing the most obvious
+reference gaps. It is about choosing the next-most-useful families without
+letting the reference spine grow faster than it stays coherent.
+
+## Next Shelf Criteria
+
+If we continue growing the protocol-family shelves, the next family should
+usually be justified by at least one of these conditions:
+
+- it has a clear staged conversation that benefits from a hub plus two or more
+  narrower subpages
+- it has enough aliases or operator ambiguity that a narrower shelf materially
+  reduces lookup friction
+- a user-facing workflow depends on it often enough that a dedicated shelf is
+  easier to navigate than the generic protocol surface alone
+
+In other words, we should now prefer workflow value over raw entry count.
+
+## Families We Should Probably Not Split Yet
+
+The following families should usually stay as protocol-surface entries only for
+now, unless their entry count or operator ambiguity grows:
+
+- single-entry families such as `tls`, `wireguard`, `stun`, `radius`, `ntp`,
+  `mdns`, `https`, `gtpu`, `dhcp`, `coap`, `ssdp`, and `snmp`
+- three-entry families such as `kerberos` and `hy2`,
+  unless a user-facing workflow starts depending on them heavily
+
+Those smaller families are still covered by
+[docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md);
+they just do not yet justify their own mini-shelf in the book.

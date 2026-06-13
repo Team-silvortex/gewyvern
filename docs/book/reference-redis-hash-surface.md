@@ -3,11 +3,7 @@
 Use this page when you need the current exact lookup surface for Redis
 hash-oriented protocol entries in the built-in shelf.
 
-For the broader family/entry contract, see:
-
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-
-## Canonical Entries
+## Covered Entries
 
 ### Single-Field Read And Write
 
@@ -50,19 +46,13 @@ If you are reading this as an operator, the shortest useful map is:
 
 ## Stability Notes
 
-This page keeps the Redis hash shelf intentionally conservative:
+The current shelf keeps:
 
-- canonical entry names are the stable reporting surface
-- aliases are a convenience layer for CLI/operator lookup
-- the exposed shelf focuses on common single-field and multi-field access
-  patterns needed by current protocol lookup and IR/runtime validation
+- canonical entry names as the stable reporting surface
+- aliases as a convenience layer for operator lookup
+- focus on the common single-field and multi-field access patterns needed by
+  current protocol lookup and IR/runtime validation
+- covered commands grouped by single-field and multi-field operator tasks
 
-## Validation Surface
-
-The current repository validates this Redis hash shelf through:
-
-- [/Users/Shared/chroot/dev/gewyvern/tests/redis_protocol_registry_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/redis_protocol_registry_tdd.rs)
-
-For IR-level support confirmation, use:
-
-- [/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc_ir_snapshot.rs](/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc_ir_snapshot.rs)
+For the broader family map, see
+[docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).

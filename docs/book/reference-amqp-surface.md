@@ -1,0 +1,74 @@
+# Reference: AMQP Protocol Surface
+
+Use this page when you want the AMQP portion of the built-in protocol shelf as
+stable lookup material instead of a tutorial.
+
+This shelf groups the current AMQP coverage into three narrower
+operator-facing surfaces:
+
+- connection start and negotiation
+- session and publish flow
+- consume flow
+
+## What This Shelf Covers
+
+The current built-in AMQP family models a staged broker conversation:
+
+- establish the AMQP socket
+- send the protocol header
+- receive `start`
+- send `start-ok`
+- publish or consume over the established session
+
+Across the subpages, the lookup contract focuses on:
+
+- canonical entry names
+- accepted aliases
+- coarse request/response shape
+- operator reading order
+- validation and lowering posture
+
+## AMQP Surface Map
+
+### Start And Negotiation
+
+- [docs/book/reference-amqp-start-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-start-surface.md)
+  Protocol header, `start`, and `start-ok` negotiation flow.
+
+Typical entries:
+
+- `start`
+
+### Session And Publish
+
+- [docs/book/reference-amqp-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-session-surface.md)
+  Broader session framing and publish acknowledgement flow.
+
+Typical entries:
+
+- `session`
+- `publish`
+
+### Consume
+
+- [docs/book/reference-amqp-consume-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-consume-surface.md)
+  Consumer registration and delivery flow.
+
+Typical entries:
+
+- `consume`
+
+## Reading Order
+
+If you are validating current AMQP support, the shortest useful order is:
+
+1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-amqp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-surface.md)
+3. one narrower AMQP subpage for the flow you care about
+4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+
+## Stability Note
+
+This page is the lookup hub for the current AMQP family in the `1.4.x` line.
+New AMQP command families should prefer landing behind this shelf instead of
+being linked from multiple higher-level pages independently.

@@ -1,0 +1,62 @@
+# Reference: Memcached Protocol Surface
+
+Use this page when you want the Memcached portion of the built-in protocol
+shelf as stable lookup material instead of a tutorial.
+
+This shelf groups the current Memcached coverage into two narrower
+operator-facing surfaces:
+
+- key read flow
+- key write flow
+
+## What This Shelf Covers
+
+The current built-in Memcached family models two coarse binary-protocol actions
+over an established TCP session:
+
+- connect and establish the Memcached socket
+- send `get` and receive a value response
+- send `set` and receive a stored response
+
+Across the subpages, the lookup contract focuses on:
+
+- canonical entry names
+- accepted aliases
+- coarse request/response shape
+- operator reading order
+- validation and lowering posture
+
+## Memcached Surface Map
+
+### Get
+
+- [docs/book/reference-memcached-get-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-get-surface.md)
+  Read-side key lookup path.
+
+Typical entries:
+
+- `get`
+
+### Set
+
+- [docs/book/reference-memcached-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-set-surface.md)
+  Write-side key storage path.
+
+Typical entries:
+
+- `set`
+
+## Reading Order
+
+If you are validating current Memcached support, the shortest useful order is:
+
+1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-memcached-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-surface.md)
+3. the get or set subpage
+4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+
+## Stability Note
+
+This page is the lookup hub for the current Memcached family in the `1.4.x`
+line. New Memcached operation branches should prefer landing behind this shelf
+instead of being linked from multiple higher-level pages independently.

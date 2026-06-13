@@ -128,7 +128,6 @@ order is:
 
 ## Stability Note
 
-This shelf is intended to be the stable lookup hub for Redis as the `1.4.x`
-line keeps expanding protocol support. New Redis command families should land
-behind this page instead of being linked ad hoc from multiple top-level
-reference shelves.
+This page is the lookup hub for the current Redis family in the `1.4.x` line.
+New Redis command families should prefer landing behind this shelf instead of
+being linked from multiple higher-level pages independently.

@@ -3,15 +3,7 @@
 Use this page when you need the current exact lookup surface for Redis
 list-oriented protocol entries in the built-in shelf.
 
-For the broader family/entry contract, see:
-
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-
-For the Redis stream-specific shelf, see:
-
-- [docs/book/reference-redis-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-stream-surface.md)
-
-## Canonical Entries
+## Covered Entries
 
 ### Push And Append
 
@@ -106,16 +98,10 @@ The current shelf intentionally treats:
 - `lmove` and `blmove` as the more semantic directional family
 - `lmpop` and `blmpop` as the batch-oriented family
 
-The canonical entries are the stable reporting surface.
-Aliases are there for human lookup and CLI ergonomics.
+The canonical entries remain the stable reporting surface, while aliases stay
+human-oriented for operator lookup and CLI ergonomics.
+Covered commands stay grouped by push/pop, move, and multi-pop behavior so the
+lookup path remains easy to scan.
 
-## Validation Surface
-
-The current repository validates this Redis list shelf through:
-
-- [/Users/Shared/chroot/dev/gewyvern/tests/redis_list_move_protocol_registry_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/redis_list_move_protocol_registry_tdd.rs)
-- [/Users/Shared/chroot/dev/gewyvern/tests/redis_blocking_pop_protocol_registry_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/redis_blocking_pop_protocol_registry_tdd.rs)
-
-For IR-level support confirmation, use:
-
-- [/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc_ir_snapshot.rs](/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc_ir_snapshot.rs)
+For the broader family map, see
+[docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).

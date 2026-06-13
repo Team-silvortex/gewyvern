@@ -3,11 +3,7 @@
 Use this page when you need the current exact lookup surface for Redis
 stream-oriented protocol entries in the built-in shelf.
 
-For the broader family/entry contract, see:
-
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-
-## Canonical Entries
+## Covered Entries
 
 ### Data Path
 
@@ -114,22 +110,13 @@ The current shelf is intentionally conservative:
   separate canonical entries yet
 - response shapes are modeled only at the coarse transport-contract level
   needed by the current `stable-subset`
+- covered commands grouped by data path, delivery control, and group-driven
+  consumption behavior
 
 That means `xgroup` remains one canonical entry even when aliases point at
 actions like create, destroy, or setid.
 Likewise, `xinfo` remains one canonical entry even when aliases point at
 stream, groups, or consumers.
 
-## Validation Surface
-
-The current repository validates this Redis stream shelf through:
-
-- [/Users/Shared/chroot/dev/gewyvern/tests/redis_stream_protocol_registry_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/redis_stream_protocol_registry_tdd.rs)
-
-For IR-level support snapshots, the repository already exposes:
-
-- [/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc_ir_snapshot.rs](/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc_ir_snapshot.rs)
-
-That binary is useful when confirming that a stream entry is not only
-registered, but also fully supported under the current fragment sampling
-contract.
+For the broader family map, see
+[docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).

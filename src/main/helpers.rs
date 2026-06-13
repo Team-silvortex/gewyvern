@@ -287,23 +287,40 @@ pub(crate) fn write_or_print(rendered: &str, out_path: Option<&str>, locale: UiL
 }
 
 pub(crate) fn list_protocols_text() -> String {
-    protocol_names()
+    protocol_summaries()
         .into_iter()
-        .filter_map(|protocol| {
-            protocol_default_entry(&protocol)
-                .map(|default_entry| format!("{protocol} (default: {default_entry})"))
+        .map(|summary| {
+            let alias_suffix = if summary.aliases.is_empty() {
+                String::new()
+            } else {
+                format!(" aliases: {}", summary.aliases.join(", "))
+            };
+            format!(
+                "{} (default: {}){}",
+                summary.protocol, summary.default_entry, alias_suffix
+            )
         })
-        .collect::<Vec<_>>()
+        .collect::<Vec<String>>()
         .join("\n")
 }
 
 pub(crate) fn list_protocols_json() -> String {
-    let items = protocol_names()
+    let items = protocol_summaries()
         .into_iter()
-        .filter_map(|protocol| {
-            protocol_default_entry(&protocol).map(|default_entry| {
-                format!("{{\"protocol\":\"{protocol}\",\"default_entry\":\"{default_entry}\"}}")
-            })
+        .map(|summary| {
+            let entries = summary
+                .entries
+                .iter()
+                .map(|entry| format!("\"{}\"", entry.mode))
+                .collect::<Vec<_>>()
+                .join(",");
+            format!(
+                "{{\"protocol\":\"{}\",\"default_entry\":\"{}\",\"aliases\":{},\"entries\":[{}]}}",
+                summary.protocol,
+                summary.default_entry,
+                json_string_array(&summary.aliases),
+                entries
+            )
         })
         .collect::<Vec<_>>()
         .join(",");
@@ -311,14 +328,19 @@ pub(crate) fn list_protocols_json() -> String {
 }
 
 pub(crate) fn list_entries_text(protocol: &str) -> Option<String> {
-    let default_entry = protocol_default_entry(protocol)?;
-    let lines = protocol_entries(protocol)?
+    let lines = protocol_summary(protocol)?
+        .entries
         .into_iter()
         .map(|entry| {
-            if entry == default_entry {
-                format!("{entry} (default)")
+            let label = if entry.default {
+                format!("{} (default)", entry.mode)
             } else {
-                entry.to_string()
+                entry.mode
+            };
+            if entry.aliases.is_empty() {
+                label
+            } else {
+                format!("{label} aliases: {}", entry.aliases.join(", "))
             }
         })
         .collect::<Vec<_>>();
@@ -326,24 +348,35 @@ pub(crate) fn list_entries_text(protocol: &str) -> Option<String> {
 }
 
 pub(crate) fn list_entries_json(protocol: &str) -> Option<String> {
-    let default_entry = protocol_default_entry(protocol)?;
-    let entries = protocol_entries(protocol)?
+    let summary = protocol_summary(protocol)?;
+    let entries = summary
+        .entries
         .into_iter()
         .map(|entry| {
             format!(
-                "{{\"mode\":\"{entry}\",\"default\":{}}}",
-                if entry == default_entry {
-                    "true"
-                } else {
-                    "false"
-                }
+                "{{\"mode\":\"{}\",\"default\":{},\"aliases\":{}}}",
+                entry.mode,
+                if entry.default { "true" } else { "false" },
+                json_string_array(&entry.aliases)
             )
         })
         .collect::<Vec<_>>()
         .join(",");
     Some(format!(
-        "{{\"protocol\":\"{protocol}\",\"default_entry\":\"{default_entry}\",\"entries\":[{entries}]}}"
+        "{{\"protocol\":\"{}\",\"default_entry\":\"{}\",\"aliases\":{},\"entries\":[{entries}]}}",
+        summary.protocol,
+        summary.default_entry,
+        json_string_array(&summary.aliases),
     ))
+}
+
+fn json_string_array(items: &[String]) -> String {
+    let joined = items
+        .iter()
+        .map(|item| format!("\"{item}\""))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("[{joined}]")
 }
 
 pub(crate) fn scan_targets_for_cli(cli: &Cli) -> Result<Vec<ScanTarget>, String> {

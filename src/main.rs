@@ -27,8 +27,7 @@ use gewyvern::ledger::{
 };
 use gewyvern::protocol_profiles::{
     ResolvedProtocolProfile, default_protocol_scan_set, default_protocol_scan_set_from_dir,
-    protocol_default_entry, protocol_dsl_path, protocol_entries, protocol_names,
-    resolve_protocol_profile,
+    protocol_dsl_path, protocol_summaries, protocol_summary, resolve_protocol_profile,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::socket_input::{

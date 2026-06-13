@@ -3,11 +3,7 @@
 Use this page when you need the current exact lookup surface for Redis
 key-value and session-oriented protocol entries in the built-in shelf.
 
-For the broader family/entry contract, see:
-
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-
-## Canonical Entries
+## Covered Entries
 
 ### Connection And Health
 
@@ -109,19 +105,14 @@ If you are reading this as an operator, the shortest useful map is:
 
 ## Stability Notes
 
-This page keeps the Redis KV shelf intentionally conservative:
+The current shelf keeps:
 
-- canonical entry names are the stable reporting surface
-- aliases are a convenience layer for CLI/operator lookup
-- response shapes stay at the coarse transport-contract level needed by the
-  current built-in protocol shelf
+- canonical entry names as the stable reporting surface
+- aliases as a convenience layer for operator lookup
+- response shapes at the coarse transport-contract level needed by the current
+  built-in protocol shelf
+- covered commands grouped by operator task rather than by exhaustive option
+  catalog
 
-## Validation Surface
-
-The current repository validates this Redis KV shelf through:
-
-- [/Users/Shared/chroot/dev/gewyvern/tests/redis_protocol_registry_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/redis_protocol_registry_tdd.rs)
-
-For IR-level support confirmation, use:
-
-- [/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc_ir_snapshot.rs](/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc_ir_snapshot.rs)
+For the broader family map, see
+[docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).

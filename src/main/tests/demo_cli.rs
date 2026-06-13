@@ -372,6 +372,7 @@ fn list_protocols_output_includes_mysql_default_entry() {
     let json = list_protocols_json();
     assert!(json.contains("\"protocol\":\"mysql\""));
     assert!(json.contains("\"default_entry\":\"session\""));
+    assert!(json.contains("\"entries\":["));
 }
 
 #[test]
@@ -383,11 +384,16 @@ fn list_entries_output_marks_default_entry() {
     let text = list_entries_text("mysql").expect("mysql should be present");
     assert!(text.contains("query"));
     assert!(text.contains("session (default)"));
+    assert!(text.contains("aliases: mysql-query, mysql_query"));
 
     let json = list_entries_json("mysql").expect("mysql should be present");
     assert!(json.contains("\"protocol\":\"mysql\""));
-    assert!(json.contains("\"mode\":\"query\",\"default\":false"));
-    assert!(json.contains("\"mode\":\"session\",\"default\":true"));
+    assert!(json.contains(
+        "\"mode\":\"query\",\"default\":false,\"aliases\":[\"mysql-query\",\"mysql_query\"]"
+    ));
+    assert!(json.contains(
+        "\"mode\":\"session\",\"default\":true,\"aliases\":[\"mysql-session\",\"mysql_session\"]"
+    ));
 }
 
 #[test]
