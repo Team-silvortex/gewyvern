@@ -9,7 +9,8 @@ socket establishment and authentication flow.
 
 Aliases:
 
-- none registered today
+- `postgres-connect`
+- `postgres_connect`
 
 Intent:
 
@@ -28,7 +29,8 @@ Coarse response shape:
 
 Aliases:
 
-- none registered today
+- `postgres-auth`
+- `postgres_auth`
 
 Intent:
 

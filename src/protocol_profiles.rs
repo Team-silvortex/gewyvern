@@ -201,3 +201,7 @@ pub fn default_protocol_scan_set_from_dir(dir: &str) -> Option<Vec<ResolvedProto
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_docs;
+#[cfg(test)]
+mod tests_surface;

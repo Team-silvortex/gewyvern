@@ -9,7 +9,8 @@ write-session, and sync/replication flows.
 
 Aliases:
 
-- none registered today
+- `ldap-modify`
+- `ldap_modify`
 
 Intent:
 
@@ -21,7 +22,8 @@ Intent:
 
 Aliases:
 
-- none registered today
+- `ldap-denied`
+- `ldap_denied`
 
 Intent:
 
@@ -32,7 +34,8 @@ Intent:
 
 Aliases:
 
-- none registered today
+- `ldap-constraint`
+- `ldap_constraint`
 
 Intent:
 
@@ -43,7 +46,8 @@ Intent:
 
 Aliases:
 
-- none registered today
+- `ldap-write`
+- `ldap_write`
 
 Intent:
 
@@ -54,6 +58,8 @@ Intent:
 Aliases:
 
 - `replication`
+- `ldap-sync`
+- `ldap_sync`
 
 Intent:
 

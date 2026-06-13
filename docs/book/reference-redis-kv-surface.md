@@ -53,7 +53,10 @@ key-value and session-oriented protocol entries in the built-in shelf.
 ### Connection And Health Aliases
 
 - `connect -> session`
+- `roundtrip -> session`
 - `health -> ping`
+- `redis-ping -> ping`
+- `redis_ping -> ping`
 
 ### Single-Key Read And Write Aliases
 

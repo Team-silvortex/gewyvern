@@ -26,6 +26,16 @@ Across the subpages, the lookup contract focuses on:
 - operator reading order
 - validation and lowering posture
 
+## Family Aliases
+
+The current registry also accepts these family-level spellings for Memcached
+entry selection:
+
+- `memcached-get`
+- `memcached-set`
+- `memcached_get`
+- `memcached_set`
+
 ## Memcached Surface Map
 
 ### Get

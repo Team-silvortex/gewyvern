@@ -9,7 +9,8 @@ simple-query flow and broader query-session behavior.
 
 Aliases:
 
-- none registered today
+- `postgres-query`
+- `postgres_query`
 
 Intent:
 

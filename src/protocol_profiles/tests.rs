@@ -86,6 +86,11 @@ fn protocol_surface_exposes_protocol_shelves_for_grouped_families() {
     assert_eq!(dns_shelf.key, "udp");
     assert_eq!(dns_shelf.label, "UDP Lookup");
 
+    let https = protocol_surface("https", "connect").expect("https connect surface should exist");
+    let https_shelf = https.shelf.expect("https connect should have a shelf");
+    assert_eq!(https_shelf.key, "connect");
+    assert_eq!(https_shelf.label, "Connect");
+
     let http = protocol_surface("http", "auth-required").expect("http auth surface should exist");
     let http_shelf = http.shelf.expect("http auth-required should have a shelf");
     assert_eq!(http_shelf.key, "connect-auth");

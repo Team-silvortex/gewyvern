@@ -29,6 +29,20 @@ Across the subpages, the lookup contract focuses on:
 - operator reading order
 - validation and lowering posture
 
+## Family Aliases
+
+The current registry also accepts these family-level spellings for RTSP entry
+selection:
+
+- `rtsp-describe`
+- `rtsp-options`
+- `rtsp-play`
+- `rtsp-setup`
+- `rtsp_describe`
+- `rtsp_options`
+- `rtsp_play`
+- `rtsp_setup`
+
 ## RTSP Surface Map
 
 ### Options

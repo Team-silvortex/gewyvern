@@ -43,3 +43,6 @@ Read this page after the SSH family hub when:
 The current channel path is intentionally narrow. It models authenticated
 channel establishment, not the full variety of later channel requests or
 subsystems.
+
+For the broader family map, see
+[docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md).

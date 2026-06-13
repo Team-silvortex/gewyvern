@@ -42,3 +42,6 @@ Read this page after the QUIC family hub when:
 The current entry is still transport-stage oriented. It captures bidirectional
 stream observation, not a specific higher-level application protocol carried on
 top of QUIC.
+
+For the broader family map, see
+[docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md).

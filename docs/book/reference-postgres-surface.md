@@ -27,6 +27,22 @@ Across the subpages, the lookup contract focuses on:
 - operator reading order
 - validation and lowering posture
 
+## Family Aliases
+
+The current registry also accepts these family-level spellings for PostgreSQL
+entry selection:
+
+- `postgres-auth`
+- `postgres-connect`
+- `postgres-error`
+- `postgres-query`
+- `postgres-session`
+- `postgres_auth`
+- `postgres_connect`
+- `postgres_error`
+- `postgres_query`
+- `postgres_session`
+
 ## PostgreSQL Surface Map
 
 ### Connect And Auth

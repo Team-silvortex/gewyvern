@@ -67,3 +67,6 @@ Read this page after the POP3 family hub when:
 
 The current family is outcome-based and intentionally minimal. It models the
 classic `USER`/`PASS` path rather than richer auth extensions.
+
+For the broader family map, see
+[docs/book/reference-pop3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-surface.md).

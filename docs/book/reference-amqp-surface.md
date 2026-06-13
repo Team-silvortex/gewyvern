@@ -28,6 +28,20 @@ Across the subpages, the lookup contract focuses on:
 - operator reading order
 - validation and lowering posture
 
+## Family Aliases
+
+The current registry also accepts these family-level spellings for AMQP entry
+selection:
+
+- `amqp-consume`
+- `amqp-publish`
+- `amqp-session`
+- `amqp-start`
+- `amqp_consume`
+- `amqp_publish`
+- `amqp_session`
+- `amqp_start`
+
 ## AMQP Surface Map
 
 ### Start And Negotiation

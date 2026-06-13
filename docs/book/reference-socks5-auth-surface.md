@@ -32,6 +32,29 @@ Coarse response shape:
 - connect request
 - connect success reply
 
+### `auth-denied`
+
+Aliases:
+
+- `login-denied`
+- `userpass-denied`
+
+Intent:
+
+- open the SOCKS5 socket
+- send the auth-capable method greeting
+- receive username/password method selection
+- send auth request
+- receive auth denial
+
+Coarse response shape:
+
+- process binding
+- route resolution
+- SOCKS5 socket connect
+- auth-capable method negotiation
+- auth request and auth denial
+
 ## Operator Reading Order
 
 Read the current SOCKS5 auth family in this order:

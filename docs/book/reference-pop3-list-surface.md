@@ -45,3 +45,6 @@ Read this page after the POP3 family hub when:
 The current entry is intentionally narrow. It models mailbox listing readiness,
 not later retrieval or deletion commands that are not yet represented in this
 family.
+
+For the broader family map, see
+[docs/book/reference-pop3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-surface.md).

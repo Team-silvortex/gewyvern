@@ -1,9 +1,9 @@
 use super::shelves::{
     amqp_shelf, coap_shelf, dhcp_shelf, dns_shelf, ftp_shelf, gtpu_shelf, http_shelf, http3_shelf,
-    hy2_shelf, imap_shelf, kerberos_shelf, ldap_shelf, mdns_shelf, memcached_shelf, mqtt_shelf,
-    mysql_shelf, ntp_shelf, pop3_shelf, postgres_shelf, quic_shelf, radius_shelf, redis_shelf,
-    rtsp_shelf, sip_shelf, smtp_shelf, snmp_shelf, socks5_shelf, ssdp_shelf, ssh_shelf, stun_shelf,
-    tls_shelf, wireguard_shelf,
+    https_shelf, hy2_shelf, imap_shelf, kerberos_shelf, ldap_shelf, mdns_shelf, memcached_shelf,
+    mqtt_shelf, mysql_shelf, ntp_shelf, pop3_shelf, postgres_shelf, quic_shelf, radius_shelf,
+    redis_shelf, rtsp_shelf, sip_shelf, smtp_shelf, snmp_shelf, socks5_shelf, ssdp_shelf,
+    ssh_shelf, stun_shelf, tls_shelf, wireguard_shelf,
 };
 use super::{ProtocolShelfSummary, ProtocolSummary, ProtocolSurfaceSummary};
 
@@ -36,6 +36,7 @@ pub(super) fn built_in_protocol_surface(
 fn protocol_shelf(protocol: &str, entry: &str) -> Option<ProtocolShelfSummary> {
     let (key, label, page, entries) = match protocol {
         "dns" => dns_shelf(entry)?,
+        "https" => https_shelf(entry)?,
         "http" => http_shelf(entry)?,
         "hy2" => hy2_shelf(entry)?,
         "tls" => tls_shelf(entry)?,

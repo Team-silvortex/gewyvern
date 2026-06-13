@@ -40,3 +40,6 @@ Read this page after the generic protocol surface when:
 
 The current entry is intentionally early-phase. It models successful probe flow
 without trying to infer later media-session intent.
+
+For the broader family map, see
+[docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md).

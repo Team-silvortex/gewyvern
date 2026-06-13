@@ -63,3 +63,6 @@ Read this page after the IMAP family hub when:
 
 The current family is outcome-based rather than auth-mechanism-based. It tells
 you that `LOGIN` succeeded or failed, not which richer auth extension was used.
+
+For the broader family map, see
+[docs/book/reference-imap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-surface.md).

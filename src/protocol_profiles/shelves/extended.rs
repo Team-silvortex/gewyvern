@@ -86,6 +86,7 @@ pub(crate) fn rtsp_shelf(entry: &str) -> Option<ShelfMatch> {
     const OPTIONS: &[&str] = &["options"];
     const DESCRIBE: &[&str] = &["describe"];
     const SETUP: &[&str] = &["setup"];
+    const PLAY: &[&str] = &["play"];
     if OPTIONS.contains(&entry) {
         Some((
             "options",
@@ -106,6 +107,13 @@ pub(crate) fn rtsp_shelf(entry: &str) -> Option<ShelfMatch> {
             "Setup",
             "docs/book/reference-rtsp-setup-surface.md",
             SETUP,
+        ))
+    } else if PLAY.contains(&entry) {
+        Some((
+            "play",
+            "Play",
+            "docs/book/reference-rtsp-play-surface.md",
+            PLAY,
         ))
     } else {
         None
@@ -218,6 +226,8 @@ pub(crate) fn socks5_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn sip_shelf(entry: &str) -> Option<ShelfMatch> {
     const REGISTER: &[&str] = &["register"];
+    const INVITE: &[&str] = &["invite"];
+    const BYE: &[&str] = &["bye"];
     if REGISTER.contains(&entry) {
         Some((
             "register",
@@ -225,6 +235,15 @@ pub(crate) fn sip_shelf(entry: &str) -> Option<ShelfMatch> {
             "docs/book/reference-sip-register-surface.md",
             REGISTER,
         ))
+    } else if INVITE.contains(&entry) {
+        Some((
+            "invite",
+            "Invite",
+            "docs/book/reference-sip-invite-surface.md",
+            INVITE,
+        ))
+    } else if BYE.contains(&entry) {
+        Some(("bye", "Bye", "docs/book/reference-sip-bye-surface.md", BYE))
     } else {
         None
     }

@@ -11,6 +11,8 @@ Aliases:
 
 - `directory`
 - `query`
+- `ldap-search`
+- `ldap_search`
 
 Intent:
 
@@ -23,6 +25,8 @@ Intent:
 Aliases:
 
 - `directory-session`
+- `ldap-session`
+- `ldap_session`
 
 Intent:
 

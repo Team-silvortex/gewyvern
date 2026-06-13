@@ -22,6 +22,10 @@ For the narrower built-in protocol family shelves, see:
 
 - [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
 
+For the current generated-style alias index, see:
+
+- [docs/book/reference-protocol-alias-index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-alias-index.md)
+
 ## What The Protocol Surface Is
 
 In the current repository shape, the protocol surface is the registry-style
@@ -104,212 +108,20 @@ Examples:
 Aliases exist to make CLI usage and migration friendlier, but they should not
 replace canonical names in machine-facing review or documentation.
 
-Current examples include:
+The complete current alias map is intentionally maintained in:
+
+- [docs/book/reference-protocol-alias-index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-alias-index.md)
+
+That page is meant to stay synchronized with the live registry-backed surface.
+This page keeps only a short orientation sample:
 
 - `smtp login -> auth`
-- `smtp sender -> mail`
-- `smtp recipient -> rcpt`
-- `smtp message -> data`
-- `smtp recipient-denied -> rcpt-denied`
-- `smtp message-denied -> data-denied`
-- `ftp login -> session`
-- `ftp control -> session`
-- `ftp directory -> list`
-- `ftp download -> retr`
-- `ftp upload -> stor`
-- `ftp active-directory -> active-list`
 - `ftp active-download -> active-retr`
-- `ftp active-upload -> active-stor`
-- `ftp login-denied -> denied`
-- `kerberos login -> as`
-- `kerberos initial-auth -> as`
 - `kerberos ticket -> tgs`
-- `kerberos service-ticket -> tgs`
-- `kerberos login-denied -> as-error`
-- `radius login -> access`
-- `radius auth -> access`
-- `ssh connect -> session`
-- `ssh login -> auth`
 - `ssh shell -> channel`
-- `socks5 proxy -> session`
-- `socks5 userpass -> auth`
-- `socks5 connect-denied -> denied`
-- `ldap login -> bind`
-- `ldap directory -> search`
-- `ldap directory-session -> session`
-- `ldap replication -> sync`
-- `snmp query -> get`
-- `sip login -> register`
 - `sip call -> invite`
-- `sip hangup -> bye`
-- `sip terminate -> bye`
-- `rtsp probe -> options`
-- `rtsp metadata -> describe`
-- `rtsp stream -> setup`
-- `rtsp start -> play`
-- `amqp login -> start`
-- `amqp connect -> session`
-- `amqp send -> publish`
-- `amqp receive -> consume`
-- `amqp deliver -> consume`
-- `postgres query-session -> session`
-- `postgres auth-query -> session`
-- `mqtt session -> connect`
-- `mqtt send -> publish`
-- `mqtt message -> publish`
-- `mqtt read -> subscribe`
-- `mqtt listen -> subscribe`
-- `mqtt qos2-receipt -> pubrec`
-- `mqtt stage-2 -> pubrec`
-- `mqtt qos2-release -> pubrel`
-- `mqtt resume -> pubrel`
 - `mqtt qos2-complete -> pubcomp`
-- `mqtt complete -> pubcomp`
-- `mqtt close -> disconnect`
-- `mqtt teardown -> disconnect`
-- `redis connect -> session`
-- `redis delete -> del`
-- `redis remove -> del`
-- `redis health -> ping`
-- `redis read -> get`
-- `redis kv-read -> get`
-- `redis write -> set`
-- `redis kv-write -> set`
-- `redis increment -> incr`
-- `redis count-up -> incr`
-- `redis decrement -> decr`
-- `redis count-down -> decr`
-- `redis multi-read -> mget`
-- `redis bulk-read -> mget`
-- `redis multi-write -> mset`
-- `redis bulk-write -> mset`
-- `redis present -> exists`
-- `redis key-check -> exists`
-- `redis set-ttl -> expire`
-- `redis expiry -> expire`
-- `redis time-to-live -> ttl`
-- `redis key-ttl -> ttl`
-- `redis precise-ttl -> pttl`
-- `redis ms-ttl -> pttl`
-- `redis hash-read -> hget`
-- `redis field-read -> hget`
-- `redis hash-write -> hset`
-- `redis field-write -> hset`
-- `redis hash-multi-read -> hmget`
-- `redis fields-read -> hmget`
-- `redis hash-multi-write -> hmset`
-- `redis fields-write -> hmset`
-- `redis list-prepend -> lpush`
-- `redis left-push -> lpush`
-- `redis list-append -> rpush`
-- `redis right-push -> rpush`
-- `redis list-pop-left -> lpop`
-- `redis left-pop -> lpop`
-- `redis list-pop-right -> rpop`
-- `redis right-pop -> rpop`
-- `redis list-blocking-pop-left -> blpop`
-- `redis left-blocking-pop -> blpop`
-- `redis list-blocking-pop-right -> brpop`
-- `redis right-blocking-pop -> brpop`
-- `redis list-move-right-to-left -> rpoplpush`
-- `redis right-pop-left-push -> rpoplpush`
-- `redis list-blocking-move-right-to-left -> brpoplpush`
-- `redis right-blocking-pop-left-push -> brpoplpush`
-- `redis list-move -> lmove`
-- `redis list-directional-move -> lmove`
-- `redis left-right-move -> lmove`
-- `redis right-left-move -> lmove`
-- `redis list-blocking-move -> blmove`
-- `redis list-blocking-directional-move -> blmove`
-- `redis blocking-left-right-move -> blmove`
-- `redis blocking-right-left-move -> blmove`
-- `redis list-multi-pop -> lmpop`
-- `redis list-pop-many -> lmpop`
-- `redis list-blocking-multi-pop -> blmpop`
-- `redis blocking-list-pop-many -> blmpop`
-- `redis set-add -> sadd`
-- `redis member-add -> sadd`
-- `redis set-read -> smembers`
-- `redis members-read -> smembers`
 - `redis sorted-add -> zadd`
-- `redis score-add -> zadd`
-- `redis sorted-read -> zrange`
-- `redis score-read -> zrange`
-- `redis sorted-remove -> zrem`
-- `redis score-remove -> zrem`
-- `redis sorted-count -> zcard`
-- `redis score-count -> zcard`
-- `redis sorted-member-score -> zscore`
-- `redis score-read-member -> zscore`
-- `redis sorted-member-rank -> zrank`
-- `redis score-rank-member -> zrank`
-- `redis sorted-member-revrank -> zrevrank`
-- `redis score-revrank-member -> zrevrank`
-- `redis sorted-range-score -> zrangebyscore`
-- `redis score-window-read -> zrangebyscore`
-- `redis sorted-revrange-score -> zrevrangebyscore`
-- `redis score-window-read-reverse -> zrevrangebyscore`
-- `redis sorted-score-increment -> zincrby`
-- `redis score-bump -> zincrby`
-- `redis sorted-range-count -> zcount`
-- `redis score-window-count -> zcount`
-- `redis sorted-pop-min -> zpopmin`
-- `redis score-pop-lowest -> zpopmin`
-- `redis sorted-pop-max -> zpopmax`
-- `redis score-pop-highest -> zpopmax`
-- `redis sorted-multi-pop -> zmpop`
-- `redis score-pop-many -> zmpop`
-- `redis sorted-blocking-pop-min -> bzpopmin`
-- `redis score-blocking-pop-lowest -> bzpopmin`
-- `redis sorted-blocking-pop-max -> bzpopmax`
-- `redis score-blocking-pop-highest -> bzpopmax`
-- `redis sorted-blocking-multi-pop -> bzmpop`
-- `redis score-blocking-pop-many -> bzmpop`
-- `redis pubsub-send -> publish`
-- `redis channel-write -> publish`
-- `redis pubsub-listen -> subscribe`
-- `redis channel-read -> subscribe`
-- `redis stream-append -> xadd`
-- `redis stream-write -> xadd`
-- `redis stream-read -> xread`
-- `redis stream-consume -> xread`
-- `redis stream-range -> xrange`
-- `redis stream-history -> xrange`
-- `redis stream-range-reverse -> xrevrange`
-- `redis stream-history-reverse -> xrevrange`
-- `redis stream-delete -> xdel`
-- `redis stream-prune-entry -> xdel`
-- `redis stream-trim -> xtrim`
-- `redis stream-prune -> xtrim`
-- `redis stream-length -> xlen`
-- `redis stream-count -> xlen`
-- `redis stream-ack -> xack`
-- `redis stream-acknowledge -> xack`
-- `redis stream-pending -> xpending`
-- `redis stream-delivery-backlog -> xpending`
-- `redis stream-group -> xgroup`
-- `redis stream-consumer-group -> xgroup`
-- `redis stream-group-manage -> xgroup`
-- `redis stream-group-create -> xgroup`
-- `redis stream-group-destroy -> xgroup`
-- `redis stream-group-create-consumer -> xgroup`
-- `redis stream-group-drop-consumer -> xgroup`
-- `redis stream-group-setid -> xgroup`
-- `redis stream-group-help -> xgroup`
-- `redis stream-group-list-consumers -> xgroup`
-- `redis stream-group-list-groups -> xgroup`
-- `redis stream-info -> xinfo`
-- `redis stream-inspect -> xinfo`
-- `redis stream-info-stream -> xinfo`
-- `redis stream-info-groups -> xinfo`
-- `redis stream-info-consumers -> xinfo`
-- `redis stream-group-read -> xreadgroup`
-- `redis stream-consumer-read -> xreadgroup`
-- `redis stream-claim -> xclaim`
-- `redis stream-reassign -> xclaim`
-- `redis stream-auto-claim -> xautoclaim`
-- `redis stream-idle-reassign -> xautoclaim`
-- `sip session -> invite`
 
 The practical rule is:
 

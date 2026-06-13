@@ -26,6 +26,20 @@ Across the subpages, the lookup contract focuses on:
 - operator reading order
 - validation and lowering posture
 
+## Family Aliases
+
+The current registry also accepts these family-level spellings for MySQL entry
+selection:
+
+- `mysql-connect`
+- `mysql-error`
+- `mysql-query`
+- `mysql-session`
+- `mysql_connect`
+- `mysql_error`
+- `mysql_query`
+- `mysql_session`
+
 ## MySQL Surface Map
 
 ### Connect

@@ -29,6 +29,30 @@ Across the subpages, the lookup contract focuses on:
 - operator reading order
 - validation and lowering posture
 
+## Family Aliases
+
+The current registry also accepts these family-level spellings for LDAP entry
+selection:
+
+- `ldap-bind`
+- `ldap-bind-denied`
+- `ldap-constraint`
+- `ldap-denied`
+- `ldap-modify`
+- `ldap-search`
+- `ldap-session`
+- `ldap-sync`
+- `ldap-write`
+- `ldap_bind`
+- `ldap_bind_denied`
+- `ldap_constraint`
+- `ldap_denied`
+- `ldap_modify`
+- `ldap_search`
+- `ldap_session`
+- `ldap_sync`
+- `ldap_write`
+
 ## LDAP Surface Map
 
 ### Bind

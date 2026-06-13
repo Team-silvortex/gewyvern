@@ -44,3 +44,6 @@ Read this page after the HTTP/3 family hub when:
 
 The current entry is role-based and intentionally narrow. It captures coarse
 server response progression without modeling every HTTP/3 control-stream detail.
+
+For the broader family map, see
+[docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md).

@@ -10,6 +10,10 @@ request and response traffic.
 Aliases:
 
 - `client`
+- `http-client`
+- `http-request`
+- `http_client`
+- `http_request`
 
 Intent:
 

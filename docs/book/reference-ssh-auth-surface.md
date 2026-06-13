@@ -63,3 +63,6 @@ Read this page after the SSH family hub when:
 The current family is outcome-based rather than method-based. It tells you that
 an auth request succeeded or failed, not which higher-level auth mechanism was
 used.
+
+For the broader family map, see
+[docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md).

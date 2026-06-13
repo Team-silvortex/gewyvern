@@ -11,6 +11,8 @@ Aliases:
 
 - `login`
 - `auth`
+- `ldap-bind`
+- `ldap_bind`
 
 Intent:
 
@@ -31,6 +33,8 @@ Aliases:
 
 - `login-denied`
 - `auth-denied`
+- `ldap-bind-denied`
+- `ldap_bind_denied`
 
 Intent:
 

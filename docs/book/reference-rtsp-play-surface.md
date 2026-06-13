@@ -45,3 +45,6 @@ Read this page after the RTSP family hub when:
 
 The current entry is still control-plane oriented. It models successful `PLAY`
 startup rather than the later sustained RTP media plane.
+
+For the broader family map, see
+[docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md).

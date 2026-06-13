@@ -37,3 +37,6 @@ Read this page after the SIP family hub when:
 
 The current entry is intentionally broad at the response level. It models the
 invite exchange shape, not full provisional-versus-final response detail.
+
+For the broader family map, see
+[docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md).

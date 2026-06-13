@@ -28,6 +28,15 @@ Across the subpages, the lookup contract focuses on:
 - operator reading order
 - validation and lowering posture
 
+## Family Aliases
+
+The current registry also accepts these family-level spellings for SOCKS5 entry
+selection:
+
+- `socks`
+- `socks5-session`
+- `socks5_session`
+
 ## SOCKS5 Surface Map
 
 ### Session

@@ -24,6 +24,15 @@ pub(crate) fn dns_shelf(entry: &str) -> Option<ShelfMatch> {
     }
 }
 
+pub(crate) fn https_shelf(entry: &str) -> Option<ShelfMatch> {
+    const CONNECT: &[&str] = &["connect"];
+    if CONNECT.contains(&entry) {
+        Some(("connect", "Connect", GENERIC_SURFACE_PAGE, CONNECT))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn http_shelf(entry: &str) -> Option<ShelfMatch> {
     const MESSAGE: &[&str] = &["request", "response"];
     const CONNECT: &[&str] = &["connect", "denied"];
@@ -226,7 +235,7 @@ pub(crate) fn mysql_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn postgres_shelf(entry: &str) -> Option<ShelfMatch> {
     const CONNECT_AUTH: &[&str] = &["connect", "auth"];
-    const QUERY: &[&str] = &["query"];
+    const QUERY_SESSION: &[&str] = &["query", "session"];
     const ERROR: &[&str] = &["error"];
     if CONNECT_AUTH.contains(&entry) {
         Some((
@@ -235,12 +244,12 @@ pub(crate) fn postgres_shelf(entry: &str) -> Option<ShelfMatch> {
             "docs/book/reference-postgres-connect-surface.md",
             CONNECT_AUTH,
         ))
-    } else if QUERY.contains(&entry) {
+    } else if QUERY_SESSION.contains(&entry) {
         Some((
             "query-session",
             "Query And Session",
             "docs/book/reference-postgres-query-surface.md",
-            QUERY,
+            QUERY_SESSION,
         ))
     } else if ERROR.contains(&entry) {
         Some((
@@ -257,7 +266,7 @@ pub(crate) fn postgres_shelf(entry: &str) -> Option<ShelfMatch> {
 pub(crate) fn mqtt_shelf(entry: &str) -> Option<ShelfMatch> {
     const SESSION: &[&str] = &["session"];
     const PUBSUB: &[&str] = &["publish", "subscribe"];
-    const QOS2: &[&str] = &["pubrel", "disconnect"];
+    const QOS2: &[&str] = &["pubrec", "pubrel", "pubcomp", "disconnect"];
     const CONNECT_ONLY: &[&str] = &["connect"];
     if SESSION.contains(&entry) || CONNECT_ONLY.contains(&entry) {
         Some((
@@ -346,6 +355,8 @@ pub(crate) fn redis_shelf(entry: &str) -> Option<ShelfMatch> {
         "session", "ping", "get", "set", "incr", "decr", "mget", "mset", "exists", "del", "expire",
         "ttl", "pttl",
     ];
+    const PUBSUB: &[&str] = &["publish", "subscribe"];
+    const SET: &[&str] = &["sadd", "smembers"];
     const HASH: &[&str] = &["hget", "hset", "hmget", "hmset"];
     const LIST: &[&str] = &[
         "lpush",
@@ -363,6 +374,13 @@ pub(crate) fn redis_shelf(entry: &str) -> Option<ShelfMatch> {
     ];
     const SORTED_SET: &[&str] = &[
         "zadd",
+        "zcard",
+        "zcount",
+        "zincrby",
+        "zrank",
+        "zrem",
+        "zrevrangebyscore",
+        "zrevrank",
         "zscore",
         "zrange",
         "zrangebyscore",
@@ -386,6 +404,7 @@ pub(crate) fn redis_shelf(entry: &str) -> Option<ShelfMatch> {
         "xreadgroup",
         "xclaim",
         "xautoclaim",
+        "xdel",
         "xinfo",
     ];
     if KV.contains(&entry) {
@@ -395,6 +414,15 @@ pub(crate) fn redis_shelf(entry: &str) -> Option<ShelfMatch> {
             "docs/book/reference-redis-kv-surface.md",
             KV,
         ))
+    } else if PUBSUB.contains(&entry) {
+        Some((
+            "pubsub",
+            "Publish And Subscribe",
+            "docs/book/reference-redis-surface.md",
+            PUBSUB,
+        ))
+    } else if SET.contains(&entry) {
+        Some(("set", "Set", "docs/book/reference-redis-surface.md", SET))
     } else if HASH.contains(&entry) {
         Some((
             "hash",
@@ -430,7 +458,8 @@ pub(crate) fn redis_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn http3_shelf(entry: &str) -> Option<ShelfMatch> {
     const REQUEST: &[&str] = &["request"];
-    const SERVER: &[&str] = &["response"];
+    const RESPONSE: &[&str] = &["response"];
+    const SERVER: &[&str] = &["server"];
     if REQUEST.contains(&entry) {
         Some((
             "request",
@@ -438,12 +467,16 @@ pub(crate) fn http3_shelf(entry: &str) -> Option<ShelfMatch> {
             "docs/book/reference-http3-request-surface.md",
             REQUEST,
         ))
-    } else if SERVER.contains(&entry) {
+    } else if RESPONSE.contains(&entry) || SERVER.contains(&entry) {
         Some((
             "server",
             "Server",
             "docs/book/reference-http3-server-surface.md",
-            SERVER,
+            if RESPONSE.contains(&entry) {
+                RESPONSE
+            } else {
+                SERVER
+            },
         ))
     } else {
         None

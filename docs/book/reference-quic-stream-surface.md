@@ -41,3 +41,6 @@ Read this page after the QUIC family hub when:
 
 The current entry records stream-send progression plus eventual close
 observation. It does not guarantee that a response stream was observed.
+
+For the broader family map, see
+[docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md).

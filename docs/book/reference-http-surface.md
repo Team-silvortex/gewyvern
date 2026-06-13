@@ -25,6 +25,24 @@ Across the subpages, the lookup contract focuses on:
 - operator reading order
 - validation and lowering posture
 
+## Family Aliases
+
+The current registry also accepts these family-level spellings for HTTP entry
+selection:
+
+- `http-connect`
+- `http-connect-auth-required`
+- `http-connect-auth-tunnel`
+- `http-connect-denied`
+- `http-request`
+- `http-server`
+- `http_connect`
+- `http_connect_auth_required`
+- `http_connect_auth_tunnel`
+- `http_connect_denied`
+- `http_request`
+- `http_server`
+
 ## HTTP Surface Map
 
 ### Request And Response

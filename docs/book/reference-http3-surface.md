@@ -25,6 +25,17 @@ Across the subpages, the lookup contract focuses on:
 - operator reading order
 - validation and lowering posture
 
+## Family Aliases
+
+The current registry also accepts these family-level spellings for HTTP/3 entry
+selection:
+
+- `h3-request`
+- `h3-server`
+- `h3_request`
+- `h3_server`
+- `http3-server-response`
+
 ## HTTP/3 Surface Map
 
 ### Request

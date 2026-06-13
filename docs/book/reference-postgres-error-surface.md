@@ -9,7 +9,8 @@ query-error flow.
 
 Aliases:
 
-- none registered today
+- `postgres-error`
+- `postgres_error`
 
 Intent:
 

@@ -3,7 +3,7 @@
 Use this page when you want the Redis portion of the built-in protocol shelf
 as a stable lookup surface instead of a tutorial.
 
-This page groups the current Redis coverage into five narrower shelves so the
+This page groups the current Redis coverage into seven narrower shelves so the
 lookup path stays predictable as the protocol family grows.
 
 ## What This Shelf Covers
@@ -11,6 +11,8 @@ lookup path stays predictable as the protocol family grows.
 The current Redis surface is organized by operator intent:
 
 - session and key-value traffic
+- publish and subscribe traffic
+- set membership traffic
 - hash field reads and writes
 - list push/pop/move flows
 - sorted-set mutation and ranked lookup
@@ -23,6 +25,20 @@ Each subpage focuses on:
 - coarse request and response shape
 - operator reading order
 - current validation/lowering posture
+
+## Family Aliases
+
+The current registry also accepts these family-level spellings for Redis entry
+selection:
+
+- `redis-get`
+- `redis-ping`
+- `redis-session`
+- `redis-set`
+- `redis_get`
+- `redis_ping`
+- `redis_session`
+- `redis_set`
 
 ## Redis Surface Map
 
@@ -60,6 +76,28 @@ Typical entries:
 - `hmget`
 - `hmset`
 
+### Publish And Subscribe
+
+- [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md)
+  Channel publish and subscribe flow, kept on the family hub until a narrower
+  pub/sub subpage is warranted.
+
+Typical entries:
+
+- `publish`
+- `subscribe`
+
+### Set
+
+- [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md)
+  Set member addition and full member listing, kept on the family hub until a
+  narrower set subpage is warranted.
+
+Typical entries:
+
+- `sadd`
+- `smembers`
+
 ### List
 
 - [docs/book/reference-redis-list-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-list-surface.md)
@@ -88,6 +126,13 @@ Typical entries:
 Typical entries:
 
 - `zadd`
+- `zcard`
+- `zcount`
+- `zincrby`
+- `zrank`
+- `zrem`
+- `zrevrangebyscore`
+- `zrevrank`
 - `zscore`
 - `zrange`
 - `zrangebyscore`
@@ -114,6 +159,7 @@ Typical entries:
 - `xreadgroup`
 - `xclaim`
 - `xautoclaim`
+- `xdel`
 - `xinfo`
 
 ## Reading Order

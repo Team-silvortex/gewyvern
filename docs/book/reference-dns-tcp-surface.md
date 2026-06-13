@@ -10,7 +10,7 @@ DNS behavior.
 - Protocol:
   `dns`
 - Aliases:
-  none
+  `dns-tcp`, `dns_tcp`
 - Default entry:
   no
 
@@ -37,3 +37,6 @@ Read this page after the DNS family hub when:
 
 The current entry records coarse TCP query/response behavior and does not try
 to model zone transfer or longer multi-message DNS conversations.
+
+For the broader family map, see
+[docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md).
