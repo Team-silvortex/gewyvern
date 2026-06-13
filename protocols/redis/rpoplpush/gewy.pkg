@@ -1,0 +1,7 @@
+name=redis_rpoplpush
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=rpoplpush
+register.default=false
+register.entry_aliases=list-move-right-to-left,right-pop-left-push

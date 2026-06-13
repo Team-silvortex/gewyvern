@@ -1,0 +1,7 @@
+name=redis_bzmpop
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=bzmpop
+register.default=false
+register.entry_aliases=sorted-blocking-multi-pop,score-blocking-pop-many

@@ -1,0 +1,7 @@
+name=redis_xpending
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=xpending
+register.default=false
+register.entry_aliases=stream-pending,stream-delivery-backlog

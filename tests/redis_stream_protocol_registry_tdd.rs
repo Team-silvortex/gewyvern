@@ -114,6 +114,166 @@ fn redis_xlen_registry_entry_resolves_to_packaged_xlen_path() {
 }
 
 #[test]
+fn redis_xack_registry_entry_resolves_to_packaged_xack_path() {
+    assert_eq!(
+        protocol_dsl_path("redis", Some("xack")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xack".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-ack")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xack".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-acknowledge")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xack".to_string())
+    );
+}
+
+#[test]
+fn redis_xpending_registry_entry_resolves_to_packaged_xpending_path() {
+    assert_eq!(
+        protocol_dsl_path("redis", Some("xpending")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xpending".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-pending")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xpending".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-delivery-backlog")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xpending".to_string())
+    );
+}
+
+#[test]
+fn redis_xgroup_registry_entry_resolves_to_packaged_xgroup_path() {
+    assert_eq!(
+        protocol_dsl_path("redis", Some("xgroup")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xgroup".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-group")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xgroup".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-consumer-group")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xgroup".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-group-manage")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xgroup".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-group-create")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xgroup".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-group-destroy")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xgroup".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-group-create-consumer")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xgroup".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-group-drop-consumer")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xgroup".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-group-setid")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xgroup".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-group-help")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xgroup".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-group-list-consumers")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xgroup".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-group-list-groups")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xgroup".to_string())
+    );
+}
+
+#[test]
+fn redis_xinfo_registry_entry_resolves_to_packaged_xinfo_path() {
+    assert_eq!(
+        protocol_dsl_path("redis", Some("xinfo")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xinfo".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-info")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xinfo".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-inspect")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xinfo".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-info-stream")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xinfo".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-info-groups")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xinfo".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-info-consumers")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xinfo".to_string())
+    );
+}
+
+#[test]
+fn redis_xreadgroup_registry_entry_resolves_to_packaged_xreadgroup_path() {
+    assert_eq!(
+        protocol_dsl_path("redis", Some("xreadgroup")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xreadgroup".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-group-read")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xreadgroup".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-consumer-read")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xreadgroup".to_string())
+    );
+}
+
+#[test]
+fn redis_xclaim_registry_entry_resolves_to_packaged_xclaim_path() {
+    assert_eq!(
+        protocol_dsl_path("redis", Some("xclaim")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xclaim".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-claim")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xclaim".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-reassign")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xclaim".to_string())
+    );
+}
+
+#[test]
+fn redis_xautoclaim_registry_entry_resolves_to_packaged_xautoclaim_path() {
+    assert_eq!(
+        protocol_dsl_path("redis", Some("xautoclaim")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xautoclaim".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-auto-claim")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xautoclaim".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("stream-idle-reassign")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/xautoclaim".to_string())
+    );
+}
+
+#[test]
 fn redis_default_entry_stays_ping_after_stream_additions() {
     assert_eq!(protocol_default_entry("redis"), Some("ping".to_string()));
 
@@ -125,6 +285,13 @@ fn redis_default_entry_stays_ping_after_stream_additions() {
     assert!(entries.contains(&"xdel".to_string()));
     assert!(entries.contains(&"xtrim".to_string()));
     assert!(entries.contains(&"xlen".to_string()));
+    assert!(entries.contains(&"xack".to_string()));
+    assert!(entries.contains(&"xpending".to_string()));
+    assert!(entries.contains(&"xgroup".to_string()));
+    assert!(entries.contains(&"xinfo".to_string()));
+    assert!(entries.contains(&"xreadgroup".to_string()));
+    assert!(entries.contains(&"xclaim".to_string()));
+    assert!(entries.contains(&"xautoclaim".to_string()));
     assert!(entries.contains(&"ping".to_string()));
 }
 
@@ -181,5 +348,61 @@ fn redis_xlen_dsl_compiles_into_template_binding() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_xlen_path.gewy").unwrap();
     assert_eq!(binding.template.id, "redis_xlen_path");
+    assert_eq!(binding.template.fragment_set.len(), 4);
+}
+
+#[test]
+fn redis_xack_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_xack_path.gewy").unwrap();
+    assert_eq!(binding.template.id, "redis_xack_path");
+    assert_eq!(binding.template.fragment_set.len(), 4);
+}
+
+#[test]
+fn redis_xpending_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_xpending_path.gewy").unwrap();
+    assert_eq!(binding.template.id, "redis_xpending_path");
+    assert_eq!(binding.template.fragment_set.len(), 4);
+}
+
+#[test]
+fn redis_xgroup_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_xgroup_path.gewy").unwrap();
+    assert_eq!(binding.template.id, "redis_xgroup_path");
+    assert_eq!(binding.template.fragment_set.len(), 4);
+}
+
+#[test]
+fn redis_xinfo_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_xinfo_path.gewy").unwrap();
+    assert_eq!(binding.template.id, "redis_xinfo_path");
+    assert_eq!(binding.template.fragment_set.len(), 4);
+}
+
+#[test]
+fn redis_xreadgroup_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_xreadgroup_path.gewy").unwrap();
+    assert_eq!(binding.template.id, "redis_xreadgroup_path");
+    assert_eq!(binding.template.fragment_set.len(), 4);
+}
+
+#[test]
+fn redis_xclaim_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_xclaim_path.gewy").unwrap();
+    assert_eq!(binding.template.id, "redis_xclaim_path");
+    assert_eq!(binding.template.fragment_set.len(), 4);
+}
+
+#[test]
+fn redis_xautoclaim_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_xautoclaim_path.gewy").unwrap();
+    assert_eq!(binding.template.id, "redis_xautoclaim_path");
     assert_eq!(binding.template.fragment_set.len(), 4);
 }

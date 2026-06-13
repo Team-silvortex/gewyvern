@@ -21,6 +21,9 @@ stable contract, not a walkthrough.
 - [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
   Registry and CLI contract candidate for canonical protocol families,
   entries, aliases, and default resolution.
+- [docs/book/reference-redis-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-stream-surface.md)
+  Redis stream data-path, group-management, backlog, and claim/takeover
+  canonical entries and aliases.
 
 ## Runtime And Export Contracts
 

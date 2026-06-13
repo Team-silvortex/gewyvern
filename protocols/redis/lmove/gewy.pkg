@@ -1,0 +1,7 @@
+name=redis_lmove
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=lmove
+register.default=false
+register.entry_aliases=list-move,list-directional-move,left-right-move,right-left-move

@@ -1,0 +1,7 @@
+name=redis_blpop
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=blpop
+register.default=false
+register.entry_aliases=list-blocking-pop-left,left-blocking-pop

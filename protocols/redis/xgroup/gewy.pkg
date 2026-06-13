@@ -1,0 +1,7 @@
+name=redis_xgroup
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=xgroup
+register.default=false
+register.entry_aliases=stream-group,stream-consumer-group,stream-group-manage,stream-group-create,stream-group-destroy,stream-group-create-consumer,stream-group-drop-consumer,stream-group-setid,stream-group-help,stream-group-list-consumers,stream-group-list-groups

@@ -1,0 +1,7 @@
+name=redis_blmpop
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=blmpop
+register.default=false
+register.entry_aliases=list-blocking-multi-pop,blocking-list-pop-many

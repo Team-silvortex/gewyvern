@@ -1,0 +1,7 @@
+name=redis_blmove
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=blmove
+register.default=false
+register.entry_aliases=list-blocking-move,list-blocking-directional-move,blocking-left-right-move,blocking-right-left-move

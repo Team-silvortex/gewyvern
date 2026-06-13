@@ -1,0 +1,7 @@
+name=redis_brpoplpush
+version=0.10.0
+entry=main.gewy
+register.protocol=redis
+register.entry=brpoplpush
+register.default=false
+register.entry_aliases=list-blocking-move-right-to-left,right-blocking-pop-left-push

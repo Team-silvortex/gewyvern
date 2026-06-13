@@ -242,6 +242,22 @@ fn redis_zpopmax_registry_entry_resolves_to_packaged_zpopmax_path() {
 }
 
 #[test]
+fn redis_zmpop_registry_entry_resolves_to_packaged_zmpop_path() {
+    assert_eq!(
+        protocol_dsl_path("redis", Some("zmpop")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/zmpop".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("sorted-multi-pop")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/zmpop".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("redis", Some("score-pop-many")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/zmpop".to_string())
+    );
+}
+
+#[test]
 fn redis_default_entry_stays_ping_after_set_surface_additions() {
     assert_eq!(protocol_default_entry("redis"), Some("ping".to_string()));
 
@@ -261,6 +277,7 @@ fn redis_default_entry_stays_ping_after_set_surface_additions() {
     assert!(entries.contains(&"zcount".to_string()));
     assert!(entries.contains(&"zpopmin".to_string()));
     assert!(entries.contains(&"zpopmax".to_string()));
+    assert!(entries.contains(&"zmpop".to_string()));
 }
 
 #[test]
@@ -382,5 +399,13 @@ fn redis_zpopmax_dsl_compiles_into_template_binding() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_zpopmax_path.gewy").unwrap();
     assert_eq!(binding.template.id, "redis_zpopmax_path");
+    assert_eq!(binding.template.fragment_set.len(), 4);
+}
+
+#[test]
+fn redis_zmpop_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_zmpop_path.gewy").unwrap();
+    assert_eq!(binding.template.id, "redis_zmpop_path");
     assert_eq!(binding.template.fragment_set.len(), 4);
 }

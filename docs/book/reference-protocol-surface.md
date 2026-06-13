@@ -18,6 +18,10 @@ For the lowering contract after resolution, see:
 
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
 
+For a narrower Redis stream-specific lookup surface, see:
+
+- [docs/book/reference-redis-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-stream-surface.md)
+
 ## What The Protocol Surface Is
 
 In the current repository shape, the protocol surface is the registry-style
@@ -203,6 +207,26 @@ Current examples include:
 - `redis left-pop -> lpop`
 - `redis list-pop-right -> rpop`
 - `redis right-pop -> rpop`
+- `redis list-blocking-pop-left -> blpop`
+- `redis left-blocking-pop -> blpop`
+- `redis list-blocking-pop-right -> brpop`
+- `redis right-blocking-pop -> brpop`
+- `redis list-move-right-to-left -> rpoplpush`
+- `redis right-pop-left-push -> rpoplpush`
+- `redis list-blocking-move-right-to-left -> brpoplpush`
+- `redis right-blocking-pop-left-push -> brpoplpush`
+- `redis list-move -> lmove`
+- `redis list-directional-move -> lmove`
+- `redis left-right-move -> lmove`
+- `redis right-left-move -> lmove`
+- `redis list-blocking-move -> blmove`
+- `redis list-blocking-directional-move -> blmove`
+- `redis blocking-left-right-move -> blmove`
+- `redis blocking-right-left-move -> blmove`
+- `redis list-multi-pop -> lmpop`
+- `redis list-pop-many -> lmpop`
+- `redis list-blocking-multi-pop -> blmpop`
+- `redis blocking-list-pop-many -> blmpop`
 - `redis set-add -> sadd`
 - `redis member-add -> sadd`
 - `redis set-read -> smembers`
@@ -233,10 +257,14 @@ Current examples include:
 - `redis score-pop-lowest -> zpopmin`
 - `redis sorted-pop-max -> zpopmax`
 - `redis score-pop-highest -> zpopmax`
+- `redis sorted-multi-pop -> zmpop`
+- `redis score-pop-many -> zmpop`
 - `redis sorted-blocking-pop-min -> bzpopmin`
 - `redis score-blocking-pop-lowest -> bzpopmin`
 - `redis sorted-blocking-pop-max -> bzpopmax`
 - `redis score-blocking-pop-highest -> bzpopmax`
+- `redis sorted-blocking-multi-pop -> bzmpop`
+- `redis score-blocking-pop-many -> bzmpop`
 - `redis pubsub-send -> publish`
 - `redis channel-write -> publish`
 - `redis pubsub-listen -> subscribe`
@@ -255,6 +283,32 @@ Current examples include:
 - `redis stream-prune -> xtrim`
 - `redis stream-length -> xlen`
 - `redis stream-count -> xlen`
+- `redis stream-ack -> xack`
+- `redis stream-acknowledge -> xack`
+- `redis stream-pending -> xpending`
+- `redis stream-delivery-backlog -> xpending`
+- `redis stream-group -> xgroup`
+- `redis stream-consumer-group -> xgroup`
+- `redis stream-group-manage -> xgroup`
+- `redis stream-group-create -> xgroup`
+- `redis stream-group-destroy -> xgroup`
+- `redis stream-group-create-consumer -> xgroup`
+- `redis stream-group-drop-consumer -> xgroup`
+- `redis stream-group-setid -> xgroup`
+- `redis stream-group-help -> xgroup`
+- `redis stream-group-list-consumers -> xgroup`
+- `redis stream-group-list-groups -> xgroup`
+- `redis stream-info -> xinfo`
+- `redis stream-inspect -> xinfo`
+- `redis stream-info-stream -> xinfo`
+- `redis stream-info-groups -> xinfo`
+- `redis stream-info-consumers -> xinfo`
+- `redis stream-group-read -> xreadgroup`
+- `redis stream-consumer-read -> xreadgroup`
+- `redis stream-claim -> xclaim`
+- `redis stream-reassign -> xclaim`
+- `redis stream-auto-claim -> xautoclaim`
+- `redis stream-idle-reassign -> xautoclaim`
 - `sip session -> invite`
 
 The practical rule is:
