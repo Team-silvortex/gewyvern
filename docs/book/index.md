@@ -113,6 +113,17 @@ Use this fallback:
 3. [docs/book/reference.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference.md)
 4. [docs/book/explanation.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation.md)
 
+## Protocol-Family Quick Paths
+
+When you already know which protocol family you are working on, use the family
+directory page instead of scanning the whole book:
+
+1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
+3. one family hub page such as Redis, FTP, SMTP, MQTT, LDAP, or PostgreSQL
+4. one narrower family subpage
+5. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+
 ## Scope
 
 This book does not replace the existing documents. It gives them a clearer

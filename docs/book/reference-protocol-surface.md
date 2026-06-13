@@ -18,9 +18,9 @@ For the lowering contract after resolution, see:
 
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
 
-For a narrower Redis stream-specific lookup surface, see:
+For the narrower built-in protocol family shelves, see:
 
-- [docs/book/reference-redis-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-stream-surface.md)
+- [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
 
 ## What The Protocol Surface Is
 

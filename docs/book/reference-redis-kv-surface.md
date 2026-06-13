@@ -1,0 +1,127 @@
+# Reference: Redis KV Surface
+
+Use this page when you need the current exact lookup surface for Redis
+key-value and session-oriented protocol entries in the built-in shelf.
+
+For the broader family/entry contract, see:
+
+- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+
+## Canonical Entries
+
+### Connection And Health
+
+| Canonical entry | Typical intent | Response shape |
+| --- | --- | --- |
+| `session` | establish or observe a Redis session | simple string |
+| `ping` | health check the server | simple string |
+
+### Single-Key Read And Write
+
+| Canonical entry | Typical intent | Response shape |
+| --- | --- | --- |
+| `get` | read one key | bulk string |
+| `set` | write one key | simple string |
+
+### Counter Mutation
+
+| Canonical entry | Typical intent | Response shape |
+| --- | --- | --- |
+| `incr` | increment one counter key | integer |
+| `decr` | decrement one counter key | integer |
+
+### Multi-Key Read And Write
+
+| Canonical entry | Typical intent | Response shape |
+| --- | --- | --- |
+| `mget` | read multiple keys | array |
+| `mset` | write multiple keys | simple string |
+
+### Existence And Deletion
+
+| Canonical entry | Typical intent | Response shape |
+| --- | --- | --- |
+| `exists` | check whether keys are present | integer |
+| `del` | delete one or more keys | integer |
+
+### Expiry And TTL
+
+| Canonical entry | Typical intent | Response shape |
+| --- | --- | --- |
+| `expire` | assign key expiry | integer |
+| `ttl` | inspect TTL in seconds | integer |
+| `pttl` | inspect TTL in milliseconds | integer |
+
+## Aliases
+
+### Connection And Health Aliases
+
+- `connect -> session`
+- `health -> ping`
+
+### Single-Key Read And Write Aliases
+
+- `read -> get`
+- `kv-read -> get`
+- `write -> set`
+- `kv-write -> set`
+
+### Counter Mutation Aliases
+
+- `increment -> incr`
+- `count-up -> incr`
+- `decrement -> decr`
+- `count-down -> decr`
+
+### Multi-Key Read And Write Aliases
+
+- `multi-read -> mget`
+- `bulk-read -> mget`
+- `multi-write -> mset`
+- `bulk-write -> mset`
+
+### Existence And Deletion Aliases
+
+- `present -> exists`
+- `key-check -> exists`
+- `delete -> del`
+- `remove -> del`
+
+### Expiry And TTL Aliases
+
+- `set-ttl -> expire`
+- `expiry -> expire`
+- `time-to-live -> ttl`
+- `key-ttl -> ttl`
+- `precise-ttl -> pttl`
+- `ms-ttl -> pttl`
+
+## Operator Reading Order
+
+If you are reading this as an operator, the shortest useful map is:
+
+1. confirm health with `ping`
+2. read and write with `get` / `set`
+3. mutate counters with `incr` / `decr`
+4. fan out with `mget` / `mset`
+5. verify presence with `exists`
+6. expire and inspect lifetime with `expire`, `ttl`, and `pttl`
+
+## Stability Notes
+
+This page keeps the Redis KV shelf intentionally conservative:
+
+- canonical entry names are the stable reporting surface
+- aliases are a convenience layer for CLI/operator lookup
+- response shapes stay at the coarse transport-contract level needed by the
+  current built-in protocol shelf
+
+## Validation Surface
+
+The current repository validates this Redis KV shelf through:
+
+- [/Users/Shared/chroot/dev/gewyvern/tests/redis_protocol_registry_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/redis_protocol_registry_tdd.rs)
+
+For IR-level support confirmation, use:
+
+- [/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc_ir_snapshot.rs](/Users/Shared/chroot/dev/gewyvern/src/bin/gewyc_ir_snapshot.rs)

@@ -1,32 +1,11 @@
 # Reference: Redis Stream Surface
 
-Use this page when you need the current `stable-subset` contract for Redis
+Use this page when you need the current exact lookup surface for Redis
 stream-oriented protocol entries in the built-in shelf.
 
-This page is intentionally narrower than:
+For the broader family/entry contract, see:
 
 - [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-
-That page defines the global family/entry resolution contract.
-This page focuses only on the Redis stream slice:
-
-- canonical entries
-- practical aliases
-- rough operator intent
-- expected response shape category
-
-## Scope
-
-The current Redis stream surface is split into four working bands:
-
-1. stream data path
-2. stream group management
-3. stream delivery tracking
-4. stream claim and takeover
-
-The goal is not to model every Redis option bit.
-The goal is to provide a conservative, lookup-stable shelf that downstream
-tooling can resolve today.
 
 ## Canonical Entries
 
@@ -59,7 +38,7 @@ tooling can resolve today.
 | `xclaim` | explicitly reassign pending entries | array |
 | `xautoclaim` | reclaim idle entries automatically | array |
 
-## Alias Shelf
+## Aliases
 
 These aliases are intended to make CLI use and operator lookup friendlier.
 Machine-facing reporting should still prefer the canonical entry names above.
@@ -113,7 +92,7 @@ Machine-facing reporting should still prefer the canonical entry names above.
 - `stream-auto-claim -> xautoclaim`
 - `stream-idle-reassign -> xautoclaim`
 
-## Operational Reading
+## Operator Reading Order
 
 If you are reading this as an operator, the shortest useful mental map is:
 
@@ -125,7 +104,7 @@ If you are reading this as an operator, the shortest useful mental map is:
 6. recover stuck work with `xclaim` or `xautoclaim`
 7. confirm completion with `xack`
 
-## Current Stability Notes
+## Stability Notes
 
 The current shelf is intentionally conservative:
 
