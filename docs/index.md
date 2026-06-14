@@ -43,6 +43,7 @@ If you only want the durable top-level project pages, read these first:
 
 - [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
 - [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
+- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
@@ -56,6 +57,10 @@ Release/evidence pages live beside them:
 
 ## Runtime Internals
 
+- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+  Project-level architecture sheet for layers, boundaries, and evolution.
+- [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+  Source-cluster dependency and ownership blueprint.
 - [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
   Source ownership map across the main runtime modules.
 - [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)

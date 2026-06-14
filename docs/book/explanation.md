@@ -5,6 +5,10 @@ understand why the project is shaped the way it is.
 
 ## Core System Shape
 
+- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+  Project-level architecture sheet for subsystem and evolution boundaries.
+- [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+  Source-cluster dependency blueprint.
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
   Main runtime/compiler boundary and system map.
 - [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)

@@ -16,6 +16,7 @@ This page is not the best first stop for:
 
 For those, start with:
 
+- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
 - [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 - [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)

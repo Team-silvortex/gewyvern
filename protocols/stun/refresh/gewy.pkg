@@ -1,0 +1,8 @@
+name=stun_refresh
+version=0.14.0
+entry=main.gewy
+register.protocol=stun
+register.entry=refresh
+register.default=false
+register.aliases=stun-refresh,stun_refresh
+register.entry_aliases=keepalive,turn-refresh

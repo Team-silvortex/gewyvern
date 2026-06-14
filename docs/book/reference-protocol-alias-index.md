@@ -33,9 +33,11 @@ Entry aliases:
 ## `dhcp`
 
 Default entry: `client`  
-Protocol aliases: none  
+Protocol aliases: `dhcp-discover`, `dhcp-request`, `dhcp_discover`, `dhcp_request`  
 Entry aliases:
 - `client` (default): none
+- `discover`: `lease-discover`, `offer-probe`
+- `request`: `lease-request`, `renew`
 
 ## `dns`
 
@@ -176,9 +178,11 @@ Entry aliases:
 ## `ntp`
 
 Default entry: `client`  
-Protocol aliases: none  
+Protocol aliases: `ntp-query`, `ntp-sync`, `ntp_query`, `ntp_sync`  
 Entry aliases:
 - `client` (default): none
+- `query`: `check`, `probe`
+- `sync`: `clock-sync`, `time-sync`
 
 ## `pop3`
 
@@ -359,9 +363,11 @@ Entry aliases:
 ## `stun`
 
 Default entry: `binding`  
-Protocol aliases: none  
+Protocol aliases: `stun-allocate`, `stun-refresh`, `stun_allocate`, `stun_refresh`  
 Entry aliases:
 - `binding` (default): none
+- `allocate`: `relay`, `turn-allocate`
+- `refresh`: `keepalive`, `turn-refresh`
 
 ## `tls`
 

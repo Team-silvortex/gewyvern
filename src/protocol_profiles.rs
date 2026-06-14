@@ -204,8 +204,14 @@ mod tests;
 #[cfg(test)]
 mod tests_coap;
 #[cfg(test)]
+mod tests_dhcp;
+#[cfg(test)]
 mod tests_docs;
 #[cfg(test)]
+mod tests_ntp;
+#[cfg(test)]
 mod tests_snmp;
+#[cfg(test)]
+mod tests_stun;
 #[cfg(test)]
 mod tests_surface;

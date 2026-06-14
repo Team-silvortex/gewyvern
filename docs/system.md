@@ -29,6 +29,12 @@ companions for the protocol shelf or compiler IR surface, jump to:
 - [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
 
+If you want the project-level design sheets before reading the prose below,
+start with:
+
+- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+- [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+
 ## One-Sentence Model
 
 `gewyvern` is a protocol-agnostic, window-bounded network debugger where a DSL
