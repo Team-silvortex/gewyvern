@@ -1,0 +1,8 @@
+name=coap_delete
+version=0.14.0
+entry=main.gewy
+register.protocol=coap
+register.entry=delete
+register.default=false
+register.aliases=coap-delete,coap_delete
+register.entry_aliases=remove,destroy

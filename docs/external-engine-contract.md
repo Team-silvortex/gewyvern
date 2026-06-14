@@ -50,6 +50,14 @@ The preferred input is a `gewyvern` analysis snapshot:
 - `/v1/latest/analysis.json`
 - `/v1/latest/targets/<path-segment>/analysis.json`
 
+When the sibling engine is collecting replayable supervised samples rather than
+doing only online enrichment, it may instead prefer the stable training surface:
+
+- `/v1/latest/training-example.json`
+- `/v1/latest/targets/<path-segment>/training-example.json`
+- `/v1/latest/training-dataset.json`
+- `/v1/latest/targets/<path-segment>/training-dataset.json`
+
 An external engine will usually care about fields such as:
 
 - `primary_module_kind`
@@ -64,6 +72,31 @@ An external engine will usually care about fields such as:
 An engine may consume more fields, but those are the core ones expected to be
 useful for enrich/rerank behavior.
 
+When the engine is consuming the training surface as a supervised dataset, it
+should prefer the structured target heads under:
+
+- `supervision.targets.diagnosis`
+- `supervision.targets.guidance`
+- `supervision.targets.automation`
+- `supervision.targets.ranking`
+
+Those labels exist so a sibling engine such as `etragon` can consume a more
+model-oriented supervision surface without having to infer task heads from the
+operator-facing summary fields.
+
+For batch collection, the engine should prefer the dataset manifest routes first
+and then follow each declared `sample_path` to fetch the concrete
+`training-example.json` payloads.
+
+The dataset manifest now also exposes:
+
+- stable `sample_id`
+- `group_key` for coarse protocol-family grouping
+- multiple reproducible `split_hints`
+
+so a sibling engine can start with the built-in deterministic buckets and later
+override them with a richer trainer-side policy without losing replayability.
+
 ## Process Hook
 
 `gewyvern` currently invokes an external engine through:
@@ -77,6 +110,50 @@ current integration mode and return a JSON object on stdout.
 
 `gewyvern` does not assume the engine is `etragon`; `etragon` is only the
 current sibling implementation used in examples.
+
+## Capability Handshake
+
+Before trusting sidecar collaboration hints too strongly, `gewyvern` may also
+ask the engine for a capability declaration through:
+
+- `<external-engine-bin> protocol-capabilities`
+
+The current reference sidecar shape advertises:
+
+- `protocol_family`
+- `protocol_version`
+- `merge_capabilities.safe_automation_hints`
+- `merge_capabilities.operator_review_hints`
+- `handoff_capabilities.readiness_levels`
+- `context_capabilities.published_contexts`
+- `compatibility.forward_compatibility_rules`
+
+If that capability profile is missing, uses another protocol family, or reports
+an unsupported protocol version, `gewyvern` now downgrades sidecar merge hints
+to conservative defaults instead of trusting stronger collaboration labels.
+
+If a sidecar publishes a richer context surface such as
+`evidence_chain_enrichment` or `diagnostic_opinion` without declaring that
+surface in `context_capabilities.published_contexts`, `gewyvern` also
+conservatively downgrades the collaboration posture for that context.
+
+In practice that means:
+
+- unknown or unverified `handoff_readiness` falls back to `advisory_only`
+- evidence enrichment falls back to append-only augmentation context
+- diagnostic opinion falls back to sidecar-only operator context
+
+`gewyvern` now also derives a stable machine-facing consumption posture from the
+normalized hint set, so downstream tooling can consume:
+
+- raw `handoff_readiness`
+- raw `merge_hint`
+- normalized `consumption_mode`
+
+without having to keep its own copy of the downgrade table.
+
+This keeps the sidecar additive even when the sibling stack evolves faster than
+the local `gewyvern` build.
 
 ## Output
 
@@ -163,6 +240,10 @@ sidecar result is best surfaced as:
 - augmentation-only context
 - augmentation plus operator-guidance context
 - or a stronger sidecar-only diagnostic opinion candidate
+
+When the engine also exposes a capability profile, `gewyvern` treats those hint
+values as declared only if they appear in the capability allow-lists. Unknown
+values are downgraded conservatively.
 
 ## Producer Metadata
 

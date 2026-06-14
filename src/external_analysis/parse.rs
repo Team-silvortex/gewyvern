@@ -2,9 +2,14 @@ use crate::diagnosis_runtime::AnalysisAugmentation;
 use crate::render_utils::{append_json_string, extract_json_string_field};
 
 use super::MAX_EXTERNAL_AUGMENTATIONS;
+use super::capabilities::{
+    ExternalCapabilityProfile, SidecarContextKind, adjust_sidecar_metadata,
+    external_capability_note, object_with_merge_metadata,
+};
 
 pub(super) fn parse_external_augmentations(
     input: &str,
+    capabilities: Option<&ExternalCapabilityProfile>,
 ) -> Result<Vec<AnalysisAugmentation>, String> {
     let mut items = Vec::new();
     if let Some(inner) = extract_optional_json_array_contents(input, "augmentations")? {
@@ -27,7 +32,7 @@ pub(super) fn parse_external_augmentations(
             });
         }
     }
-    append_external_merge_hint_augmentations(&mut items, input)?;
+    append_external_merge_hint_augmentations(&mut items, input, capabilities)?;
     if items.is_empty() {
         return Err("missing 'augmentations' array in external output".to_string());
     }
@@ -79,7 +84,9 @@ fn extract_optional_json_array_contents<'a>(
 fn append_external_merge_hint_augmentations(
     items: &mut Vec<AnalysisAugmentation>,
     input: &str,
+    capabilities: Option<&ExternalCapabilityProfile>,
 ) -> Result<(), String> {
+    let mut capability_note = None;
     if let Some(object) = extract_optional_json_value(input, "evidence_chain_enrichment") {
         if items.len() >= MAX_EXTERNAL_AUGMENTATIONS {
             return Err(format!(
@@ -88,21 +95,35 @@ fn append_external_merge_hint_augmentations(
             ));
         }
         let summary = extract_required_json_string(&object, "summary")?;
-        let handoff_readiness = extract_optional_json_string(&object, "handoff_readiness")
+        let raw_handoff_readiness = extract_optional_json_string(&object, "handoff_readiness")
             .unwrap_or_else(|| "advisory_only".to_string());
-        let merge_hint = extract_optional_json_string(&object, "gewyvern_merge_hint")
+        let raw_merge_hint = extract_optional_json_string(&object, "gewyvern_merge_hint")
             .unwrap_or_else(|| "augmentations_only".to_string());
+        let adjustment = adjust_sidecar_metadata(
+            capabilities,
+            SidecarContextKind::Enrichment,
+            &raw_handoff_readiness,
+            &raw_merge_hint,
+        );
+        capability_note = capability_note.or_else(|| {
+            external_capability_note(
+                capabilities,
+                adjustment.capability_status,
+                adjustment.hint_status,
+                adjustment.context_status,
+            )
+        });
         items.push(AnalysisAugmentation {
             kind: "external-enrichment".into(),
             name: "external_evidence_chain_enrichment".into(),
             summary,
-            confidence: external_hint_confidence(&handoff_readiness).into(),
+            confidence: external_hint_confidence(&adjustment.handoff_readiness).into(),
             producer_stage: Some("external".into()),
             producer_pass: Some("external-engine-merge-prototype".into()),
             data_json: Some(object_with_merge_metadata(
                 &object,
-                &handoff_readiness,
-                &merge_hint,
+                capabilities,
+                &adjustment,
             )),
         });
     }
@@ -115,41 +136,49 @@ fn append_external_merge_hint_augmentations(
                 ));
             }
             let summary = extract_required_json_string(&object, "summary")?;
-            let handoff_readiness = extract_optional_json_string(&object, "handoff_readiness")
+            let raw_handoff_readiness = extract_optional_json_string(&object, "handoff_readiness")
                 .unwrap_or_else(|| "mergeable".to_string());
-            let merge_hint = extract_optional_json_string(&object, "gewyvern_merge_hint")
+            let raw_merge_hint = extract_optional_json_string(&object, "gewyvern_merge_hint")
                 .unwrap_or_else(|| "sidecar_only_opinion".to_string());
+            let adjustment = adjust_sidecar_metadata(
+                capabilities,
+                SidecarContextKind::Opinion,
+                &raw_handoff_readiness,
+                &raw_merge_hint,
+            );
+            capability_note = capability_note.or_else(|| {
+                external_capability_note(
+                    capabilities,
+                    adjustment.capability_status,
+                    adjustment.hint_status,
+                    adjustment.context_status,
+                )
+            });
             items.push(AnalysisAugmentation {
                 kind: "external-opinion".into(),
                 name: "external_diagnostic_opinion".into(),
                 summary,
-                confidence: external_hint_confidence(&handoff_readiness).into(),
+                confidence: external_hint_confidence(&adjustment.handoff_readiness).into(),
                 producer_stage: Some("external".into()),
                 producer_pass: Some("external-engine-merge-prototype".into()),
                 data_json: Some(object_with_merge_metadata(
                     &object,
-                    &handoff_readiness,
-                    &merge_hint,
+                    capabilities,
+                    &adjustment,
                 )),
             });
         }
     }
-    Ok(())
-}
-
-fn object_with_merge_metadata(object: &str, handoff_readiness: &str, merge_hint: &str) -> String {
-    let trimmed = object.trim();
-    if !trimmed.ends_with('}') {
-        return trimmed.to_string();
+    if let Some(note) = capability_note {
+        if items.len() >= MAX_EXTERNAL_AUGMENTATIONS {
+            return Err(format!(
+                "external output contains more than {} augmentations",
+                MAX_EXTERNAL_AUGMENTATIONS
+            ));
+        }
+        items.push(note);
     }
-    let inner = trimmed.trim_end_matches('}');
-    format!(
-        "{}{}\"external_handoff_readiness\":\"{}\",\"external_merge_hint\":\"{}\"}}",
-        inner,
-        if inner.ends_with('{') { "" } else { "," },
-        escape_json_string(handoff_readiness),
-        escape_json_string(merge_hint)
-    )
+    Ok(())
 }
 
 fn external_hint_confidence(handoff_readiness: &str) -> &'static str {
@@ -301,16 +330,6 @@ fn consume_json_value(input: &str) -> Option<usize> {
     }
 }
 
-fn escape_json_string(input: &str) -> String {
-    let mut escaped = String::new();
-    append_json_string(&mut escaped, input);
-    escaped
-        .strip_prefix('"')
-        .and_then(|value| value.strip_suffix('"'))
-        .unwrap_or(escaped.as_str())
-        .to_string()
-}
-
 pub(super) fn single_json_string_field(key: &str, value: &str) -> String {
     let mut json = String::new();
     json.push('{');
@@ -324,6 +343,7 @@ pub(super) fn single_json_string_field(key: &str, value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::external_analysis::capabilities::parse_external_capability_profile;
 
     #[test]
     fn parse_external_augmentations_rejects_too_many_items() {
@@ -337,7 +357,7 @@ mod tests {
             );
         }
         payload.push_str("]}");
-        let err = match parse_external_augmentations(&payload) {
+        let err = match parse_external_augmentations(&payload, None) {
             Ok(_) => panic!("should reject oversized list"),
             Err(err) => err,
         };
@@ -347,8 +367,13 @@ mod tests {
     #[test]
     fn parse_external_augmentations_includes_merge_hint_contexts() {
         let payload = "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_targeted_escalation\",\"summary\":\"external engine suggests targeted escalation\",\"confidence\":\"candidate\"}],\"evidence_chain_enrichment\":{\"status\":\"reinforced\",\"primary_label\":\"targeted_escalation\",\"summary\":\"reinforced evidence chain\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"augmentations_with_operator_guidance_support\"},\"diagnostic_opinion\":{\"status\":\"ready\",\"diagnosis_kind\":\"direct_protocol_failure\",\"label\":\"targeted_escalation\",\"summary\":\"direct protocol failure is now the most direct opinion\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"operator_guidance_candidate\"}}";
-        let items = parse_external_augmentations(payload).expect("payload should parse");
-        assert_eq!(items.len(), 3);
+        let capabilities = parse_external_capability_profile(
+            "{\"protocol_family\":\"etragon-resident-protocol\",\"protocol_version\":1,\"merge_capabilities\":{\"safe_automation_hints\":[\"augmentations_only\",\"augmentations_and_guidance_context\"],\"operator_review_hints\":[\"augmentations_with_operator_guidance_support\",\"sidecar_only_opinion\",\"operator_guidance_candidate\"]},\"handoff_capabilities\":{\"readiness_levels\":[\"advisory_only\",\"mergeable\",\"automation_worthy\"]},\"context_capabilities\":{\"published_contexts\":[\"evidence_chain_enrichment\",\"diagnostic_opinion\"]},\"compatibility\":{\"forward_compatibility_rules\":[\"unknown_merge_hints_must_downgrade_to_operator_review\"]}}",
+        )
+        .expect("capability profile should parse");
+        let items = parse_external_augmentations(payload, Some(&capabilities))
+            .expect("payload should parse");
+        assert_eq!(items.len(), 4);
         assert!(
             items
                 .iter()
@@ -383,24 +408,107 @@ mod tests {
                 .unwrap_or_default()
                 .contains("\"external_merge_hint\":\"operator_guidance_candidate\"")
         );
+        assert!(
+            opinion
+                .data_json
+                .as_deref()
+                .unwrap_or_default()
+                .contains("\"external_capability_status\":\"verified\"")
+        );
+        assert!(
+            items
+                .iter()
+                .any(|item| item.name == "external_capability_profile")
+        );
     }
 
     #[test]
     fn parse_external_augmentations_accepts_merge_only_payload() {
         let payload = "{\"evidence_chain_enrichment\":{\"status\":\"emerging\",\"primary_label\":\"network_observe_longer\",\"summary\":\"still maturing\",\"handoff_readiness\":\"advisory_only\",\"gewyvern_merge_hint\":\"augmentations_only\"}}";
-        let items = parse_external_augmentations(payload).expect("merge-only payload should parse");
-        assert_eq!(items.len(), 1);
+        let items =
+            parse_external_augmentations(payload, None).expect("merge-only payload should parse");
+        assert_eq!(items.len(), 2);
         assert_eq!(items[0].name, "external_evidence_chain_enrichment");
         assert_eq!(items[0].confidence, "advisory");
+        assert_eq!(items[1].name, "external_capability_profile");
     }
 
     #[test]
     fn parse_external_augmentations_decodes_escaped_strings() {
         let payload = r#"{"augmentations":[{"kind":"ml-candidate","name":"quoted","summary":"sidecar said \"wait more\"","confidence":"candidate","producer_stage":"candidate","producer_pass":"worker\\runner"}]}"#;
-        let items = parse_external_augmentations(payload).expect("escaped strings should parse");
+        let items =
+            parse_external_augmentations(payload, None).expect("escaped strings should parse");
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].summary, "sidecar said \"wait more\"");
         assert_eq!(items[0].producer_pass.as_deref(), Some("worker\\runner"));
+    }
+
+    #[test]
+    fn parse_external_capability_profile_extracts_nested_arrays() {
+        let profile = parse_external_capability_profile(
+            "{\"protocol_family\":\"etragon-resident-protocol\",\"protocol_version\":1,\"merge_capabilities\":{\"safe_automation_hints\":[\"augmentations_only\"],\"operator_review_hints\":[\"sidecar_only_opinion\"]},\"handoff_capabilities\":{\"readiness_levels\":[\"advisory_only\",\"mergeable\"]},\"context_capabilities\":{\"published_contexts\":[\"evidence_chain_enrichment\",\"diagnostic_opinion\"]},\"compatibility\":{\"forward_compatibility_rules\":[\"unknown_merge_hints_must_downgrade_to_operator_review\"]}}",
+        )
+        .expect("capability profile should parse");
+        assert_eq!(profile.protocol_family, "etragon-resident-protocol");
+        assert_eq!(profile.protocol_version, 1);
+        assert_eq!(profile.safe_automation_hints, vec!["augmentations_only"]);
+        assert_eq!(profile.operator_review_hints, vec!["sidecar_only_opinion"]);
+        assert_eq!(
+            profile.handoff_readiness_levels,
+            vec!["advisory_only", "mergeable"]
+        );
+        assert_eq!(
+            profile.published_contexts,
+            vec!["evidence_chain_enrichment", "diagnostic_opinion"]
+        );
+    }
+
+    #[test]
+    fn parse_external_augmentations_downgrades_unknown_hints_to_review_defaults() {
+        let payload = "{\"diagnostic_opinion\":{\"summary\":\"needs richer synthesis\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"future_direct_merge\"}}";
+        let capabilities = parse_external_capability_profile(
+            "{\"protocol_family\":\"etragon-resident-protocol\",\"protocol_version\":1,\"merge_capabilities\":{\"safe_automation_hints\":[\"augmentations_only\"],\"operator_review_hints\":[\"sidecar_only_opinion\"]},\"handoff_capabilities\":{\"readiness_levels\":[\"advisory_only\",\"mergeable\",\"automation_worthy\"]},\"context_capabilities\":{\"published_contexts\":[\"diagnostic_opinion\"]},\"compatibility\":{\"forward_compatibility_rules\":[\"unknown_merge_hints_must_downgrade_to_operator_review\"]}}",
+        )
+        .expect("capability profile should parse");
+        let items = parse_external_augmentations(payload, Some(&capabilities))
+            .expect("payload should parse");
+        let opinion = items
+            .iter()
+            .find(|item| item.name == "external_diagnostic_opinion")
+            .expect("synthetic opinion should exist");
+        let data = opinion.data_json.as_deref().unwrap_or_default();
+        assert!(data.contains("\"external_merge_hint\":\"sidecar_only_opinion\""));
+        assert!(data.contains("\"external_hint_status\":\"downgraded_unknown_hint\""));
+        assert!(
+            items
+                .iter()
+                .any(|item| item.name == "external_capability_profile")
+        );
+    }
+
+    #[test]
+    fn parse_external_augmentations_downgrades_undeclared_context_surface() {
+        let payload = "{\"evidence_chain_enrichment\":{\"summary\":\"needs cautious merge\",\"handoff_readiness\":\"mergeable\",\"gewyvern_merge_hint\":\"augmentations_and_guidance_context\"}}";
+        let capabilities = parse_external_capability_profile(
+            "{\"protocol_family\":\"etragon-resident-protocol\",\"protocol_version\":1,\"merge_capabilities\":{\"safe_automation_hints\":[\"augmentations_only\",\"augmentations_and_guidance_context\"],\"operator_review_hints\":[\"sidecar_only_opinion\"]},\"handoff_capabilities\":{\"readiness_levels\":[\"advisory_only\",\"mergeable\",\"automation_worthy\"]},\"context_capabilities\":{\"published_contexts\":[\"diagnostic_opinion\"]},\"compatibility\":{\"forward_compatibility_rules\":[\"unknown_merge_hints_must_downgrade_to_operator_review\"]}}",
+        )
+        .expect("capability profile should parse");
+        let items = parse_external_augmentations(payload, Some(&capabilities))
+            .expect("payload should parse");
+        let enrichment = items
+            .iter()
+            .find(|item| item.name == "external_evidence_chain_enrichment")
+            .expect("synthetic enrichment should exist");
+        let data = enrichment.data_json.as_deref().unwrap_or_default();
+        assert!(data.contains("\"external_handoff_readiness\":\"advisory_only\""));
+        assert!(data.contains("\"external_context_status\":\"undeclared_context_surface\""));
+        let note = items
+            .iter()
+            .find(|item| item.name == "external_capability_profile")
+            .expect("capability note should exist");
+        let note_data = note.data_json.as_deref().unwrap_or_default();
+        assert!(note_data.contains("\"context_status\":\"undeclared_context_surface\""));
+        assert!(note_data.contains("\"hint_status\":\"downgraded_undeclared_context_surface\""));
     }
 
     #[test]

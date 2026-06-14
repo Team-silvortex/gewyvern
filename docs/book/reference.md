@@ -29,6 +29,9 @@ stable contract, not a walkthrough.
 
 - [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
   Exact meanings for `primary_failure_*`, guidance, and ambiguity fields.
+- [docs/book/reference-training-dataset-consumption.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-training-dataset-consumption.md)
+  Exact fetch order, stable IDs, split hints, and consumption rules for the
+  training dataset and sample export surfaces.
 - [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
   Export bundle structure.
 - [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)

@@ -83,10 +83,20 @@ fn summary_and_findings_json_expose_external_augmentations() {
             assert!(summary.contains("\"name\":\"ml_candidate_manual_review\""));
             assert!(summary.contains("\"external_sidecar_context\":{"));
             assert!(summary.contains("\"merge_hint\":\"augmentations_and_guidance_context\""));
+            assert!(summary.contains("\"consumption_mode\":\"guidance_context\""));
+            assert!(summary.contains("\"has_external_capability_profile\":true"));
+            assert!(summary.contains("\"external_sidecar_trust_level\":\"trusted\""));
+            assert!(summary.contains("\"external_context_status\":\"declared\""));
+            assert!(summary.contains("\"external_sidecar_consumption_mode\":\"operator_review\""));
             assert!(findings.contains("\"augmentations\":["));
             assert!(findings.contains("\"producer_pass\":\"fake_etragon\""));
             assert!(findings.contains("\"external_sidecar_context\":{"));
             assert!(findings.contains("\"merge_hint\":\"sidecar_only_opinion\""));
+            assert!(findings.contains("\"consumption_mode\":\"operator_review\""));
+            assert!(findings.contains("\"has_external_capability_profile\":true"));
+            assert!(findings.contains("\"external_sidecar_trust_level\":\"trusted\""));
+            assert!(findings.contains("\"external_context_status\":\"declared\""));
+            assert!(findings.contains("\"external_sidecar_consumption_mode\":\"operator_review\""));
         },
     );
 }
@@ -198,12 +208,54 @@ fn analysis_snapshot_merges_external_sidecar_context_hints() {
             ));
             assert!(json.contains("\"external_merge_hint\":\"operator_guidance_candidate\""));
             assert!(json.contains("\"external_sidecar_context\":{"));
+            assert!(json.contains("\"has_external_capability_profile\":true"));
+            assert!(json.contains("\"external_capability_status\":\"verified\""));
+            assert!(json.contains("\"external_hint_status\":\"declared\""));
+            assert!(json.contains("\"external_context_status\":\"declared\""));
+            assert!(json.contains("\"external_sidecar_trust_level\":\"trusted\""));
+            assert!(json.contains("\"external_sidecar_consumption_mode\":\"guidance_candidate\""));
             assert!(json.contains(
                 "\"evidence_chain_enrichment\":{\"summary\":\"reinforced evidence chain\""
             ));
             assert!(json.contains("\"diagnostic_opinion\":{\"summary\":\"direct protocol failure is now the most direct opinion\""));
             assert!(json.contains("\"handoff_readiness\":\"automation_worthy\""));
             assert!(json.contains("\"merge_hint\":\"operator_guidance_candidate\""));
+            assert!(json.contains("\"consumption_mode\":\"operator_guidance_support\""));
+            assert!(json.contains("\"consumption_mode\":\"guidance_candidate\""));
+        },
+    );
+}
+
+#[cfg(target_family = "unix")]
+#[test]
+fn analysis_snapshot_downgrades_sidecar_hints_without_capability_profile() {
+    with_fake_etragon_hook_and_capabilities(
+        "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_targeted_escalation\",\"summary\":\"external engine suggests targeted escalation\",\"confidence\":\"candidate\",\"producer_stage\":\"candidate\",\"producer_pass\":\"fake_etragon\",\"data\":{\"module\":\"http_request_response\"}}],\"evidence_chain_enrichment\":{\"status\":\"reinforced\",\"primary_label\":\"targeted_escalation\",\"summary\":\"reinforced evidence chain\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"augmentations_with_operator_guidance_support\"},\"diagnostic_opinion\":{\"status\":\"ready\",\"diagnosis_kind\":\"direct_protocol_failure\",\"label\":\"targeted_escalation\",\"summary\":\"direct protocol failure is now the most direct opinion\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"operator_guidance_candidate\"}}",
+        None,
+        || {
+            let binding =
+                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                    .expect("http_request_path DSL should compile");
+            let export = annotate_export_trust(
+                run_binding_demo(binding),
+                &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+            );
+            let snapshot = analysis_snapshot(&export);
+            let json = analysis_snapshot_json(&snapshot);
+            assert!(json.contains("\"name\":\"external_capability_profile\""));
+            assert!(json.contains("\"compatibility_status\":\"unavailable\""));
+            assert!(json.contains("\"context_status\":\"unavailable\""));
+            assert!(json.contains(
+                "\"evidence_chain_enrichment\":{\"summary\":\"reinforced evidence chain\""
+            ));
+            assert!(json.contains("\"diagnostic_opinion\":{\"summary\":\"direct protocol failure is now the most direct opinion\""));
+            assert!(json.contains("\"handoff_readiness\":\"advisory_only\""));
+            assert!(json.contains("\"merge_hint\":\"augmentations_only\""));
+            assert!(json.contains("\"merge_hint\":\"sidecar_only_opinion\""));
+            assert!(json.contains("\"consumption_mode\":\"append_only\""));
+            assert!(json.contains("\"consumption_mode\":\"operator_review\""));
+            assert!(json.contains("\"external_context_status\":\"unavailable\""));
+            assert!(json.contains("\"external_sidecar_consumption_mode\":\"operator_review\""));
         },
     );
 }

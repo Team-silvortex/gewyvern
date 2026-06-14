@@ -89,6 +89,12 @@ fn append_api_target_refs_json(
             has_sidecar_context,
             has_enrichment,
             has_opinion,
+            has_capability_profile,
+            capability_status,
+            hint_status,
+            context_status,
+            trust_level,
+            consumption_mode,
             protocol,
             entry,
             default_entry,
@@ -102,6 +108,12 @@ fn append_api_target_refs_json(
                     target.has_external_sidecar_context,
                     target.has_external_evidence_chain_enrichment,
                     target.has_external_diagnostic_opinion,
+                    target.has_external_capability_profile,
+                    target.external_capability_status.as_deref(),
+                    target.external_hint_status.as_deref(),
+                    target.external_context_status.as_deref(),
+                    target.external_sidecar_trust_level.as_deref(),
+                    target.external_sidecar_consumption_mode.as_deref(),
                     target
                         .protocol_surface
                         .as_ref()
@@ -127,7 +139,10 @@ fn append_api_target_refs_json(
                     }),
                 )
             })
-            .unwrap_or((false, false, false, None, None, None, false, None, None));
+            .unwrap_or((
+                false, false, false, false, None, None, None, None, None, None, None, None, false,
+                None, None,
+            ));
         target.push_str("{\"name\":");
         append_json_string(target, name);
         target.push_str(",\"path_segment\":");
@@ -140,6 +155,37 @@ fn append_api_target_refs_json(
         target.push_str(if has_enrichment { "true" } else { "false" });
         target.push_str(",\"has_external_diagnostic_opinion\":");
         target.push_str(if has_opinion { "true" } else { "false" });
+        target.push_str(",\"has_external_capability_profile\":");
+        target.push_str(if has_capability_profile {
+            "true"
+        } else {
+            "false"
+        });
+        target.push_str(",\"external_capability_status\":");
+        match capability_status {
+            Some(value) => append_json_string(target, value),
+            None => target.push_str("null"),
+        }
+        target.push_str(",\"external_hint_status\":");
+        match hint_status {
+            Some(value) => append_json_string(target, value),
+            None => target.push_str("null"),
+        }
+        target.push_str(",\"external_context_status\":");
+        match context_status {
+            Some(value) => append_json_string(target, value),
+            None => target.push_str("null"),
+        }
+        target.push_str(",\"external_sidecar_trust_level\":");
+        match trust_level {
+            Some(value) => append_json_string(target, value),
+            None => target.push_str("null"),
+        }
+        target.push_str(",\"external_sidecar_consumption_mode\":");
+        match consumption_mode {
+            Some(value) => append_json_string(target, value),
+            None => target.push_str("null"),
+        }
         target.push_str(",\"has_protocol_surface\":");
         target.push_str(if protocol.is_some() { "true" } else { "false" });
         target.push_str(",\"protocol\":");
@@ -220,6 +266,12 @@ fn append_api_snapshot_presence_fields_json(target: &mut String, snapshot: &ApiS
     } else {
         "false"
     });
+    target.push_str(",\"has_training_example_json\":");
+    target.push_str(if snapshot.training_example_json.is_some() {
+        "true"
+    } else {
+        "false"
+    });
     target.push_str(",\"has_export_json\":");
     target.push_str(if snapshot.export_json.is_some() {
         "true"
@@ -256,6 +308,42 @@ fn append_api_snapshot_presence_fields_json(target: &mut String, snapshot: &ApiS
     } else {
         "false"
     });
+    target.push_str(",\"has_external_capability_profile\":");
+    target.push_str(if snapshot.has_external_capability_profile {
+        "true"
+    } else {
+        "false"
+    });
+    target.push_str(",\"external_capability_status\":");
+    if let Some(value) = snapshot.external_capability_status.as_deref() {
+        append_json_string(target, value);
+    } else {
+        target.push_str("null");
+    }
+    target.push_str(",\"external_hint_status\":");
+    if let Some(value) = snapshot.external_hint_status.as_deref() {
+        append_json_string(target, value);
+    } else {
+        target.push_str("null");
+    }
+    target.push_str(",\"external_context_status\":");
+    if let Some(value) = snapshot.external_context_status.as_deref() {
+        append_json_string(target, value);
+    } else {
+        target.push_str("null");
+    }
+    target.push_str(",\"external_sidecar_trust_level\":");
+    if let Some(value) = snapshot.external_sidecar_trust_level.as_deref() {
+        append_json_string(target, value);
+    } else {
+        target.push_str("null");
+    }
+    target.push_str(",\"external_sidecar_consumption_mode\":");
+    if let Some(value) = snapshot.external_sidecar_consumption_mode.as_deref() {
+        append_json_string(target, value);
+    } else {
+        target.push_str("null");
+    }
 }
 
 fn estimate_api_snapshot_meta_capacity(snapshot: &ApiSnapshot) -> usize {
@@ -303,6 +391,7 @@ mod tests {
                 summary_json: String::new(),
                 findings_json: String::new(),
                 analysis_json: String::new(),
+                training_example_json: String::new(),
                 protocol_surface_json: None,
                 protocol_surface: Some(ProtocolSurfaceSummary {
                     protocol: "redis".into(),
@@ -322,6 +411,12 @@ mod tests {
                 has_external_sidecar_context: false,
                 has_external_evidence_chain_enrichment: false,
                 has_external_diagnostic_opinion: false,
+                has_external_capability_profile: false,
+                external_capability_status: None,
+                external_hint_status: None,
+                external_context_status: None,
+                external_sidecar_trust_level: None,
+                external_sidecar_consumption_mode: None,
                 export_json: String::new(),
                 report_json: String::new(),
                 report_html: String::new(),

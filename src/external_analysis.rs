@@ -8,8 +8,10 @@ use std::time::{Duration, Instant};
 
 use crate::diagnosis_runtime::{AnalysisAugmentation, AnalysisSnapshot};
 
+mod capabilities;
 mod parse;
 
+use self::capabilities::{ExternalCapabilityProfile, parse_external_capability_profile};
 use self::parse::{parse_external_augmentations, single_json_string_field};
 
 const EXTERNAL_ENGINE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -34,8 +36,16 @@ struct SnapshotCacheKey {
 #[derive(Default)]
 struct ExternalAnalysisState {
     config: Option<ExternalAnalysisConfig>,
+    capabilities: CachedCapabilities,
     cache: HashMap<SnapshotCacheKey, Vec<AnalysisAugmentation>>,
     cache_order: VecDeque<SnapshotCacheKey>,
+}
+
+#[derive(Clone, Debug, Default)]
+enum CachedCapabilities {
+    #[default]
+    Unknown,
+    Loaded(Option<ExternalCapabilityProfile>),
 }
 
 #[cfg(test)]
@@ -62,6 +72,7 @@ pub(crate) fn set_external_analysis_config(config: Option<ExternalAnalysisConfig
     {
         let mut guard = state().lock().expect("external analysis mutex poisoned");
         guard.config = config;
+        guard.capabilities = CachedCapabilities::Unknown;
         guard.cache.clear();
         guard.cache_order.clear();
     }
@@ -74,17 +85,20 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
         let Some(config) = config else {
             return;
         };
-        let items = run_external_analysis(&config, snapshot_json).unwrap_or_else(|err| {
-            vec![AnalysisAugmentation {
-                kind: "external-engine".into(),
-                name: "external_engine_failed".into(),
-                summary: "external analysis engine failed; keeping built-in analysis only".into(),
-                confidence: "advisory".into(),
-                producer_stage: Some("external".into()),
-                producer_pass: Some("external-engine-hook".into()),
-                data_json: Some(single_json_string_field("message", &err)),
-            }]
-        });
+        let capabilities = query_external_capabilities(&config);
+        let items = run_external_analysis(&config, capabilities.as_ref(), snapshot_json)
+            .unwrap_or_else(|err| {
+                vec![AnalysisAugmentation {
+                    kind: "external-engine".into(),
+                    name: "external_engine_failed".into(),
+                    summary: "external analysis engine failed; keeping built-in analysis only"
+                        .into(),
+                    confidence: "advisory".into(),
+                    producer_stage: Some("external".into()),
+                    producer_pass: Some("external-engine-hook".into()),
+                    data_json: Some(single_json_string_field("message", &err)),
+                }]
+            });
         snapshot.augmentations.extend(items);
         return;
     }
@@ -92,27 +106,30 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
     #[allow(unreachable_code)]
     {
         let cache_key = snapshot_cache_key(snapshot_json);
+        let Some(config) = current_external_analysis_config() else {
+            return;
+        };
         let cached = {
             let guard = state().lock().expect("external analysis mutex poisoned");
-            let Some(config) = guard.config.clone() else {
-                return;
-            };
             if let Some(items) = guard.cache.get(&cache_key) {
                 items.clone()
             } else {
                 drop(guard);
-                let items = run_external_analysis(&config, snapshot_json).unwrap_or_else(|err| {
-                    vec![AnalysisAugmentation {
-                        kind: "external-engine".into(),
-                        name: "external_engine_failed".into(),
-                        summary: "external analysis engine failed; keeping built-in analysis only"
-                            .into(),
-                        confidence: "advisory".into(),
-                        producer_stage: Some("external".into()),
-                        producer_pass: Some("external-engine-hook".into()),
-                        data_json: Some(single_json_string_field("message", &err)),
-                    }]
-                });
+                let capabilities = capability_profile_for_config(&config);
+                let items = run_external_analysis(&config, capabilities.as_ref(), snapshot_json)
+                    .unwrap_or_else(|err| {
+                        vec![AnalysisAugmentation {
+                            kind: "external-engine".into(),
+                            name: "external_engine_failed".into(),
+                            summary:
+                                "external analysis engine failed; keeping built-in analysis only"
+                                    .into(),
+                            confidence: "advisory".into(),
+                            producer_stage: Some("external".into()),
+                            producer_pass: Some("external-engine-hook".into()),
+                            data_json: Some(single_json_string_field("message", &err)),
+                        }]
+                    });
                 let mut guard = state().lock().expect("external analysis mutex poisoned");
                 if !guard.cache.contains_key(&cache_key) {
                     guard.cache_order.push_back(cache_key);
@@ -132,6 +149,7 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
 
 fn run_external_analysis(
     config: &ExternalAnalysisConfig,
+    capabilities: Option<&ExternalCapabilityProfile>,
     snapshot_json: &str,
 ) -> Result<Vec<AnalysisAugmentation>, String> {
     let mut command = Command::new(&config.engine_bin);
@@ -195,7 +213,42 @@ fn run_external_analysis(
             format!("external engine exited with {}: {}", status, stderr)
         });
     }
-    parse_external_augmentations(&String::from_utf8_lossy(&stdout))
+    parse_external_augmentations(&String::from_utf8_lossy(&stdout), capabilities)
+}
+
+fn current_external_analysis_config() -> Option<ExternalAnalysisConfig> {
+    let guard = state().lock().expect("external analysis mutex poisoned");
+    guard.config.clone()
+}
+
+fn capability_profile_for_config(
+    config: &ExternalAnalysisConfig,
+) -> Option<ExternalCapabilityProfile> {
+    let cached = {
+        let guard = state().lock().expect("external analysis mutex poisoned");
+        guard.capabilities.clone()
+    };
+    match cached {
+        CachedCapabilities::Loaded(profile) => profile,
+        CachedCapabilities::Unknown => {
+            let profile = query_external_capabilities(config);
+            let mut guard = state().lock().expect("external analysis mutex poisoned");
+            guard.capabilities = CachedCapabilities::Loaded(profile.clone());
+            profile
+        }
+    }
+}
+
+fn query_external_capabilities(
+    config: &ExternalAnalysisConfig,
+) -> Option<ExternalCapabilityProfile> {
+    let mut command = Command::new(&config.engine_bin);
+    command.arg("protocol-capabilities");
+    let output = command.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    parse_external_capability_profile(&String::from_utf8_lossy(&output.stdout)).ok()
 }
 
 fn snapshot_cache_key(snapshot_json: &str) -> SnapshotCacheKey {

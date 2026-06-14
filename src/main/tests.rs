@@ -11,7 +11,8 @@ use super::{
     http_transactions_text, list_entries_json, list_entries_text, list_protocols_json,
     list_protocols_text, protocol_dsl_path, push_analysis_augmentation, render_report_outputs,
     route_fact, run_binding_demo, scan_report_html, scan_report_json, scan_report_text,
-    scan_targets_for_cli, summary_json, summary_line,
+    scan_targets_for_cli, summary_json, summary_line, training_example_json,
+    training_example_json_array, training_example_json_with_analysis,
 };
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
@@ -41,6 +42,8 @@ mod ambiguity;
 mod analysis;
 #[path = "tests/api_bench.rs"]
 mod api_bench;
+#[path = "tests/api_sidecar.rs"]
+mod api_sidecar;
 #[path = "tests/demo_cli.rs"]
 mod demo_cli;
 #[path = "tests/directory_protocols.rs"]
@@ -67,6 +70,8 @@ mod ssh_tls;
 mod support_external;
 #[path = "tests/support_facts.rs"]
 mod support_facts;
+#[path = "tests/training_surface.rs"]
+mod training_surface;
 
 use self::support_external::*;
 use self::support_facts::*;

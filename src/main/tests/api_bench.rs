@@ -19,9 +19,16 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
             summary_json: summary_json("dsl_demo", &export),
             findings_json: findings_json("dsl_demo", &export),
             analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
+            training_example_json: training_example_json("dsl_demo", &export),
             has_external_sidecar_context: false,
             has_external_evidence_chain_enrichment: false,
             has_external_diagnostic_opinion: false,
+            has_external_capability_profile: false,
+            external_capability_status: None,
+            external_hint_status: None,
+            external_context_status: None,
+            external_sidecar_trust_level: None,
+            external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
             report_json: scan_report_json(&[("dsl_demo".to_string(), export.clone())]),
             report_html: scan_report_html(&[("dsl_demo".to_string(), export.clone())]),
@@ -34,16 +41,23 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
     assert!(meta.contains("\"name\":\"dsl_demo\""));
     assert!(meta.contains("\"target_names\":[\"dsl_demo\"]"));
     assert!(meta.contains("\"has_analysis_json\":true"));
+    assert!(meta.contains("\"has_training_example_json\":true"));
     assert!(meta.contains("\"has_export_json\":true"));
     assert!(meta.contains("\"has_external_sidecar_context\":false"));
     assert!(meta.contains("\"has_external_evidence_chain_enrichment\":false"));
     assert!(meta.contains("\"has_external_diagnostic_opinion\":false"));
+    assert!(meta.contains("\"external_sidecar_trust_level\":null"));
+    assert!(meta.contains("\"external_context_status\":null"));
+    assert!(meta.contains("\"external_sidecar_consumption_mode\":null"));
 
     let (_, _, targets_body) = api_response_for_request("/v1/latest/targets", &snapshot);
     assert!(targets_body.contains("\"targets\":[\"dsl_demo\"]"));
     assert!(targets_body.contains("\"has_external_sidecar_context\":false"));
     assert!(targets_body.contains("\"has_external_evidence_chain_enrichment\":false"));
     assert!(targets_body.contains("\"has_external_diagnostic_opinion\":false"));
+    assert!(targets_body.contains("\"external_sidecar_trust_level\":null"));
+    assert!(targets_body.contains("\"external_context_status\":null"));
+    assert!(targets_body.contains("\"external_sidecar_consumption_mode\":null"));
     assert!(targets_body.contains("\"has_protocol_surface\":false"));
 
     let (_, _, summary_body) = api_response_for_request("/v1/latest/summary.json", &snapshot);
@@ -53,6 +67,12 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
     assert!(analysis_body.contains("\"protocol_flows\""));
     assert!(analysis_body.contains("\"augmentations\":["));
     assert!(analysis_body.contains("\"name\":\"automation_recommendation\""));
+    let (_, _, training_body) =
+        api_response_for_request("/v1/latest/training-example.json", &snapshot);
+    assert!(training_body.contains("\"kind\":\"training_example\""));
+    let (_, _, dataset_body) =
+        api_response_for_request("/v1/latest/training-dataset.json", &snapshot);
+    assert!(dataset_body.contains("\"kind\":\"training_dataset_manifest\""));
 
     let (_, _, export_body) = api_response_for_request("/v1/latest/export.json", &snapshot);
     assert!(export_body.contains("\"template_id\""));
@@ -98,9 +118,16 @@ fn api_snapshot_routes_cover_scan_export() {
                 summary_json: summary_json(name, export),
                 findings_json: findings_json(name, export),
                 analysis_json: analysis_snapshot_json(&analysis),
+                training_example_json: training_example_json(name, export),
                 has_external_sidecar_context,
                 has_external_evidence_chain_enrichment,
                 has_external_diagnostic_opinion,
+                has_external_capability_profile: false,
+                external_capability_status: None,
+                external_hint_status: None,
+                external_context_status: None,
+                external_sidecar_trust_level: None,
+                external_sidecar_consumption_mode: None,
                 export_json: export.to_json(),
                 report_json: scan_report_json(&[(name.clone(), export.clone())]),
                 report_html: scan_report_html(&[(name.clone(), export.clone())]),
@@ -124,6 +151,13 @@ fn api_snapshot_routes_cover_scan_export() {
                 .collect::<Vec<_>>()
                 .join(",")
         ),
+        training_example_json_array(
+            &outputs,
+            &outputs
+                .iter()
+                .map(|(_, export)| analysis_snapshot(export))
+                .collect::<Vec<_>>(),
+        ),
         scan_report_json(&outputs),
         scan_report_html(&outputs),
     );
@@ -138,6 +172,10 @@ fn api_snapshot_routes_cover_scan_export() {
     assert!(cap_body.contains("\"service\":\"gewyvern-api\""));
     assert!(cap_body.contains(&format!("\"version\":\"{}\"", env!("CARGO_PKG_VERSION"))));
     assert!(cap_body.contains("\"external_sidecar_context\":true"));
+    assert!(cap_body.contains("\"training_dataset_manifest\":true"));
+    assert!(cap_body.contains("\"external_capability_profile\":true"));
+    assert!(cap_body.contains("\"external_sidecar_trust_level\":true"));
+    assert!(cap_body.contains("\"external_sidecar_consumption_mode\":true"));
 
     let (targets_status, _, targets_body) =
         api_response_for_request("/v1/latest/targets", &snapshot);
@@ -154,6 +192,14 @@ fn api_snapshot_routes_cover_scan_export() {
     assert!(analysis_body.contains("\"target\":\"scan:http:request\""));
     assert!(analysis_body.contains("\"augmentations\":["));
     assert!(analysis_body.contains("\"name\":\"automation_recommendation\""));
+    let (training_status, _, training_body) =
+        api_response_for_request("/v1/latest/training-example.json", &snapshot);
+    assert_eq!(training_status, 200);
+    assert!(training_body.contains("\"kind\":\"training_example\""));
+    let (dataset_status, _, dataset_body) =
+        api_response_for_request("/v1/latest/training-dataset.json", &snapshot);
+    assert_eq!(dataset_status, 200);
+    assert!(dataset_body.contains("\"kind\":\"training_dataset_manifest\""));
 
     let (report_status, _, report_body) =
         api_response_for_request("/v1/latest/report.json", &snapshot);
@@ -205,9 +251,16 @@ fn api_target_list_exposes_url_safe_path_segments() {
             summary_json: summary_json("scan:http request/%", &export),
             findings_json: findings_json("scan:http request/%", &export),
             analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
+            training_example_json: training_example_json("scan:http request/%", &export),
             has_external_sidecar_context: false,
             has_external_evidence_chain_enrichment: false,
             has_external_diagnostic_opinion: false,
+            has_external_capability_profile: false,
+            external_capability_status: None,
+            external_hint_status: None,
+            external_context_status: None,
+            external_sidecar_trust_level: None,
+            external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
             report_json: scan_report_json(&[("scan:http request/%".to_string(), export.clone())]),
             report_html: scan_report_html(&[("scan:http request/%".to_string(), export.clone())]),
@@ -236,49 +289,6 @@ fn api_target_list_exposes_url_safe_path_segments() {
     );
     assert_eq!(analysis_status, 200);
     assert!(analysis_body.contains("\"primary_module_kind\""));
-}
-
-#[cfg(target_family = "unix")]
-#[test]
-fn api_meta_marks_external_sidecar_context_presence() {
-    with_fake_etragon_hook(
-        "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_targeted_escalation\",\"summary\":\"external engine suggests targeted escalation\",\"confidence\":\"candidate\",\"producer_stage\":\"candidate\",\"producer_pass\":\"fake_etragon\",\"data\":{\"module\":\"http_request_response\"}}],\"evidence_chain_enrichment\":{\"status\":\"reinforced\",\"primary_label\":\"targeted_escalation\",\"summary\":\"reinforced evidence chain\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"augmentations_with_operator_guidance_support\"},\"diagnostic_opinion\":{\"status\":\"ready\",\"diagnosis_kind\":\"direct_protocol_failure\",\"label\":\"targeted_escalation\",\"summary\":\"direct protocol failure is now the most direct opinion\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"operator_guidance_candidate\"}}",
-        || {
-            let binding =
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
-                    .expect("http_request_path DSL should compile");
-            let export = annotate_export_trust(
-                run_binding_demo(binding),
-                &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
-            );
-            let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
-            update_api_snapshot_for_single(
-                &state,
-                ApiRenderedTarget {
-                    name: "dsl_demo".into(),
-                    summary_text: summary_line("dsl_demo", &export),
-                    summary_json: summary_json("dsl_demo", &export),
-                    findings_json: findings_json("dsl_demo", &export),
-                    analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
-                    has_external_sidecar_context: true,
-                    has_external_evidence_chain_enrichment: true,
-                    has_external_diagnostic_opinion: true,
-                    export_json: export.to_json(),
-                    report_json: scan_report_json(&[("dsl_demo".to_string(), export.clone())]),
-                    report_html: scan_report_html(&[("dsl_demo".to_string(), export.clone())]),
-                },
-            );
-            let snapshot = state.lock().unwrap().clone();
-            let meta = api_snapshot_meta_json(&snapshot);
-            assert!(meta.contains("\"has_external_sidecar_context\":true"));
-            assert!(meta.contains("\"has_external_evidence_chain_enrichment\":true"));
-            assert!(meta.contains("\"has_external_diagnostic_opinion\":true"));
-            let (_, _, targets_body) = api_response_for_request("/v1/latest/targets", &snapshot);
-            assert!(targets_body.contains("\"has_external_sidecar_context\":true"));
-            assert!(targets_body.contains("\"has_external_evidence_chain_enrichment\":true"));
-            assert!(targets_body.contains("\"has_external_diagnostic_opinion\":true"));
-        },
-    );
 }
 
 #[test]

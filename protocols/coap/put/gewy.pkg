@@ -1,0 +1,8 @@
+name=coap_put
+version=0.14.0
+entry=main.gewy
+register.protocol=coap
+register.entry=put
+register.default=false
+register.aliases=coap-put,coap_put
+register.entry_aliases=update,replace

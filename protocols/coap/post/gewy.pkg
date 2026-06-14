@@ -1,0 +1,8 @@
+name=coap_post
+version=0.14.0
+entry=main.gewy
+register.protocol=coap
+register.entry=post
+register.default=false
+register.aliases=coap-post,coap_post
+register.entry_aliases=write,create

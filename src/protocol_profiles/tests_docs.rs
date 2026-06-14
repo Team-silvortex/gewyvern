@@ -51,9 +51,13 @@ fn every_family_hub_page_links_its_current_custom_subpages() {
         let absolute_hub = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), hub_page);
         let actual = fs::read_to_string(&absolute_hub)
             .unwrap_or_else(|_| panic!("family hub page should exist: {hub_page}"));
-        let allowed = [hub_page.clone(), PROTOCOL_SURFACE_PAGE.to_string(), IR_LOWERING_PAGE.to_string()]
-            .into_iter()
-            .collect::<BTreeSet<_>>();
+        let allowed = [
+            hub_page.clone(),
+            PROTOCOL_SURFACE_PAGE.to_string(),
+            IR_LOWERING_PAGE.to_string(),
+        ]
+        .into_iter()
+        .collect::<BTreeSet<_>>();
         let actual_links = filtered_surface_links(&actual, &allowed);
         assert_eq!(actual_links, subpages, "hub page mismatch for {protocol}");
     }
@@ -247,7 +251,11 @@ fn current_custom_subpages() -> BTreeMap<String, CustomSubpageSummary> {
             });
             item.entries.extend(shelf.entries.iter().cloned());
             for shelf_entry in &shelf.entries {
-                if let Some(entry_summary) = summary.entries.iter().find(|item| &item.mode == shelf_entry) {
+                if let Some(entry_summary) = summary
+                    .entries
+                    .iter()
+                    .find(|item| &item.mode == shelf_entry)
+                {
                     item.aliases.extend(entry_summary.aliases.iter().cloned());
                 }
             }
@@ -261,9 +269,12 @@ fn family_hub_page(protocol: &str) -> String {
 }
 
 fn allowed_directory_links() -> BTreeSet<String> {
-    [PROTOCOL_SURFACE_PAGE.to_string(), IR_LOWERING_PAGE.to_string()]
-        .into_iter()
-        .collect()
+    [
+        PROTOCOL_SURFACE_PAGE.to_string(),
+        IR_LOWERING_PAGE.to_string(),
+    ]
+    .into_iter()
+    .collect()
 }
 
 fn filtered_surface_links(content: &str, allowed: &BTreeSet<String>) -> BTreeSet<String> {

@@ -23,9 +23,12 @@ Entry aliases:
 ## `coap`
 
 Default entry: `get`  
-Protocol aliases: none  
+Protocol aliases: `coap-delete`, `coap-post`, `coap-put`, `coap_delete`, `coap_post`, `coap_put`  
 Entry aliases:
 - `get` (default): none
+- `delete`: `destroy`, `remove`
+- `post`: `create`, `write`
+- `put`: `replace`, `update`
 
 ## `dhcp`
 
@@ -319,9 +322,11 @@ Entry aliases:
 ## `snmp`
 
 Default entry: `get`  
-Protocol aliases: none  
+Protocol aliases: `snmp-get-next`, `snmp-set`, `snmp_get_next`, `snmp_set`  
 Entry aliases:
 - `get` (default): `query`, `read`
+- `get-next`: `next`, `walk`
+- `set`: `update`, `write`
 
 ## `socks5`
 

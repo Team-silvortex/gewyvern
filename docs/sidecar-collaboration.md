@@ -107,6 +107,7 @@ Each subobject may be `null` or carry:
 - `producer_pass`
 - `handoff_readiness`
 - `merge_hint`
+- `consumption_mode`
 
 This exists so nearby consumers do not need to parse augmentation internals just
 to understand whether the sidecar is only advisory, clearly mergeable, or
@@ -119,21 +120,59 @@ For cheap polling, the API also exposes additive presence signals.
 At `/v1/capabilities`:
 
 - `external_sidecar_context`
+- `external_capability_profile`
+- `external_context_status`
+- `external_sidecar_trust_level`
+- `external_sidecar_consumption_mode`
 
 At `/v1/latest/meta`:
 
 - `has_external_sidecar_context`
 - `has_external_evidence_chain_enrichment`
 - `has_external_diagnostic_opinion`
+- `has_external_capability_profile`
+- `external_capability_status`
+- `external_hint_status`
+- `external_context_status`
+- `external_sidecar_trust_level`
+- `external_sidecar_consumption_mode`
 
 At `/v1/latest/targets` on each `target_ref`:
 
 - `has_external_sidecar_context`
 - `has_external_evidence_chain_enrichment`
 - `has_external_diagnostic_opinion`
+- `has_external_capability_profile`
+- `external_capability_status`
+- `external_hint_status`
+- `external_context_status`
+- `external_sidecar_trust_level`
+- `external_sidecar_consumption_mode`
 
 These flags are meant to help pollers decide whether a full target-level fetch
 is worth doing.
+
+Current `external_sidecar_trust_level` bands:
+
+- `trusted`
+  - capability profile verified and collaboration hints declared
+- `degraded`
+  - capability profile verified, but some sidecar hints were conservatively downgraded
+- `unverified`
+  - sidecar context exists, but the capability profile is missing or not compatible enough to trust strongly
+
+Current `external_sidecar_consumption_mode` values:
+
+- `append_only`
+  - nearby sidecar output should remain additive context only
+- `guidance_context`
+  - nearby enrichment can be shown as guidance-adjacent context
+- `operator_guidance_support`
+  - nearby enrichment is strongly reinforcing the current built-in guidance
+- `operator_review`
+  - nearby opinion should be treated as operator-review context
+- `guidance_candidate`
+  - nearby opinion is the strongest guidance-candidate posture currently exposed
 
 ## Human-Facing Surfaces
 

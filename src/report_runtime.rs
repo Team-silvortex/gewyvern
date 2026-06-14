@@ -9,8 +9,11 @@ mod http_render;
 mod scan;
 mod scan_surface;
 mod sidecar;
+mod training;
 
-use self::sidecar::append_external_sidecar_context_field;
+use self::sidecar::{
+    append_external_sidecar_context_field, append_external_sidecar_contract_fields,
+};
 
 pub(super) fn summary_line(name: &str, export: &ExportBundle) -> String {
     self::sidecar::summary_line(name, export)
@@ -68,6 +71,26 @@ pub(super) fn render_report_outputs(cli: &Cli, outputs: &[(String, ExportBundle)
     self::scan::render_report_outputs(cli, outputs)
 }
 
+#[cfg(test)]
+pub(super) fn training_example_json(name: &str, export: &ExportBundle) -> String {
+    self::training::training_example_json(name, export)
+}
+
+pub(super) fn training_example_json_with_analysis(
+    name: &str,
+    export: &ExportBundle,
+    analysis: &AnalysisSnapshot,
+) -> String {
+    self::training::training_example_json_with_analysis(name, export, analysis)
+}
+
+pub(super) fn training_example_json_array(
+    outputs: &[(String, ExportBundle)],
+    analyses: &[AnalysisSnapshot],
+) -> String {
+    self::training::training_example_json_array(outputs, analyses)
+}
+
 pub(super) fn summary_json(name: &str, export: &ExportBundle) -> String {
     let analysis = analysis_snapshot(export);
     summary_json_with_analysis(name, export, &analysis)
@@ -118,6 +141,7 @@ pub(super) fn summary_json_with_analysis(
     json.push_str(",\"process_network_profiles\":");
     json.push_str(&process_network_profiles_json_from_snapshot(analysis));
     append_external_sidecar_context_field(&mut json, analysis);
+    append_external_sidecar_contract_fields(&mut json, analysis);
     json.push('}');
     json
 }
@@ -224,6 +248,7 @@ pub(super) fn findings_json_with_analysis(
     json.push_str("],\"process_network_profiles\":");
     json.push_str(&process_network_profiles_json_from_snapshot(analysis));
     append_external_sidecar_context_field(&mut json, analysis);
+    append_external_sidecar_contract_fields(&mut json, analysis);
     json.push('}');
     json
 }
@@ -441,4 +466,5 @@ pub(super) fn append_analysis_spine_json(json: &mut String, analysis: &AnalysisS
     json.push_str("\",\"augmentations\":");
     append_analysis_augmentations_json(json, &analysis.augmentations);
     append_external_sidecar_context_field(json, analysis);
+    append_external_sidecar_contract_fields(json, analysis);
 }

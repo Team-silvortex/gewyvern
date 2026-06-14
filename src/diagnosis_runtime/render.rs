@@ -1,6 +1,7 @@
 use super::{
     AnalysisAugmentation, AnalysisSnapshot, ProcessNetworkProfileSummary,
-    ProtocolFlowAnalysisSummary, failure_detail_family_label, failure_mode_family_label,
+    ProtocolFlowAnalysisSummary, external_capability_summary, external_sidecar_consumption_mode,
+    external_sidecar_trust_level, failure_detail_family_label, failure_mode_family_label,
     module_family_label, stage_family_label,
 };
 use crate::UiLocale;
@@ -220,6 +221,7 @@ pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
     append_analysis_augmentations_json(&mut json, &snapshot.augmentations);
     json.push_str(",\"external_sidecar_context\":");
     append_external_sidecar_context_json(&mut json, snapshot);
+    append_external_sidecar_contract_json(&mut json, snapshot);
     json.push_str(",\"process_network_profiles\":");
     json.push('[');
     append_process_network_profiles_json_from_snapshot(&mut json, snapshot);
@@ -266,6 +268,48 @@ pub(crate) fn append_external_sidecar_context_json(json: &mut String, snapshot: 
     json.push('}');
 }
 
+pub(crate) fn append_external_sidecar_contract_json(
+    json: &mut String,
+    snapshot: &AnalysisSnapshot,
+) {
+    let (has_profile, capability_status, hint_status, context_status) =
+        external_capability_summary(snapshot);
+    let consumption_mode = external_sidecar_consumption_mode(snapshot);
+    let trust_level = external_sidecar_trust_level(snapshot);
+    json.push_str(",\"has_external_capability_profile\":");
+    json.push_str(if has_profile { "true" } else { "false" });
+    json.push_str(",\"external_capability_status\":");
+    if let Some(value) = capability_status.as_deref() {
+        append_json_string(json, value);
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"external_hint_status\":");
+    if let Some(value) = hint_status.as_deref() {
+        append_json_string(json, value);
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"external_context_status\":");
+    if let Some(value) = context_status.as_deref() {
+        append_json_string(json, value);
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"external_sidecar_trust_level\":");
+    if let Some(value) = trust_level.as_deref() {
+        append_json_string(json, value);
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"external_sidecar_consumption_mode\":");
+    if let Some(value) = consumption_mode.as_deref() {
+        append_json_string(json, value);
+    } else {
+        json.push_str("null");
+    }
+}
+
 fn append_external_sidecar_item_json(
     json: &mut String,
     snapshot: &AnalysisSnapshot,
@@ -307,6 +351,18 @@ fn append_external_sidecar_item_json(
         item.data_json.as_deref(),
         "external_merge_hint",
     );
+    json.push_str(",\"context_status\":");
+    append_optional_embedded_json_string_field(
+        json,
+        item.data_json.as_deref(),
+        "external_context_status",
+    );
+    json.push_str(",\"consumption_mode\":");
+    if let Some(mode) = crate::diagnosis_runtime::external_sidecar_item_consumption_mode(item) {
+        append_json_string(json, mode);
+    } else {
+        json.push_str("null");
+    }
     json.push('}');
 }
 

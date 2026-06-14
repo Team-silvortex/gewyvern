@@ -3,6 +3,9 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 
 use super::json::{api_target_list_json, decode_api_target_path_segment, json_string};
+use super::training_manifest::{
+    target_training_dataset_manifest_json, training_dataset_manifest_json,
+};
 use super::{API_CLIENT_READ_TIMEOUT, API_ENDPOINTS_JSON, API_VERSION, ApiSnapshot, ApiState};
 
 pub(crate) fn api_response_for_request<'a>(
@@ -53,6 +56,16 @@ pub(crate) fn api_response_for_request<'a>(
                         200,
                         "application/json; charset=utf-8",
                         Cow::Borrowed(target.analysis_json.as_str()),
+                    ),
+                    "training-example.json" => (
+                        200,
+                        "application/json; charset=utf-8",
+                        Cow::Borrowed(target.training_example_json.as_str()),
+                    ),
+                    "training-dataset.json" => (
+                        200,
+                        "application/json; charset=utf-8",
+                        Cow::Owned(target_training_dataset_manifest_json(&target_name, target)),
                     ),
                     "export.json" => (
                         200,
@@ -131,7 +144,7 @@ pub(crate) fn api_response_for_request<'a>(
             200,
             "application/json; charset=utf-8",
             Cow::Owned(format!(
-                "{{\"service\":\"gewyvern-api\",\"version\":{},\"latest_snapshot\":true,\"serve_required\":true,\"external_sidecar_context\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":{}}}",
+                "{{\"service\":\"gewyvern-api\",\"version\":{},\"latest_snapshot\":true,\"serve_required\":true,\"training_example\":true,\"training_dataset_manifest\":true,\"external_sidecar_context\":true,\"external_capability_profile\":true,\"external_context_status\":true,\"external_sidecar_trust_level\":true,\"external_sidecar_consumption_mode\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":{}}}",
                 json_string(API_VERSION),
                 API_ENDPOINTS_JSON,
             )),
@@ -182,6 +195,30 @@ pub(crate) fn api_response_for_request<'a>(
                 404,
                 "text/plain; charset=utf-8",
                 Cow::Borrowed("no latest analysis json available"),
+            ),
+        },
+        "/v1/latest/training-example.json" => match snapshot.training_example_json.as_ref() {
+            Some(body) => (
+                200,
+                "application/json; charset=utf-8",
+                Cow::Borrowed(body.as_str()),
+            ),
+            None => (
+                404,
+                "text/plain; charset=utf-8",
+                Cow::Borrowed("no latest training example json available"),
+            ),
+        },
+        "/v1/latest/training-dataset.json" => match snapshot.training_example_json.as_ref() {
+            Some(_) => (
+                200,
+                "application/json; charset=utf-8",
+                Cow::Owned(training_dataset_manifest_json(snapshot)),
+            ),
+            None => (
+                404,
+                "text/plain; charset=utf-8",
+                Cow::Borrowed("no latest training dataset manifest available"),
             ),
         },
         "/v1/latest/export.json" => match snapshot.export_json.as_ref() {

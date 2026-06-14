@@ -143,6 +143,48 @@ pub(super) fn append_external_sidecar_context_field(
     append_external_sidecar_context_json(json, analysis);
 }
 
+pub(super) fn append_external_sidecar_contract_fields(
+    json: &mut String,
+    analysis: &AnalysisSnapshot,
+) {
+    let (has_profile, capability_status, hint_status, context_status) =
+        crate::diagnosis_runtime::external_capability_summary(analysis);
+    let consumption_mode = crate::diagnosis_runtime::external_sidecar_consumption_mode(analysis);
+    let trust_level = crate::diagnosis_runtime::external_sidecar_trust_level(analysis);
+    json.push_str(",\"has_external_capability_profile\":");
+    json.push_str(if has_profile { "true" } else { "false" });
+    json.push_str(",\"external_capability_status\":");
+    if let Some(value) = capability_status.as_deref() {
+        append_json_string(json, value);
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"external_hint_status\":");
+    if let Some(value) = hint_status.as_deref() {
+        append_json_string(json, value);
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"external_context_status\":");
+    if let Some(value) = context_status.as_deref() {
+        append_json_string(json, value);
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"external_sidecar_trust_level\":");
+    if let Some(value) = trust_level.as_deref() {
+        append_json_string(json, value);
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"external_sidecar_consumption_mode\":");
+    if let Some(value) = consumption_mode.as_deref() {
+        append_json_string(json, value);
+    } else {
+        json.push_str("null");
+    }
+}
+
 pub(super) fn summary_line(name: &str, export: &ExportBundle) -> String {
     let analysis = analysis_snapshot(export);
     summary_line_with_analysis(name, export, &analysis)

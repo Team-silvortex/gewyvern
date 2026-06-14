@@ -136,6 +136,7 @@ UDP_API="127.0.0.1:19191"
 UDP_LOG="${TMP_DIR}/udp-serve.log"
 UDP_SUMMARY="${TMP_DIR}/udp-summary.json"
 UDP_ANALYSIS="${TMP_DIR}/udp-analysis.json"
+UDP_TRAINING_SUMMARY="${TMP_DIR}/udp-training-roundtrip.json"
 
 UDP_PID="$(start_server udp "${UDP_SOCKET}" "${UDP_API}" "${UDP_LOG}")"
 trap 'kill "${UDP_PID}" >/dev/null 2>&1 || true; rm -rf "${TMP_DIR}"' EXIT
@@ -148,6 +149,12 @@ expect_contains "${UDP_SUMMARY}" '"primary_module_kind":"datagram_exchange"'
 expect_contains "${UDP_SUMMARY}" '"operator_guidance_action":"avoid_pid_strong_actions"'
 expect_contains "${UDP_ANALYSIS}" '"protocol_flows"'
 expect_contains "${UDP_ANALYSIS}" '"primary_failure_mode":"none"'
+bash "${ROOT}/scripts/training_dataset_roundtrip_demo.sh" \
+  "${UDP_API}" \
+  "${TMP_DIR}/training-roundtrip" \
+  >"${UDP_TRAINING_SUMMARY}"
+expect_contains "${UDP_TRAINING_SUMMARY}" '"sample_ids_verified": true'
+expect_contains "${UDP_TRAINING_SUMMARY}" '"default_split_policy": "name_bucket_mod_10"'
 
 stop_server "${UDP_PID}"
 

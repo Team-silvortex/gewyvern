@@ -245,6 +245,7 @@ curl http://127.0.0.1:9100/v1/capabilities
 curl http://127.0.0.1:9100/v1/latest/targets
 curl http://127.0.0.1:9100/v1/latest/summary.json
 curl http://127.0.0.1:9100/v1/latest/analysis.json
+curl http://127.0.0.1:9100/v1/latest/training-dataset.json
 ```
 
 If you also want to smoke the generic external-engine bridge end to end:
@@ -252,6 +253,19 @@ If you also want to smoke the generic external-engine bridge end to end:
 ```bash
 bash scripts/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json
 ```
+
+If you want to confirm the training surface can be consumed the way a sibling
+engine would actually use it, run:
+
+```bash
+bash scripts/training_dataset_roundtrip_demo.sh 127.0.0.1:9100 /tmp/gewyvern-training-roundtrip
+```
+
+That roundtrip checks three things that are easy to miss in narrower API smoke:
+
+- the manifest itself is available
+- each manifest sample row resolves to a real training example payload
+- `sample_id` stays identical between the manifest row and the fetched sample
 
 To target one specific route, pass a path segment as the sixth argument:
 

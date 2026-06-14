@@ -95,8 +95,17 @@ pub(crate) fn stun_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn coap_shelf(entry: &str) -> Option<ShelfMatch> {
     const GET: &[&str] = &["get"];
+    const POST: &[&str] = &["post"];
+    const PUT: &[&str] = &["put"];
+    const DELETE: &[&str] = &["delete"];
     if GET.contains(&entry) {
         Some(("get", "Get", GENERIC_SURFACE_PAGE, GET))
+    } else if POST.contains(&entry) {
+        Some(("post", "Post", GENERIC_SURFACE_PAGE, POST))
+    } else if PUT.contains(&entry) {
+        Some(("put", "Put", GENERIC_SURFACE_PAGE, PUT))
+    } else if DELETE.contains(&entry) {
+        Some(("delete", "Delete", GENERIC_SURFACE_PAGE, DELETE))
     } else {
         None
     }
@@ -485,8 +494,14 @@ pub(crate) fn http3_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn snmp_shelf(entry: &str) -> Option<ShelfMatch> {
     const GET: &[&str] = &["get"];
+    const GET_NEXT: &[&str] = &["get-next"];
+    const SET: &[&str] = &["set"];
     if GET.contains(&entry) {
         Some(("get", "Get", GENERIC_SURFACE_PAGE, GET))
+    } else if GET_NEXT.contains(&entry) {
+        Some(("get-next", "Get Next", GENERIC_SURFACE_PAGE, GET_NEXT))
+    } else if SET.contains(&entry) {
+        Some(("set", "Set", GENERIC_SURFACE_PAGE, SET))
     } else {
         None
     }

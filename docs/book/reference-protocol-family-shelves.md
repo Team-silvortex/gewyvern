@@ -290,7 +290,7 @@ In other words, we should now prefer workflow value over raw entry count.
 The following families should usually stay as protocol-surface entries only for
 now, unless their entry count or operator ambiguity grows:
 
-- single-entry families such as `tls`, `wireguard`, `stun`, `radius`, `ntp`,
+- smaller families such as `tls`, `wireguard`, `stun`, `radius`, `ntp`,
   `mdns`, `https`, `gtpu`, `dhcp`, `coap`, `ssdp`, and `snmp`
 - three-entry families such as `kerberos` and `hy2`,
   unless a user-facing workflow starts depending on them heavily

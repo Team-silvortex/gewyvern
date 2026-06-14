@@ -139,10 +139,24 @@ pub(super) const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
     ProtocolProfile {
         name: "coap",
         default_entry: "get",
-        entries: &[ProtocolEntryProfile {
-            mode: "get",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy",
-        }],
+        entries: &[
+            ProtocolEntryProfile {
+                mode: "get",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "post",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/coap_post_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "put",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/coap_put_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "delete",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/coap_delete_path.gewy",
+            },
+        ],
     },
     ProtocolProfile {
         name: "ntp",
@@ -537,10 +551,20 @@ pub(super) const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
     ProtocolProfile {
         name: "snmp",
         default_entry: "get",
-        entries: &[ProtocolEntryProfile {
-            mode: "get",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy",
-        }],
+        entries: &[
+            ProtocolEntryProfile {
+                mode: "get",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "get-next",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_next_path.gewy",
+            },
+            ProtocolEntryProfile {
+                mode: "set",
+                dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_set_path.gewy",
+            },
+        ],
     },
 ];
 

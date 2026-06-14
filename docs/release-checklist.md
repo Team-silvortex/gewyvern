@@ -26,8 +26,9 @@ Treat the line as release-ready only when all of the following stay true:
 3. packaged standalone runtime validation both pass
 4. packaged protocol validation both pass
 5. packaged operator-path validation both pass
-6. the default `deb+rpm` release wrapper passes as one routine
-7. the three-module Docker stack smoke still passes
+6. runtime validation still proves the training dataset/export roundtrip
+7. the default `deb+rpm` release wrapper passes as one routine
+8. the three-module Docker stack smoke still passes
 
 ## Rebuild Current Artifacts
 
@@ -80,6 +81,14 @@ It covers:
 - packaged protocol validation
 - packaged operator-path validation
 
+The packaged runtime validation now also confirms the machine-facing training
+surface stays internally consistent:
+
+- `/v1/latest/training-dataset.json` remains fetchable
+- each sample row points to a usable `training-example.json`
+- manifest `sample_id` values match the fetched sample payloads
+- the default split policy remains `name_bucket_mod_10`
+
 If you are narrowing a failure, these subchecks may be run independently:
 
 ```bash
@@ -100,6 +109,7 @@ current behavior that should remain stable enough for this line:
 - `http3 request` stays
   `operator_guidance_action = "safe_to_escalate_protocol_signal"`
 - packaged malformed ingest does not kill the `--serve` loop
+- packaged training dataset roundtrip still verifies stable sample identity
 
 If one of these changes, treat it as a deliberate semantics review, not just a
 test refresh chore.

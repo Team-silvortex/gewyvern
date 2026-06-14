@@ -1,6 +1,18 @@
 use super::*;
 
 pub(super) fn with_fake_etragon_hook<T>(output_json: &str, test: impl FnOnce() -> T) -> T {
+    with_fake_etragon_hook_and_capabilities(
+        output_json,
+        Some(default_fake_capability_profile_json()),
+        test,
+    )
+}
+
+pub(super) fn with_fake_etragon_hook_and_capabilities<T>(
+    output_json: &str,
+    capabilities_json: Option<&str>,
+    test: impl FnOnce() -> T,
+) -> T {
     struct FakeEtragonHookGuard {
         script_path: std::path::PathBuf,
     }
@@ -18,11 +30,20 @@ pub(super) fn with_fake_etragon_hook<T>(output_json: &str, test: impl FnOnce() -
         .expect("system clock should be after unix epoch")
         .as_nanos();
     let script_path = std::env::temp_dir().join(format!("fake-etragon-{unique}.sh"));
+    let capability_body = capabilities_json.unwrap_or_default();
+    let capability_branch = if capabilities_json.is_some() {
+        format!(
+            "if [ \"$1\" = \"protocol-capabilities\" ]; then\nprintf '%s\\n' '{}'\nexit 0\nfi\n",
+            capability_body
+        )
+    } else {
+        "if [ \"$1\" = \"protocol-capabilities\" ]; then\nexit 1\nfi\n".to_string()
+    };
     fs::write(
         &script_path,
         format!(
-            "#!/bin/sh\ncat >/dev/null\nprintf '%s\\n' '{}'\n",
-            output_json
+            "#!/bin/sh\n{}cat >/dev/null\nprintf '%s\\n' '{}'\n",
+            capability_branch, output_json
         ),
     )
     .expect("fake etragon hook should be writable");
@@ -42,6 +63,10 @@ pub(super) fn with_fake_etragon_hook<T>(output_json: &str, test: impl FnOnce() -
     let outcome = test();
     drop(cleanup);
     outcome
+}
+
+fn default_fake_capability_profile_json() -> &'static str {
+    "{\"protocol_family\":\"etragon-resident-protocol\",\"protocol_version\":1,\"merge_capabilities\":{\"safe_automation_hints\":[\"augmentations_only\",\"augmentations_and_guidance_context\"],\"operator_review_hints\":[\"augmentations_with_operator_guidance_support\",\"sidecar_only_opinion\",\"operator_guidance_candidate\"]},\"handoff_capabilities\":{\"readiness_levels\":[\"advisory_only\",\"mergeable\",\"automation_worthy\"]},\"context_capabilities\":{\"published_contexts\":[\"evidence_chain_enrichment\",\"diagnostic_opinion\"]},\"compatibility\":{\"forward_compatibility_rules\":[\"unknown_merge_hints_must_downgrade_to_operator_review\"]}}"
 }
 
 pub(super) fn synthesize_large_protocol_flow_export() -> gewyvern::export::ExportBundle {

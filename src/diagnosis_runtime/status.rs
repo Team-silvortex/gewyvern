@@ -89,6 +89,102 @@ pub(crate) fn external_sidecar_presence(snapshot: &AnalysisSnapshot) -> (bool, b
     (has_enrichment || has_opinion, has_enrichment, has_opinion)
 }
 
+pub(crate) fn external_capability_summary(
+    snapshot: &AnalysisSnapshot,
+) -> (bool, Option<String>, Option<String>, Option<String>) {
+    let Some(item) = snapshot
+        .augmentations
+        .iter()
+        .find(|item| item.name == "external_capability_profile")
+    else {
+        return (false, None, None, None);
+    };
+    let compatibility_status = item.data_json.as_deref().and_then(|data| {
+        crate::render_utils::extract_json_string_field(data, "compatibility_status")
+    });
+    let hint_status = item
+        .data_json
+        .as_deref()
+        .and_then(|data| crate::render_utils::extract_json_string_field(data, "hint_status"));
+    let context_status = item
+        .data_json
+        .as_deref()
+        .and_then(|data| crate::render_utils::extract_json_string_field(data, "context_status"));
+    (true, compatibility_status, hint_status, context_status)
+}
+
+pub(crate) fn external_sidecar_item_consumption_mode(
+    item: &AnalysisAugmentation,
+) -> Option<&'static str> {
+    let merge_hint = item.data_json.as_deref().and_then(|data| {
+        crate::render_utils::extract_json_string_field(data, "external_merge_hint")
+    });
+    match (item.name.as_str(), merge_hint.as_deref()) {
+        ("external_evidence_chain_enrichment", Some("augmentations_only")) => Some("append_only"),
+        ("external_evidence_chain_enrichment", Some("augmentations_and_guidance_context")) => {
+            Some("guidance_context")
+        }
+        (
+            "external_evidence_chain_enrichment",
+            Some("augmentations_with_operator_guidance_support"),
+        ) => Some("operator_guidance_support"),
+        ("external_diagnostic_opinion", Some("sidecar_only_opinion")) => Some("operator_review"),
+        ("external_diagnostic_opinion", Some("operator_guidance_candidate")) => {
+            Some("guidance_candidate")
+        }
+        _ => None,
+    }
+}
+
+pub(crate) fn external_sidecar_consumption_mode(snapshot: &AnalysisSnapshot) -> Option<String> {
+    let mut best_rank = 0u8;
+    let mut best_mode = None;
+    for item in &snapshot.augmentations {
+        let Some(mode) = external_sidecar_item_consumption_mode(item) else {
+            continue;
+        };
+        let rank = match mode {
+            "append_only" => 1,
+            "guidance_context" => 2,
+            "operator_review" => 3,
+            "operator_guidance_support" => 4,
+            "guidance_candidate" => 5,
+            _ => 0,
+        };
+        if rank > best_rank {
+            best_rank = rank;
+            best_mode = Some(mode.to_string());
+        }
+    }
+    best_mode
+}
+
+pub(crate) fn external_sidecar_trust_level(snapshot: &AnalysisSnapshot) -> Option<String> {
+    let (has_profile, capability_status, hint_status, context_status) =
+        external_capability_summary(snapshot);
+    let (has_sidecar_context, _, _) = external_sidecar_presence(snapshot);
+    if !has_sidecar_context && !has_profile {
+        return None;
+    }
+    match (
+        capability_status.as_deref(),
+        hint_status.as_deref(),
+        context_status.as_deref(),
+        has_sidecar_context,
+    ) {
+        (Some("verified"), Some("declared"), Some("declared"), true) => Some("trusted".to_string()),
+        (Some("verified"), _, _, true) => Some("degraded".to_string()),
+        (Some(_), _, _, true) => Some("unverified".to_string()),
+        (Some("verified"), Some("declared"), Some("declared"), false) => {
+            Some("trusted".to_string())
+        }
+        (Some("verified"), _, _, false) => Some("degraded".to_string()),
+        (Some(_), _, _, false) => Some("unverified".to_string()),
+        _ if has_sidecar_context => Some("unverified".to_string()),
+        _ => Some("unverified".to_string()),
+    }
+}
+
 pub(crate) fn suspect_modules_json_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
     crate::render_utils::string_list_json(&snapshot.suspect_modules)
 }

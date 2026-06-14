@@ -5,14 +5,17 @@ use crate::data_api::{
     ApiRenderedTarget, ApiState, start_api_service, update_api_snapshot_for_scan,
     update_api_snapshot_for_single,
 };
-use crate::diagnosis_runtime::external_sidecar_presence;
+use crate::diagnosis_runtime::{
+    external_capability_summary, external_sidecar_consumption_mode, external_sidecar_presence,
+    external_sidecar_trust_level,
+};
 
 use super::{
     Cli, SocketTarget, UiLocale, analysis_snapshot, analysis_snapshot_json, annotate_export_trust,
     findings_json_with_analysis, findings_text, render_report_outputs, render_scan_outputs,
     run_binding_session, scan_report_html, scan_report_json_with_analyses,
     scan_report_text_with_analyses, scan_targets_for_cli, summary_json_with_analysis,
-    summary_line_with_analysis,
+    summary_line_with_analysis, training_example_json_array, training_example_json_with_analysis,
 };
 
 pub(super) fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {
@@ -174,6 +177,7 @@ fn emit_rendered(
     let summary_json_body = summary_json_with_analysis(name, export, &analysis);
     let findings_json_body = findings_json_with_analysis(name, export, &analysis);
     let analysis_json_body = analysis_snapshot_json(&analysis);
+    let training_example_json_body = training_example_json_with_analysis(name, export, &analysis);
     let export_json_body = export.to_json();
     let report_json_body = scan_report_json_with_analyses(&single, std::slice::from_ref(&analysis));
     let report_html_body = scan_report_html(&single);
@@ -182,6 +186,14 @@ fn emit_rendered(
         has_external_evidence_chain_enrichment,
         has_external_diagnostic_opinion,
     ) = external_sidecar_presence(&analysis);
+    let (
+        has_external_capability_profile,
+        external_capability_status,
+        external_hint_status,
+        external_context_status,
+    ) = external_capability_summary(&analysis);
+    let external_sidecar_consumption_mode = external_sidecar_consumption_mode(&analysis);
+    let external_sidecar_trust_level = external_sidecar_trust_level(&analysis);
     if let Some(state) = api_state {
         update_api_snapshot_for_single(
             state,
@@ -191,9 +203,16 @@ fn emit_rendered(
                 summary_json: summary_json_body.clone(),
                 findings_json: findings_json_body.clone(),
                 analysis_json: analysis_json_body.clone(),
+                training_example_json: training_example_json_body.clone(),
                 has_external_sidecar_context,
                 has_external_evidence_chain_enrichment,
                 has_external_diagnostic_opinion,
+                has_external_capability_profile,
+                external_capability_status,
+                external_hint_status,
+                external_context_status,
+                external_sidecar_trust_level,
+                external_sidecar_consumption_mode,
                 export_json: export_json_body.clone(),
                 report_json: report_json_body.clone(),
                 report_html: report_html_body.clone(),
@@ -246,6 +265,7 @@ fn emit_scan_outputs(
             .collect::<Vec<_>>()
             .join(",")
     );
+    let scan_training_example_json = training_example_json_array(outputs, &analyses);
     let scan_report_html_body = scan_report_html(outputs);
     if let Some(state) = api_state {
         let targets = outputs
@@ -257,15 +277,32 @@ fn emit_scan_outputs(
                     has_external_evidence_chain_enrichment,
                     has_external_diagnostic_opinion,
                 ) = external_sidecar_presence(analysis);
+                let (
+                    has_external_capability_profile,
+                    external_capability_status,
+                    external_hint_status,
+                    external_context_status,
+                ) = external_capability_summary(analysis);
+                let external_sidecar_consumption_mode = external_sidecar_consumption_mode(analysis);
+                let external_sidecar_trust_level = external_sidecar_trust_level(analysis);
                 ApiRenderedTarget {
                     name: name.clone(),
                     summary_text: summary_line_with_analysis(name, export, analysis),
                     summary_json: summary_json_with_analysis(name, export, analysis),
                     findings_json: findings_json_with_analysis(name, export, analysis),
                     analysis_json: analysis_snapshot_json(analysis),
+                    training_example_json: training_example_json_with_analysis(
+                        name, export, analysis,
+                    ),
                     has_external_sidecar_context,
                     has_external_evidence_chain_enrichment,
                     has_external_diagnostic_opinion,
+                    has_external_capability_profile,
+                    external_capability_status,
+                    external_hint_status,
+                    external_context_status,
+                    external_sidecar_trust_level,
+                    external_sidecar_consumption_mode,
                     export_json: export.to_json(),
                     report_json: scan_report_json_with_analyses(
                         &[(name.clone(), export.clone())],
@@ -281,6 +318,7 @@ fn emit_scan_outputs(
             scan_summary_text.clone(),
             scan_summary_json.clone(),
             scan_analysis_json,
+            scan_training_example_json,
             scan_summary_json.clone(),
             scan_report_html_body.clone(),
         );

@@ -49,6 +49,26 @@ Prefer:
 This is the best entrypoint when the consumer wants the diagnosis spine plus
 the target's materialized protocol/process summaries.
 
+### Training / Replay / Dataset Export
+
+Prefer:
+
+- `/v1/latest/training-example.json`
+- `/v1/latest/targets/<path-segment>/training-example.json`
+- `/v1/latest/training-dataset.json`
+- `/v1/latest/targets/<path-segment>/training-dataset.json`
+
+This is the best entrypoint when the consumer wants a stable, model-oriented
+sample that already separates:
+
+- input features
+- supervision / built-in guidance targets
+- provenance / ingest posture
+
+Use the dataset manifest routes when the consumer wants to enumerate those
+samples in batch and discover the declared supervision heads without copying the
+sample payload itself.
+
 ### Scan Enumeration
 
 Prefer:
@@ -72,6 +92,102 @@ Use them when you want:
 
 Do not prefer them over `summary.json` or `analysis.json` for long-lived
 automation contracts.
+
+## Stable Core: Training Example JSON
+
+For:
+
+- `/v1/latest/training-example.json`
+- `/v1/latest/targets/<path-segment>/training-example.json`
+
+downstream tools should treat the following top-level fields as the stable core:
+
+- `kind`
+- `schema_version`
+- `name`
+- `sample_id`
+- `template_id`
+- `input`
+- `supervision`
+- `provenance`
+
+Current stable `input` subshape:
+
+- `target_status`
+- `primary_module_kind`
+- `primary_failure_stage`
+- `primary_failure_mode`
+- `primary_failure_detail`
+- `primary_failure_confidence`
+- `primary_failure_basis`
+- `ambiguous`
+- `competing_hypotheses`
+- `suspect_modules`
+- `protocol_flows`
+- `process_network_profiles`
+- `augmentations`
+- `external_sidecar_context`
+- `has_external_capability_profile`
+- `external_capability_status`
+- `external_hint_status`
+- `external_context_status`
+- `external_sidecar_trust_level`
+- `external_sidecar_consumption_mode`
+
+Current stable `supervision` subshape:
+
+- `operator_guidance_status`
+- `operator_guidance_action`
+- `operator_guidance_reason`
+- `operator_guidance_summary`
+- `targets`
+
+Current stable `supervision.targets` subshape:
+
+- `diagnosis`
+- `guidance`
+- `automation`
+- `ranking`
+
+Current stable `provenance` subshape:
+
+- `ingest_mode`
+- `ingest_mode_note`
+- `ingest_trust_mode`
+- `pid_attribution_status`
+- `fragments_loaded`
+- `flows`
+- `program_findings`
+- `module_findings`
+
+## Stable Core: Training Dataset Manifest JSON
+
+For:
+
+- `/v1/latest/training-dataset.json`
+- `/v1/latest/targets/<path-segment>/training-dataset.json`
+
+downstream tools should treat the following top-level fields as the stable core:
+
+- `kind`
+- `schema_version`
+- `snapshot_kind`
+- `target_count`
+- `sample_format`
+- `sample_schema_version`
+- `split_policies`
+- `supervision_heads`
+- `samples`
+
+Current stable `samples[]` subshape:
+
+- `name`
+- `sample_id`
+- `path_segment`
+- `group_key`
+- `split_hints`
+- `sample_path`
+- `dataset_path`
 
 ## Stable Core: Summary JSON
 
@@ -139,6 +255,12 @@ downstream tools should treat the following fields as the stable core:
 - `suspect_modules`
 - `augmentations`
 - `external_sidecar_context`
+- `has_external_capability_profile`
+- `external_capability_status`
+- `external_hint_status`
+- `external_context_status`
+- `external_sidecar_trust_level`
+- `external_sidecar_consumption_mode`
 - `process_network_profiles`
 - `protocol_flows`
 
@@ -158,6 +280,16 @@ downstream tools should treat the following fields as the stable core:
 - `external_sidecar_context`
   - the additive machine-facing summary of richer sidecar collaboration output
     when an external diagnosis partner publishes higher-level context
+- `external_sidecar_trust_level`
+  - a stable orchestration-friendly band for whether the sidecar contract can
+    be trusted directly, should be treated as degraded, or remains unverified
+- `external_context_status`
+  - whether the richer sidecar context surface itself was declared by the
+    capability handshake or had to be downgraded conservatively
+- `external_sidecar_consumption_mode`
+  - a stable consumption hint for the strongest nearby sidecar posture currently
+    exposed on this target, so orchestration does not have to reinterpret raw
+    merge hints on every poll
 
 ### Stable Subshape: `primary_process_profile`
 
@@ -256,6 +388,12 @@ The contract expectation is:
 - `has_external_sidecar_context`
 - `has_external_evidence_chain_enrichment`
 - `has_external_diagnostic_opinion`
+- `has_external_capability_profile`
+- `external_capability_status`
+- `external_hint_status`
+- `external_context_status`
+- `external_sidecar_trust_level`
+- `external_sidecar_consumption_mode`
 
 These flags do not change the routing contract. They are lightweight polling
 hints that help consumers choose which targets are worth deeper sidecar-aware
@@ -269,6 +407,12 @@ signals for richer sidecar collaboration context:
 - `has_external_sidecar_context`
 - `has_external_evidence_chain_enrichment`
 - `has_external_diagnostic_opinion`
+- `has_external_capability_profile`
+- `external_capability_status`
+- `external_hint_status`
+- `external_context_status`
+- `external_sidecar_trust_level`
+- `external_sidecar_consumption_mode`
 
 These fields are intended as cheap routing hints:
 
@@ -279,6 +423,10 @@ These fields are intended as cheap routing hints:
 `/v1/capabilities` also declares:
 
 - `external_sidecar_context`
+- `external_capability_profile`
+- `external_context_status`
+- `external_sidecar_trust_level`
+- `external_sidecar_consumption_mode`
 
 to indicate that the running API surface knows how to publish these additive
 presence signals.
@@ -331,6 +479,7 @@ Each subobject may be `null` or carry:
 - `producer_pass`
 - `handoff_readiness`
 - `merge_hint`
+- `consumption_mode`
 
 Contract expectation:
 
@@ -338,6 +487,21 @@ Contract expectation:
 - sidecar context is additive only
 - `handoff_readiness` and `merge_hint` should be treated as collaboration hints
   rather than replacements for built-in `operator_guidance_*`
+- `consumption_mode` is the preferred stable machine-facing interpretation of
+  those collaboration hints when downstream tooling wants a simpler policy layer
+
+Current `consumption_mode` values:
+
+- `append_only`
+  - sidecar output should remain additive context only
+- `guidance_context`
+  - sidecar enrichment can safely be read as guidance-adjacent context
+- `operator_guidance_support`
+  - sidecar enrichment is reinforcing the current built-in guidance strongly
+- `operator_review`
+  - sidecar opinion is valuable, but still should be treated as operator-review context
+- `guidance_candidate`
+  - sidecar opinion is the strongest nearby guidance candidate currently exposed
 
 ## Explicitly Non-Contract Areas
 
