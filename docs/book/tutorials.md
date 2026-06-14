@@ -9,11 +9,16 @@ walking through a path, not by skimming every reference page.
    First operator path from repo checkout to a real run.
 2. [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
    First package-authoring path for `gewylang`.
-3. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+3. [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
+   One full `.gewy -> frontend -> lowered IR -> archival snapshot` flow.
+4. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
    One full `.gewy -> binding -> runtime -> export` flow.
-4. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+5. [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
+   One full `protocol package -> registry -> gewylang -> IR -> runtime` system
+   view.
+6. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
    The stable `gewylang` subset and package model.
-5. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+7. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
    Day-to-day contributor workflow after the mental model is in place.
 
 ## Suggested Tutorial Paths
@@ -26,8 +31,11 @@ walking through a path, not by skimming every reference page.
 
 ### gewylang Path
 
+- [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
 - [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+- [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
+- [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
 - [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
 - [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
 

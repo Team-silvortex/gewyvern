@@ -26,6 +26,22 @@ For the current generated-style alias index, see:
 
 - [docs/book/reference-protocol-alias-index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-alias-index.md)
 
+## Book Path
+
+This page is the front door to the protocol reference volume.
+
+Read it first when you need:
+
+- canonical family and entry identity
+- alias behavior
+- default-entry resolution
+- the package-resolution contract
+
+Then continue with:
+
+- [docs/book/reference-protocol-groups.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-groups.md)
+- [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
+
 ## What The Protocol Surface Is
 
 In the current repository shape, the protocol surface is the registry-style

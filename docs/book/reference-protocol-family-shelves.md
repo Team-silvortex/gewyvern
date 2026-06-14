@@ -12,13 +12,29 @@ predictable place in the reference spine.
 The normal lookup order is:
 
 1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. one family hub page
-3. one narrower family subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+2. [docs/book/reference-protocol-groups.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-groups.md)
+3. one family hub page
+4. one narrower family subpage
+5. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
 
 Use the protocol-surface page when you need registry, alias, or default-entry
 resolution rules. Use a family hub page when you already know the protocol and
 need command-family lookup.
+
+## Book Path
+
+This page belongs to the protocol reference volume.
+
+Read it after:
+
+- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+- [docs/book/reference-protocol-groups.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-groups.md)
+
+Then continue with:
+
+- one exact family hub page
+- one narrower family subpage
+- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
 
 ## Current Family Shelves
 

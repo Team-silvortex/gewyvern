@@ -18,6 +18,13 @@ New documentation should land into one of four reading modes:
 If a page does not clearly fit one of those modes, it usually needs to be
 reframed before it is added.
 
+For the larger system map of how those modes fit together with top-level core
+pages, validation pages, and history pages, see
+[docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md).
+
+For the book-specific part and chapter discipline, see
+[docs/book/structure.md](/Users/Shared/chroot/dev/gewyvern/docs/book/structure.md).
+
 ## The Four Modes
 
 ### Tutorial
@@ -116,6 +123,10 @@ These are the long-lived shelves.
 - what each track is for
 
 This is the reading framework, not a second copy of the same content.
+
+Within `docs/book/`, also decide which storyline part a page belongs to. The
+current part discipline is documented in
+[docs/book/structure.md](/Users/Shared/chroot/dev/gewyvern/docs/book/structure.md).
 
 ## Writing Style
 

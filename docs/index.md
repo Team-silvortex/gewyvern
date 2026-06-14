@@ -19,6 +19,9 @@ For most readers, the right order is:
    and summary reading.
 4. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
    `gewylang`, package shape, compiler usage, and the preferred stable subset.
+   Pair it with
+   [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
+   when you want the full language-doc system map.
 5. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
    Day-to-day contributor workflow, test layout, and where to land changes.
 
@@ -36,16 +39,27 @@ For a more structured reading experience, use the book-style tracks:
 - [docs/book/reference.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference.md)
 - [docs/book/explanation.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation.md)
 - [docs/book/conventions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/conventions.md)
+- [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
+  Design sheet for the documentation set itself.
 
 ## Core Docs
 
 If you only want the durable top-level project pages, read these first:
 
+- [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
+- [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
+- [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
 - [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
 - [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
 - [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+- [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+- [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
+  System map for `gewylang` tutorial, guide, reference, IR, and rationale
+  shelves.
+- [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
+  Evolution sheet for the `gewylang -> IR -> runtime` implementation spine.
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
 
 Release/evidence pages live beside them:
@@ -61,6 +75,12 @@ Release/evidence pages live beside them:
   Project-level architecture sheet for layers, boundaries, and evolution.
 - [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
   Source-cluster dependency and ownership blueprint.
+- [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
+  Design-evolution sheet for the `gewylang -> IR -> runtime -> export` spine.
+- [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+  Coordination sheet across protocol, IR, runtime, and collaboration lines.
+- [docs/architecture-walkthrough-http-request.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-walkthrough-http-request.md)
+  One end-to-end sample path from packaged protocol entry to sidecar/control-plane consumption.
 - [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
   Source ownership map across the main runtime modules.
 - [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
@@ -91,6 +111,17 @@ Release/evidence pages live beside them:
 
 ## Compiler And Tooling
 
+- [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
+  Reading order and page-placement map for the `gewylang` documentation set.
+- [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
+  Long-lived roadmap for how source, frontend, lowering, and runtime should
+  mature together.
+- [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
+  Narrative bridge between package/frontend structure and lowered IR/archive
+  surfaces.
+- [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
+  System bridge from protocol family/entry resolution into packaged language,
+  IR, runtime, and export surfaces.
 - [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
   JSON guide for `gewyc frontend --json` and `gewyc explain --json`.
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)

@@ -6,6 +6,20 @@ That choice can look restrained at first, especially if you come from tools
 that always try to produce one strong answer. This page explains why the
 project does not do that by default.
 
+## Book Path
+
+This chapter lives in Part III: The Runtime Spine.
+
+Read it after:
+
+- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+
+Then continue with:
+
+- [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
+- [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
+
 ## The Short Version
 
 `gewyvern` is not trying to be a clever guesser.
@@ -190,3 +204,14 @@ If a result feels “less certain than you hoped,” read it in this order:
 
 That order reveals not only the runtime's answer, but how much trust it is
 asking you to place in that answer.
+
+## Continue With
+
+If you want to see how this conservative runtime posture constrains packaged
+protocol work, go to:
+
+- [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
+
+If you want to see how it constrains the broader multi-project stack, go to:
+
+- [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)

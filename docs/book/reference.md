@@ -3,8 +3,30 @@
 This track is for exact lookup. Use it when you need syntax, schema, or a
 stable contract, not a walkthrough.
 
+## Book Path
+
+This section works best as Part-by-part lookup, not as one long list.
+
+A good order is:
+
+1. language and compiler
+2. protocol registry and family shelves
+3. runtime and export contracts
+4. semantics
+5. extensibility
+
+If you are in the protocol volume specifically, start with:
+
+- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+- [docs/book/reference-protocol-groups.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-groups.md)
+- [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
+
 ## Language And Compiler
 
+- [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
+  System map for the `gewylang` documentation shelves and reading order.
+- [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
+  Implementation roadmap for the language/frontend/lowering/runtime spine.
 - [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
   Current package shape, `gewy.pkg`, `include(...)`, function units, and
   `use(...)` parameter boundary rules.
@@ -21,9 +43,22 @@ stable contract, not a walkthrough.
 - [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
   Registry and CLI contract candidate for canonical protocol families,
   entries, aliases, and default resolution.
+- [docs/book/reference-protocol-groups.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-groups.md)
+  Higher-level grouping index for choosing the right protocol family shelf.
 - [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
   Directory for the narrower built-in protocol family shelves such as Redis,
   FTP, SMTP, MQTT, LDAP, and PostgreSQL.
+
+## Protocol Reference Volume
+
+- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+  Start here for canonical family, entry, alias, and default-entry rules.
+- [docs/book/reference-protocol-groups.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-groups.md)
+  Use this when you know the traffic shape but not the exact family hub yet.
+- [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
+  Directory of exact family hubs and narrower family subpages.
+- [docs/book/reference-protocol-alias-index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-alias-index.md)
+  Generated-style alias lookup for the current built-in registry surface.
 
 ## Runtime And Export Contracts
 

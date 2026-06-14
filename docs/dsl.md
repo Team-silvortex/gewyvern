@@ -19,10 +19,15 @@ This page is not the best first stop for:
 
 For those, use:
 
+- [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
 - [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
 - [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
 - [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
 - [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+
+If you want the reading order for the whole language shelf rather than just
+the stable guide, start with
+[docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md).
 
 ## Goal
 
