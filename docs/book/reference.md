@@ -3,6 +3,12 @@
 This track is for exact lookup. Use it when you need syntax, schema, or a
 stable contract, not a walkthrough.
 
+If you only need runnable commands or the right validation script instead of an
+exact contract page, start with:
+
+- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+
 ## Book Path
 
 This section works best as Part-by-part lookup, not as one long list.
@@ -31,8 +37,12 @@ If you are in the protocol volume specifically, start with:
   Current package shape, `gewy.pkg`, `include(...)`, function units, and
   `use(...)` parameter boundary rules.
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-  `gewylang` syntax, function units, pipeline structure, package shape, and
-  stable subset.
+  Entry map for the stable `gewylang` shelf.
+- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
+  Stable syntax, package shape, function units, and pipeline structure.
+- [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
+  Exact DSL vocabulary, compatibility surface, predicates, and parameter
+  schema.
 - [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
   Draft formal grammar.
 - [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
@@ -74,6 +84,12 @@ If you are in the protocol volume specifically, start with:
 - [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
   Stable versus intentionally unstable surfaces.
 
+For the broader durable behavior and trust notes that sit beside these exact
+contracts, also keep nearby:
+
+- [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
+- [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
+
 ## Semantics
 
 - [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
@@ -96,3 +112,9 @@ If you are in the protocol volume specifically, start with:
 
 As the current `0.14.x` line continues, new exact-lookup material should prefer
 this shelf instead of adding more ad hoc “format note” pages at the top level.
+
+By contrast, runnable command collections and operator script routing should
+prefer the top-level lookup shelves:
+
+- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)

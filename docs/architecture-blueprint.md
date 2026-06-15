@@ -17,6 +17,29 @@ This page is not the deepest runtime internals note. For that, also read:
 - [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
 
+## Role In The Shelf
+
+Treat this page as the quickest architecture design sheet.
+
+Use it when you want:
+
+- one page that names the major subsystems
+- a fast evidence-movement picture through the stack
+- the stable architectural contracts for the current line
+
+Then branch like this:
+
+- fuller layered prose map:
+  [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+- runtime-pipeline deep dive:
+  [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+- source-module clustering:
+  [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+- evolution and sequencing:
+  [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
+  and
+  [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+
 ## One-Sentence Intent
 
 `gewyvern` is a protocol-agnostic, window-bounded network debugger where
@@ -24,6 +47,21 @@ This page is not the deepest runtime internals note. For that, also read:
 materializes evidence into structured flows and deterministic reasons, and the
 result can be exported, replayed, and augmented by nearby tools without
 replacing the core runtime truth.
+
+## Companion Shelves
+
+- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+  for the layered system map in prose
+- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+  for the runtime-pipeline and IR-bearing deep dive
+- [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+  for the source-cluster map
+- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+  for file-level ownership rules
+- [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
+  and
+  [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+  for how the design is supposed to mature
 
 ## System Blueprint
 

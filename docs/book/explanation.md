@@ -5,6 +5,17 @@ understand why the project is shaped the way it is.
 
 ## Core System Shape
 
+If you want the shortest architecture reading order inside the explanation
+track, use:
+
+1. [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+2. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+3. [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+4. [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+5. [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+6. [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
+7. [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+
 - [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
   How the documentation set itself is layered and maintained.
 - [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
@@ -59,6 +70,9 @@ attribution.
 - [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
   How long-lived runtime behavior, API refresh, and degraded mode are expected
   to behave.
+- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
+  Narrow downstream contract that these behavior and trust boundaries are
+  designed to protect.
 
 ## Sidecars And External Collaboration
 

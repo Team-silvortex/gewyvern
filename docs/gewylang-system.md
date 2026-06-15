@@ -16,6 +16,8 @@ This page answers:
 Read this alongside:
 
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
+- [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
 - [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
 - [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
 - [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
@@ -71,19 +73,25 @@ This page should stay short, runnable, and confidence-building.
 
 ## Layer 2: Durable Language Guide
 
-This is the stable language shelf.
+This is now a small stable language shelf rather than one giant page.
 
-Primary page:
+Primary entry page:
 
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
 
-Its job is to define the current preferred subset:
+Companion pages:
 
-- pipeline-driven composition
-- package shape
-- function units
-- frontend/explain surfaces
-- safety boundaries that are stable enough to document broadly
+- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
+- [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
+
+Together their jobs are:
+
+- `docs/dsl.md`
+  stable language map and reading routes
+- `docs/dsl-syntax.md`
+  current preferred syntax, package shape, and CLI-oriented authoring flow
+- `docs/dsl-reference.md`
+  exact compatibility and vocabulary lookup for the DSL surface
 
 If a reader asks “what is `gewylang` right now?”, this is the main answer.
 
@@ -149,6 +157,7 @@ Read in this order:
 
 1. [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
 2. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+3. [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
 3. [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
 
 ### Compiler-Oriented Contributor
@@ -156,19 +165,21 @@ Read in this order:
 Read in this order:
 
 1. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-2. [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
-3. [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-5. [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
-6. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+2. [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
+3. [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
+4. [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
+5. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+6. [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+7. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
 
 ### Safety-Oriented Reviewer
 
 Read in this order:
 
 1. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-2. [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
-3. [docs/book/explanation-gewylang-lightweight-types.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-lightweight-types.md)
+2. [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
+3. [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+4. [docs/book/explanation-gewylang-lightweight-types.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-lightweight-types.md)
 
 ## Placement Rules For Future gewylang Docs
 
@@ -176,9 +187,21 @@ When adding new `gewylang` material, use this routing table.
 
 ### Put it in `docs/dsl.md` when
 
-- it defines the stable language shape broadly
-- it belongs to the current preferred subset
-- most readers should learn it as part of the language itself
+- it defines the stable language map broadly
+- it routes readers between syntax, reference, compiler, and tutorial shelves
+- most readers should learn it as the language front door
+
+### Put it in `docs/dsl-syntax.md` when
+
+- it belongs to the current preferred syntax subset
+- it explains authoring shape or package shape
+- it is best taught as stable source-level structure
+
+### Put it in `docs/dsl-reference.md` when
+
+- it is exact DSL vocabulary or compatibility lookup
+- it defines predicates, narratives, stages, or key-surface details
+- it is too exact or too list-shaped for the overview page
 
 ### Put it in `docs/book/tutorial-gewylang-package.md` when
 

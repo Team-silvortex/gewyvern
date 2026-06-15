@@ -237,7 +237,7 @@ If you want a Markdown-ready block for a release-history page, the repository
 also carries:
 
 ```bash
-scripts/render_minor_line_ir_snapshot.sh \
+scripts/history/render_minor_line_ir_snapshot.sh \
   --title "v0.14.x IR Baseline" \
   amqp-publish=protocols/amqp/publish/main.gewy
 ```

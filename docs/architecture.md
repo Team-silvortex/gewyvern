@@ -21,6 +21,37 @@ For those, start with:
 - [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 - [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
 
+## Role In The Shelf
+
+Treat this page as the runtime-pipeline deep dive, not the architecture front
+door.
+
+Use it when you already know the broad system shape and now want:
+
+- the explicit runtime pipeline
+- the meaning of plans, sessions, flows, reasons, export, and replay
+- the current kernel-facing/runtime-facing boundaries in one place
+
+If you still need the project map first, step back to:
+
+- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+
+## Companion Shelves
+
+Read this page alongside:
+
+- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+  for the higher-level layered map
+- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+  for the quick design sheet
+- [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+  for the source-cluster dependency view
+- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+  for file ownership and layering rules
+- [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
+  for long-lived runtime/API posture instead of pipeline internals
+
 ## Pipeline
 
 The current pipeline in code is:

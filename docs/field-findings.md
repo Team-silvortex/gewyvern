@@ -16,6 +16,28 @@ Instead, it answers a narrower question:
 - what currently looks stable
 - what still looks conservative rather than strongly diagnostic
 
+## Role In The Shelf
+
+Treat this page as the short evidence ledger.
+
+Use it when the question is:
+
+- what has already been demonstrated recently?
+- which release-line claims are backed by concrete observed runs?
+- where did we already discover drift or conservative gaps?
+
+Do not use this page as:
+
+- the validation program definition
+- the shortest release gate
+- the main statement of what the line should mean
+
+For those, use:
+
+- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
+- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+
 ## Current Stable Findings
 
 ### 1. Registry Validation Is Fully Green
@@ -115,8 +137,8 @@ preferring stable conservatism over premature collapse.
 The release-style wrapper path exposed one real scripting bug during this
 validation cycle:
 
-- `scripts/release_container_check.sh`
-- `scripts/container_validation_summary.sh`
+- `scripts/packaging/release_container_check.sh`
+- `scripts/packaging/container_validation_summary.sh`
 
 In default `deb+rpm` mode, both scripts could trip `set -u` because they
 expanded an empty `mode_args` array directly.

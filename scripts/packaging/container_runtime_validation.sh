@@ -2,15 +2,15 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "${ROOT}/scripts/container_validation_common.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "${ROOT}/scripts/packaging/container_validation_common.sh"
 PACKAGES_DIR="${ROOT}/target/packages"
 DEB_IMAGE="${GEWY_DEB_RUNTIME_IMAGE:-ubuntu:24.04}"
 RPM_IMAGE="${GEWY_RPM_RUNTIME_IMAGE:-fedora:41}"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/container_runtime_validation.sh [--deb] [--rpm]
+Usage: scripts/packaging/container_runtime_validation.sh [--deb] [--rpm]
 
 Install the latest local native package into a clean Linux container and run a
 real standalone `--serve` validation path:

@@ -1,0 +1,168 @@
+# Script Entrypoints
+
+This page is the shortest goal-based map for the reorganized `scripts/` tree.
+
+Use it when you know what you want to prove, but do not want to remember which
+script shelf currently owns that check.
+
+The naming split used throughout the repository is:
+
+- `roundtrip`: one narrow end-to-end consumer path
+- `smoke`: one lightweight bring-up or existence check
+- `validation`: one grouped expectation check
+- `summary`: one wrapper over narrower validations
+
+## Directory Map
+
+- [`scripts/packaging/`](/Users/Shared/chroot/dev/gewyvern/scripts/packaging)
+  Build packages, install them, validate packaged behavior, and run release
+  gates.
+- [`scripts/validation/`](/Users/Shared/chroot/dev/gewyvern/scripts/validation)
+  Validate runtime behavior, registry coverage, field confidence, and the
+  multi-project stack.
+- [`scripts/demos/`](/Users/Shared/chroot/dev/gewyvern/scripts/demos)
+  Run narrow consumer-facing roundtrips for sockets, external engines, and
+  training surfaces.
+- [`scripts/linux/`](/Users/Shared/chroot/dev/gewyvern/scripts/linux)
+  Run Linux-only attach, kprobe, and tc smoke checks.
+- [`scripts/perf/`](/Users/Shared/chroot/dev/gewyvern/scripts/perf)
+  Run targeted benchmark wrappers.
+- [`scripts/history/`](/Users/Shared/chroot/dev/gewyvern/scripts/history)
+  Render history artifacts such as minor-line IR snapshots.
+
+## Goal To Script
+
+### I want the fastest release answer
+
+Run:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh
+```
+
+This is the highest-signal single entrypoint. It rebuilds native artifacts,
+runs packaged release validation, and then runs the three-module stack smoke.
+
+If you only want the packaged part, run:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh
+```
+
+Relevant docs:
+
+- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+- [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
+
+### I want to verify the packaged Linux artifacts
+
+Run:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/package_install_smoke.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_runtime_validation.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_validation_summary.sh
+```
+
+Use these when the question is specifically about `deb`/`rpm` output rather
+than source-tree behavior.
+
+### I want to validate built-in protocol packages
+
+Run:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh
+```
+
+Use `registry_validation.sh` for per-package drift, and
+`high_frequency_validation.sh` for the practical high-traffic protocol shelf.
+
+Relevant docs:
+
+- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
+- [docs/book/how-to-add-or-debug-protocol-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-add-or-debug-protocol-package.md)
+
+### I want to validate live `--serve` behavior
+
+Run:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh
+```
+
+Use this when you care about:
+
+- socket ingest surviving bad input
+- read-only API behavior
+- latest snapshot, analysis, export, and training surfaces
+- operator-facing deployment posture
+
+Relevant docs:
+
+- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+- [docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md)
+
+### I want to validate the real multi-project stack
+
+Run:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
+```
+
+This is the current collaboration smoke across:
+
+- two nearby `gewyvern` runtimes
+- one `etragon` sidecar
+- one `leserpent` control plane
+
+Use it when the question is about protocol support plus cross-project
+contracts, sidecar visibility, and control-plane registration semantics.
+
+### I want a narrow consumer roundtrip
+
+Run one of:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/socket_roundtrip_demo.sh /tmp/gewyvern.sock udp /tmp/gewyvern-out.json unix
+bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json
+bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/training_dataset_roundtrip_demo.sh 127.0.0.1:9910 /tmp/gewyvern-training-roundtrip
+```
+
+Use these when you want one thin path instead of a grouped validation shelf.
+
+### I want Linux-only probe smoke
+
+Run one of:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/linux/linux_attach_smoke.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/linux/linux_kprobe_smoke.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/linux/linux_tc_smoke.sh
+```
+
+Use these only on Linux-capable environments with the required kernel support.
+
+### I want a local benchmark or history snapshot
+
+Run:
+
+```bash
+bash /Users/Shared/chroot/dev/gewyvern/scripts/perf/benchmark_summary.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/history/render_minor_line_ir_snapshot.sh v0.14.x
+```
+
+## Suggested Reading Order
+
+If you are new to the project and want to orient first, use:
+
+1. [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
+2. [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
+3. [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+4. [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
+5. [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+
+That sequence gives you the product posture, the docs map, the script map, the
+current validation posture, and the actual ship gate.

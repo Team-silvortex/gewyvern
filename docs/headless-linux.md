@@ -20,6 +20,37 @@ inside Docker Desktop's Linux VM.
 
 Treat this as the first Linux landing zone, not the final validation target.
 
+## Role In The Shelf
+
+Treat this page as the Linux eBPF bring-up shelf.
+
+Use it when the question is:
+
+- how do I get into a Linux context for real eBPF attach work?
+- what should I run first inside the headless Linux container?
+- what are the limits of this Docker-based Linux path?
+
+Do not use this page as:
+
+- the generic contributor workflow guide
+- the packaging validation shelf
+- the short command index
+
+For those, use:
+
+- [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+- [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
+- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+
+## Companion Shelves
+
+- [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+  for the broader contributor workflow
+- [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
+  when the question shifts from Linux bring-up to native artifacts
+- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+  for the shortest goal-based routing into Linux or packaging scripts
+
 ## Prerequisite
 
 Docker Desktop needs to be running.
@@ -60,7 +91,7 @@ Run the current test suites:
 ```bash
 cargo tdd-rules
 cargo tdd
-cargo test
+cargo test --workspace
 ```
 
 ## Recommended Next eBPF Milestones

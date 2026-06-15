@@ -15,6 +15,17 @@ The goal is simple:
 This is not a public stability guarantee yet, but it is the intended internal
 shape we want to preserve while the project matures.
 
+## Companion Shelves
+
+Read this page alongside:
+
+- [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+  for the source-cluster dependency picture
+- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+  for the broader layered system map
+- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+  for runtime semantics rather than file placement
+
 ## Top-Level Shape
 
 The current top-level runtime split is:

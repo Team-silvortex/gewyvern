@@ -35,12 +35,53 @@ start with:
 - [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
 - [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
 
+## Role In The Shelf
+
+Treat this page as the system-level front door for architecture reading.
+
+Use it when you want:
+
+- the whole runtime in one layered map
+- the boundary between compiler, registry, runtime, export, and operator
+  surfaces
+- the shortest path toward the right deeper architecture page
+
+Then branch like this:
+
+- blueprint / design sheet first:
+  [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+- runtime-pipeline deep dive:
+  [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+- module ownership and source layering:
+  [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+  and
+  [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+- cross-line evolution and coordination:
+  [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
+  and
+  [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+
 ## One-Sentence Model
 
 `gewyvern` is a protocol-agnostic, window-bounded network debugger where a DSL
 compiles into fragment-template bindings, runtime planning/probing produces a
 fact stream, and the engine reconstructs transport flows, program flows, and
 deterministic reasons from that evidence.
+
+## Companion Shelves
+
+Read this page alongside:
+
+- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+  for the fastest project-level design sheet
+- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+  for the runtime-pipeline and IR-bearing deep dive
+- [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+  for the source-cluster dependency picture
+- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+  for file-level ownership and layering rules
+- [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+  for protocol / IR / runtime / collaboration sequencing
 
 ## Layer Stack
 

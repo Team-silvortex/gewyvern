@@ -19,6 +19,17 @@ For ingest trust semantics, see
 For external-engine collaboration shape, see
 [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md).
 
+If you want the nearby companion shelves around this page, use:
+
+- [docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md)
+  Task-first preflight before turning on `--serve`, exposing the API, or
+  wiring a sidecar/external engine.
+- [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
+  Durable note for restart, degraded mode, ingest failure, and latest-snapshot
+  service behavior.
+- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
+  Narrow downstream contract for automation and sidecar consumers.
+
 ## Intended Deployment Shape
 
 `gewyvern` should currently be treated as:

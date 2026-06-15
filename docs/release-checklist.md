@@ -15,7 +15,39 @@ For deeper background, see:
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
 - [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
+- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
 - [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+
+## Role In The Shelf
+
+Treat this page as the shortest practical release gate.
+
+Use it when the question is:
+
+- can we call this line green today?
+- which exact packaged checks must pass before shipping?
+- what is the fastest narrowing path when one release-phase check fails?
+
+Do not use this page as:
+
+- the full validation philosophy for the line
+- the durable statement of what `v0.14.0` is supposed to mean
+- the evidence log of what already passed over time
+
+For those, use:
+
+- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
+- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
+
+## Companion Shelves
+
+- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
+  for the broader validation program and scenario bands
+- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
+  for the short record of what has already been demonstrated
+- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+  for the current line's intended product and documentation posture
 
 ## Current `0.14.x` Gate
 
@@ -30,12 +62,15 @@ Treat the line as release-ready only when all of the following stay true:
 7. the default `deb+rpm` release wrapper passes as one routine
 8. the three-module Docker stack smoke still passes
 
+This section is intentionally binary and operational. It should stay shorter
+and stricter than the broader validation note.
+
 ## Rebuild Current Artifacts
 
 Always rebuild the native packages before calling the release path green:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/build_packages_in_container.sh --format all
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/build_packages_in_container.sh --format all
 ```
 
 Expected outputs:
@@ -51,7 +86,7 @@ version line.
 The shortest one-command gate is:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/release_gate.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh
 ```
 
 That sequence rebuilds current native artifacts, runs the packaged release
@@ -60,16 +95,16 @@ validation wrapper, and then runs the three-module stack smoke.
 If you want to skip one phase while narrowing a failure, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/release_gate.sh --skip-build
-bash /Users/Shared/chroot/dev/gewyvern/scripts/release_gate.sh --skip-stack
-bash /Users/Shared/chroot/dev/gewyvern/scripts/release_gate.sh --deb
-bash /Users/Shared/chroot/dev/gewyvern/scripts/release_gate.sh --rpm
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh --skip-build
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh --skip-stack
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh --deb
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh --rpm
 ```
 
 The lower-level packaged release-minded entrypoint is:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/release_container_check.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh
 ```
 
 This must pass in default `deb+rpm` mode.
@@ -92,10 +127,10 @@ surface stays internally consistent:
 If you are narrowing a failure, these subchecks may be run independently:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/package_install_smoke.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/container_runtime_validation.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/container_operator_path_validation.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/package_install_smoke.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_runtime_validation.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_protocol_validation.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_operator_path_validation.sh
 ```
 
 ## Expected Packaged Semantics
@@ -119,7 +154,7 @@ test refresh chore.
 After the single-project packaged path is green, run:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/three_module_stack_smoke.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
 ```
 
 That smoke should confirm:

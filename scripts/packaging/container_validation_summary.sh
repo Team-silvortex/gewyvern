@@ -2,13 +2,13 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUN_DEB=1
 RUN_RPM=1
 
 usage() {
   cat <<'EOF'
-Usage: scripts/container_validation_summary.sh [--deb] [--rpm]
+Usage: scripts/packaging/container_validation_summary.sh [--deb] [--rpm]
 
 Run the packaged Linux container validation suite as one summarized entrypoint:
 
@@ -66,11 +66,11 @@ echo "[summary] starting packaged container validation (${mode_label})"
 
 echo "[summary] ----------------------------------------"
 echo "[summary] running packaged protocol validation"
-run_mode_script "${ROOT}/scripts/container_protocol_validation.sh"
+run_mode_script "${ROOT}/scripts/packaging/container_protocol_validation.sh"
 
 echo "[summary] ----------------------------------------"
 echo "[summary] running packaged operator-path validation"
-run_mode_script "${ROOT}/scripts/container_operator_path_validation.sh"
+run_mode_script "${ROOT}/scripts/packaging/container_operator_path_validation.sh"
 
 echo "[summary] ----------------------------------------"
 echo "[summary] packaged container validation: ok (${mode_label})"

@@ -131,7 +131,7 @@ Now ask whether the scanned built-in package shelf still holds together:
 ```bash
 cargo run -- --list-protocols
 cargo run -- --scan-all --json --summary-only
-bash /Users/Shared/chroot/dev/gewyvern/scripts/registry_validation.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh
 ```
 
 Why all three matter:
@@ -155,7 +155,7 @@ high-frequency protocol shelf.
 Run:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/high_frequency_validation.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh
 ```
 
 This is where we keep pressure on:
@@ -180,8 +180,8 @@ When you are judging release confidence or cross-environment behavior, use the
 container line as well:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/release_container_check.sh --deb
-bash /Users/Shared/chroot/dev/gewyvern/scripts/three_module_stack_smoke.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh --deb
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
 ```
 
 These answer different questions:
@@ -275,14 +275,14 @@ curl http://127.0.0.1:9100/v1/latest/training-dataset.json
 If you also want to smoke the external-engine bridge roundtrip end to end:
 
 ```bash
-bash scripts/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json
+bash scripts/demos/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json
 ```
 
 If you want to confirm the training-dataset consumer roundtrip the way a
 sibling engine would actually use it, run:
 
 ```bash
-bash scripts/training_dataset_roundtrip_demo.sh 127.0.0.1:9100 /tmp/gewyvern-training-roundtrip
+bash scripts/demos/training_dataset_roundtrip_demo.sh 127.0.0.1:9100 /tmp/gewyvern-training-roundtrip
 ```
 
 That consumer roundtrip checks three things that are easy to miss in narrower
@@ -295,7 +295,7 @@ API smoke:
 To target one specific route, pass a path segment as the sixth argument:
 
 ```bash
-bash scripts/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json socket_session
+bash scripts/demos/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json socket_session
 ```
 
 Use this when you need confidence in:

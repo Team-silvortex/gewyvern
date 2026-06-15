@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-GEWY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "${GEWY_ROOT}/scripts/demo_common.sh"
+GEWY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "${GEWY_ROOT}/scripts/demos/demo_common.sh"
 ENGINE_ROOT_DEFAULT="${ENGINE_ROOT:-}"
 ETRAGON_ROOT_DEFAULT="${ETRAGON_ROOT:-}"
 

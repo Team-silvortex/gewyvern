@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "${ROOT}/scripts/linux_ebpf_smoke_common.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "${ROOT}/scripts/linux/linux_ebpf_smoke_common.sh"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gewyvern-linux-tc-smoke.XXXXXX")"
 DEV_NAME="${1:-eth0}"
 trap 'tc qdisc del dev "${DEV_NAME}" clsact >/dev/null 2>&1 || true; rm -rf "${TMP_DIR}"' EXIT

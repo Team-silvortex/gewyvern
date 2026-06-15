@@ -17,7 +17,7 @@ Measurement notes:
 
 - date: `2026-05-20`
 - host: local developer machine
-- method: `bash scripts/benchmark_summary.sh 3 <benchmark-filter>`
+- method: `bash scripts/perf/benchmark_summary.sh 3 <benchmark-filter>`
 - value to compare first: `median`
 
 ## Release-Candidate Interpretation
@@ -49,7 +49,7 @@ For `gewylang` / `gewyc`, the first useful compiler-facing benchmark family is:
 
 The expected workflow before calling a release candidate acceptable is:
 
-1. run the targeted benchmark with `scripts/benchmark_summary.sh`
+1. run the targeted benchmark with `scripts/perf/benchmark_summary.sh`
 2. compare the new `median` against this table
 3. if the result is materially worse, either fix it or explicitly accept the
    regression with intent
@@ -72,16 +72,16 @@ Current baselines:
 Recommended workflow:
 
 1. Make one focused optimization change.
-2. Run the targeted benchmark with `scripts/benchmark_summary.sh`.
+2. Run the targeted benchmark with `scripts/perf/benchmark_summary.sh`.
 3. Compare the new `median` against this table.
 4. Only update this file when a new result is stable enough to be a useful team reference.
 
 Suggested commands:
 
 ```bash
-bash scripts/benchmark_summary.sh 3 benchmark_analysis_snapshot_large_protocol_flow_export
-bash scripts/benchmark_summary.sh 3 benchmark_scan_report_
-bash scripts/benchmark_summary.sh 3 benchmark_findings_json_large_protocol_flow_export
-bash scripts/benchmark_summary.sh 3 benchmark_http_transactions_
-bash scripts/benchmark_summary.sh 3 benchmark_gewyc_
+bash scripts/perf/benchmark_summary.sh 3 benchmark_analysis_snapshot_large_protocol_flow_export
+bash scripts/perf/benchmark_summary.sh 3 benchmark_scan_report_
+bash scripts/perf/benchmark_summary.sh 3 benchmark_findings_json_large_protocol_flow_export
+bash scripts/perf/benchmark_summary.sh 3 benchmark_http_transactions_
+bash scripts/perf/benchmark_summary.sh 3 benchmark_gewyc_
 ```

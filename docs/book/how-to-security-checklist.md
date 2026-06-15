@@ -191,11 +191,11 @@ new local or packaged setup.
 
 The current first script to run is:
 
-- [scripts/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/runtime_operator_validation.sh)
+- [scripts/validation/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh)
 
 If you want a machine-readable summary for CI or local wrappers, run it as:
 
-- `bash scripts/runtime_operator_validation.sh --json-out /tmp/gewyvern-runtime-validation.json`
+- `bash scripts/validation/runtime_operator_validation.sh --json-out /tmp/gewyvern-runtime-validation.json`
 
 That script exercises the practical serve/API shell by checking that:
 

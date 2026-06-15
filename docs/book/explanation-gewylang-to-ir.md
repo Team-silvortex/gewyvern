@@ -14,6 +14,8 @@ It sits between:
 
 - the source-language guide in
   [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+- the source-shape companion in
+  [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
 - the exact lowering contract in
   [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
 - the runtime walkthrough in
@@ -29,6 +31,7 @@ This chapter lives in Part II: The Language And Compiler Spine.
 Read it after:
 
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
 - [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
 
 Then continue with:

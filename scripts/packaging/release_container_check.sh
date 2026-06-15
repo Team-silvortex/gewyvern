@@ -2,13 +2,13 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUN_DEB=1
 RUN_RPM=1
 
 usage() {
   cat <<'EOF'
-Usage: scripts/release_container_check.sh [--deb] [--rpm]
+Usage: scripts/packaging/release_container_check.sh [--deb] [--rpm]
 
 Run the current release-oriented packaged Linux validation suite:
 
@@ -67,15 +67,15 @@ echo "[release-check] starting packaged release validation (${mode_label})"
 
 echo "[release-check] ----------------------------------------"
 echo "[release-check] running package install smoke"
-run_mode_script "${ROOT}/scripts/package_install_smoke.sh"
+run_mode_script "${ROOT}/scripts/packaging/package_install_smoke.sh"
 
 echo "[release-check] ----------------------------------------"
 echo "[release-check] running packaged runtime validation"
-run_mode_script "${ROOT}/scripts/container_runtime_validation.sh"
+run_mode_script "${ROOT}/scripts/packaging/container_runtime_validation.sh"
 
 echo "[release-check] ----------------------------------------"
 echo "[release-check] running packaged protocol/operator summary"
-run_mode_script "${ROOT}/scripts/container_validation_summary.sh"
+run_mode_script "${ROOT}/scripts/packaging/container_validation_summary.sh"
 
 echo "[release-check] ----------------------------------------"
 echo "[release-check] packaged release validation: ok (${mode_label})"

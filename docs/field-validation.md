@@ -21,6 +21,45 @@ For the current release posture, see
 For the short running record of what this validation has already shown in
 practice, see [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md).
 
+For the shorter goal-based script map that now sits above the individual
+validation shelves, see
+[docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md).
+
+For the concrete release gate, packaged artifact checklist, and ship/no-ship
+decision shelf, use
+[docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md).
+
+## Role In The Shelf
+
+Treat this page as the validation-program page for the active line.
+
+Use it when the question is:
+
+- what kinds of validation should we still be running repeatedly?
+- which scenario families matter most for trust in `0.14.x`?
+- what counts as strong enough validation evidence versus shallow smoke?
+
+Do not use this page as:
+
+- the shortest ship/no-ship checklist
+- the current release claim in one paragraph
+- the running record of what already passed
+
+For those, use:
+
+- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
+
+## Companion Shelves
+
+- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
+  for the short evidence log of what this validation line has already shown
+- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+  for the shortest current release gate
+- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+  for the current line's intended claim and scope
+
 ## Current Prelaunch Scope
 
 Keep the current `0.14.x` field-validation line intentionally narrow.
@@ -71,6 +110,10 @@ Before taking a protocol or IR change, ask:
 
 If the answer is "no", it probably belongs after the prelaunch line rather than
 before it.
+
+This section is about validation priority, not product marketing and not the
+final ship decision. A line can have a clear posture and still need more field
+validation repetitions before the release gate should be called green.
 
 ## What Counts As Validation
 
@@ -136,7 +179,7 @@ Current commands to keep exercising:
 - `cargo run -- --demo udp --json --summary-only`
 - `cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy --json --summary-only`
 - `cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy --json`
-- [scripts/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/high_frequency_validation.sh)
+- [scripts/validation/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh)
 
 Expected qualities:
 
@@ -159,7 +202,7 @@ Current commands to keep exercising:
 
 - `cargo run -- --list-protocols`
 - `cargo run -- --scan-all --json --summary-only`
-- [scripts/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/registry_validation.sh)
+- [scripts/validation/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh)
 
 Expected qualities:
 
@@ -189,9 +232,9 @@ Purpose:
 
 Current commands to keep exercising:
 
-- [scripts/socket_roundtrip_demo.sh](/Users/Shared/chroot/dev/gewyvern/scripts/socket_roundtrip_demo.sh)
+- [scripts/demos/socket_roundtrip_demo.sh](/Users/Shared/chroot/dev/gewyvern/scripts/demos/socket_roundtrip_demo.sh)
   Socket session roundtrip through the standalone ingest path.
-- [scripts/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/runtime_operator_validation.sh)
+- [scripts/validation/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh)
   Broader serve/API/runtime operator validation path.
 - local `--serve` plus read-only API usage
 
@@ -283,15 +326,17 @@ For this phase, treat the following as pass conditions:
 
 The current local smoke entry point is:
 
-- [scripts/field_validation_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/field_validation_smoke.sh)
-- [scripts/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/high_frequency_validation.sh)
-- [scripts/release_container_check.sh](/Users/Shared/chroot/dev/gewyvern/scripts/release_container_check.sh)
-- [scripts/container_validation_summary.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_validation_summary.sh)
-- [scripts/container_protocol_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh)
-- [scripts/container_operator_path_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_operator_path_validation.sh)
-- [scripts/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/registry_validation.sh)
-- [scripts/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/runtime_operator_validation.sh)
-- [scripts/container_runtime_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_runtime_validation.sh)
+- [scripts/validation/field_validation_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/field_validation_smoke.sh)
+- [scripts/validation/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh)
+- [scripts/packaging/release_container_check.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh)
+- [scripts/packaging/container_validation_summary.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_validation_summary.sh)
+- [scripts/packaging/container_protocol_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_protocol_validation.sh)
+- [scripts/packaging/container_operator_path_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_operator_path_validation.sh)
+- [scripts/validation/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh)
+- [scripts/validation/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh)
+- [scripts/packaging/container_runtime_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_runtime_validation.sh)
+- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+  Release-facing packaged and multi-project gate.
 
 It is intentionally small.
 
@@ -325,59 +370,37 @@ The release container check is the shortest repeatable check that:
   not only whatever package output happened to already exist under
   `target/packages`
 
-The container protocol validator is the shortest repeatable check that:
+The exact packaged release gate, rebuild order, and three-module collaboration
+gate are intentionally described in
+[docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+rather than duplicated here. This page treats them as one validation track
+inside the wider field-validation program.
 
-- packaged protocol support still works after native install
-- grouped high-frequency protocol families keep their expected module/guidance
-  shape in clean Linux environments:
-  - resolution, web, and secure transport:
-    DNS, HTTP, TLS, HTTP/3, QUIC
-  - remote access and proxy:
-    SSH, SOCKS5
-  - current HTTP/3 request posture remains explicitly high-signal:
-    `primary_module_kind = "http3_request_response"` with
-    `operator_guidance_action = "safe_to_escalate_protocol_signal"`
-  - database, messaging, and directory:
-    MySQL, PostgreSQL, SMTP, LDAP
-- packaged `--scan-all` still works outside the development host
+The container protocol validator is the shortest repeatable check that packaged
+protocol support still works after native install, including grouped
+high-frequency protocol families and packaged `--scan-all` outside the
+development host.
 
-The registry validator is the shortest repeatable check that:
+The registry validator is the shortest repeatable check that scanned protocol
+packages still compile through the current path, machine-facing compiler JSON
+has not silently drifted, and failures are isolated to concrete packages
+instead of only surfacing as a broad `--scan-all` break.
 
-- scanned protocol packages still compile through the current path
-- machine-facing compiler JSON has not silently drifted
-- failures are isolated to concrete packages instead of only surfacing as a
-  broad `--scan-all` break
+The runtime/operator validator is the shortest repeatable check that live
+`--serve` plus the read-only API work on a clean local bind, repeated
+socket-fed sessions refresh the latest snapshot, and operator-facing
+`summary.json`, `export.json`, and `analysis.json` stay readable through a real
+service workflow.
 
-The runtime/operator validator is the shortest repeatable check that:
+The container runtime validator is the shortest repeatable check that the
+packaged Linux runtime still works after a real install step, `--serve`,
+socket ingest, and the read-only API stay coherent in clean Linux
+environments, and malformed ingest does not kill the packaged service loop.
 
-- live `--serve` plus read-only API works on a clean local bind
-- repeated socket-fed sessions refresh the latest snapshot
-- operator-facing `summary.json`, `export.json`, and `analysis.json` stay
-  readable through a real service workflow
-
-The container runtime validator is the shortest repeatable check that:
-
-- the packaged Linux runtime still works after a real install step
-- `--serve`, socket ingest, and the read-only API stay coherent in clean
-  Linux environments
-- malformed ingest does not kill the packaged service loop
-
-The container operator-path validator is the shortest repeatable check that:
-
-- packaged Linux installs preserve high-value operator-path protocol chains
-- advisory resolution/application paths such as `DNS -> QUIC -> HTTP/3` keep a
-  conservative handoff from name resolution to transport setup to application
-  response
-- secure transport/tunnel paths such as `DNS -> TLS -> HTTPS CONNECT` and
-  `DNS -> SOCKS5 -> HTTPS CONNECT` keep a conservative tunnel-establishment
-  posture in clean Linux environments
-- secure database/mail paths such as `DNS -> TLS -> Postgres`,
-  `DNS -> TLS -> MySQL`, `DNS -> TLS -> SMTP auth`, and `DNS -> SMTP` keep
-  their current observe-more / setup-incomplete posture in clean Linux
-  environments
-- current packaged denied demos such as `SOCKS5 auth denied` must not
-  over-collapse into stronger failure claims when the synthetic evidence is
-  still only a setup-incomplete path
+The container operator-path validator is the shortest repeatable check that
+packaged Linux installs preserve high-value operator-path protocol chains and
+that denied or setup-incomplete demos do not over-collapse into stronger
+failure claims than the current evidence supports.
 
 ## What This Phase Still Does Not Replace
 
@@ -386,7 +409,8 @@ This note does not replace:
 - full regression tests
 - benchmark acceptance
 - real operator feedback
-- later multi-project collaboration validation with `etragon` and `leserpent`
+- release gate judgment
+- the dedicated multi-project collaboration gate with `etragon` and `leserpent`
 
 It exists so the current `0.14.x` line has a concrete "start validating for
 real" shelf rather

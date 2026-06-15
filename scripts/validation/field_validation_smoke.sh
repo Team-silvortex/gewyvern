@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gewyvern-field-validation.XXXXXX")"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -46,7 +46,7 @@ if [ "${GEWY_FIELD_VALIDATE_SOCKET:-0}" = "1" ]; then
   ROUNDTRIP_JSON="${TMP_DIR}/socket.json"
   (
     cd "${ROOT}"
-    bash "${ROOT}/scripts/socket_roundtrip_demo.sh" "/private/tmp/gewyvern-field-validation.sock" udp "${ROUNDTRIP_JSON}" unix > /dev/null
+    bash "${ROOT}/scripts/demos/socket_roundtrip_demo.sh" "/private/tmp/gewyvern-field-validation.sock" udp "${ROUNDTRIP_JSON}" unix > /dev/null
   )
   expect_contains "${ROUNDTRIP_JSON}" '"template_id"'
   expect_contains "${ROUNDTRIP_JSON}" '"facts"'

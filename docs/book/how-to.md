@@ -29,6 +29,12 @@ The current task bands are:
 - operate
 - collaborate and package
 
+When the reader does not need a narrative task guide and only needs the right
+command or script, prefer these top-level operator shelves first:
+
+- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+
 ## Operate The Runtime
 
 - [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
@@ -46,6 +52,8 @@ The current task bands are:
 - [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
   Practical validation ladder for the current CLI, compiler, registry, and
   container/runtime surfaces.
+- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+  Fast script routing when you already know what kind of validation you need.
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
   Current validation matrix and local entrypoints.
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
@@ -57,6 +65,8 @@ The current task bands are:
 
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
   Contributor workflow and test layout.
+- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+  Compact command shelf for local CLI and helper usage.
 - [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)
   Linux and eBPF validation path.
 - [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
@@ -68,6 +78,10 @@ The current task bands are:
   Build or repair a registry package without guessing where drift entered.
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
   Language surface and current stable subset.
+- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
+  Stable pipeline/package authoring shape.
+- [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
+  Exact DSL vocabulary and compatibility lookup.
 - [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
   Internal source layering when a package change spills into runtime/compiler
   code.

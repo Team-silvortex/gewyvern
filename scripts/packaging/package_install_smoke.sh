@@ -2,14 +2,14 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PACKAGES_DIR="${ROOT}/target/packages"
 DEB_IMAGE="${GEWY_DEB_SMOKE_IMAGE:-ubuntu:24.04}"
 RPM_IMAGE="${GEWY_RPM_SMOKE_IMAGE:-fedora:41}"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/package_install_smoke.sh [--deb] [--rpm]
+Usage: scripts/packaging/package_install_smoke.sh [--deb] [--rpm]
 
 Install the most recent local .deb and/or .rpm artifact inside clean Linux
 containers, then run a very-light post-install smoke:

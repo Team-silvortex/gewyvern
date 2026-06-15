@@ -14,6 +14,23 @@ Its job is to show:
 - how they depend on each other
 - which ones are policy layers versus substrate layers
 
+## Role In The Shelf
+
+Treat this page as the source-cluster blueprint.
+
+Use it when you want:
+
+- the dependency picture between entrypoints, reporting, diagnosis, runtime,
+  compiler, registry, and export
+- a module-cluster overview before dropping to file-by-file ownership rules
+
+Then continue with:
+
+- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+  for concrete file ownership rules
+- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+  for runtime-pipeline internals
+
 ## Module Blueprint
 
 ```mermaid

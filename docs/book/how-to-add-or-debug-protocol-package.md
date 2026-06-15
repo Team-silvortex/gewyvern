@@ -155,7 +155,7 @@ Do not stop at “one command worked”.
 Run:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/registry_validation.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh
 ```
 
 This tells you whether your package:
@@ -175,7 +175,7 @@ healthy as it looks from one narrow command.
 If the package lives in a high-frequency family, also run:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/high_frequency_validation.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh
 ```
 
 This is especially important for:

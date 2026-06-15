@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEV_ROOT="$(cd "${ROOT}/.." && pwd)"
 GEWY_ROOT="${ROOT}"
 ETRAGON_ROOT="${DEV_ROOT}/etragon"
@@ -18,6 +18,7 @@ GW_A_API_PORT="${GW_A_API_PORT:-19101}"
 GW_B_SOCKET_PORT="${GW_B_SOCKET_PORT:-19002}"
 GW_B_API_PORT="${GW_B_API_PORT:-19102}"
 ET_A_API_PORT="${ET_A_API_PORT:-19431}"
+ET_A_ADMIN_TOKEN="${ET_A_ADMIN_TOKEN:-stack-smoke-admin-token}"
 
 WORK_DIR="$(mktemp -d /private/tmp/three-module-stack.XXXXXX)"
 TARGET_CACHE_DIR="${WORK_DIR}/target-cache"
@@ -120,6 +121,7 @@ start_etragon() {
     --name "${ET_A_NAME}" \
     --network "${NETWORK_NAME}" \
     -p "${ET_A_API_PORT}:4321" \
+    -e "ETRAGON_ADMIN_TOKEN=${ET_A_ADMIN_TOKEN}" \
     -v "${DEV_ROOT}:/workspace/dev" \
     -v "${TARGET_CACHE_DIR}:/stack-target" \
     "${IMAGE_TAG}" \
@@ -136,6 +138,10 @@ start_etragon() {
         --python-state /tmp/etragon-online-state.json \
         --daemon-state /tmp/etragon-daemon-state.json
     " >/dev/null
+}
+
+etragon_curl() {
+  curl -fsS -H "X-Etragon-Admin-Token: ${ET_A_ADMIN_TOKEN}" "$@"
 }
 
 wait_http() {
@@ -199,6 +205,51 @@ wait_for_json_any_fragment() {
   return 1
 }
 
+wait_etragon_http() {
+  local url="$1"
+  for _ in $(seq 1 240); do
+    if etragon_curl "${url}" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.25
+  done
+  return 1
+}
+
+wait_for_etragon_json_fragment() {
+  local url="$1"
+  local fragment="$2"
+  for _ in $(seq 1 240); do
+    local body
+    if body="$(etragon_curl "${url}" 2>/dev/null)"; then
+      if [[ "${body}" == *"${fragment}"* ]]; then
+        printf '%s' "${body}"
+        return 0
+      fi
+    fi
+    sleep 0.25
+  done
+  return 1
+}
+
+wait_for_etragon_json_any_fragment() {
+  local url="$1"
+  shift
+  for _ in $(seq 1 240); do
+    local body
+    if body="$(etragon_curl "${url}" 2>/dev/null)"; then
+      for fragment in "$@"; do
+        if [[ "${body}" == *"${fragment}"* ]]; then
+          printf '%s' "${body}"
+          return 0
+        fi
+      done
+    fi
+    sleep 0.25
+  done
+  return 1
+}
+
 wait_for_sidecar_health() {
   local url="$1"
   local runtime_name="$2"
@@ -239,13 +290,15 @@ register_runtime() {
   local cluster="$4"
   local role="$5"
   local sidecar_endpoint="${6:-}"
-  python3 - "$name" "$endpoint" "$environment" "$cluster" "$role" "$sidecar_endpoint" <<'PY'
+  local sidecar_admin_token="${7:-}"
+  python3 - "$name" "$endpoint" "$environment" "$cluster" "$role" "$sidecar_endpoint" "$sidecar_admin_token" <<'PY'
 import json, sys
-name, endpoint, environment, cluster, role, sidecar_endpoint = sys.argv[1:7]
+name, endpoint, environment, cluster, role, sidecar_endpoint, sidecar_admin_token = sys.argv[1:8]
 print(json.dumps({
     "name": name,
     "endpoint": endpoint,
     "sidecarEndpoint": sidecar_endpoint or None,
+    "sidecarAdminToken": sidecar_admin_token or None,
     "pairingToken": "stack-smoke",
     "capabilities": [],
     "tags": {
@@ -293,16 +346,16 @@ wait_for_meta_field "http://127.0.0.1:${GW_B_API_PORT}/v1/latest/meta" "has_anal
 
 start_etragon
 
-wait_http "http://127.0.0.1:${ET_A_API_PORT}/health" || {
+wait_etragon_http "http://127.0.0.1:${ET_A_API_PORT}/health" || {
   echo "etragon sidecar did not become healthy" >&2
   docker ps -a --filter "name=${ET_A_NAME}" >&2 || true
   docker logs "${ET_A_NAME}" >&2 || true
   exit 1
 }
 
-ETRAGON_STATUS_JSON="$(wait_for_json_any_fragment "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/status" "\"status\":\"ready\"" "\"status\":\"degraded\"")" || {
+ETRAGON_STATUS_JSON="$(wait_for_etragon_json_any_fragment "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/status" "\"status\":\"ready\"" "\"status\":\"degraded\"")" || {
   echo "etragon sidecar never reached ready/degraded daemon status" >&2
-  curl -fsS "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/status" >&2 || true
+  etragon_curl "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/status" >&2 || true
   docker logs "${ET_A_NAME}" >&2 || true
   exit 1
 }
@@ -316,9 +369,9 @@ print("etragon-status-ok")' || {
   exit 1
 }
 
-ETRAGON_OUTPUT_JSON="$(wait_for_json_fragment "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/output.json" "\"augmentations\"")" || {
+ETRAGON_OUTPUT_JSON="$(wait_for_etragon_json_fragment "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/output.json" "\"augmentations\"")" || {
   echo "etragon sidecar never published output_json with augmentations" >&2
-  curl -fsS "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/output.json" >&2 || true
+  etragon_curl "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/output.json" >&2 || true
   docker logs "${ET_A_NAME}" >&2 || true
   exit 1
 }
@@ -348,7 +401,7 @@ curl -fsS \
   -X POST "http://127.0.0.1:${LESP_PORT}/v1/runtimes/register" \
   -H 'content-type: application/json' \
   -H 'X-Leserpent-Intent: mutate' \
-  --data "$(register_runtime "gw-stack-a" "http://127.0.0.1:${GW_A_API_PORT}" "stack" "local" "with-sidecar" "http://127.0.0.1:${ET_A_API_PORT}")" >/dev/null
+  --data "$(register_runtime "gw-stack-a" "http://127.0.0.1:${GW_A_API_PORT}" "stack" "local" "with-sidecar" "http://127.0.0.1:${ET_A_API_PORT}" "${ET_A_ADMIN_TOKEN}")" >/dev/null
 
 curl -fsS \
   -X POST "http://127.0.0.1:${LESP_PORT}/v1/runtimes/register" \

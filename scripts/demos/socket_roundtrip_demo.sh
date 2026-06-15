@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SOCKET_TARGET="${1:-/tmp/gewyvern-demo.sock}"
 TEMPLATE="${2:-udp}"
 OUT_PATH="${3:-/tmp/gewyvern-demo-output.json}"

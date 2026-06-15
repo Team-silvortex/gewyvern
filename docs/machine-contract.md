@@ -14,6 +14,15 @@ For the broader release posture, see
 For the operator-facing surface overview, see
 [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md).
 
+If you want the nearby companion shelves around this page, use:
+
+- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+  Exact lookup for the diagnosis fields most consumers read first.
+- [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
+  Durable runtime-service note for `--serve`, API refresh, and degraded mode.
+- [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
+  Practical trust and exposure boundary for using these machine-facing routes.
+
 ## Scope
 
 This contract is intentionally narrow.

@@ -15,6 +15,20 @@ The short version is:
 
 These are related, but they are not the same thing.
 
+## Companion Shelves
+
+Read this page alongside:
+
+- [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
+  when you want to see how ingest trust changes the meaning of process-level
+  summaries
+- [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
+  when you need the exact failure-language vocabulary that shows up in those
+  summaries
+- [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
+  when the question shifts from operator interpretation to exposure/trust
+  boundaries
+
 ## Why This Exists
 
 `gewyvern` can work with:

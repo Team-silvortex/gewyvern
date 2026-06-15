@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "${ROOT}/scripts/linux_ebpf_smoke_common.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "${ROOT}/scripts/linux/linux_ebpf_smoke_common.sh"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gewyvern-linux-attach-smoke.XXXXXX")"
 HOOKPOINT_NAME="${1:-syscalls/sys_enter_nanosleep}"
 HOOKPOINT_CATEGORY="${HOOKPOINT_NAME%%/*}"

@@ -8,15 +8,15 @@ declare -a ITEMS=()
 
 usage() {
   cat <<'EOF'
-usage: scripts/render_minor_line_ir_snapshot.sh [--json|--text] [--title TEXT] label=path.gewy [label=path.gewy ...]
+usage: scripts/history/render_minor_line_ir_snapshot.sh [--json|--text] [--title TEXT] label=path.gewy [label=path.gewy ...]
 
 Examples:
-  scripts/render_minor_line_ir_snapshot.sh \
+  scripts/history/render_minor_line_ir_snapshot.sh \
     --title "v0.14.x IR Baseline" \
     amqp-publish=protocols/amqp/publish/main.gewy \
     udp-debug=dsl/udp_process_debug.gewy
 
-  scripts/render_minor_line_ir_snapshot.sh --json \
+  scripts/history/render_minor_line_ir_snapshot.sh --json \
     redis-xadd=protocols/redis/xadd/main.gewy
 EOF
 }

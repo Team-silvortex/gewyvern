@@ -22,6 +22,16 @@ If you want a task-first validation path instead of a behavior note, use:
 
 - [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 
+If you want the nearby companion shelves around this page, use:
+
+- [docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md)
+  Task-first preflight for exposing or operating the service surface.
+- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
+  Narrow machine-facing contract for the API and analysis surfaces.
+- [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
+  Broader deployment and exposure boundary for what this service should be
+  trusted as.
+
 ## Scope
 
 This note is about runtime behavior, not schema details.

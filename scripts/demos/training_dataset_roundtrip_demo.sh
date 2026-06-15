@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "${ROOT}/scripts/demo_common.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "${ROOT}/scripts/demos/demo_common.sh"
 
 API_ADDR="${1:-127.0.0.1:9910}"
 OUT_DIR="${2:-/tmp/gewyvern-training-dataset-demo}"

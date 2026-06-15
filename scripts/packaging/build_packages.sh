@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${ROOT}/target/packages"
 WORK_DIR=""
 KEEP_WORK_DIR=0
@@ -15,7 +15,7 @@ RPM_DIST="${GEWY_RPM_DIST:-}"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/build_packages.sh [--format deb|rpm|all] [--layout-only]
+Usage: scripts/packaging/build_packages.sh [--format deb|rpm|all] [--layout-only]
 
 Build release binaries, stage a Linux installation tree, and optionally emit
 native DEB/RPM packages if the host provides `dpkg-deb` and/or `rpmbuild`.

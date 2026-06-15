@@ -16,6 +16,8 @@ Read this alongside:
 
 - [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
 - [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
+- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
 - [docs/book/conventions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/conventions.md)
 - [docs/book/structure.md](/Users/Shared/chroot/dev/gewyvern/docs/book/structure.md)
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
@@ -26,6 +28,10 @@ Use:
   when you want the global doc map
 - [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
   when you want the reading-order spine
+- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+  when you want a goal-based operator script map
+- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+  when you want practical CLI/API/demo commands without the full storyline
 - [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
   when you want the design rules for the docs themselves
 
@@ -95,6 +101,8 @@ Examples:
 - machine contract
 - packaging
 - service behavior
+- operator script map
+- CLI recipe shelf
 
 Their job is to preserve long-lived project knowledge.
 
@@ -103,6 +111,18 @@ These pages should answer:
 - what is the current design?
 - what boundary is being defended?
 - what contract or posture is intended to last across patch releases?
+
+Two special top-level durable pages now intentionally sit between "subject
+shelf" and "operator helper":
+
+- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+  Goal-based script routing for validation, packaging, demos, Linux smoke,
+  perf, and history helpers.
+- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+  Compact command shelf for runtime CLI, `gewyc`, socket ingest, API routes,
+  and narrow roundtrip demos.
+
+These are not book chapters. They are durable operator-facing lookup shelves.
 
 ## Shelf 3: Book Reading Framework
 
@@ -228,12 +248,16 @@ When adding new documentation, use this routing table:
 - it is a durable subject page
 - it explains a long-lived system boundary or contract
 - it should remain meaningful outside one reading mode
+- it is a compact operator lookup shelf that should not be stretched into a
+  tutorial, how-to, or full reference chapter
 
 ### Put it in `docs/book/` when
 
 - it is primarily about reading flow
 - it is tutorial, how-to, reference, or explanation material
 - it helps a reader navigate rather than only store facts
+- it benefits from the four reading modes more than from top-level subject
+  lookup
 
 ### Put it in `docs/history/` when
 

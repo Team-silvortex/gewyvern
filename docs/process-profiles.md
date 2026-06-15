@@ -16,6 +16,19 @@ The key runtime view is:
 
 That view is the best current compression layer for process-oriented debugging.
 
+## Companion Shelves
+
+Read this page alongside:
+
+- [docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md)
+  when you need to decide how much faith to place in PID-scoped conclusions
+- [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
+  when you need the exact meaning of failure modes, details, confidence, and
+  basis
+- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+  when you need the structured machine-facing diagnosis contract behind these
+  summaries
+
 ## What A Process Profile Tries To Answer
 
 A process profile is trying to summarize:

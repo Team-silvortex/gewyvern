@@ -22,6 +22,38 @@ For those, use:
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
 - [docs/fragments.md](/Users/Shared/chroot/dev/gewyvern/docs/fragments.md)
 
+## Role In The Shelf
+
+Treat this page as the contributor workflow shelf.
+
+Use it when the question is:
+
+- how should I approach a change in this repository?
+- what is the default test discipline?
+- where do different classes of tests and runtime invariants live?
+
+Do not use this page as:
+
+- the short command reference
+- the script routing map
+- the packaging or Linux eBPF deep-dive page
+
+For those, use:
+
+- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+- [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
+- [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)
+
+## Companion Shelves
+
+- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+  for the compact command shelf
+- [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)
+  for Linux-only eBPF bring-up and validation
+- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+  for source ownership when a change crosses subsystems
+
 ## Quick Start
 
 Recommended reading before changing code:
@@ -55,7 +87,7 @@ cargo run -- --demo both --json --summary-only
 Run the full test suite:
 
 ```bash
-cargo test
+cargo test --workspace
 ```
 
 Run the primary TDD acceptance loop:
@@ -197,10 +229,16 @@ implicit for this project.
 
 ## Default Commands
 
+The compact command shelf now lives in:
+
+- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+
+The default contributor commands remain:
+
 - `cargo tdd`: run the acceptance behavior suite first
 - `cargo tdd-one <name>`: iterate on one named acceptance test
 - `cargo tdd-rules`: run rule/invariant specs
-- `cargo test`: run the full suite before finishing
+- `cargo test --workspace`: run the full suite before finishing
 
 ## Linux Bring-Up
 
@@ -211,4 +249,4 @@ Useful commands there:
 
 - `cargo linux-smoke`
 - `cargo tdd`
-- `cargo test`
+- `cargo test --workspace`

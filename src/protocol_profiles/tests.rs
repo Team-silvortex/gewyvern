@@ -539,7 +539,7 @@ fn packaged_registry_root_is_used_when_explicitly_set() {
     fs::create_dir_all(&package_dir).unwrap();
     fs::write(
         package_dir.join("gewy.pkg"),
-        "name=http_request\nversion=0.10.0\nentry=main.gewy\nregister.protocol=http\nregister.entry=request\nregister.default=true\n",
+        "name=http_request\nversion=0.14.0\nentry=main.gewy\nregister.protocol=http\nregister.entry=request\nregister.default=true\n",
     )
     .unwrap();
     fs::write(package_dir.join("main.gewy"), "template(:http_request)\n").unwrap();
@@ -572,7 +572,7 @@ fn registry_scan_ignores_symlinked_directories() {
     fs::create_dir_all(&package_dir).unwrap();
     fs::write(
         package_dir.join("gewy.pkg"),
-        "name=mysql_session\nversion=0.10.0\nentry=main.gewy\nregister.protocol=mysql\nregister.entry=session\nregister.default=true\n",
+        "name=mysql_session\nversion=0.14.0\nentry=main.gewy\nregister.protocol=mysql\nregister.entry=session\nregister.default=true\n",
     )
     .unwrap();
     fs::write(package_dir.join("main.gewy"), "template(:mysql_session)\n").unwrap();

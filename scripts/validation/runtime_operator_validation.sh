@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gewyvern-runtime-validation.XXXXXX")"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 GEWYVERN_BIN="${ROOT}/target/debug/gewyvern"
@@ -195,7 +195,7 @@ expect_contains "${UDP_SUMMARY}" '"primary_module_kind":"datagram_exchange"'
 expect_contains "${UDP_SUMMARY}" '"operator_guidance_action":"avoid_pid_strong_actions"'
 expect_contains "${UDP_ANALYSIS}" '"protocol_flows"'
 expect_contains "${UDP_ANALYSIS}" '"primary_failure_mode":"none"'
-bash "${ROOT}/scripts/training_dataset_roundtrip_demo.sh" \
+    bash "${ROOT}/scripts/demos/training_dataset_roundtrip_demo.sh" \
   "${UDP_API}" \
   "${TMP_DIR}/training-roundtrip" \
   >"${UDP_TRAINING_SUMMARY}"

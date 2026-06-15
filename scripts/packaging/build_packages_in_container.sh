@@ -2,15 +2,15 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 IMAGE_TAG="${GEWY_DOCKER_IMAGE_TAG:-gewyvern-linux-dev:packaging}"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/build_packages_in_container.sh [--format deb|rpm|all] [--layout-only]
+Usage: scripts/packaging/build_packages_in_container.sh [--format deb|rpm|all] [--layout-only]
 
 Build DEB/RPM artifacts inside the bundled Linux development container.
-All arguments after `--` are forwarded to `scripts/build_packages.sh`.
+All arguments after `--` are forwarded to `scripts/packaging/build_packages.sh`.
 EOF
 }
 
@@ -40,4 +40,4 @@ docker run --rm \
   -v "${ROOT}:/workspace" \
   -w /workspace \
   "${IMAGE_TAG}" \
-  bash scripts/build_packages.sh "${FORWARDED_ARGS[@]}"
+  bash scripts/packaging/build_packages.sh "${FORWARDED_ARGS[@]}"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "${ROOT}/scripts/linux_ebpf_smoke_common.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "${ROOT}/scripts/linux/linux_ebpf_smoke_common.sh"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gewyvern-linux-kprobe-smoke.XXXXXX")"
 SYMBOL_NAME="${1:-ip_route_output_flow}"
 trap 'rm -rf "${TMP_DIR}"' EXIT

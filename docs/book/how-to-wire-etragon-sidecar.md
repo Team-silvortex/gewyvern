@@ -157,7 +157,7 @@ When you want one direct end-to-end bridge proof that:
 run:
 
 ```bash
-bash scripts/external_engine_roundtrip_demo.sh \
+bash scripts/demos/external_engine_roundtrip_demo.sh \
   127.0.0.1:9900 \
   127.0.0.1:9910 \
   udp \
@@ -202,7 +202,7 @@ If you need one concrete target instead of the latest top-level analysis
 snapshot, pass the URL-safe target path segment as the sixth argument:
 
 ```bash
-bash scripts/external_engine_roundtrip_demo.sh \
+bash scripts/demos/external_engine_roundtrip_demo.sh \
   127.0.0.1:9900 \
   127.0.0.1:9910 \
   udp \
@@ -220,7 +220,7 @@ When you want stronger evidence that the whole collaboration topology still
 works, run:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/three_module_stack_smoke.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
 ```
 
 This is the high-signal check for:

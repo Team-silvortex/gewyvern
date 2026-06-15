@@ -189,7 +189,7 @@ For this project, the middle numeric version component is the minor line:
 
 - `v0.13.x`
 - `v0.14.x`
-- future lines such as `v0.15.x`
+- future lines such as `v0.15.x` when those lines actually begin
 
 When a new minor line begins:
 

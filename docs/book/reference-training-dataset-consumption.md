@@ -213,7 +213,7 @@ GET /v1/latest/targets/<path-segment>/training-example.json
 
 There is also a minimal executable consumer-roundtrip reference:
 
-- [scripts/training_dataset_roundtrip_demo.sh](/Users/Shared/chroot/dev/gewyvern/scripts/training_dataset_roundtrip_demo.sh)
+- [scripts/demos/training_dataset_roundtrip_demo.sh](/Users/Shared/chroot/dev/gewyvern/scripts/demos/training_dataset_roundtrip_demo.sh)
 
 It will:
 
@@ -230,13 +230,13 @@ surface as a consumer would see it.
 Example:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/training_dataset_roundtrip_demo.sh 127.0.0.1:9910 /tmp/gewyvern-training-demo
+bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/training_dataset_roundtrip_demo.sh 127.0.0.1:9910 /tmp/gewyvern-training-demo
 ```
 
 Single-target example:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/training_dataset_roundtrip_demo.sh 127.0.0.1:9910 /tmp/gewyvern-training-demo dsl_demo 1
+bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/training_dataset_roundtrip_demo.sh 127.0.0.1:9910 /tmp/gewyvern-training-demo dsl_demo 1
 ```
 
 ## Consumption Rules
