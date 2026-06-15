@@ -119,6 +119,9 @@ Release/evidence pages live beside them:
 - [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
   Narrow machine-facing contract for `summary.json`, `analysis.json`, and API
   target routing.
+- [docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md)
+  Operator preflight for API exposure, ingest trust, external-engine wiring,
+  and registry-root safety.
 
 ## Compiler And Tooling
 

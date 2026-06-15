@@ -71,6 +71,8 @@ Current posture:
 - remote API bind requires explicit operator opt-in
 - latest snapshot state is in-memory only
 - restart clears the latest API snapshot
+- oversized successful API bodies are degraded instead of streamed without bound
+- API overload is allowed to fail closed with a short `503` response
 
 This API is suitable for:
 
@@ -108,11 +110,18 @@ next preparation line:
 
 - socket ingest applies line and fact-count limits during read
 - Unix sockets are created with restricted permissions
-- slow API clients are handled independently and bounded by timeout behavior
+- slow API clients are handled independently and bounded by read/write timeout
+  behavior
+- API concurrency is bounded so remote readers cannot spawn unbounded handler
+  threads
+- oversized API success bodies are rejected with an explicit bounded error
+  response
 - external-engine execution is bounded by timeout, output caps, augmentation
   caps, and cache limits
+- external-engine capability probing is bounded by the same timeout and output
+  caps as full external analysis
 - protocol/profile discovery avoids symlink recursion and repeated-directory
-  loops
+  loops and now carries directory, manifest-count, and manifest-size budgets
 
 These are not a full security model, but they are the current concrete guards
 that keep standalone use from drifting into obviously unsafe territory.

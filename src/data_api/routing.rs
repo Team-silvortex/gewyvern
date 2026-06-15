@@ -6,9 +6,20 @@ use super::json::{api_target_list_json, decode_api_target_path_segment, json_str
 use super::training_manifest::{
     target_training_dataset_manifest_json, training_dataset_manifest_json,
 };
-use super::{API_CLIENT_READ_TIMEOUT, API_ENDPOINTS_JSON, API_VERSION, ApiSnapshot, ApiState};
+use super::{
+    API_CLIENT_READ_TIMEOUT, API_ENDPOINTS_JSON, API_MAX_RESPONSE_BODY_BYTES, API_VERSION,
+    ApiSnapshot, ApiState,
+};
 
 pub(crate) fn api_response_for_request<'a>(
+    path: &str,
+    snapshot: &'a ApiSnapshot,
+) -> (u16, &'static str, Cow<'a, str>) {
+    let response = api_response_for_request_uncapped(path, snapshot);
+    cap_api_response(path, response)
+}
+
+fn api_response_for_request_uncapped<'a>(
     path: &str,
     snapshot: &'a ApiSnapshot,
 ) -> (u16, &'static str, Cow<'a, str>) {
@@ -268,8 +279,29 @@ pub(crate) fn api_response_for_request<'a>(
     }
 }
 
+fn cap_api_response<'a>(
+    path: &str,
+    response: (u16, &'static str, Cow<'a, str>),
+) -> (u16, &'static str, Cow<'a, str>) {
+    let (status, content_type, body) = response;
+    if status == 200 && body.len() > API_MAX_RESPONSE_BODY_BYTES {
+        return (
+            503,
+            "application/json; charset=utf-8",
+            Cow::Owned(format!(
+                "{{\"error\":\"response_too_large\",\"path\":{},\"bytes\":{},\"max_bytes\":{}}}",
+                json_string(path),
+                body.len(),
+                API_MAX_RESPONSE_BODY_BYTES,
+            )),
+        );
+    }
+    (status, content_type, body)
+}
+
 pub(super) fn handle_api_client(mut stream: TcpStream, state: ApiState) {
     let _ = stream.set_read_timeout(Some(API_CLIENT_READ_TIMEOUT));
+    let _ = stream.set_write_timeout(Some(super::API_CLIENT_WRITE_TIMEOUT));
     let mut buffer = [0u8; 2048];
     let bytes_read = match stream.read(&mut buffer) {
         Ok(bytes) if bytes > 0 => bytes,

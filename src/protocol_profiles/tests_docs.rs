@@ -42,8 +42,8 @@ const EXPECTED_GROUP_FAMILY_HUBS: &[&str] = &[
 
 #[test]
 fn protocol_surface_front_door_links_core_protocol_navigation_pages() {
-    let actual = fs::read_to_string(PROTOCOL_SURFACE_PAGE)
-        .expect("protocol surface doc should exist");
+    let actual =
+        fs::read_to_string(PROTOCOL_SURFACE_PAGE).expect("protocol surface doc should exist");
     let links = markdown_book_links(&actual);
     let expected = [
         PROTOCOL_GROUPS_PAGE.to_string(),
@@ -63,10 +63,13 @@ fn protocol_surface_front_door_links_core_protocol_navigation_pages() {
 
 #[test]
 fn protocol_surface_front_door_mentions_each_current_family_default_pair() {
-    let actual = fs::read_to_string(PROTOCOL_SURFACE_PAGE)
-        .expect("protocol surface doc should exist");
+    let actual =
+        fs::read_to_string(PROTOCOL_SURFACE_PAGE).expect("protocol surface doc should exist");
     for summary in protocol_summaries() {
-        let needle = format!("`{}` -> default `{}`", summary.protocol, summary.default_entry);
+        let needle = format!(
+            "`{}` -> default `{}`",
+            summary.protocol, summary.default_entry
+        );
         assert!(
             actual.contains(&needle),
             "protocol surface front door should mention current family/default pair {needle}"
@@ -107,8 +110,8 @@ fn protocol_family_shelf_directory_lists_current_custom_hubs_and_subpages() {
 
 #[test]
 fn protocol_groups_page_only_links_current_family_hubs_or_explicit_fallbacks() {
-    let actual = fs::read_to_string(PROTOCOL_GROUPS_PATH)
-        .expect("protocol groups doc should exist");
+    let actual =
+        fs::read_to_string(PROTOCOL_GROUPS_PATH).expect("protocol groups doc should exist");
     let allowed = allowed_group_links();
     let actual_links = filtered_surface_links(&actual, &allowed_directory_links());
     assert_eq!(actual_links, allowed);
@@ -120,8 +123,8 @@ fn protocol_groups_expected_family_hubs_match_current_curated_set() {
         .iter()
         .map(|protocol| family_hub_page(protocol))
         .collect::<BTreeSet<_>>();
-    let actual = fs::read_to_string(PROTOCOL_GROUPS_PATH)
-        .expect("protocol groups doc should exist");
+    let actual =
+        fs::read_to_string(PROTOCOL_GROUPS_PATH).expect("protocol groups doc should exist");
     let actual_links = filtered_surface_links(&actual, &allowed_directory_links());
     assert!(
         expected.is_subset(&actual_links),

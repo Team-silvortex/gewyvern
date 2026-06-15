@@ -29,6 +29,8 @@ background cleanup.
   convergence and `0.14.x` maturity line.
 - [docs/history/v0.13.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.13.x.md)
   First deliberate convergence line before the later `0.14.x` posture.
+- [docs/history/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/history/1.0-readiness.md)
+  Companion historical readiness note from the pre-`1.0` convergence phase.
 - [docs/history/v0.14.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.14.x.md)
   Current active `0.14.x` line focused on protocol depth, compiler ergonomics,
   and runtime/report maturity.

@@ -301,6 +301,19 @@ fn api_rejects_invalid_target_path_percent_encoding() {
 }
 
 #[test]
+fn api_rejects_oversized_report_bodies() {
+    let mut snapshot = ApiSnapshot::default();
+    snapshot.report_json = Some("x".repeat((512 * 1024) + 32));
+
+    let (status, content_type, body) =
+        api_response_for_request("/v1/latest/report.json", &snapshot);
+    assert_eq!(status, 503);
+    assert_eq!(content_type, "application/json; charset=utf-8");
+    assert!(body.contains("\"error\":\"response_too_large\""));
+    assert!(body.contains("\"path\":\"/v1/latest/report.json\""));
+}
+
+#[test]
 #[ignore = "benchmark"]
 fn benchmark_summary_json_large_protocol_flow_export() {
     let export = synthesize_large_protocol_flow_export();

@@ -162,49 +162,22 @@ fn run_external_analysis(
     } else {
         command.arg("analyze-json").arg("-");
     }
-    let mut child = command
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|err| {
-            format!(
-                "failed to launch external engine '{}': {err}",
-                config.engine_bin
-            )
-        })?;
-    {
-        let stdin = child
-            .stdin
-            .as_mut()
-            .ok_or_else(|| "external engine stdin unavailable".to_string())?;
-        stdin
-            .write_all(snapshot_json.as_bytes())
-            .map_err(|err| format!("failed to write snapshot to external engine stdin: {err}"))?;
-    }
-    let _ = child.stdin.take();
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| "external engine stdout unavailable".to_string())?;
-    let stderr = child
-        .stderr
-        .take()
-        .ok_or_else(|| "external engine stderr unavailable".to_string())?;
-    let stdout_reader = thread::spawn(move || {
-        read_capped_stream(stdout, MAX_EXTERNAL_ENGINE_STDOUT_BYTES, "stdout")
-    });
-    let stderr_reader = thread::spawn(move || {
-        read_capped_stream(stderr, MAX_EXTERNAL_ENGINE_STDERR_BYTES, "stderr")
-    });
-    let wait_result = wait_for_child_with_timeout(&mut child, EXTERNAL_ENGINE_TIMEOUT);
-    let stdout = stdout_reader
-        .join()
-        .map_err(|_| "external engine stdout reader thread panicked".to_string())??;
-    let stderr = stderr_reader
-        .join()
-        .map_err(|_| "external engine stderr reader thread panicked".to_string())??;
-    let status = wait_result?;
+    let output = run_external_command(
+        command,
+        Some(snapshot_json.as_bytes()),
+        EXTERNAL_ENGINE_TIMEOUT,
+        MAX_EXTERNAL_ENGINE_STDOUT_BYTES,
+        MAX_EXTERNAL_ENGINE_STDERR_BYTES,
+    )
+    .map_err(|err| {
+        format!(
+            "failed to launch external engine '{}': {err}",
+            config.engine_bin
+        )
+    })?;
+    let status = output.status;
+    let stdout = output.stdout;
+    let stderr = output.stderr;
     if !status.success() {
         let stderr = String::from_utf8_lossy(&stderr).trim().to_string();
         return Err(if stderr.is_empty() {
@@ -244,11 +217,77 @@ fn query_external_capabilities(
 ) -> Option<ExternalCapabilityProfile> {
     let mut command = Command::new(&config.engine_bin);
     command.arg("protocol-capabilities");
-    let output = command.output().ok()?;
+    let output = run_external_command(
+        command,
+        None,
+        EXTERNAL_ENGINE_TIMEOUT,
+        MAX_EXTERNAL_ENGINE_STDOUT_BYTES,
+        MAX_EXTERNAL_ENGINE_STDERR_BYTES,
+    )
+    .ok()?;
     if !output.status.success() {
         return None;
     }
     parse_external_capability_profile(&String::from_utf8_lossy(&output.stdout)).ok()
+}
+
+#[derive(Debug)]
+struct ExternalCommandOutput {
+    status: std::process::ExitStatus,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+}
+
+fn run_external_command(
+    mut command: Command,
+    stdin_payload: Option<&[u8]>,
+    timeout: Duration,
+    max_stdout_bytes: usize,
+    max_stderr_bytes: usize,
+) -> Result<ExternalCommandOutput, String> {
+    if stdin_payload.is_some() {
+        command.stdin(Stdio::piped());
+    }
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|err| format!("failed to launch external engine command: {err}"))?;
+    if let Some(payload) = stdin_payload {
+        let stdin = child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| "external engine stdin unavailable".to_string())?;
+        stdin
+            .write_all(payload)
+            .map_err(|err| format!("failed to write snapshot to external engine stdin: {err}"))?;
+    }
+    let _ = child.stdin.take();
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "external engine stdout unavailable".to_string())?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "external engine stderr unavailable".to_string())?;
+    let stdout_reader =
+        thread::spawn(move || read_capped_stream(stdout, max_stdout_bytes, "stdout"));
+    let stderr_reader =
+        thread::spawn(move || read_capped_stream(stderr, max_stderr_bytes, "stderr"));
+    let wait_result = wait_for_child_with_timeout(&mut child, timeout);
+    let stdout = stdout_reader
+        .join()
+        .map_err(|_| "external engine stdout reader thread panicked".to_string())??;
+    let stderr = stderr_reader
+        .join()
+        .map_err(|_| "external engine stderr reader thread panicked".to_string())??;
+    let status = wait_result?;
+    Ok(ExternalCommandOutput {
+        status,
+        stdout,
+        stderr,
+    })
 }
 
 fn snapshot_cache_key(snapshot_json: &str) -> SnapshotCacheKey {
@@ -330,11 +369,63 @@ pub(crate) fn test_guard() -> std::sync::MutexGuard<'static, ()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    #[cfg(target_family = "unix")]
+    fn write_test_script(body: &str) -> std::path::PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after unix epoch")
+            .as_nanos();
+        let script_path = std::env::temp_dir().join(format!("external-analysis-test-{unique}.sh"));
+        fs::write(&script_path, format!("#!/bin/sh\n{body}\n"))
+            .expect("test script should be writable");
+        let mut permissions = fs::metadata(&script_path)
+            .expect("test script should exist")
+            .permissions();
+        permissions.set_mode(0o700);
+        fs::set_permissions(&script_path, permissions).expect("test script should be executable");
+        script_path
+    }
 
     #[test]
     fn read_capped_stream_rejects_oversized_output() {
         let result = read_capped_stream("abcdef".as_bytes(), 4, "stdout");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("exceeded"));
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn run_external_command_enforces_timeout() {
+        let script_path = write_test_script("sleep 1\nprintf 'late\\n'");
+        let result = run_external_command(
+            Command::new(&script_path),
+            None,
+            Duration::from_millis(100),
+            1024,
+            1024,
+        );
+        let _ = fs::remove_file(&script_path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("timed out"));
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn query_external_capabilities_rejects_oversized_stdout() {
+        let script_path = write_test_script(
+            "if [ \"$1\" = \"protocol-capabilities\" ]; then\ndd if=/dev/zero bs=1024 count=1025 2>/dev/null | tr '\\000' 'x'\nfi",
+        );
+        let profile = query_external_capabilities(&ExternalAnalysisConfig {
+            engine_bin: script_path.to_string_lossy().into_owned(),
+            python_worker: None,
+            python_bin: None,
+        });
+        let _ = fs::remove_file(&script_path);
+        assert!(profile.is_none());
     }
 }

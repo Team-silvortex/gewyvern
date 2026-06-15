@@ -3,6 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT}/scripts/container_validation_common.sh"
 PACKAGES_DIR="${ROOT}/target/packages"
 DEB_IMAGE="${GEWY_DEB_OPERATOR_IMAGE:-ubuntu:24.04}"
 RPM_IMAGE="${GEWY_RPM_OPERATOR_IMAGE:-fedora:41}"
@@ -18,50 +19,8 @@ By default, both the DEB and RPM paths run.
 EOF
 }
 
-RUN_DEB=1
-RUN_RPM=1
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --deb)
-      RUN_DEB=1
-      RUN_RPM=0
-      shift
-      ;;
-    --rpm)
-      RUN_DEB=0
-      RUN_RPM=1
-      shift
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "unknown argument: $1" >&2
-      usage >&2
-      exit 1
-      ;;
-  esac
-done
-
-if ! command -v docker >/dev/null 2>&1; then
-  echo "docker is required for container operator-path validation" >&2
-  exit 1
-fi
-
-if ! docker info >/dev/null 2>&1; then
-  echo "docker daemon is not reachable; start Docker Desktop or another local daemon and retry" >&2
-  exit 1
-fi
-
-find_latest_deb() {
-  find "${PACKAGES_DIR}" -maxdepth 1 -type f -name '*.deb' | sort | tail -n 1
-}
-
-find_latest_rpm() {
-  find "${PACKAGES_DIR}/rpm" -maxdepth 1 -type f -name '*.rpm' | sort | tail -n 1
-}
+container_validation_parse_mode_args usage "$@"
+container_validation_require_docker "container operator-path validation"
 
 operator_validation_body() {
   cat <<'EOF'
@@ -157,41 +116,34 @@ EOF
 
 run_deb_operator_validation() {
   local deb_path
-  deb_path="$(find_latest_deb)"
+  deb_path="$(container_validation_find_latest_deb "${PACKAGES_DIR}")"
   if [[ -z "${deb_path}" ]]; then
     echo "no .deb artifact found under ${PACKAGES_DIR}" >&2
     exit 1
   fi
 
-  docker run --rm \
-    -v "${PACKAGES_DIR}:/packages:ro" \
+  container_validation_run_deb \
+    "${PACKAGES_DIR}" \
     "${DEB_IMAGE}" \
-    bash -lc "
-      set -euo pipefail
-      apt-get update >/dev/null
-      apt-get install -y /packages/$(basename "${deb_path}") >/dev/null
-      $(operator_validation_body)
-    "
+    "${deb_path}" \
+    "$(operator_validation_body)"
 
   echo "deb operator path validation: ok (${deb_path})"
 }
 
 run_rpm_operator_validation() {
   local rpm_path
-  rpm_path="$(find_latest_rpm)"
+  rpm_path="$(container_validation_find_latest_rpm "${PACKAGES_DIR}")"
   if [[ -z "${rpm_path}" ]]; then
     echo "no .rpm artifact found under ${PACKAGES_DIR}/rpm" >&2
     exit 1
   fi
 
-  docker run --rm \
-    -v "${PACKAGES_DIR}/rpm:/packages:ro" \
+  container_validation_run_rpm \
+    "${PACKAGES_DIR}" \
     "${RPM_IMAGE}" \
-    bash -lc "
-      set -euo pipefail
-      dnf install -y /packages/$(basename "${rpm_path}") >/dev/null
-      $(operator_validation_body)
-    "
+    "${rpm_path}" \
+    "$(operator_validation_body)"
 
   echo "rpm operator path validation: ok (${rpm_path})"
 }

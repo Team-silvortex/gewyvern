@@ -123,6 +123,11 @@ For the dedicated note on standalone runtime boundaries, exposure posture, and
 what `gewyvern` should not be treated as in the current `0.14.x` line, see
 [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md).
 
+For the short operator-facing preflight before turning on `--serve`, exposing
+the read-only API, wiring an external engine, or pointing at custom registry
+roots, see
+[docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md).
+
 For the concrete field-validation matrix and local smoke entrypoint,
 see [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md).
 
@@ -218,6 +223,12 @@ Use the docs in two layers:
   The structured reading spine for tutorials, how-to, reference, and
   explanation.
 
+If you are about to operate or expose a real runtime instance, also open:
+
+- [docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md)
+  Short deployment/security preflight for ingest trust, API exposure,
+  external-engine wiring, and registry-root safety.
+
 If you only want the project's current core contract surfaces, start with:
 
 - [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
@@ -236,6 +247,13 @@ If you are orienting yourself for the first time, the shortest useful order is:
 5. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
 
 ## Main Entrypoints
+
+Script naming guide used in this repo:
+
+- `roundtrip`: one narrow end-to-end consumption path
+- `smoke`: one lightweight existence or bring-up check
+- `validation`: one grouped stability check with explicit expectations
+- `summary`: one wrapper that runs several narrower validations in order
 
 - `cargo run -- ...`
   Start the main `gewyvern` runtime CLI for demos, DSL-driven sessions, socket
@@ -263,11 +281,11 @@ If you are orienting yourself for the first time, the shortest useful order is:
 - `bash /Users/Shared/chroot/dev/gewyvern/scripts/release_container_check.sh`
   Run the current release-oriented packaged Linux validation suite from one
   entrypoint, covering install smoke, packaged runtime validation, and the
-  packaged protocol/operator summary checks.
+  packaged protocol/operator validation summaries.
 - `bash /Users/Shared/chroot/dev/gewyvern/scripts/container_validation_summary.sh`
-  Run the packaged Linux container validation suite from one entrypoint,
+  Run the packaged Linux container validation summary from one entrypoint,
   covering both packaged protocol validation and packaged operator-path
-  validation.
+  validation in sequence.
 - `bash /Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh`
   Install the latest local native packages into clean Linux containers and
   verify packaged high-frequency protocol support across DNS, HTTP, TLS,
@@ -1024,14 +1042,19 @@ the returned `target_refs[].path_segment` value when building URLs. The API
 accepts percent-encoded path segments and reports its path-segment contract in
 `/v1/capabilities`.
 
-Roundtrip demo:
+Socket session roundtrip demo:
 
 ```bash
 bash scripts/socket_roundtrip_demo.sh /tmp/gewyvern.sock udp /tmp/gewyvern-out.json unix
 bash scripts/socket_roundtrip_demo.sh 127.0.0.1:9000 udp /tmp/gewyvern-out.json tcp
 ```
 
-Generic external-engine roundtrip demo:
+Use this when you want the smallest local proof that:
+
+- one ingest socket accepts a real template session
+- one output JSON file is produced by the standalone runtime path
+
+External-engine bridge roundtrip demo:
 
 ```bash
 bash scripts/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json
@@ -1050,6 +1073,12 @@ ENGINE_ROOT=/path/to/external-engine
 EXTERNAL_ENGINE_CMD='cargo run -- analyze-url'
 ```
 
+Use this when you want one end-to-end proof that:
+
+- `gewyvern` publishes `analysis.json`
+- a sibling engine can consume that API surface directly
+- the engine emits append-only augmentation JSON
+
 If you want the bridge to consume a target-specific route instead of the latest
 top-level analysis snapshot, pass the already URL-safe target path segment as a
 sixth argument:
@@ -1064,6 +1093,18 @@ Those scripts exercise the full bridge:
 2. ingest a demo socket session
 3. let an external engine pull `/v1/latest/analysis.json` directly with `analyze-url`
 4. save both the raw analysis snapshot and the external augmentation output
+
+Training-dataset consumer roundtrip demo:
+
+```bash
+bash scripts/training_dataset_roundtrip_demo.sh 127.0.0.1:9910 /tmp/gewyvern-training-roundtrip
+```
+
+Use this when you want to prove that:
+
+- `training-dataset.json` is available
+- declared `samples[]` rows resolve to real `training-example.json` payloads
+- `sample_id` stays stable between manifest rows and fetched samples
 
 ## Linux eBPF Probe Environment
 

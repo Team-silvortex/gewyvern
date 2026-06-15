@@ -33,6 +33,9 @@ The current task bands are:
 
 - [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
   Run a first focused target, a sweep, or the serve/API path on purpose.
+- [docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md)
+  Deployment-facing preflight for ingest trust, API exposure, external-engine
+  wiring, and registry-root safety.
 - [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
   Understand `--serve`, restart, degraded mode, and API behavior.
 - [docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md)

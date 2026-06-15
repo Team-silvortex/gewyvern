@@ -95,6 +95,13 @@ It now also exercises a second grouped family covering:
 
 It does not mean only unit tests or synthetic compiler checks.
 
+Throughout this note, the script naming split is intentional:
+
+- `smoke` means a lightweight bring-up or existence check
+- `roundtrip` means one narrow end-to-end consumer path
+- `validation` means a grouped expectation check for one surface family
+- `summary` means a wrapper that runs several validations together
+
 ## Stability Anchors
 
 For field validation, the main outputs we care about are:
@@ -183,8 +190,14 @@ Purpose:
 Current commands to keep exercising:
 
 - [scripts/socket_roundtrip_demo.sh](/Users/Shared/chroot/dev/gewyvern/scripts/socket_roundtrip_demo.sh)
+  Socket session roundtrip through the standalone ingest path.
 - [scripts/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/runtime_operator_validation.sh)
+  Broader serve/API/runtime operator validation path.
 - local `--serve` plus read-only API usage
+
+Pair this validation track with the operator-facing preflight at
+[docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md)
+so deployment intent and runtime behavior are checked together.
 
 Expected qualities:
 

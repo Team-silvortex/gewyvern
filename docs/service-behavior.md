@@ -118,6 +118,11 @@ Current expectations:
 - remote API bind is rejected unless `--allow-remote-api` is explicitly set
 - each API client is handled independently so one slow client should not block
   the whole listener
+- API client reads and writes are both bounded by timeout behavior
+- API handler concurrency is bounded; overload may return a short `503
+  service_busy` response instead of spawning unbounded worker threads
+- oversized successful API bodies are rejected with a bounded `503
+  response_too_large` payload rather than streamed without limit
 - API routes serve the latest snapshot if present, or `404`/empty-state style
   responses if not
 
@@ -154,6 +159,8 @@ Current behavior:
 - external failure does not delete built-in conclusions
 - an advisory augmentation such as `external_engine_failed` may be appended
 - downstream consumers can still rely on the core diagnosis spine
+- capability probing for an external engine is subject to the same timeout and
+  output-budget expectations as a full external analysis invocation
 
 This is important for standalone operation:
 

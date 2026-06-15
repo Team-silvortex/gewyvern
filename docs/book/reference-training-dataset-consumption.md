@@ -211,7 +211,7 @@ GET /v1/latest/targets/<path-segment>/training-example.json
 
 ## Reference Script
 
-There is also a minimal executable consumer reference:
+There is also a minimal executable consumer-roundtrip reference:
 
 - [scripts/training_dataset_roundtrip_demo.sh](/Users/Shared/chroot/dev/gewyvern/scripts/training_dataset_roundtrip_demo.sh)
 
@@ -222,6 +222,10 @@ It will:
 3. fetch each `training-example.json`
 4. verify `sample_id` consistency
 5. write a small local summary plus the fetched sample payloads
+
+This is intentionally narrower than the full runtime validation scripts.
+Use it when you specifically want to validate the machine-facing training
+surface as a consumer would see it.
 
 Example:
 

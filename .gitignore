@@ -24,3 +24,8 @@ target
 # Added by cargo
 
 /target
+
+# Local OS/editor noise
+.DS_Store
+*~
+*.orig

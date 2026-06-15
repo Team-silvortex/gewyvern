@@ -187,6 +187,12 @@ That wrapper runs, in order:
 - [container_protocol_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_protocol_validation.sh)
 - [container_operator_path_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/container_operator_path_validation.sh)
 
+Naming note for the packaging scripts:
+
+- `smoke` means install/bring-up confidence
+- `validation` means one grouped packaged-behavior check
+- `summary` means a wrapper over several packaged validations
+
 If you only want one package family, use:
 
 ```bash

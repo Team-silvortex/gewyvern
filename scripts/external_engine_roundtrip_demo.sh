@@ -2,6 +2,7 @@
 set -euo pipefail
 
 GEWY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${GEWY_ROOT}/scripts/demo_common.sh"
 ENGINE_ROOT_DEFAULT="${ENGINE_ROOT:-}"
 ETRAGON_ROOT_DEFAULT="${ETRAGON_ROOT:-}"
 
@@ -48,31 +49,9 @@ cleanup() {
   kill "${SERVER_PID}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
+demo_require_cmd curl
 
-wait_for_json_fragment() {
-  local url="$1"
-  local fragment="$2"
-  for _ in $(seq 1 240); do
-    local body
-    if body="$(curl -fsS "${url}" 2>/dev/null)"; then
-      if [[ "${body}" == *"${fragment}"* ]]; then
-        printf '%s' "${body}"
-        return 0
-      fi
-    fi
-    sleep 0.05
-  done
-  return 1
-}
-
-for _ in $(seq 1 120); do
-  if curl -fsS "http://${API_ADDR}/health" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 0.05
-done
-
-if ! curl -fsS "http://${API_ADDR}/health" >/dev/null 2>&1; then
+if ! demo_wait_for_http_ready "http://${API_ADDR}/health"; then
   echo "gewyvern API did not become ready at ${API_ADDR}" >&2
   exit 1
 fi
@@ -82,7 +61,7 @@ fi
   cargo run --bin gewyvern_socket_send -- --tcp-socket "${INGEST_ADDR}" --template "${TEMPLATE}"
 )
 
-ANALYSIS_BODY="$(wait_for_json_fragment "http://${API_ADDR}${ANALYSIS_ROUTE}" "\"operator_guidance_action\"")" || {
+ANALYSIS_BODY="$(demo_wait_for_http_fragment "http://${API_ADDR}${ANALYSIS_ROUTE}" "\"operator_guidance_action\"")" || {
   echo "gewyvern never published a complete analysis payload at ${ANALYSIS_ROUTE}" >&2
   curl -fsS "http://${API_ADDR}${ANALYSIS_ROUTE}" >&2 || true
   exit 1

@@ -47,7 +47,9 @@ struct ManifestEntryAliases {
 }
 
 fn manifest_aliases_by_entry(protocol: &str) -> BTreeMap<String, ManifestEntryAliases> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("protocols").join(protocol);
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(protocol);
     let mut entries = BTreeMap::<String, ManifestEntryAliases>::new();
     for dir in fs::read_dir(root).expect("protocol dir should exist") {
         let dir = dir.expect("protocol entry should read");
@@ -99,7 +101,12 @@ fn selected_protocol_fallback_entries_cover_manifest_aliases() {
         let summary_entries = summary
             .entries
             .into_iter()
-            .map(|entry| (entry.mode, entry.aliases.into_iter().collect::<BTreeSet<_>>()))
+            .map(|entry| {
+                (
+                    entry.mode,
+                    entry.aliases.into_iter().collect::<BTreeSet<_>>(),
+                )
+            })
             .collect::<BTreeMap<_, _>>();
         let manifest_entries = manifest_aliases_by_entry(protocol);
 

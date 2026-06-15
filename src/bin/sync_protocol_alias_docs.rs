@@ -10,7 +10,8 @@ const FAMILY_SHELVES_BLOCK_START: &str = "<!-- gewyvern:family-shelves:start -->
 const FAMILY_SHELVES_BLOCK_END: &str = "<!-- gewyvern:family-shelves:end -->";
 const PROTOCOL_GROUPS_BLOCK_START: &str = "<!-- gewyvern:protocol-groups:start -->";
 const PROTOCOL_GROUPS_BLOCK_END: &str = "<!-- gewyvern:protocol-groups:end -->";
-const PROTOCOL_SURFACE_OVERVIEW_BLOCK_START: &str = "<!-- gewyvern:protocol-surface-overview:start -->";
+const PROTOCOL_SURFACE_OVERVIEW_BLOCK_START: &str =
+    "<!-- gewyvern:protocol-surface-overview:start -->";
 const PROTOCOL_SURFACE_OVERVIEW_BLOCK_END: &str = "<!-- gewyvern:protocol-surface-overview:end -->";
 const PROTOCOL_SURFACE_PAGE: &str = "docs/book/reference-protocol-surface.md";
 const PROTOCOL_FAMILY_SHELVES_PAGE: &str = "docs/book/reference-protocol-family-shelves.md";
@@ -188,7 +189,10 @@ fn render_family_shelves_directory(summaries: &[ProtocolSummary]) -> String {
 
 fn render_protocol_surface_overview(summaries: &[ProtocolSummary]) -> String {
     let family_count = summaries.len();
-    let entry_count = summaries.iter().map(|summary| summary.entries.len()).sum::<usize>();
+    let entry_count = summaries
+        .iter()
+        .map(|summary| summary.entries.len())
+        .sum::<usize>();
     let family_pages = current_family_hub_pages(summaries);
     let mut out = String::new();
     out.push_str(PROTOCOL_SURFACE_OVERVIEW_BLOCK_START);
@@ -262,7 +266,8 @@ fn current_custom_subpages(summaries: &[ProtocolSummary]) -> BTreeMap<String, BT
             }
             let aliases = pages.entry(shelf.page).or_default();
             for shelf_entry in &shelf.entries {
-                if let Some(entry_summary) = summary.entries.iter().find(|it| it.mode == *shelf_entry)
+                if let Some(entry_summary) =
+                    summary.entries.iter().find(|it| it.mode == *shelf_entry)
                 {
                     aliases.extend(entry_summary.aliases.iter().cloned());
                 }
@@ -370,8 +375,7 @@ fn sync_generated_block(
     block: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut content = fs::read_to_string(path)?;
-    if let (Some(start), Some(end)) = (content.find(start_marker), content.find(end_marker))
-    {
+    if let (Some(start), Some(end)) = (content.find(start_marker), content.find(end_marker)) {
         let end = end + end_marker.len();
         content.replace_range(start..end, block);
     } else {

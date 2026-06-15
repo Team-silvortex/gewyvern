@@ -52,6 +52,13 @@ Run the checks in this order:
 
 That order matters because it helps you isolate where drift entered.
 
+The naming split in the referenced scripts is deliberate:
+
+- `smoke` is the lightest check
+- `roundtrip` is one narrow consumer path
+- `validation` is one grouped stability check
+- `summary` is a wrapper over multiple validations
+
 ## Step 1: Start With The Whole Workspace
 
 ```bash
@@ -265,20 +272,21 @@ curl http://127.0.0.1:9100/v1/latest/analysis.json
 curl http://127.0.0.1:9100/v1/latest/training-dataset.json
 ```
 
-If you also want to smoke the generic external-engine bridge end to end:
+If you also want to smoke the external-engine bridge roundtrip end to end:
 
 ```bash
 bash scripts/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json
 ```
 
-If you want to confirm the training surface can be consumed the way a sibling
-engine would actually use it, run:
+If you want to confirm the training-dataset consumer roundtrip the way a
+sibling engine would actually use it, run:
 
 ```bash
 bash scripts/training_dataset_roundtrip_demo.sh 127.0.0.1:9100 /tmp/gewyvern-training-roundtrip
 ```
 
-That roundtrip checks three things that are easy to miss in narrower API smoke:
+That consumer roundtrip checks three things that are easy to miss in narrower
+API smoke:
 
 - the manifest itself is available
 - each manifest sample row resolves to a real training example payload
@@ -295,6 +303,7 @@ Use this when you need confidence in:
 - `summary.json` versus `analysis.json`
 - target route discovery through `/v1/latest/targets`
 - local sidecar/enrich chains rather than just CLI rendering
+- training manifests versus fetched sample payloads
 
 ## What “Healthy Enough For v0.14.x” Means
 

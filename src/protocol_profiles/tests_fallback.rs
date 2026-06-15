@@ -56,7 +56,11 @@ fn built_in_redis_summary_keeps_high_value_entry_aliases() {
         .iter()
         .find(|entry| entry.mode == "xreadgroup")
         .expect("redis xreadgroup entry should exist");
-    assert!(xreadgroup.aliases.contains(&"stream-group-read".to_string()));
+    assert!(
+        xreadgroup
+            .aliases
+            .contains(&"stream-group-read".to_string())
+    );
 }
 
 #[test]

@@ -146,9 +146,9 @@ The most important sanity check is negative:
 If sidecar presence appears to replace the core diagnosis spine instead of
 augmenting it, treat that as a real bug.
 
-## Path B: Use The External-Engine Roundtrip Demo
+## Path B: Use The External-Engine Bridge Roundtrip Demo
 
-When you want one direct end-to-end proof that:
+When you want one direct end-to-end bridge proof that:
 
 - `gewyvern` publishes analysis JSON
 - `etragon` can consume it
@@ -182,7 +182,7 @@ EXTERNAL_ENGINE_CMD='cargo run -- analyze-url'
 
 ## What Success Looks Like
 
-A healthy roundtrip gives you:
+A healthy bridge roundtrip gives you:
 
 - one saved analysis snapshot
 - one saved engine output payload

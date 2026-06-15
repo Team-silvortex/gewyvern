@@ -6,6 +6,10 @@ use std::path::{Path, PathBuf};
 use super::profiles::{PACKAGED_SHARE_ROOT, PROTOCOL_REGISTRY_ROOT};
 use super::{RegistryManifest, ResolvedProtocolProfile};
 
+const MAX_REGISTRY_DIRECTORIES: usize = 4096;
+const MAX_REGISTRY_MANIFESTS: usize = 2048;
+const MAX_REGISTRY_MANIFEST_BYTES: u64 = 64 * 1024;
+
 pub(super) fn scan_protocol_registry() -> Option<Vec<RegistryManifest>> {
     for root in protocol_registry_roots() {
         if let Some(registry) = scan_protocol_registry_in(&root) {
@@ -17,8 +21,8 @@ pub(super) fn scan_protocol_registry() -> Option<Vec<RegistryManifest>> {
 
 pub(super) fn scan_protocol_registry_in(root: &Path) -> Option<Vec<RegistryManifest>> {
     let mut manifests = Vec::new();
-    let mut visited_dirs = HashSet::new();
-    collect_registry_manifests(root, &mut manifests, &mut visited_dirs).ok()?;
+    let mut state = RegistryScanState::default();
+    collect_registry_manifests(root, &mut manifests, &mut state).ok()?;
     if manifests.is_empty() {
         None
     } else {
@@ -109,7 +113,7 @@ pub(super) fn default_protocol_scan_set_from_registry(
 fn collect_registry_manifests(
     dir: &Path,
     manifests: &mut Vec<RegistryManifest>,
-    visited_dirs: &mut HashSet<std::path::PathBuf>,
+    state: &mut RegistryScanState,
 ) -> Result<(), String> {
     if !dir.exists() {
         return Ok(());
@@ -119,8 +123,15 @@ fn collect_registry_manifests(
         return Ok(());
     }
     let canonical_dir = fs::canonicalize(dir).map_err(|err| err.to_string())?;
-    if !visited_dirs.insert(canonical_dir) {
+    if !state.visited_dirs.insert(canonical_dir) {
         return Ok(());
+    }
+    state.directories_scanned += 1;
+    if state.directories_scanned > MAX_REGISTRY_DIRECTORIES {
+        return Err(format!(
+            "protocol registry exceeded directory budget of {}",
+            MAX_REGISTRY_DIRECTORIES
+        ));
     }
     for entry in fs::read_dir(dir).map_err(|err| err.to_string())? {
         let entry = entry.map_err(|err| err.to_string())?;
@@ -130,11 +141,18 @@ fn collect_registry_manifests(
             continue;
         }
         if path.is_dir() {
-            collect_registry_manifests(&path, manifests, visited_dirs)?;
+            collect_registry_manifests(&path, manifests, state)?;
             continue;
         }
         if path.file_name().and_then(|name| name.to_str()) != Some("gewy.pkg") {
             continue;
+        }
+        state.manifests_loaded += 1;
+        if state.manifests_loaded > MAX_REGISTRY_MANIFESTS {
+            return Err(format!(
+                "protocol registry exceeded manifest budget of {}",
+                MAX_REGISTRY_MANIFESTS
+            ));
         }
         manifests.push(read_registry_manifest(&path)?);
     }
@@ -142,6 +160,14 @@ fn collect_registry_manifests(
 }
 
 fn read_registry_manifest(path: &Path) -> Result<RegistryManifest, String> {
+    let manifest_metadata = fs::metadata(path).map_err(|err| err.to_string())?;
+    if manifest_metadata.len() > MAX_REGISTRY_MANIFEST_BYTES {
+        return Err(format!(
+            "manifest '{}' exceeded size budget of {} bytes",
+            path.display(),
+            MAX_REGISTRY_MANIFEST_BYTES
+        ));
+    }
     let input = fs::read_to_string(path).map_err(|err| err.to_string())?;
     let root = path
         .parent()
@@ -232,4 +258,41 @@ pub(super) fn resolve_registry_entry_alias<'a>(
                     || manifest.aliases.iter().any(|alias| alias == entry))
         })
         .map(|manifest| manifest.entry.as_str())
+}
+
+#[derive(Default)]
+struct RegistryScanState {
+    visited_dirs: HashSet<PathBuf>,
+    directories_scanned: usize,
+    manifests_loaded: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_registry_root() -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("gewyvern-registry-test-{unique}"))
+    }
+
+    #[test]
+    fn oversized_manifest_is_rejected() {
+        let root = temp_registry_root();
+        let package_dir = root.join("http").join("request");
+        fs::create_dir_all(&package_dir).expect("package dir should be creatable");
+        fs::write(package_dir.join("session.gewy"), "fragment packet_meta {}")
+            .expect("entry file should be writable");
+        let oversized = "x".repeat((MAX_REGISTRY_MANIFEST_BYTES as usize) + 8);
+        fs::write(package_dir.join("gewy.pkg"), oversized).expect("manifest should be writable");
+
+        let result = scan_protocol_registry_in(&root);
+        let _ = fs::remove_dir_all(&root);
+        assert!(result.is_none());
+    }
 }

@@ -1,20 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT}/scripts/demo_common.sh"
+
 API_ADDR="${1:-127.0.0.1:9910}"
 OUT_DIR="${2:-/tmp/gewyvern-training-dataset-demo}"
 TARGET_PATH_SEGMENT="${3:-}"
 LIMIT="${4:-0}"
 
-require_cmd() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "missing required command: $1" >&2
-    exit 1
-  fi
-}
-
-require_cmd curl
-require_cmd python3
+demo_require_cmd curl
+demo_require_cmd python3
 
 mkdir -p "${OUT_DIR}"
 
@@ -27,19 +23,7 @@ fi
 MANIFEST_URL="http://${API_ADDR}${MANIFEST_ROUTE}"
 MANIFEST_PATH="${OUT_DIR}/training-dataset.json"
 
-wait_for_manifest() {
-  local url="$1"
-  local out="$2"
-  for _ in $(seq 1 120); do
-    if curl -fsS "${url}" > "${out}" 2>/dev/null; then
-      return 0
-    fi
-    sleep 0.1
-  done
-  return 1
-}
-
-if ! wait_for_manifest "${MANIFEST_URL}" "${MANIFEST_PATH}"; then
+if ! demo_wait_for_http_body "${MANIFEST_URL}" "${MANIFEST_PATH}"; then
   echo "training dataset manifest did not become ready at ${MANIFEST_URL}" >&2
   exit 1
 fi

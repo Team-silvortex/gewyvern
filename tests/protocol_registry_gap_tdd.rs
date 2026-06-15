@@ -62,7 +62,10 @@ fn socks5_smtp_kerberos_and_control_plane_aliases_resolve_to_packaged_paths() {
 fn gap_protocol_default_entries_and_surface_shelves_stay_stable() {
     assert_eq!(protocol_default_entry("http3"), Some("request".to_string()));
     assert_eq!(protocol_default_entry("hy2"), Some("auth".to_string()));
-    assert_eq!(protocol_default_entry("socks5"), Some("session".to_string()));
+    assert_eq!(
+        protocol_default_entry("socks5"),
+        Some("session".to_string())
+    );
     assert_eq!(protocol_default_entry("smtp"), Some("session".to_string()));
     assert_eq!(protocol_default_entry("kerberos"), Some("as".to_string()));
     assert_eq!(protocol_default_entry("radius"), Some("access".to_string()));
@@ -76,13 +79,15 @@ fn gap_protocol_default_entries_and_surface_shelves_stay_stable() {
 
     let socks5 =
         protocol_surface("socks5", "auth-connect-denied").expect("socks5 shelf should exist");
-    assert_eq!(socks5.shelf.expect("socks5 shelf should exist").key, "denied");
+    assert_eq!(
+        socks5.shelf.expect("socks5 shelf should exist").key,
+        "denied"
+    );
 
     let smtp = protocol_surface("smtp", "data-denied").expect("smtp shelf should exist");
     assert_eq!(smtp.shelf.expect("smtp shelf should exist").key, "data");
 
-    let kerberos =
-        protocol_surface("kerberos", "as-error").expect("kerberos shelf should exist");
+    let kerberos = protocol_surface("kerberos", "as-error").expect("kerberos shelf should exist");
     assert_eq!(
         kerberos.shelf.expect("kerberos shelf should exist").key,
         "as"

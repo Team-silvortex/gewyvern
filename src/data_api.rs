@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::io::Write;
 use std::net::TcpListener;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -18,6 +20,9 @@ pub(crate) use self::training_manifest::training_sample_id;
 pub type ApiState = Arc<Mutex<Arc<ApiSnapshot>>>;
 
 const API_CLIENT_READ_TIMEOUT: Duration = Duration::from_secs(3);
+const API_CLIENT_WRITE_TIMEOUT: Duration = Duration::from_secs(3);
+const API_MAX_CONCURRENT_CLIENTS: usize = 128;
+const API_MAX_RESPONSE_BODY_BYTES: usize = 512 * 1024;
 const API_VERSION: &str = env!("CARGO_PKG_VERSION");
 const API_ENDPOINTS_JSON: &str = "[\"/health\",\"/v1/capabilities\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/training-example.json\",\"/v1/latest/training-dataset.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/training-example.json\",\"/v1/latest/targets/<name>/training-dataset.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\",\"/v1/latest/targets/<name>/protocol-surface.json\"]";
 
@@ -255,12 +260,23 @@ pub fn start_api_service(addr: &str) -> ApiState {
     });
     let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
     let thread_state = Arc::clone(&state);
+    let active_clients = Arc::new(AtomicUsize::new(0));
     thread::spawn(move || {
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
+                    let previous = active_clients.fetch_add(1, Ordering::AcqRel);
+                    if previous >= API_MAX_CONCURRENT_CLIENTS {
+                        active_clients.fetch_sub(1, Ordering::AcqRel);
+                        reject_api_client_overload(stream);
+                        continue;
+                    }
                     let client_state = Arc::clone(&thread_state);
-                    thread::spawn(move || handle_api_client(stream, client_state));
+                    let client_counter = Arc::clone(&active_clients);
+                    thread::spawn(move || {
+                        let _guard = ActiveApiClientGuard(client_counter);
+                        handle_api_client(stream, client_state);
+                    });
                 }
                 Err(_) => continue,
             }
@@ -274,6 +290,23 @@ fn current_unix_ms() -> u128 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis()
+}
+
+struct ActiveApiClientGuard(Arc<AtomicUsize>);
+
+impl Drop for ActiveApiClientGuard {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+fn reject_api_client_overload(mut stream: std::net::TcpStream) {
+    let _ = stream.set_write_timeout(Some(API_CLIENT_WRITE_TIMEOUT));
+    let _ = write!(stream, "{}", service_busy_response());
+}
+
+fn service_busy_response() -> &'static str {
+    "HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: 55\r\nConnection: close\r\n\r\n{\"error\":\"service_busy\",\"retry_after\":\"short_backoff\"}"
 }
 
 fn api_protocol_surface_for_target(name: &str) -> Option<ProtocolSurfaceSummary> {
@@ -322,4 +355,27 @@ fn api_protocol_surface_json(surface: &ProtocolSurfaceSummary) -> String {
     }
     json.push('}');
     json
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn active_api_client_guard_releases_slot_on_drop() {
+        let counter = Arc::new(AtomicUsize::new(1));
+        {
+            let _guard = ActiveApiClientGuard(Arc::clone(&counter));
+            counter.fetch_add(1, Ordering::AcqRel);
+        }
+        assert_eq!(counter.load(Ordering::Acquire), 1);
+    }
+
+    #[test]
+    fn overload_rejection_uses_503_service_busy_response() {
+        let response = service_busy_response();
+        assert!(response.starts_with("HTTP/1.1 503 Service Unavailable"));
+        assert!(response.contains("\"error\":\"service_busy\""));
+        assert!(response.contains("\"retry_after\":\"short_backoff\""));
+    }
 }

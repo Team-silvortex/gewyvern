@@ -1,11 +1,11 @@
-#[path = "aliases_protocol.rs"]
-mod aliases_protocol;
 #[path = "aliases_entry.rs"]
 mod aliases_entry;
-#[path = "aliases_entry_manifest.rs"]
-mod aliases_entry_manifest;
 #[path = "aliases_entry_extended.rs"]
 mod aliases_entry_extended;
+#[path = "aliases_entry_manifest.rs"]
+mod aliases_entry_manifest;
+#[path = "aliases_protocol.rs"]
+mod aliases_protocol;
 
 pub(crate) use aliases_protocol::PROTOCOL_ALIASES;
 
