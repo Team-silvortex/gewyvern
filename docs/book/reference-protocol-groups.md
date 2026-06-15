@@ -32,14 +32,8 @@ If you already know the exact family, skip directly to:
 
 - [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
 
+<!-- gewyvern:protocol-groups:start -->
 ## Web, Proxy, And Request/Response
-
-Use these shelves when the traffic is primarily:
-
-- request/response
-- tunnel establishment
-- proxy traversal
-- modern web transport
 
 Families:
 
@@ -48,13 +42,6 @@ Families:
 - [docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md)
 
 ## Messaging, Queue, And Cache
-
-Use these shelves when the traffic is primarily:
-
-- broker or queue negotiation
-- publish/subscribe
-- cache reads/writes
-- stream or data-structure operations
 
 Families:
 
@@ -65,24 +52,12 @@ Families:
 
 ## Database And Query
 
-Use these shelves when the traffic is primarily:
-
-- connection negotiation
-- query/session flow
-- server error or denial posture
-
 Families:
 
 - [docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md)
 - [docs/book/reference-mysql-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-surface.md)
 
 ## Mail And Mailbox
-
-Use these shelves when the traffic is primarily:
-
-- SMTP submission
-- IMAP mailbox control
-- POP3 mailbox listing
 
 Families:
 
@@ -92,30 +67,17 @@ Families:
 
 ## Identity, Directory, And Access
 
-Use these shelves when the traffic is primarily:
-
-- directory bind/search/write
-- ticket or auth negotiation
-- shell/session access
-
 Families:
 
 - [docs/book/reference-ldap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-surface.md)
-- [docs/book/reference-kerberos-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
 - [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md)
+- Kerberos: [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
 
 Note:
 
-- Kerberos currently routes through the general protocol surface and family
-  contract pages rather than a dedicated hub page in this book.
+- Kerberos currently routes through the general protocol surface and family contract pages rather than a dedicated hub page in this book.
 
 ## Transport, Media, And Session Control
-
-Use these shelves when the traffic is primarily:
-
-- handshake or session establishment
-- media control
-- transport-stage progression
 
 Families:
 
@@ -124,6 +86,8 @@ Families:
 - [docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md)
 - [docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md)
 - [docs/book/reference-ftp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-surface.md)
+
+<!-- gewyvern:protocol-groups:end -->
 
 ## Practical Lookup Order
 

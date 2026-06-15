@@ -36,6 +36,7 @@ Then continue with:
 - one narrower family subpage
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
 
+<!-- gewyvern:family-shelves:start -->
 ## Current Family Shelves
 
 ### Redis
@@ -43,208 +44,172 @@ Then continue with:
 - Hub:
   [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md)
 - Subpages:
-  [docs/book/reference-redis-kv-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-kv-surface.md),
-  [docs/book/reference-redis-hash-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-hash-surface.md),
-  [docs/book/reference-redis-list-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-list-surface.md),
-  [docs/book/reference-redis-sorted-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-sorted-set-surface.md),
-  [docs/book/reference-redis-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-stream-surface.md)
-- Scope:
-  Session/kv, hash, list, sorted-set, and stream lookup.
+  - [docs/book/reference-redis-hash-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-hash-surface.md)
+  - [docs/book/reference-redis-kv-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-kv-surface.md)
+  - [docs/book/reference-redis-list-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-list-surface.md)
+  - [docs/book/reference-redis-sorted-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-sorted-set-surface.md)
+  - [docs/book/reference-redis-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-stream-surface.md)
 
 ### FTP
 
 - Hub:
   [docs/book/reference-ftp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-surface.md)
 - Subpages:
-  [docs/book/reference-ftp-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-session-surface.md),
-  [docs/book/reference-ftp-passive-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-passive-surface.md),
-  [docs/book/reference-ftp-active-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-active-surface.md)
-- Scope:
-  Session/auth, passive transfer, and active transfer lookup.
+  - [docs/book/reference-ftp-active-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-active-surface.md)
+  - [docs/book/reference-ftp-passive-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-passive-surface.md)
+  - [docs/book/reference-ftp-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-session-surface.md)
 
 ### SMTP
 
 - Hub:
   [docs/book/reference-smtp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-surface.md)
 - Subpages:
-  [docs/book/reference-smtp-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-session-surface.md),
-  [docs/book/reference-smtp-envelope-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-envelope-surface.md),
-  [docs/book/reference-smtp-data-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-data-surface.md)
-- Scope:
-  Greeting/auth, envelope flow, and message submission lookup.
+  - [docs/book/reference-smtp-data-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-data-surface.md)
+  - [docs/book/reference-smtp-envelope-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-envelope-surface.md)
+  - [docs/book/reference-smtp-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-session-surface.md)
 
 ### MQTT
 
 - Hub:
   [docs/book/reference-mqtt-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-surface.md)
 - Subpages:
-  [docs/book/reference-mqtt-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-session-surface.md),
-  [docs/book/reference-mqtt-pubsub-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-pubsub-surface.md),
-  [docs/book/reference-mqtt-qos2-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-qos2-surface.md)
-- Scope:
-  Session establishment, pub/sub, QoS2 continuation, and teardown lookup.
+  - [docs/book/reference-mqtt-pubsub-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-pubsub-surface.md)
+  - [docs/book/reference-mqtt-qos2-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-qos2-surface.md)
+  - [docs/book/reference-mqtt-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-session-surface.md)
 
 ### LDAP
 
 - Hub:
   [docs/book/reference-ldap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-surface.md)
 - Subpages:
-  [docs/book/reference-ldap-bind-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-bind-surface.md),
-  [docs/book/reference-ldap-search-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-search-surface.md),
-  [docs/book/reference-ldap-write-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-write-surface.md)
-- Scope:
-  Bind, directory read/session, and write/sync lookup.
+  - [docs/book/reference-ldap-bind-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-bind-surface.md)
+  - [docs/book/reference-ldap-search-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-search-surface.md)
+  - [docs/book/reference-ldap-write-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-write-surface.md)
 
 ### PostgreSQL
 
 - Hub:
   [docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md)
 - Subpages:
-  [docs/book/reference-postgres-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-connect-surface.md),
-  [docs/book/reference-postgres-query-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-query-surface.md),
-  [docs/book/reference-postgres-error-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-error-surface.md)
-- Scope:
-  Connect/auth, query/session, and query-error lookup.
+  - [docs/book/reference-postgres-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-connect-surface.md)
+  - [docs/book/reference-postgres-error-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-error-surface.md)
+  - [docs/book/reference-postgres-query-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-query-surface.md)
 
 ### HTTP
 
 - Hub:
   [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md)
 - Subpages:
-  [docs/book/reference-http-message-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-message-surface.md),
-  [docs/book/reference-http-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-connect-surface.md),
-  [docs/book/reference-http-connect-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-connect-auth-surface.md)
-- Scope:
-  Direct request/response, CONNECT tunnel, and proxy-auth CONNECT lookup.
+  - [docs/book/reference-http-connect-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-connect-auth-surface.md)
+  - [docs/book/reference-http-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-connect-surface.md)
+  - [docs/book/reference-http-message-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-message-surface.md)
 
 ### SOCKS5
 
 - Hub:
   [docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md)
 - Subpages:
-  [docs/book/reference-socks5-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-session-surface.md),
-  [docs/book/reference-socks5-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-auth-surface.md),
-  [docs/book/reference-socks5-denied-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-denied-surface.md)
-- Scope:
-  Session/connect, username-password auth, and denial-branch lookup.
+  - [docs/book/reference-socks5-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-auth-surface.md)
+  - [docs/book/reference-socks5-denied-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-denied-surface.md)
+  - [docs/book/reference-socks5-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-session-surface.md)
 
 ### MySQL
 
 - Hub:
   [docs/book/reference-mysql-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-surface.md)
 - Subpages:
-  [docs/book/reference-mysql-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-connect-surface.md),
-  [docs/book/reference-mysql-query-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-query-surface.md),
-  [docs/book/reference-mysql-error-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-error-surface.md)
-- Scope:
-  Connect, query/session, and query-error lookup.
+  - [docs/book/reference-mysql-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-connect-surface.md)
+  - [docs/book/reference-mysql-error-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-error-surface.md)
+  - [docs/book/reference-mysql-query-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-query-surface.md)
 
 ### AMQP
 
 - Hub:
   [docs/book/reference-amqp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-surface.md)
 - Subpages:
-  [docs/book/reference-amqp-start-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-start-surface.md),
-  [docs/book/reference-amqp-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-session-surface.md),
-  [docs/book/reference-amqp-consume-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-consume-surface.md)
-- Scope:
-  Start negotiation, publish/session, and consume/delivery lookup.
+  - [docs/book/reference-amqp-consume-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-consume-surface.md)
+  - [docs/book/reference-amqp-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-session-surface.md)
+  - [docs/book/reference-amqp-start-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-start-surface.md)
 
 ### SSH
 
 - Hub:
   [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md)
 - Subpages:
-  [docs/book/reference-ssh-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-session-surface.md),
-  [docs/book/reference-ssh-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-auth-surface.md),
-  [docs/book/reference-ssh-channel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-channel-surface.md)
-- Scope:
-  Session startup, auth outcome, and authenticated channel-open lookup.
+  - [docs/book/reference-ssh-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-auth-surface.md)
+  - [docs/book/reference-ssh-channel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-channel-surface.md)
+  - [docs/book/reference-ssh-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-session-surface.md)
 
 ### RTSP
 
 - Hub:
   [docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md)
 - Subpages:
-  [docs/book/reference-rtsp-options-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-options-surface.md),
-  [docs/book/reference-rtsp-describe-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-describe-surface.md),
-  [docs/book/reference-rtsp-setup-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-setup-surface.md),
-  [docs/book/reference-rtsp-play-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-play-surface.md)
-- Scope:
-  Probe, metadata lookup, setup, and playback-start lookup.
+  - [docs/book/reference-rtsp-describe-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-describe-surface.md)
+  - [docs/book/reference-rtsp-options-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-options-surface.md)
+  - [docs/book/reference-rtsp-play-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-play-surface.md)
+  - [docs/book/reference-rtsp-setup-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-setup-surface.md)
 
 ### QUIC
 
 - Hub:
   [docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md)
 - Subpages:
-  [docs/book/reference-quic-initial-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-initial-surface.md),
-  [docs/book/reference-quic-crypto-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-crypto-surface.md),
-  [docs/book/reference-quic-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-stream-surface.md),
-  [docs/book/reference-quic-bidi-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-bidi-surface.md)
-- Scope:
-  Initial, crypto-handshake, outbound-stream, and bidirectional-stream lookup.
+  - [docs/book/reference-quic-bidi-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-bidi-surface.md)
+  - [docs/book/reference-quic-crypto-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-crypto-surface.md)
+  - [docs/book/reference-quic-initial-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-initial-surface.md)
+  - [docs/book/reference-quic-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-stream-surface.md)
 
 ### DNS
 
 - Hub:
   [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md)
 - Subpages:
-  [docs/book/reference-dns-udp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-udp-surface.md),
-  [docs/book/reference-dns-tcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-tcp-surface.md)
-- Scope:
-  Default UDP lookup and TCP query lookup.
+  - [docs/book/reference-dns-tcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-tcp-surface.md)
+  - [docs/book/reference-dns-udp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-udp-surface.md)
 
 ### HTTP/3
 
 - Hub:
   [docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md)
 - Subpages:
-  [docs/book/reference-http3-request-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-request-surface.md),
-  [docs/book/reference-http3-server-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-server-surface.md)
-- Scope:
-  Client request posture and local server response posture over QUIC.
+  - [docs/book/reference-http3-request-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-request-surface.md)
+  - [docs/book/reference-http3-server-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-server-surface.md)
 
 ### IMAP
 
 - Hub:
   [docs/book/reference-imap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-surface.md)
 - Subpages:
-  [docs/book/reference-imap-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-auth-surface.md),
-  [docs/book/reference-imap-select-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-select-surface.md)
-- Scope:
-  Login outcome and mailbox-selection lookup.
+  - [docs/book/reference-imap-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-auth-surface.md)
+  - [docs/book/reference-imap-select-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-select-surface.md)
 
 ### SIP
 
 - Hub:
   [docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md)
 - Subpages:
-  [docs/book/reference-sip-register-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-register-surface.md),
-  [docs/book/reference-sip-invite-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-invite-surface.md),
-  [docs/book/reference-sip-bye-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-bye-surface.md)
-- Scope:
-  Registration, call-setup, and teardown lookup.
+  - [docs/book/reference-sip-bye-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-bye-surface.md)
+  - [docs/book/reference-sip-invite-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-invite-surface.md)
+  - [docs/book/reference-sip-register-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-register-surface.md)
 
 ### POP3
 
 - Hub:
   [docs/book/reference-pop3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-surface.md)
 - Subpages:
-  [docs/book/reference-pop3-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-auth-surface.md),
-  [docs/book/reference-pop3-list-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-list-surface.md)
-- Scope:
-  Login outcome and mailbox-list lookup.
+  - [docs/book/reference-pop3-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-auth-surface.md)
+  - [docs/book/reference-pop3-list-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-list-surface.md)
 
 ### Memcached
 
 - Hub:
   [docs/book/reference-memcached-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-surface.md)
 - Subpages:
-  [docs/book/reference-memcached-get-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-get-surface.md),
-  [docs/book/reference-memcached-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-set-surface.md)
-- Scope:
-  Binary get/read and set/write lookup.
+  - [docs/book/reference-memcached-get-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-get-surface.md)
+  - [docs/book/reference-memcached-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-set-surface.md)
+
+<!-- gewyvern:family-shelves:end -->
 
 ## Naming Conventions For Future Shelves
 

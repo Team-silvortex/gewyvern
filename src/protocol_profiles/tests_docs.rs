@@ -10,8 +10,69 @@ const PROTOCOL_FAMILY_SHELVES_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/docs/book/reference-protocol-family-shelves.md"
 );
+const PROTOCOL_GROUPS_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/docs/book/reference-protocol-groups.md"
+);
 const PROTOCOL_SURFACE_PAGE: &str = "docs/book/reference-protocol-surface.md";
 const IR_LOWERING_PAGE: &str = "docs/book/reference-ir-lowering.md";
+const PROTOCOL_GROUPS_PAGE: &str = "docs/book/reference-protocol-groups.md";
+const PROTOCOL_ALIAS_INDEX_PAGE: &str = "docs/book/reference-protocol-alias-index.md";
+const EXPECTED_GROUP_FAMILY_HUBS: &[&str] = &[
+    "http",
+    "http3",
+    "socks5",
+    "redis",
+    "memcached",
+    "mqtt",
+    "amqp",
+    "postgres",
+    "mysql",
+    "smtp",
+    "imap",
+    "pop3",
+    "ldap",
+    "ssh",
+    "quic",
+    "dns",
+    "rtsp",
+    "sip",
+    "ftp",
+];
+
+#[test]
+fn protocol_surface_front_door_links_core_protocol_navigation_pages() {
+    let actual = fs::read_to_string(PROTOCOL_SURFACE_PAGE)
+        .expect("protocol surface doc should exist");
+    let links = markdown_book_links(&actual);
+    let expected = [
+        PROTOCOL_GROUPS_PAGE.to_string(),
+        "docs/book/reference-protocol-family-shelves.md".to_string(),
+        PROTOCOL_ALIAS_INDEX_PAGE.to_string(),
+        IR_LOWERING_PAGE.to_string(),
+    ]
+    .into_iter()
+    .collect::<BTreeSet<_>>();
+    for page in expected {
+        assert!(
+            links.contains(&page),
+            "protocol surface front door should link `{page}`"
+        );
+    }
+}
+
+#[test]
+fn protocol_surface_front_door_mentions_each_current_family_default_pair() {
+    let actual = fs::read_to_string(PROTOCOL_SURFACE_PAGE)
+        .expect("protocol surface doc should exist");
+    for summary in protocol_summaries() {
+        let needle = format!("`{}` -> default `{}`", summary.protocol, summary.default_entry);
+        assert!(
+            actual.contains(&needle),
+            "protocol surface front door should mention current family/default pair {needle}"
+        );
+    }
+}
 
 #[test]
 fn protocol_alias_index_doc_matches_current_registry_surface() {
@@ -42,6 +103,30 @@ fn protocol_family_shelf_directory_lists_current_custom_hubs_and_subpages() {
     let actual_links = filtered_surface_links(&actual, &allowed_directory_links());
     let expected_links = expected_family_directory_links();
     assert_eq!(actual_links, expected_links);
+}
+
+#[test]
+fn protocol_groups_page_only_links_current_family_hubs_or_explicit_fallbacks() {
+    let actual = fs::read_to_string(PROTOCOL_GROUPS_PATH)
+        .expect("protocol groups doc should exist");
+    let allowed = allowed_group_links();
+    let actual_links = filtered_surface_links(&actual, &allowed_directory_links());
+    assert_eq!(actual_links, allowed);
+}
+
+#[test]
+fn protocol_groups_expected_family_hubs_match_current_curated_set() {
+    let expected = EXPECTED_GROUP_FAMILY_HUBS
+        .iter()
+        .map(|protocol| family_hub_page(protocol))
+        .collect::<BTreeSet<_>>();
+    let actual = fs::read_to_string(PROTOCOL_GROUPS_PATH)
+        .expect("protocol groups doc should exist");
+    let actual_links = filtered_surface_links(&actual, &allowed_directory_links());
+    assert!(
+        expected.is_subset(&actual_links),
+        "protocol groups page should expose the curated family hub set"
+    );
 }
 
 #[test]
@@ -271,10 +356,24 @@ fn family_hub_page(protocol: &str) -> String {
 fn allowed_directory_links() -> BTreeSet<String> {
     [
         PROTOCOL_SURFACE_PAGE.to_string(),
+        PROTOCOL_GROUPS_PAGE.to_string(),
+        PROTOCOL_ALIAS_INDEX_PAGE.to_string(),
         IR_LOWERING_PAGE.to_string(),
     ]
     .into_iter()
     .collect()
+}
+
+fn allowed_group_links() -> BTreeSet<String> {
+    current_family_hub_pages()
+}
+
+fn current_family_hub_pages() -> BTreeSet<String> {
+    protocol_summaries()
+        .into_iter()
+        .map(|summary| family_hub_page(&summary.protocol))
+        .filter(|page| fs::metadata(page).is_ok())
+        .collect()
 }
 
 fn filtered_surface_links(content: &str, allowed: &BTreeSet<String>) -> BTreeSet<String> {

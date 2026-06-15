@@ -86,6 +86,48 @@ The manifest and registry scan together provide:
 - entry aliases
 - effective DSL path
 
+<!-- gewyvern:protocol-surface-overview:start -->
+## Current Surface Snapshot
+
+- Built-in families: `33`
+- Built-in canonical entries: `175`
+- Family/default map:
+  - `amqp` -> default `session` via [docs/book/reference-amqp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-surface.md)
+  - `coap` -> default `get`
+  - `dhcp` -> default `client`
+  - `dns` -> default `udp` via [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md)
+  - `ftp` -> default `session` via [docs/book/reference-ftp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-surface.md)
+  - `gtpu` -> default `echo`
+  - `http` -> default `request` via [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md)
+  - `http3` -> default `request` via [docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md)
+  - `https` -> default `connect`
+  - `hy2` -> default `auth`
+  - `imap` -> default `auth` via [docs/book/reference-imap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-surface.md)
+  - `kerberos` -> default `as`
+  - `ldap` -> default `sync` via [docs/book/reference-ldap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-surface.md)
+  - `mdns` -> default `query`
+  - `memcached` -> default `get` via [docs/book/reference-memcached-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-surface.md)
+  - `mqtt` -> default `connect` via [docs/book/reference-mqtt-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-surface.md)
+  - `mysql` -> default `session` via [docs/book/reference-mysql-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-surface.md)
+  - `ntp` -> default `client`
+  - `pop3` -> default `auth` via [docs/book/reference-pop3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-surface.md)
+  - `postgres` -> default `query` via [docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md)
+  - `quic` -> default `initial` via [docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md)
+  - `radius` -> default `access`
+  - `redis` -> default `ping` via [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md)
+  - `rtsp` -> default `options` via [docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md)
+  - `sip` -> default `register` via [docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md)
+  - `smtp` -> default `session` via [docs/book/reference-smtp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-surface.md)
+  - `snmp` -> default `get`
+  - `socks5` -> default `session` via [docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md)
+  - `ssdp` -> default `discovery`
+  - `ssh` -> default `session` via [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md)
+  - `stun` -> default `binding`
+  - `tls` -> default `client`
+  - `wireguard` -> default `handshake`
+
+<!-- gewyvern:protocol-surface-overview:end -->
+
 ## Canonical Names Versus Aliases
 
 The current contract deliberately distinguishes between:
