@@ -70,3 +70,15 @@ registry path:
 
 For the broader family map, see
 [docs/book/reference-mqtt-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `listen`
+- `message`
+- `read`
+- `send`
+
+<!-- gewyvern:entry-aliases:end -->

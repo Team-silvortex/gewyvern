@@ -68,3 +68,14 @@ the rest of the built-in protocol shelf:
 
 When you need the broader family map, return to
 [docs/book/reference-ftp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `control`
+- `login`
+- `login-denied`
+
+<!-- gewyvern:entry-aliases:end -->

@@ -40,3 +40,15 @@ to model every dialog-state nuance around the final response.
 
 For the broader family map, see
 [docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `hangup`
+- `sip-bye`
+- `sip_bye`
+- `terminate`
+
+<!-- gewyvern:entry-aliases:end -->

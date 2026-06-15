@@ -43,3 +43,16 @@ exchange, not broader caching policy or multi-key nuances.
 
 For the broader family map, see
 [docs/book/reference-memcached-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `memcached-get`
+- `memcached-read`
+- `memcached_get`
+- `memcached_read`
+- `read`
+
+<!-- gewyvern:entry-aliases:end -->

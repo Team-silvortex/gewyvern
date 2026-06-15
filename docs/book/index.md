@@ -14,6 +14,10 @@ The goal is to make the docs readable like a book:
 If you are building, operating, reviewing, or extending `gewyvern`, this is
 the best high-level entrypoint.
 
+If you want the global documentation map instead of the reading order, use:
+
+- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
+
 ## Book Shape
 
 This book is organized in two different ways at once:
@@ -196,3 +200,10 @@ shape and a predictable shelf:
 As the `0.14.x` line continues, new documentation should prefer landing into one of
 these four tracks instead of growing the top-level `docs/` folder without a
 clear reading mode.
+
+Use:
+
+- [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
+  for storyline and chapter order
+- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
+  for the global documentation shelves

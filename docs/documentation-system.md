@@ -20,6 +20,15 @@ Read this alongside:
 - [docs/book/structure.md](/Users/Shared/chroot/dev/gewyvern/docs/book/structure.md)
 - [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
 
+Use:
+
+- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
+  when you want the global doc map
+- [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
+  when you want the reading-order spine
+- [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
+  when you want the design rules for the docs themselves
+
 ## Why This Page Exists
 
 `gewyvern` now has enough surface area that the docs cannot be treated as

@@ -70,3 +70,17 @@ registry path:
 
 For the broader family map, see
 [docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `auth-query`
+- `postgres-query`
+- `postgres-session`
+- `postgres_query`
+- `postgres_session`
+- `query-session`
+
+<!-- gewyvern:entry-aliases:end -->

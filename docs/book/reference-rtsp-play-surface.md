@@ -48,3 +48,14 @@ startup rather than the later sustained RTP media plane.
 
 For the broader family map, see
 [docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `rtsp-play`
+- `rtsp_play`
+- `start`
+
+<!-- gewyvern:entry-aliases:end -->

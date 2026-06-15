@@ -40,3 +40,14 @@ shape, not detailed SIP response-class or authentication challenge behavior.
 
 For the broader family map, see
 [docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `login`
+- `sip-register`
+- `sip_register`
+
+<!-- gewyvern:entry-aliases:end -->

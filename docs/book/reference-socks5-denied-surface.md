@@ -95,3 +95,14 @@ duplicating the success-path pages.
 
 For the broader family map, see
 [docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `connect-denied`
+- `login-connect-denied`
+- `userpass-connect-denied`
+
+<!-- gewyvern:entry-aliases:end -->

@@ -65,3 +65,15 @@ registry path:
 
 For the broader family map, see
 [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `http-connect`
+- `http-connect-denied`
+- `http_connect`
+- `http_connect_denied`
+
+<!-- gewyvern:entry-aliases:end -->

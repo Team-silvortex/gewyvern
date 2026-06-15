@@ -16,7 +16,7 @@ Default entry: `session`
 Protocol aliases: `amqp-consume`, `amqp-publish`, `amqp-session`, `amqp-start`, `amqp_consume`, `amqp_publish`, `amqp_session`, `amqp_start`  
 Entry aliases:
 - `session` (default): `amqp-session`, `amqp_session`, `connect`
-- `consume`: `deliver`, `receive`
+- `consume`: `amqp-consume`, `amqp_consume`, `deliver`, `receive`
 - `publish`: `amqp-publish`, `amqp_publish`, `send`
 - `start`: `amqp-start`, `amqp_start`, `login`, `negotiate`
 
@@ -26,9 +26,9 @@ Default entry: `get`
 Protocol aliases: `coap-delete`, `coap-post`, `coap-put`, `coap_delete`, `coap_post`, `coap_put`  
 Entry aliases:
 - `get` (default): none
-- `delete`: `destroy`, `remove`
-- `post`: `create`, `write`
-- `put`: `replace`, `update`
+- `delete`: `coap-delete`, `coap_delete`, `destroy`, `remove`
+- `post`: `coap-post`, `coap_post`, `create`, `write`
+- `put`: `coap-put`, `coap_put`, `replace`, `update`
 
 ## `dhcp`
 
@@ -36,8 +36,8 @@ Default entry: `client`
 Protocol aliases: `dhcp-discover`, `dhcp-request`, `dhcp_discover`, `dhcp_request`  
 Entry aliases:
 - `client` (default): none
-- `discover`: `lease-discover`, `offer-probe`
-- `request`: `lease-request`, `renew`
+- `discover`: `dhcp-discover`, `dhcp_discover`, `lease-discover`, `offer-probe`
+- `request`: `dhcp-request`, `dhcp_request`, `lease-request`, `renew`
 
 ## `dns`
 
@@ -74,19 +74,19 @@ Default entry: `request`
 Protocol aliases: `http-connect`, `http-connect-auth-required`, `http-connect-auth-tunnel`, `http-connect-denied`, `http-request`, `http-server`, `http_connect`, `http_connect_auth_required`, `http_connect_auth_tunnel`, `http_connect_denied`, `http_request`, `http_server`  
 Entry aliases:
 - `request` (default): `client`, `http-client`, `http-request`, `http_client`, `http_request`
-- `auth-required`: none
-- `auth-tunnel`: none
-- `connect`: none
-- `denied`: none
-- `response`: `server`
+- `auth-required`: `http-connect-auth-required`, `http_connect_auth_required`
+- `auth-tunnel`: `http-connect-auth-tunnel`, `http_connect_auth_tunnel`
+- `connect`: `http-connect`, `http_connect`
+- `denied`: `http-connect-denied`, `http_connect_denied`
+- `response`: `http-server`, `http_server`, `server`
 
 ## `http3`
 
 Default entry: `request`  
 Protocol aliases: `h3-request`, `h3-server`, `h3_request`, `h3_server`, `http3-server-response`  
 Entry aliases:
-- `request` (default): none
-- `server`: none
+- `request` (default): `h3-request`, `h3_request`
+- `server`: `h3-server`, `h3_server`, `http3-server-response`, `http3_server_response`
 
 ## `https`
 
@@ -100,18 +100,18 @@ Entry aliases:
 Default entry: `auth`  
 Protocol aliases: `hy2-auth`, `hy2-relay`, `hy2-stream`, `hy2-tcp`, `hy2-udp`, `hysteria2`, `hysteria2-auth`, `hysteria2-tcp`, `hysteria2-udp`  
 Entry aliases:
-- `auth` (default): none
-- `tcp`: none
-- `udp`: none
+- `auth` (default): `hy2-auth`, `hysteria2`, `hysteria2-auth`
+- `tcp`: `hy2-stream`, `hy2-tcp`, `hysteria2-tcp`
+- `udp`: `hy2-relay`, `hy2-udp`, `hysteria2-udp`
 
 ## `imap`
 
 Default entry: `auth`  
 Protocol aliases: none  
 Entry aliases:
-- `auth` (default): `login`
-- `auth-denied`: `login-denied`
-- `select`: `mailbox`
+- `auth` (default): `imap-auth`, `imap_auth`, `login`
+- `auth-denied`: `imap-auth-denied`, `imap_auth_denied`, `login-denied`
+- `select`: `imap-select`, `imap_select`, `mailbox`
 
 ## `kerberos`
 
@@ -129,7 +129,7 @@ Protocol aliases: `ldap-bind`, `ldap-bind-denied`, `ldap-constraint`, `ldap-deni
 Entry aliases:
 - `sync` (default): `ldap-sync`, `ldap_sync`, `replication`
 - `bind`: `auth`, `ldap-bind`, `ldap_bind`, `login`
-- `bind-denied`: `auth-denied`, `login-denied`
+- `bind-denied`: `auth-denied`, `ldap-bind-denied`, `ldap_bind_denied`, `login-denied`
 - `constraint`: `ldap-constraint`, `ldap_constraint`
 - `denied`: `ldap-denied`, `ldap_denied`
 - `modify`: `ldap-modify`, `ldap_modify`
@@ -149,8 +149,8 @@ Entry aliases:
 Default entry: `get`  
 Protocol aliases: `memcached-get`, `memcached-set`, `memcached_get`, `memcached_set`  
 Entry aliases:
-- `get` (default): `memcached-get`, `memcached_get`, `read`
-- `set`: `memcached-set`, `memcached_set`, `write`
+- `get` (default): `memcached-get`, `memcached-read`, `memcached_get`, `memcached_read`, `read`
+- `set`: `memcached-set`, `memcached-write`, `memcached_set`, `memcached_write`, `write`
 
 ## `mqtt`
 
@@ -181,17 +181,17 @@ Default entry: `client`
 Protocol aliases: `ntp-query`, `ntp-sync`, `ntp_query`, `ntp_sync`  
 Entry aliases:
 - `client` (default): none
-- `query`: `check`, `probe`
-- `sync`: `clock-sync`, `time-sync`
+- `query`: `check`, `ntp-query`, `ntp_query`, `probe`
+- `sync`: `clock-sync`, `ntp-sync`, `ntp_sync`, `time-sync`
 
 ## `pop3`
 
 Default entry: `auth`  
 Protocol aliases: none  
 Entry aliases:
-- `auth` (default): `login`
-- `auth-denied`: `login-denied`
-- `list`: `mailbox`
+- `auth` (default): `login`, `pop3-auth`, `pop3_auth`
+- `auth-denied`: `login-denied`, `pop3-auth-denied`, `pop3_auth_denied`
+- `list`: `mailbox`, `pop3-list`, `pop3_list`
 
 ## `postgres`
 
@@ -202,7 +202,7 @@ Entry aliases:
 - `auth`: `postgres-auth`, `postgres_auth`
 - `connect`: `postgres-connect`, `postgres_connect`
 - `error`: `postgres-error`, `postgres_error`
-- `session`: `auth-query`, `query-session`
+- `session`: `auth-query`, `postgres-session`, `postgres_session`, `query-session`
 
 ## `quic`
 
@@ -239,7 +239,7 @@ Entry aliases:
 - `del`: `delete`, `remove`
 - `exists`: `key-check`, `present`
 - `expire`: `expiry`, `set-ttl`
-- `get`: `kv-read`, `read`
+- `get`: `kv-read`, `read`, `redis-get`, `redis_get`
 - `hget`: `field-read`, `hash-read`
 - `hmget`: `fields-read`, `hash-multi-read`
 - `hmset`: `fields-write`, `hash-multi-write`
@@ -257,8 +257,8 @@ Entry aliases:
 - `rpoplpush`: `list-move-right-to-left`, `right-pop-left-push`
 - `rpush`: `list-append`, `right-push`
 - `sadd`: `member-add`, `set-add`
-- `session`: `connect`, `roundtrip`
-- `set`: `kv-write`, `write`
+- `session`: `connect`, `redis-session`, `redis_session`, `roundtrip`
+- `set`: `kv-write`, `redis-set`, `redis_set`, `write`
 - `smembers`: `members-read`, `set-read`
 - `subscribe`: `channel-read`, `pubsub-listen`
 - `ttl`: `key-ttl`, `time-to-live`
@@ -296,19 +296,19 @@ Entry aliases:
 Default entry: `options`  
 Protocol aliases: `rtsp-describe`, `rtsp-options`, `rtsp-play`, `rtsp-setup`, `rtsp_describe`, `rtsp_options`, `rtsp_play`, `rtsp_setup`  
 Entry aliases:
-- `options` (default): `probe`
-- `describe`: `metadata`
-- `play`: `start`
-- `setup`: `stream`
+- `options` (default): `probe`, `rtsp-options`, `rtsp_options`
+- `describe`: `metadata`, `rtsp-describe`, `rtsp_describe`
+- `play`: `rtsp-play`, `rtsp_play`, `start`
+- `setup`: `rtsp-setup`, `rtsp_setup`, `stream`
 
 ## `sip`
 
 Default entry: `register`  
 Protocol aliases: none  
 Entry aliases:
-- `register` (default): `login`
-- `bye`: `hangup`, `terminate`
-- `invite`: `call`, `session`
+- `register` (default): `login`, `sip-register`, `sip_register`
+- `bye`: `hangup`, `sip-bye`, `sip_bye`, `terminate`
+- `invite`: `call`, `session`, `sip-invite`, `sip_invite`
 
 ## `smtp`
 
@@ -329,15 +329,15 @@ Default entry: `get`
 Protocol aliases: `snmp-get-next`, `snmp-set`, `snmp_get_next`, `snmp_set`  
 Entry aliases:
 - `get` (default): `query`, `read`
-- `get-next`: `next`, `walk`
-- `set`: `update`, `write`
+- `get-next`: `next`, `snmp-get-next`, `snmp_get_next`, `walk`
+- `set`: `snmp-set`, `snmp_set`, `update`, `write`
 
 ## `socks5`
 
 Default entry: `session`  
 Protocol aliases: `socks`, `socks5-session`, `socks5_session`  
 Entry aliases:
-- `session` (default): `connect`, `proxy`
+- `session` (default): `connect`, `proxy`, `socks`, `socks5-session`, `socks5_session`
 - `auth`: `login`, `userpass`
 - `auth-connect-denied`: `login-connect-denied`, `userpass-connect-denied`
 - `auth-denied`: `login-denied`, `userpass-denied`
@@ -355,10 +355,10 @@ Entry aliases:
 Default entry: `session`  
 Protocol aliases: none  
 Entry aliases:
-- `session` (default): `connect`, `handshake`
-- `auth`: `login`, `password`
-- `auth-denied`: `login-denied`, `password-denied`
-- `channel`: `shell`
+- `session` (default): `connect`, `handshake`, `ssh-session`, `ssh_session`
+- `auth`: `login`, `password`, `ssh-auth`, `ssh_auth`
+- `auth-denied`: `login-denied`, `password-denied`, `ssh-auth-denied`, `ssh_auth_denied`
+- `channel`: `shell`, `ssh-channel`, `ssh_channel`
 
 ## `stun`
 
@@ -366,8 +366,8 @@ Default entry: `binding`
 Protocol aliases: `stun-allocate`, `stun-refresh`, `stun_allocate`, `stun_refresh`  
 Entry aliases:
 - `binding` (default): none
-- `allocate`: `relay`, `turn-allocate`
-- `refresh`: `keepalive`, `turn-refresh`
+- `allocate`: `relay`, `stun-allocate`, `stun_allocate`, `turn-allocate`
+- `refresh`: `keepalive`, `stun-refresh`, `stun_refresh`, `turn-refresh`
 
 ## `tls`
 

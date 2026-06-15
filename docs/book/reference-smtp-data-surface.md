@@ -75,3 +75,13 @@ registry path:
 
 For the broader family map, see
 [docs/book/reference-smtp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `message`
+- `message-denied`
+
+<!-- gewyvern:entry-aliases:end -->

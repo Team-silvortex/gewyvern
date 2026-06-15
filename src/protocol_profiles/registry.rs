@@ -228,7 +228,8 @@ pub(super) fn resolve_registry_entry_alias<'a>(
         .iter()
         .find(|manifest| {
             manifest.protocol == protocol
-                && manifest.entry_aliases.iter().any(|alias| alias == entry)
+                && (manifest.entry_aliases.iter().any(|alias| alias == entry)
+                    || manifest.aliases.iter().any(|alias| alias == entry))
         })
         .map(|manifest| manifest.entry.as_str())
 }

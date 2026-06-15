@@ -64,7 +64,7 @@ pub(super) const HTTP3_PROFILE: ProtocolProfile = ProtocolProfile {
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy",
         },
         ProtocolEntryProfile {
-            mode: "response",
+            mode: "server",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy",
         },
     ],

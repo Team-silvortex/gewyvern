@@ -56,3 +56,19 @@ The current shelf keeps:
 
 For the broader family map, see
 [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `field-read`
+- `field-write`
+- `fields-read`
+- `fields-write`
+- `hash-multi-read`
+- `hash-multi-write`
+- `hash-read`
+- `hash-write`
+
+<!-- gewyvern:entry-aliases:end -->

@@ -45,3 +45,14 @@ selection, not later fetch, search, or message-state operations.
 
 For the broader family map, see
 [docs/book/reference-imap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `imap-select`
+- `imap_select`
+- `mailbox`
+
+<!-- gewyvern:entry-aliases:end -->

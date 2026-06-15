@@ -13,6 +13,23 @@ For the broader validation philosophy, see
 For the current running record of what has already passed, see
 [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md).
 
+## Book Path
+
+This chapter belongs to the Validate band of the how-to volume.
+
+Read it when you already know the system roughly and need the shortest path
+to answering:
+
+- is this checkout still healthy?
+- where did drift likely enter?
+- what confidence do I actually have right now?
+
+Then continue with:
+
+- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
+- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
+- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+
 ## When To Use This Guide
 
 Use this guide when you are:

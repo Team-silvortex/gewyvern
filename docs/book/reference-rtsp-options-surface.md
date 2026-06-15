@@ -43,3 +43,14 @@ without trying to infer later media-session intent.
 
 For the broader family map, see
 [docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `probe`
+- `rtsp-options`
+- `rtsp_options`
+
+<!-- gewyvern:entry-aliases:end -->

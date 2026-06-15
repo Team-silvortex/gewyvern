@@ -116,3 +116,45 @@ full Redis command-option documentation.
 
 For the broader family map, see
 [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `score-add`
+- `score-blocking-pop-highest`
+- `score-blocking-pop-lowest`
+- `score-blocking-pop-many`
+- `score-bump`
+- `score-count`
+- `score-pop-highest`
+- `score-pop-lowest`
+- `score-pop-many`
+- `score-rank-member`
+- `score-read`
+- `score-read-member`
+- `score-remove`
+- `score-revrank-member`
+- `score-window-count`
+- `score-window-read`
+- `score-window-read-reverse`
+- `sorted-add`
+- `sorted-blocking-multi-pop`
+- `sorted-blocking-pop-max`
+- `sorted-blocking-pop-min`
+- `sorted-count`
+- `sorted-member-rank`
+- `sorted-member-revrank`
+- `sorted-member-score`
+- `sorted-multi-pop`
+- `sorted-pop-max`
+- `sorted-pop-min`
+- `sorted-range-count`
+- `sorted-range-score`
+- `sorted-read`
+- `sorted-remove`
+- `sorted-revrange-score`
+- `sorted-score-increment`
+
+<!-- gewyvern:entry-aliases:end -->

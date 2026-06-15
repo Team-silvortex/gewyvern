@@ -45,3 +45,13 @@ the rest of the built-in protocol shelf:
 
 When you need the broader family map, return to
 [docs/book/reference-mqtt-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `login`
+- `session`
+
+<!-- gewyvern:entry-aliases:end -->

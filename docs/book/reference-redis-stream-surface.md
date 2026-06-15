@@ -120,3 +120,51 @@ stream, groups, or consumers.
 
 For the broader family map, see
 [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `stream-ack`
+- `stream-acknowledge`
+- `stream-append`
+- `stream-auto-claim`
+- `stream-claim`
+- `stream-consume`
+- `stream-consumer-group`
+- `stream-consumer-read`
+- `stream-count`
+- `stream-delete`
+- `stream-delivery-backlog`
+- `stream-group`
+- `stream-group-create`
+- `stream-group-create-consumer`
+- `stream-group-destroy`
+- `stream-group-drop-consumer`
+- `stream-group-help`
+- `stream-group-list-consumers`
+- `stream-group-list-groups`
+- `stream-group-manage`
+- `stream-group-read`
+- `stream-group-setid`
+- `stream-history`
+- `stream-history-reverse`
+- `stream-idle-reassign`
+- `stream-info`
+- `stream-info-consumers`
+- `stream-info-groups`
+- `stream-info-stream`
+- `stream-inspect`
+- `stream-length`
+- `stream-pending`
+- `stream-prune`
+- `stream-prune-entry`
+- `stream-range`
+- `stream-range-reverse`
+- `stream-read`
+- `stream-reassign`
+- `stream-trim`
+- `stream-write`
+
+<!-- gewyvern:entry-aliases:end -->

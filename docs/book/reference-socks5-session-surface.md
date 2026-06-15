@@ -58,3 +58,16 @@ the rest of the built-in protocol shelf:
 
 When you need the broader family map, return to
 [docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `connect`
+- `proxy`
+- `socks`
+- `socks5-session`
+- `socks5_session`
+
+<!-- gewyvern:entry-aliases:end -->

@@ -78,3 +78,17 @@ registry path:
 
 For the broader family map, see
 [docs/book/reference-amqp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `amqp-publish`
+- `amqp-session`
+- `amqp_publish`
+- `amqp_session`
+- `connect`
+- `send`
+
+<!-- gewyvern:entry-aliases:end -->

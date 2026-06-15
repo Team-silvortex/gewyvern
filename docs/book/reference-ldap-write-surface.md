@@ -106,3 +106,22 @@ registry path:
 
 For the broader family map, see
 [docs/book/reference-ldap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `ldap-constraint`
+- `ldap-denied`
+- `ldap-modify`
+- `ldap-sync`
+- `ldap-write`
+- `ldap_constraint`
+- `ldap_denied`
+- `ldap_modify`
+- `ldap_sync`
+- `ldap_write`
+- `replication`
+
+<!-- gewyvern:entry-aliases:end -->

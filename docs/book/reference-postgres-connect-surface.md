@@ -69,3 +69,15 @@ the rest of the built-in protocol shelf:
 
 When you need the broader family map, return to
 [docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `postgres-auth`
+- `postgres-connect`
+- `postgres_auth`
+- `postgres_connect`
+
+<!-- gewyvern:entry-aliases:end -->

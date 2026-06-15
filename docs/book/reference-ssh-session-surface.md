@@ -42,3 +42,15 @@ SSH session path without trying to describe later authenticated actions.
 
 For the broader family map, see
 [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `connect`
+- `handshake`
+- `ssh-session`
+- `ssh_session`
+
+<!-- gewyvern:entry-aliases:end -->

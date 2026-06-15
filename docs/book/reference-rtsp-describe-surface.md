@@ -44,3 +44,14 @@ The current entry is stage-based. It tells you that the peer responded to
 
 For the broader family map, see
 [docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `metadata`
+- `rtsp-describe`
+- `rtsp_describe`
+
+<!-- gewyvern:entry-aliases:end -->

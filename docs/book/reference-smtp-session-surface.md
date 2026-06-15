@@ -66,3 +66,12 @@ the rest of the built-in protocol shelf:
 
 When you need the broader family map, return to
 [docs/book/reference-smtp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `login`
+
+<!-- gewyvern:entry-aliases:end -->

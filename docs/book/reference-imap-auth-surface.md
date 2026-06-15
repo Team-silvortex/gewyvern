@@ -66,3 +66,17 @@ you that `LOGIN` succeeded or failed, not which richer auth extension was used.
 
 For the broader family map, see
 [docs/book/reference-imap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `imap-auth`
+- `imap-auth-denied`
+- `imap_auth`
+- `imap_auth_denied`
+- `login`
+- `login-denied`
+
+<!-- gewyvern:entry-aliases:end -->

@@ -105,3 +105,39 @@ lookup path remains easy to scan.
 
 For the broader family map, see
 [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `blocking-left-right-move`
+- `blocking-list-pop-many`
+- `blocking-right-left-move`
+- `left-blocking-pop`
+- `left-pop`
+- `left-push`
+- `left-right-move`
+- `list-append`
+- `list-blocking-directional-move`
+- `list-blocking-move`
+- `list-blocking-move-right-to-left`
+- `list-blocking-multi-pop`
+- `list-blocking-pop-left`
+- `list-blocking-pop-right`
+- `list-directional-move`
+- `list-move`
+- `list-move-right-to-left`
+- `list-multi-pop`
+- `list-pop-left`
+- `list-pop-many`
+- `list-pop-right`
+- `list-prepend`
+- `right-blocking-pop`
+- `right-blocking-pop-left-push`
+- `right-left-move`
+- `right-pop`
+- `right-pop-left-push`
+- `right-push`
+
+<!-- gewyvern:entry-aliases:end -->

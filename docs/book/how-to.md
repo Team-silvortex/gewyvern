@@ -3,6 +3,32 @@
 This track is task-first. Use it when you already know roughly what
 `gewyvern` is and just want to get something done.
 
+## Book Path
+
+This volume belongs primarily to Part VI: Operating, Validating, And
+Extending.
+
+Use it after you already have enough system context to act on purpose.
+
+For the task discipline behind this volume, see:
+
+- [docs/book/how-to-structure.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-structure.md)
+
+## How To Use This Volume
+
+A good lookup order is:
+
+1. choose the task band
+2. open the shortest task guide
+3. return to reference or explanation only if you need deeper detail
+
+The current task bands are:
+
+- validate
+- extend
+- operate
+- collaborate and package
+
 ## Operate The Runtime
 
 - [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
@@ -45,6 +71,8 @@ This track is task-first. Use it when you already know roughly what
 
 ## Extend With External Analysis
 
+- [docs/book/how-to-wire-etragon-sidecar.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-wire-etragon-sidecar.md)
+  Wire `etragon` as a nearby sidecar and verify the additive bridge end to end.
 - [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
   Append-only external analysis contract.
 - [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
@@ -57,10 +85,17 @@ This track is task-first. Use it when you already know roughly what
 - [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
   Security and exposure boundaries.
 
+## Where This Volume Should Grow Next
+
+The next highest-value dedicated task guides are:
+
+- how to validate packaged Linux runtime behavior end to end
+- how to operate the serve/API path intentionally
+- how to read a missing-transition diagnosis without overreacting
+
 ## Next How-To Chapters
 
 The next high-value task pages are likely:
 
 - how to read a missing-transition diagnosis
-- how to wire `etragon` as a nearby sidecar
 - how to validate a packaged Linux runtime end to end

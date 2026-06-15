@@ -119,3 +119,44 @@ The current shelf keeps:
 
 For the broader family map, see
 [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `bulk-read`
+- `bulk-write`
+- `connect`
+- `count-down`
+- `count-up`
+- `decrement`
+- `delete`
+- `expiry`
+- `health`
+- `increment`
+- `key-check`
+- `key-ttl`
+- `kv-read`
+- `kv-write`
+- `ms-ttl`
+- `multi-read`
+- `multi-write`
+- `precise-ttl`
+- `present`
+- `read`
+- `redis-get`
+- `redis-ping`
+- `redis-session`
+- `redis-set`
+- `redis_get`
+- `redis_ping`
+- `redis_session`
+- `redis_set`
+- `remove`
+- `roundtrip`
+- `set-ttl`
+- `time-to-live`
+- `write`
+
+<!-- gewyvern:entry-aliases:end -->

@@ -96,3 +96,19 @@ registry path:
 
 For the broader family map, see
 [docs/book/reference-mqtt-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `close`
+- `complete`
+- `qos2-complete`
+- `qos2-receipt`
+- `qos2-release`
+- `resume`
+- `stage-2`
+- `teardown`
+
+<!-- gewyvern:entry-aliases:end -->

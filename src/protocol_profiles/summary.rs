@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::aliases::{PROTOCOL_ALIASES, split_protocol_alias};
+use super::aliases::{PROTOCOL_ALIASES, protocol_entry_aliases, split_protocol_alias};
 use super::profiles::{PROTOCOL_PROFILES, ProtocolProfile, find_protocol_profile};
 use super::{ProtocolEntrySummary, ProtocolSummary, RegistryManifest};
 
@@ -12,12 +12,13 @@ pub(super) fn protocol_summaries_from_registry(
         let protocol = protocols
             .entry(manifest.protocol.clone())
             .or_insert_with(RegistryProtocolSummary::default);
-        protocol.aliases.extend(manifest.aliases);
+        protocol.aliases.extend(manifest.aliases.clone());
         let entry = protocol
             .entries
             .entry(manifest.entry)
             .or_insert_with(RegistryEntrySummary::default);
         entry.default |= manifest.default;
+        entry.aliases.extend(manifest.aliases.clone());
         entry.aliases.extend(manifest.entry_aliases);
     }
     protocols
@@ -136,6 +137,7 @@ fn protocol_aliases_for(protocol: &str) -> Vec<String> {
 fn entry_aliases_for(protocol: &str, mode: &str) -> Vec<String> {
     PROTOCOL_ALIASES
         .iter()
+        .chain(protocol_entry_aliases())
         .filter(|alias| alias.protocol == protocol && alias.entry == Some(mode))
         .map(|alias| alias.alias.to_string())
         .collect::<BTreeSet<_>>()

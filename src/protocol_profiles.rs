@@ -5,7 +5,7 @@ mod shelves;
 mod summary;
 mod surface;
 
-use aliases::split_protocol_alias;
+use aliases::{resolve_protocol_entry_alias, split_protocol_alias};
 use profiles::{PROTOCOL_PROFILES, find_protocol_profile};
 use registry::{
     default_protocol_scan_set_from_registry, resolve_built_in_dsl_path, resolve_registry_alias,
@@ -166,7 +166,10 @@ pub fn resolve_protocol_profile(
     }
     let (protocol_name, alias_entry) = split_protocol_alias(protocol);
     let profile = find_protocol_profile(protocol_name)?;
-    let resolved_entry = entry.or(alias_entry).unwrap_or(profile.default_entry);
+    let resolved_entry = entry
+        .and_then(|item| resolve_protocol_entry_alias(protocol_name, item).or(Some(item)))
+        .or(alias_entry)
+        .unwrap_or(profile.default_entry);
     profile
         .entries
         .iter()
@@ -202,11 +205,17 @@ pub fn default_protocol_scan_set_from_dir(dir: &str) -> Option<Vec<ResolvedProto
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tests_alias_policy;
+#[cfg(test)]
 mod tests_coap;
 #[cfg(test)]
 mod tests_dhcp;
 #[cfg(test)]
 mod tests_docs;
+#[cfg(test)]
+mod tests_fallback;
+#[cfg(test)]
+mod tests_manifest_parity;
 #[cfg(test)]
 mod tests_ntp;
 #[cfg(test)]

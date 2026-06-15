@@ -66,3 +66,19 @@ used.
 
 For the broader family map, see
 [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `login`
+- `login-denied`
+- `password`
+- `password-denied`
+- `ssh-auth`
+- `ssh-auth-denied`
+- `ssh_auth`
+- `ssh_auth_denied`
+
+<!-- gewyvern:entry-aliases:end -->

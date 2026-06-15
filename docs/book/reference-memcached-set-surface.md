@@ -43,3 +43,16 @@ yet try to split add, replace, or other mutation commands into their own pages.
 
 For the broader family map, see
 [docs/book/reference-memcached-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-surface.md).
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `memcached-set`
+- `memcached-write`
+- `memcached_set`
+- `memcached_write`
+- `write`
+
+<!-- gewyvern:entry-aliases:end -->

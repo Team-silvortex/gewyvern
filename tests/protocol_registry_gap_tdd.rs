@@ -1,0 +1,118 @@
+use gewyvern::protocol_profiles::{
+    protocol_default_entry, protocol_dsl_path, protocol_entries, protocol_surface,
+};
+
+#[test]
+fn http3_hy2_and_transport_registry_entries_resolve_to_packaged_paths() {
+    assert_eq!(
+        protocol_dsl_path("http3", Some("server")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http3/server".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("http3", Some("h3-server")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http3/server".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("hy2", Some("hy2-stream")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/tcp".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("hy2", Some("hy2-relay")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/udp".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("tls", Some("client")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/tls/client".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("wireguard", Some("handshake")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/wireguard/handshake".to_string())
+    );
+}
+
+#[test]
+fn socks5_smtp_kerberos_and_control_plane_aliases_resolve_to_packaged_paths() {
+    assert_eq!(
+        protocol_dsl_path("socks5", Some("proxy")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/socks5/session".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("socks5", Some("userpass-connect-denied")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/socks5/auth-connect-denied".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("smtp", Some("message-denied")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/data-denied".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("kerberos", Some("service-ticket")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/tgs".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("radius", Some("auth")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/radius/access".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("gtp-u", None),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/gtpu/echo".to_string())
+    );
+}
+
+#[test]
+fn gap_protocol_default_entries_and_surface_shelves_stay_stable() {
+    assert_eq!(protocol_default_entry("http3"), Some("request".to_string()));
+    assert_eq!(protocol_default_entry("hy2"), Some("auth".to_string()));
+    assert_eq!(protocol_default_entry("socks5"), Some("session".to_string()));
+    assert_eq!(protocol_default_entry("smtp"), Some("session".to_string()));
+    assert_eq!(protocol_default_entry("kerberos"), Some("as".to_string()));
+    assert_eq!(protocol_default_entry("radius"), Some("access".to_string()));
+    assert_eq!(protocol_default_entry("gtpu"), Some("echo".to_string()));
+
+    let http3 = protocol_surface("http3", "server").expect("http3 server surface should exist");
+    assert_eq!(http3.shelf.expect("http3 shelf should exist").key, "server");
+
+    let hy2 = protocol_surface("hy2", "tcp").expect("hy2 tcp surface should exist");
+    assert_eq!(hy2.shelf.expect("hy2 shelf should exist").key, "relay");
+
+    let socks5 =
+        protocol_surface("socks5", "auth-connect-denied").expect("socks5 shelf should exist");
+    assert_eq!(socks5.shelf.expect("socks5 shelf should exist").key, "denied");
+
+    let smtp = protocol_surface("smtp", "data-denied").expect("smtp shelf should exist");
+    assert_eq!(smtp.shelf.expect("smtp shelf should exist").key, "data");
+
+    let kerberos =
+        protocol_surface("kerberos", "as-error").expect("kerberos shelf should exist");
+    assert_eq!(
+        kerberos.shelf.expect("kerberos shelf should exist").key,
+        "as"
+    );
+}
+
+#[test]
+fn gap_protocol_entries_remain_visible_in_family_summaries() {
+    let http3 = protocol_entries("http3").expect("http3 entries should resolve");
+    assert!(http3.contains(&"request".to_string()));
+    assert!(http3.contains(&"server".to_string()));
+
+    let hy2 = protocol_entries("hy2").expect("hy2 entries should resolve");
+    assert!(hy2.contains(&"auth".to_string()));
+    assert!(hy2.contains(&"tcp".to_string()));
+    assert!(hy2.contains(&"udp".to_string()));
+
+    let socks5 = protocol_entries("socks5").expect("socks5 entries should resolve");
+    assert!(socks5.contains(&"session".to_string()));
+    assert!(socks5.contains(&"auth".to_string()));
+    assert!(socks5.contains(&"auth-denied".to_string()));
+    assert!(socks5.contains(&"auth-connect-denied".to_string()));
+    assert!(socks5.contains(&"denied".to_string()));
+
+    let smtp = protocol_entries("smtp").expect("smtp entries should resolve");
+    assert!(smtp.contains(&"session".to_string()));
+    assert!(smtp.contains(&"auth".to_string()));
+    assert!(smtp.contains(&"mail".to_string()));
+    assert!(smtp.contains(&"rcpt".to_string()));
+    assert!(smtp.contains(&"rcpt-denied".to_string()));
+    assert!(smtp.contains(&"data".to_string()));
+    assert!(smtp.contains(&"data-denied".to_string()));
+}

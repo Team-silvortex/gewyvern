@@ -13,6 +13,22 @@ If not, start with
 For the exact protocol family/entry resolution contract behind this shelf, see
 [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md).
 
+## Book Path
+
+This chapter belongs to the Extend band of the how-to volume.
+
+Read it when the question is no longer “what is a package?” but:
+
+- how do I add one more package cleanly?
+- how do I debug where a package started drifting?
+- what validations prove the package really belongs in the shelf?
+
+Then continue with:
+
+- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
+
 ## What A Protocol Package Is
 
 In the current repository shape, a protocol package usually means:
