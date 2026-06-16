@@ -9,6 +9,13 @@ use crate::diagnosis_runtime::{
     external_capability_summary, external_sidecar_consumption_mode, external_sidecar_presence,
     external_sidecar_trust_level,
 };
+use crate::runtime_events::{
+    EVENT_API_SERVICE_START, EVENT_APPEND_FAILED, EVENT_SNAPSHOT_PERSIST_FAILED,
+    EVENT_SOCKET_LISTENER_BIND_FAILED, EVENT_SOCKET_LISTENER_CLEANUP_FAILED,
+    EVENT_SOCKET_SESSION_COLLECT_FAILED, EVENT_SOCKET_SESSION_RUN_FAILED,
+    EVENT_SOCKET_STALE_CLEANUP_FAILED, EVENT_TCP_SERVICE_START, EVENT_UNIX_SERVICE_START,
+    EVENT_WRITE_FAILED,
+};
 use crate::runtime_logging::{log_error_event, log_info_event, log_warn_event};
 
 use super::{
@@ -20,7 +27,15 @@ use super::{
 };
 
 pub(super) fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {
-    let api_state = cli.api_socket.as_deref().map(start_api_service);
+    let api_state = cli.api_socket.as_deref().map(|addr| {
+        log_info_event(
+            "api",
+            EVENT_API_SERVICE_START,
+            &[("socket", addr.to_string())],
+            "starting api service",
+        );
+        start_api_service(addr)
+    });
     match socket_target {
         SocketTarget::Unix(path) => serve_unix_socket_sessions(cli, path, api_state),
         SocketTarget::Tcp(addr) => serve_tcp_socket_sessions(cli, addr, api_state),
@@ -44,7 +59,7 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<ApiState>
     let locale = UiLocale::detect();
     log_info_event(
         "serve",
-        "unix_service_start",
+        EVENT_UNIX_SERVICE_START,
         &[
             ("socket", path.to_string()),
             (
@@ -64,7 +79,7 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<ApiState>
     {
         super::remove_unix_socket_file(path).unwrap_or_else(|err| {
             log_socket_service_failure(
-                "socket_stale_cleanup_failed",
+                EVENT_SOCKET_STALE_CLEANUP_FAILED,
                 "unix",
                 path,
                 &format!("{err:?}"),
@@ -77,7 +92,7 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<ApiState>
         });
         let listener = super::bind_unix_socket_listener(path).unwrap_or_else(|err| {
             log_socket_service_failure(
-                "socket_listener_bind_failed",
+                EVENT_SOCKET_LISTENER_BIND_FAILED,
                 "unix",
                 path,
                 &format!("{err:?}"),
@@ -96,7 +111,7 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<ApiState>
                     Ok(facts) => facts,
                     Err(err) => {
                         log_socket_service_failure(
-                            "socket_session_collect_failed",
+                            EVENT_SOCKET_SESSION_COLLECT_FAILED,
                             "unix",
                             path,
                             &format!("{err:?}"),
@@ -126,7 +141,7 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<ApiState>
                 Ok(export) => export,
                 Err(err) => {
                     log_socket_service_failure(
-                        "socket_session_run_failed",
+                        EVENT_SOCKET_SESSION_RUN_FAILED,
                         "unix",
                         path,
                         &format!("{err:?}"),
@@ -144,7 +159,7 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<ApiState>
 
         super::remove_unix_socket_file(path).unwrap_or_else(|err| {
             log_socket_service_failure(
-                "socket_listener_cleanup_failed",
+                EVENT_SOCKET_LISTENER_CLEANUP_FAILED,
                 "unix",
                 path,
                 &format!("{err:?}"),
@@ -170,7 +185,7 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_state: Option<ApiState>)
     let locale = UiLocale::detect();
     log_info_event(
         "serve",
-        "tcp_service_start",
+        EVENT_TCP_SERVICE_START,
         &[
             ("socket", addr.to_string()),
             (
@@ -187,7 +202,12 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_state: Option<ApiState>)
         std::process::exit(2);
     });
     let listener = TcpListener::bind(addr).unwrap_or_else(|err| {
-        log_socket_service_failure("socket_listener_bind_failed", "tcp", addr, &err.to_string());
+        log_socket_service_failure(
+            EVENT_SOCKET_LISTENER_BIND_FAILED,
+            "tcp",
+            addr,
+            &err.to_string(),
+        );
         eprintln!(
             "{}",
             locale.msgf("socket_service_failed", &err.to_string(), None)
@@ -202,7 +222,7 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_state: Option<ApiState>)
                 Ok(facts) => facts,
                 Err(err) => {
                     log_socket_service_failure(
-                        "socket_session_collect_failed",
+                        EVENT_SOCKET_SESSION_COLLECT_FAILED,
                         "tcp",
                         addr,
                         &format!("{err:?}"),
@@ -232,7 +252,7 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_state: Option<ApiState>)
             Ok(export) => export,
             Err(err) => {
                 log_socket_service_failure(
-                    "socket_session_run_failed",
+                    EVENT_SOCKET_SESSION_RUN_FAILED,
                     "tcp",
                     addr,
                     &format!("{err:?}"),
@@ -309,7 +329,7 @@ fn emit_rendered(
         if let Err(err) = persist_api_snapshot(state) {
             log_warn_event(
                 "api_snapshot",
-                "snapshot_persist_failed",
+                EVENT_SNAPSHOT_PERSIST_FAILED,
                 &[("error", err.to_string())],
                 "failed to persist latest api snapshot",
             );
@@ -424,7 +444,7 @@ fn emit_scan_outputs(
         if let Err(err) = persist_api_snapshot(state) {
             log_warn_event(
                 "api_snapshot",
-                "snapshot_persist_failed",
+                EVENT_SNAPSHOT_PERSIST_FAILED,
                 &[("error", err.to_string())],
                 "failed to persist latest api snapshot",
             );
@@ -444,7 +464,7 @@ fn write_rendered_output(cli: &Cli, rendered: &str, append: bool) {
             super::fs::write(path, existing).unwrap_or_else(|err| {
                 log_error_event(
                     "output",
-                    "append_failed",
+                    EVENT_APPEND_FAILED,
                     &[("path", path.to_string()), ("error", err.to_string())],
                     "failed to append rendered output",
                 );
@@ -458,7 +478,7 @@ fn write_rendered_output(cli: &Cli, rendered: &str, append: bool) {
             super::fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
                 log_error_event(
                     "output",
-                    "write_failed",
+                    EVENT_WRITE_FAILED,
                     &[("path", path.to_string()), ("error", err.to_string())],
                     "failed to write rendered output",
                 );

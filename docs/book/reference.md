@@ -9,6 +9,12 @@ exact contract page, start with:
 - [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
 - [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
 
+If the question is about release-line direction rather than a stable contract,
+start with:
+
+- [ROADMAP.md](/Users/Shared/chroot/dev/gewyvern/ROADMAP.md)
+- [docs/history/v0.15-to-v1-roadmap.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15-to-v1-roadmap.md)
+
 ## Book Path
 
 This section works best as Part-by-part lookup, not as one long list.
@@ -97,6 +103,9 @@ If you are in the protocol volume specifically, start with:
 - [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
   Config file search order, supported sections, override precedence, and
   legacy fallback behavior for the `0.15.x` line.
+- [docs/book/reference-runtime-events.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-events.md)
+  Stable runtime event names, structured log shape, and event-naming contract
+  candidates for the `0.16.x` tightening line.
 - [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
   Standard config/data/state/cache/share roots, environment overrides, and
   legacy upgrade compatibility rules for the `0.15.x` line.

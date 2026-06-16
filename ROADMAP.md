@@ -1,22 +1,26 @@
 # gewyvern Roadmap
 
-This roadmap now treats `v0.15.0` as the current operational line.
+This roadmap now treats `v0.15.0` as the current operational line and
+`v0.20.x` as the deliberate final pre-`1.0` seal.
 
-`gewyvern` is no longer trying to justify itself through a distant milestone.
-The current question is how to keep the `0.15.x` line useful, stable,
-and disciplined while protocol depth, compiler ergonomics, and collaboration
-surfaces continue to mature.
+`gewyvern` is no longer trying to justify itself through a vague distant
+milestone. The current question is how to move through `0.15.x` to `0.20.x`
+with enough discipline that `v1.0.0` can come directly after a healthy
+`0.20.x` close.
 
 ## Current Line
 
 - last fully documented historical validation baseline: `v0.10.0`
 - current release line: `v0.15.0`
-- immediate follow-on line: `v0.16.x`
+- planned final pre-`1.0` line: `v0.20.x`
+- target next major: `v1.0.0`
 - later decision point: consider `v2.0` only if the DSL/runtime/report
-  contract needs a deliberate breaking reset
+  contract eventually needs a deliberate breaking reset
 
 For the durable minor-line record, see
 [docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md).
+For the explicit `0.15.x -> 0.20.x -> 1.0.0` spine, see
+[docs/history/v0.15-to-v1-roadmap.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15-to-v1-roadmap.md).
 
 ## What `v0.15.0` Means
 
@@ -37,38 +41,51 @@ It should not be interpreted as:
 
 ## Current Priorities
 
-### 1. Protocol Quality Over Protocol Vanity
+### 1. `v0.15.x`: Operationalization
 
-- deepen existing protocol families before adding shallow new ones
-- improve healthy-path and failure-path modeling together
-- keep pushing from “protocol matched” toward “which module failed, where, and
-  why”
+- runtime layout, config, state, and upgrade handling
+- logging and operator-triage discipline
+- packaged/container/runtime validation as routine practice
 
-### 2. Compiler And Package Ergonomics
+### 2. `v0.16.x`: Contract Tightening
 
-- keep `gewylang` function/package composition predictable
-- continue lightweight safety-oriented type boundaries
-- improve module provenance, graph output, and explain surfaces without growing
-  a heavyweight static type system
+- stable event naming and logging discipline
+- narrower machine/API/report contract wording
+- config schema/version migration rules
+- clearer stable-versus-evolving boundaries
 
-### 3. Reporting And Machine Surfaces
+Execution shelf:
 
-- keep the diagnosis spine stable and readable
-- keep HTML and JSON outputs aligned
-- preserve additive sidecar/extensibility semantics rather than leaking
-  implementation-specific assumptions into the core contracts
+- [docs/history/v0.16.x-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.16.x-checklist.md)
 
-### 4. Cross-Project Collaboration
+### 3. `v0.17.x`: Compiler And IR Maturity
 
-- keep `gewyvern` viable on its own
-- let `etragon` enrich rather than replace diagnosis
-- let `leserpent` orchestrate rather than dictate runtime internals
+- `gewylang` modularity and package ergonomics
+- safer lightweight inference boundaries
+- IR evolution discipline and explain surfaces
+- compiler/runtime spine maturity
 
-### 5. Operational Discipline
+### 4. `v0.18.x`: Protocol Depth And Runtime Confidence
 
-- keep container/package validation green
-- keep multi-instance and readiness races visible in integration harnesses
-- preserve conservative defaults around ingest, serve, and external analysis
+- deepen priority protocol families
+- strengthen grouped validation and runtime confidence
+- improve multi-instance and Docker-backed evidence
+- keep pushing from “protocol matched” toward “which module failed, where, and why”
+
+### 5. `v0.19.x`: Integration And Freeze Preparation
+
+- align docs, CLI, reports, and API wording
+- settle compatibility aliases and stale shims
+- reduce naming drift
+- confirm cross-project boundaries with `etragon` and `leserpent`
+
+### 6. `v0.20.x`: Final Pre-`1.0` Seal
+
+- final security and boundary review
+- final surface freeze judgment
+- final documentation-book coherence pass
+- final packaged/container/runtime release validation pass
+- no casual widening of core surfaces
 
 ## Historical Milestones
 
@@ -96,18 +113,19 @@ snapshot pages rather than only through scattered posture notes. Start with:
 - [docs/history/v0.14.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.14.x.md)
 - [docs/history/v0.15.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15.x.md)
 
-## Exit Criteria For The `0.15.x` Line
+## Exit Criteria For The Road To `v1.0.0`
 
-The `0.15.x` line should keep converging toward:
+The remaining `0.x` lines should keep converging toward:
 
 - clearer protocol/module conclusions
 - safer and more explicit extensibility boundaries
 - stronger packaging and container confidence
 - better compiler/package authoring ergonomics
 - cleaner documentation entry points and reference surfaces
+- a stable core that can survive the jump to `v1.0.0`
 
 If a proposed change does not improve one of those areas, it should face a
-higher bar before entering the current line.
+higher bar before entering the remaining pre-`1.0` lines.
 
 ## Guiding Principle
 

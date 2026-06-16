@@ -38,6 +38,11 @@ background cleanup.
 - [docs/history/v0.15.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15.x.md)
   Current active line focused on carrying that maturity into runtime layout,
   upgrade handling, and clearer operational contracts.
+- [docs/history/v0.15-to-v1-roadmap.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15-to-v1-roadmap.md)
+  Forward-looking minor-line plan from `0.15.x` through `0.20.x`, intended to
+  make `v1.0.0` the direct next step after the final pre-`1.0` seal.
+- [docs/history/v0.16.x-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.16.x-checklist.md)
+  Contract-tightening execution checklist for the planned `0.16.x` line.
 
 ## Release-Line Ledger
 
@@ -47,6 +52,7 @@ background cleanup.
 | `v0.13.x` | First deliberate convergence line for documentation, boundaries, and release judgment | recorded | [docs/history/v0.13.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.13.x.md) |
 | `v0.14.x` | Earlier maturity line before the `0.15.x` operationalization pass | historical snapshot | [docs/history/v0.14.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.14.x.md) |
 | `v0.15.x` | Current active line for runtime layout, upgrade shape, and continued protocol/compiler depth | active | [docs/history/v0.15.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15.x.md) |
+| `v0.15.x -> v1.0.0` | Forward roadmap through `v0.20.x` with `v1.0.0` as the intended direct successor | active roadmap | [docs/history/v0.15-to-v1-roadmap.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15-to-v1-roadmap.md) |
 
 This table is the shortest answer to:
 

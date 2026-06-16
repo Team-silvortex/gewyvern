@@ -13,6 +13,8 @@ mod render_utils;
 mod report_runtime;
 #[path = "main/runtime_config.rs"]
 mod runtime_config;
+#[path = "main/runtime_events.rs"]
+mod runtime_events;
 #[path = "main/runtime_logging.rs"]
 mod runtime_logging;
 #[path = "main/runtime_migration.rs"]
@@ -67,6 +69,12 @@ use crate::report_runtime::{
 #[cfg(test)]
 use crate::report_runtime::{scan_report_json, scan_report_text, training_example_json};
 use crate::runtime_config::{apply_runtime_path_overrides, load_runtime_config};
+use crate::runtime_events::{
+    EVENT_DIAGNOSTICS_COMPILE_FAILED, EVENT_DIAGNOSTICS_REQUIRES_DSL, EVENT_HISTORY_RENDER_FAILED,
+    EVENT_LEGACY_CONFIG_COPIED, EVENT_LEGACY_ENTRIES_MIGRATED, EVENT_RUNTIME_CONFIG_LOADED,
+    EVENT_RUNTIME_ROOTS_PREPARED, EVENT_SCAN_TARGET_RESOLVE_FAILED,
+    EVENT_SOCKET_SESSION_COLLECT_FAILED, EVENT_SOCKET_SESSION_RUN_FAILED, EVENT_WRITE_FAILED,
+};
 use crate::runtime_logging::{
     init_runtime_logger, log_error_event, log_info_event, log_warn_event,
 };
@@ -105,14 +113,14 @@ fn main() {
         if runtime_config.used_legacy_path {
             log_warn_event(
                 "config",
-                "runtime_config_loaded",
+                EVENT_RUNTIME_CONFIG_LOADED,
                 &[("path", path.display().to_string())],
                 "loaded legacy runtime config",
             );
         } else {
             log_info_event(
                 "config",
-                "runtime_config_loaded",
+                EVENT_RUNTIME_CONFIG_LOADED,
                 &[("path", path.display().to_string())],
                 "loaded runtime config",
             );
@@ -121,7 +129,7 @@ fn main() {
     if !migration_report.created_roots.is_empty() {
         log_info_event(
             "startup",
-            "runtime_roots_prepared",
+            EVENT_RUNTIME_ROOTS_PREPARED,
             &[(
                 "roots",
                 migration_report
@@ -137,7 +145,7 @@ fn main() {
     if let Some(path) = migration_report.copied_config_to.as_ref() {
         log_info_event(
             "startup",
-            "legacy_config_copied",
+            EVENT_LEGACY_CONFIG_COPIED,
             &[("path", path.display().to_string())],
             "copied legacy runtime config into standard root",
         );
@@ -145,7 +153,7 @@ fn main() {
     if migration_report.copied_protocol_entries > 0 || migration_report.copied_dsl_entries > 0 {
         log_info_event(
             "startup",
-            "legacy_entries_migrated",
+            EVENT_LEGACY_ENTRIES_MIGRATED,
             &[
                 (
                     "protocols",
@@ -172,7 +180,7 @@ fn main() {
         let rendered = render_history_index(cli.json).unwrap_or_else(|message| {
             log_error_event(
                 "history",
-                "history_render_failed",
+                EVENT_HISTORY_RENDER_FAILED,
                 &[("error", message.clone())],
                 "failed to render history index",
             );
@@ -203,7 +211,7 @@ fn main() {
     let scan_targets = scan_targets_for_cli(&cli).unwrap_or_else(|err| {
         log_error_event(
             "runtime",
-            "scan_target_resolve_failed",
+            EVENT_SCAN_TARGET_RESOLVE_FAILED,
             &[("error", err.clone())],
             "failed to resolve scan targets",
         );
@@ -216,7 +224,7 @@ fn main() {
         let path = cli.dsl_path.as_deref().unwrap_or_else(|| {
             log_error_event(
                 "diagnostics",
-                "diagnostics_requires_dsl",
+                EVENT_DIAGNOSTICS_REQUIRES_DSL,
                 &[],
                 "diagnostics mode requires a dsl path",
             );
@@ -226,7 +234,7 @@ fn main() {
         let report = compile_diagnostics_report_file(path).unwrap_or_else(|err| {
             log_error_event(
                 "diagnostics",
-                "diagnostics_compile_failed",
+                EVENT_DIAGNOSTICS_COMPILE_FAILED,
                 &[("path", path.to_string()), ("error", format!("{err:?}"))],
                 "failed to compile diagnostics report",
             );
@@ -263,7 +271,7 @@ fn main() {
                 };
                 log_error_event(
                     "runtime",
-                    "socket_session_collect_failed",
+                    EVENT_SOCKET_SESSION_COLLECT_FAILED,
                     &[("endpoint", endpoint), ("error", format!("{err:?}"))],
                     "failed to collect socket session facts",
                 );
@@ -303,7 +311,7 @@ fn main() {
                 };
                 log_error_event(
                     "runtime",
-                    "socket_session_run_failed",
+                    EVENT_SOCKET_SESSION_RUN_FAILED,
                     &[("endpoint", endpoint), ("error", format!("{err:?}"))],
                     "failed to run socket session",
                 );
@@ -559,7 +567,7 @@ fn main() {
         fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
             log_error_event(
                 "output",
-                "write_failed",
+                EVENT_WRITE_FAILED,
                 &[("path", path.to_string()), ("error", err.to_string())],
                 "failed to write rendered output",
             );

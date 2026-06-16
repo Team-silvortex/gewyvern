@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime_events::EVENT_DSL_COMPILE_FAILED;
 use crate::runtime_logging::{LogLevel, LoggingConfig, log_error_event};
 
 #[derive(Debug)]
@@ -114,7 +115,7 @@ impl ScanTarget {
         compile_file(&self.dsl_path).unwrap_or_else(|err| {
             log_error_event(
                 "dsl",
-                "dsl_compile_failed",
+                EVENT_DSL_COMPILE_FAILED,
                 &[
                     ("path", self.dsl_path.clone()),
                     ("error", format!("{err:?}")),
@@ -196,7 +197,7 @@ impl Cli {
             compile_file(path).unwrap_or_else(|err| {
                 log_error_event(
                     "dsl",
-                    "dsl_compile_failed",
+                    EVENT_DSL_COMPILE_FAILED,
                     &[("path", path.to_string()), ("error", format!("{err:?}"))],
                     "failed to compile dsl binding",
                 );

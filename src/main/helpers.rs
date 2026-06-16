@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime_events::EVENT_WRITE_FAILED;
 use crate::runtime_logging::log_error_event;
 
 pub(crate) fn process_matches_pid(process: Option<&ProcessView>, pid: u32) -> bool {
@@ -278,7 +279,7 @@ pub(crate) fn write_or_print(rendered: &str, out_path: Option<&str>, locale: UiL
         fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
             log_error_event(
                 "output",
-                "write_failed",
+                EVENT_WRITE_FAILED,
                 &[("path", path.to_string()), ("error", err.to_string())],
                 "failed to write rendered output",
             );
