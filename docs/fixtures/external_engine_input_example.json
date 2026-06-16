@@ -59,6 +59,12 @@
     "module:name_resolution",
     "module:tls_handshake"
   ],
+  "missing_transitions": [
+    "send_request->receive_response"
+  ],
+  "suspect_areas": [
+    "transport_io"
+  ],
   "suspect_modules": [
     "http_request_path"
   ],

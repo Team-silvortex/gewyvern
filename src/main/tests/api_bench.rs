@@ -15,6 +15,9 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
         &state,
         ApiRenderedTarget {
             name: "dsl_demo".into(),
+            primary_module_family: analysis_snapshot(&export).primary_module_family,
+            evidence_posture: analysis_snapshot(&export).evidence_posture,
+            automation_outcome: analysis_snapshot(&export).automation_outcome,
             summary_text: summary_line("dsl_demo", &export),
             summary_json: summary_json("dsl_demo", &export),
             findings_json: findings_json("dsl_demo", &export),
@@ -114,6 +117,9 @@ fn api_snapshot_routes_cover_scan_export() {
             ) = crate::diagnosis_runtime::external_sidecar_presence(&analysis);
             ApiRenderedTarget {
                 name: name.clone(),
+                primary_module_family: analysis.primary_module_family.clone(),
+                evidence_posture: analysis.evidence_posture.clone(),
+                automation_outcome: analysis.automation_outcome.clone(),
                 summary_text: summary_line(name, export),
                 summary_json: summary_json(name, export),
                 findings_json: findings_json(name, export),
@@ -247,6 +253,9 @@ fn api_target_list_exposes_url_safe_path_segments() {
         &state,
         ApiRenderedTarget {
             name: "scan:http request/%".into(),
+            primary_module_family: analysis_snapshot(&export).primary_module_family,
+            evidence_posture: analysis_snapshot(&export).evidence_posture,
+            automation_outcome: analysis_snapshot(&export).automation_outcome,
             summary_text: summary_line("scan:http request/%", &export),
             summary_json: summary_json("scan:http request/%", &export),
             findings_json: findings_json("scan:http request/%", &export),

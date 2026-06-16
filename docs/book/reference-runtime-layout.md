@@ -1,0 +1,194 @@
+# Runtime Layout Reference
+
+This page records the standard filesystem layout for `gewyvern` starting in the
+`0.15.x` line.
+
+Use it when the question is:
+
+- where should `gewyvern` look for config, data, state, or cache files?
+- where should the runtime config file itself live?
+- where should packaged protocol assets live?
+- how should a `0.14.x` or older local install be carried forward safely?
+
+Do not use this page as:
+
+- the packaging build guide
+- the release checklist
+- the protocol-surface contract page
+
+For those, use:
+
+- [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
+- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
+
+## Layout Policy
+
+The `0.15.x` policy is:
+
+- standard roots are explicit
+- environment overrides stay supported
+- old single-root layouts remain readable as compatibility fallbacks
+- upgrades should prefer copy-forward, not destructive in-place rewrites
+
+That means `gewyvern` should now think in four roots:
+
+- config
+- data
+- state
+- cache
+
+and one packaged share root:
+
+- installed read-only built-in assets
+
+## Standard Roots
+
+### Linux And Other XDG-Style Unix Hosts
+
+- config:
+  `"$XDG_CONFIG_HOME/gewyvern"` or `~/.config/gewyvern`
+- data:
+  `"$XDG_DATA_HOME/gewyvern"` or `~/.local/share/gewyvern`
+- state:
+  `"$XDG_STATE_HOME/gewyvern"` or `~/.local/state/gewyvern`
+- cache:
+  `"$XDG_CACHE_HOME/gewyvern"` or `~/.cache/gewyvern`
+
+### macOS
+
+- config:
+  `~/Library/Application Support/gewyvern/config`
+- data:
+  `~/Library/Application Support/gewyvern/data`
+- state:
+  `~/Library/Application Support/gewyvern/state`
+- cache:
+  `~/Library/Caches/gewyvern`
+
+### Windows
+
+- config:
+  `%APPDATA%\\gewyvern\\config`
+- data:
+  `%APPDATA%\\gewyvern\\data`
+- state:
+  `%LOCALAPPDATA%\\gewyvern\\state`
+- cache:
+  `%LOCALAPPDATA%\\gewyvern\\cache`
+
+## Config File Name
+
+The standard config file name for the `0.15.x` line is:
+
+- `gewyvern.toml`
+
+For the exact search order, fallback names, and supported sections, use:
+
+- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
+
+## Current Asset Expectations
+
+The current `0.15.x` expectation is:
+
+- protocol registry packages live under `data/protocols/`
+- built-in DSL helpers can live under `data/dsl/`
+- latest API snapshot artifacts live under `state/latest/api/`
+- archived API snapshot artifacts live under `state/history/api/`
+- packaged read-only assets still live under `/usr/share/gewyvern/` on Linux
+
+The current `0.15.x` history retention rule is intentionally simple:
+
+- keep the most recent 32 archived API snapshot refreshes
+- prune older archived refreshes during later successful writes
+
+That default can now be overridden with:
+
+- runtime config: `[runtime].history_retention`
+- environment: `GEWY_HISTORY_RETENTION`
+
+The packaged Linux tree remains:
+
+- `/usr/share/gewyvern/dsl`
+- `/usr/share/gewyvern/protocols`
+
+That packaged share tree is still considered authoritative for installed
+read-only built-ins.
+
+## Environment Overrides
+
+The runtime currently honors these explicit overrides:
+
+- `GEWY_CONFIG_HOME`
+- `GEWY_DATA_HOME`
+- `GEWY_STATE_HOME`
+- `GEWY_CACHE_HOME`
+- `GEWY_SHARE_ROOT`
+- `GEWY_PROTOCOL_REGISTRY_ROOT`
+
+Priority rule:
+
+1. explicit path override
+2. standard `0.15.x` root
+3. legacy compatibility root
+4. packaged read-only share root
+5. repo-local development root when running from source
+
+## Legacy Compatibility
+
+Earlier local setups often treated one directory as the whole app root:
+
+- `~/.gewyvern/`
+
+The `0.15.x` line should continue to recognize that shape as a fallback for
+upgrade safety, especially:
+
+- `~/.gewyvern/protocols`
+- `~/.gewyvern/dsl`
+
+Compatibility rule:
+
+- if a new standard root exists, prefer it
+- if only the legacy root exists, continue reading it
+- startup may copy legacy mutable content forward into the new standard roots
+  when the target path is still missing
+- startup must not overwrite content that already exists in the new standard
+  roots
+
+## Upgrade Guidance From Older Local Installs
+
+Recommended conservative upgrade path:
+
+1. keep the old `~/.gewyvern/` tree intact
+2. create the new standard roots for the host OS
+3. copy mutable operator-owned content first:
+   - custom protocol packages
+   - local DSL shelves
+   - future config files once they are formalized
+4. `0.15.x` startup now performs a conservative copy-forward for:
+   - `~/.gewyvern/config.toml` to the standard `gewyvern.toml`
+   - `~/.gewyvern/protocols/` to `data/protocols/`
+   - `~/.gewyvern/dsl/` to `data/dsl/`
+5. that copy-forward is additive only:
+   - missing targets are created
+   - existing standard-path files are preserved
+6. leave packaged built-ins under the installed share root
+7. only remove old content after the new runtime has been validated against the
+   copied tree
+
+## Why This Matters
+
+This split is not cosmetic.
+
+It gives the project a safer base for:
+
+- future config files
+- latest-snapshot persistence
+- later historical snapshot retention
+- local cache eviction rules
+- packaged upgrades
+- operator troubleshooting
+
+Without a standard layout, every later minor line would have to renegotiate
+where its mutable files belong.

@@ -3,8 +3,8 @@ use super::scan_surface::{
     protocol_surface_text,
 };
 use super::sidecar::{
-    external_operator_guidance_support_note, external_sidecar_collaboration_note,
-    external_sidecar_rollup_counts,
+    diagnosis_spine_text, external_operator_guidance_support_note,
+    external_sidecar_collaboration_note, external_sidecar_rollup_counts,
 };
 use super::*;
 
@@ -263,9 +263,12 @@ pub(super) fn append_scan_target_text(
     analysis: &AnalysisSnapshot,
 ) {
     let protocol_surface = protocol_surface_for_target(name);
+    let diagnosis_spine = diagnosis_spine_text(analysis);
     text.push_str(name);
     text.push_str(" status=");
     text.push_str(analysis.target_status.label());
+    text.push_str(" diagnosis_spine=");
+    text.push_str(&diagnosis_spine);
     text.push_str(" flows=");
     text.push_str(&export.program_flows.len().to_string());
     text.push_str(" findings=");

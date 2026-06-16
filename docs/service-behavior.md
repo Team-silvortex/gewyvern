@@ -53,7 +53,10 @@ Current expectations:
 - `--serve` requires `--unix-socket` or `--tcp-socket`
 - a single `gewyvern` process stays alive across many sessions
 - each completed session or scan refreshes the in-memory latest snapshot
-- the optional API serves that latest in-memory snapshot only
+- the optional API serves that live latest snapshot
+- the standard state root mirrors that latest snapshot on disk
+- each successful refresh also archives a structured history snapshot on disk
+- the on-disk history keeps the most recent 32 refreshes and prunes older ones
 
 `--serve` is intentionally session-oriented, not a historical datastore.
 
@@ -66,14 +69,15 @@ It should be understood as:
 
 ## API Snapshot Model
 
-When `--api-socket` is enabled, the API exposes only the latest in-memory
-snapshot.
+When `--api-socket` is enabled, the API exposes only the latest live snapshot.
 
 This means:
 
 - there is no built-in historical query API
-- there is no built-in persistence/replay log behind the API
 - each new completed session replaces the previous latest snapshot
+- historical snapshots are persisted on disk for operator-side inspection, not
+  served as a queryable timeline API
+- persisted history is intentionally bounded to the most recent 32 refreshes
 
 The intended use is:
 
@@ -90,17 +94,10 @@ Current restart behavior is intentionally simple:
 - restarting `gewyvern` clears the in-memory latest API snapshot
 - restarting `gewyvern` does not restore prior API state
 - new socket-fed sessions rebuild the latest snapshot from scratch
+- previously mirrored latest/history snapshot files may still remain under the
+  standard state root until operators rotate or prune them
 
 This is expected behavior, not a failure mode.
-
-If a deployment needs durable history, it should persist:
-
-- exported session bundles
-- `summary.json`
-- `analysis.json`
-- or downstream enrichments
-
-outside `gewyvern` itself.
 
 ## Socket Ingest Failure Behavior
 

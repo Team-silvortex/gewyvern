@@ -1,7 +1,7 @@
 # Field Validation
 
 This note defines the practical field-validation phase for the current
-`0.14.x` line.
+`0.15.x` line.
 
 The goal is simple:
 
@@ -13,7 +13,7 @@ This is the bridge between:
 
 - contract freeze
 - benchmark acceptance
-- current release judgment for the active `0.14.x` line
+- current release judgment for the active `0.15.x` line
 
 For the current release posture, see
 [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md).
@@ -36,7 +36,7 @@ Treat this page as the validation-program page for the active line.
 Use it when the question is:
 
 - what kinds of validation should we still be running repeatedly?
-- which scenario families matter most for trust in `0.14.x`?
+- which scenario families matter most for trust in `0.15.x`?
 - what counts as strong enough validation evidence versus shallow smoke?
 
 Do not use this page as:
@@ -62,7 +62,7 @@ For those, use:
 
 ## Current Prelaunch Scope
 
-Keep the current `0.14.x` field-validation line intentionally narrow.
+Keep the current `0.15.x` field-validation line intentionally narrow.
 
 The question is not "what else could `gewyvern` support".
 
@@ -412,6 +412,6 @@ This note does not replace:
 - release gate judgment
 - the dedicated multi-project collaboration gate with `etragon` and `leserpent`
 
-It exists so the current `0.14.x` line has a concrete "start validating for
+It exists so the current `0.15.x` line has a concrete "start validating for
 real" shelf rather
 than only architecture cleanup.

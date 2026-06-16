@@ -72,6 +72,12 @@ If you are in the protocol volume specifically, start with:
 
 ## Runtime And Export Contracts
 
+- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
+  Config file search order, supported sections, override precedence, and
+  legacy fallback behavior for the `0.15.x` line.
+- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
+  Standard config/data/state/cache/share roots, environment overrides, and
+  legacy upgrade compatibility rules for the `0.15.x` line.
 - [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
   Exact meanings for `primary_failure_*`, guidance, and ambiguity fields.
 - [docs/book/reference-training-dataset-consumption.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-training-dataset-consumption.md)
@@ -110,7 +116,7 @@ contracts, also keep nearby:
 
 ## Future Shape
 
-As the current `0.14.x` line continues, new exact-lookup material should prefer
+As the current `0.15.x` line continues, new exact-lookup material should prefer
 this shelf instead of adding more ad hoc “format note” pages at the top level.
 
 By contrast, runnable command collections and operator script routing should

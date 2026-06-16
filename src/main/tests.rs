@@ -42,6 +42,8 @@ mod ambiguity;
 mod analysis;
 #[path = "tests/api_bench.rs"]
 mod api_bench;
+#[path = "tests/api_persistence.rs"]
+mod api_persistence;
 #[path = "tests/api_sidecar.rs"]
 mod api_sidecar;
 #[path = "tests/demo_cli.rs"]
@@ -64,6 +66,10 @@ mod relay_and_mail;
 mod reports;
 #[path = "tests/rtsp_http_tls.rs"]
 mod rtsp_http_tls;
+#[path = "tests/runtime_config.rs"]
+mod runtime_config;
+#[path = "tests/runtime_migration.rs"]
+mod runtime_migration;
 #[path = "tests/ssh_tls.rs"]
 mod ssh_tls;
 #[path = "tests/support_external.rs"]

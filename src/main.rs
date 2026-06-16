@@ -9,6 +9,10 @@ mod external_analysis;
 mod helpers;
 mod render_utils;
 mod report_runtime;
+#[path = "main/runtime_config.rs"]
+mod runtime_config;
+#[path = "main/runtime_migration.rs"]
+mod runtime_migration;
 mod serve_runtime;
 #[cfg(test)]
 #[path = "main/tests.rs"]
@@ -57,6 +61,8 @@ use crate::report_runtime::{
 };
 #[cfg(test)]
 use crate::report_runtime::{scan_report_json, scan_report_text, training_example_json};
+use crate::runtime_config::{apply_runtime_path_overrides, load_runtime_config};
+use crate::runtime_migration::prepare_runtime_layout;
 use crate::serve_runtime::serve_socket_sessions;
 
 pub(crate) use self::binding_demo::run_binding_demo;
@@ -64,10 +70,21 @@ pub(crate) use self::ui_locale::UiLocale;
 
 fn main() {
     let locale = UiLocale::detect();
-    let cli = Cli::from_args(env::args().skip(1)).unwrap_or_else(|message| {
+    let args = env::args().skip(1).collect::<Vec<_>>();
+    prepare_runtime_layout().unwrap_or_else(|message| {
         eprintln!("{message}");
         std::process::exit(2);
     });
+    let runtime_config = load_runtime_config().unwrap_or_else(|message| {
+        eprintln!("{message}");
+        std::process::exit(2);
+    });
+    apply_runtime_path_overrides(&runtime_config);
+    let cli =
+        Cli::from_args_with_defaults(args, runtime_config.defaults).unwrap_or_else(|message| {
+            eprintln!("{message}");
+            std::process::exit(2);
+        });
     set_external_analysis_config(cli.external_analysis_config());
 
     if cli.list_protocols {

@@ -1,6 +1,6 @@
 # CLI Recipes
 
-This page keeps the practical command shelf for the current `0.14.x` line.
+This page keeps the practical command shelf for the current `0.15.x` line.
 
 Use it when you already understand the project shape and just want known-good
 commands for the runtime CLI, `gewyc`, socket ingest, and local integration

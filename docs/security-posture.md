@@ -8,7 +8,7 @@ to a narrower question:
 
 - what `gewyvern` is safe to treat as
 - what `gewyvern` is intentionally not trying to be
-- which boundaries matter in the current `0.14.x` line
+- which boundaries matter in the current `0.15.x` line
 
 For long-lived runtime behavior, see
 [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md).
@@ -80,8 +80,12 @@ Current posture:
 
 - `--api-socket` requires `--serve`
 - remote API bind requires explicit operator opt-in
-- latest snapshot state is in-memory only
-- restart clears the latest API snapshot
+- live API state is in-memory first
+- the latest served snapshot is also mirrored into the standard state root
+- each successful refresh also leaves a structured on-disk history snapshot
+- that on-disk history is bounded to the newest 32 refreshes
+- restart still clears the live in-memory snapshot until a new serve session
+  refreshes it
 - oversized successful API bodies are degraded instead of streamed without bound
 - API overload is allowed to fail closed with a short `503` response
 
@@ -157,9 +161,9 @@ If a deployment needs:
 that should live above `gewyvern`, not be inferred from its current local
 service shape.
 
-## Practical `0.14.x` Goal
+## Practical `0.15.x` Goal
 
-For the current `0.14.x` line, the security goal is not “become a control
+For the current `0.15.x` line, the security goal is not “become a control
 plane”.
 
 The goal is narrower:

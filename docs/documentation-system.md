@@ -149,7 +149,7 @@ These pages answer whether the current line has actually earned its claims.
 
 Examples:
 
-- `docs/v0.14-posture.md`
+- `docs/v0.15-posture.md`
 - `docs/field-validation.md`
 - `docs/field-findings.md`
 - `docs/release-checklist.md`
@@ -167,6 +167,7 @@ Its job is to answer:
 
 - what did `v0.13.x` mean?
 - what did `v0.14.x` change in posture?
+- what does `v0.15.x` add in operational discipline and upgrade shape?
 - what was already whole enough?
 - what was still intentionally incomplete?
 
@@ -296,7 +297,7 @@ Avoid:
 
 ## Current Thesis
 
-The current docs system should make `0.14.x` feel:
+The current docs system should make `0.15.x` feel:
 
 - legible
 - bounded

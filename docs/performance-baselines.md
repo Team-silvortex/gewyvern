@@ -4,7 +4,7 @@ These are lightweight local baselines for the current ignored benchmark tests.
 They now serve two purposes:
 
 - a practical comparison point for day-to-day optimization work
-- the current release-candidate acceptance baseline for `0.14.x` runtime and
+- the current release-candidate acceptance baseline for `0.15.x` runtime and
   report performance
 
 They are still not a promise that every machine will produce identical
@@ -22,7 +22,7 @@ Measurement notes:
 
 ## Release-Candidate Interpretation
 
-For the current `0.14.x` line, the intended acceptance rule is:
+For the current `0.15.x` line, the intended acceptance rule is:
 
 - compare against the `median`
 - judge regressions on the same developer-class machine, not across unrelated

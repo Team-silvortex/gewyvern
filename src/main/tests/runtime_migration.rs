@@ -1,0 +1,161 @@
+use crate::runtime_migration::prepare_runtime_layout;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn env_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+struct EnvGuard {
+    key: &'static str,
+    previous: Option<String>,
+}
+
+impl EnvGuard {
+    fn set(key: &'static str, value: impl Into<String>) -> Self {
+        let previous = std::env::var(key).ok();
+        unsafe {
+            std::env::set_var(key, value.into());
+        }
+        Self { key, previous }
+    }
+}
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        match &self.previous {
+            Some(value) => unsafe {
+                std::env::set_var(self.key, value);
+            },
+            None => unsafe {
+                std::env::remove_var(self.key);
+            },
+        }
+    }
+}
+
+fn temp_dir(label: &str) -> PathBuf {
+    std::env::temp_dir().join(format!(
+        "gewyvern-runtime-migration-{label}-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ))
+}
+
+#[test]
+fn runtime_migration_creates_standard_roots_and_copies_legacy_config() {
+    let _lock = env_lock()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let home = temp_dir("config-home");
+    let legacy_root = home.join(".gewyvern");
+    let config_root = home.join("config-root");
+    let data_root = home.join("data-root");
+    let state_root = home.join("state-root");
+    let cache_root = home.join("cache-root");
+    fs::create_dir_all(&legacy_root).unwrap();
+    fs::write(
+        legacy_root.join("config.toml"),
+        "[runtime]\nserve = true\nsocket = \"unix:/tmp/gewyvern.sock\"\n",
+    )
+    .unwrap();
+    let _home = EnvGuard::set("HOME", home.to_string_lossy());
+    let _config = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _data = EnvGuard::set("GEWY_DATA_HOME", data_root.to_string_lossy());
+    let _state = EnvGuard::set("GEWY_STATE_HOME", state_root.to_string_lossy());
+    let _cache = EnvGuard::set("GEWY_CACHE_HOME", cache_root.to_string_lossy());
+
+    let report = prepare_runtime_layout().unwrap();
+    let migrated = config_root.join("gewyvern.toml");
+
+    assert!(config_root.exists());
+    assert!(data_root.exists());
+    assert!(state_root.exists());
+    assert!(cache_root.exists());
+    assert_eq!(report.copied_config_to.as_deref(), Some(migrated.as_path()));
+    assert_eq!(
+        fs::read_to_string(&migrated).unwrap(),
+        fs::read_to_string(legacy_root.join("config.toml")).unwrap()
+    );
+
+    fs::remove_dir_all(&home).unwrap();
+}
+
+#[test]
+fn runtime_migration_preserves_existing_standard_config() {
+    let _lock = env_lock()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let home = temp_dir("config-preserve");
+    let legacy_root = home.join(".gewyvern");
+    let config_root = home.join("config-root");
+    fs::create_dir_all(&legacy_root).unwrap();
+    fs::create_dir_all(&config_root).unwrap();
+    fs::write(legacy_root.join("config.toml"), "legacy = true\n").unwrap();
+    fs::write(config_root.join("gewyvern.toml"), "legacy = false\n").unwrap();
+    let _home = EnvGuard::set("HOME", home.to_string_lossy());
+    let _config = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+
+    let report = prepare_runtime_layout().unwrap();
+
+    assert!(report.copied_config_to.is_none());
+    assert_eq!(
+        fs::read_to_string(config_root.join("gewyvern.toml")).unwrap(),
+        "legacy = false\n"
+    );
+
+    fs::remove_dir_all(&home).unwrap();
+}
+
+#[test]
+fn runtime_migration_copies_missing_protocol_and_dsl_entries_without_overwrite() {
+    let _lock = env_lock()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let home = temp_dir("content-home");
+    let legacy_root = home.join(".gewyvern");
+    let protocol_source = legacy_root.join("protocols").join("redis");
+    let dsl_source = legacy_root.join("dsl");
+    let config_root = home.join("config-root");
+    let data_root = home.join("data-root");
+    let state_root = home.join("state-root");
+    let cache_root = home.join("cache-root");
+    let protocol_target = data_root.join("protocols").join("redis");
+    let dsl_target = data_root.join("dsl");
+    fs::create_dir_all(&protocol_source).unwrap();
+    fs::create_dir_all(&dsl_source).unwrap();
+    fs::create_dir_all(&protocol_target).unwrap();
+    fs::write(protocol_source.join("zadd.gewy"), "legacy-zadd").unwrap();
+    fs::write(protocol_target.join("zadd.gewy"), "new-zadd").unwrap();
+    fs::write(protocol_source.join("xadd.gewy"), "legacy-xadd").unwrap();
+    fs::write(dsl_source.join("shelves.gewy"), "legacy-dsl").unwrap();
+    let _home = EnvGuard::set("HOME", home.to_string_lossy());
+    let _config = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _data = EnvGuard::set("GEWY_DATA_HOME", data_root.to_string_lossy());
+    let _state = EnvGuard::set("GEWY_STATE_HOME", state_root.to_string_lossy());
+    let _cache = EnvGuard::set("GEWY_CACHE_HOME", cache_root.to_string_lossy());
+
+    let report = prepare_runtime_layout().unwrap();
+
+    assert_eq!(report.copied_protocol_entries, 1);
+    assert_eq!(report.copied_dsl_entries, 1);
+    assert_eq!(
+        fs::read_to_string(protocol_target.join("zadd.gewy")).unwrap(),
+        "new-zadd"
+    );
+    assert_eq!(
+        fs::read_to_string(protocol_target.join("xadd.gewy")).unwrap(),
+        "legacy-xadd"
+    );
+    assert_eq!(
+        fs::read_to_string(dsl_target.join("shelves.gewy")).unwrap(),
+        "legacy-dsl"
+    );
+
+    fs::remove_dir_all(&home).unwrap();
+}

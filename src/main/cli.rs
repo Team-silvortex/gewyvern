@@ -33,6 +33,19 @@ pub(crate) struct Cli {
     pub(crate) external_engine_python_bin: Option<String>,
 }
 
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct CliDefaults {
+    pub(crate) serve: Option<bool>,
+    pub(crate) api_socket: Option<String>,
+    pub(crate) allow_remote_api: Option<bool>,
+    pub(crate) max_sessions: Option<usize>,
+    pub(crate) ingest_mode: Option<IngestMode>,
+    pub(crate) socket_target: Option<SocketTarget>,
+    pub(crate) external_engine_bin: Option<String>,
+    pub(crate) external_engine_worker: Option<String>,
+    pub(crate) external_engine_python_bin: Option<String>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DemoMode {
     Tcp,
@@ -173,6 +186,13 @@ impl Cli {
     where
         I: IntoIterator<Item = String>,
     {
+        Self::from_args_with_defaults(args, CliDefaults::default())
+    }
+
+    pub(crate) fn from_args_with_defaults<I>(args: I, defaults: CliDefaults) -> Result<Self, String>
+    where
+        I: IntoIterator<Item = String>,
+    {
         let locale = UiLocale::detect();
         let mut demo_mode = DemoMode::Both;
         let mut template_mode = TemplateMode::Tcp;
@@ -183,23 +203,23 @@ impl Cli {
         let mut protocol_set_path = None;
         let mut list_protocols = false;
         let mut list_entries = None;
-        let mut ingest_mode = IngestMode::LocalAdvisory;
+        let mut ingest_mode = defaults.ingest_mode.unwrap_or(IngestMode::LocalAdvisory);
         let mut pid = None;
         let mut diagnostics = false;
         let mut findings = false;
         let mut http_transactions = false;
-        let mut serve = false;
-        let mut api_socket = None;
-        let mut allow_remote_api = false;
-        let mut max_sessions = None;
+        let mut serve = defaults.serve.unwrap_or(false);
+        let mut api_socket = defaults.api_socket;
+        let mut allow_remote_api = defaults.allow_remote_api.unwrap_or(false);
+        let mut max_sessions = defaults.max_sessions;
         let mut json = false;
         let mut report_format = None;
         let mut summary_only = false;
         let mut out_path = None;
-        let mut socket_target = None;
-        let mut external_engine_bin = None;
-        let mut external_engine_worker = None;
-        let mut external_engine_python_bin = None;
+        let mut socket_target = defaults.socket_target;
+        let mut external_engine_bin = defaults.external_engine_bin;
+        let mut external_engine_worker = defaults.external_engine_worker;
+        let mut external_engine_python_bin = defaults.external_engine_python_bin;
         let mut args = args.into_iter();
 
         while let Some(arg) = args.next() {

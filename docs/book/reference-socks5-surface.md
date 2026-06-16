@@ -80,6 +80,6 @@ If you are validating current SOCKS5 support, the shortest useful order is:
 
 ## Stability Note
 
-This page is the lookup hub for the current SOCKS5 family in the `0.14.x`
+This page is the lookup hub for the current SOCKS5 family in the `0.15.x`
 line. New SOCKS5 command families should prefer landing behind this shelf
 instead of being linked from multiple higher-level pages independently.

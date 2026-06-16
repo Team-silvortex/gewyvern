@@ -2,7 +2,7 @@
 
 Use this page when you need the project-level design sheet for `gewyvern`.
 
-This is the durable blueprint page for the current `0.14.x` line. It is meant
+This is the durable blueprint page for the current `0.15.x` line. It is meant
 to answer four questions quickly:
 
 - what are the major subsystems?

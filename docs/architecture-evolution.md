@@ -49,9 +49,9 @@ That line mostly answered:
 
 - what is this project really trying to be?
 
-## What v0.14.x Is Solving
+## What v0.15.x Is Solving
 
-`v0.14.x` is the maturity line.
+`v0.15.x` is the maturity line.
 
 Architecturally, this line is about:
 
@@ -222,7 +222,7 @@ If you want to review the architecture as a moving system, use this order:
 2. [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
 3. [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
 4. [docs/history/v0.13.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.13.x.md)
-5. [docs/history/v0.14.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.14.x.md)
+5. [docs/history/v0.15.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15.x.md)
 6. [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
 
 ## Current Thesis

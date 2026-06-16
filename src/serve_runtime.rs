@@ -2,8 +2,8 @@ use gewyvern::export::ExportBundle;
 use std::net::TcpListener;
 
 use crate::data_api::{
-    ApiRenderedTarget, ApiState, start_api_service, update_api_snapshot_for_scan,
-    update_api_snapshot_for_single,
+    ApiRenderedTarget, ApiState, persist_api_snapshot, start_api_service,
+    update_api_snapshot_for_scan, update_api_snapshot_for_single,
 };
 use crate::diagnosis_runtime::{
     external_capability_summary, external_sidecar_consumption_mode, external_sidecar_presence,
@@ -199,6 +199,9 @@ fn emit_rendered(
             state,
             ApiRenderedTarget {
                 name: name.to_string(),
+                primary_module_family: analysis.primary_module_family.clone(),
+                evidence_posture: analysis.evidence_posture.clone(),
+                automation_outcome: analysis.automation_outcome.clone(),
                 summary_text: summary_text.clone(),
                 summary_json: summary_json_body.clone(),
                 findings_json: findings_json_body.clone(),
@@ -218,6 +221,9 @@ fn emit_rendered(
                 report_html: report_html_body.clone(),
             },
         );
+        if let Err(err) = persist_api_snapshot(state) {
+            eprintln!("failed to persist latest api snapshot: {err}");
+        }
     }
     let rendered = if cli.report_format.is_some() {
         render_report_outputs(cli, &single)
@@ -287,6 +293,9 @@ fn emit_scan_outputs(
                 let external_sidecar_trust_level = external_sidecar_trust_level(analysis);
                 ApiRenderedTarget {
                     name: name.clone(),
+                    primary_module_family: analysis.primary_module_family.clone(),
+                    evidence_posture: analysis.evidence_posture.clone(),
+                    automation_outcome: analysis.automation_outcome.clone(),
                     summary_text: summary_line_with_analysis(name, export, analysis),
                     summary_json: summary_json_with_analysis(name, export, analysis),
                     findings_json: findings_json_with_analysis(name, export, analysis),
@@ -322,6 +331,9 @@ fn emit_scan_outputs(
             scan_summary_json.clone(),
             scan_report_html_body.clone(),
         );
+        if let Err(err) = persist_api_snapshot(state) {
+            eprintln!("failed to persist latest api snapshot: {err}");
+        }
     }
     let rendered = render_scan_outputs(cli, outputs);
     write_rendered_output(cli, &rendered, append);

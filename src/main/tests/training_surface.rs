@@ -1,3 +1,4 @@
+use super::support_facts::push_synthetic_missing_stage_finding;
 use super::*;
 use crate::render_utils::extract_json_string_field;
 
@@ -44,6 +45,43 @@ fn training_example_array_supports_scan_level_export() {
 }
 
 #[test]
+fn training_example_promotes_top_level_diagnosis_aggregates() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+        .expect("http_request_path DSL should compile");
+    let mut export = annotate_export_trust(
+        run_binding_demo(binding),
+        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "http_request_path",
+        "http_request_response",
+        "receive_response",
+        "receive_payload",
+        "send_request->receive_response",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing response",
+        "tcp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let body = training_example_json("dsl_demo", &export);
+    assert!(body.contains("\"primary_module_family\":\"request-response\""));
+    assert!(body.contains("\"evidence_posture\":\"missing_transition\""));
+    assert!(body.contains("\"automation_outcome\":\"collect_more_evidence\""));
+    assert!(body.contains("\"operations\":[\"http_request\"]"));
+    assert!(body.contains(
+        "\"phases\":[\"bind\",\"resolve_upstream\",\"connect\",\"establish\",\"send_request\",\"receive_response\"]"
+    ));
+    assert!(body.contains("\"missing_transitions\":[\"send_request->receive_response\"]"));
+    assert!(body.contains("\"suspect_areas\":[\"transport_io\"]"));
+}
+
+#[test]
 fn api_training_example_routes_cover_single_export() {
     let _guard = test_guard();
     set_external_analysis_config(None);
@@ -59,6 +97,9 @@ fn api_training_example_routes_cover_single_export() {
         &state,
         ApiRenderedTarget {
             name: "dsl_demo".into(),
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
             summary_text: summary_line("dsl_demo", &export),
             summary_json: summary_json("dsl_demo", &export),
             findings_json: findings_json("dsl_demo", &export),

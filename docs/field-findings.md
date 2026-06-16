@@ -1,6 +1,6 @@
 # Field Findings
 
-This note records the highest-signal findings from the current `0.14.x`
+This note records the highest-signal findings from the current `0.15.x`
 field-validation phase.
 
 It is intentionally short.
@@ -8,7 +8,7 @@ It is intentionally short.
 It is not a replacement for:
 
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
-- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+- [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
 
 Instead, it answers a narrower question:
 
@@ -36,7 +36,7 @@ For those, use:
 
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
 - [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
-- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+- [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
 
 ## Current Stable Findings
 
@@ -51,15 +51,15 @@ entire scanned registry now passes:
 This means the current stable protocol shelf is no longer drifting at the
 compiler/package level.
 
-### 2. Current `0.14.0` Native Artifacts Now Drive The Validation Path
+### 2. Current `0.15.0` Native Artifacts Now Drive The Validation Path
 
 The packaged container path is no longer relying on stale historical artifacts.
 
-Fresh `0.14.0` native packages were rebuilt from the current source tree and
+Fresh `0.15.0` native packages were rebuilt from the current source tree and
 then used as the input for the packaged validation chain:
 
-- `/Users/Shared/chroot/dev/gewyvern/target/packages/gewyvern_0.14.0-1_arm64.deb`
-- `/Users/Shared/chroot/dev/gewyvern/target/packages/rpm/gewyvern-0.14.0-1.aarch64.rpm`
+- `/Users/Shared/chroot/dev/gewyvern/target/packages/gewyvern_0.15.0-1_arm64.deb`
+- `/Users/Shared/chroot/dev/gewyvern/target/packages/rpm/gewyvern-0.15.0-1.aarch64.rpm`
 
 This matters because an earlier validation pass could still succeed while
 quietly exercising an older `0.10.0` package set.
@@ -245,7 +245,7 @@ That is useful and intentional, but it is not the same thing as saying:
 
 ## Practical Read Of The Current Line
 
-The current `0.14.x` line now looks strong in these ways:
+The current `0.15.x` line now looks strong in these ways:
 
 - protocol/package shelf is stable
 - current `0.14.0` native artifacts are the ones being exercised

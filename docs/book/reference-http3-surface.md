@@ -67,6 +67,6 @@ If you are validating current HTTP/3 support, the shortest useful order is:
 
 ## Stability Note
 
-This page is the lookup hub for the current HTTP/3 family in the `0.14.x` line.
+This page is the lookup hub for the current HTTP/3 family in the `0.15.x` line.
 New HTTP/3 role-specific branches should prefer landing behind this shelf
 instead of being linked from multiple higher-level pages independently.

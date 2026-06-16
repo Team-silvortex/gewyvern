@@ -1,26 +1,26 @@
 # gewyvern Roadmap
 
-This roadmap now treats `v0.14.0` as the current operational line.
+This roadmap now treats `v0.15.0` as the current operational line.
 
 `gewyvern` is no longer trying to justify itself through a distant milestone.
-The current question is how to keep the `0.14.x` line useful, stable,
+The current question is how to keep the `0.15.x` line useful, stable,
 and disciplined while protocol depth, compiler ergonomics, and collaboration
 surfaces continue to mature.
 
 ## Current Line
 
 - last fully documented historical validation baseline: `v0.10.0`
-- current release line: `v0.14.0`
-- immediate follow-on line: `v0.15.x`
+- current release line: `v0.15.0`
+- immediate follow-on line: `v0.16.x`
 - later decision point: consider `v2.0` only if the DSL/runtime/report
   contract needs a deliberate breaking reset
 
 For the durable minor-line record, see
 [docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md).
 
-## What `v0.14.0` Means
+## What `v0.15.0` Means
 
-`v0.14.0` should be interpreted as:
+`v0.15.0` should be interpreted as:
 
 - a usable standalone debugger/runtime
 - a stable-enough `gewylang` and `gewyc` surface for real package authoring
@@ -94,10 +94,11 @@ snapshot pages rather than only through scattered posture notes. Start with:
 - [docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md)
 - [docs/history/v0.13.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.13.x.md)
 - [docs/history/v0.14.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.14.x.md)
+- [docs/history/v0.15.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15.x.md)
 
-## Exit Criteria For The `0.14.x` Line
+## Exit Criteria For The `0.15.x` Line
 
-The `0.14.x` line should keep converging toward:
+The `0.15.x` line should keep converging toward:
 
 - clearer protocol/module conclusions
 - safer and more explicit extensibility boundaries

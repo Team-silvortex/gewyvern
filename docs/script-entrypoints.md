@@ -151,7 +151,7 @@ Run:
 
 ```bash
 bash /Users/Shared/chroot/dev/gewyvern/scripts/perf/benchmark_summary.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/history/render_minor_line_ir_snapshot.sh v0.14.x
+bash /Users/Shared/chroot/dev/gewyvern/scripts/history/render_minor_line_ir_snapshot.sh v0.15.x
 ```
 
 ## Suggested Reading Order

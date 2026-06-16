@@ -114,6 +114,13 @@ fn summary_line_and_html_surface_external_sidecar_hints() {
                 run_binding_demo(binding),
                 &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
             );
+            let snapshot = analysis_snapshot(&export);
+            let expected_spine = format!(
+                "diagnosis_spine=family={} posture={} outcome={}",
+                snapshot.primary_module_family,
+                snapshot.evidence_posture,
+                snapshot.automation_outcome
+            );
             let summary = summary_line("dsl_demo", &export);
             let html = scan_report_html(&[("dsl_demo".to_string(), export)]);
             assert!(summary.contains(
@@ -128,6 +135,7 @@ fn summary_line_and_html_surface_external_sidecar_hints() {
             assert!(
                 summary.contains("external_operator_guidance_support=operator_guidance_candidate")
             );
+            assert!(summary.contains(&expected_spine));
             assert!(html.contains("external_evidence_chain_enrichment"));
             assert!(html.contains("handoff=automation_worthy"));
             assert!(html.contains("merge_hint=augmentations_with_operator_guidance_support"));
@@ -154,10 +162,18 @@ fn summary_line_and_html_mark_advisory_only_sidecar_context() {
                 run_binding_demo(binding),
                 &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
             );
+            let snapshot = analysis_snapshot(&export);
+            let expected_spine = format!(
+                "diagnosis_spine=family={} posture={} outcome={}",
+                snapshot.primary_module_family,
+                snapshot.evidence_posture,
+                snapshot.automation_outcome
+            );
             let summary = summary_line("dsl_demo", &export);
             let html = scan_report_html(&[("dsl_demo".to_string(), export)]);
             assert!(summary.contains("external_collaboration_state=advisory_only_sidecar_context"));
             assert!(summary.contains("external_operator_guidance_support=none"));
+            assert!(summary.contains(&expected_spine));
             assert!(html.contains("advisory_only_sidecar_context"));
             assert!(html.contains("should not be treated as a direct merged conclusion"));
             assert!(!html.contains("External operator-guidance support:"));
@@ -383,6 +399,15 @@ fn analysis_snapshot_adds_missing_transition_recommendation() {
     assert!(json.contains("\"operator_guidance_status\":\"observe_more\""));
     assert!(json.contains("\"operator_guidance_action\":\"collect_more_runtime_evidence\""));
     assert!(json.contains("\"operator_guidance_reason\":\"missing_transition\""));
+    assert!(json.contains("\"primary_module_family\":\"request-response\""));
+    assert!(json.contains("\"evidence_posture\":\"missing_transition\""));
+    assert!(json.contains("\"automation_outcome\":\"collect_more_evidence\""));
+    assert!(json.contains("\"operations\":[\"http_request\"]"));
+    assert!(json.contains(
+        "\"phases\":[\"bind\",\"resolve_upstream\",\"connect\",\"establish\",\"send_request\",\"receive_response\"]"
+    ));
+    assert!(json.contains("\"missing_transitions\":[\"send_request->receive_response\"]"));
+    assert!(json.contains("\"suspect_areas\":[\"transport_io\"]"));
 }
 
 #[test]

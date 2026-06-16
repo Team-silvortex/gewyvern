@@ -6,7 +6,7 @@ For `gewyvern`, the middle numeric component is treated as the **minor** line:
 
 - `v0.13.x`
 - `v0.14.x`
-- future lines such as `v0.15.x` once they actually begin
+- `v0.15.x`
 
 The rule from here forward is simple:
 
@@ -33,8 +33,11 @@ background cleanup.
 - [docs/history/1.0-readiness.md](/Users/Shared/chroot/dev/gewyvern/docs/history/1.0-readiness.md)
   Companion historical readiness note from the pre-`1.0` convergence phase.
 - [docs/history/v0.14.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.14.x.md)
-  Current active `0.14.x` line focused on protocol depth, compiler ergonomics,
-  and runtime/report maturity.
+  Earlier maturity line focused on protocol depth, compiler ergonomics, and
+  runtime/report maturity.
+- [docs/history/v0.15.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15.x.md)
+  Current active line focused on carrying that maturity into runtime layout,
+  upgrade handling, and clearer operational contracts.
 
 ## Release-Line Ledger
 
@@ -42,7 +45,8 @@ background cleanup.
 | --- | --- | --- | --- |
 | `v0.10.0` | Historical validation baseline before the later convergence and `0.14.x` posture work | historical baseline | [docs/history/v0.10.0.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.10.0.md) |
 | `v0.13.x` | First deliberate convergence line for documentation, boundaries, and release judgment | recorded | [docs/history/v0.13.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.13.x.md) |
-| `v0.14.x` | Current active maturity line | active | [docs/history/v0.14.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.14.x.md) |
+| `v0.14.x` | Earlier maturity line before the `0.15.x` operationalization pass | historical snapshot | [docs/history/v0.14.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.14.x.md) |
+| `v0.15.x` | Current active line for runtime layout, upgrade shape, and continued protocol/compiler depth | active | [docs/history/v0.15.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15.x.md) |
 
 This table is the shortest answer to:
 
@@ -73,5 +77,5 @@ Use other pages when you want something else:
 - for the current structured reading paths, use
   [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
 - for the current active release posture, use
-  [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+  [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
 - for the shortest ledger of historical release lines, use this page

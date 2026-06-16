@@ -189,6 +189,46 @@ pub(crate) fn suspect_modules_json_from_snapshot(snapshot: &AnalysisSnapshot) ->
     crate::render_utils::string_list_json(&snapshot.suspect_modules)
 }
 
+pub(crate) fn analysis_evidence_posture(
+    export: &ExportBundle,
+    snapshot: &AnalysisSnapshot,
+) -> &'static str {
+    if export.ingest_trust_mode.starts_with("unverified") {
+        "unverified_ingest"
+    } else if snapshot.primary_process_profile_ambiguous {
+        "ambiguous_multi_hypothesis"
+    } else if snapshot.primary_failure_basis == "direct_protocol_signal" {
+        "direct_protocol_signal"
+    } else if snapshot.primary_failure_basis == "missing_transition" {
+        "missing_transition"
+    } else {
+        "heuristic_summary"
+    }
+}
+
+pub(crate) fn analysis_automation_outcome(
+    export: &ExportBundle,
+    snapshot: &AnalysisSnapshot,
+) -> &'static str {
+    if export.ingest_trust_mode.starts_with("unverified") {
+        "advisory_only"
+    } else if snapshot.operator_guidance_status == "targeted_ready"
+        && !snapshot.primary_process_profile_ambiguous
+    {
+        "targeted_escalation"
+    } else if snapshot.primary_process_profile_ambiguous
+        || snapshot.operator_guidance_status == "ambiguous"
+    {
+        "multi_hypothesis"
+    } else if snapshot.operator_guidance_status == "observe_more"
+        || snapshot.operator_guidance_reason == "missing_transition"
+    {
+        "collect_more_evidence"
+    } else {
+        "manual_review"
+    }
+}
+
 pub(crate) fn scan_target_status(export: &ExportBundle) -> ScanTargetStatus {
     if export.program_flows.is_empty() {
         ScanTargetStatus::Idle

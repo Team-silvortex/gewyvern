@@ -1,5 +1,5 @@
 name=socks5_denied
-version=0.14.0
+version=0.15.0
 entry=main.gewy
 register.protocol=socks5
 register.entry=denied

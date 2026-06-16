@@ -13,15 +13,19 @@ fn api_meta_marks_external_sidecar_context_presence() {
                 run_binding_demo(binding),
                 &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
             );
+            let analysis = analysis_snapshot(&export);
             let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
             update_api_snapshot_for_single(
                 &state,
                 ApiRenderedTarget {
                     name: "dsl_demo".into(),
+                    primary_module_family: analysis.primary_module_family.clone(),
+                    evidence_posture: analysis.evidence_posture.clone(),
+                    automation_outcome: analysis.automation_outcome.clone(),
                     summary_text: summary_line("dsl_demo", &export),
                     summary_json: summary_json("dsl_demo", &export),
                     findings_json: findings_json("dsl_demo", &export),
-                    analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
+                    analysis_json: analysis_snapshot_json(&analysis),
                     training_example_json: training_example_json("dsl_demo", &export),
                     has_external_sidecar_context: true,
                     has_external_evidence_chain_enrichment: true,
@@ -48,6 +52,9 @@ fn api_meta_marks_external_sidecar_context_presence() {
             assert!(meta.contains("\"external_context_status\":\"declared\""));
             assert!(meta.contains("\"external_sidecar_trust_level\":\"trusted\""));
             assert!(meta.contains("\"external_sidecar_consumption_mode\":\"guidance_candidate\""));
+            assert!(meta.contains("\"primary_module_family\":\"request-response\""));
+            assert!(meta.contains("\"evidence_posture\":"));
+            assert!(meta.contains("\"automation_outcome\":"));
             let (_, _, targets_body) = api_response_for_request("/v1/latest/targets", &snapshot);
             assert!(targets_body.contains("\"has_external_sidecar_context\":true"));
             assert!(targets_body.contains("\"has_external_evidence_chain_enrichment\":true"));
@@ -61,6 +68,7 @@ fn api_meta_marks_external_sidecar_context_presence() {
                 targets_body
                     .contains("\"external_sidecar_consumption_mode\":\"guidance_candidate\"")
             );
+            assert!(targets_body.contains("\"primary_module_family\":\"request-response\""));
         },
     );
 }
@@ -96,6 +104,9 @@ fn api_meta_marks_unverified_sidecar_trust_when_capability_profile_is_missing() 
                 &state,
                 ApiRenderedTarget {
                     name: "dsl_demo".into(),
+                    primary_module_family: analysis.primary_module_family.clone(),
+                    evidence_posture: analysis.evidence_posture.clone(),
+                    automation_outcome: analysis.automation_outcome.clone(),
                     summary_text: summary_line("dsl_demo", &export),
                     summary_json: summary_json("dsl_demo", &export),
                     findings_json: findings_json("dsl_demo", &export),
@@ -128,4 +139,72 @@ fn api_meta_marks_unverified_sidecar_trust_when_capability_profile_is_missing() 
             assert!(meta.contains("\"external_sidecar_consumption_mode\":\"append_only\""));
         },
     );
+}
+
+#[test]
+fn api_scan_meta_rolls_up_attention_first_diagnosis_spine() {
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    update_api_snapshot_for_scan(
+        &state,
+        vec![
+            ApiRenderedTarget {
+                name: "scan:http:request".into(),
+                primary_module_family: "request-response".into(),
+                evidence_posture: "direct_protocol_signal".into(),
+                automation_outcome: "targeted_escalation".into(),
+                summary_text: String::new(),
+                summary_json: String::new(),
+                findings_json: String::new(),
+                analysis_json: String::new(),
+                training_example_json: String::new(),
+                has_external_sidecar_context: false,
+                has_external_evidence_chain_enrichment: false,
+                has_external_diagnostic_opinion: false,
+                has_external_capability_profile: false,
+                external_capability_status: None,
+                external_hint_status: None,
+                external_context_status: None,
+                external_sidecar_trust_level: None,
+                external_sidecar_consumption_mode: None,
+                export_json: String::new(),
+                report_json: String::new(),
+                report_html: String::new(),
+            },
+            ApiRenderedTarget {
+                name: "scan:redis:get".into(),
+                primary_module_family: "cache".into(),
+                evidence_posture: "heuristic_summary".into(),
+                automation_outcome: "manual_review".into(),
+                summary_text: String::new(),
+                summary_json: String::new(),
+                findings_json: String::new(),
+                analysis_json: String::new(),
+                training_example_json: String::new(),
+                has_external_sidecar_context: false,
+                has_external_evidence_chain_enrichment: false,
+                has_external_diagnostic_opinion: false,
+                has_external_capability_profile: false,
+                external_capability_status: None,
+                external_hint_status: None,
+                external_context_status: None,
+                external_sidecar_trust_level: None,
+                external_sidecar_consumption_mode: None,
+                export_json: String::new(),
+                report_json: String::new(),
+                report_html: String::new(),
+            },
+        ],
+        String::new(),
+        String::new(),
+        String::new(),
+        String::new(),
+        String::new(),
+        String::new(),
+    );
+
+    let snapshot = state.lock().unwrap().clone();
+    let meta = api_snapshot_meta_json(&snapshot);
+    assert!(meta.contains("\"primary_module_family\":\"request-response\""));
+    assert!(meta.contains("\"evidence_posture\":\"direct_protocol_signal\""));
+    assert!(meta.contains("\"automation_outcome\":\"targeted_escalation\""));
 }

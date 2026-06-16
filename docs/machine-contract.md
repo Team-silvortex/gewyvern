@@ -250,17 +250,24 @@ downstream tools should treat the following fields as the stable core:
 - `target_status`
 - `primary_process_profile`
 - `primary_module_kind`
+- `primary_module_family`
 - `primary_failure_stage`
 - `primary_failure_mode`
 - `primary_failure_detail`
 - `primary_failure_confidence`
 - `primary_failure_basis`
+- `evidence_posture`
+- `automation_outcome`
 - `operator_guidance_status`
 - `operator_guidance_action`
 - `operator_guidance_reason`
 - `operator_guidance_summary`
 - `ambiguous`
 - `competing_hypotheses`
+- `operations`
+- `phases`
+- `missing_transitions`
+- `suspect_areas`
 - `suspect_modules`
 - `augmentations`
 - `external_sidecar_context`
@@ -279,10 +286,25 @@ downstream tools should treat the following fields as the stable core:
   - top-level rendered state such as healthy, attention, or idle
 - `primary_process_profile`
   - the current best process-level rollup when one exists
+- `primary_module_family`
+  - stable family-level band so orchestration can route request-response,
+    auth, database, and similar classes without reinterpreting module ids
 - `process_network_profiles`
   - process-level grouped diagnosis summaries
 - `protocol_flows`
   - the target's protocol-path summaries
+- `operations`
+  - top-level rolled-up operation names so consumers can classify the path family
+    without first choosing a nested profile
+- `phases`
+  - top-level rolled-up observed phases so consumers can reason about progress
+    without mining protocol flows directly
+- `missing_transitions`
+  - top-level rolled-up transition gaps so consumers do not have to mine nested
+    profile/flow data first
+- `suspect_areas`
+  - top-level rolled-up operational pressure areas such as transport or
+    authentication
 - `suspect_modules`
   - additive module-level suspicion hints, not the primary contract on their
     own
@@ -299,6 +321,12 @@ downstream tools should treat the following fields as the stable core:
   - a stable consumption hint for the strongest nearby sidecar posture currently
     exposed on this target, so orchestration does not have to reinterpret raw
     merge hints on every poll
+- `evidence_posture`
+  - stable evidence-strength bucket that compresses ingest trust, ambiguity,
+    and failure basis into one machine-facing posture
+- `automation_outcome`
+  - stable top-level automation bucket so consumers do not have to bind
+    directly to lower-level guidance action strings
 
 ### Stable Subshape: `primary_process_profile`
 

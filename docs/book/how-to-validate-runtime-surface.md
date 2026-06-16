@@ -35,7 +35,7 @@ Then continue with:
 Use this guide when you are:
 
 - checking whether a checkout is still healthy
-- preparing a `v0.14.x` release judgment call
+- preparing a `v0.15.x` release judgment call
 - validating a branch after runtime, report, or DSL changes
 - trying to narrow "what broke?" before reading code
 
@@ -149,7 +149,7 @@ This is usually the fastest way to answer:
 
 ## Step 5: Exercise The High-Frequency Shelf
 
-For the current `0.14.x` line, the most valuable operator surface is the
+For the current `0.15.x` line, the most valuable operator surface is the
 high-frequency protocol shelf.
 
 Run:
@@ -305,7 +305,7 @@ Use this when you need confidence in:
 - local sidecar/enrich chains rather than just CLI rendering
 - training manifests versus fetched sample payloads
 
-## What “Healthy Enough For v0.14.x” Means
+## What “Healthy Enough For v0.15.x” Means
 
 For the current line, the runtime surface is in a good state when:
 

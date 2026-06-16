@@ -93,9 +93,9 @@ use this order:
 
 ## Current Release Line
 
-For the current `0.14.x` release posture, see:
+For the current `0.15.x` release posture, see:
 
-- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+- [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
 
 ## Role-Based Reading Paths
 
@@ -168,7 +168,7 @@ Start here if your question is:
 
 Recommended order:
 
-1. [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+1. [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
 2. [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
 3. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 4. [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
@@ -206,7 +206,7 @@ shape and a predictable shelf:
 - reference for exact lookup
 - explanation for deeper mental models
 
-As the `0.14.x` line continues, new documentation should prefer landing into one of
+As the `0.15.x` line continues, new documentation should prefer landing into one of
 these four tracks instead of growing the top-level `docs/` folder without a
 clear reading mode.
 

@@ -86,6 +86,9 @@ fn append_api_target_refs_json(
         }
         let path_segment = api_target_path_segment(name);
         let (
+            primary_module_family,
+            evidence_posture,
+            automation_outcome,
             has_sidecar_context,
             has_enrichment,
             has_opinion,
@@ -105,6 +108,9 @@ fn append_api_target_refs_json(
             .get(name)
             .map(|target| {
                 (
+                    target.primary_module_family.as_deref(),
+                    target.evidence_posture.as_deref(),
+                    target.automation_outcome.as_deref(),
                     target.has_external_sidecar_context,
                     target.has_external_evidence_chain_enrichment,
                     target.has_external_diagnostic_opinion,
@@ -140,8 +146,8 @@ fn append_api_target_refs_json(
                 )
             })
             .unwrap_or((
-                false, false, false, false, None, None, None, None, None, None, None, None, false,
-                None, None,
+                None, None, None, false, false, false, false, None, None, None, None, None, None,
+                None, None, false, None, None,
             ));
         target.push_str("{\"name\":");
         append_json_string(target, name);
@@ -149,7 +155,23 @@ fn append_api_target_refs_json(
         append_json_string(target, &path_segment);
         target.push_str(",\"url_path\":\"/v1/latest/targets/");
         target.push_str(&path_segment);
-        target.push_str("\",\"has_external_sidecar_context\":");
+        target.push('"');
+        target.push_str(",\"primary_module_family\":");
+        match primary_module_family {
+            Some(value) => append_json_string(target, value),
+            None => target.push_str("null"),
+        }
+        target.push_str(",\"evidence_posture\":");
+        match evidence_posture {
+            Some(value) => append_json_string(target, value),
+            None => target.push_str("null"),
+        }
+        target.push_str(",\"automation_outcome\":");
+        match automation_outcome {
+            Some(value) => append_json_string(target, value),
+            None => target.push_str("null"),
+        }
+        target.push_str(",\"has_external_sidecar_context\":");
         target.push_str(if has_sidecar_context { "true" } else { "false" });
         target.push_str(",\"has_external_evidence_chain_enrichment\":");
         target.push_str(if has_enrichment { "true" } else { "false" });
@@ -237,6 +259,21 @@ fn append_api_snapshot_index_fields_json(target: &mut String, snapshot: &ApiSnap
     }
     target.push_str(",\"target_names\":");
     append_string_list_json(target, &snapshot.target_names);
+    target.push_str(",\"primary_module_family\":");
+    match snapshot.primary_module_family.as_deref() {
+        Some(value) => append_json_string(target, value),
+        None => target.push_str("null"),
+    }
+    target.push_str(",\"evidence_posture\":");
+    match snapshot.evidence_posture.as_deref() {
+        Some(value) => append_json_string(target, value),
+        None => target.push_str("null"),
+    }
+    target.push_str(",\"automation_outcome\":");
+    match snapshot.automation_outcome.as_deref() {
+        Some(value) => append_json_string(target, value),
+        None => target.push_str("null"),
+    }
     target.push_str(",\"target_refs\":");
     append_api_target_refs_json(target, &snapshot.target_names, &snapshot.target_snapshots);
 }
@@ -387,6 +424,9 @@ mod tests {
         snapshot.target_snapshots.insert(
             "scan:redis:zadd".into(),
             ApiTargetSnapshot {
+                primary_module_family: Some("database".into()),
+                evidence_posture: Some("direct_protocol_signal".into()),
+                automation_outcome: Some("targeted_escalation".into()),
                 summary_text: String::new(),
                 summary_json: String::new(),
                 findings_json: String::new(),

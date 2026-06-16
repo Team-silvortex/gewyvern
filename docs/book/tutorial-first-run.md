@@ -186,7 +186,7 @@ Important boundary:
 
 ## Step 8: What “Good Enough To Start Using” Means
 
-The current `v0.14.0` line is not claiming forever-frozen stability across
+The current `v0.15.0` line is not claiming forever-frozen stability across
 every surface, but it is already meant to be usable on purpose.
 
 That means:

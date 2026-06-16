@@ -41,6 +41,8 @@ pub(super) fn training_example_json_with_analysis(
     append_json_string(&mut json, analysis.target_status.label());
     json.push_str(",\"primary_module_kind\":");
     append_json_string(&mut json, &analysis.primary_module_kind);
+    json.push_str(",\"primary_module_family\":");
+    append_json_string(&mut json, &analysis.primary_module_family);
     json.push_str(",\"primary_failure_stage\":");
     append_json_string(&mut json, &analysis.primary_failure_stage);
     json.push_str(",\"primary_failure_mode\":");
@@ -51,6 +53,10 @@ pub(super) fn training_example_json_with_analysis(
     append_json_string(&mut json, &analysis.primary_failure_confidence);
     json.push_str(",\"primary_failure_basis\":");
     append_json_string(&mut json, &analysis.primary_failure_basis);
+    json.push_str(",\"evidence_posture\":");
+    append_json_string(&mut json, &analysis.evidence_posture);
+    json.push_str(",\"automation_outcome\":");
+    append_json_string(&mut json, &analysis.automation_outcome);
     json.push_str(",\"ambiguous\":");
     json.push_str(if analysis.primary_process_profile_ambiguous {
         "true"
@@ -59,6 +65,14 @@ pub(super) fn training_example_json_with_analysis(
     });
     json.push_str(",\"competing_hypotheses\":");
     append_string_list_json(&mut json, &analysis.competing_hypotheses);
+    json.push_str(",\"operations\":");
+    append_string_list_json(&mut json, &analysis.operations);
+    json.push_str(",\"phases\":");
+    append_string_list_json(&mut json, &analysis.phases);
+    json.push_str(",\"missing_transitions\":");
+    append_string_list_json(&mut json, &analysis.missing_transitions);
+    json.push_str(",\"suspect_areas\":");
+    append_string_list_json(&mut json, &analysis.suspect_areas);
     json.push_str(",\"suspect_modules\":");
     append_string_list_json(&mut json, &analysis.suspect_modules);
     json.push_str(",\"protocol_flows\":");
@@ -115,6 +129,8 @@ fn append_training_targets_json(
     append_json_string(json, analysis.target_status.label());
     json.push_str(",\"primary_module_kind\":");
     append_json_string(json, &analysis.primary_module_kind);
+    json.push_str(",\"primary_module_family\":");
+    append_json_string(json, &analysis.primary_module_family);
     json.push_str(",\"primary_failure_stage\":");
     append_json_string(json, &analysis.primary_failure_stage);
     json.push_str(",\"primary_failure_mode\":");
@@ -125,6 +141,10 @@ fn append_training_targets_json(
     append_json_string(json, &analysis.primary_failure_confidence);
     json.push_str(",\"primary_failure_basis\":");
     append_json_string(json, &analysis.primary_failure_basis);
+    json.push_str(",\"evidence_posture\":");
+    append_json_string(json, &analysis.evidence_posture);
+    json.push_str(",\"automation_outcome\":");
+    append_json_string(json, &analysis.automation_outcome);
     json.push_str(",\"ambiguous\":");
     json.push_str(if analysis.primary_process_profile_ambiguous {
         "true"
@@ -143,6 +163,8 @@ fn append_training_targets_json(
     json.push_str(",\"automation\":{");
     json.push_str("\"posture\":");
     append_json_string(json, training_automation_posture(export, analysis));
+    json.push_str(",\"outcome\":");
+    append_json_string(json, &analysis.automation_outcome);
     json.push_str(",\"requires_human_review\":");
     json.push_str(if training_requires_human_review(export, analysis) {
         "true"
@@ -168,7 +190,7 @@ fn append_training_targets_json(
     json.push_str(",\"ambiguity_bucket\":");
     append_json_string(json, training_ambiguity_bucket(analysis));
     json.push_str(",\"evidence_posture\":");
-    append_json_string(json, training_evidence_posture(export, analysis));
+    append_json_string(json, &analysis.evidence_posture);
     json.push('}');
     json.push('}');
 }
@@ -288,19 +310,5 @@ fn training_ambiguity_bucket(analysis: &AnalysisSnapshot) -> &'static str {
         "multi_hypothesis"
     } else {
         "single_hypothesis"
-    }
-}
-
-fn training_evidence_posture(export: &ExportBundle, analysis: &AnalysisSnapshot) -> &'static str {
-    if export.ingest_trust_mode.starts_with("unverified") {
-        "unverified_ingest"
-    } else if analysis.primary_process_profile_ambiguous {
-        "ambiguous_multi_hypothesis"
-    } else if analysis.primary_failure_basis == "direct_protocol_signal" {
-        "direct_protocol_signal"
-    } else if analysis.primary_failure_basis == "missing_transition" {
-        "missing_transition"
-    } else {
-        "heuristic_summary"
     }
 }

@@ -32,11 +32,11 @@ pub(crate) use self::render::{
     protocol_flow_summaries_text_from_snapshot,
 };
 pub(crate) use self::status::{
-    ScanTargetStatus, analysis_augmentation_names_text, external_capability_summary,
-    external_sidecar_consumption_mode, external_sidecar_item_consumption_mode,
-    external_sidecar_presence, external_sidecar_trust_level, protocol_flow_has_terminal_failure,
-    protocol_flow_last_phase, protocol_flow_phases, scan_target_status,
-    suspect_modules_json_from_snapshot,
+    ScanTargetStatus, analysis_augmentation_names_text, analysis_automation_outcome,
+    analysis_evidence_posture, external_capability_summary, external_sidecar_consumption_mode,
+    external_sidecar_item_consumption_mode, external_sidecar_presence,
+    external_sidecar_trust_level, protocol_flow_has_terminal_failure, protocol_flow_last_phase,
+    protocol_flow_phases, scan_target_status, suspect_modules_json_from_snapshot,
 };
 
 #[derive(Default)]
@@ -114,17 +114,24 @@ pub(crate) struct AnalysisSnapshot {
     pub(crate) target_status: ScanTargetStatus,
     pub(crate) primary_process_profile: Option<ProcessNetworkProfileSummary>,
     pub(crate) primary_module_kind: String,
+    pub(crate) primary_module_family: String,
     pub(crate) primary_failure_stage: String,
     pub(crate) primary_failure_mode: String,
     pub(crate) primary_failure_detail: String,
     pub(crate) primary_failure_confidence: String,
     pub(crate) primary_failure_basis: String,
+    pub(crate) evidence_posture: String,
+    pub(crate) automation_outcome: String,
     pub(crate) operator_guidance_status: String,
     pub(crate) operator_guidance_action: String,
     pub(crate) operator_guidance_reason: String,
     pub(crate) operator_guidance_summary: String,
     pub(crate) primary_process_profile_ambiguous: bool,
     pub(crate) competing_hypotheses: Vec<String>,
+    pub(crate) operations: Vec<String>,
+    pub(crate) phases: Vec<String>,
+    pub(crate) missing_transitions: Vec<String>,
+    pub(crate) suspect_areas: Vec<String>,
     pub(crate) suspect_modules: Vec<String>,
     pub(crate) augmentations: Vec<AnalysisAugmentation>,
     pub(crate) process_profiles: Vec<ProcessNetworkProfileSummary>,
@@ -393,6 +400,7 @@ pub(crate) fn analysis_snapshot_with(
         )
         .to_string()
     };
+    let primary_module_family = module_family_label(&primary_module_kind).to_string();
     let suspect_modules = if let Some(profile) = primary_process_profile.as_ref() {
         profile.suspect_modules.clone()
     } else {
@@ -406,6 +414,28 @@ pub(crate) fn analysis_snapshot_with(
         .as_ref()
         .map(|profile| profile.competing_hypotheses.clone())
         .unwrap_or_default();
+    let operations = if let Some(profile) = primary_process_profile.as_ref() {
+        profile.operations.clone()
+    } else {
+        collect_unique_flow_strings(&protocol_flows, |flow| {
+            std::slice::from_ref(&flow.operation)
+        })
+    };
+    let phases = if let Some(profile) = primary_process_profile.as_ref() {
+        profile.phases.clone()
+    } else {
+        collect_unique_flow_strings(&protocol_flows, |flow| &flow.phases)
+    };
+    let missing_transitions = if let Some(profile) = primary_process_profile.as_ref() {
+        profile.missing_transitions.clone()
+    } else {
+        collect_unique_flow_strings(&protocol_flows, |flow| &flow.missing_transitions)
+    };
+    let suspect_areas = if let Some(profile) = primary_process_profile.as_ref() {
+        profile.suspect_areas.clone()
+    } else {
+        collect_unique_flow_strings(&protocol_flows, |flow| &flow.suspect_areas)
+    };
     let mut snapshot = AnalysisSnapshot {
         target_status,
         primary_process_profile_ambiguous: primary_process_profile
@@ -413,16 +443,23 @@ pub(crate) fn analysis_snapshot_with(
             .map(|profile| profile.ambiguous)
             .unwrap_or(false),
         primary_module_kind,
+        primary_module_family,
         primary_failure_stage,
         primary_failure_mode,
         primary_failure_detail,
         primary_failure_confidence,
         primary_failure_basis,
+        evidence_posture: String::new(),
+        automation_outcome: String::new(),
         operator_guidance_status: String::new(),
         operator_guidance_action: String::new(),
         operator_guidance_reason: String::new(),
         operator_guidance_summary: String::new(),
         competing_hypotheses,
+        operations,
+        phases,
+        missing_transitions,
+        suspect_areas,
         suspect_modules,
         augmentations: Vec::new(),
         primary_process_profile,
@@ -438,9 +475,27 @@ pub(crate) fn analysis_snapshot_with(
     snapshot.operator_guidance_action = guidance_action.into();
     snapshot.operator_guidance_reason = guidance_reason.into();
     snapshot.operator_guidance_summary = guidance_summary.into();
+    snapshot.evidence_posture = analysis_evidence_posture(export, &snapshot).into();
+    snapshot.automation_outcome = analysis_automation_outcome(export, &snapshot).into();
     let snapshot_json = analysis_snapshot_json(&snapshot);
     append_external_augmentations(&mut snapshot, &snapshot_json);
     snapshot
+}
+
+fn collect_unique_flow_strings(
+    flows: &[ProtocolFlowAnalysisSummary],
+    selector: impl Fn(&ProtocolFlowAnalysisSummary) -> &[String],
+) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut values = Vec::new();
+    for flow in flows {
+        for value in selector(flow) {
+            if seen.insert(value.clone()) {
+                values.push(value.clone());
+            }
+        }
+    }
+    values
 }
 
 #[cfg(test)]

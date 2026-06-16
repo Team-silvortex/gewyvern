@@ -246,7 +246,7 @@ That keeps the language documentation balanced:
 
 ## Current Posture
 
-For the current `0.14.x` line, `gewylang` should be documented as:
+For the current `0.15.x` line, `gewylang` should be documented as:
 
 - a structured binding language
 - package-oriented

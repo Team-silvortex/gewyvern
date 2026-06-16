@@ -1,10 +1,13 @@
 use std::collections::{BTreeSet, HashSet};
-use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::profiles::{PACKAGED_SHARE_ROOT, PROTOCOL_REGISTRY_ROOT};
 use super::{RegistryManifest, ResolvedProtocolProfile};
+use crate::runtime_layout::{
+    packaged_share_roots as discovered_share_roots,
+    protocol_registry_roots as discovered_registry_roots,
+};
 
 const MAX_REGISTRY_DIRECTORIES: usize = 4096;
 const MAX_REGISTRY_MANIFESTS: usize = 2048;
@@ -31,43 +34,14 @@ pub(super) fn scan_protocol_registry_in(root: &Path) -> Option<Vec<RegistryManif
 }
 
 fn protocol_registry_roots() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Ok(root) = env::var("GEWY_PROTOCOL_REGISTRY_ROOT") {
-        roots.push(PathBuf::from(root));
-    }
-    roots.push(PathBuf::from(PROTOCOL_REGISTRY_ROOT));
-    for share_root in packaged_share_roots() {
-        roots.push(share_root.join("protocols"));
-    }
-    dedup_paths(roots)
+    discovered_registry_roots(
+        Path::new(PROTOCOL_REGISTRY_ROOT),
+        Path::new(PACKAGED_SHARE_ROOT),
+    )
 }
 
 fn packaged_share_roots() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Ok(root) = env::var("GEWY_SHARE_ROOT") {
-        roots.push(PathBuf::from(root));
-    }
-    roots.push(PathBuf::from(PACKAGED_SHARE_ROOT));
-    if let Ok(exe) = env::current_exe() {
-        if let Some(bin_dir) = exe.parent() {
-            if let Some(prefix) = bin_dir.parent() {
-                roots.push(prefix.join("share").join("gewyvern"));
-            }
-        }
-    }
-    dedup_paths(roots)
-}
-
-fn dedup_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
-    let mut seen = BTreeSet::new();
-    let mut deduped = Vec::new();
-    for path in paths {
-        let key = path.to_string_lossy().into_owned();
-        if seen.insert(key) {
-            deduped.push(path);
-        }
-    }
-    deduped
+    discovered_share_roots(Path::new(PACKAGED_SHARE_ROOT))
 }
 
 pub(super) fn resolve_built_in_dsl_path(raw: &str) -> String {

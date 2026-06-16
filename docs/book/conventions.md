@@ -4,7 +4,7 @@ This page defines how documentation should be organized in the current
 `gewyvern` repository.
 
 The goal is not to force every page into a rigid template. The goal is to keep
-the documentation set coherent as the `0.14.x` line evolves.
+the documentation set coherent as the `0.15.x` line evolves.
 
 ## Primary Rule
 
@@ -145,7 +145,7 @@ Avoid:
 
 ## Release-Line Discipline
 
-During the current `0.14.x` line, documentation changes should bias toward:
+During the current `0.15.x` line, documentation changes should bias toward:
 
 - clarifying current behavior
 - reducing contradiction
@@ -176,7 +176,7 @@ Before adding a new page, ask:
 - does this belong in tutorial, how-to, reference, or explanation?
 - can an existing page be expanded instead?
 - does this introduce a second page that says almost the same thing?
-- does it help the `0.14.x` line feel more whole?
+- does it help the `0.15.x` line feel more whole?
 
 If the answer to the last question is no, it is probably the wrong page for
 this phase.
@@ -188,7 +188,7 @@ The documentation set now keeps one durable snapshot per **minor** line.
 For this project, the middle numeric version component is the minor line:
 
 - `v0.13.x`
-- `v0.14.x`
+- `v0.15.x`
 - future lines such as `v0.15.x` when those lines actually begin
 
 When a new minor line begins:

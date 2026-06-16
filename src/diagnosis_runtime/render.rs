@@ -2,7 +2,7 @@ use super::{
     AnalysisAugmentation, AnalysisSnapshot, ProcessNetworkProfileSummary,
     ProtocolFlowAnalysisSummary, external_capability_summary, external_sidecar_consumption_mode,
     external_sidecar_trust_level, failure_detail_family_label, failure_mode_family_label,
-    module_family_label, stage_family_label,
+    stage_family_label,
 };
 use crate::UiLocale;
 use crate::render_utils::{
@@ -180,7 +180,7 @@ pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
     json.push_str(",\"primary_module_kind\":\"");
     json.push_str(&snapshot.primary_module_kind);
     json.push_str("\",\"primary_module_family\":\"");
-    json.push_str(module_family_label(&snapshot.primary_module_kind));
+    json.push_str(&snapshot.primary_module_family);
     json.push_str("\",\"primary_failure_stage\":\"");
     json.push_str(&snapshot.primary_failure_stage);
     json.push_str("\",\"primary_stage_family\":\"");
@@ -199,6 +199,10 @@ pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
     json.push_str(&snapshot.primary_failure_confidence);
     json.push_str("\",\"primary_failure_basis\":\"");
     json.push_str(&snapshot.primary_failure_basis);
+    json.push_str("\",\"evidence_posture\":\"");
+    json.push_str(&snapshot.evidence_posture);
+    json.push_str("\",\"automation_outcome\":\"");
+    json.push_str(&snapshot.automation_outcome);
     json.push_str("\",\"operator_guidance_status\":\"");
     json.push_str(&snapshot.operator_guidance_status);
     json.push_str("\",\"operator_guidance_action\":\"");
@@ -215,6 +219,14 @@ pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
     });
     json.push_str(",\"competing_hypotheses\":");
     append_string_list_json(&mut json, &snapshot.competing_hypotheses);
+    json.push_str(",\"operations\":");
+    append_string_list_json(&mut json, &snapshot.operations);
+    json.push_str(",\"phases\":");
+    append_string_list_json(&mut json, &snapshot.phases);
+    json.push_str(",\"missing_transitions\":");
+    append_string_list_json(&mut json, &snapshot.missing_transitions);
+    json.push_str(",\"suspect_areas\":");
+    append_string_list_json(&mut json, &snapshot.suspect_areas);
     json.push_str(",\"suspect_modules\":");
     append_string_list_json(&mut json, &snapshot.suspect_modules);
     json.push_str(",\"augmentations\":");
@@ -236,17 +248,32 @@ pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
 
 fn estimate_analysis_snapshot_json_capacity(snapshot: &AnalysisSnapshot) -> usize {
     512 + snapshot.primary_module_kind.len()
+        + snapshot.primary_module_family.len()
         + snapshot.primary_failure_stage.len()
         + snapshot.primary_failure_mode.len()
         + snapshot.primary_failure_detail.len()
         + snapshot.primary_failure_confidence.len()
         + snapshot.primary_failure_basis.len()
+        + snapshot.evidence_posture.len()
+        + snapshot.automation_outcome.len()
         + snapshot.operator_guidance_status.len()
         + snapshot.operator_guidance_action.len()
         + snapshot.operator_guidance_reason.len()
         + snapshot.operator_guidance_summary.len()
         + snapshot
             .competing_hypotheses
+            .iter()
+            .map(String::len)
+            .sum::<usize>()
+        + snapshot.operations.iter().map(String::len).sum::<usize>()
+        + snapshot.phases.iter().map(String::len).sum::<usize>()
+        + snapshot
+            .missing_transitions
+            .iter()
+            .map(String::len)
+            .sum::<usize>()
+        + snapshot
+            .suspect_areas
             .iter()
             .map(String::len)
             .sum::<usize>()

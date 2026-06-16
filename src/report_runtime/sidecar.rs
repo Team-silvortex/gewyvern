@@ -227,8 +227,10 @@ pub(super) fn summary_line_with_analysis(
         .map(|(state, _)| state)
         .unwrap_or_else(|| "none".to_string());
     let ingest_mode_note = ingest_mode_note_for_export(export);
+    let diagnosis_spine = diagnosis_spine_text(analysis);
     format!(
-        "{name}: {}={} ingest_mode={} ingest_mode_note={} {}={} pid_attribution_status={} operator_guidance_status={} operator_guidance_action={} operator_guidance_reason={} ambiguous={} competing_hypotheses={} augmentations={} external_enrichment_hint={} external_diagnostic_opinion_hint={} external_collaboration_state={} external_operator_guidance_support={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
+        "{name}: diagnosis_spine={} {}={} ingest_mode={} ingest_mode_note={} {}={} pid_attribution_status={} operator_guidance_status={} operator_guidance_action={} operator_guidance_reason={} ambiguous={} competing_hypotheses={} augmentations={} external_enrichment_hint={} external_diagnostic_opinion_hint={} external_collaboration_state={} external_operator_guidance_support={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} {}={} protocol_flows={} process_network_profiles={}",
+        diagnosis_spine,
         locale.label("template"),
         export.template_id,
         ingest_mode_for_export(export),
@@ -270,5 +272,12 @@ pub(super) fn summary_line_with_analysis(
         suspect_modules,
         protocol_flows,
         process_profiles,
+    )
+}
+
+pub(super) fn diagnosis_spine_text(analysis: &AnalysisSnapshot) -> String {
+    format!(
+        "family={} posture={} outcome={}",
+        analysis.primary_module_family, analysis.evidence_posture, analysis.automation_outcome
     )
 }

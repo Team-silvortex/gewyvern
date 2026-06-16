@@ -220,7 +220,13 @@ fn scan_report_text_includes_protocol_surface_summary() {
         run_binding_demo(binding),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
+    let analysis = analysis_snapshot(&export);
+    let expected_spine = format!(
+        "diagnosis_spine=family={} posture={} outcome={}",
+        analysis.primary_module_family, analysis.evidence_posture, analysis.automation_outcome
+    );
     let report = scan_report_text(&[("scan:mysql:session".to_string(), export)]);
+    assert!(report.contains(&expected_spine));
     assert!(report.contains("protocol_surface=mysql"));
     assert!(report.contains("entry=session"));
     assert!(report.contains("default=session"));
@@ -382,4 +388,39 @@ fn summary_json_marks_protocol_flow_attention_and_missing_transition() {
         "json={}",
         json
     );
+}
+
+#[test]
+fn scan_report_json_promotes_top_level_diagnosis_aggregates() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+        .expect("http_request_path DSL should compile");
+    let mut export = annotate_export_trust(
+        run_binding_demo(binding),
+        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "http_request_path",
+        "http_request_response",
+        "receive_response",
+        "receive_payload",
+        "send_request->receive_response",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing response",
+        "tcp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let json = scan_report_json(&[("dsl_demo".to_string(), export)]);
+    assert!(json.contains("\"primary_module_family\":\"request-response\""));
+    assert!(json.contains("\"evidence_posture\":\"missing_transition\""));
+    assert!(json.contains("\"automation_outcome\":\"collect_more_evidence\""));
+    assert!(json.contains("\"operations\":[\"http_request\"]"));
+    assert!(json.contains(
+        "\"phases\":[\"bind\",\"resolve_upstream\",\"connect\",\"establish\",\"send_request\",\"receive_response\"]"
+    ));
+    assert!(json.contains("\"missing_transitions\":[\"send_request->receive_response\"]"));
+    assert!(json.contains("\"suspect_areas\":[\"transport_io\"]"));
 }

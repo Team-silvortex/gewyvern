@@ -249,7 +249,7 @@ Avoid these coordination mistakes:
 - letting sidecars become unofficial diagnosis owners
 - letting orchestration concerns distort standalone debugger boundaries
 
-## Current 0.14.x Coordination Thesis
+## Current 0.15.x Coordination Thesis
 
 For the current line, the intended balance is:
 

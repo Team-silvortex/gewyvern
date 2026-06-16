@@ -1,5 +1,5 @@
 name=coap_put
-version=0.14.0
+version=0.15.0
 entry=main.gewy
 register.protocol=coap
 register.entry=put

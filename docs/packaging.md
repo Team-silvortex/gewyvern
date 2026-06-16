@@ -71,6 +71,18 @@ That is enough for:
 - local socket validation helpers
 - protocol registry and DSL-driven built-in paths
 
+For the broader `0.15.x` runtime layout policy beyond the packaged Linux tree,
+also see:
+
+- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
+
+That page explains:
+
+- standard mutable roots on Linux, macOS, and Windows
+- the role of `/usr/share/gewyvern` as the packaged read-only share root
+- how `~/.gewyvern/` style older local layouts should be treated during
+  upgrades
+
 ## Build Entry Point
 
 If you already know the outcome you want and only need the shortest route to

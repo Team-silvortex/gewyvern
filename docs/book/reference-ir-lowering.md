@@ -238,13 +238,13 @@ also carries:
 
 ```bash
 scripts/history/render_minor_line_ir_snapshot.sh \
-  --title "v0.14.x IR Baseline" \
+  --title "v0.15.x IR Baseline" \
   amqp-publish=protocols/amqp/publish/main.gewy
 ```
 
 ## Stability Guidance
 
-For the `0.13.*` line and the current `0.14.x` maturity track, the intended
+For the `0.13.*` line and the current `0.15.x` maturity track, the intended
 practical stability is:
 
 - the existence of focused IR inspection is deliberate

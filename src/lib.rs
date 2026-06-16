@@ -11,5 +11,6 @@ pub mod program;
 pub mod protocol_profiles;
 pub mod reason;
 pub mod runtime;
+pub mod runtime_layout;
 pub mod socket_input;
 pub mod template;

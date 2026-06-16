@@ -215,6 +215,8 @@ mod tests_docs;
 #[cfg(test)]
 mod tests_fallback;
 #[cfg(test)]
+mod tests_layout;
+#[cfg(test)]
 mod tests_manifest_parity;
 #[cfg(test)]
 mod tests_ntp;
