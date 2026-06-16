@@ -1,6 +1,7 @@
 # gewyvern Roadmap
 
-This roadmap now treats `v0.15.0` as the current operational line and
+This roadmap now treats `v0.15.4` as the current operational checkpoint within
+the active `v0.15.x` line, and
 `v0.20.x` as the deliberate final pre-`1.0` seal.
 
 `gewyvern` is no longer trying to justify itself through a vague distant
@@ -11,7 +12,8 @@ with enough discipline that `v1.0.0` can come directly after a healthy
 ## Current Line
 
 - last fully documented historical validation baseline: `v0.10.0`
-- current release line: `v0.15.0`
+- current release line: `v0.15.x`
+- current documented checkpoint: `v0.15.4`
 - planned final pre-`1.0` line: `v0.20.x`
 - target next major: `v1.0.0`
 - later decision point: consider `v2.0` only if the DSL/runtime/report
@@ -22,9 +24,10 @@ For the durable minor-line record, see
 For the explicit `0.15.x -> 0.20.x -> 1.0.0` spine, see
 [docs/history/v0.15-to-v1-roadmap.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15-to-v1-roadmap.md).
 
-## What `v0.15.0` Means
+## What `v0.15.x` Means Right Now
 
-`v0.15.0` should be interpreted as:
+At the current `v0.15.4` checkpoint, the active `v0.15.x` line should be
+interpreted as:
 
 - a usable standalone debugger/runtime
 - a stable-enough `gewylang` and `gewyc` surface for real package authoring
@@ -48,6 +51,8 @@ It should not be interpreted as:
 - packaged/container/runtime validation as routine practice
 
 ### 2. `v0.16.x`: Contract Tightening
+
+This is the planned next line, not the current one.
 
 - stable event naming and logging discipline
 - narrower machine/API/report contract wording

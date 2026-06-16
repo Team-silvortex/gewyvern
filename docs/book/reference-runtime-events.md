@@ -1,8 +1,8 @@
 # Runtime Event Reference
 
 This page is the exact lookup shelf for the runtime event names that are meant
-to stay recognizable across the current `0.15.x` to `0.16.x` contract-tightening
-line.
+to stay recognizable in the active `0.15.4` / broader `0.15.x` line, while
+also serving as pre-`0.16.x` contract groundwork.
 
 Use it when you need to answer:
 
@@ -25,7 +25,7 @@ For those, use:
 ## Contract Posture
 
 The event names on this page are the current named spine for operator-facing log
-streams.
+streams in `0.15.x`.
 
 Minor fields may grow over time, but the intent is:
 
@@ -122,8 +122,9 @@ Less desirable patterns:
 
 ## Scope Note
 
-This page does not promise that every future internal trace point becomes part
-of the stable operator contract.
+This page does not mean `0.16.x` has already opened, and it does not promise
+that every future internal trace point becomes part of the stable operator
+contract.
 
 It does name the current event spine that should remain understandable and safe
 to reference in:
