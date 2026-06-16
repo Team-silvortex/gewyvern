@@ -23,6 +23,7 @@ A good order is:
 
 If you are in the protocol volume specifically, start with:
 
+- [docs/book/reference-protocol-volume.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-volume.md)
 - [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
 - [docs/book/reference-protocol-groups.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-groups.md)
 - [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
@@ -61,12 +62,33 @@ If you are in the protocol volume specifically, start with:
 
 ## Protocol Reference Volume
 
+- [docs/book/reference-protocol-volume.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-volume.md)
+  Front door for choosing whether you need contract, examples, commands,
+  validation, operator triage, or release judgment first.
 - [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
   Start here for canonical family, entry, alias, and default-entry rules.
 - [docs/book/reference-protocol-groups.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-groups.md)
   Use this when you know the traffic shape but not the exact family hub yet.
 - [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
   Directory of exact family hubs and narrower family subpages.
+- [docs/book/reference-protocol-reading-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-paths.md)
+  Reading spine for choosing whether to continue into contract, explanation,
+  package-debug, or runtime-validation material next.
+- [docs/book/reference-protocol-validation-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-validation-paths.md)
+  Family-to-script map for choosing the right validation command once you
+  already know the protocol shelf you care about.
+- [docs/book/reference-protocol-example-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-example-paths.md)
+  Family-to-sample map for jumping from protocol hubs into the nearest real
+  `.gewy` examples and walkthroughs.
+- [docs/book/reference-protocol-command-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-command-paths.md)
+  Family-to-command map for jumping from hubs into the shortest real CLI and
+  `--serve` validation routes.
+- [docs/book/reference-protocol-operator-playbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-operator-playbook.md)
+  Operator/release triage playbook for turning family suspicion into runtime,
+  grouped-validation, and release-confidence checks.
+- [docs/book/reference-protocol-release-handbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-release-handbook.md)
+  `0.15.x` protocol-facing minor-line handbook for deciding when family,
+  runtime, packaged, and cross-project confidence is strong enough to ship.
 - [docs/book/reference-protocol-alias-index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-alias-index.md)
   Generated-style alias lookup for the current built-in registry surface.
 

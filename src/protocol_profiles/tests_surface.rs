@@ -62,11 +62,9 @@ fn every_built_in_protocol_entry_exposes_a_surface_and_shelf() {
                 entry.mode
             );
             assert_ne!(
-                shelf.page,
-                "docs/book/reference-protocol-surface.md",
+                shelf.page, "docs/book/reference-protocol-surface.md",
                 "protocol {} entry {} should not fall back to the generic protocol surface",
-                summary.protocol,
-                entry.mode
+                summary.protocol, entry.mode
             );
         }
     }

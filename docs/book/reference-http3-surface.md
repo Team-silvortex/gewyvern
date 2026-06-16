@@ -67,6 +67,15 @@ If you are validating current HTTP/3 support, the shortest useful order is:
 3. the request or server subpage
 4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
 
+## Next Useful Checks
+
+- For one concrete runtime-facing walkthrough:
+  [docs/architecture-walkthrough-http-request.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-walkthrough-http-request.md)
+- For runtime-confidence checks:
+  [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+- For exact diagnosis-field meanings:
+  [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+
 ## Stability Note
 
 This page is the lookup hub for the current HTTP/3 family in the `0.15.x` line.

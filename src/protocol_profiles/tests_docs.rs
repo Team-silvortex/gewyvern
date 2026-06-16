@@ -14,9 +14,14 @@ const PROTOCOL_GROUPS_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/docs/book/reference-protocol-groups.md"
 );
+const PROTOCOL_READING_PATHS_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/docs/book/reference-protocol-reading-paths.md"
+);
 const PROTOCOL_SURFACE_PAGE: &str = "docs/book/reference-protocol-surface.md";
 const IR_LOWERING_PAGE: &str = "docs/book/reference-ir-lowering.md";
 const PROTOCOL_GROUPS_PAGE: &str = "docs/book/reference-protocol-groups.md";
+const PROTOCOL_READING_PATHS_PAGE: &str = "docs/book/reference-protocol-reading-paths.md";
 const PROTOCOL_ALIAS_INDEX_PAGE: &str = "docs/book/reference-protocol-alias-index.md";
 const EXPECTED_GROUP_FAMILY_HUBS: &[&str] = &[
     "http",
@@ -53,6 +58,9 @@ const EXPECTED_GROUP_FAMILY_HUBS: &[&str] = &[
     "sip",
     "ftp",
 ];
+const HIGH_FREQUENCY_RUNTIME_HUBS: &[&str] = &[
+    "http", "https", "tls", "dns", "ssh", "socks5", "postgres", "mysql", "quic", "http3",
+];
 
 #[test]
 fn protocol_surface_front_door_links_core_protocol_navigation_pages() {
@@ -62,6 +70,7 @@ fn protocol_surface_front_door_links_core_protocol_navigation_pages() {
     let expected = [
         PROTOCOL_GROUPS_PAGE.to_string(),
         "docs/book/reference-protocol-family-shelves.md".to_string(),
+        PROTOCOL_READING_PATHS_PAGE.to_string(),
         PROTOCOL_ALIAS_INDEX_PAGE.to_string(),
         IR_LOWERING_PAGE.to_string(),
     ]
@@ -143,6 +152,55 @@ fn protocol_groups_expected_family_hubs_match_current_curated_set() {
     assert!(
         expected.is_subset(&actual_links),
         "protocol groups page should expose the curated family hub set"
+    );
+}
+
+#[test]
+fn protocol_reading_paths_page_links_expected_reference_and_guidance_spine() {
+    let actual = fs::read_to_string(PROTOCOL_READING_PATHS_PATH)
+        .expect("protocol reading paths doc should exist");
+    let links = markdown_book_links(&actual);
+    let expected = [
+        PROTOCOL_SURFACE_PAGE.to_string(),
+        PROTOCOL_GROUPS_PAGE.to_string(),
+        "docs/book/reference-protocol-family-shelves.md".to_string(),
+        IR_LOWERING_PAGE.to_string(),
+        "docs/book/explanation-protocol-package-spine.md".to_string(),
+        "docs/book/explanation-gewylang-to-ir.md".to_string(),
+        "docs/book/explanation-gewy-to-runtime.md".to_string(),
+        "docs/architecture-walkthrough-http-request.md".to_string(),
+        "docs/book/how-to-add-or-debug-protocol-package.md".to_string(),
+        "docs/book/how-to-validate-runtime-surface.md".to_string(),
+        "docs/book/reference-diagnosis-spine.md".to_string(),
+        "docs/book/reference-runtime-config.md".to_string(),
+        "docs/book/reference-runtime-layout.md".to_string(),
+        "docs/book/reference-gewylang-package.md".to_string(),
+    ]
+    .into_iter()
+    .collect::<BTreeSet<_>>();
+    for page in expected {
+        assert!(
+            links.contains(&page),
+            "protocol reading paths page should link `{page}`"
+        );
+    }
+}
+
+#[test]
+fn protocol_surface_and_family_directory_link_protocol_reading_paths() {
+    let surface =
+        fs::read_to_string(PROTOCOL_SURFACE_PAGE).expect("protocol surface doc should exist");
+    let shelves = fs::read_to_string(PROTOCOL_FAMILY_SHELVES_PATH)
+        .expect("protocol family shelves doc should exist");
+    let surface_links = markdown_book_links(&surface);
+    let shelves_links = markdown_book_links(&shelves);
+    assert!(
+        surface_links.contains(PROTOCOL_READING_PATHS_PAGE),
+        "protocol surface should link protocol reading paths"
+    );
+    assert!(
+        shelves_links.contains(PROTOCOL_READING_PATHS_PAGE),
+        "protocol family shelves should link protocol reading paths"
     );
 }
 
@@ -264,6 +322,25 @@ fn every_family_hub_page_mentions_the_current_default_entry() {
             actual.contains(&needle),
             "family hub page {hub_page} should mention current default entry `{}`",
             summary.default_entry
+        );
+    }
+}
+
+#[test]
+fn high_frequency_family_hubs_link_runtime_validation_and_diagnosis_spine() {
+    for protocol in HIGH_FREQUENCY_RUNTIME_HUBS {
+        let hub_page = family_hub_page(protocol);
+        let absolute_hub = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), hub_page);
+        let actual = fs::read_to_string(&absolute_hub)
+            .unwrap_or_else(|_| panic!("family hub page should exist: {hub_page}"));
+        let links = markdown_book_links(&actual);
+        assert!(
+            links.contains("docs/book/how-to-validate-runtime-surface.md"),
+            "high-frequency family hub {hub_page} should link runtime validation guidance"
+        );
+        assert!(
+            links.contains("docs/book/reference-diagnosis-spine.md"),
+            "high-frequency family hub {hub_page} should link diagnosis spine"
         );
     }
 }

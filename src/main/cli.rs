@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime_logging::{LogLevel, LoggingConfig, log_error_event};
 
 #[derive(Debug)]
 pub(crate) struct Cli {
@@ -32,6 +33,11 @@ pub(crate) struct Cli {
     pub(crate) external_engine_bin: Option<String>,
     pub(crate) external_engine_worker: Option<String>,
     pub(crate) external_engine_python_bin: Option<String>,
+    pub(crate) log_level: LogLevel,
+    pub(crate) log_to_stderr: bool,
+    pub(crate) log_file: Option<String>,
+    pub(crate) log_max_bytes: usize,
+    pub(crate) log_max_files: usize,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -45,6 +51,11 @@ pub(crate) struct CliDefaults {
     pub(crate) external_engine_bin: Option<String>,
     pub(crate) external_engine_worker: Option<String>,
     pub(crate) external_engine_python_bin: Option<String>,
+    pub(crate) log_level: Option<LogLevel>,
+    pub(crate) log_to_stderr: Option<bool>,
+    pub(crate) log_file: Option<String>,
+    pub(crate) log_max_bytes: Option<usize>,
+    pub(crate) log_max_files: Option<usize>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -101,6 +112,15 @@ impl ScanTarget {
     pub(crate) fn binding(&self) -> TemplateBinding {
         let locale = UiLocale::detect();
         compile_file(&self.dsl_path).unwrap_or_else(|err| {
+            log_error_event(
+                "dsl",
+                "dsl_compile_failed",
+                &[
+                    ("path", self.dsl_path.clone()),
+                    ("error", format!("{err:?}")),
+                ],
+                "failed to compile dsl binding",
+            );
             eprintln!(
                 "{}",
                 locale.msgf("dsl_compile_failed", &format!("{err:?}"), None)
@@ -174,6 +194,12 @@ impl Cli {
         let locale = UiLocale::detect();
         self.dsl_path.as_deref().map(|path| {
             compile_file(path).unwrap_or_else(|err| {
+                log_error_event(
+                    "dsl",
+                    "dsl_compile_failed",
+                    &[("path", path.to_string()), ("error", format!("{err:?}"))],
+                    "failed to compile dsl binding",
+                );
                 eprintln!(
                     "{}",
                     locale.msgf("dsl_compile_failed", &format!("{err:?}"), None)
@@ -183,6 +209,7 @@ impl Cli {
         })
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn from_args<I>(args: I) -> Result<Self, String>
     where
         I: IntoIterator<Item = String>,
@@ -222,6 +249,12 @@ impl Cli {
         let mut external_engine_bin = defaults.external_engine_bin;
         let mut external_engine_worker = defaults.external_engine_worker;
         let mut external_engine_python_bin = defaults.external_engine_python_bin;
+        let mut log_level = defaults.log_level.unwrap_or(LogLevel::Warn);
+        let mut log_to_stderr = defaults.log_to_stderr.unwrap_or(true);
+        let mut log_file = defaults.log_file;
+        let log_defaults = LoggingConfig::default();
+        let log_max_bytes = defaults.log_max_bytes.unwrap_or(log_defaults.max_bytes);
+        let log_max_files = defaults.log_max_files.unwrap_or(log_defaults.max_files);
         let mut args = args.into_iter();
 
         while let Some(arg) = args.next() {
@@ -365,6 +398,20 @@ impl Cli {
                         "missing value for --external-engine-python-bin".to_string()
                     })?);
                 }
+                "--log-level" => {
+                    let value = args
+                        .next()
+                        .ok_or_else(|| "missing value for --log-level".to_string())?;
+                    log_level = LogLevel::from_str(&value)?;
+                }
+                "--log-file" => {
+                    log_file = Some(
+                        args.next()
+                            .ok_or_else(|| "missing value for --log-file".to_string())?,
+                    );
+                }
+                "--log-stderr" => log_to_stderr = true,
+                "--no-log-stderr" => log_to_stderr = false,
                 "--help" | "-h" => return Err(usage().into()),
                 other => return Err(locale.msgf("unknown_argument", other, None)),
             }
@@ -494,6 +541,11 @@ impl Cli {
             external_engine_bin,
             external_engine_worker,
             external_engine_python_bin,
+            log_level,
+            log_to_stderr,
+            log_file,
+            log_max_bytes,
+            log_max_files,
         })
     }
 
@@ -505,5 +557,15 @@ impl Cli {
                 python_worker: self.external_engine_worker.clone(),
                 python_bin: self.external_engine_python_bin.clone(),
             })
+    }
+
+    pub(crate) fn logging_config(&self) -> LoggingConfig {
+        LoggingConfig {
+            level: self.log_level,
+            log_to_stderr: self.log_to_stderr,
+            log_file: self.log_file.as_ref().map(Into::into),
+            max_bytes: self.log_max_bytes,
+            max_files: self.log_max_files,
+        }
     }
 }

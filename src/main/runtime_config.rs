@@ -1,4 +1,5 @@
 use crate::cli::{CliDefaults, IngestMode, SocketTarget};
+use crate::runtime_logging::LogLevel;
 use gewyvern::runtime_layout::runtime_layout;
 use std::collections::BTreeMap;
 use std::fs;
@@ -99,11 +100,17 @@ fn parse_runtime_config(input: &str) -> Result<RuntimeConfigFile, String> {
     if let Some(paths) = sections.get("paths") {
         apply_paths_section(paths, &mut config)?;
     }
+    if let Some(logging) = sections.get("logging") {
+        apply_logging_section(logging, &mut config)?;
+    }
     for section in sections.keys() {
         if section.is_empty() {
             continue;
         }
-        if !matches!(section.as_str(), "runtime" | "external_engine" | "paths") {
+        if !matches!(
+            section.as_str(),
+            "runtime" | "external_engine" | "paths" | "logging"
+        ) {
             return Err(format!("unsupported runtime config section '{section}'"));
         }
     }
@@ -133,8 +140,7 @@ fn apply_runtime_section(
                 config.defaults.max_sessions = Some(parse_usize(value, "runtime.max_sessions")?)
             }
             "history_retention" => {
-                config.history_retention =
-                    Some(parse_usize(value, "runtime.history_retention")?)
+                config.history_retention = Some(parse_usize(value, "runtime.history_retention")?)
             }
             other => return Err(format!("unsupported runtime config key 'runtime.{other}'")),
         }
@@ -170,6 +176,39 @@ fn apply_paths_section(
             "protocol_registry_root" => config.protocol_registry_root = Some(parse_string(value)),
             "share_root" => config.share_root = Some(parse_string(value)),
             other => return Err(format!("unsupported runtime config key 'paths.{other}'")),
+        }
+    }
+    Ok(())
+}
+
+fn apply_logging_section(
+    logging: &BTreeMap<String, String>,
+    config: &mut RuntimeConfigFile,
+) -> Result<(), String> {
+    for (key, value) in logging {
+        match key.as_str() {
+            "level" => {
+                config.defaults.log_level = Some(
+                    LogLevel::from_str(&parse_string(value))
+                        .map_err(|err| format!("invalid logging.level in config: {err}"))?,
+                )
+            }
+            "stderr" => config.defaults.log_to_stderr = Some(parse_bool(value, "logging.stderr")?),
+            "file" => {
+                let path = parse_string(value);
+                if path.is_empty() {
+                    return Err("logging.file must not be empty".to_string());
+                }
+                config.defaults.log_file = Some(path);
+            }
+            "max_bytes" => {
+                config.defaults.log_max_bytes =
+                    Some(parse_positive_usize(value, "logging.max_bytes")?)
+            }
+            "max_files" => {
+                config.defaults.log_max_files = Some(parse_usize(value, "logging.max_files")?)
+            }
+            other => return Err(format!("unsupported runtime config key 'logging.{other}'")),
         }
     }
     Ok(())
@@ -231,6 +270,14 @@ fn parse_usize(value: &str, context: &str) -> Result<usize, String> {
     parse_string(value)
         .parse::<usize>()
         .map_err(|_| format!("{context} must be a positive integer"))
+}
+
+fn parse_positive_usize(value: &str, context: &str) -> Result<usize, String> {
+    let parsed = parse_usize(value, context)?;
+    if parsed == 0 {
+        return Err(format!("{context} must be greater than zero"));
+    }
+    Ok(parsed)
 }
 
 fn parse_socket_target(value: &str) -> Result<SocketTarget, String> {

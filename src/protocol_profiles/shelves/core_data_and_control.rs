@@ -3,7 +3,12 @@ use super::super::ShelfMatch;
 pub(crate) fn mdns_shelf(entry: &str) -> Option<ShelfMatch> {
     const QUERY: &[&str] = &["query"];
     if QUERY.contains(&entry) {
-        Some(("query", "Query", "docs/book/reference-mdns-surface.md", QUERY))
+        Some((
+            "query",
+            "Query",
+            "docs/book/reference-mdns-surface.md",
+            QUERY,
+        ))
     } else {
         None
     }

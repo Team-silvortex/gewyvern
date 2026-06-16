@@ -16,7 +16,7 @@ This is the bridge between:
 - current release judgment for the active `0.15.x` line
 
 For the current release posture, see
-[docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md).
+[docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md).
 
 For the short running record of what this validation has already shown in
 practice, see [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md).
@@ -57,7 +57,7 @@ For those, use:
   for the short evidence log of what this validation line has already shown
 - [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
   for the shortest current release gate
-- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+- [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
   for the current line's intended claim and scope
 
 ## Current Prelaunch Scope

@@ -24,6 +24,10 @@ pub fn runtime_layout() -> RuntimeLayout {
     }
 }
 
+pub fn default_runtime_log_path() -> PathBuf {
+    runtime_layout().state_root.join("logs").join("runtime.log")
+}
+
 pub fn packaged_share_roots(packaged_share_root: &Path) -> Vec<PathBuf> {
     let layout = runtime_layout();
     let mut roots = Vec::new();

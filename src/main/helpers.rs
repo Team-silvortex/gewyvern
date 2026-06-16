@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime_logging::log_error_event;
 
 pub(crate) fn process_matches_pid(process: Option<&ProcessView>, pid: u32) -> bool {
     process.is_some_and(|process| process.pid == pid)
@@ -275,6 +276,12 @@ pub(crate) fn route_fact(
 pub(crate) fn write_or_print(rendered: &str, out_path: Option<&str>, locale: UiLocale) {
     if let Some(path) = out_path {
         fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
+            log_error_event(
+                "output",
+                "write_failed",
+                &[("path", path.to_string()), ("error", err.to_string())],
+                "failed to write rendered output",
+            );
             eprintln!(
                 "{}",
                 locale.msgf("write_failed", path, Some(&err.to_string()))

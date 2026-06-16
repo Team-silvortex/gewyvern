@@ -226,3 +226,5 @@ mod tests_snmp;
 mod tests_stun;
 #[cfg(test)]
 mod tests_surface;
+#[cfg(test)]
+mod tests_validation_paths;

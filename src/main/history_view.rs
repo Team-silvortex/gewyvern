@@ -15,14 +15,22 @@ pub(crate) fn render_history_index(json: bool) -> Result<String, String> {
 }
 
 fn history_root() -> PathBuf {
-    runtime_layout().state_root.join("history").join("api").join("v1")
+    runtime_layout()
+        .state_root
+        .join("history")
+        .join("api")
+        .join("v1")
 }
 
 fn render_history_index_json(history_root: &Path) -> Result<String, String> {
     let index_path = history_root.join("index.json");
     if index_path.exists() {
-        return fs::read_to_string(&index_path)
-            .map_err(|err| format!("failed to read history index '{}': {err}", index_path.display()));
+        return fs::read_to_string(&index_path).map_err(|err| {
+            format!(
+                "failed to read history index '{}': {err}",
+                index_path.display()
+            )
+        });
     }
     Ok(empty_history_index_json(history_root))
 }

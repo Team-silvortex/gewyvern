@@ -1,5 +1,6 @@
 use super::*;
 use crate::runtime_config::{apply_runtime_path_overrides, load_runtime_config};
+use crate::runtime_logging::LogLevel;
 use crate::{SocketTarget, cli::CliDefaults};
 use std::fs;
 use std::path::PathBuf;
@@ -83,6 +84,13 @@ python_bin = "/usr/bin/python3"
 [paths]
 protocol_registry_root = "/srv/gewyvern/protocols"
 share_root = "/srv/gewyvern/share"
+
+[logging]
+level = "info"
+stderr = false
+file = "/srv/gewyvern/state/logs/runtime.log"
+max_bytes = 262144
+max_files = 6
 "#,
     )
     .unwrap();
@@ -115,6 +123,14 @@ share_root = "/srv/gewyvern/share"
         Some("/srv/gewyvern/protocols")
     );
     assert_eq!(config.share_root.as_deref(), Some("/srv/gewyvern/share"));
+    assert_eq!(config.defaults.log_level, Some(LogLevel::Info));
+    assert_eq!(config.defaults.log_to_stderr, Some(false));
+    assert_eq!(
+        config.defaults.log_file.as_deref(),
+        Some("/srv/gewyvern/state/logs/runtime.log")
+    );
+    assert_eq!(config.defaults.log_max_bytes, Some(262144));
+    assert_eq!(config.defaults.log_max_files, Some(6));
 
     apply_runtime_path_overrides(&config);
     assert_eq!(
@@ -168,6 +184,11 @@ fn cli_arguments_override_runtime_config_defaults() {
         api_socket: Some("127.0.0.1:9910".into()),
         max_sessions: Some(16),
         ingest_mode: Some(IngestMode::LocalAdvisory),
+        log_level: Some(LogLevel::Warn),
+        log_to_stderr: Some(false),
+        log_file: Some("/tmp/default.log".into()),
+        log_max_bytes: Some(8192),
+        log_max_files: Some(5),
         ..CliDefaults::default()
     };
 
@@ -179,6 +200,11 @@ fn cli_arguments_override_runtime_config_defaults() {
             "remote-advisory".to_string(),
             "--max-sessions".to_string(),
             "24".to_string(),
+            "--log-level".to_string(),
+            "debug".to_string(),
+            "--log-stderr".to_string(),
+            "--log-file".to_string(),
+            "/tmp/cli.log".to_string(),
         ],
         defaults,
     )
@@ -192,4 +218,9 @@ fn cli_arguments_override_runtime_config_defaults() {
     assert_eq!(cli.ingest_mode, IngestMode::RemoteAdvisory);
     assert_eq!(cli.max_sessions, Some(24));
     assert_eq!(cli.api_socket.as_deref(), Some("127.0.0.1:9910"));
+    assert_eq!(cli.log_level, LogLevel::Debug);
+    assert!(cli.log_to_stderr);
+    assert_eq!(cli.log_file.as_deref(), Some("/tmp/cli.log"));
+    assert_eq!(cli.log_max_bytes, 8192);
+    assert_eq!(cli.log_max_files, 5);
 }

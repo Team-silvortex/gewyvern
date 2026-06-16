@@ -72,6 +72,13 @@ If you are validating current QUIC support, the shortest useful order is:
 3. one narrower QUIC subpage for the transport stage you care about
 4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
 
+## Next Useful Checks
+
+- For runtime-confidence checks:
+  [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+- For exact diagnosis-field meanings:
+  [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+
 ## Stability Note
 
 This page is the lookup hub for the current QUIC family in the `0.15.x` line.

@@ -67,6 +67,7 @@ The current config format is a small TOML-style file with these sections:
 - `[runtime]`
 - `[external_engine]`
 - `[paths]`
+- `[logging]`
 
 Unknown sections or keys are rejected.
 
@@ -102,6 +103,51 @@ The runtime history key also has an environment-level override:
 
 - `GEWY_HISTORY_RETENTION`
 
+### `[logging]`
+
+- `level = "error" | "warn" | "info" | "debug"`
+- `stderr = true|false`
+- `file = "/path/to/gewyvern.log"`
+- `max_bytes = 1048576`
+- `max_files = 4`
+
+These keys control the unified runtime logger used by startup and serve-time
+operational messages.
+
+Runtime log records in `0.15.x` now follow a light structured text form:
+
+- `target=...` identifies the subsystem
+- `event=...` identifies the operation or failure shape
+- extra fields such as `path=...`, `socket=...`, or `error=...` may appear
+  before `msg=...`
+- event names are intentionally stable, lower-snake-case identifiers such as
+  `runtime_config_loaded`, `socket_listener_bind_failed`, or `write_failed`
+- interactive and one-shot flows use the same pattern for DSL and diagnostics
+  failures, for example `dsl_compile_failed`, `diagnostics_compile_failed`, or
+  `scan_target_resolve_failed`
+
+If `logging.file` is omitted, the runtime now falls back to the standard state
+root log path:
+
+- Linux/XDG:
+  `"$XDG_STATE_HOME/gewyvern/logs/runtime.log"` or
+  `~/.local/state/gewyvern/logs/runtime.log`
+- macOS:
+  `~/Library/Application Support/gewyvern/state/logs/runtime.log`
+- Windows:
+  `%LOCALAPPDATA%\\gewyvern\\state\\logs\\runtime.log`
+
+When `logging.file` is active, `0.15.x` now uses a built-in light rotation
+policy:
+
+- `runtime.log` is the active file
+- `runtime.log.1` is the newest rotated archive
+- `runtime.log.2` and higher are older retained archives
+- once the active file would exceed `max_bytes`, it rotates before the next
+  record is written
+- `max_files = 0` keeps no archive copies and simply truncates by reopening a
+  fresh active file
+
 ## Example
 
 ```toml
@@ -122,6 +168,13 @@ python_bin = "/usr/bin/python3"
 [paths]
 protocol_registry_root = "/srv/gewyvern/protocols"
 share_root = "/srv/gewyvern/share"
+
+[logging]
+level = "info"
+stderr = true
+file = "/srv/gewyvern/state/logs/runtime.log"
+max_bytes = 1048576
+max_files = 4
 ```
 
 ## Precedence Rules
@@ -140,6 +193,13 @@ More precisely:
 
 - service and external-engine defaults come from the config file, but CLI flags
   override them
+- logging defaults come from the config file, but CLI flags such as
+  `--log-level`, `--log-file`, `--log-stderr`, and `--no-log-stderr` override
+  them
+- log rotation size and archive retention currently come from the config file
+  or built-in defaults
+- if no log file is configured explicitly, startup falls back to the standard
+  state-root log path
 - runtime history retention comes from the config file unless
   `GEWY_HISTORY_RETENTION` is already set
 - config-level `paths.*` values only apply when the corresponding environment

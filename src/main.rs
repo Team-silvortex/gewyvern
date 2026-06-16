@@ -13,6 +13,8 @@ mod render_utils;
 mod report_runtime;
 #[path = "main/runtime_config.rs"]
 mod runtime_config;
+#[path = "main/runtime_logging.rs"]
+mod runtime_logging;
 #[path = "main/runtime_migration.rs"]
 mod runtime_migration;
 mod serve_runtime;
@@ -65,6 +67,9 @@ use crate::report_runtime::{
 #[cfg(test)]
 use crate::report_runtime::{scan_report_json, scan_report_text, training_example_json};
 use crate::runtime_config::{apply_runtime_path_overrides, load_runtime_config};
+use crate::runtime_logging::{
+    init_runtime_logger, log_error_event, log_info_event, log_warn_event,
+};
 use crate::runtime_migration::prepare_runtime_layout;
 use crate::serve_runtime::serve_socket_sessions;
 
@@ -74,7 +79,7 @@ pub(crate) use self::ui_locale::UiLocale;
 fn main() {
     let locale = UiLocale::detect();
     let args = env::args().skip(1).collect::<Vec<_>>();
-    prepare_runtime_layout().unwrap_or_else(|message| {
+    let migration_report = prepare_runtime_layout().unwrap_or_else(|message| {
         eprintln!("{message}");
         std::process::exit(2);
     });
@@ -88,6 +93,69 @@ fn main() {
             eprintln!("{message}");
             std::process::exit(2);
         });
+    let mut logging_config = cli.logging_config();
+    if logging_config.log_file.is_none() {
+        logging_config.log_file = Some(gewyvern::runtime_layout::default_runtime_log_path());
+    }
+    init_runtime_logger(logging_config).unwrap_or_else(|message| {
+        eprintln!("{message}");
+        std::process::exit(2);
+    });
+    if let Some(path) = runtime_config.source_path.as_ref() {
+        if runtime_config.used_legacy_path {
+            log_warn_event(
+                "config",
+                "runtime_config_loaded",
+                &[("path", path.display().to_string())],
+                "loaded legacy runtime config",
+            );
+        } else {
+            log_info_event(
+                "config",
+                "runtime_config_loaded",
+                &[("path", path.display().to_string())],
+                "loaded runtime config",
+            );
+        }
+    }
+    if !migration_report.created_roots.is_empty() {
+        log_info_event(
+            "startup",
+            "runtime_roots_prepared",
+            &[(
+                "roots",
+                migration_report
+                    .created_roots
+                    .iter()
+                    .map(|path| path.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(","),
+            )],
+            "prepared runtime roots",
+        );
+    }
+    if let Some(path) = migration_report.copied_config_to.as_ref() {
+        log_info_event(
+            "startup",
+            "legacy_config_copied",
+            &[("path", path.display().to_string())],
+            "copied legacy runtime config into standard root",
+        );
+    }
+    if migration_report.copied_protocol_entries > 0 || migration_report.copied_dsl_entries > 0 {
+        log_info_event(
+            "startup",
+            "legacy_entries_migrated",
+            &[
+                (
+                    "protocols",
+                    migration_report.copied_protocol_entries.to_string(),
+                ),
+                ("dsl", migration_report.copied_dsl_entries.to_string()),
+            ],
+            "migrated legacy runtime entries",
+        );
+    }
     set_external_analysis_config(cli.external_analysis_config());
 
     if cli.list_protocols {
@@ -102,6 +170,12 @@ fn main() {
 
     if cli.list_history {
         let rendered = render_history_index(cli.json).unwrap_or_else(|message| {
+            log_error_event(
+                "history",
+                "history_render_failed",
+                &[("error", message.clone())],
+                "failed to render history index",
+            );
             eprintln!("{message}");
             std::process::exit(2);
         });
@@ -127,6 +201,12 @@ fn main() {
 
     let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_000);
     let scan_targets = scan_targets_for_cli(&cli).unwrap_or_else(|err| {
+        log_error_event(
+            "runtime",
+            "scan_target_resolve_failed",
+            &[("error", err.clone())],
+            "failed to resolve scan targets",
+        );
         eprintln!("{err}");
         std::process::exit(2);
     });
@@ -134,10 +214,22 @@ fn main() {
 
     if cli.diagnostics {
         let path = cli.dsl_path.as_deref().unwrap_or_else(|| {
+            log_error_event(
+                "diagnostics",
+                "diagnostics_requires_dsl",
+                &[],
+                "diagnostics mode requires a dsl path",
+            );
             eprintln!("{}", locale.msg("diagnostics_requires_dsl"));
             std::process::exit(2);
         });
         let report = compile_diagnostics_report_file(path).unwrap_or_else(|err| {
+            log_error_event(
+                "diagnostics",
+                "diagnostics_compile_failed",
+                &[("path", path.to_string()), ("error", format!("{err:?}"))],
+                "failed to compile diagnostics report",
+            );
             eprintln!(
                 "{}",
                 locale.msgf("binding_diagnostics_failed", &format!("{err:?}"), None)
@@ -165,6 +257,16 @@ fn main() {
                 SocketTarget::Tcp(addr) => collect_tcp_socket_facts(addr),
             }
             .unwrap_or_else(|err| {
+                let endpoint = match socket_target {
+                    SocketTarget::Unix(path) => format!("unix:{path}"),
+                    SocketTarget::Tcp(addr) => format!("tcp:{addr}"),
+                };
+                log_error_event(
+                    "runtime",
+                    "socket_session_collect_failed",
+                    &[("endpoint", endpoint), ("error", format!("{err:?}"))],
+                    "failed to collect socket session facts",
+                );
                 eprintln!(
                     "{}",
                     locale.msgf("socket_session_failed", &format!("{err:?}"), None)
@@ -195,6 +297,16 @@ fn main() {
                 }
             }
             .unwrap_or_else(|err| {
+                let endpoint = match socket_target {
+                    SocketTarget::Unix(path) => format!("unix:{path}"),
+                    SocketTarget::Tcp(addr) => format!("tcp:{addr}"),
+                };
+                log_error_event(
+                    "runtime",
+                    "socket_session_run_failed",
+                    &[("endpoint", endpoint), ("error", format!("{err:?}"))],
+                    "failed to run socket session",
+                );
                 eprintln!(
                     "{}",
                     locale.msgf("socket_session_failed", &format!("{err:?}"), None)
@@ -445,6 +557,12 @@ fn main() {
     };
     if let Some(path) = cli.out_path.as_deref() {
         fs::write(path, format!("{rendered}\n")).unwrap_or_else(|err| {
+            log_error_event(
+                "output",
+                "write_failed",
+                &[("path", path.to_string()), ("error", err.to_string())],
+                "failed to write rendered output",
+            );
             eprintln!(
                 "{}",
                 locale.msgf("write_failed", path, Some(&err.to_string()))
