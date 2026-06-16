@@ -43,6 +43,8 @@ entry selection:
 - `postgres_query`
 - `postgres_session`
 
+Default entry: `query`
+
 ## PostgreSQL Surface Map
 
 ### Connect And Auth

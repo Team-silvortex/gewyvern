@@ -53,6 +53,8 @@ selection:
 - `ldap_sync`
 - `ldap_write`
 
+Default entry: `sync`
+
 ## LDAP Surface Map
 
 ### Bind

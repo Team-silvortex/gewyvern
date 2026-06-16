@@ -7,14 +7,14 @@ pub(crate) fn kerberos_shelf(entry: &str) -> Option<ShelfMatch> {
         Some((
             "as",
             "AS Exchange",
-            "docs/book/reference-protocol-surface.md",
+            "docs/book/reference-kerberos-as-surface.md",
             AS,
         ))
     } else if TGS.contains(&entry) {
         Some((
             "tgs",
             "TGS Exchange",
-            "docs/book/reference-protocol-surface.md",
+            "docs/book/reference-kerberos-tgs-surface.md",
             TGS,
         ))
     } else {

@@ -12,6 +12,7 @@ pub(crate) struct Cli {
     pub(crate) scan_all: bool,
     pub(crate) protocol_set_path: Option<String>,
     pub(crate) list_protocols: bool,
+    pub(crate) list_history: bool,
     pub(crate) list_entries: Option<String>,
     pub(crate) ingest_mode: IngestMode,
     pub(crate) pid: Option<u32>,
@@ -202,6 +203,7 @@ impl Cli {
         let mut scan_all = false;
         let mut protocol_set_path = None;
         let mut list_protocols = false;
+        let mut list_history = false;
         let mut list_entries = None;
         let mut ingest_mode = defaults.ingest_mode.unwrap_or(IngestMode::LocalAdvisory);
         let mut pid = None;
@@ -289,6 +291,7 @@ impl Cli {
                     );
                 }
                 "--list-protocols" => list_protocols = true,
+                "--list-history" => list_history = true,
                 "--allow-remote-socket" => ingest_mode = IngestMode::RemoteAdvisory,
                 "--ingest-mode" => {
                     let value = args
@@ -412,6 +415,12 @@ impl Cli {
         if list_protocols && list_entries.is_some() {
             return Err(locale.msg("list_conflict").into());
         }
+        if list_history && list_protocols {
+            return Err("--list-history cannot be combined with --list-protocols".into());
+        }
+        if list_history && list_entries.is_some() {
+            return Err("--list-history cannot be combined with --list-entries".into());
+        }
         if socket_target.is_some() && pid.is_some() {
             return Err(locale.msg("pid_socket_conflict").into());
         }
@@ -466,6 +475,7 @@ impl Cli {
             scan_all,
             protocol_set_path,
             list_protocols,
+            list_history,
             list_entries,
             ingest_mode,
             pid,

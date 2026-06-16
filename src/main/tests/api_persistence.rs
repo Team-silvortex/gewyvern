@@ -314,6 +314,10 @@ fn persisted_snapshot_history_prunes_older_entries_beyond_retention_limit() {
     let entry_count = history_index.matches("\"updated_unix_ms\":").count();
 
     assert_eq!(entry_count, 32);
+    assert!(history_index.contains("\"schema_version\":2"));
+    assert!(history_index.contains("\"minor_line\":\"v0.15.x\""));
+    assert!(history_index.contains("\"history_retention\":32"));
+    assert!(history_index.contains("\"lines\":[{\"line\":\"v0.15.x\""));
     assert!(!history_root.join("1").exists());
     assert!(!history_root.join("9").exists());
     assert!(history_root.join("10").exists());
@@ -387,6 +391,10 @@ fn persisted_snapshot_history_respects_configured_retention_override() {
     let entry_count = history_index.matches("\"updated_unix_ms\":").count();
 
     assert_eq!(entry_count, 4);
+    assert!(history_index.contains("\"schema_version\":2"));
+    assert!(history_index.contains("\"minor_line\":\"v0.15.x\""));
+    assert!(history_index.contains("\"history_retention\":4"));
+    assert!(history_index.contains("\"line\":\"v0.15.x\""));
     assert!(!history_root.join("1").exists());
     assert!(!history_root.join("3").exists());
     assert!(history_root.join("4").exists());

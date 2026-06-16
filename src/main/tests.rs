@@ -54,6 +54,8 @@ mod directory_protocols;
 mod failure_labels;
 #[path = "tests/ftp.rs"]
 mod ftp;
+#[path = "tests/history_cli.rs"]
+mod history_cli;
 #[path = "tests/mail_delivery.rs"]
 mod mail_delivery;
 #[path = "tests/mail_flow.rs"]

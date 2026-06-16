@@ -1,6 +1,4 @@
 use super::super::ShelfMatch;
-use super::GENERIC_SURFACE_PAGE;
-
 pub(crate) fn dns_shelf(entry: &str) -> Option<ShelfMatch> {
     const UDP: &[&str] = &["udp"];
     const TCP: &[&str] = &["tcp"];
@@ -26,7 +24,12 @@ pub(crate) fn dns_shelf(entry: &str) -> Option<ShelfMatch> {
 pub(crate) fn https_shelf(entry: &str) -> Option<ShelfMatch> {
     const CONNECT: &[&str] = &["connect"];
     if CONNECT.contains(&entry) {
-        Some(("connect", "Connect", GENERIC_SURFACE_PAGE, CONNECT))
+        Some((
+            "connect",
+            "Connect",
+            "docs/book/reference-https-surface.md",
+            CONNECT,
+        ))
     } else {
         None
     }
@@ -66,9 +69,19 @@ pub(crate) fn hy2_shelf(entry: &str) -> Option<ShelfMatch> {
     const AUTH: &[&str] = &["auth"];
     const RELAY: &[&str] = &["udp", "tcp"];
     if AUTH.contains(&entry) {
-        Some(("auth", "Auth", GENERIC_SURFACE_PAGE, AUTH))
+        Some((
+            "auth",
+            "Auth",
+            "docs/book/reference-hy2-auth-surface.md",
+            AUTH,
+        ))
     } else if RELAY.contains(&entry) {
-        Some(("relay", "Relay", GENERIC_SURFACE_PAGE, RELAY))
+        Some((
+            "relay",
+            "Relay",
+            "docs/book/reference-hy2-relay-surface.md",
+            RELAY,
+        ))
     } else {
         None
     }
@@ -77,7 +90,12 @@ pub(crate) fn hy2_shelf(entry: &str) -> Option<ShelfMatch> {
 pub(crate) fn tls_shelf(entry: &str) -> Option<ShelfMatch> {
     const CLIENT: &[&str] = &["client"];
     if CLIENT.contains(&entry) {
-        Some(("client", "Client", GENERIC_SURFACE_PAGE, CLIENT))
+        Some((
+            "client",
+            "Client",
+            "docs/book/reference-tls-surface.md",
+            CLIENT,
+        ))
     } else {
         None
     }
@@ -85,14 +103,21 @@ pub(crate) fn tls_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn stun_shelf(entry: &str) -> Option<ShelfMatch> {
     const BINDING: &[&str] = &["binding"];
-    const ALLOCATE: &[&str] = &["allocate"];
-    const REFRESH: &[&str] = &["refresh"];
+    const RELAY: &[&str] = &["allocate", "refresh"];
     if BINDING.contains(&entry) {
-        Some(("binding", "Binding", GENERIC_SURFACE_PAGE, BINDING))
-    } else if ALLOCATE.contains(&entry) {
-        Some(("allocate", "Allocate", GENERIC_SURFACE_PAGE, ALLOCATE))
-    } else if REFRESH.contains(&entry) {
-        Some(("refresh", "Refresh", GENERIC_SURFACE_PAGE, REFRESH))
+        Some((
+            "binding",
+            "Binding",
+            "docs/book/reference-stun-binding-surface.md",
+            BINDING,
+        ))
+    } else if RELAY.contains(&entry) {
+        Some((
+            "relay",
+            "Relay Control",
+            "docs/book/reference-stun-relay-surface.md",
+            RELAY,
+        ))
     } else {
         None
     }
@@ -100,17 +125,16 @@ pub(crate) fn stun_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn coap_shelf(entry: &str) -> Option<ShelfMatch> {
     const GET: &[&str] = &["get"];
-    const POST: &[&str] = &["post"];
-    const PUT: &[&str] = &["put"];
-    const DELETE: &[&str] = &["delete"];
+    const WRITE: &[&str] = &["post", "put", "delete"];
     if GET.contains(&entry) {
-        Some(("get", "Get", GENERIC_SURFACE_PAGE, GET))
-    } else if POST.contains(&entry) {
-        Some(("post", "Post", GENERIC_SURFACE_PAGE, POST))
-    } else if PUT.contains(&entry) {
-        Some(("put", "Put", GENERIC_SURFACE_PAGE, PUT))
-    } else if DELETE.contains(&entry) {
-        Some(("delete", "Delete", GENERIC_SURFACE_PAGE, DELETE))
+        Some(("get", "Get", "docs/book/reference-coap-get-surface.md", GET))
+    } else if WRITE.contains(&entry) {
+        Some((
+            "write",
+            "Write Methods",
+            "docs/book/reference-coap-write-surface.md",
+            WRITE,
+        ))
     } else {
         None
     }
@@ -121,11 +145,26 @@ pub(crate) fn ntp_shelf(entry: &str) -> Option<ShelfMatch> {
     const QUERY: &[&str] = &["query"];
     const SYNC: &[&str] = &["sync"];
     if CLIENT.contains(&entry) {
-        Some(("client", "Client", GENERIC_SURFACE_PAGE, CLIENT))
+        Some((
+            "client",
+            "Client",
+            "docs/book/reference-ntp-client-surface.md",
+            CLIENT,
+        ))
     } else if QUERY.contains(&entry) {
-        Some(("query", "Query", GENERIC_SURFACE_PAGE, QUERY))
+        Some((
+            "query",
+            "Query",
+            "docs/book/reference-ntp-time-surface.md",
+            QUERY,
+        ))
     } else if SYNC.contains(&entry) {
-        Some(("sync", "Sync", GENERIC_SURFACE_PAGE, SYNC))
+        Some((
+            "sync",
+            "Sync",
+            "docs/book/reference-ntp-time-surface.md",
+            SYNC,
+        ))
     } else {
         None
     }
@@ -133,14 +172,21 @@ pub(crate) fn ntp_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn dhcp_shelf(entry: &str) -> Option<ShelfMatch> {
     const CLIENT: &[&str] = &["client"];
-    const DISCOVER: &[&str] = &["discover"];
-    const REQUEST: &[&str] = &["request"];
+    const LEASE: &[&str] = &["discover", "request"];
     if CLIENT.contains(&entry) {
-        Some(("client", "Client", GENERIC_SURFACE_PAGE, CLIENT))
-    } else if DISCOVER.contains(&entry) {
-        Some(("discover", "Discover", GENERIC_SURFACE_PAGE, DISCOVER))
-    } else if REQUEST.contains(&entry) {
-        Some(("request", "Request", GENERIC_SURFACE_PAGE, REQUEST))
+        Some((
+            "client",
+            "Client",
+            "docs/book/reference-dhcp-client-surface.md",
+            CLIENT,
+        ))
+    } else if LEASE.contains(&entry) {
+        Some((
+            "lease",
+            "Lease Negotiation",
+            "docs/book/reference-dhcp-lease-surface.md",
+            LEASE,
+        ))
     } else {
         None
     }
@@ -149,22 +195,29 @@ pub(crate) fn dhcp_shelf(entry: &str) -> Option<ShelfMatch> {
 pub(crate) fn wireguard_shelf(entry: &str) -> Option<ShelfMatch> {
     const HANDSHAKE: &[&str] = &["handshake"];
     if HANDSHAKE.contains(&entry) {
-        Some(("handshake", "Handshake", GENERIC_SURFACE_PAGE, HANDSHAKE))
+        Some((
+            "handshake",
+            "Handshake",
+            "docs/book/reference-wireguard-surface.md",
+            HANDSHAKE,
+        ))
     } else {
         None
     }
 }
 
 pub(crate) fn snmp_shelf(entry: &str) -> Option<ShelfMatch> {
-    const GET: &[&str] = &["get"];
-    const GET_NEXT: &[&str] = &["get-next"];
+    const READ: &[&str] = &["get", "get-next"];
     const SET: &[&str] = &["set"];
-    if GET.contains(&entry) {
-        Some(("get", "Get", GENERIC_SURFACE_PAGE, GET))
-    } else if GET_NEXT.contains(&entry) {
-        Some(("get-next", "Get Next", GENERIC_SURFACE_PAGE, GET_NEXT))
+    if READ.contains(&entry) {
+        Some((
+            "read",
+            "Read",
+            "docs/book/reference-snmp-read-surface.md",
+            READ,
+        ))
     } else if SET.contains(&entry) {
-        Some(("set", "Set", GENERIC_SURFACE_PAGE, SET))
+        Some(("set", "Set", "docs/book/reference-snmp-set-surface.md", SET))
     } else {
         None
     }

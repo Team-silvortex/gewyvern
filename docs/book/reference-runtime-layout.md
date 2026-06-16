@@ -108,6 +108,19 @@ That default can now be overridden with:
 - runtime config: `[runtime].history_retention`
 - environment: `GEWY_HISTORY_RETENTION`
 
+The current history index written at `state/history/api/v1/index.json` is now a
+structured runtime ledger with:
+
+- `api_version`
+- `minor_line`
+- `history_retention`
+- `latest_updated_unix_ms`
+- `oldest_updated_unix_ms`
+- `lines[]`
+- `entries[]`
+
+Treat it as the machine-facing summary for the current on-disk history shelf.
+
 The packaged Linux tree remains:
 
 - `/usr/share/gewyvern/dsl`

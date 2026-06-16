@@ -37,6 +37,8 @@ selection:
 - `socks5-session`
 - `socks5_session`
 
+Default entry: `session`
+
 ## SOCKS5 Surface Map
 
 ### Session

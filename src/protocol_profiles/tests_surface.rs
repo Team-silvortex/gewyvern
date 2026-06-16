@@ -1,6 +1,19 @@
 use super::{protocol_summaries, protocol_surface};
 
 #[test]
+fn every_built_in_protocol_family_has_a_family_hub_page() {
+    for summary in protocol_summaries() {
+        let hub_page = format!("docs/book/reference-{}-surface.md", summary.protocol);
+        assert!(
+            std::fs::metadata(&hub_page).is_ok(),
+            "family hub page missing for protocol {} at {}",
+            summary.protocol,
+            hub_page
+        );
+    }
+}
+
+#[test]
 fn every_built_in_protocol_entry_exposes_a_surface_and_shelf() {
     for summary in protocol_summaries() {
         assert!(
@@ -45,6 +58,13 @@ fn every_built_in_protocol_entry_exposes_a_surface_and_shelf() {
             assert!(
                 !shelf.page.is_empty(),
                 "shelf page missing for protocol {} entry {}",
+                summary.protocol,
+                entry.mode
+            );
+            assert_ne!(
+                shelf.page,
+                "docs/book/reference-protocol-surface.md",
+                "protocol {} entry {} should not fall back to the generic protocol surface",
                 summary.protocol,
                 entry.mode
             );

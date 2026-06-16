@@ -1,0 +1,30 @@
+# Reference: GTP-U Surface
+
+Read this page after the generic protocol surface when the runtime path looks
+like GTP-U control or tunnel liveness traffic.
+
+Use it for:
+
+- `gtpu` family lookup
+- default entry selection for `echo`
+- accepted protocol aliases such as `gtp-u` and `gtp_u`
+
+Current canonical entries:
+
+- `echo` as the default entry
+
+Default entry: `echo`
+
+The current line keeps GTP-U as a compact single-slice family:
+
+- emit an echo request
+- observe an echo response
+
+This hub is intentionally small until the protocol family grows beyond the
+current baseline liveness exchange.
+
+Read in this order:
+
+1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-gtpu-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gtpu-surface.md)
+3. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)

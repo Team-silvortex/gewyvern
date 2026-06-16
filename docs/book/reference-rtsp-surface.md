@@ -43,6 +43,8 @@ selection:
 - `rtsp_play`
 - `rtsp_setup`
 
+Default entry: `options`
+
 ## RTSP Surface Map
 
 ### Options

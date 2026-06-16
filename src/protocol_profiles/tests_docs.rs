@@ -20,7 +20,9 @@ const PROTOCOL_GROUPS_PAGE: &str = "docs/book/reference-protocol-groups.md";
 const PROTOCOL_ALIAS_INDEX_PAGE: &str = "docs/book/reference-protocol-alias-index.md";
 const EXPECTED_GROUP_FAMILY_HUBS: &[&str] = &[
     "http",
+    "https",
     "http3",
+    "hy2",
     "socks5",
     "redis",
     "memcached",
@@ -33,6 +35,18 @@ const EXPECTED_GROUP_FAMILY_HUBS: &[&str] = &[
     "pop3",
     "ldap",
     "ssh",
+    "kerberos",
+    "stun",
+    "coap",
+    "dhcp",
+    "ntp",
+    "snmp",
+    "radius",
+    "mdns",
+    "ssdp",
+    "gtpu",
+    "wireguard",
+    "tls",
     "quic",
     "dns",
     "rtsp",
@@ -217,6 +231,43 @@ fn every_family_hub_page_mentions_each_current_protocol_alias() {
     }
 }
 
+#[test]
+fn every_family_hub_page_links_protocol_surface_and_ir_lowering() {
+    for summary in protocol_summaries() {
+        let hub_page = family_hub_page(&summary.protocol);
+        let absolute_hub = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), hub_page);
+        let Ok(actual) = fs::read_to_string(&absolute_hub) else {
+            continue;
+        };
+        let links = markdown_book_links(&actual);
+        assert!(
+            links.contains(PROTOCOL_SURFACE_PAGE),
+            "family hub page {hub_page} should link protocol surface"
+        );
+        assert!(
+            links.contains(IR_LOWERING_PAGE),
+            "family hub page {hub_page} should link IR lowering"
+        );
+    }
+}
+
+#[test]
+fn every_family_hub_page_mentions_the_current_default_entry() {
+    for summary in protocol_summaries() {
+        let hub_page = family_hub_page(&summary.protocol);
+        let absolute_hub = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), hub_page);
+        let Ok(actual) = fs::read_to_string(&absolute_hub) else {
+            continue;
+        };
+        let needle = format!("Default entry: `{}`", summary.default_entry);
+        assert!(
+            actual.contains(&needle),
+            "family hub page {hub_page} should mention current default entry `{}`",
+            summary.default_entry
+        );
+    }
+}
+
 fn render_protocol_alias_index() -> String {
     let mut out = String::new();
     out.push_str("# Reference: Protocol Alias Index\n\n");
@@ -290,7 +341,7 @@ fn quoted_csv(values: &[String]) -> String {
 }
 
 fn expected_family_directory_links() -> BTreeSet<String> {
-    let mut links = BTreeSet::new();
+    let mut links = current_family_hub_pages();
     for (protocol, subpages) in expected_hub_subpages() {
         links.insert(family_hub_page(&protocol));
         links.extend(subpages);

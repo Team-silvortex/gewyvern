@@ -30,6 +30,8 @@ Across the subpages, the lookup contract focuses on:
 - operator reading order
 - validation and lowering posture
 
+Default entry: `session`
+
 ## SMTP Surface Map
 
 ### Session And Greeting

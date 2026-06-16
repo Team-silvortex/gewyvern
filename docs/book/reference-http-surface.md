@@ -43,6 +43,8 @@ selection:
 - `http_request`
 - `http_server`
 
+Default entry: `request`
+
 ## HTTP Surface Map
 
 ### Request And Response

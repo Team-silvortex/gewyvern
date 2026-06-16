@@ -42,6 +42,8 @@ selection:
 - `amqp_session`
 - `amqp_start`
 
+Default entry: `session`
+
 ## AMQP Surface Map
 
 ### Start And Negotiation

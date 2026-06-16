@@ -7,6 +7,8 @@ mod diagnosis_runtime;
 mod external_analysis;
 #[path = "main/helpers.rs"]
 mod helpers;
+#[path = "main/history_view.rs"]
+mod history_view;
 mod render_utils;
 mod report_runtime;
 #[path = "main/runtime_config.rs"]
@@ -52,6 +54,7 @@ use std::time::{Duration, SystemTime};
 
 use crate::diagnosis_runtime::*;
 use crate::external_analysis::{ExternalAnalysisConfig, set_external_analysis_config};
+use crate::history_view::render_history_index;
 use crate::report_runtime::{
     findings_json, findings_json_with_analysis, findings_text, http_transactions_json,
     http_transactions_text, render_report_outputs, render_scan_outputs, scan_report_html,
@@ -93,6 +96,15 @@ fn main() {
         } else {
             list_protocols_text()
         };
+        write_or_print(&rendered, cli.out_path.as_deref(), locale);
+        return;
+    }
+
+    if cli.list_history {
+        let rendered = render_history_index(cli.json).unwrap_or_else(|message| {
+            eprintln!("{message}");
+            std::process::exit(2);
+        });
         write_or_print(&rendered, cli.out_path.as_deref(), locale);
         return;
     }

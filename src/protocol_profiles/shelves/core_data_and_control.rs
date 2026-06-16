@@ -1,10 +1,9 @@
 use super::super::ShelfMatch;
-use super::GENERIC_SURFACE_PAGE;
 
 pub(crate) fn mdns_shelf(entry: &str) -> Option<ShelfMatch> {
     const QUERY: &[&str] = &["query"];
     if QUERY.contains(&entry) {
-        Some(("query", "Query", GENERIC_SURFACE_PAGE, QUERY))
+        Some(("query", "Query", "docs/book/reference-mdns-surface.md", QUERY))
     } else {
         None
     }
@@ -13,7 +12,12 @@ pub(crate) fn mdns_shelf(entry: &str) -> Option<ShelfMatch> {
 pub(crate) fn ssdp_shelf(entry: &str) -> Option<ShelfMatch> {
     const DISCOVERY: &[&str] = &["discovery"];
     if DISCOVERY.contains(&entry) {
-        Some(("discovery", "Discovery", GENERIC_SURFACE_PAGE, DISCOVERY))
+        Some((
+            "discovery",
+            "Discovery",
+            "docs/book/reference-ssdp-surface.md",
+            DISCOVERY,
+        ))
     } else {
         None
     }
@@ -60,7 +64,12 @@ pub(crate) fn quic_shelf(entry: &str) -> Option<ShelfMatch> {
 pub(crate) fn radius_shelf(entry: &str) -> Option<ShelfMatch> {
     const ACCESS: &[&str] = &["access"];
     if ACCESS.contains(&entry) {
-        Some(("access", "Access", GENERIC_SURFACE_PAGE, ACCESS))
+        Some((
+            "access",
+            "Access",
+            "docs/book/reference-radius-surface.md",
+            ACCESS,
+        ))
     } else {
         None
     }
@@ -69,7 +78,7 @@ pub(crate) fn radius_shelf(entry: &str) -> Option<ShelfMatch> {
 pub(crate) fn gtpu_shelf(entry: &str) -> Option<ShelfMatch> {
     const ECHO: &[&str] = &["echo"];
     if ECHO.contains(&entry) {
-        Some(("echo", "Echo", GENERIC_SURFACE_PAGE, ECHO))
+        Some(("echo", "Echo", "docs/book/reference-gtpu-surface.md", ECHO))
     } else {
         None
     }

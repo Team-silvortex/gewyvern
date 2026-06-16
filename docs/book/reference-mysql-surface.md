@@ -40,6 +40,8 @@ selection:
 - `mysql_query`
 - `mysql_session`
 
+Default entry: `session`
+
 ## MySQL Surface Map
 
 ### Connect

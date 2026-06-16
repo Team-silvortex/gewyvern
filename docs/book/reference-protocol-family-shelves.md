@@ -86,6 +86,14 @@ Then continue with:
   - [docs/book/reference-ldap-search-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-search-surface.md)
   - [docs/book/reference-ldap-write-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-write-surface.md)
 
+### Kerberos
+
+- Hub:
+  [docs/book/reference-kerberos-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-surface.md)
+- Subpages:
+  - [docs/book/reference-kerberos-as-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-as-surface.md)
+  - [docs/book/reference-kerberos-tgs-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-tgs-surface.md)
+
 ### PostgreSQL
 
 - Hub:
@@ -103,6 +111,11 @@ Then continue with:
   - [docs/book/reference-http-connect-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-connect-auth-surface.md)
   - [docs/book/reference-http-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-connect-surface.md)
   - [docs/book/reference-http-message-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-message-surface.md)
+
+### HTTPS
+
+- Hub:
+  [docs/book/reference-https-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-https-surface.md)
 
 ### SOCKS5
 
@@ -167,6 +180,84 @@ Then continue with:
 - Subpages:
   - [docs/book/reference-dns-tcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-tcp-surface.md)
   - [docs/book/reference-dns-udp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-udp-surface.md)
+
+### STUN
+
+- Hub:
+  [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)
+- Subpages:
+  - [docs/book/reference-stun-binding-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-binding-surface.md)
+  - [docs/book/reference-stun-relay-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-relay-surface.md)
+
+### CoAP
+
+- Hub:
+  [docs/book/reference-coap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-surface.md)
+- Subpages:
+  - [docs/book/reference-coap-get-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-get-surface.md)
+  - [docs/book/reference-coap-write-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-write-surface.md)
+
+### DHCP
+
+- Hub:
+  [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
+- Subpages:
+  - [docs/book/reference-dhcp-client-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-client-surface.md)
+  - [docs/book/reference-dhcp-lease-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-lease-surface.md)
+
+### NTP
+
+- Hub:
+  [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
+- Subpages:
+  - [docs/book/reference-ntp-client-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-client-surface.md)
+  - [docs/book/reference-ntp-time-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-time-surface.md)
+
+### SNMP
+
+- Hub:
+  [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
+- Subpages:
+  - [docs/book/reference-snmp-read-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-read-surface.md)
+  - [docs/book/reference-snmp-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-set-surface.md)
+
+### RADIUS
+
+- Hub:
+  [docs/book/reference-radius-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-radius-surface.md)
+
+### GTP-U
+
+- Hub:
+  [docs/book/reference-gtpu-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gtpu-surface.md)
+
+### WireGuard
+
+- Hub:
+  [docs/book/reference-wireguard-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-surface.md)
+
+### Hysteria2
+
+- Hub:
+  [docs/book/reference-hy2-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-surface.md)
+- Subpages:
+  - [docs/book/reference-hy2-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-auth-surface.md)
+  - [docs/book/reference-hy2-relay-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-relay-surface.md)
+
+### TLS
+
+- Hub:
+  [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
+
+### mDNS
+
+- Hub:
+  [docs/book/reference-mdns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mdns-surface.md)
+
+### SSDP
+
+- Hub:
+  [docs/book/reference-ssdp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssdp-surface.md)
 
 ### HTTP/3
 
@@ -242,6 +333,13 @@ The first high-yield family shelves are now in place for:
 - `rtsp`
 - `quic`
 - `dns`
+- `stun`
+- `coap`
+- `dhcp`
+- `snmp`
+- `radius`
+- `gtpu`
+- `wireguard`
 - `http3`
 - `imap`
 - `sip`

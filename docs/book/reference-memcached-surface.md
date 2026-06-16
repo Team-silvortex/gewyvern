@@ -36,6 +36,8 @@ entry selection:
 - `memcached_get`
 - `memcached_set`
 
+Default entry: `get`
+
 ## Memcached Surface Map
 
 ### Get

@@ -36,6 +36,8 @@ selection:
 - `h3_server`
 - `http3-server-response`
 
+Default entry: `request`
+
 ## HTTP/3 Surface Map
 
 ### Request

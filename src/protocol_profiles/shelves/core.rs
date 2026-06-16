@@ -5,8 +5,6 @@ mod core_data_and_control;
 #[path = "core_web_and_datagram.rs"]
 mod core_web_and_datagram;
 
-pub(super) const GENERIC_SURFACE_PAGE: &str = "docs/book/reference-protocol-surface.md";
-
 pub(crate) use core_cache_and_messaging::{
     ftp_shelf, http3_shelf, memcached_shelf, mqtt_shelf, mysql_shelf, postgres_shelf, redis_shelf,
 };

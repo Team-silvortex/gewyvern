@@ -40,6 +40,8 @@ selection:
 - `redis_session`
 - `redis_set`
 
+Default entry: `ping`
+
 ## Redis Surface Map
 
 ### Key-Value And Session

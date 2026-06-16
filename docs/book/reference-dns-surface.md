@@ -25,6 +25,8 @@ Across the subpages, the lookup contract focuses on:
 - operator reading order
 - validation and lowering posture
 
+Default entry: `udp`
+
 ## DNS Surface Map
 
 ### UDP

@@ -9,6 +9,7 @@ use super::training_manifest::{
 };
 use super::{ApiSnapshot, ApiTargetSnapshot};
 
+const API_VERSION: &str = env!("CARGO_PKG_VERSION");
 const HISTORY_RETENTION_LIMIT: usize = 32;
 const HISTORY_RETENTION_ENV: &str = "GEWY_HISTORY_RETENTION";
 
@@ -137,8 +138,42 @@ fn persist_target_snapshot(
 
 fn write_history_index(history_root: &Path) -> Result<(), String> {
     let entries = history_snapshot_dirs(history_root)?;
+    let retention = history_retention_limit();
+    let minor_line = current_minor_line();
+    let latest_updated_unix_ms = entries.first().map(|(updated_unix_ms, _)| *updated_unix_ms);
+    let oldest_updated_unix_ms = entries.last().map(|(updated_unix_ms, _)| *updated_unix_ms);
 
-    let mut json = String::from("{\"schema_version\":1,\"entries\":[");
+    let mut json = String::from("{\"schema_version\":2,\"api_version\":");
+    append_json_string(&mut json, API_VERSION);
+    json.push_str(",\"minor_line\":");
+    append_json_string(&mut json, &minor_line);
+    json.push_str(",\"history_retention\":");
+    json.push_str(&retention.to_string());
+    json.push_str(",\"latest_updated_unix_ms\":");
+    match latest_updated_unix_ms {
+        Some(value) => json.push_str(&value.to_string()),
+        None => json.push_str("null"),
+    }
+    json.push_str(",\"oldest_updated_unix_ms\":");
+    match oldest_updated_unix_ms {
+        Some(value) => json.push_str(&value.to_string()),
+        None => json.push_str("null"),
+    }
+    json.push_str(",\"lines\":[{\"line\":");
+    append_json_string(&mut json, &minor_line);
+    json.push_str(",\"status\":\"active\",\"entry_count\":");
+    json.push_str(&entries.len().to_string());
+    json.push_str(",\"latest_updated_unix_ms\":");
+    match latest_updated_unix_ms {
+        Some(value) => json.push_str(&value.to_string()),
+        None => json.push_str("null"),
+    }
+    json.push_str(",\"oldest_updated_unix_ms\":");
+    match oldest_updated_unix_ms {
+        Some(value) => json.push_str(&value.to_string()),
+        None => json.push_str("null"),
+    }
+    json.push_str("}],\"entries\":[");
     for (index, (updated_unix_ms, path)) in entries.iter().enumerate() {
         if index > 0 {
             json.push(',');
@@ -146,6 +181,10 @@ fn write_history_index(history_root: &Path) -> Result<(), String> {
         let relative_path = format!("history/api/v1/{updated_unix_ms}");
         json.push_str("{\"updated_unix_ms\":");
         json.push_str(&updated_unix_ms.to_string());
+        json.push_str(",\"line\":");
+        append_json_string(&mut json, &minor_line);
+        json.push_str(",\"api_version\":");
+        append_json_string(&mut json, API_VERSION);
         json.push_str(",\"path\":");
         append_json_string(&mut json, &relative_path);
         json.push_str(",\"meta_path\":");
@@ -158,6 +197,13 @@ fn write_history_index(history_root: &Path) -> Result<(), String> {
     }
     json.push_str("]}");
     write_text_file(&history_root.join("index.json"), &json)
+}
+
+fn current_minor_line() -> String {
+    let mut parts = API_VERSION.split('.');
+    let major = parts.next().unwrap_or("0");
+    let minor = parts.next().unwrap_or("0");
+    format!("v{major}.{minor}.x")
 }
 
 fn prune_history_snapshots(history_root: &Path, keep: usize) -> Result<(), String> {
