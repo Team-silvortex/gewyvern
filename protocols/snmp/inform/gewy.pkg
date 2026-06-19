@@ -1,0 +1,7 @@
+name=snmp_inform
+version=0.15.0
+entry=main.gewy
+register.protocol=snmp
+register.entry=inform
+register.default=false
+register.entry_aliases=ack-notify,confirm-notify

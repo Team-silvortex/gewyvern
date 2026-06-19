@@ -1,0 +1,8 @@
+name=snmp_trap_recv
+version=0.15.0
+entry=main.gewy
+register.protocol=snmp
+register.entry=trap-recv
+register.default=false
+register.aliases=snmp-trap-recv,snmp_trap_recv
+register.entry_aliases=listen-trap,trap-listener

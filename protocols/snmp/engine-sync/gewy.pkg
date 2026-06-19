@@ -1,0 +1,8 @@
+name=snmp_engine_sync
+version=0.15.0
+entry=main.gewy
+register.protocol=snmp
+register.entry=engine-sync
+register.default=false
+register.aliases=snmp-engine-sync,snmp_engine_sync
+register.entry_aliases=engine-discovery,report-sync

@@ -1,0 +1,21 @@
+# gewyvern stable-subset protocol path
+
+fn snmp_trap_recv_rules() =
+  let module_name = :snmp_trap_recv_path
+  let route_narrative = "static:program resolved a local trap receive route for this SNMP path"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:snmp_trap_recv)
+  |> reason_model(:snmp_trap_recv_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_listener)
+  |> program_rule(predicate: "datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa7", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_trap_notification)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_listener)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa7", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_trap_notification)
+
+template(:snmp_trap_recv_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:snmp_trap_recv_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

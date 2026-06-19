@@ -1,0 +1,8 @@
+name=snmp_v3_priv
+version=0.15.0
+entry=main.gewy
+register.protocol=snmp
+register.entry=v3-priv
+register.default=false
+register.aliases=snmp-v3-priv,snmp_v3_priv
+register.entry_aliases=private-session,encrypted-session

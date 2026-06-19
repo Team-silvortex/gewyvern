@@ -1,0 +1,8 @@
+name=snmp_v3_auth
+version=0.15.0
+entry=main.gewy
+register.protocol=snmp
+register.entry=v3-auth
+register.default=false
+register.aliases=snmp-v3-auth,snmp_v3_auth
+register.entry_aliases=auth-user,auth-session

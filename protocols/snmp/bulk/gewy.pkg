@@ -1,0 +1,8 @@
+name=snmp_bulk
+version=0.15.0
+entry=main.gewy
+register.protocol=snmp
+register.entry=bulk
+register.default=false
+register.aliases=snmp-bulk,snmp_bulk
+register.entry_aliases=bulk-walk,table-read

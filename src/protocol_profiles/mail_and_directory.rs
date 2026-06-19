@@ -140,6 +140,10 @@ pub(super) const SNMP_PROFILE: ProtocolProfile = ProtocolProfile {
     default_entry: "get",
     entries: &[
         ProtocolEntryProfile {
+            mode: "bulk",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_bulk_path.gewy",
+        },
+        ProtocolEntryProfile {
             mode: "get",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy",
         },
@@ -150,6 +154,30 @@ pub(super) const SNMP_PROFILE: ProtocolProfile = ProtocolProfile {
         ProtocolEntryProfile {
             mode: "set",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_set_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "trap",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_trap_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "inform",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_inform_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "engine-sync",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_engine_sync_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "trap-recv",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_trap_recv_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "v3-auth",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_v3_auth_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "v3-priv",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_v3_priv_path.gewy",
         },
     ],
 };

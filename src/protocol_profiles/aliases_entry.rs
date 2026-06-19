@@ -422,6 +422,76 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES: &[ProtocolAlias] = &[
         entry: Some("set"),
     },
     ProtocolAlias {
+        alias: "notify",
+        protocol: "snmp",
+        entry: Some("trap"),
+    },
+    ProtocolAlias {
+        alias: "alert",
+        protocol: "snmp",
+        entry: Some("trap"),
+    },
+    ProtocolAlias {
+        alias: "ack-notify",
+        protocol: "snmp",
+        entry: Some("inform"),
+    },
+    ProtocolAlias {
+        alias: "confirm-notify",
+        protocol: "snmp",
+        entry: Some("inform"),
+    },
+    ProtocolAlias {
+        alias: "bulk-walk",
+        protocol: "snmp",
+        entry: Some("bulk"),
+    },
+    ProtocolAlias {
+        alias: "table-read",
+        protocol: "snmp",
+        entry: Some("bulk"),
+    },
+    ProtocolAlias {
+        alias: "auth-user",
+        protocol: "snmp",
+        entry: Some("v3-auth"),
+    },
+    ProtocolAlias {
+        alias: "auth-session",
+        protocol: "snmp",
+        entry: Some("v3-auth"),
+    },
+    ProtocolAlias {
+        alias: "private-session",
+        protocol: "snmp",
+        entry: Some("v3-priv"),
+    },
+    ProtocolAlias {
+        alias: "encrypted-session",
+        protocol: "snmp",
+        entry: Some("v3-priv"),
+    },
+    ProtocolAlias {
+        alias: "engine-discovery",
+        protocol: "snmp",
+        entry: Some("engine-sync"),
+    },
+    ProtocolAlias {
+        alias: "report-sync",
+        protocol: "snmp",
+        entry: Some("engine-sync"),
+    },
+    ProtocolAlias {
+        alias: "listen-trap",
+        protocol: "snmp",
+        entry: Some("trap-recv"),
+    },
+    ProtocolAlias {
+        alias: "trap-listener",
+        protocol: "snmp",
+        entry: Some("trap-recv"),
+    },
+    ProtocolAlias {
         alias: "connect",
         protocol: "socks5",
         entry: Some("session"),

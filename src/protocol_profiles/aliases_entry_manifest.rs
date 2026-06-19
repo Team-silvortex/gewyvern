@@ -397,6 +397,16 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES_MANIFEST: &[ProtocolAlias] = &[
         entry: Some("set"),
     },
     ProtocolAlias {
+        alias: "snmp-trap",
+        protocol: "snmp",
+        entry: Some("trap"),
+    },
+    ProtocolAlias {
+        alias: "snmp_trap",
+        protocol: "snmp",
+        entry: Some("trap"),
+    },
+    ProtocolAlias {
         alias: "coap-post",
         protocol: "coap",
         entry: Some("post"),

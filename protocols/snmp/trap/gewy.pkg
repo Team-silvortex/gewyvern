@@ -1,0 +1,8 @@
+name=snmp_trap
+version=0.15.0
+entry=main.gewy
+register.protocol=snmp
+register.entry=trap
+register.default=false
+register.aliases=snmp-trap,snmp_trap
+register.entry_aliases=notify,alert

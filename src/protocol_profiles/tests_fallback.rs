@@ -223,9 +223,16 @@ fn built_in_rtsp_summary_keeps_probe_and_stream_aliases() {
 }
 
 #[test]
-fn built_in_snmp_summary_keeps_query_walk_and_write_aliases() {
+fn built_in_snmp_summary_keeps_bulk_read_write_and_notify_aliases() {
     let summary = built_in_protocol_summary("snmp").expect("snmp summary should exist");
     let entries = summary.entries;
+
+    let bulk = entries
+        .iter()
+        .find(|entry| entry.mode == "bulk")
+        .expect("snmp bulk entry should exist");
+    assert!(bulk.aliases.contains(&"bulk-walk".to_string()));
+    assert!(bulk.aliases.contains(&"table-read".to_string()));
 
     let get = entries
         .iter()
@@ -246,4 +253,46 @@ fn built_in_snmp_summary_keeps_query_walk_and_write_aliases() {
         .expect("snmp set entry should exist");
     assert!(set.aliases.contains(&"write".to_string()));
     assert!(set.aliases.contains(&"update".to_string()));
+
+    let trap = entries
+        .iter()
+        .find(|entry| entry.mode == "trap")
+        .expect("snmp trap entry should exist");
+    assert!(trap.aliases.contains(&"notify".to_string()));
+    assert!(trap.aliases.contains(&"alert".to_string()));
+
+    let inform = entries
+        .iter()
+        .find(|entry| entry.mode == "inform")
+        .expect("snmp inform entry should exist");
+    assert!(inform.aliases.contains(&"ack-notify".to_string()));
+    assert!(inform.aliases.contains(&"confirm-notify".to_string()));
+
+    let engine_sync = entries
+        .iter()
+        .find(|entry| entry.mode == "engine-sync")
+        .expect("snmp engine-sync entry should exist");
+    assert!(engine_sync.aliases.contains(&"engine-discovery".to_string()));
+    assert!(engine_sync.aliases.contains(&"report-sync".to_string()));
+
+    let trap_recv = entries
+        .iter()
+        .find(|entry| entry.mode == "trap-recv")
+        .expect("snmp trap-recv entry should exist");
+    assert!(trap_recv.aliases.contains(&"listen-trap".to_string()));
+    assert!(trap_recv.aliases.contains(&"trap-listener".to_string()));
+
+    let v3_auth = entries
+        .iter()
+        .find(|entry| entry.mode == "v3-auth")
+        .expect("snmp v3-auth entry should exist");
+    assert!(v3_auth.aliases.contains(&"auth-user".to_string()));
+    assert!(v3_auth.aliases.contains(&"auth-session".to_string()));
+
+    let v3_priv = entries
+        .iter()
+        .find(|entry| entry.mode == "v3-priv")
+        .expect("snmp v3-priv entry should exist");
+    assert!(v3_priv.aliases.contains(&"private-session".to_string()));
+    assert!(v3_priv.aliases.contains(&"encrypted-session".to_string()));
 }
