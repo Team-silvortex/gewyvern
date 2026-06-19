@@ -102,7 +102,7 @@ pub(crate) fn tls_shelf(entry: &str) -> Option<ShelfMatch> {
 }
 
 pub(crate) fn stun_shelf(entry: &str) -> Option<ShelfMatch> {
-    const BINDING: &[&str] = &["binding"];
+    const BINDING: &[&str] = &["binding", "binding-error"];
     const RELAY: &[&str] = &["allocate", "refresh"];
     if BINDING.contains(&entry) {
         Some((
@@ -172,7 +172,7 @@ pub(crate) fn ntp_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn dhcp_shelf(entry: &str) -> Option<ShelfMatch> {
     const CLIENT: &[&str] = &["client"];
-    const LEASE: &[&str] = &["discover", "request"];
+    const LEASE: &[&str] = &["discover", "nak", "request"];
     if CLIENT.contains(&entry) {
         Some((
             "client",

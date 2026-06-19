@@ -19,6 +19,7 @@ Read alongside:
 | family | entry | transition | expected mode | expected detail | expected basis |
 | --- | --- | --- | --- | --- | --- |
 | SNMP | `get` | `send_get_request->receive_get_response` | `no_response` | `request_sent_no_reply` | `missing_transition` |
+| SNMP | `get-next` | `send_get_next_request->receive_get_next_response` | `no_response` | `request_sent_no_reply` | `missing_transition` |
 | SNMP | `bulk` | `send_bulk_request->receive_bulk_response` | `no_response` | `request_sent_no_reply` | `missing_transition` |
 | SNMP | `set` | `send_set_request->receive_set_response` | `no_response` | `request_sent_no_reply` | `missing_transition` |
 | SNMP | `inform` | `send_inform_notification->receive_inform_response` | `no_response` | `request_sent_no_reply` | `missing_transition` |
@@ -35,7 +36,10 @@ Read alongside:
 
 | family | entry | observed terminal phase | expected mode | expected detail | expected basis |
 | --- | --- | --- | --- | --- | --- |
+| DHCP | `nak` | `receive_nak` | `server_denied` | `request_rejected` | `direct_protocol_signal` |
+| SNMP | `report` | `receive_report_pdu` | `semantic_error` | `protocol_error` | `direct_protocol_signal` |
 | SNMP | `unauthorized` | `receive_authorization_failure_report` | `server_denied` | `access_denied` | `direct_protocol_signal` |
+| STUN | `binding-error` | `receive_error_response` | `semantic_error` | `protocol_error` | `direct_protocol_signal` |
 
 ## Result-Surface Matrix
 
@@ -44,7 +48,7 @@ collapsed into denial or timeout without extra context.
 
 | family | entry | observed phase | operator stance |
 | --- | --- | --- | --- |
-| SNMP | `report` | `receive_report_pdu` | treat as explicit result surface first |
+| SNMP | `report` | `receive_report_pdu` | treat as explicit result, not timeout |
 | DHCP | `discover` | `receive_offer` | treat as lease-progress result |
 | DHCP | `request` | `receive_ack` | treat as lease-confirmation result |
 | STUN | `allocate` | `receive_allocate_response` | treat as relay-state result |

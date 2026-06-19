@@ -1,0 +1,8 @@
+name=stun_binding_error
+version=0.15.0
+entry=main.gewy
+register.protocol=stun
+register.entry=binding-error
+register.default=false
+register.aliases=stun-binding-error,stun_binding_error
+register.entry_aliases=binding-denied,binding-error

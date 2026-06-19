@@ -5,6 +5,7 @@ fn dhcp_protocol_summary_exposes_new_entries_and_aliases() {
     let summary = protocol_summary("dhcp").expect("dhcp summary should exist");
     assert_eq!(summary.default_entry, "client");
     assert!(summary.entries.iter().any(|entry| entry.mode == "discover"));
+    assert!(summary.entries.iter().any(|entry| entry.mode == "nak"));
     assert!(summary.entries.iter().any(|entry| entry.mode == "request"));
 
     let request = summary
@@ -14,6 +15,14 @@ fn dhcp_protocol_summary_exposes_new_entries_and_aliases() {
         .expect("dhcp request entry should exist");
     assert!(request.aliases.contains(&"lease-request".to_string()));
     assert!(request.aliases.contains(&"renew".to_string()));
+
+    let nak = summary
+        .entries
+        .iter()
+        .find(|entry| entry.mode == "nak")
+        .expect("dhcp nak entry should exist");
+    assert!(nak.aliases.contains(&"offer-denied".to_string()));
+    assert!(nak.aliases.contains(&"lease-denied".to_string()));
 }
 
 #[test]
@@ -26,6 +35,10 @@ fn dhcp_protocol_aliases_resolve_to_canonical_packages() {
         protocol_dsl_path("dhcp-request", None),
         Some("/Users/Shared/chroot/dev/gewyvern/protocols/dhcp/request".to_string())
     );
+    assert_eq!(
+        protocol_dsl_path("dhcp-nak", None),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/dhcp/nak".to_string())
+    );
 
     let entries = protocol_entries("dhcp").expect("dhcp entries should resolve");
     assert_eq!(
@@ -33,6 +46,7 @@ fn dhcp_protocol_aliases_resolve_to_canonical_packages() {
         vec![
             "client".to_string(),
             "discover".to_string(),
+            "nak".to_string(),
             "request".to_string()
         ]
     );

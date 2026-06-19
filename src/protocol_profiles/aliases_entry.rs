@@ -512,6 +512,46 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES: &[ProtocolAlias] = &[
         entry: Some("unauthorized"),
     },
     ProtocolAlias {
+        alias: "offer-denied",
+        protocol: "dhcp",
+        entry: Some("nak"),
+    },
+    ProtocolAlias {
+        alias: "dhcp-nak",
+        protocol: "dhcp",
+        entry: Some("nak"),
+    },
+    ProtocolAlias {
+        alias: "dhcp_nak",
+        protocol: "dhcp",
+        entry: Some("nak"),
+    },
+    ProtocolAlias {
+        alias: "lease-denied",
+        protocol: "dhcp",
+        entry: Some("nak"),
+    },
+    ProtocolAlias {
+        alias: "binding-denied",
+        protocol: "stun",
+        entry: Some("binding-error"),
+    },
+    ProtocolAlias {
+        alias: "stun-binding-error",
+        protocol: "stun",
+        entry: Some("binding-error"),
+    },
+    ProtocolAlias {
+        alias: "stun_binding_error",
+        protocol: "stun",
+        entry: Some("binding-error"),
+    },
+    ProtocolAlias {
+        alias: "binding-error",
+        protocol: "stun",
+        entry: Some("binding-error"),
+    },
+    ProtocolAlias {
         alias: "connect",
         protocol: "socks5",
         entry: Some("session"),

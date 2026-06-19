@@ -91,6 +91,7 @@ pub(crate) fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslE
         "pop3" => Ok(110),
         "ssh" => Ok(22),
         "snmp" => Ok(161),
+        "snmp_trap" | "snmptrap" => Ok(162),
         "kerberos" => Ok(88),
         other => other
             .parse::<u16>()

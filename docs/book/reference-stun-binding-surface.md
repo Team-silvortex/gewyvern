@@ -5,14 +5,18 @@ Read this page when the question is specifically about `binding`.
 Canonical entry:
 
 - `binding`
+- `binding-error`
 
 This slice covers the smallest STUN reachability round-trip:
 
 - emit a binding request
 - observe a binding response
+- or observe an explicit binding error response
 
-This slice does not use extra entry aliases today; `binding` stays the stable
-spelling.
+Accepted aliases here:
+
+- `binding-denied`
+- `binding-error`
 
 Return to the family hub:
 

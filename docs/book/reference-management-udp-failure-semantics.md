@@ -33,10 +33,11 @@ Expected summary labels:
 Typical examples:
 
 - SNMP `send_get_request->receive_get_response`
+- SNMP `send_get_next_request->receive_get_next_response`
 - SNMP `send_engine_sync_probe->receive_engine_sync_report`
-- NTP `send_time_query->receive_time_response`
+- NTP `send_query->receive_response`
 - DHCP `send_discover->receive_offer`
-- STUN `send_binding_request->receive_binding_success`
+- STUN `send_request->receive_response`
 
 Use this interpretation when the outbound control datagram is real and the
 missing part is the expected response or report.
@@ -65,7 +66,10 @@ Expected summary labels:
 - `primary_failure_detail = access_denied` or family-specific denial detail
 - `primary_failure_basis = direct_protocol_signal`
 
-SNMP `unauthorized` is the clearest example in the current `0.15.x` line.
+Current examples in the `0.15.x` line:
+
+- SNMP `unauthorized`
+- DHCP `nak`
 
 ### 4. Explicit result packet that is not the same as denial
 
@@ -76,6 +80,7 @@ Examples:
 
 - SNMP `report`
 - DHCP lease progress packets
+- STUN binding error responses
 - STUN relay maintenance responses
 
 Treat those as observed result surfaces first, then decide whether a higher

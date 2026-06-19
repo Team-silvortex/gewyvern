@@ -44,6 +44,8 @@ fn terminal_failure_phase(phase: &str) -> bool {
         || lowered == "auth_required"
         || lowered == "authorization_failure"
         || lowered == "unauthorized"
+        || lowered == "nak"
+        || lowered == "report_pdu"
         || lowered == "constraint"
         || lowered == "error"
         || lowered == "closed"
@@ -51,6 +53,8 @@ fn terminal_failure_phase(phase: &str) -> bool {
         || lowered.contains("auth_required")
         || lowered.contains("authorization_failure")
         || lowered.contains("unauthorized")
+        || lowered.contains("nak")
+        || lowered.contains("report_pdu")
         || lowered.contains("constraint")
         || lowered.contains("error")
         || lowered.contains("close")

@@ -10,6 +10,7 @@ Read it alongside:
 Use this page for:
 
 - missing binding response
+- explicit binding error response
 - relay allocation timeout
 - refresh maintenance drift
 - keeping observed relay results separate from plain timeout
@@ -20,7 +21,7 @@ Use this page for:
 
 Typical transition:
 
-- `send_binding_request->receive_binding_success`
+- `send_request->receive_response`
 
 Expected summary labels:
 
@@ -32,13 +33,24 @@ Expected summary labels:
 
 Typical transitions:
 
-- `send_allocate_request->receive_allocate_success`
-- `send_refresh_request->receive_refresh_success`
+- `send_allocate_request->receive_allocate_response`
+- `send_refresh_request->receive_refresh_response`
 
 These normally stay in the same timeout family once the outbound control packet
 was observed.
 
-### 3. Relay maintenance result observed
+### 3. Binding error response observed
+
+When a STUN binding exchange returns an explicit error response, treat it as a
+direct protocol result rather than timeout.
+
+Expected summary labels:
+
+- `primary_failure_mode = semantic_error`
+- `primary_failure_detail = protocol_error`
+- `primary_failure_basis = direct_protocol_signal`
+
+### 4. Relay maintenance result observed
 
 Some relay-oriented packets are operationally meaningful results, not merely
 timeouts in disguise.

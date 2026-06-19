@@ -1,0 +1,8 @@
+name=dhcp_nak
+version=0.15.0
+entry=main.gewy
+register.protocol=dhcp
+register.entry=nak
+register.default=false
+register.aliases=dhcp-nak,dhcp_nak
+register.entry_aliases=offer-denied,lease-denied

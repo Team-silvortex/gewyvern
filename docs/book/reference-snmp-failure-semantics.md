@@ -43,6 +43,7 @@ Canonical summary labels:
 Typical transition examples:
 
 - `send_get_request->receive_get_response`
+- `send_get_next_request->receive_get_next_response`
 - `send_bulk_request->receive_bulk_response`
 - `send_set_request->receive_set_response`
 - `send_inform_notification->receive_inform_response`
@@ -58,9 +59,13 @@ real result entries.
 - `unauthorized`
   use when the observed report clearly expresses authorization failure
 
-For `report`, keep it as an explicit observed result surface first. It may
-carry remediation value without automatically meaning the entire exchange should
-be collapsed into a timeout diagnosis.
+For `report`, keep it as an explicit observed result surface first. It should
+not be collapsed into a timeout diagnosis. In the current `0.15.x` line, the
+expected diagnosis posture is:
+
+- `primary_failure_mode = semantic_error`
+- `primary_failure_detail = protocol_error`
+- `primary_failure_basis = direct_protocol_signal`
 
 For `unauthorized`, the expected diagnosis posture is:
 

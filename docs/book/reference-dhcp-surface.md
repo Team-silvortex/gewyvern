@@ -9,6 +9,7 @@ Use it for:
 - default entry selection for `client`
 - separating generic client posture from explicit lease negotiation steps
 - package aliases such as `dhcp-discover`, `dhcp_discover`, `dhcp-request`, and `dhcp_request`
+- explicit refusal paths such as `dhcp-nak` and `dhcp_nak`
 - shared management-UDP timeout and negotiation-failure semantics
 
 Primary subpages:
@@ -22,6 +23,7 @@ Current canonical entries:
 
 - `client` as the default entry
 - `discover`
+- `nak`
 - `request`
 
 Default entry: `client`

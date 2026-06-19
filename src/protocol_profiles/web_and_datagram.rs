@@ -130,6 +130,10 @@ pub(super) const STUN_PROFILE: ProtocolProfile = ProtocolProfile {
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy",
         },
         ProtocolEntryProfile {
+            mode: "binding-error",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_error_path.gewy",
+        },
+        ProtocolEntryProfile {
             mode: "allocate",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/stun_allocate_path.gewy",
         },
@@ -197,6 +201,10 @@ pub(super) const DHCP_PROFILE: ProtocolProfile = ProtocolProfile {
         ProtocolEntryProfile {
             mode: "request",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_request_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "nak",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_nak_path.gewy",
         },
     ],
 };

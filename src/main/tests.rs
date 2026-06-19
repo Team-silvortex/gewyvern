@@ -62,6 +62,10 @@ mod mail_delivery;
 mod mail_flow;
 #[path = "tests/management_udp_failure_semantics.rs"]
 mod management_udp_failure_semantics;
+#[path = "tests/management_udp_direct_signal_semantics.rs"]
+mod management_udp_direct_signal_semantics;
+#[path = "tests/management_udp_result_semantics.rs"]
+mod management_udp_result_semantics;
 #[path = "tests/pop_kerberos.rs"]
 mod pop_kerberos;
 #[path = "tests/relay_and_mail.rs"]
@@ -76,6 +80,8 @@ mod runtime_config;
 mod runtime_migration;
 #[path = "tests/snmp_failure_semantics.rs"]
 mod snmp_failure_semantics;
+#[path = "tests/snmp_result_semantics.rs"]
+mod snmp_result_semantics;
 #[path = "tests/ssh_tls.rs"]
 mod ssh_tls;
 #[path = "tests/support_external.rs"]

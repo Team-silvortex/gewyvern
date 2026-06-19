@@ -102,6 +102,7 @@ pub(crate) fn stage_family_label(stage: &str) -> &'static str {
         || lowered.contains("response")
         || lowered.contains("query")
         || lowered.contains("discover")
+        || lowered.contains("nak")
         || lowered.contains("offer")
         || lowered.contains("probe")
         || lowered.contains("report")
@@ -146,10 +147,15 @@ pub(crate) fn failure_mode_label(
         || stage.contains("auth_required")
         || stage.contains("authorization_failure")
         || stage.contains("unauthorized")
+        || stage.contains("nak")
     {
         return "server_denied";
     }
-    if stage.contains("constraint") || stage.contains("error") || module.contains("error") {
+    if stage.contains("report_pdu")
+        || stage.contains("constraint")
+        || stage.contains("error")
+        || module.contains("error")
+    {
         return "semantic_error";
     }
     if stage.contains("close") {
@@ -325,7 +331,10 @@ pub(crate) fn failure_detail_label(
     {
         return "access_denied";
     }
-    if stage.contains("error") || module.contains("error") {
+    if stage.contains("nak") {
+        return "request_rejected";
+    }
+    if stage.contains("report_pdu") || stage.contains("error") || module.contains("error") {
         return "protocol_error";
     }
     if stage.contains("close") {
@@ -472,7 +481,7 @@ pub(crate) fn failure_detail_family_label(detail: &str) -> &'static str {
         "request_sent_no_reply" => "timeout",
         "request_not_sent" | "followup_not_sent" => "blocked",
         "protocol_error" | "protocol_constraint_violation" => "semantic",
-        "access_denied" | "auth_required" => "denied",
+        "access_denied" | "auth_required" | "request_rejected" => "denied",
         "peer_closed" => "peer",
         "none" => "none",
         _ => "general",
@@ -505,6 +514,8 @@ pub(crate) fn failure_basis_label(
         || stage.contains("auth_required")
         || stage.contains("authorization_failure")
         || stage.contains("unauthorized")
+        || stage.contains("nak")
+        || stage.contains("report_pdu")
         || stage.contains("constraint")
         || stage.contains("error")
         || stage.contains("close")

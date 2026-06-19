@@ -19,7 +19,7 @@ Use this page for:
 
 Typical transition:
 
-- `send_time_query->receive_time_response`
+- `send_query->receive_response`
 
 Expected summary labels:
 
@@ -31,7 +31,7 @@ Expected summary labels:
 
 Typical transition:
 
-- `send_time_sync->receive_time_sync_ack`
+- `send_sync_request->receive_sync_response`
 
 Depending on the exact path, this may land as:
 

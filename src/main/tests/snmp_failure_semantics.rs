@@ -129,6 +129,79 @@ fn summary_json_carries_snmp_get_timeout_detail() {
 }
 
 #[test]
+fn summary_json_carries_snmp_get_next_timeout_detail() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_next_path.gewy")
+        .expect("snmp_get_next_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 91011, 43011, "snmpwalk"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    91011,
+                    7,
+                    SessionId(1),
+                ),
+                snmp_udp_packet_fact(
+                    3,
+                    91011,
+                    PacketDir::Egress,
+                    49011,
+                    161,
+                    &[(0, 0x30), (1, 0x2b), (4, 0x02), (13, 0xa1)],
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "snmp_get_next_path",
+        "snmp_get_next",
+        "receive_get_next_response",
+        "receive_payload",
+        "send_get_next_request->receive_get_next_response",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing snmp get-next response",
+        "udp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let json = summary_json("dsl_demo", &export);
+    assert!(
+        json.contains("\"primary_module_kind\":\"management_query\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"no_response\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_basis\":\"missing_transition\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains(
+            "\"missing_transitions\":[\"send_get_next_request->receive_get_next_response\"]"
+        ),
+        "json={}",
+        json
+    );
+}
+
+#[test]
 fn summary_json_carries_snmp_bulk_timeout_detail() {
     let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_bulk_path.gewy")
         .expect("snmp_bulk_path DSL should compile");
@@ -241,6 +314,57 @@ fn summary_json_carries_snmp_unauthorized_denied_detail() {
     );
     assert!(
         json.contains("\"primary_failure_detail\":\"access_denied\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""),
+        "json={}",
+        json
+    );
+}
+
+#[test]
+fn summary_json_carries_snmp_report_semantic_detail() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_report_path.gewy")
+        .expect("snmp_report_path DSL should compile");
+    let export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 91004, 43004, "snmpd"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    91004,
+                    7,
+                    SessionId(1),
+                ),
+                snmp_udp_packet_fact(
+                    3,
+                    91004,
+                    PacketDir::Ingress,
+                    49004,
+                    161,
+                    &[(0, 0x30), (1, 0x2f), (4, 0x03), (13, 0xa8)],
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+    );
+    let json = summary_json("dsl_demo", &export);
+    assert!(
+        json.contains("\"primary_module_kind\":\"management_query\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
         "json={}",
         json
     );
