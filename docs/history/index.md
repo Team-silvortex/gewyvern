@@ -13,6 +13,8 @@ The rule from here forward is simple:
 - every new minor line gets one durable snapshot page
 - that page records what the line meant, what changed in posture, and what
   evidence existed at the time
+- when collaboration validation matters, keep the archive-friendly summaries
+  produced by the current validation helpers instead of relying on memory
 - create that page when the line really starts, not as an empty placeholder
 - patch releases inside the same minor line do **not** get their own separate
   history page unless they materially redefine the line
@@ -43,6 +45,9 @@ background cleanup.
   make `v1.0.0` the direct next step after the final pre-`1.0` seal.
 - [docs/history/v0.16.x-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.16.x-checklist.md)
   Contract-tightening execution checklist for the planned `0.16.x` line.
+- [docs/history/minor-line-evidence-bundle.md](/Users/Shared/chroot/dev/gewyvern/docs/history/minor-line-evidence-bundle.md)
+  Small durable template for what validation artifacts should accompany a new
+  minor-line history page.
 
 ## Release-Line Ledger
 
@@ -75,6 +80,12 @@ repo now includes:
 - [scripts/history/render_minor_line_ir_snapshot.sh](/Users/Shared/chroot/dev/gewyvern/scripts/history/render_minor_line_ir_snapshot.sh)
   Thin helper that renders Markdown-ready IR history snapshot blocks from one
   or more `.gewy` inputs.
+- [scripts/validation/three_module_stack_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh)
+  Current cross-project gate that can also emit one small `resilience-summary`
+  text artifact for archive-friendly runtime-collaboration evidence.
+- [docs/history/minor-line-evidence-bundle.md](/Users/Shared/chroot/dev/gewyvern/docs/history/minor-line-evidence-bundle.md)
+  Compact rule sheet for what to preserve alongside the history page when one
+  line's validation posture needs durable companion artifacts.
 
 Use other pages when you want something else:
 

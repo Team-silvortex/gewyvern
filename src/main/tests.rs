@@ -72,6 +72,8 @@ mod pop_kerberos;
 mod relay_and_mail;
 #[path = "tests/reports.rs"]
 mod reports;
+#[path = "tests/resilience_api.rs"]
+mod resilience_api;
 #[path = "tests/rtsp_http_tls.rs"]
 mod rtsp_http_tls;
 #[path = "tests/runtime_config.rs"]

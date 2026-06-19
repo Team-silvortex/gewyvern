@@ -52,6 +52,9 @@ command or script, prefer these top-level operator shelves first:
 - [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
   Practical validation ladder for the current CLI, compiler, registry, and
   container/runtime surfaces.
+- [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
+  Fault-inject external-engine and socket-session failures to confirm that
+  repeated failure degrades into visible bounded fallback instead of hangs.
 - [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
   Fast script routing when you already know what kind of validation you need.
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)

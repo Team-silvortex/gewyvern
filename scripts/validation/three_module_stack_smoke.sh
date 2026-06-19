@@ -24,6 +24,7 @@ WORK_DIR="$(mktemp -d /private/tmp/three-module-stack.XXXXXX)"
 TARGET_CACHE_DIR="${WORK_DIR}/target-cache"
 STATE_PATH="${WORK_DIR}/leserpent-state.json"
 LESP_LOG="${WORK_DIR}/leserpent.log"
+RESILIENCE_SUMMARY_PATH="${RESILIENCE_SUMMARY_PATH:-${WORK_DIR}/resilience-summary.txt}"
 mkdir -p "${TARGET_CACHE_DIR}"
 
 LESP_PID=""
@@ -170,7 +171,6 @@ wait_for_meta_field() {
   done
   return 1
 }
-
 wait_for_json_fragment() {
   local url="$1"
   local fragment="$2"
@@ -186,7 +186,6 @@ wait_for_json_fragment() {
   done
   return 1
 }
-
 wait_for_json_any_fragment() {
   local url="$1"
   shift
@@ -204,7 +203,72 @@ wait_for_json_any_fragment() {
   done
   return 1
 }
-
+wait_for_runtime_resilience_healthy() {
+  local url="$1"
+  for _ in $(seq 1 240); do
+    local body
+    if body="$(curl -fsS "${url}" 2>/dev/null)"; then
+      if printf '%s' "${body}" | python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+assert payload["surface"] == "runtime_resilience", payload
+assert payload["status"] == "healthy", payload
+assert payload["severity"] == "ok", payload
+assert payload["degraded"] is False, payload
+assert payload["recommended_actions"] == ["no operator action required"], payload
+external = payload["external_analysis"]
+socket = payload["socket_service"]
+assert external["status"] == "healthy", external
+assert socket["status"] == "healthy", socket
+print("true")' | grep -qx 'true'; then
+        printf '%s' "${body}"
+        return 0
+      fi
+    fi
+    sleep 0.25
+  done
+  return 1
+}
+wait_for_runtime_resilience_degraded() {
+  local url="$1"
+  for _ in $(seq 1 240); do
+    local body
+    if body="$(curl -fsS "${url}" 2>/dev/null)"; then
+      if printf '%s' "${body}" | python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+assert payload["surface"] == "runtime_resilience", payload
+assert payload["status"] == "degraded", payload
+assert payload["severity"] == "warning", payload
+assert payload["degraded"] is True, payload
+assert "inspect recent socket clients for malformed or incomplete sessions" in payload["recommended_actions"], payload
+socket = payload["socket_service"]
+assert socket["consecutive_failures"] >= 2, socket
+assert socket["status"] == "backing_off", socket
+print("true")' | grep -qx 'true'; then
+        printf '%s' "${body}"
+        return 0
+      fi
+    fi
+    sleep 0.25
+  done
+  return 1
+}
+wait_for_health_resilience_flag() {
+  local url="$1"
+  local expected="$2"
+  for _ in $(seq 1 240); do
+    local body
+    if body="$(curl -fsS "${url}" 2>/dev/null)"; then
+      if [ "$(printf '%s' "${body}" | python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+print("true" if bool(payload.get("resilience_degraded")) else "false")')" = "${expected}" ]; then
+        printf '%s' "${body}"
+        return 0
+      fi
+    fi
+    sleep 0.25
+  done
+  return 1
+}
 wait_etragon_http() {
   local url="$1"
   for _ in $(seq 1 240); do
@@ -215,7 +279,6 @@ wait_etragon_http() {
   done
   return 1
 }
-
 wait_for_etragon_json_fragment() {
   local url="$1"
   local fragment="$2"
@@ -231,7 +294,6 @@ wait_for_etragon_json_fragment() {
   done
   return 1
 }
-
 wait_for_etragon_json_any_fragment() {
   local url="$1"
   shift
@@ -249,7 +311,6 @@ wait_for_etragon_json_any_fragment() {
   done
   return 1
 }
-
 wait_for_sidecar_health() {
   local url="$1"
   local runtime_name="$2"
@@ -274,7 +335,6 @@ print("false")
   done
   return 1
 }
-
 ingest_template() {
   local container_name="$1"
   local template="$2"
@@ -282,7 +342,19 @@ ingest_template() {
     --tcp-socket 127.0.0.1:9000 \
     --template "${template}" >/dev/null
 }
-
+inject_socket_bad_json() {
+  local container_name="$1"
+  local count="${2:-4}"
+  docker exec "${container_name}" bash -lc "
+    set -euo pipefail
+    for _ in \$(seq 1 ${count}); do
+      exec 3<>/dev/tcp/127.0.0.1/9000
+      printf '{\"bad\":\"json\"\\n' >&3 || true
+      exec 3>&-
+      exec 3<&-
+    done
+  " >/dev/null
+}
 register_runtime() {
   local name="$1"
   local endpoint="$2"
@@ -310,10 +382,8 @@ print(json.dumps({
 }))
 PY
 }
-
 start_gewyvern "${GW_A_NAME}" "${GW_A_SOCKET_PORT}" "${GW_A_API_PORT}"
 start_gewyvern "${GW_B_NAME}" "${GW_B_SOCKET_PORT}" "${GW_B_API_PORT}"
-
 wait_http "http://127.0.0.1:${GW_A_API_PORT}/health" || {
   echo "gw-a did not become healthy" >&2
   docker ps -a --filter "name=${GW_A_NAME}" >&2 || true
@@ -326,33 +396,52 @@ wait_http "http://127.0.0.1:${GW_B_API_PORT}/health" || {
   docker logs "${GW_B_NAME}" >&2 || true
   exit 1
 }
-
 ingest_template "${GW_A_NAME}" udp
 ingest_template "${GW_B_NAME}" udp
-
+GW_A_RESILIENCE_JSON="$(wait_for_runtime_resilience_healthy "http://127.0.0.1:${GW_A_API_PORT}/v1/runtime/resilience.json")" || {
+  echo "gw-a never published a healthy resilience surface" >&2
+  curl -fsS "http://127.0.0.1:${GW_A_API_PORT}/v1/runtime/resilience.json" >&2 || true
+  docker logs "${GW_A_NAME}" >&2 || true
+  exit 1
+}
+GW_B_RESILIENCE_JSON="$(wait_for_runtime_resilience_healthy "http://127.0.0.1:${GW_B_API_PORT}/v1/runtime/resilience.json")" || {
+  echo "gw-b never published a healthy resilience surface" >&2
+  curl -fsS "http://127.0.0.1:${GW_B_API_PORT}/v1/runtime/resilience.json" >&2 || true
+  docker logs "${GW_B_NAME}" >&2 || true
+  exit 1
+}
+inject_socket_bad_json "${GW_B_NAME}" 5
+GW_B_DEGRADED_HEALTH_JSON="$(wait_for_health_resilience_flag "http://127.0.0.1:${GW_B_API_PORT}/health" "true")" || {
+  echo "gw-b never exposed resilience_degraded=true after repeated socket failures" >&2
+  curl -fsS "http://127.0.0.1:${GW_B_API_PORT}/health" >&2 || true
+  docker logs "${GW_B_NAME}" >&2 || true
+  exit 1
+}
+GW_B_DEGRADED_RESILIENCE_JSON="$(wait_for_runtime_resilience_degraded "http://127.0.0.1:${GW_B_API_PORT}/v1/runtime/resilience.json")" || {
+  echo "gw-b never published a degraded resilience surface after repeated socket failures" >&2
+  curl -fsS "http://127.0.0.1:${GW_B_API_PORT}/v1/runtime/resilience.json" >&2 || true
+  docker logs "${GW_B_NAME}" >&2 || true
+  exit 1
+}
 wait_for_meta_field "http://127.0.0.1:${GW_A_API_PORT}/v1/latest/meta" "has_analysis_json" "true" || {
   echo "gw-a never published analysis_json" >&2
   curl -fsS "http://127.0.0.1:${GW_A_API_PORT}/v1/latest/meta" >&2 || true
   docker logs "${GW_A_NAME}" >&2 || true
   exit 1
 }
-
 wait_for_meta_field "http://127.0.0.1:${GW_B_API_PORT}/v1/latest/meta" "has_analysis_json" "true" || {
   echo "gw-b never published analysis_json" >&2
   curl -fsS "http://127.0.0.1:${GW_B_API_PORT}/v1/latest/meta" >&2 || true
   docker logs "${GW_B_NAME}" >&2 || true
   exit 1
 }
-
 start_etragon
-
 wait_etragon_http "http://127.0.0.1:${ET_A_API_PORT}/health" || {
   echo "etragon sidecar did not become healthy" >&2
   docker ps -a --filter "name=${ET_A_NAME}" >&2 || true
   docker logs "${ET_A_NAME}" >&2 || true
   exit 1
 }
-
 ETRAGON_STATUS_JSON="$(wait_for_etragon_json_any_fragment "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/status" "\"status\":\"ready\"" "\"status\":\"degraded\"")" || {
   echo "etragon sidecar never reached ready/degraded daemon status" >&2
   etragon_curl "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/status" >&2 || true
@@ -368,7 +457,6 @@ print("etragon-status-ok")' || {
   docker logs "${ET_A_NAME}" >&2 || true
   exit 1
 }
-
 ETRAGON_OUTPUT_JSON="$(wait_for_etragon_json_fragment "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/output.json" "\"augmentations\"")" || {
   echo "etragon sidecar never published output_json with augmentations" >&2
   etragon_curl "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/output.json" >&2 || true
@@ -385,34 +473,28 @@ print("etragon-output-ok")' || {
   docker logs "${ET_A_NAME}" >&2 || true
   exit 1
 }
-
 LESERPENT_STATE_PATH="${STATE_PATH}" \
   dotnet run --project "${LESERPENT_ROOT}/src/Leserpent/Leserpent.csproj" --no-launch-profile --urls "http://127.0.0.1:${LESP_PORT}" \
   >"${LESP_LOG}" 2>&1 &
 LESP_PID=$!
-
 wait_http "http://127.0.0.1:${LESP_PORT}/health" || {
   echo "leserpent did not become healthy" >&2
   cat "${LESP_LOG}" >&2 || true
   exit 1
 }
-
 curl -fsS \
   -X POST "http://127.0.0.1:${LESP_PORT}/v1/runtimes/register" \
   -H 'content-type: application/json' \
   -H 'X-Leserpent-Intent: mutate' \
   --data "$(register_runtime "gw-stack-a" "http://127.0.0.1:${GW_A_API_PORT}" "stack" "local" "with-sidecar" "http://127.0.0.1:${ET_A_API_PORT}" "${ET_A_ADMIN_TOKEN}")" >/dev/null
-
 curl -fsS \
   -X POST "http://127.0.0.1:${LESP_PORT}/v1/runtimes/register" \
   -H 'content-type: application/json' \
   -H 'X-Leserpent-Intent: mutate' \
   --data "$(register_runtime "gw-stack-b" "http://127.0.0.1:${GW_B_API_PORT}" "stack" "local" "plain")" >/dev/null
-
 curl -fsS \
   -X POST "http://127.0.0.1:${LESP_PORT}/v1/fleet/refresh-all?environment=stack" \
   -H 'X-Leserpent-Intent: mutate' >/dev/null
-
 RUNTIMES_JSON="$(wait_for_sidecar_health "http://127.0.0.1:${LESP_PORT}/v1/runtimes?environment=stack" "gw-stack-a")" || {
   echo "leserpent never observed a healthy sidecar for gw-stack-a" >&2
   curl -fsS "http://127.0.0.1:${LESP_PORT}/v1/runtimes?environment=stack" >&2 || true
@@ -421,7 +503,6 @@ RUNTIMES_JSON="$(wait_for_sidecar_health "http://127.0.0.1:${LESP_PORT}/v1/runti
   exit 1
 }
 SUMMARY_JSON="$(curl -fsS "http://127.0.0.1:${LESP_PORT}/v1/fleet/summary?environment=stack")"
-
 printf '%s' "${SUMMARY_JSON}" | python3 -c 'import json, sys
 payload = json.load(sys.stdin)
 summary = payload["summary"]
@@ -436,7 +517,6 @@ print("summary-ok")' || {
   echo "${SUMMARY_JSON}" >&2
   exit 1
 }
-
 printf '%s' "${RUNTIMES_JSON}" | python3 -c 'import json, sys
 payload = json.load(sys.stdin)
 runtimes = {item["name"]: item for item in payload["runtimes"]}
@@ -455,9 +535,53 @@ print("runtimes-ok")' || {
   echo "${RUNTIMES_JSON}" >&2
   exit 1
 }
-
+printf '%s' "${GW_A_RESILIENCE_JSON}" | python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+assert payload["summary"] == "runtime resilience posture is healthy", payload
+print("gw-a-resilience-ok")' || {
+  echo "gw-a resilience validation failed" >&2
+  echo "${GW_A_RESILIENCE_JSON}" >&2
+  exit 1
+}
+printf '%s' "${GW_B_RESILIENCE_JSON}" | python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+assert payload["summary"] == "runtime resilience posture is healthy", payload
+print("gw-b-resilience-ok")' || {
+  echo "gw-b resilience validation failed" >&2
+  echo "${GW_B_RESILIENCE_JSON}" >&2
+  exit 1
+}
+printf '%s' "${GW_B_DEGRADED_HEALTH_JSON}" | python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+assert payload["resilience_degraded"] is True, payload
+print("gw-b-health-degraded-ok")' || {
+  echo "gw-b health degraded validation failed" >&2
+  echo "${GW_B_DEGRADED_HEALTH_JSON}" >&2
+  exit 1
+}
+printf '%s' "${GW_B_DEGRADED_RESILIENCE_JSON}" | python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+assert payload["summary"] == "socket service is backing off after repeated failures", payload
+assert payload["socket_service"]["status"] == "backing_off", payload
+assert payload["external_analysis"]["status"] == "healthy", payload
+print("gw-b-resilience-degraded-ok")' || {
+  echo "gw-b degraded resilience validation failed" >&2
+  echo "${GW_B_DEGRADED_RESILIENCE_JSON}" >&2
+  exit 1
+}
+python3 - "${GW_A_RESILIENCE_JSON}" "${GW_B_RESILIENCE_JSON}" "${GW_B_DEGRADED_RESILIENCE_JSON}" >"${RESILIENCE_SUMMARY_PATH}" <<'PY'
+import json, sys
+a = json.loads(sys.argv[1]); b = json.loads(sys.argv[2]); d = json.loads(sys.argv[3])
+print("three-module resilience summary")
+print(f"gw-a healthy: status={a['status']} severity={a['severity']} summary={a['summary']}")
+print(f"gw-b healthy: status={b['status']} severity={b['severity']} summary={b['summary']}")
+print(f"gw-b degraded: status={d['status']} severity={d['severity']} summary={d['summary']}")
+print(f"gw-b degraded socket: failures={d['socket_service']['consecutive_failures']} backoff_ms={d['socket_service']['current_backoff_ms']} status={d['socket_service']['status']}")
+print(f"gw-b degraded actions: {' | '.join(d['recommended_actions'])}")
+PY
 echo "three-module stack smoke: ok"
 echo "leserpent=http://127.0.0.1:${LESP_PORT}"
 echo "gewyvern_a=http://127.0.0.1:${GW_A_API_PORT}"
 echo "gewyvern_b=http://127.0.0.1:${GW_B_API_PORT}"
 echo "etragon_a=http://127.0.0.1:${ET_A_API_PORT}"
+echo "resilience_summary=${RESILIENCE_SUMMARY_PATH}"

@@ -68,6 +68,7 @@ The current config format is a small TOML-style file with these sections:
 - `[external_engine]`
 - `[paths]`
 - `[logging]`
+- `[resilience]`
 
 Unknown sections or keys are rejected.
 
@@ -110,6 +111,29 @@ The runtime history key also has an environment-level override:
 - `file = "/path/to/gewyvern.log"`
 - `max_bytes = 1048576`
 - `max_files = 4`
+
+### `[resilience]`
+
+- `external_failure_circuit_threshold = 3`
+- `external_failure_circuit_cooldown_seconds = 30`
+- `socket_failure_backoff_base_ms = 100`
+- `socket_failure_backoff_cap_ms = 2000`
+
+These keys currently tune the two runtime fault-tolerance loops introduced at
+the end of the `0.15.x` line and carried into `0.16.x`:
+
+- external analysis repeated-failure circuit breaking
+- socket service repeated-failure backoff
+
+They are intentionally narrow. They do not yet define a full retry-policy
+language.
+
+The corresponding environment overrides are:
+
+- `GEWY_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD`
+- `GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS`
+- `GEWY_SOCKET_FAILURE_BACKOFF_BASE_MS`
+- `GEWY_SOCKET_FAILURE_BACKOFF_CAP_MS`
 
 These keys control the unified runtime logger used by startup and serve-time
 operational messages.
@@ -175,7 +199,17 @@ stderr = true
 file = "/srv/gewyvern/state/logs/runtime.log"
 max_bytes = 1048576
 max_files = 4
+
+[resilience]
+external_failure_circuit_threshold = 3
+external_failure_circuit_cooldown_seconds = 30
+socket_failure_backoff_base_ms = 100
+socket_failure_backoff_cap_ms = 2000
 ```
+
+A copyable sample file also lives at:
+
+- [docs/fixtures/gewyvern.toml.example](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyvern.toml.example)
 
 ## Precedence Rules
 
@@ -204,8 +238,31 @@ More precisely:
   `GEWY_HISTORY_RETENTION` is already set
 - config-level `paths.*` values only apply when the corresponding environment
   variable is not already set
+- config-level `resilience.*` values only apply when the corresponding
+  resilience environment variable is not already set
 
 That keeps environment overrides stronger than file-level path hints.
+
+## Fault-Injection Notes
+
+For `0.16.x`, the resilience keys are meant to support simple fault-injection
+and recovery drills without recompiling:
+
+1. point `[external_engine].bin` at a helper that times out or exits non-zero
+2. lower `external_failure_circuit_threshold` to `2` or `3`
+3. confirm logs emit:
+   - `external_analysis_failed`
+   - `external_analysis_circuit_open`
+   - `external_analysis_recovered`
+4. drive repeated socket session failures and confirm serve-time logs include:
+   - `consecutive_failures=...`
+   - `total_failures=...`
+   - `backoff_ms=...`
+5. restore a healthy peer and confirm `socket_service_recovered`
+
+This is not yet a full chaos-test harness, but it gives operators and
+maintainers a stable manual path for verifying that repeated failure does not
+degrade into indefinite hangs or hot-loop retry storms.
 
 ## Legacy Upgrade Rule
 

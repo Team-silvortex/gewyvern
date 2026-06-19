@@ -88,8 +88,9 @@ use this order:
 ### Part VI: Operating, Validating, And Extending
 
 21. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-22. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
-23. [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
+22. [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
+23. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+24. [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
 
 ## Current Release Line
 
@@ -113,11 +114,12 @@ Recommended order:
 
 1. [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
 2. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-3. [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-4. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-5. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
-6. [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
-7. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+3. [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
+4. [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+5. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+6. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+7. [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
+8. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
 
 ### DSL Author
 
@@ -171,10 +173,11 @@ Recommended order:
 1. [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
 2. [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
 3. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-4. [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-5. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
-6. [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
-7. [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
+4. [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
+5. [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+6. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+7. [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
+8. [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
 
 ## If You Do Not Know Where To Start
 

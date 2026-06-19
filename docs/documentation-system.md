@@ -173,6 +173,11 @@ Its job is to answer:
 
 This shelf keeps the project from pretending each new line is a total reset.
 
+When one line's validation posture depends on a small durable artifact bundle,
+the compact companion rule sheet now lives at:
+
+- [docs/history/minor-line-evidence-bundle.md](/Users/Shared/chroot/dev/gewyvern/docs/history/minor-line-evidence-bundle.md)
+
 ## Reading Paths By Reader Type
 
 The documentation system should support at least these reader types:

@@ -1,0 +1,30 @@
+[runtime]
+serve = true
+socket = "unix:/tmp/gewyvern.sock"
+api_socket = "127.0.0.1:9910"
+allow_remote_api = false
+ingest_mode = "local-advisory"
+max_sessions = 64
+history_retention = 48
+
+[external_engine]
+bin = "/opt/etragon/bin/etragon"
+worker = "/opt/etragon/bin/worker.py"
+python_bin = "/usr/bin/python3"
+
+[paths]
+protocol_registry_root = "/srv/gewyvern/protocols"
+share_root = "/srv/gewyvern/share"
+
+[logging]
+level = "info"
+stderr = true
+file = "/srv/gewyvern/state/logs/runtime.log"
+max_bytes = 1048576
+max_files = 4
+
+[resilience]
+external_failure_circuit_threshold = 3
+external_failure_circuit_cooldown_seconds = 30
+socket_failure_backoff_base_ms = 100
+socket_failure_backoff_cap_ms = 2000

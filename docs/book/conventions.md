@@ -198,6 +198,14 @@ When a new minor line begins:
 - describe what that line means
 - describe what was already whole enough
 - describe what was still intentionally incomplete
+- preserve any small archive-friendly validation summaries that explain the
+  line's collaboration or resilience posture, instead of relying on transient
+  console output alone
+
+If you need the compact checklist for what those companion artifacts should
+look like, use:
+
+- [docs/history/minor-line-evidence-bundle.md](/Users/Shared/chroot/dev/gewyvern/docs/history/minor-line-evidence-bundle.md)
 
 Do not create a separate history page for every patch version unless the patch
 series fundamentally changes the line's meaning.

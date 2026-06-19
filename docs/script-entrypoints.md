@@ -90,6 +90,10 @@ Run:
 
 ```bash
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_fault_injection.sh --help
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_roundtrip.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_log_evidence.sh /path/to/runtime.log
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_validation.sh 127.0.0.1:9910 /path/to/runtime.log
 ```
 
 Use this when you care about:
@@ -103,6 +107,7 @@ Relevant docs:
 
 - [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 - [docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md)
+- [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
 
 ### I want to validate the real multi-project stack
 
@@ -117,9 +122,29 @@ This is the current collaboration smoke across:
 - two nearby `gewyvern` runtimes
 - one `etragon` sidecar
 - one `leserpent` control plane
+- one resilience-contract check per `gewyvern` runtime
 
 Use it when the question is about protocol support plus cross-project
 contracts, sidecar visibility, and control-plane registration semantics.
+
+The script now expects each runtime to publish a healthy
+`/v1/runtime/resilience.json` surface before the stack is considered ready, so
+the control-plane handoff is validated at the contract level instead of only at
+the process-health level.
+
+It also injects repeated bad socket input into one runtime and verifies that:
+
+- `/health` flips `resilience_degraded` to `true`
+- `/v1/runtime/resilience.json` moves to `status = "degraded"`
+- the degraded posture stays specific to socket backoff instead of falsely
+  implying external-analysis failure
+
+On success it also prints a `resilience_summary=...` path that points to a
+small archive-friendly text summary for the healthy and degraded phases.
+
+If you want that file to land somewhere durable instead of under the temporary
+work directory, set `RESILIENCE_SUMMARY_PATH=/absolute/path/to/file.txt`
+before running the script.
 
 ### I want a narrow consumer roundtrip
 

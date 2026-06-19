@@ -164,6 +164,8 @@ That smoke should confirm:
 - `summary-ok`
 - `runtimes-ok`
 - `three-module stack smoke: ok`
+- one `resilience_summary=...` artifact path worth archiving with the current
+  line's review notes when collaboration posture is relevant
 
 This is the highest-signal collaboration check for the current line because it
 exercises:

@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 
 use super::json::{api_target_list_json, decode_api_target_path_segment, json_string};
+use super::resilience_status::{api_runtime_resilience_json, append_runtime_resilience_flag_json};
 use super::training_manifest::{
     target_training_dataset_manifest_json, training_dataset_manifest_json,
 };
@@ -130,16 +131,28 @@ fn api_response_for_request_uncapped<'a>(
         "/health" => (
             200,
             "application/json; charset=utf-8",
-            Cow::Owned(format!(
-                "{{\"ok\":true,\"has_snapshot\":{},\"kind\":{},\"updated_unix_ms\":{}}}",
-                !snapshot.kind.is_empty(),
+            Cow::Owned({
+                let mut body = String::with_capacity(160);
+                body.push_str("{\"ok\":true,\"has_snapshot\":");
+                body.push_str(if !snapshot.kind.is_empty() { "true" } else { "false" });
+                body.push_str(",\"kind\":");
                 if snapshot.kind.is_empty() {
-                    "null".into()
+                    body.push_str("null");
                 } else {
-                    json_string(&snapshot.kind)
-                },
-                snapshot.updated_unix_ms
-            )),
+                    body.push_str(&json_string(&snapshot.kind));
+                }
+                body.push_str(",\"updated_unix_ms\":");
+                body.push_str(&snapshot.updated_unix_ms.to_string());
+                body.push(',');
+                append_runtime_resilience_flag_json(&mut body);
+                body.push('}');
+                body
+            }),
+        ),
+        "/v1/runtime/resilience.json" => (
+            200,
+            "application/json; charset=utf-8",
+            Cow::Owned(api_runtime_resilience_json()),
         ),
         "/v1/latest/meta" => (
             200,
