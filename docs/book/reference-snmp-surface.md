@@ -16,8 +16,24 @@ Use it for:
 - result-oriented traffic such as `snmp-report` and `snmp-unauthorized`
 - diagnosis semantics for SNMP timeout, denial, and explicit report outcomes
 
+Quick role map:
+
+- `get`, `get-next`, `bulk`
+  read-oriented request and reply paths
+- `set`
+  mutation-oriented request and reply path
+- `trap`
+  one-way outbound notification, usually toward port `162`
+- `inform`
+  notification-style path that still expects an explicit SNMP response
+- `trap-recv`
+  local inbound trap listener path, usually on port `162`
+- `v3-auth`, `v3-priv`
+  SNMPv3 security-oriented request and reply paths
+
 Primary subpages:
 
+- [docs/book/reference-snmp-role-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-role-matrix.md)
 - [docs/book/reference-snmp-bulk-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-bulk-surface.md)
 - [docs/book/reference-snmp-read-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-read-surface.md)
 - [docs/book/reference-snmp-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-set-surface.md)
@@ -49,5 +65,6 @@ Read in this order:
 
 1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
 2. [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
-3. one exact SNMP subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+3. [docs/book/reference-snmp-role-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-role-matrix.md)
+4. one exact SNMP subpage
+5. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)

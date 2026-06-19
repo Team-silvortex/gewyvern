@@ -17,10 +17,22 @@ Current accepted aliases:
 `inform` keeps the same notification posture, but expects an explicit SNMP
 response and is therefore better for paths where acknowledgement matters.
 
+Operational split:
+
+- `trap`
+  send-only notification semantics, usually aimed at port `162`
+- `inform`
+  notification semantics plus an expected SNMP response
+- `trap-recv`
+  local trap listener semantics; documented under the manage surface, not the
+  notify-send surface
+
 Protocol package aliases that remain accepted:
 
 - `snmp-trap`
 - `snmp_trap`
+- `snmp-inform`
+- `snmp_inform`
 
 Return to the family hub:
 

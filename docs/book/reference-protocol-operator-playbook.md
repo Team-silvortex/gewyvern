@@ -96,6 +96,7 @@ Use this branch when the symptom looks like:
 Families:
 
 - [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
+- [docs/book/reference-management-udp-role-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-role-matrix.md)
 - [docs/book/reference-management-udp-diagnosis-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-diagnosis-matrix.md)
 - [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
 - [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)

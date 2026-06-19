@@ -16,6 +16,7 @@ This page is the shared diagnosis frame for:
 
 Structured companion:
 
+- [docs/book/reference-management-udp-role-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-role-matrix.md)
 - [docs/book/reference-management-udp-diagnosis-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-diagnosis-matrix.md)
 
 ## Common Failure Shapes
@@ -99,10 +100,11 @@ freshness problem. Do not confuse it with:
 
 1. [docs/book/reference-protocol-operator-playbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-operator-playbook.md)
 2. this page
-3. [docs/book/reference-management-udp-diagnosis-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-diagnosis-matrix.md)
-4. one exact family hub:
+3. [docs/book/reference-management-udp-role-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-role-matrix.md)
+4. [docs/book/reference-management-udp-diagnosis-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-diagnosis-matrix.md)
+5. one exact family hub:
    [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md),
    [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md),
    [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md),
    [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)
-5. one exact subpage for the concrete path
+6. one exact subpage for the concrete path
