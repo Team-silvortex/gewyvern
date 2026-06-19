@@ -60,6 +60,8 @@ mod history_cli;
 mod mail_delivery;
 #[path = "tests/mail_flow.rs"]
 mod mail_flow;
+#[path = "tests/management_udp_failure_semantics.rs"]
+mod management_udp_failure_semantics;
 #[path = "tests/pop_kerberos.rs"]
 mod pop_kerberos;
 #[path = "tests/relay_and_mail.rs"]
@@ -72,6 +74,8 @@ mod rtsp_http_tls;
 mod runtime_config;
 #[path = "tests/runtime_migration.rs"]
 mod runtime_migration;
+#[path = "tests/snmp_failure_semantics.rs"]
+mod snmp_failure_semantics;
 #[path = "tests/ssh_tls.rs"]
 mod ssh_tls;
 #[path = "tests/support_external.rs"]

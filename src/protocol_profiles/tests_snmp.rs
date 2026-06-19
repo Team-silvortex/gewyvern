@@ -10,7 +10,9 @@ fn snmp_protocol_summary_exposes_new_entries_and_aliases() {
     assert!(summary.entries.iter().any(|entry| entry.mode == "trap"));
     assert!(summary.entries.iter().any(|entry| entry.mode == "inform"));
     assert!(summary.entries.iter().any(|entry| entry.mode == "engine-sync"));
+    assert!(summary.entries.iter().any(|entry| entry.mode == "report"));
     assert!(summary.entries.iter().any(|entry| entry.mode == "trap-recv"));
+    assert!(summary.entries.iter().any(|entry| entry.mode == "unauthorized"));
     assert!(summary.entries.iter().any(|entry| entry.mode == "v3-auth"));
     assert!(summary.entries.iter().any(|entry| entry.mode == "v3-priv"));
 
@@ -62,6 +64,22 @@ fn snmp_protocol_summary_exposes_new_entries_and_aliases() {
     assert!(trap_recv.aliases.contains(&"listen-trap".to_string()));
     assert!(trap_recv.aliases.contains(&"trap-listener".to_string()));
 
+    let report = summary
+        .entries
+        .iter()
+        .find(|entry| entry.mode == "report")
+        .expect("snmp report entry should exist");
+    assert!(report.aliases.contains(&"engine-report".to_string()));
+    assert!(report.aliases.contains(&"report-pdu".to_string()));
+
+    let unauthorized = summary
+        .entries
+        .iter()
+        .find(|entry| entry.mode == "unauthorized")
+        .expect("snmp unauthorized entry should exist");
+    assert!(unauthorized.aliases.contains(&"auth-failed".to_string()));
+    assert!(unauthorized.aliases.contains(&"access-denied".to_string()));
+
     let v3_auth = summary
         .entries
         .iter()
@@ -102,8 +120,16 @@ fn snmp_protocol_aliases_resolve_to_canonical_packages() {
         Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/engine-sync".to_string())
     );
     assert_eq!(
+        protocol_dsl_path("snmp-report", None),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/report".to_string())
+    );
+    assert_eq!(
         protocol_dsl_path("snmp-trap-recv", None),
         Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/trap-recv".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("snmp-unauthorized", None),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/unauthorized".to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp-v3-auth", None),
@@ -123,9 +149,11 @@ fn snmp_protocol_aliases_resolve_to_canonical_packages() {
             "get".to_string(),
             "get-next".to_string(),
             "inform".to_string(),
+            "report".to_string(),
             "set".to_string(),
             "trap".to_string(),
             "trap-recv".to_string(),
+            "unauthorized".to_string(),
             "v3-auth".to_string(),
             "v3-priv".to_string()
         ]

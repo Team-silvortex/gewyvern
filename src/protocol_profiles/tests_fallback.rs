@@ -275,12 +275,26 @@ fn built_in_snmp_summary_keeps_bulk_read_write_and_notify_aliases() {
     assert!(engine_sync.aliases.contains(&"engine-discovery".to_string()));
     assert!(engine_sync.aliases.contains(&"report-sync".to_string()));
 
+    let report = entries
+        .iter()
+        .find(|entry| entry.mode == "report")
+        .expect("snmp report entry should exist");
+    assert!(report.aliases.contains(&"engine-report".to_string()));
+    assert!(report.aliases.contains(&"report-pdu".to_string()));
+
     let trap_recv = entries
         .iter()
         .find(|entry| entry.mode == "trap-recv")
         .expect("snmp trap-recv entry should exist");
     assert!(trap_recv.aliases.contains(&"listen-trap".to_string()));
     assert!(trap_recv.aliases.contains(&"trap-listener".to_string()));
+
+    let unauthorized = entries
+        .iter()
+        .find(|entry| entry.mode == "unauthorized")
+        .expect("snmp unauthorized entry should exist");
+    assert!(unauthorized.aliases.contains(&"auth-failed".to_string()));
+    assert!(unauthorized.aliases.contains(&"access-denied".to_string()));
 
     let v3_auth = entries
         .iter()

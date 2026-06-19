@@ -13,6 +13,8 @@ Use it for:
 - notification-oriented traffic such as `snmp-trap` and `snmp_trap`
 - security-oriented SNMPv3 traffic such as `snmp-v3-auth` and `snmp-v3-priv`
 - management-oriented traffic such as `snmp-engine-sync` and `snmp-trap-recv`
+- result-oriented traffic such as `snmp-report` and `snmp-unauthorized`
+- diagnosis semantics for SNMP timeout, denial, and explicit report outcomes
 
 Primary subpages:
 
@@ -22,6 +24,9 @@ Primary subpages:
 - [docs/book/reference-snmp-notify-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-notify-surface.md)
 - [docs/book/reference-snmp-security-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-security-surface.md)
 - [docs/book/reference-snmp-manage-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-manage-surface.md)
+- [docs/book/reference-snmp-result-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-result-surface.md)
+- [docs/book/reference-snmp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-failure-semantics.md)
+- [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
 
 Current canonical entries:
 
@@ -30,9 +35,11 @@ Current canonical entries:
 - `get-next`
 - `inform`
 - `engine-sync`
+- `report`
 - `set`
 - `trap`
 - `trap-recv`
+- `unauthorized`
 - `v3-auth`
 - `v3-priv`
 

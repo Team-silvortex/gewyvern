@@ -9,11 +9,14 @@ Use it for:
 - default entry selection for `binding`
 - relay-oriented control flows such as `allocate` and `refresh`
 - alias spellings such as `stun-allocate`, `stun_allocate`, `stun-refresh`, and `stun_refresh`
+- shared management-UDP timeout, reply, and result-surface semantics
 
 Primary subpages:
 
 - [docs/book/reference-stun-binding-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-binding-surface.md)
 - [docs/book/reference-stun-relay-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-relay-surface.md)
+- [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
+- [docs/book/reference-stun-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-failure-semantics.md)
 
 Current canonical entries:
 

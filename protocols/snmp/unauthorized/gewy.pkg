@@ -1,0 +1,8 @@
+name=snmp_unauthorized
+version=0.15.0
+entry=main.gewy
+register.protocol=snmp
+register.entry=unauthorized
+register.default=false
+register.aliases=snmp-unauthorized,snmp_unauthorized
+register.entry_aliases=auth-failed,access-denied

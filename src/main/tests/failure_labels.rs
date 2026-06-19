@@ -40,6 +40,15 @@ fn failure_mode_label_classifies_database_directory_quic_tls_http3_and_hy2_famil
     assert_eq!(
         crate::failure_mode_label(
             "attention",
+            "management_query",
+            "receive_authorization_failure_report",
+            &[],
+        ),
+        "server_denied"
+    );
+    assert_eq!(
+        crate::failure_mode_label(
+            "attention",
             "quic_handshake",
             "send_initial->receive_handshake",
             &[],
@@ -103,6 +112,15 @@ fn failure_mode_label_classifies_database_directory_quic_tls_http3_and_hy2_famil
             &[],
         ),
         "auth_required"
+    );
+    assert_eq!(
+        crate::failure_detail_label(
+            "attention",
+            "management_query",
+            "receive_authorization_failure_report",
+            &[],
+        ),
+        "access_denied"
     );
     assert_eq!(
         crate::failure_detail_label(
@@ -298,10 +316,28 @@ fn failure_confidence_and_basis_distinguish_direct_and_inferred_failures() {
         "direct_protocol_signal"
     );
     assert_eq!(
+        crate::failure_basis_label(
+            "attention",
+            "management_query",
+            "receive_authorization_failure_report",
+            &[],
+        ),
+        "direct_protocol_signal"
+    );
+    assert_eq!(
         crate::failure_confidence_label(
             "attention",
             "proxy_authentication",
             "receive_auth_required",
+            &[],
+        ),
+        "high"
+    );
+    assert_eq!(
+        crate::failure_confidence_label(
+            "attention",
+            "management_query",
+            "receive_authorization_failure_report",
             &[],
         ),
         "high"

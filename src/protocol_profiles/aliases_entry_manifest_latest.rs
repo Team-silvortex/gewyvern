@@ -51,4 +51,24 @@ pub(super) const PROTOCOL_ENTRY_ALIASES_MANIFEST_LATEST: &[ProtocolAlias] = &[
         protocol: "snmp",
         entry: Some("trap-recv"),
     },
+    ProtocolAlias {
+        alias: "snmp-report",
+        protocol: "snmp",
+        entry: Some("report"),
+    },
+    ProtocolAlias {
+        alias: "snmp_report",
+        protocol: "snmp",
+        entry: Some("report"),
+    },
+    ProtocolAlias {
+        alias: "snmp-unauthorized",
+        protocol: "snmp",
+        entry: Some("unauthorized"),
+    },
+    ProtocolAlias {
+        alias: "snmp_unauthorized",
+        protocol: "snmp",
+        entry: Some("unauthorized"),
+    },
 ];

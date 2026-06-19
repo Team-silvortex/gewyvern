@@ -101,6 +101,10 @@ pub(crate) fn stage_family_label(stage: &str) -> &'static str {
     } else if lowered.contains("request")
         || lowered.contains("response")
         || lowered.contains("query")
+        || lowered.contains("discover")
+        || lowered.contains("offer")
+        || lowered.contains("probe")
+        || lowered.contains("report")
         || lowered.contains("publish")
         || lowered.contains("relay")
         || lowered.contains("stream")
@@ -138,7 +142,11 @@ pub(crate) fn failure_mode_label(
     let stage = primary_stage.to_ascii_lowercase();
     let module = module_kind.to_ascii_lowercase();
 
-    if stage.contains("denied") || stage.contains("auth_required") {
+    if stage.contains("denied")
+        || stage.contains("auth_required")
+        || stage.contains("authorization_failure")
+        || stage.contains("unauthorized")
+    {
         return "server_denied";
     }
     if stage.contains("constraint") || stage.contains("error") || module.contains("error") {
@@ -151,7 +159,9 @@ pub(crate) fn failure_mode_label(
         if left.starts_with("send")
             && (left.contains("request")
                 || left.contains("query")
+                || left.contains("discover")
                 || left.contains("publish")
+                || left.contains("notification")
                 || left.contains("auth")
                 || left.contains("password")
                 || left.contains("options")
@@ -168,10 +178,12 @@ pub(crate) fn failure_mode_label(
                 || left.contains("relay")
                 || left.contains("stream")
                 || left.contains("channel")
-                || left.contains("greeting"))
+                || left.contains("greeting")
+                || left.contains("probe"))
             && (right.starts_with("receive")
                 || right.contains("response")
                 || right.contains("result")
+                || right.contains("report")
                 || right.contains("ack")
                 || right.contains("accept")
                 || right.contains("confirmation")
@@ -307,7 +319,10 @@ pub(crate) fn failure_detail_label(
     if stage.contains("auth_required") {
         return "auth_required";
     }
-    if stage.contains("denied") {
+    if stage.contains("denied")
+        || stage.contains("authorization_failure")
+        || stage.contains("unauthorized")
+    {
         return "access_denied";
     }
     if stage.contains("error") || module.contains("error") {
@@ -320,7 +335,9 @@ pub(crate) fn failure_detail_label(
         if left.starts_with("send")
             && (left.contains("request")
                 || left.contains("query")
+                || left.contains("discover")
                 || left.contains("publish")
+                || left.contains("notification")
                 || left.contains("auth")
                 || left.contains("password")
                 || left.contains("options")
@@ -337,10 +354,12 @@ pub(crate) fn failure_detail_label(
                 || left.contains("relay")
                 || left.contains("stream")
                 || left.contains("channel")
-                || left.contains("greeting"))
+                || left.contains("greeting")
+                || left.contains("probe"))
             && (right.starts_with("receive")
                 || right.contains("response")
                 || right.contains("result")
+                || right.contains("report")
                 || right.contains("ack")
                 || right.contains("accept")
                 || right.contains("confirmation")
@@ -484,6 +503,8 @@ pub(crate) fn failure_basis_label(
 
     if stage.contains("denied")
         || stage.contains("auth_required")
+        || stage.contains("authorization_failure")
+        || stage.contains("unauthorized")
         || stage.contains("constraint")
         || stage.contains("error")
         || stage.contains("close")

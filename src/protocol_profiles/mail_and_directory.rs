@@ -172,6 +172,14 @@ pub(super) const SNMP_PROFILE: ProtocolProfile = ProtocolProfile {
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_trap_recv_path.gewy",
         },
         ProtocolEntryProfile {
+            mode: "report",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_report_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "unauthorized",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_unauthorized_path.gewy",
+        },
+        ProtocolEntryProfile {
             mode: "v3-auth",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_v3_auth_path.gewy",
         },

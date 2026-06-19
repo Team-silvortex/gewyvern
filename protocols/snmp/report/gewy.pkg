@@ -1,0 +1,8 @@
+name=snmp_report
+version=0.15.0
+entry=main.gewy
+register.protocol=snmp
+register.entry=report
+register.default=false
+register.aliases=snmp-report,snmp_report
+register.entry_aliases=engine-report,report-pdu

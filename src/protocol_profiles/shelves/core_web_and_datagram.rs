@@ -212,6 +212,7 @@ pub(crate) fn snmp_shelf(entry: &str) -> Option<ShelfMatch> {
     const NOTIFY: &[&str] = &["trap", "inform"];
     const SECURITY: &[&str] = &["v3-auth", "v3-priv"];
     const MANAGE: &[&str] = &["engine-sync", "trap-recv"];
+    const RESULT: &[&str] = &["report", "unauthorized"];
     if READ.contains(&entry) {
         Some((
             "read",
@@ -241,6 +242,13 @@ pub(crate) fn snmp_shelf(entry: &str) -> Option<ShelfMatch> {
             "Manage",
             "docs/book/reference-snmp-manage-surface.md",
             MANAGE,
+        ))
+    } else if RESULT.contains(&entry) {
+        Some((
+            "result",
+            "Result",
+            "docs/book/reference-snmp-result-surface.md",
+            RESULT,
         ))
     } else {
         None

@@ -9,11 +9,14 @@ Use it for:
 - default entry selection for `client`
 - separating generic client posture from explicit lease negotiation steps
 - package aliases such as `dhcp-discover`, `dhcp_discover`, `dhcp-request`, and `dhcp_request`
+- shared management-UDP timeout and negotiation-failure semantics
 
 Primary subpages:
 
 - [docs/book/reference-dhcp-client-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-client-surface.md)
 - [docs/book/reference-dhcp-lease-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-lease-surface.md)
+- [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
+- [docs/book/reference-dhcp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-failure-semantics.md)
 
 Current canonical entries:
 

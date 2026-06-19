@@ -91,6 +91,32 @@ Use this branch when the symptom looks like:
 - session/open/connect posture drift
 - “the runtime is up, but access paths look wrong”
 
+### Management UDP Control Families
+
+Families:
+
+- [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
+- [docs/book/reference-management-udp-diagnosis-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-diagnosis-matrix.md)
+- [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
+- [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
+- [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
+- [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)
+
+First commands:
+
+```bash
+cargo run -- --protocol snmp --entry get --json --summary-only
+cargo run -- --protocol ntp --entry query --json --summary-only
+cargo run -- --protocol dhcp --entry request --json --summary-only
+cargo run -- --protocol stun --entry binding --json --summary-only
+```
+
+Use this branch when the symptom looks like:
+
+- probe/request datagram seen but reply missing
+- a control-plane result packet should be kept distinct from timeout
+- an explicit denial or report packet may matter more than generic packet loss
+
 ### Stateful Data Paths
 
 Families:

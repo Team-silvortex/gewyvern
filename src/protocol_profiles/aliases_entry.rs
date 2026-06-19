@@ -492,6 +492,26 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES: &[ProtocolAlias] = &[
         entry: Some("trap-recv"),
     },
     ProtocolAlias {
+        alias: "engine-report",
+        protocol: "snmp",
+        entry: Some("report"),
+    },
+    ProtocolAlias {
+        alias: "report-pdu",
+        protocol: "snmp",
+        entry: Some("report"),
+    },
+    ProtocolAlias {
+        alias: "auth-failed",
+        protocol: "snmp",
+        entry: Some("unauthorized"),
+    },
+    ProtocolAlias {
+        alias: "access-denied",
+        protocol: "snmp",
+        entry: Some("unauthorized"),
+    },
+    ProtocolAlias {
         alias: "connect",
         protocol: "socks5",
         entry: Some("session"),

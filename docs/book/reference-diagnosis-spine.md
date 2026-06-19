@@ -15,6 +15,8 @@ For broader contract notes, see
 [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md).
 For process-oriented reading, see
 [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md).
+For a structured management-UDP mapping table, see
+[docs/book/reference-management-udp-diagnosis-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-diagnosis-matrix.md).
 
 ## What Counts As The Diagnosis Spine
 

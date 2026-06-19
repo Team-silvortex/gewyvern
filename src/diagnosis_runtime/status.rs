@@ -42,11 +42,15 @@ fn terminal_failure_phase(phase: &str) -> bool {
     let lowered = phase.to_ascii_lowercase();
     lowered == "denied"
         || lowered == "auth_required"
+        || lowered == "authorization_failure"
+        || lowered == "unauthorized"
         || lowered == "constraint"
         || lowered == "error"
         || lowered == "closed"
         || lowered.contains("denied")
         || lowered.contains("auth_required")
+        || lowered.contains("authorization_failure")
+        || lowered.contains("unauthorized")
         || lowered.contains("constraint")
         || lowered.contains("error")
         || lowered.contains("close")
