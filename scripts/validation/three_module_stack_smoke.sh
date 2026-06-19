@@ -171,27 +171,13 @@ wait_for_meta_field() {
   done
   return 1
 }
-wait_for_json_fragment() {
-  local url="$1"
-  local fragment="$2"
+wait_for_text_match() {
+  local fetch_fn="$1"
+  local url="$2"
+  shift 2
   for _ in $(seq 1 240); do
     local body
-    if body="$(curl -fsS "${url}" 2>/dev/null)"; then
-      if [[ "${body}" == *"${fragment}"* ]]; then
-        printf '%s' "${body}"
-        return 0
-      fi
-    fi
-    sleep 0.25
-  done
-  return 1
-}
-wait_for_json_any_fragment() {
-  local url="$1"
-  shift
-  for _ in $(seq 1 240); do
-    local body
-    if body="$(curl -fsS "${url}" 2>/dev/null)"; then
+    if body="$("${fetch_fn}" "${url}" 2>/dev/null)"; then
       for fragment in "$@"; do
         if [[ "${body}" == *"${fragment}"* ]]; then
           printf '%s' "${body}"
@@ -203,64 +189,14 @@ wait_for_json_any_fragment() {
   done
   return 1
 }
-wait_for_runtime_resilience_healthy() {
-  local url="$1"
+wait_for_json_python() {
+  local fetch_fn="$1"
+  local url="$2"
+  local python_code="$3"
   for _ in $(seq 1 240); do
     local body
-    if body="$(curl -fsS "${url}" 2>/dev/null)"; then
-      if printf '%s' "${body}" | python3 -c 'import json, sys
-payload = json.load(sys.stdin)
-assert payload["surface"] == "runtime_resilience", payload
-assert payload["status"] == "healthy", payload
-assert payload["severity"] == "ok", payload
-assert payload["degraded"] is False, payload
-assert payload["recommended_actions"] == ["no operator action required"], payload
-external = payload["external_analysis"]
-socket = payload["socket_service"]
-assert external["status"] == "healthy", external
-assert socket["status"] == "healthy", socket
-print("true")' | grep -qx 'true'; then
-        printf '%s' "${body}"
-        return 0
-      fi
-    fi
-    sleep 0.25
-  done
-  return 1
-}
-wait_for_runtime_resilience_degraded() {
-  local url="$1"
-  for _ in $(seq 1 240); do
-    local body
-    if body="$(curl -fsS "${url}" 2>/dev/null)"; then
-      if printf '%s' "${body}" | python3 -c 'import json, sys
-payload = json.load(sys.stdin)
-assert payload["surface"] == "runtime_resilience", payload
-assert payload["status"] == "degraded", payload
-assert payload["severity"] == "warning", payload
-assert payload["degraded"] is True, payload
-assert "inspect recent socket clients for malformed or incomplete sessions" in payload["recommended_actions"], payload
-socket = payload["socket_service"]
-assert socket["consecutive_failures"] >= 2, socket
-assert socket["status"] == "backing_off", socket
-print("true")' | grep -qx 'true'; then
-        printf '%s' "${body}"
-        return 0
-      fi
-    fi
-    sleep 0.25
-  done
-  return 1
-}
-wait_for_health_resilience_flag() {
-  local url="$1"
-  local expected="$2"
-  for _ in $(seq 1 240); do
-    local body
-    if body="$(curl -fsS "${url}" 2>/dev/null)"; then
-      if [ "$(printf '%s' "${body}" | python3 -c 'import json, sys
-payload = json.load(sys.stdin)
-print("true" if bool(payload.get("resilience_degraded")) else "false")')" = "${expected}" ]; then
+    if body="$("${fetch_fn}" "${url}" 2>/dev/null)"; then
+      if printf '%s' "${body}" | python3 -c "${python_code}" >/dev/null 2>&1; then
         printf '%s' "${body}"
         return 0
       fi
@@ -274,62 +210,6 @@ wait_etragon_http() {
   for _ in $(seq 1 240); do
     if etragon_curl "${url}" >/dev/null 2>&1; then
       return 0
-    fi
-    sleep 0.25
-  done
-  return 1
-}
-wait_for_etragon_json_fragment() {
-  local url="$1"
-  local fragment="$2"
-  for _ in $(seq 1 240); do
-    local body
-    if body="$(etragon_curl "${url}" 2>/dev/null)"; then
-      if [[ "${body}" == *"${fragment}"* ]]; then
-        printf '%s' "${body}"
-        return 0
-      fi
-    fi
-    sleep 0.25
-  done
-  return 1
-}
-wait_for_etragon_json_any_fragment() {
-  local url="$1"
-  shift
-  for _ in $(seq 1 240); do
-    local body
-    if body="$(etragon_curl "${url}" 2>/dev/null)"; then
-      for fragment in "$@"; do
-        if [[ "${body}" == *"${fragment}"* ]]; then
-          printf '%s' "${body}"
-          return 0
-        fi
-      done
-    fi
-    sleep 0.25
-  done
-  return 1
-}
-wait_for_sidecar_health() {
-  local url="$1"
-  local runtime_name="$2"
-  for _ in $(seq 1 240); do
-    local body
-    if body="$(curl -fsS "${url}" 2>/dev/null)"; then
-      if printf '%s' "${body}" | python3 -c 'import json, sys
-payload = json.load(sys.stdin)
-target = sys.argv[1]
-for runtime in payload.get("runtimes", []):
-    if runtime.get("name") == target:
-        sidecar = runtime.get("sidecarStatus") or {}
-        print("true" if sidecar.get("healthy") is True else "false")
-        raise SystemExit(0)
-print("false")
-' "${runtime_name}" | grep -qx 'true'; then
-        printf '%s' "${body}"
-        return 0
-      fi
     fi
     sleep 0.25
   done
@@ -398,26 +278,52 @@ wait_http "http://127.0.0.1:${GW_B_API_PORT}/health" || {
 }
 ingest_template "${GW_A_NAME}" udp
 ingest_template "${GW_B_NAME}" udp
-GW_A_RESILIENCE_JSON="$(wait_for_runtime_resilience_healthy "http://127.0.0.1:${GW_A_API_PORT}/v1/runtime/resilience.json")" || {
+GW_A_RESILIENCE_JSON="$(wait_for_json_python curl "http://127.0.0.1:${GW_A_API_PORT}/v1/runtime/resilience.json" 'import json, sys
+payload = json.load(sys.stdin)
+assert payload["surface"] == "runtime_resilience", payload
+assert payload["status"] == "healthy", payload
+assert payload["severity"] == "ok", payload
+assert payload["degraded"] is False, payload
+assert payload["recommended_actions"] == ["no operator action required"], payload
+assert payload["external_analysis"]["status"] == "healthy", payload["external_analysis"]
+assert payload["socket_service"]["status"] == "healthy", payload["socket_service"]')" || {
   echo "gw-a never published a healthy resilience surface" >&2
   curl -fsS "http://127.0.0.1:${GW_A_API_PORT}/v1/runtime/resilience.json" >&2 || true
   docker logs "${GW_A_NAME}" >&2 || true
   exit 1
 }
-GW_B_RESILIENCE_JSON="$(wait_for_runtime_resilience_healthy "http://127.0.0.1:${GW_B_API_PORT}/v1/runtime/resilience.json")" || {
+GW_B_RESILIENCE_JSON="$(wait_for_json_python curl "http://127.0.0.1:${GW_B_API_PORT}/v1/runtime/resilience.json" 'import json, sys
+payload = json.load(sys.stdin)
+assert payload["surface"] == "runtime_resilience", payload
+assert payload["status"] == "healthy", payload
+assert payload["severity"] == "ok", payload
+assert payload["degraded"] is False, payload
+assert payload["recommended_actions"] == ["no operator action required"], payload
+assert payload["external_analysis"]["status"] == "healthy", payload["external_analysis"]
+assert payload["socket_service"]["status"] == "healthy", payload["socket_service"]')" || {
   echo "gw-b never published a healthy resilience surface" >&2
   curl -fsS "http://127.0.0.1:${GW_B_API_PORT}/v1/runtime/resilience.json" >&2 || true
   docker logs "${GW_B_NAME}" >&2 || true
   exit 1
 }
 inject_socket_bad_json "${GW_B_NAME}" 5
-GW_B_DEGRADED_HEALTH_JSON="$(wait_for_health_resilience_flag "http://127.0.0.1:${GW_B_API_PORT}/health" "true")" || {
+GW_B_DEGRADED_HEALTH_JSON="$(wait_for_json_python curl "http://127.0.0.1:${GW_B_API_PORT}/health" 'import json, sys
+payload = json.load(sys.stdin)
+assert payload["resilience_degraded"] is True, payload')" || {
   echo "gw-b never exposed resilience_degraded=true after repeated socket failures" >&2
   curl -fsS "http://127.0.0.1:${GW_B_API_PORT}/health" >&2 || true
   docker logs "${GW_B_NAME}" >&2 || true
   exit 1
 }
-GW_B_DEGRADED_RESILIENCE_JSON="$(wait_for_runtime_resilience_degraded "http://127.0.0.1:${GW_B_API_PORT}/v1/runtime/resilience.json")" || {
+GW_B_DEGRADED_RESILIENCE_JSON="$(wait_for_json_python curl "http://127.0.0.1:${GW_B_API_PORT}/v1/runtime/resilience.json" 'import json, sys
+payload = json.load(sys.stdin)
+assert payload["surface"] == "runtime_resilience", payload
+assert payload["status"] == "degraded", payload
+assert payload["severity"] == "warning", payload
+assert payload["degraded"] is True, payload
+assert "inspect recent socket clients for malformed or incomplete sessions" in payload["recommended_actions"], payload
+assert payload["socket_service"]["consecutive_failures"] >= 2, payload["socket_service"]
+assert payload["socket_service"]["status"] == "backing_off", payload["socket_service"]')" || {
   echo "gw-b never published a degraded resilience surface after repeated socket failures" >&2
   curl -fsS "http://127.0.0.1:${GW_B_API_PORT}/v1/runtime/resilience.json" >&2 || true
   docker logs "${GW_B_NAME}" >&2 || true
@@ -442,7 +348,7 @@ wait_etragon_http "http://127.0.0.1:${ET_A_API_PORT}/health" || {
   docker logs "${ET_A_NAME}" >&2 || true
   exit 1
 }
-ETRAGON_STATUS_JSON="$(wait_for_etragon_json_any_fragment "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/status" "\"status\":\"ready\"" "\"status\":\"degraded\"")" || {
+ETRAGON_STATUS_JSON="$(wait_for_text_match etragon_curl "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/status" "\"status\":\"ready\"" "\"status\":\"degraded\"")" || {
   echo "etragon sidecar never reached ready/degraded daemon status" >&2
   etragon_curl "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/status" >&2 || true
   docker logs "${ET_A_NAME}" >&2 || true
@@ -457,7 +363,7 @@ print("etragon-status-ok")' || {
   docker logs "${ET_A_NAME}" >&2 || true
   exit 1
 }
-ETRAGON_OUTPUT_JSON="$(wait_for_etragon_json_fragment "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/output.json" "\"augmentations\"")" || {
+ETRAGON_OUTPUT_JSON="$(wait_for_text_match etragon_curl "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/output.json" "\"augmentations\"")" || {
   echo "etragon sidecar never published output_json with augmentations" >&2
   etragon_curl "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/output.json" >&2 || true
   docker logs "${ET_A_NAME}" >&2 || true
@@ -495,7 +401,14 @@ curl -fsS \
 curl -fsS \
   -X POST "http://127.0.0.1:${LESP_PORT}/v1/fleet/refresh-all?environment=stack" \
   -H 'X-Leserpent-Intent: mutate' >/dev/null
-RUNTIMES_JSON="$(wait_for_sidecar_health "http://127.0.0.1:${LESP_PORT}/v1/runtimes?environment=stack" "gw-stack-a")" || {
+RUNTIMES_JSON="$(wait_for_json_python curl "http://127.0.0.1:${LESP_PORT}/v1/runtimes?environment=stack" 'import json, sys
+payload = json.load(sys.stdin)
+for runtime in payload.get("runtimes", []):
+    if runtime.get("name") == "gw-stack-a":
+        sidecar = runtime.get("sidecarStatus") or {}
+        assert sidecar.get("healthy") is True, runtime
+        raise SystemExit(0)
+raise SystemExit(1)')" || {
   echo "leserpent never observed a healthy sidecar for gw-stack-a" >&2
   curl -fsS "http://127.0.0.1:${LESP_PORT}/v1/runtimes?environment=stack" >&2 || true
   docker logs "${ET_A_NAME}" >&2 || true

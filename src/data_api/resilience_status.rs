@@ -3,24 +3,33 @@ use crate::socket_resilience::current_socket_resilience_status;
 
 use super::json::json_string;
 
+struct RuntimeResilienceView<'a> {
+    degraded: bool,
+    status: &'a str,
+    severity: &'a str,
+    summary: &'a str,
+    recommended_actions: Vec<&'a str>,
+    external_status: &'a str,
+    external_summary: String,
+    socket_status: &'a str,
+    socket_summary: String,
+}
+
 pub(super) fn api_runtime_resilience_json() -> String {
     let external = current_external_resilience_status();
     let socket = current_socket_resilience_status();
-    let degraded = external.circuit_open || socket.consecutive_failures > 0;
-    let status = runtime_resilience_status_label(external.circuit_open, socket.consecutive_failures);
-    let severity = runtime_resilience_severity(external.circuit_open, socket.consecutive_failures);
-    let summary = runtime_resilience_summary(external.circuit_open, socket.consecutive_failures);
+    let view = build_runtime_resilience_view(external, socket);
     let mut json = String::with_capacity(1024);
     json.push_str("{\"degraded\":");
-    json.push_str(if degraded { "true" } else { "false" });
+    json.push_str(if view.degraded { "true" } else { "false" });
     json.push_str(",\"status\":");
-    json.push_str(&json_string(status));
+    json.push_str(&json_string(view.status));
     json.push_str(",\"severity\":");
-    json.push_str(&json_string(severity));
+    json.push_str(&json_string(view.severity));
     json.push_str(",\"summary\":");
-    json.push_str(&json_string(summary));
+    json.push_str(&json_string(view.summary));
     json.push_str(",\"recommended_actions\":");
-    append_recommended_actions_json(&mut json, external.circuit_open, socket.consecutive_failures);
+    append_string_list_json(&mut json, &view.recommended_actions);
     json.push_str(",\"external_analysis\":{\"consecutive_failures\":");
     json.push_str(&external.consecutive_failures.to_string());
     json.push_str(",\"total_failures\":");
@@ -34,19 +43,9 @@ pub(super) fn api_runtime_resilience_json() -> String {
     json.push_str(",\"circuit_cooldown_seconds\":");
     json.push_str(&external.circuit_cooldown_seconds.to_string());
     json.push_str(",\"status\":");
-    json.push_str(&json_string(if external.circuit_open {
-        "circuit_open"
-    } else if external.consecutive_failures > 0 {
-        "degraded"
-    } else {
-        "healthy"
-    }));
+    json.push_str(&json_string(view.external_status));
     json.push_str(",\"summary\":");
-    json.push_str(&json_string(&external_summary(
-        external.circuit_open,
-        external.consecutive_failures,
-        external.cooldown_remaining_ms,
-    )));
+    json.push_str(&json_string(&view.external_summary));
     json.push_str("},\"socket_service\":{\"consecutive_failures\":");
     json.push_str(&socket.consecutive_failures.to_string());
     json.push_str(",\"total_failures\":");
@@ -58,23 +57,19 @@ pub(super) fn api_runtime_resilience_json() -> String {
     json.push_str(",\"backoff_cap_ms\":");
     json.push_str(&socket.backoff_cap_ms.to_string());
     json.push_str(",\"status\":");
-    json.push_str(&json_string(if socket.consecutive_failures > 0 {
-        "backing_off"
-    } else {
-        "healthy"
-    }));
+    json.push_str(&json_string(view.socket_status));
     json.push_str(",\"summary\":");
-    json.push_str(&json_string(&socket_summary(
-        socket.consecutive_failures,
-        socket.current_backoff_ms,
-    )));
+    json.push_str(&json_string(&view.socket_summary));
     json.push_str("},\"surface\":\"runtime_resilience\"}");
     json
 }
 
 pub(super) fn append_runtime_resilience_flag_json(target: &mut String) {
-    let degraded = current_external_resilience_status().circuit_open
-        || current_socket_resilience_status().consecutive_failures > 0;
+    let degraded = build_runtime_resilience_view(
+        current_external_resilience_status(),
+        current_socket_resilience_status(),
+    )
+    .degraded;
     target.push_str("\"resilience_degraded\":");
     target.push_str(if degraded { "true" } else { "false" });
 }
@@ -137,46 +132,80 @@ fn socket_summary(socket_failures: usize, backoff_ms: u128) -> String {
     }
 }
 
-fn append_recommended_actions_json(
-    target: &mut String,
+fn build_runtime_resilience_view(
+    external: crate::external_analysis::ExternalResilienceStatus,
+    socket: crate::socket_resilience::SocketResilienceStatus,
+) -> RuntimeResilienceView<'static> {
+    let degraded = external.circuit_open || socket.consecutive_failures > 0;
+    RuntimeResilienceView {
+        degraded,
+        status: runtime_resilience_status_label(external.circuit_open, socket.consecutive_failures),
+        severity: runtime_resilience_severity(external.circuit_open, socket.consecutive_failures),
+        summary: runtime_resilience_summary(external.circuit_open, socket.consecutive_failures),
+        recommended_actions: recommended_actions(external.circuit_open, socket.consecutive_failures),
+        external_status: external_status_label(external.circuit_open, external.consecutive_failures),
+        external_summary: external_summary(
+            external.circuit_open,
+            external.consecutive_failures,
+            external.cooldown_remaining_ms,
+        ),
+        socket_status: socket_status_label(socket.consecutive_failures),
+        socket_summary: socket_summary(
+            socket.consecutive_failures,
+            socket.current_backoff_ms,
+        ),
+    }
+}
+
+fn external_status_label(external_circuit_open: bool, external_failures: usize) -> &'static str {
+    if external_circuit_open {
+        "circuit_open"
+    } else if external_failures > 0 {
+        "degraded"
+    } else {
+        "healthy"
+    }
+}
+
+fn socket_status_label(socket_failures: usize) -> &'static str {
+    if socket_failures > 0 {
+        "backing_off"
+    } else {
+        "healthy"
+    }
+}
+
+fn recommended_actions(
     external_circuit_open: bool,
     socket_failures: usize,
-) {
-    let mut first = true;
-    target.push('[');
+) -> Vec<&'static str> {
+    let mut actions = Vec::with_capacity(3);
     if external_circuit_open {
-        append_action_json(
-            target,
-            &mut first,
+        actions.push(
             "check the external analysis engine and wait for the cooldown window before expecting recovery",
         );
     }
     if socket_failures > 0 {
-        append_action_json(
-            target,
-            &mut first,
+        actions.push(
             "inspect recent socket clients for malformed or incomplete sessions",
         );
-        append_action_json(
-            target,
-            &mut first,
+        actions.push(
             "watch for socket_service_recovered before clearing the runtime from attention lists",
         );
     }
-    if first {
-        append_action_json(
-            target,
-            &mut first,
-            "no operator action required",
-        );
+    if actions.is_empty() {
+        actions.push("no operator action required");
     }
-    target.push(']');
+    actions
 }
 
-fn append_action_json(target: &mut String, first: &mut bool, value: &str) {
-    if !*first {
-        target.push(',');
+fn append_string_list_json(target: &mut String, values: &[&str]) {
+    target.push('[');
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            target.push(',');
+        }
+        target.push_str(&json_string(value));
     }
-    *first = false;
-    target.push_str(&json_string(value));
+    target.push(']');
 }
