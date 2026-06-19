@@ -2,11 +2,17 @@ use std::collections::{HashMap, VecDeque, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::diagnosis_runtime::{AnalysisAugmentation, AnalysisSnapshot};
+use crate::runtime_events::{
+    EVENT_EXTERNAL_ANALYSIS_CIRCUIT_OPEN, EVENT_EXTERNAL_ANALYSIS_FAILED,
+    EVENT_EXTERNAL_ANALYSIS_RECOVERED,
+};
+use crate::runtime_logging::{log_info_event, log_warn_event};
 
 mod capabilities;
 mod parse;
@@ -19,6 +25,11 @@ const MAX_EXTERNAL_ENGINE_STDOUT_BYTES: usize = 1024 * 1024;
 const MAX_EXTERNAL_ENGINE_STDERR_BYTES: usize = 256 * 1024;
 const MAX_EXTERNAL_CACHE_ENTRIES: usize = 128;
 const MAX_EXTERNAL_AUGMENTATIONS: usize = 256;
+const EXTERNAL_FAILURE_LOG_EVERY: usize = 10;
+const DEFAULT_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD: usize = 3;
+const DEFAULT_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS: u64 = 30;
+const EXTERNAL_FAILURE_CIRCUIT_THRESHOLD_ENV: &str = "GEWY_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD";
+const EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_ENV: &str = "GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS";
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct ExternalAnalysisConfig {
@@ -37,6 +48,7 @@ struct SnapshotCacheKey {
 struct ExternalAnalysisState {
     config: Option<ExternalAnalysisConfig>,
     capabilities: CachedCapabilities,
+    circuit_open_until: Option<Instant>,
     cache: HashMap<SnapshotCacheKey, Vec<AnalysisAugmentation>>,
     cache_order: VecDeque<SnapshotCacheKey>,
 }
@@ -59,6 +71,125 @@ fn state() -> &'static Mutex<ExternalAnalysisState> {
     STATE.get_or_init(|| Mutex::new(ExternalAnalysisState::default()))
 }
 
+fn lock_state() -> std::sync::MutexGuard<'static, ExternalAnalysisState> {
+    state()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn external_failure_counter() -> &'static AtomicUsize {
+    static COUNTER: OnceLock<AtomicUsize> = OnceLock::new();
+    COUNTER.get_or_init(|| AtomicUsize::new(0))
+}
+
+fn external_total_failure_counter() -> &'static AtomicUsize {
+    static COUNTER: OnceLock<AtomicUsize> = OnceLock::new();
+    COUNTER.get_or_init(|| AtomicUsize::new(0))
+}
+
+fn external_failure_circuit_threshold() -> usize {
+    std::env::var(EXTERNAL_FAILURE_CIRCUIT_THRESHOLD_ENV)
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD)
+}
+
+fn external_failure_circuit_cooldown() -> Duration {
+    Duration::from_secs(
+        std::env::var(EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_ENV)
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or(DEFAULT_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS),
+    )
+}
+
+fn external_fallback_augmentations(error: &str) -> Vec<AnalysisAugmentation> {
+    vec![AnalysisAugmentation {
+        kind: "external-engine".into(),
+        name: "external_engine_failed".into(),
+        summary: "external analysis engine failed; keeping built-in analysis only".into(),
+        confidence: "advisory".into(),
+        producer_stage: Some("external".into()),
+        producer_pass: Some("external-engine-hook".into()),
+        data_json: Some(single_json_string_field("message", error)),
+    }]
+}
+
+fn current_external_circuit_block(engine_bin: &str) -> Option<String> {
+    let now = Instant::now();
+    let mut guard = lock_state();
+    match guard.circuit_open_until {
+        Some(until) if until > now => Some(format!(
+            "external engine '{}' temporarily bypassed for another {}s after repeated failures",
+            engine_bin,
+            until.duration_since(now).as_secs().max(1)
+        )),
+        Some(_) => {
+            guard.circuit_open_until = None;
+            None
+        }
+        None => None,
+    }
+}
+
+fn note_external_analysis_failure(engine_bin: &str, error: &str) {
+    let consecutive = external_failure_counter().fetch_add(1, Ordering::AcqRel) + 1;
+    let total = external_total_failure_counter().fetch_add(1, Ordering::AcqRel) + 1;
+    let threshold = external_failure_circuit_threshold();
+    let cooldown = external_failure_circuit_cooldown();
+    if consecutive >= threshold {
+        let mut guard = lock_state();
+        let now = Instant::now();
+        let should_open = !matches!(guard.circuit_open_until, Some(until) if until > now);
+        if should_open {
+            guard.circuit_open_until = Some(now + cooldown);
+            log_warn_event(
+                "external_analysis",
+                EVENT_EXTERNAL_ANALYSIS_CIRCUIT_OPEN,
+                &[
+                    ("engine", engine_bin.to_string()),
+                    ("threshold", threshold.to_string()),
+                    ("cooldown_seconds", cooldown.as_secs().to_string()),
+                    ("error", error.to_string()),
+                ],
+                "external analysis circuit opened after repeated failures",
+            );
+        }
+    }
+    if consecutive == 1 || consecutive == 3 || consecutive % EXTERNAL_FAILURE_LOG_EVERY == 0 {
+        log_warn_event(
+            "external_analysis",
+            EVENT_EXTERNAL_ANALYSIS_FAILED,
+            &[
+                ("engine", engine_bin.to_string()),
+                ("consecutive_failures", consecutive.to_string()),
+                ("total_failures", total.to_string()),
+                ("error", error.to_string()),
+            ],
+            "external analysis degraded; using built-in analysis fallback",
+        );
+    }
+}
+
+fn note_external_analysis_success(engine_bin: &str) {
+    let recovered = external_failure_counter().swap(0, Ordering::AcqRel);
+    let mut guard = lock_state();
+    guard.circuit_open_until = None;
+    if recovered > 0 {
+        log_info_event(
+            "external_analysis",
+            EVENT_EXTERNAL_ANALYSIS_RECOVERED,
+            &[
+                ("engine", engine_bin.to_string()),
+                ("recovered_after_failures", recovered.to_string()),
+            ],
+            "external analysis recovered after prior failures",
+        );
+    }
+}
+
 pub(crate) fn set_external_analysis_config(config: Option<ExternalAnalysisConfig>) {
     #[cfg(test)]
     {
@@ -70,9 +201,10 @@ pub(crate) fn set_external_analysis_config(config: Option<ExternalAnalysisConfig
 
     #[allow(unreachable_code)]
     {
-        let mut guard = state().lock().expect("external analysis mutex poisoned");
+        let mut guard = lock_state();
         guard.config = config;
         guard.capabilities = CachedCapabilities::Unknown;
+        guard.circuit_open_until = None;
         guard.cache.clear();
         guard.cache_order.clear();
     }
@@ -85,19 +217,21 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
         let Some(config) = config else {
             return;
         };
+        if let Some(reason) = current_external_circuit_block(&config.engine_bin) {
+            snapshot
+                .augmentations
+                .extend(external_fallback_augmentations(&reason));
+            return;
+        }
         let capabilities = query_external_capabilities(&config);
         let items = run_external_analysis(&config, capabilities.as_ref(), snapshot_json)
+            .map(|items| {
+                note_external_analysis_success(&config.engine_bin);
+                items
+            })
             .unwrap_or_else(|err| {
-                vec![AnalysisAugmentation {
-                    kind: "external-engine".into(),
-                    name: "external_engine_failed".into(),
-                    summary: "external analysis engine failed; keeping built-in analysis only"
-                        .into(),
-                    confidence: "advisory".into(),
-                    producer_stage: Some("external".into()),
-                    producer_pass: Some("external-engine-hook".into()),
-                    data_json: Some(single_json_string_field("message", &err)),
-                }]
+                note_external_analysis_failure(&config.engine_bin, &err);
+                external_fallback_augmentations(&err)
             });
         snapshot.augmentations.extend(items);
         return;
@@ -110,27 +244,25 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
             return;
         };
         let cached = {
-            let guard = state().lock().expect("external analysis mutex poisoned");
+            let guard = lock_state();
             if let Some(items) = guard.cache.get(&cache_key) {
                 items.clone()
             } else {
                 drop(guard);
+                if let Some(reason) = current_external_circuit_block(&config.engine_bin) {
+                    external_fallback_augmentations(&reason)
+                } else {
                 let capabilities = capability_profile_for_config(&config);
                 let items = run_external_analysis(&config, capabilities.as_ref(), snapshot_json)
+                    .map(|items| {
+                        note_external_analysis_success(&config.engine_bin);
+                        items
+                    })
                     .unwrap_or_else(|err| {
-                        vec![AnalysisAugmentation {
-                            kind: "external-engine".into(),
-                            name: "external_engine_failed".into(),
-                            summary:
-                                "external analysis engine failed; keeping built-in analysis only"
-                                    .into(),
-                            confidence: "advisory".into(),
-                            producer_stage: Some("external".into()),
-                            producer_pass: Some("external-engine-hook".into()),
-                            data_json: Some(single_json_string_field("message", &err)),
-                        }]
+                        note_external_analysis_failure(&config.engine_bin, &err);
+                        external_fallback_augmentations(&err)
                     });
-                let mut guard = state().lock().expect("external analysis mutex poisoned");
+                let mut guard = lock_state();
                 if !guard.cache.contains_key(&cache_key) {
                     guard.cache_order.push_back(cache_key);
                 }
@@ -141,6 +273,7 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
                     }
                 }
                 items
+                }
             }
         };
         snapshot.augmentations.extend(cached);
@@ -190,7 +323,7 @@ fn run_external_analysis(
 }
 
 fn current_external_analysis_config() -> Option<ExternalAnalysisConfig> {
-    let guard = state().lock().expect("external analysis mutex poisoned");
+    let guard = lock_state();
     guard.config.clone()
 }
 
@@ -198,14 +331,14 @@ fn capability_profile_for_config(
     config: &ExternalAnalysisConfig,
 ) -> Option<ExternalCapabilityProfile> {
     let cached = {
-        let guard = state().lock().expect("external analysis mutex poisoned");
+        let guard = lock_state();
         guard.capabilities.clone()
     };
     match cached {
         CachedCapabilities::Loaded(profile) => profile,
         CachedCapabilities::Unknown => {
             let profile = query_external_capabilities(config);
-            let mut guard = state().lock().expect("external analysis mutex poisoned");
+            let mut guard = lock_state();
             guard.capabilities = CachedCapabilities::Loaded(profile.clone());
             profile
         }
@@ -367,6 +500,14 @@ pub(crate) fn test_guard() -> std::sync::MutexGuard<'static, ()> {
 }
 
 #[cfg(test)]
+fn reset_external_fault_state() {
+    external_failure_counter().store(0, Ordering::Release);
+    external_total_failure_counter().store(0, Ordering::Release);
+    let mut guard = lock_state();
+    guard.circuit_open_until = None;
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
@@ -396,6 +537,20 @@ mod tests {
         let result = read_capped_stream("abcdef".as_bytes(), 4, "stdout");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("exceeded"));
+    }
+
+    #[test]
+    fn repeated_failures_open_temporary_circuit() {
+        let _guard = test_guard();
+        reset_external_fault_state();
+        note_external_analysis_failure("engine-bin", "timeout");
+        note_external_analysis_failure("engine-bin", "timeout");
+        assert!(current_external_circuit_block("engine-bin").is_none());
+        note_external_analysis_failure("engine-bin", "timeout");
+        let reason = current_external_circuit_block("engine-bin")
+            .expect("circuit should open after repeated failures");
+        assert!(reason.contains("temporarily bypassed"));
+        reset_external_fault_state();
     }
 
     #[cfg(target_family = "unix")]

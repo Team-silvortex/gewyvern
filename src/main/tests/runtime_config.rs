@@ -91,6 +91,12 @@ stderr = false
 file = "/srv/gewyvern/state/logs/runtime.log"
 max_bytes = 262144
 max_files = 6
+
+[resilience]
+external_failure_circuit_threshold = 5
+external_failure_circuit_cooldown_seconds = 45
+socket_failure_backoff_base_ms = 150
+socket_failure_backoff_cap_ms = 2500
 "#,
     )
     .unwrap();
@@ -99,6 +105,10 @@ max_files = 6
     let _registry_root = EnvGuard::remove("GEWY_PROTOCOL_REGISTRY_ROOT");
     let _share_root = EnvGuard::remove("GEWY_SHARE_ROOT");
     let _history_retention = EnvGuard::remove("GEWY_HISTORY_RETENTION");
+    let _external_threshold = EnvGuard::remove("GEWY_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD");
+    let _external_cooldown = EnvGuard::remove("GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS");
+    let _socket_backoff_base = EnvGuard::remove("GEWY_SOCKET_FAILURE_BACKOFF_BASE_MS");
+    let _socket_backoff_cap = EnvGuard::remove("GEWY_SOCKET_FAILURE_BACKOFF_CAP_MS");
 
     let config = load_runtime_config().unwrap();
     assert_eq!(config.defaults.serve, Some(true));
@@ -131,6 +141,10 @@ max_files = 6
     );
     assert_eq!(config.defaults.log_max_bytes, Some(262144));
     assert_eq!(config.defaults.log_max_files, Some(6));
+    assert_eq!(config.external_failure_circuit_threshold, Some(5));
+    assert_eq!(config.external_failure_circuit_cooldown_seconds, Some(45));
+    assert_eq!(config.socket_failure_backoff_base_ms, Some(150));
+    assert_eq!(config.socket_failure_backoff_cap_ms, Some(2500));
 
     apply_runtime_path_overrides(&config);
     assert_eq!(
@@ -144,6 +158,30 @@ max_files = 6
     assert_eq!(
         std::env::var("GEWY_HISTORY_RETENTION").ok().as_deref(),
         Some("12")
+    );
+    assert_eq!(
+        std::env::var("GEWY_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD")
+            .ok()
+            .as_deref(),
+        Some("5")
+    );
+    assert_eq!(
+        std::env::var("GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS")
+            .ok()
+            .as_deref(),
+        Some("45")
+    );
+    assert_eq!(
+        std::env::var("GEWY_SOCKET_FAILURE_BACKOFF_BASE_MS")
+            .ok()
+            .as_deref(),
+        Some("150")
+    );
+    assert_eq!(
+        std::env::var("GEWY_SOCKET_FAILURE_BACKOFF_CAP_MS")
+            .ok()
+            .as_deref(),
+        Some("2500")
     );
 
     fs::remove_dir_all(&root).unwrap();

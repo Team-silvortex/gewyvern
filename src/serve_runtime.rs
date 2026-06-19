@@ -17,6 +17,10 @@ use crate::runtime_events::{
     EVENT_WRITE_FAILED,
 };
 use crate::runtime_logging::{log_error_event, log_info_event, log_warn_event};
+use crate::socket_resilience::{
+    SocketLoopHealth, apply_socket_failure_backoff, log_socket_loop_recovered,
+    log_socket_session_failure,
+};
 
 use super::{
     Cli, SocketTarget, UiLocale, analysis_snapshot, analysis_snapshot_json, annotate_export_trust,
@@ -104,18 +108,22 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<ApiState>
             std::process::exit(1);
         });
         let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
+        let mut loop_health = SocketLoopHealth::default();
 
         for _ in 0..max_sessions {
             if cli.scan_all {
                 let facts = match super::collect_unix_socket_facts_on_listener(&listener) {
                     Ok(facts) => facts,
                     Err(err) => {
-                        log_socket_service_failure(
+                        let report = loop_health.record_failure();
+                        log_socket_session_failure(
                             EVENT_SOCKET_SESSION_COLLECT_FAILED,
                             "unix",
                             path,
                             &format!("{err:?}"),
+                            report,
                         );
+                        apply_socket_failure_backoff(report);
                         eprintln!(
                             "{}",
                             locale.msgf("socket_service_failed", &format!("{err:?}"), None)
@@ -123,6 +131,9 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<ApiState>
                         continue;
                     }
                 };
+                if let Some(recovered) = loop_health.record_success() {
+                    log_socket_loop_recovered("unix", path, recovered);
+                }
                 let mut outputs = Vec::new();
                 for target in &scan_targets {
                     let export = run_binding_session(target.binding(), &facts);
@@ -140,12 +151,15 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<ApiState>
             } {
                 Ok(export) => export,
                 Err(err) => {
-                    log_socket_service_failure(
+                    let report = loop_health.record_failure();
+                    log_socket_session_failure(
                         EVENT_SOCKET_SESSION_RUN_FAILED,
                         "unix",
                         path,
                         &format!("{err:?}"),
+                        report,
                     );
+                    apply_socket_failure_backoff(report);
                     eprintln!(
                         "{}",
                         locale.msgf("socket_service_failed", &format!("{err:?}"), None)
@@ -153,6 +167,9 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<ApiState>
                     continue;
                 }
             };
+            if let Some(recovered) = loop_health.record_success() {
+                log_socket_loop_recovered("unix", path, recovered);
+            }
             let export = annotate_export_trust(export, cli);
             emit_rendered(cli, "socket_session", &export, true, api_state.as_ref());
         }
@@ -215,18 +232,22 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_state: Option<ApiState>)
         std::process::exit(1);
     });
     let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
+    let mut loop_health = SocketLoopHealth::default();
 
     for _ in 0..max_sessions {
         if cli.scan_all {
             let facts = match super::collect_tcp_socket_facts_on_listener(&listener) {
                 Ok(facts) => facts,
                 Err(err) => {
-                    log_socket_service_failure(
+                    let report = loop_health.record_failure();
+                    log_socket_session_failure(
                         EVENT_SOCKET_SESSION_COLLECT_FAILED,
                         "tcp",
                         addr,
                         &format!("{err:?}"),
+                        report,
                     );
+                    apply_socket_failure_backoff(report);
                     eprintln!(
                         "{}",
                         locale.msgf("socket_service_failed", &format!("{err:?}"), None)
@@ -234,6 +255,9 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_state: Option<ApiState>)
                     continue;
                 }
             };
+            if let Some(recovered) = loop_health.record_success() {
+                log_socket_loop_recovered("tcp", addr, recovered);
+            }
             let mut outputs = Vec::new();
             for target in &scan_targets {
                 let export = run_binding_session(target.binding(), &facts);
@@ -251,12 +275,15 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_state: Option<ApiState>)
         } {
             Ok(export) => export,
             Err(err) => {
-                log_socket_service_failure(
+                let report = loop_health.record_failure();
+                log_socket_session_failure(
                     EVENT_SOCKET_SESSION_RUN_FAILED,
                     "tcp",
                     addr,
                     &format!("{err:?}"),
+                    report,
                 );
+                apply_socket_failure_backoff(report);
                 eprintln!(
                     "{}",
                     locale.msgf("socket_service_failed", &format!("{err:?}"), None)
@@ -264,6 +291,9 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_state: Option<ApiState>)
                 continue;
             }
         };
+        if let Some(recovered) = loop_health.record_success() {
+            log_socket_loop_recovered("tcp", addr, recovered);
+        }
         let export = annotate_export_trust(export, cli);
         emit_rendered(cli, "socket_session", &export, true, api_state.as_ref());
     }

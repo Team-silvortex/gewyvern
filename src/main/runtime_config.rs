@@ -7,6 +7,10 @@ use std::path::{Path, PathBuf};
 
 const DEFAULT_CONFIG_NAME: &str = "gewyvern.toml";
 const LEGACY_CONFIG_NAME: &str = "config.toml";
+const EXTERNAL_FAILURE_CIRCUIT_THRESHOLD_ENV: &str = "GEWY_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD";
+const EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_ENV: &str = "GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS";
+const SOCKET_FAILURE_BACKOFF_BASE_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_BASE_MS";
+const SOCKET_FAILURE_BACKOFF_CAP_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_CAP_MS";
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct RuntimeConfigFile {
@@ -14,6 +18,10 @@ pub(crate) struct RuntimeConfigFile {
     pub(crate) history_retention: Option<usize>,
     pub(crate) protocol_registry_root: Option<String>,
     pub(crate) share_root: Option<String>,
+    pub(crate) external_failure_circuit_threshold: Option<usize>,
+    pub(crate) external_failure_circuit_cooldown_seconds: Option<usize>,
+    pub(crate) socket_failure_backoff_base_ms: Option<usize>,
+    pub(crate) socket_failure_backoff_cap_ms: Option<usize>,
     pub(crate) source_path: Option<PathBuf>,
     pub(crate) used_legacy_path: bool,
 }
@@ -49,6 +57,32 @@ pub(crate) fn apply_runtime_path_overrides(config: &RuntimeConfigFile) {
         if std::env::var_os("GEWY_SHARE_ROOT").is_none() {
             unsafe {
                 std::env::set_var("GEWY_SHARE_ROOT", root);
+            }
+        }
+    }
+    apply_env_usize_override(
+        EXTERNAL_FAILURE_CIRCUIT_THRESHOLD_ENV,
+        config.external_failure_circuit_threshold,
+    );
+    apply_env_usize_override(
+        EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_ENV,
+        config.external_failure_circuit_cooldown_seconds,
+    );
+    apply_env_usize_override(
+        SOCKET_FAILURE_BACKOFF_BASE_ENV,
+        config.socket_failure_backoff_base_ms,
+    );
+    apply_env_usize_override(
+        SOCKET_FAILURE_BACKOFF_CAP_ENV,
+        config.socket_failure_backoff_cap_ms,
+    );
+}
+
+fn apply_env_usize_override(key: &str, value: Option<usize>) {
+    if let Some(value) = value {
+        if std::env::var_os(key).is_none() {
+            unsafe {
+                std::env::set_var(key, value.to_string());
             }
         }
     }
@@ -103,13 +137,16 @@ fn parse_runtime_config(input: &str) -> Result<RuntimeConfigFile, String> {
     if let Some(logging) = sections.get("logging") {
         apply_logging_section(logging, &mut config)?;
     }
+    if let Some(resilience) = sections.get("resilience") {
+        apply_resilience_section(resilience, &mut config)?;
+    }
     for section in sections.keys() {
         if section.is_empty() {
             continue;
         }
         if !matches!(
             section.as_str(),
-            "runtime" | "external_engine" | "paths" | "logging"
+            "runtime" | "external_engine" | "paths" | "logging" | "resilience"
         ) {
             return Err(format!("unsupported runtime config section '{section}'"));
         }
@@ -209,6 +246,34 @@ fn apply_logging_section(
                 config.defaults.log_max_files = Some(parse_usize(value, "logging.max_files")?)
             }
             other => return Err(format!("unsupported runtime config key 'logging.{other}'")),
+        }
+    }
+    Ok(())
+}
+
+fn apply_resilience_section(
+    resilience: &BTreeMap<String, String>,
+    config: &mut RuntimeConfigFile,
+) -> Result<(), String> {
+    for (key, value) in resilience {
+        match key.as_str() {
+            "external_failure_circuit_threshold" => {
+                config.external_failure_circuit_threshold =
+                    Some(parse_positive_usize(value, "resilience.external_failure_circuit_threshold")?)
+            }
+            "external_failure_circuit_cooldown_seconds" => {
+                config.external_failure_circuit_cooldown_seconds =
+                    Some(parse_positive_usize(value, "resilience.external_failure_circuit_cooldown_seconds")?)
+            }
+            "socket_failure_backoff_base_ms" => {
+                config.socket_failure_backoff_base_ms =
+                    Some(parse_positive_usize(value, "resilience.socket_failure_backoff_base_ms")?)
+            }
+            "socket_failure_backoff_cap_ms" => {
+                config.socket_failure_backoff_cap_ms =
+                    Some(parse_positive_usize(value, "resilience.socket_failure_backoff_cap_ms")?)
+            }
+            other => return Err(format!("unsupported runtime config key 'resilience.{other}'")),
         }
     }
     Ok(())

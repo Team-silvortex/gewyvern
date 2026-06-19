@@ -3,11 +3,15 @@ use crate::ledger::FactEnvelope;
 use crate::runtime::{RuntimeError, RuntimeSession, SessionConfig};
 use crate::template::{Template, TemplateBinding};
 use std::io::{BufRead, BufReader, Read};
+use std::io::ErrorKind;
 use std::net::TcpListener;
-use std::time::SystemTime;
+use std::thread;
+use std::time::{Duration, Instant, SystemTime};
 
 const MAX_FACT_LINE_BYTES: usize = 64 * 1024;
 const MAX_FACT_COUNT: usize = 100_000;
+const SOCKET_ACCEPT_TIMEOUT: Duration = Duration::from_secs(5);
+const SOCKET_ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
 #[derive(Debug)]
 pub enum SocketInputError {
@@ -113,10 +117,8 @@ pub fn collect_unix_socket_facts(socket_path: &str) -> Result<Vec<FactEnvelope>,
 pub fn collect_unix_socket_facts_on_listener(
     listener: &std::os::unix::net::UnixListener,
 ) -> Result<Vec<FactEnvelope>, SocketInputError> {
-    let (stream, _) = listener
-        .accept()
-        .map_err(|err| SocketInputError::AcceptFailed(err.to_string()))?;
-    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
+    let stream = accept_unix_stream_with_timeout(listener, SOCKET_ACCEPT_TIMEOUT)?;
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
     collect_stream_facts(BufReader::new(stream))
 }
 
@@ -169,10 +171,8 @@ pub fn collect_tcp_socket_facts(bind_addr: &str) -> Result<Vec<FactEnvelope>, So
 pub fn collect_tcp_socket_facts_on_listener(
     listener: &TcpListener,
 ) -> Result<Vec<FactEnvelope>, SocketInputError> {
-    let (stream, _) = listener
-        .accept()
-        .map_err(|err| SocketInputError::AcceptFailed(err.to_string()))?;
-    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
+    let stream = accept_tcp_stream_with_timeout(listener, SOCKET_ACCEPT_TIMEOUT)?;
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
     collect_stream_facts(BufReader::new(stream))
 }
 
@@ -239,6 +239,71 @@ fn collect_stream_facts<R: Read>(
     Ok(facts)
 }
 
+fn accept_tcp_stream_with_timeout(
+    listener: &TcpListener,
+    timeout: Duration,
+) -> Result<std::net::TcpStream, SocketInputError> {
+    listener
+        .set_nonblocking(true)
+        .map_err(|err| SocketInputError::AcceptFailed(err.to_string()))?;
+    let deadline = Instant::now() + timeout;
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => {
+                let _ = listener.set_nonblocking(false);
+                return Ok(stream);
+            }
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    let _ = listener.set_nonblocking(false);
+                    return Err(SocketInputError::AcceptFailed(format!(
+                        "timed out waiting {}s for socket client",
+                        timeout.as_secs().max(1)
+                    )));
+                }
+                thread::sleep(SOCKET_ACCEPT_POLL_INTERVAL);
+            }
+            Err(err) => {
+                let _ = listener.set_nonblocking(false);
+                return Err(SocketInputError::AcceptFailed(err.to_string()));
+            }
+        }
+    }
+}
+
+#[cfg(target_family = "unix")]
+fn accept_unix_stream_with_timeout(
+    listener: &std::os::unix::net::UnixListener,
+    timeout: Duration,
+) -> Result<std::os::unix::net::UnixStream, SocketInputError> {
+    listener
+        .set_nonblocking(true)
+        .map_err(|err| SocketInputError::AcceptFailed(err.to_string()))?;
+    let deadline = Instant::now() + timeout;
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => {
+                let _ = listener.set_nonblocking(false);
+                return Ok(stream);
+            }
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    let _ = listener.set_nonblocking(false);
+                    return Err(SocketInputError::AcceptFailed(format!(
+                        "timed out waiting {}s for unix socket client",
+                        timeout.as_secs().max(1)
+                    )));
+                }
+                thread::sleep(SOCKET_ACCEPT_POLL_INTERVAL);
+            }
+            Err(err) => {
+                let _ = listener.set_nonblocking(false);
+                return Err(SocketInputError::AcceptFailed(err.to_string()));
+            }
+        }
+    }
+}
+
 fn read_capped_line<R: BufRead>(
     reader: &mut R,
     output: &mut Vec<u8>,
@@ -301,8 +366,8 @@ pub fn collect_unix_socket_facts(
 #[cfg(test)]
 mod tests {
     use super::{
-        MAX_FACT_COUNT, MAX_FACT_LINE_BYTES, SocketInputError, collect_stream_facts,
-        run_stream_session,
+        MAX_FACT_COUNT, MAX_FACT_LINE_BYTES, SocketInputError, accept_tcp_stream_with_timeout,
+        collect_stream_facts, run_stream_session,
     };
     use crate::export::fact_to_json;
     use crate::ledger::{
@@ -311,6 +376,7 @@ mod tests {
     use crate::runtime::SessionConfig;
     use crate::template::udp_debug_template;
     use std::io::BufReader;
+    use std::net::TcpListener;
     use std::time::{Duration, SystemTime};
 
     fn valid_fact_line() -> String {
@@ -397,5 +463,17 @@ mod tests {
         let facts =
             collect_stream_facts(BufReader::new(std::io::Cursor::new(input.into_bytes()))).unwrap();
         assert_eq!(facts.len(), 2);
+    }
+
+    #[test]
+    fn tcp_accept_timeout_returns_error_instead_of_waiting_forever() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+        let started = std::time::Instant::now();
+        let err = accept_tcp_stream_with_timeout(&listener, Duration::from_millis(120))
+            .expect_err("accept should time out without a client");
+        assert!(
+            matches!(err, SocketInputError::AcceptFailed(message) if message.contains("timed out"))
+        );
+        assert!(started.elapsed() < Duration::from_secs(1));
     }
 }

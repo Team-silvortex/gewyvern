@@ -19,6 +19,8 @@ mod runtime_events;
 mod runtime_logging;
 #[path = "main/runtime_migration.rs"]
 mod runtime_migration;
+#[path = "main/socket_resilience.rs"]
+mod socket_resilience;
 mod serve_runtime;
 #[cfg(test)]
 #[path = "main/tests.rs"]
