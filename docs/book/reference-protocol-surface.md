@@ -255,6 +255,41 @@ The contract candidate here is:
 
 That keeps interactive use flexible without making the shelf itself fuzzy.
 
+## Runtime API Catalog
+
+The control-plane/runtime API now exposes the protocol shelf directly, without
+requiring an active scan target first.
+
+Use these paths when you want machine-stable protocol discovery:
+
+- `GET /v1/protocols`
+  - returns the current catalog with canonical families, default entries, alias
+    lists, and per-family entry summaries
+- `GET /v1/protocols/<protocol>`
+  - returns the resolved summary for one canonical family
+- `GET /v1/protocols/<protocol>/entries/<entry>/surface.json`
+  - returns the selected entry surface, including sibling entries, aliases, and
+    shelf metadata when available
+
+This complements, rather than replaces:
+
+- `/v1/latest/targets`
+- `/v1/latest/targets/<path-segment>/protocol-surface.json`
+
+The distinction is deliberate:
+
+- `/v1/protocols...`
+  - asks "what protocol surface does this runtime know how to resolve?"
+- `/v1/latest/targets...`
+  - asks "what protocol surface was attached to this concrete rendered target?"
+
+For automation and external control-plane code, prefer:
+
+1. `/v1/protocols` to discover canonical family and entry names
+2. `/v1/protocols/<protocol>/entries/<entry>/surface.json` to inspect the
+   shelf shape for one entry
+3. `/v1/latest/targets` only after a scan/session has materialized target data
+
 ## What Should Stay Stable
 
 For the current maturity line, these behaviors are deliberate:

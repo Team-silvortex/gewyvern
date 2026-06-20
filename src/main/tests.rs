@@ -42,6 +42,8 @@ mod ambiguity;
 mod analysis;
 #[path = "tests/api_bench.rs"]
 mod api_bench;
+#[path = "tests/api_protocol_catalog.rs"]
+mod api_protocol_catalog;
 #[path = "tests/api_persistence.rs"]
 mod api_persistence;
 #[path = "tests/api_sidecar.rs"]

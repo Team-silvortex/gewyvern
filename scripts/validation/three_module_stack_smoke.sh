@@ -205,6 +205,16 @@ wait_for_json_python() {
   done
   return 1
 }
+assert_json_python() {
+  local label="$1"
+  local body="$2"
+  local python_code="$3"
+  if ! printf '%s' "${body}" | python3 -c "${python_code}"; then
+    echo "${label} validation failed" >&2
+    echo "${body}" >&2
+    exit 1
+  fi
+}
 wait_etragon_http() {
   local url="$1"
   for _ in $(seq 1 240); do
@@ -354,31 +364,21 @@ ETRAGON_STATUS_JSON="$(wait_for_text_match etragon_curl "http://127.0.0.1:${ET_A
   docker logs "${ET_A_NAME}" >&2 || true
   exit 1
 }
-printf '%s' "${ETRAGON_STATUS_JSON}" | python3 -c 'import json, sys
+assert_json_python "etragon status" "${ETRAGON_STATUS_JSON}" 'import json, sys
 payload = json.load(sys.stdin)
 assert payload["status"] in {"ready", "degraded"}, payload
-print("etragon-status-ok")' || {
-  echo "etragon status validation failed" >&2
-  echo "${ETRAGON_STATUS_JSON}" >&2
-  docker logs "${ET_A_NAME}" >&2 || true
-  exit 1
-}
+print("etragon-status-ok")'
 ETRAGON_OUTPUT_JSON="$(wait_for_text_match etragon_curl "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/output.json" "\"augmentations\"")" || {
   echo "etragon sidecar never published output_json with augmentations" >&2
   etragon_curl "http://127.0.0.1:${ET_A_API_PORT}/v1/latest/output.json" >&2 || true
   docker logs "${ET_A_NAME}" >&2 || true
   exit 1
 }
-printf '%s' "${ETRAGON_OUTPUT_JSON}" | python3 -c 'import json, sys
+assert_json_python "etragon output" "${ETRAGON_OUTPUT_JSON}" 'import json, sys
 payload = json.load(sys.stdin)
 assert "output" in payload and isinstance(payload["output"], dict), payload
 assert "augmentations" in payload["output"], payload
-print("etragon-output-ok")' || {
-  echo "etragon output validation failed" >&2
-  echo "${ETRAGON_OUTPUT_JSON}" >&2
-  docker logs "${ET_A_NAME}" >&2 || true
-  exit 1
-}
+print("etragon-output-ok")'
 LESERPENT_STATE_PATH="${STATE_PATH}" \
   dotnet run --project "${LESERPENT_ROOT}/src/Leserpent/Leserpent.csproj" --no-launch-profile --urls "http://127.0.0.1:${LESP_PORT}" \
   >"${LESP_LOG}" 2>&1 &
@@ -416,7 +416,7 @@ raise SystemExit(1)')" || {
   exit 1
 }
 SUMMARY_JSON="$(curl -fsS "http://127.0.0.1:${LESP_PORT}/v1/fleet/summary?environment=stack")"
-printf '%s' "${SUMMARY_JSON}" | python3 -c 'import json, sys
+assert_json_python "fleet summary" "${SUMMARY_JSON}" 'import json, sys
 payload = json.load(sys.stdin)
 summary = payload["summary"]
 assert summary["runtimeCount"] == 2, summary
@@ -425,12 +425,8 @@ assert summary["runtimesWithAnalysisJson"] == 2, summary
 assert summary["runtimesWithPairedSidecar"] == 1, summary
 assert summary["runtimesWithHealthySidecar"] == 1, summary
 assert summary["runtimesWithObservedSidecarStatus"] == 1, summary
-print("summary-ok")' || {
-  echo "fleet summary validation failed" >&2
-  echo "${SUMMARY_JSON}" >&2
-  exit 1
-}
-printf '%s' "${RUNTIMES_JSON}" | python3 -c 'import json, sys
+print("summary-ok")'
+assert_json_python "runtime detail" "${RUNTIMES_JSON}" 'import json, sys
 payload = json.load(sys.stdin)
 runtimes = {item["name"]: item for item in payload["runtimes"]}
 a = runtimes["gw-stack-a"]
@@ -443,45 +439,25 @@ assert a["sidecarStatus"]["daemonStatus"] in {"ready", "degraded"}, a
 assert b["status"]["hasLatestSnapshot"] is True, b
 assert b["status"]["hasAnalysisJson"] is True, b
 assert b["sidecarEndpoint"] is None, b
-print("runtimes-ok")' || {
-  echo "runtime detail validation failed" >&2
-  echo "${RUNTIMES_JSON}" >&2
-  exit 1
-}
-printf '%s' "${GW_A_RESILIENCE_JSON}" | python3 -c 'import json, sys
+print("runtimes-ok")'
+assert_json_python "gw-a resilience" "${GW_A_RESILIENCE_JSON}" 'import json, sys
 payload = json.load(sys.stdin)
 assert payload["summary"] == "runtime resilience posture is healthy", payload
-print("gw-a-resilience-ok")' || {
-  echo "gw-a resilience validation failed" >&2
-  echo "${GW_A_RESILIENCE_JSON}" >&2
-  exit 1
-}
-printf '%s' "${GW_B_RESILIENCE_JSON}" | python3 -c 'import json, sys
+print("gw-a-resilience-ok")'
+assert_json_python "gw-b resilience" "${GW_B_RESILIENCE_JSON}" 'import json, sys
 payload = json.load(sys.stdin)
 assert payload["summary"] == "runtime resilience posture is healthy", payload
-print("gw-b-resilience-ok")' || {
-  echo "gw-b resilience validation failed" >&2
-  echo "${GW_B_RESILIENCE_JSON}" >&2
-  exit 1
-}
-printf '%s' "${GW_B_DEGRADED_HEALTH_JSON}" | python3 -c 'import json, sys
+print("gw-b-resilience-ok")'
+assert_json_python "gw-b health degraded" "${GW_B_DEGRADED_HEALTH_JSON}" 'import json, sys
 payload = json.load(sys.stdin)
 assert payload["resilience_degraded"] is True, payload
-print("gw-b-health-degraded-ok")' || {
-  echo "gw-b health degraded validation failed" >&2
-  echo "${GW_B_DEGRADED_HEALTH_JSON}" >&2
-  exit 1
-}
-printf '%s' "${GW_B_DEGRADED_RESILIENCE_JSON}" | python3 -c 'import json, sys
+print("gw-b-health-degraded-ok")'
+assert_json_python "gw-b degraded resilience" "${GW_B_DEGRADED_RESILIENCE_JSON}" 'import json, sys
 payload = json.load(sys.stdin)
 assert payload["summary"] == "socket service is backing off after repeated failures", payload
 assert payload["socket_service"]["status"] == "backing_off", payload
 assert payload["external_analysis"]["status"] == "healthy", payload
-print("gw-b-resilience-degraded-ok")' || {
-  echo "gw-b degraded resilience validation failed" >&2
-  echo "${GW_B_DEGRADED_RESILIENCE_JSON}" >&2
-  exit 1
-}
+print("gw-b-resilience-degraded-ok")'
 python3 - "${GW_A_RESILIENCE_JSON}" "${GW_B_RESILIENCE_JSON}" "${GW_B_DEGRADED_RESILIENCE_JSON}" >"${RESILIENCE_SUMMARY_PATH}" <<'PY'
 import json, sys
 a = json.loads(sys.argv[1]); b = json.loads(sys.argv[2]); d = json.loads(sys.argv[3])

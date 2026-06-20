@@ -3,6 +3,9 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 
 use super::json::{api_target_list_json, decode_api_target_path_segment, json_string};
+use super::protocol_catalog::{
+    api_protocol_catalog_json, api_protocol_summary_json, api_protocol_surface_by_name_json,
+};
 use super::resilience_status::{api_runtime_resilience_json, append_runtime_resilience_flag_json};
 use super::training_manifest::{
     target_training_dataset_manifest_json, training_dataset_manifest_json,
@@ -24,6 +27,9 @@ fn api_response_for_request_uncapped<'a>(
     path: &str,
     snapshot: &'a ApiSnapshot,
 ) -> (u16, &'static str, Cow<'a, str>) {
+    if let Some(rest) = path.strip_prefix("/v1/protocols/") {
+        return protocol_catalog_response(rest);
+    }
     if let Some(rest) = path.strip_prefix("/v1/latest/targets/") {
         if rest.is_empty() {
             return (
@@ -154,6 +160,11 @@ fn api_response_for_request_uncapped<'a>(
             "application/json; charset=utf-8",
             Cow::Owned(api_runtime_resilience_json()),
         ),
+        "/v1/protocols" => (
+            200,
+            "application/json; charset=utf-8",
+            Cow::Owned(api_protocol_catalog_json()),
+        ),
         "/v1/latest/meta" => (
             200,
             "application/json; charset=utf-8",
@@ -168,7 +179,7 @@ fn api_response_for_request_uncapped<'a>(
             200,
             "application/json; charset=utf-8",
             Cow::Owned(format!(
-                "{{\"service\":\"gewyvern-api\",\"version\":{},\"latest_snapshot\":true,\"serve_required\":true,\"training_example\":true,\"training_dataset_manifest\":true,\"external_sidecar_context\":true,\"external_capability_profile\":true,\"external_context_status\":true,\"external_sidecar_trust_level\":true,\"external_sidecar_consumption_mode\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":{}}}",
+                "{{\"service\":\"gewyvern-api\",\"version\":{},\"latest_snapshot\":true,\"serve_required\":true,\"training_example\":true,\"training_dataset_manifest\":true,\"protocol_catalog\":true,\"protocol_surface_catalog\":true,\"external_sidecar_context\":true,\"external_capability_profile\":true,\"external_context_status\":true,\"external_sidecar_trust_level\":true,\"external_sidecar_consumption_mode\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":{}}}",
                 json_string(API_VERSION),
                 API_ENDPOINTS_JSON,
             )),
@@ -310,6 +321,61 @@ fn cap_api_response<'a>(
         );
     }
     (status, content_type, body)
+}
+
+fn protocol_catalog_response<'a>(rest: &str) -> (u16, &'static str, Cow<'a, str>) {
+    if rest.is_empty() {
+        return (
+            404,
+            "application/json; charset=utf-8",
+            Cow::Borrowed("{\"error\":\"not_found\"}"),
+        );
+    }
+    if let Some((protocol_name, suffix)) = rest.split_once('/') {
+        if let Some(entry_rest) = suffix.strip_prefix("entries/") {
+            if let Some((entry, tail)) = entry_rest.split_once('/') {
+                if tail == "surface.json" {
+                    return match api_protocol_surface_by_name_json(protocol_name, entry) {
+                        Some(body) => (200, "application/json; charset=utf-8", Cow::Owned(body)),
+                        None => (
+                            404,
+                            "application/json; charset=utf-8",
+                            Cow::Owned(format!(
+                                "{{\"error\":\"unknown_protocol_entry\",\"protocol\":{},\"entry\":{}}}",
+                                json_string(protocol_name),
+                                json_string(entry),
+                            )),
+                        ),
+                    };
+                }
+            }
+            return (
+                400,
+                "application/json; charset=utf-8",
+                Cow::Borrowed(
+                    "{\"error\":\"invalid_protocol_entry_path\",\"expected\":\"/v1/protocols/<protocol>/entries/<entry>/surface.json\"}",
+                ),
+            );
+        }
+        return (
+            400,
+            "application/json; charset=utf-8",
+            Cow::Borrowed(
+                "{\"error\":\"invalid_protocol_path\",\"expected\":\"/v1/protocols/<protocol>\"}",
+            ),
+        );
+    }
+    match api_protocol_summary_json(rest) {
+        Some(body) => (200, "application/json; charset=utf-8", Cow::Owned(body)),
+        None => (
+            404,
+            "application/json; charset=utf-8",
+            Cow::Owned(format!(
+                "{{\"error\":\"unknown_protocol\",\"protocol\":{}}}",
+                json_string(rest),
+            )),
+        ),
+    }
 }
 
 pub(super) fn handle_api_client(mut stream: TcpStream, state: ApiState) {
