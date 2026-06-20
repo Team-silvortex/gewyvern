@@ -1,9 +1,14 @@
 use crate::render_utils::append_json_string;
 use gewyvern::runtime_layout::runtime_layout;
+use gewyvern::protocol_profiles::protocol_summaries;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::history_catalog_delta::{latest_protocol_catalog_delta, protocol_catalog_delta_json};
 use super::json::{api_snapshot_meta_json, api_target_list_json, api_target_path_segment};
+use super::protocol_catalog::{
+    api_protocol_catalog_json, api_protocol_summary_json, api_protocol_surface_by_name_json,
+};
 use super::training_manifest::{
     target_training_dataset_manifest_json, training_dataset_manifest_json,
 };
@@ -82,6 +87,7 @@ fn persist_snapshot_tree(
     write_optional_file(root.join("export.json"), snapshot.export_json.as_deref())?;
     write_optional_file(root.join("report.json"), snapshot.report_json.as_deref())?;
     write_optional_file(root.join("report.html"), snapshot.report_html.as_deref())?;
+    persist_protocol_catalog(root)?;
 
     let targets_root = root.join("targets");
     fs::create_dir_all(&targets_root).map_err(|err| {
@@ -98,6 +104,41 @@ fn persist_snapshot_tree(
             continue;
         };
         persist_target_snapshot(&targets_root, name, target)?;
+    }
+    Ok(())
+}
+
+fn persist_protocol_catalog(root: &Path) -> Result<(), String> {
+    write_text_file(&root.join("protocols.json"), &api_protocol_catalog_json())?;
+    let protocols_root = root.join("protocols");
+    fs::create_dir_all(&protocols_root).map_err(|err| {
+        format!(
+            "failed to create protocol catalog root '{}': {err}",
+            protocols_root.display()
+        )
+    })?;
+    for summary in protocol_summaries() {
+        let protocol_root = protocols_root.join(&summary.protocol);
+        fs::create_dir_all(protocol_root.join("entries")).map_err(|err| {
+            format!(
+                "failed to create protocol catalog directory '{}': {err}",
+                protocol_root.display()
+            )
+        })?;
+        if let Some(body) = api_protocol_summary_json(&summary.protocol) {
+            write_text_file(&protocol_root.join("summary.json"), &body)?;
+        }
+        for entry in summary.entries {
+            if let Some(body) = api_protocol_surface_by_name_json(&summary.protocol, &entry.mode) {
+                write_text_file(
+                    &protocol_root
+                        .join("entries")
+                        .join(&entry.mode)
+                        .join("surface.json"),
+                    &body,
+                )?;
+            }
+        }
     }
     Ok(())
 }
@@ -159,6 +200,10 @@ fn write_history_index(history_root: &Path) -> Result<(), String> {
         Some(value) => json.push_str(&value.to_string()),
         None => json.push_str("null"),
     }
+    json.push_str(",\"catalog_artifacts\":[\"protocols.json\",\"protocols/<protocol>/summary.json\",\"protocols/<protocol>/entries/<entry>/surface.json\"]");
+    json.push_str(",\"latest_protocol_catalog_delta\":");
+    let delta = latest_protocol_catalog_delta(&entries)?;
+    json.push_str(&protocol_catalog_delta_json(delta.as_ref()));
     json.push_str(",\"lines\":[{\"line\":");
     append_json_string(&mut json, &minor_line);
     json.push_str(",\"status\":\"active\",\"entry_count\":");
@@ -191,6 +236,10 @@ fn write_history_index(history_root: &Path) -> Result<(), String> {
         append_json_string(&mut json, &format!("{relative_path}/meta.json"));
         json.push_str(",\"targets_path\":");
         append_json_string(&mut json, &format!("{relative_path}/targets.json"));
+        json.push_str(",\"protocol_catalog_path\":");
+        append_json_string(&mut json, &format!("{relative_path}/protocols.json"));
+        json.push_str(",\"protocol_root_path\":");
+        append_json_string(&mut json, &format!("{relative_path}/protocols"));
         json.push_str(",\"exists\":");
         json.push_str(if path.exists() { "true" } else { "false" });
         json.push('}');

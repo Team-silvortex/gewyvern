@@ -75,6 +75,29 @@ The exact artifact folder may evolve.
 The important part is that the history page can point to stable companion
 artifacts instead of vague memories.
 
+## Protocol Catalog Companion
+
+From the protocol-catalog work onward, each persisted runtime/history snapshot
+should also retain the machine-readable protocol shelf that existed at that
+moment.
+
+At minimum, keep:
+
+- `protocols.json`
+- `protocols/<protocol>/summary.json`
+- `protocols/<protocol>/entries/<entry>/surface.json`
+
+This matters because a minor line is not only about runtime health.
+It is also about what protocol surface the line actually claimed to support.
+
+That makes protocol-growth claims reviewable across lines like:
+
+- `v0.15.x`
+- `v0.16.x`
+- `v0.17.x`
+
+without relying on memory or prose-only changelogs.
+
 ## What Good Looks Like
 
 A good minor-line evidence bundle is:

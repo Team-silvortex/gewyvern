@@ -9,6 +9,8 @@ mod external_analysis;
 mod helpers;
 #[path = "main/history_view.rs"]
 mod history_view;
+#[path = "main/history_catalog_delta.rs"]
+mod history_catalog_delta;
 mod render_utils;
 mod report_runtime;
 #[path = "main/runtime_config.rs"]

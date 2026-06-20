@@ -116,14 +116,33 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
     let meta = fs::read_to_string(latest_root.join("meta.json")).unwrap();
     let targets = fs::read_to_string(latest_root.join("targets.json")).unwrap();
     let dataset = fs::read_to_string(latest_root.join("training-dataset.json")).unwrap();
+    let protocol_catalog = fs::read_to_string(latest_root.join("protocols.json")).unwrap();
     let protocol_surface = fs::read_to_string(target_root.join("protocol-surface.json")).unwrap();
+    let protocol_summary = fs::read_to_string(
+        latest_root.join("protocols").join("http").join("summary.json"),
+    )
+    .unwrap();
+    let entry_surface = fs::read_to_string(
+        latest_root
+            .join("protocols")
+            .join("redis")
+            .join("entries")
+            .join("zadd")
+            .join("surface.json"),
+    )
+    .unwrap();
     let target_dataset = fs::read_to_string(target_root.join("training-dataset.json")).unwrap();
 
     assert!(meta.contains("\"kind\":\"single\""));
     assert!(targets.contains("\"targets\":[\"scan:http:request\"]"));
     assert!(targets.contains("\"path_segment\":\"scan:http:request\""));
     assert!(dataset.contains(&training_sample_id(target_name)));
+    assert!(protocol_catalog.contains("\"surface\":\"protocol_catalog\""));
+    assert!(protocol_catalog.contains("\"protocol\":\"mysql\""));
     assert!(protocol_surface.contains("\"protocol\":\"http\""));
+    assert!(protocol_summary.contains("\"protocol\":\"http\""));
+    assert!(entry_surface.contains("\"protocol\":\"redis\""));
+    assert!(entry_surface.contains("\"entry\":\"zadd\""));
     assert!(target_dataset.contains("\"snapshot_kind\":\"target\""));
     assert!(latest_root.join("summary.json").exists());
     assert!(target_root.join("analysis.json").exists());
@@ -231,6 +250,30 @@ fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward()
     assert!(
         history_root
             .join(first_updated.to_string())
+            .join("protocols.json")
+            .exists()
+    );
+    assert!(
+        history_root
+            .join(second_updated.to_string())
+            .join("protocols")
+            .join("http")
+            .join("summary.json")
+            .exists()
+    );
+    assert!(
+        history_root
+            .join(second_updated.to_string())
+            .join("protocols")
+            .join("redis")
+            .join("entries")
+            .join("zadd")
+            .join("surface.json")
+            .exists()
+    );
+    assert!(
+        history_root
+            .join(first_updated.to_string())
             .join("targets")
             .join("scan:http:request")
             .join("summary.json")
@@ -246,6 +289,10 @@ fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward()
     );
     assert!(history_index.contains(&first_updated.to_string()));
     assert!(history_index.contains(&second_updated.to_string()));
+    assert!(history_index.contains("\"protocol_catalog_path\":"));
+    assert!(history_index.contains("\"protocol_root_path\":"));
+    assert!(history_index.contains("\"latest_protocol_catalog_delta\":{"));
+    assert!(history_index.contains("\"status\":\"unchanged\""));
 
     fs::remove_dir_all(&root).unwrap();
 }

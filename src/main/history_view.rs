@@ -1,3 +1,4 @@
+use crate::history_catalog_delta::latest_protocol_catalog_delta;
 use gewyvern::runtime_layout::runtime_layout;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -60,12 +61,16 @@ fn render_history_index_text(history_root: &Path) -> Result<String, String> {
         text.push_str("snapshots:\n- none yet\n");
         return Ok(text);
     }
+    if let Some(delta) = latest_protocol_catalog_delta(&entries)? {
+        text.push_str(&delta.to_text_block());
+    }
     text.push_str("snapshots:\n");
     for (updated_unix_ms, path) in entries {
         text.push_str(&format!(
-            "- {} line={} path={}\n",
+            "- {} line={} path={} protocol_catalog={}/protocols.json\n",
             updated_unix_ms,
             minor_line,
+            path.display(),
             path.display()
         ));
     }
@@ -74,7 +79,7 @@ fn render_history_index_text(history_root: &Path) -> Result<String, String> {
 
 fn empty_history_index_json(history_root: &Path) -> String {
     format!(
-        "{{\"schema_version\":2,\"api_version\":\"{}\",\"minor_line\":\"{}\",\"history_retention\":{},\"latest_updated_unix_ms\":null,\"oldest_updated_unix_ms\":null,\"lines\":[{{\"line\":\"{}\",\"status\":\"active\",\"entry_count\":0,\"latest_updated_unix_ms\":null,\"oldest_updated_unix_ms\":null}}],\"entries\":[],\"root\":\"{}\"}}",
+        "{{\"schema_version\":2,\"api_version\":\"{}\",\"minor_line\":\"{}\",\"history_retention\":{},\"latest_updated_unix_ms\":null,\"oldest_updated_unix_ms\":null,\"lines\":[{{\"line\":\"{}\",\"status\":\"active\",\"entry_count\":0,\"latest_updated_unix_ms\":null,\"oldest_updated_unix_ms\":null}}],\"entries\":[],\"root\":\"{}\",\"catalog_artifacts\":[\"protocols.json\",\"protocols/<protocol>/summary.json\",\"protocols/<protocol>/entries/<entry>/surface.json\"],\"latest_protocol_catalog_delta\":null}}",
         API_VERSION,
         current_minor_line(),
         history_retention_limit(),

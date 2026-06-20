@@ -74,6 +74,16 @@ Use a minor-line snapshot when you want to answer:
 - what was still intentionally incomplete
 - what evidence existed for that judgment
 
+The runtime history shelf now also preserves a machine-readable protocol-catalog
+trail, including the latest two-snapshot delta summary for:
+
+- added protocol families
+- removed protocol families
+- changed protocol summaries
+- added entry surfaces
+- removed entry surfaces
+- changed entry surface contracts
+
 For the IR-side archival baseline that can accompany one of these pages, the
 repo now includes:
 
