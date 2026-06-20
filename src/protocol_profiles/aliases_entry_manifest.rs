@@ -2,6 +2,36 @@ use super::ProtocolAlias;
 
 pub(crate) const PROTOCOL_ENTRY_ALIASES_MANIFEST: &[ProtocolAlias] = &[
     ProtocolAlias {
+        alias: "dot",
+        protocol: "dns",
+        entry: Some("tcp"),
+    },
+    ProtocolAlias {
+        alias: "dns-over-tls",
+        protocol: "dns",
+        entry: Some("tcp"),
+    },
+    ProtocolAlias {
+        alias: "dns_over_tls",
+        protocol: "dns",
+        entry: Some("tcp"),
+    },
+    ProtocolAlias {
+        alias: "doh",
+        protocol: "http",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "dns-over-https",
+        protocol: "http",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "dns_over_https",
+        protocol: "http",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
         alias: "http-connect-auth-required",
         protocol: "http",
         entry: Some("auth-required"),

@@ -1,13 +1,15 @@
 mod aliases;
 mod clusters;
+mod overlays;
 mod profiles;
 mod registry;
 mod shelves;
 mod summary;
 mod surface;
 
-use aliases::{resolve_protocol_entry_alias, split_protocol_alias};
+use aliases::{protocol_entry_aliases, resolve_protocol_entry_alias, split_protocol_alias};
 use profiles::{PROTOCOL_PROFILES, find_protocol_profile};
+use overlays::selected_overlay_for_alias;
 use registry::{
     default_protocol_scan_set_from_registry, resolve_built_in_dsl_path, resolve_registry_alias,
     resolve_registry_entry_alias, scan_protocol_registry, scan_protocol_registry_in,
@@ -58,6 +60,17 @@ pub struct ProtocolShelfSummary {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProtocolOverlaySummary {
+    pub key: String,
+    pub label: String,
+    pub kind: String,
+    pub operator_hint: String,
+    pub aliases: Vec<String>,
+    pub companion_protocol: Option<String>,
+    pub companion_entry: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProtocolSurfaceSummary {
     pub protocol: String,
     pub entry: String,
@@ -68,6 +81,8 @@ pub struct ProtocolSurfaceSummary {
     pub sibling_entries: Vec<String>,
     pub cluster_hint: Option<ProtocolClusterHintSummary>,
     pub shelf: Option<ProtocolShelfSummary>,
+    pub overlays: Vec<ProtocolOverlaySummary>,
+    pub selected_overlay: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -100,15 +115,27 @@ pub fn protocol_summary(protocol: &str) -> Option<ProtocolSummary> {
 }
 
 pub fn protocol_surface(protocol: &str, entry: &str) -> Option<ProtocolSurfaceSummary> {
+    let raw_protocol = protocol;
     let (protocol, _) = split_protocol_alias(protocol);
-    let summary = protocol_summary(protocol)?;
-    let selected_entry = summary
-        .entries
-        .iter()
-        .find(|item| item.mode == entry || item.aliases.iter().any(|alias| alias == entry))?
-        .mode
-        .clone();
-    Some(built_in_protocol_surface(summary, selected_entry))
+    let selected_overlay = selected_overlay_for_alias(raw_protocol).map(str::to_string);
+    let (summary, selected_entry) = if let Some(summary) = protocol_summary(protocol) {
+        let selected_entry = summary
+            .entries
+            .iter()
+            .find(|item| item.mode == entry || item.aliases.iter().any(|alias| alias == entry))?
+            .mode
+            .clone();
+        (summary, selected_entry)
+    } else {
+        let alias = protocol_entry_aliases().find(|alias| alias.alias == protocol)?;
+        let summary = protocol_summary(alias.protocol)?;
+        let selected_entry = alias.entry?;
+        if selected_entry != entry {
+            return None;
+        }
+        (summary, selected_entry.to_string())
+    };
+    Some(built_in_protocol_surface(summary, selected_entry, selected_overlay))
 }
 
 pub fn protocol_names() -> Vec<String> {

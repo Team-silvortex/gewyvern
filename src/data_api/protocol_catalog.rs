@@ -1,7 +1,7 @@
 use crate::render_utils::{append_json_string, append_string_list_json};
 use gewyvern::protocol_profiles::{
-    ProtocolClusterHintSummary, ProtocolEntrySummary, ProtocolShelfSummary, ProtocolSummary,
-    ProtocolSurfaceSummary,
+    ProtocolClusterHintSummary, ProtocolEntrySummary, ProtocolOverlaySummary,
+    ProtocolShelfSummary, ProtocolSummary, ProtocolSurfaceSummary,
     protocol_summaries, protocol_summary, protocol_surface,
 };
 use std::collections::BTreeMap;
@@ -90,6 +90,16 @@ pub(super) fn api_protocol_surface_json(surface: &ProtocolSurfaceSummary) -> Str
     append_protocol_cluster_hint_json(&mut json, surface.cluster_hint.as_ref());
     json.push_str(",\"shelf\":");
     append_protocol_shelf_json(&mut json, surface.shelf.as_ref());
+    json.push_str(",\"selected_overlay\":");
+    if let Some(overlay) = surface.selected_overlay.as_ref() {
+        append_json_string(&mut json, overlay);
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"overlays\":");
+    append_protocol_overlays_json(&mut json, &surface.overlays);
+    json.push_str(",\"reading_companions\":");
+    append_protocol_companions_json(&mut json, &surface.overlays);
     json.push('}');
     json
 }
@@ -150,6 +160,72 @@ fn append_protocol_cluster_hint_json(
     } else {
         target.push_str("null");
     }
+}
+
+fn append_protocol_overlays_json(target: &mut String, overlays: &[ProtocolOverlaySummary]) {
+    target.push('[');
+    for (index, overlay) in overlays.iter().enumerate() {
+        if index > 0 {
+            target.push(',');
+        }
+        target.push('{');
+        target.push_str("\"key\":");
+        append_json_string(target, &overlay.key);
+        target.push_str(",\"label\":");
+        append_json_string(target, &overlay.label);
+        target.push_str(",\"kind\":");
+        append_json_string(target, &overlay.kind);
+        target.push_str(",\"operator_hint\":");
+        append_json_string(target, &overlay.operator_hint);
+        target.push_str(",\"aliases\":");
+        append_string_list_json(target, &overlay.aliases);
+        target.push_str(",\"companion_protocol\":");
+        if let Some(protocol) = overlay.companion_protocol.as_ref() {
+            append_json_string(target, protocol);
+        } else {
+            target.push_str("null");
+        }
+        target.push_str(",\"companion_entry\":");
+        if let Some(entry) = overlay.companion_entry.as_ref() {
+            append_json_string(target, entry);
+        } else {
+            target.push_str("null");
+        }
+        target.push('}');
+    }
+    target.push(']');
+}
+
+fn append_protocol_companions_json(target: &mut String, overlays: &[ProtocolOverlaySummary]) {
+    let mut emitted = BTreeMap::<(String, String), (String, String)>::new();
+    for overlay in overlays {
+        let Some(protocol) = overlay.companion_protocol.clone() else {
+            continue;
+        };
+        let Some(entry) = overlay.companion_entry.clone() else {
+            continue;
+        };
+        emitted
+            .entry((protocol, entry))
+            .or_insert_with(|| (overlay.key.clone(), overlay.label.clone()));
+    }
+    target.push('[');
+    for (index, ((protocol, entry), (overlay_key, overlay_label))) in emitted.into_iter().enumerate() {
+        if index > 0 {
+            target.push(',');
+        }
+        target.push('{');
+        target.push_str("\"protocol\":");
+        append_json_string(target, &protocol);
+        target.push_str(",\"entry\":");
+        append_json_string(target, &entry);
+        target.push_str(",\"via_overlay\":");
+        append_json_string(target, &overlay_key);
+        target.push_str(",\"via_label\":");
+        append_json_string(target, &overlay_label);
+        target.push('}');
+    }
+    target.push(']');
 }
 
 #[derive(Clone)]
@@ -304,10 +380,119 @@ mod tests {
             .expect("dot target alias should resolve");
         assert_eq!(dot.protocol, "dns");
         assert_eq!(dot.entry, "tcp");
+        assert_eq!(dot.selected_overlay.as_deref(), Some("dot"));
+        assert!(dot.overlays.iter().any(|overlay| overlay.key == "dot"));
 
         let doh = api_protocol_surface_for_target("scan:doh:request")
             .expect("doh target alias should resolve");
         assert_eq!(doh.protocol, "http");
         assert_eq!(doh.entry, "request");
+        assert_eq!(doh.selected_overlay.as_deref(), Some("doh"));
+        assert!(doh.overlays.iter().any(|overlay| overlay.key == "doh"));
+    }
+
+    #[test]
+    fn protocol_surface_json_emits_overlay_metadata_for_dot_and_doh() {
+        let dot = api_protocol_surface_by_name_json("dot", "tcp")
+            .expect("dot overlay should render as dns/tcp surface");
+        assert!(dot.contains("\"protocol\":\"dns\""));
+        assert!(dot.contains("\"entry\":\"tcp\""));
+        assert!(dot.contains("\"selected_overlay\":\"dot\""));
+        assert!(dot.contains("\"key\":\"dot\""));
+        assert!(dot.contains("\"kind\":\"encrypted_resolver_overlay\""));
+
+        let doh = api_protocol_surface_by_name_json("doh", "request")
+            .expect("doh overlay should render as http/request surface");
+        assert!(doh.contains("\"protocol\":\"http\""));
+        assert!(doh.contains("\"entry\":\"request\""));
+        assert!(doh.contains("\"selected_overlay\":\"doh\""));
+        assert!(doh.contains("\"key\":\"doh\""));
+        assert!(doh.contains("\"kind\":\"resolver_payload_overlay\""));
+    }
+
+    #[test]
+    fn protocol_surface_json_emits_http_connect_overlay_metadata() {
+        let connect = api_protocol_surface_by_name_json("http-connect", "connect")
+            .expect("http connect alias should render as http/connect surface");
+        assert!(connect.contains("\"protocol\":\"http\""));
+        assert!(connect.contains("\"entry\":\"connect\""));
+        assert!(connect.contains("\"selected_overlay\":\"http-connect\""));
+        assert!(connect.contains("\"key\":\"http-connect\""));
+        assert!(connect.contains("\"kind\":\"proxy_tunnel_overlay\""));
+
+        let denied = api_protocol_surface_by_name_json("http-connect-denied", "denied")
+            .expect("http connect denied alias should render as denied tunnel surface");
+        assert!(denied.contains("\"protocol\":\"http\""));
+        assert!(denied.contains("\"entry\":\"denied\""));
+        assert!(denied.contains("\"selected_overlay\":\"http-connect\""));
+        assert!(denied.contains("\"key\":\"http-connect\""));
+    }
+
+    #[test]
+    fn protocol_surface_json_emits_starttls_overlay_metadata_on_mail_auth_surfaces() {
+        let smtp = api_protocol_surface_by_name_json("smtp", "auth")
+            .expect("smtp auth surface should exist");
+        assert!(smtp.contains("\"protocol\":\"smtp\""));
+        assert!(smtp.contains("\"entry\":\"auth\""));
+        assert!(smtp.contains("\"selected_overlay\":null"));
+        assert!(smtp.contains("\"key\":\"starttls\""));
+        assert!(smtp.contains("\"kind\":\"tls_upgrade_overlay\""));
+
+        let imap = api_protocol_surface_by_name_json("imap", "auth-denied")
+            .expect("imap denied auth surface should exist");
+        assert!(imap.contains("\"protocol\":\"imap\""));
+        assert!(imap.contains("\"entry\":\"auth-denied\""));
+        assert!(imap.contains("\"key\":\"starttls\""));
+
+        let pop3 = api_protocol_surface_by_name_json("pop3", "auth")
+            .expect("pop3 auth surface should exist");
+        assert!(pop3.contains("\"protocol\":\"pop3\""));
+        assert!(pop3.contains("\"entry\":\"auth\""));
+        assert!(pop3.contains("\"key\":\"starttls\""));
+    }
+
+    #[test]
+    fn protocol_surface_json_emits_https_and_tls_companion_overlay_metadata() {
+        let https = api_protocol_surface_by_name_json("https", "connect")
+            .expect("https connect surface should exist");
+        assert!(https.contains("\"protocol\":\"https\""));
+        assert!(https.contains("\"entry\":\"connect\""));
+        assert!(https.contains("\"key\":\"https\""));
+        assert!(https.contains("\"kind\":\"tls_application_overlay\""));
+        assert!(https.contains("\"companion_protocol\":\"tls\""));
+        assert!(https.contains("\"companion_entry\":\"client\""));
+        assert!(https.contains("\"reading_companions\":[{\"protocol\":\"tls\",\"entry\":\"client\",\"via_overlay\":\"https\""));
+
+        let tls = api_protocol_surface_by_name_json("tls", "client")
+            .expect("tls client surface should exist");
+        assert!(tls.contains("\"protocol\":\"tls\""));
+        assert!(tls.contains("\"entry\":\"client\""));
+        assert!(tls.contains("\"key\":\"https\""));
+        assert!(tls.contains("\"companion_protocol\":\"https\""));
+        assert!(tls.contains("\"companion_entry\":\"connect\""));
+        assert!(tls.contains("\"key\":\"dot\""));
+        assert!(tls.contains("\"reading_companions\":["));
+    }
+
+    #[test]
+    fn protocol_surface_json_emits_http3_and_quic_companion_overlay_metadata() {
+        let http3 = api_protocol_surface_by_name_json("http3", "request")
+            .expect("http3 request surface should exist");
+        assert!(http3.contains("\"protocol\":\"http3\""));
+        assert!(http3.contains("\"entry\":\"request\""));
+        assert!(http3.contains("\"key\":\"http3\""));
+        assert!(http3.contains("\"kind\":\"quic_application_overlay\""));
+        assert!(http3.contains("\"companion_protocol\":\"quic\""));
+        assert!(http3.contains("\"companion_entry\":\"initial\""));
+        assert!(http3.contains("\"reading_companions\":[{\"protocol\":\"quic\",\"entry\":\"initial\",\"via_overlay\":\"http3\""));
+
+        let quic = api_protocol_surface_by_name_json("quic", "crypto")
+            .expect("quic crypto surface should exist");
+        assert!(quic.contains("\"protocol\":\"quic\""));
+        assert!(quic.contains("\"entry\":\"crypto\""));
+        assert!(quic.contains("\"key\":\"http3\""));
+        assert!(quic.contains("\"companion_protocol\":\"http3\""));
+        assert!(quic.contains("\"companion_entry\":\"request\""));
+        assert!(quic.contains("\"reading_companions\":[{\"protocol\":\"http3\",\"entry\":\"request\",\"via_overlay\":\"http3\""));
     }
 }

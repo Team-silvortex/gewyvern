@@ -78,6 +78,17 @@ fn protocol_entry_surface_endpoint_returns_redis_shelf_context() {
 }
 
 #[test]
+fn protocol_entry_surface_endpoint_exposes_reading_companions() {
+    let snapshot = ApiSnapshot::default();
+    let (status, _, body) =
+        api_response_for_request("/v1/protocols/https/entries/connect/surface.json", &snapshot);
+    assert_eq!(status, 200);
+    assert!(body.contains("\"selected_overlay\":null"));
+    assert!(body.contains("\"overlays\":[{"));
+    assert!(body.contains("\"reading_companions\":[{\"protocol\":\"tls\",\"entry\":\"client\",\"via_overlay\":\"https\""));
+}
+
+#[test]
 fn protocol_catalog_endpoints_report_unknown_protocols_cleanly() {
     let snapshot = ApiSnapshot::default();
     let (summary_status, _, summary_body) =

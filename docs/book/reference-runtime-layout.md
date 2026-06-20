@@ -205,3 +205,29 @@ It gives the project a safer base for:
 
 Without a standard layout, every later minor line would have to renegotiate
 where its mutable files belong.
+
+## Protocol Surface Persistence Note
+
+The latest-snapshot tree now persists protocol-surface artifacts that may carry
+structured drill-down hints in addition to the canonical family/entry pair.
+
+Watch these files when validating control-plane consumers:
+
+- `latest/api/v1/latest/targets/<path-segment>/protocol-surface.json`
+- `latest/api/v1/latest/protocols/<protocol>/entries/<entry>/surface.json`
+
+In the current `0.15.x` line those JSON artifacts may include:
+
+- `selected_overlay`
+- `overlays`
+- `reading_companions`
+
+That means a downstream UI does not need to rediscover relationships such as:
+
+- `https connect` -> `tls client`
+- `http3 request` -> `quic initial`
+- `tls client` -> `https connect`
+
+The persistence layer is expected to preserve those fields exactly as emitted by
+the live API so offline review and history snapshots keep the same reading
+contract.

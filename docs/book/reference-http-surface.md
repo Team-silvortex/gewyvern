@@ -36,6 +36,9 @@ selection:
 - `http-connect-denied`
 - `http-request`
 - `http-server`
+- `doh`
+- `dns-over-https`
+- `dns_over_https`
 - `http_connect`
 - `http_connect_auth_required`
 - `http_connect_auth_tunnel`
@@ -94,6 +97,11 @@ If you are validating current HTTP support, the shortest useful order is:
   [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 - For exact diagnosis-field meanings:
   [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- For encrypted resolver intent layered on the request branch:
+  treat `doh` as the HTTP `request` shelf with DNS query semantics carried in
+  the request/response payload path
+- For the compact DoH reading spine itself:
+  [docs/book/reference-doh-overlay.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-doh-overlay.md)
 
 ## Stability Note
 

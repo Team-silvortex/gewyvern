@@ -117,6 +117,8 @@ fn scan_report_json_summarizes_all_targets() {
     assert!(report.contains("\"protocol_surface\":{\"protocol\":\"http\""));
     assert!(report.contains("\"entry\":\"request\""));
     assert!(report.contains("\"sibling_entries\":[\"auth-required\",\"auth-tunnel\",\"connect\",\"denied\",\"request\",\"response\"]"));
+    assert!(report.contains("\"selected_overlay\":null"));
+    assert!(report.contains("\"reading_companions\":[{\"protocol\":\"dns\",\"entry\":\"tcp\",\"via_overlay\":\"doh\""));
     assert!(report.contains("\"ingest_mode\":\"demo\""));
     assert!(report.contains("\"ingest_mode_note\":\"synthetic demo mode: useful for exercising flows and reports, not for real process attribution\""));
     assert!(report.contains("\"ingest_trust_mode\":\"synthetic-demo\""));
@@ -232,6 +234,25 @@ fn scan_report_text_includes_protocol_surface_summary() {
     assert!(report.contains("default=session"));
     assert!(report.contains("selected_default=true"));
     assert!(report.contains("entry_aliases=mysql-session | mysql_session"));
+}
+
+#[test]
+fn scan_report_text_and_html_include_protocol_reading_companions() {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+        .expect("tls_client_path DSL should compile");
+    let export = annotate_export_trust(
+        run_binding_demo(binding),
+        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+    );
+    let text = scan_report_text(&[("scan:tls:client".to_string(), export.clone())]);
+    assert!(text.contains("selected_overlay=none"));
+    assert!(text.contains("reading_companions=https:connect@https"));
+    assert!(text.contains("dns:tcp@dot"));
+
+    let html = scan_report_html(&[("scan:tls:client".to_string(), export)]);
+    assert!(html.contains("selected overlay:</strong> none"));
+    assert!(html.contains("reading companions:</strong> https:connect via https (HTTPS Over TLS)"));
+    assert!(html.contains("dns:tcp via dot (DNS-Over-TLS)"));
 }
 
 #[cfg(target_family = "unix")]

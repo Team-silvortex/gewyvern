@@ -24,6 +24,8 @@ Across the subpages, the lookup contract focuses on:
 - client versus server posture
 - operator reading order
 - validation and lowering posture
+- companion jumps into `quic initial` when transport setup is more informative
+  than request semantics
 
 ## Family Aliases
 
@@ -64,8 +66,13 @@ If you are validating current HTTP/3 support, the shortest useful order is:
 
 1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
 2. [docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md)
-3. the request or server subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+3. [docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md)
+4. the request or server subpage
+5. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+
+The machine-facing `reading_companions` field uses the same jump contract; see:
+
+- [docs/book/reference-protocol-reading-companions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-companions.md)
 
 ## Next Useful Checks
 

@@ -184,10 +184,12 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
     assert!(protocol_evolution.contains("# Protocol Evolution"));
     assert!(protocol_evolution.contains("No prior protocol catalog snapshot exists yet."));
     assert!(protocol_surface.contains("\"protocol\":\"http\""));
+    assert!(protocol_surface.contains("\"reading_companions\":[{\"protocol\":\"dns\",\"entry\":\"tcp\",\"via_overlay\":\"doh\""));
     assert!(anomaly_flow.contains("\"surface\":\"anomaly_flow_view\""));
     assert!(protocol_summary.contains("\"protocol\":\"http\""));
     assert!(entry_surface.contains("\"protocol\":\"redis\""));
     assert!(entry_surface.contains("\"entry\":\"zadd\""));
+    assert!(entry_surface.contains("\"reading_companions\":[]"));
     assert!(cluster_surface.contains("\"key\":\"cache-queue-stream\""));
     assert!(cluster_surface.contains("\"protocol\":\"redis\""));
     assert!(target_dataset.contains("\"snapshot_kind\":\"target\""));

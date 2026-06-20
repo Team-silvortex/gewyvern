@@ -9,6 +9,8 @@ Use it for:
 - default entry selection for `client`
 - keeping generic handshake/client posture separate from HTTPS, IMAP, or other
   application overlays
+- using `reading_companions` to decide whether the next shelf is `https
+  connect`, `dns tcp`, or another higher-level overlay-led path
 
 Current canonical entries:
 
@@ -25,7 +27,12 @@ Read in this order:
 
 1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
 2. [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
-3. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+3. the companion surface named by `reading_companions`
+4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+
+The exact companion contract is documented in:
+
+- [docs/book/reference-protocol-reading-companions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-companions.md)
 
 ## Next Useful Checks
 

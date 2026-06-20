@@ -345,6 +345,30 @@ fn high_frequency_family_hubs_link_runtime_validation_and_diagnosis_spine() {
     }
 }
 
+#[test]
+fn dot_and_doh_overlay_pages_exist_and_link_back_into_current_spines() {
+    let overlay_pairs = [
+        (
+            "docs/book/reference-dot-overlay.md",
+            "docs/book/reference-dns-surface.md",
+        ),
+        (
+            "docs/book/reference-doh-overlay.md",
+            "docs/book/reference-http-surface.md",
+        ),
+    ];
+    for (overlay, hub) in overlay_pairs {
+        let actual = fs::read_to_string(overlay)
+            .unwrap_or_else(|_| panic!("overlay page should exist: {overlay}"));
+        let links = markdown_book_links(&actual);
+        assert!(links.contains(hub), "overlay {overlay} should link hub {hub}");
+        assert!(
+            links.contains(PROTOCOL_READING_PATHS_PAGE),
+            "overlay {overlay} should link protocol reading paths"
+        );
+    }
+}
+
 fn render_protocol_alias_index() -> String {
     let mut out = String::new();
     out.push_str("# Reference: Protocol Alias Index\n\n");

@@ -287,6 +287,23 @@ Treat them as complementary:
 - `cluster_hint` is for family-level orientation
 - `shelf` is for entry-level drill-down
 
+The current line also exposes overlay-led reading helpers on entry surfaces:
+
+- `selected_overlay`
+  - records whether the caller intentionally entered the surface through an
+    overlay-facing name such as `dot`, `doh`, or `http-connect`
+- `overlays`
+  - lists the overlay interpretations the current canonical surface can support
+- `reading_companions`
+  - lists the next canonical protocol/entry pairs a UI or operator should read
+    when the current surface depends on a second shelf such as `tls client` or
+    `quic initial`
+
+Use the companion contract when you want structured drill-down rules rather than
+prose-only guidance:
+
+- [docs/book/reference-protocol-reading-companions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-companions.md)
+
 This complements, rather than replaces:
 
 - `/v1/latest/targets`
@@ -303,7 +320,7 @@ For automation and external control-plane code, prefer:
 
 1. `/v1/protocols` to discover canonical family and entry names
 2. `/v1/protocols/<protocol>/entries/<entry>/surface.json` to inspect the
-   shelf shape for one entry
+   shelf shape, overlays, and reading companions for one entry
 3. `/v1/latest/targets` only after a scan/session has materialized target data
 
 ## What Should Stay Stable

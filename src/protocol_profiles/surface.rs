@@ -1,9 +1,11 @@
+use super::overlays::overlays_for_surface;
 use super::shelves::built_in_protocol_shelf;
 use super::{ProtocolSummary, ProtocolSurfaceSummary};
 
 pub(super) fn built_in_protocol_surface(
     summary: ProtocolSummary,
     selected_entry: String,
+    selected_overlay: Option<String>,
 ) -> ProtocolSurfaceSummary {
     let selected = summary
         .entries
@@ -25,5 +27,7 @@ pub(super) fn built_in_protocol_surface(
         sibling_entries,
         cluster_hint: summary.cluster_hint.clone(),
         shelf: built_in_protocol_shelf(&summary.protocol, &selected.mode),
+        overlays: overlays_for_surface(&summary.protocol, &selected.mode),
+        selected_overlay,
     }
 }

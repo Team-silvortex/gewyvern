@@ -131,6 +131,42 @@ If you only need the shortest useful route, use one of these:
   family hub -> [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
   -> [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
 
+## Alias-Led Reading Recipes
+
+Some operator-facing names intentionally land on an existing canonical family
+instead of introducing a brand new protocol shelf.
+
+- `dot`:
+  start at [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md),
+  then read the TCP subpage, then cross-check the TLS client setup path in
+  [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md),
+  then use [docs/book/reference-dot-overlay.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dot-overlay.md)
+  as the shortest combined operator path
+- `doh`:
+  start at [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md),
+  then follow the request/response shelf, while reading it with DNS resolver
+  intent in mind rather than generic web traffic intent, then use
+  [docs/book/reference-doh-overlay.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-doh-overlay.md)
+  as the shortest combined operator path
+
+## Companion-Led Reading Recipes
+
+Some canonical surfaces are intentionally small, but they now expose
+`reading_companions` so a UI or operator can jump into the next shelf without
+guessing.
+
+- `https connect`:
+  read [docs/book/reference-https-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-https-surface.md),
+  then immediately jump to `tls client` using the companion hint recorded in
+  [docs/book/reference-protocol-reading-companions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-companions.md)
+- `http3 request`:
+  read [docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md),
+  then jump to `quic initial` before treating request semantics as trustworthy
+- `tls client`:
+  stay on [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
+  only long enough to decide whether the next shelf is `https connect` or
+  `dns tcp`
+
 ## Why This Matters
 
 The protocol shelf is now big enough that “just click around until it feels

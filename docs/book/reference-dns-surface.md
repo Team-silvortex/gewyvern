@@ -21,9 +21,19 @@ coarse lookup conversation:
 Across the subpages, the lookup contract focuses on:
 
 - canonical entry names
+- accepted aliases
 - transport-specific lookup posture
 - operator reading order
 - validation and lowering posture
+
+## Family Aliases
+
+The current registry also accepts these family-level spellings for DNS entry
+selection:
+
+- `dot`
+- `dns-over-tls`
+- `dns_over_tls`
 
 Default entry: `udp`
 
@@ -62,6 +72,11 @@ If you are validating current DNS support, the shortest useful order is:
   [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
 - For exact diagnosis-field meanings:
   [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- For encrypted resolver intent layered on the TCP branch:
+  treat `dot` as the DNS `tcp` shelf plus the TLS client handshake reading path
+  in [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
+- For the compact DoT reading spine itself:
+  [docs/book/reference-dot-overlay.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dot-overlay.md)
 
 ## Stability Note
 

@@ -92,11 +92,18 @@ If you are in the protocol volume specifically, start with:
 - [docs/book/reference-protocol-operator-playbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-operator-playbook.md)
   Operator/release triage playbook for turning family suspicion into runtime,
   grouped-validation, and release-confidence checks.
+- [docs/book/reference-protocol-reading-companions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-companions.md)
+  Machine-readable jump contract for surfaces that should send the reader into a
+  companion protocol/entry shelf next.
 - [docs/book/reference-protocol-release-handbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-release-handbook.md)
   `0.15.x` protocol-facing minor-line handbook for deciding when family,
   runtime, packaged, and cross-project confidence is strong enough to ship.
 - [docs/book/reference-protocol-alias-index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-alias-index.md)
   Generated-style alias lookup for the current built-in registry surface.
+- [docs/book/reference-dot-overlay.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dot-overlay.md)
+  Compact overlay reading path for DNS-over-TLS on top of the DNS TCP and TLS shelves.
+- [docs/book/reference-doh-overlay.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-doh-overlay.md)
+  Compact overlay reading path for DNS-over-HTTPS on top of the HTTP request shelf.
 
 ## Runtime And Export Contracts
 

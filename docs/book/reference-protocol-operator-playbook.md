@@ -180,6 +180,17 @@ Use this layer when the real question is:
 - “did operator-facing JSON stay reachable?”
 - “does the latest snapshot still look coherent?”
 
+When the selected protocol surface exposes `reading_companions`, prefer those
+structured jumps before inventing your own detour:
+
+- `https connect` should usually send you into `tls client`
+- `http3 request` should usually send you into `quic initial`
+- `tls client` should usually send you into `https connect` or `dns tcp`
+
+For the exact machine-facing contract, keep nearby:
+
+- [docs/book/reference-protocol-reading-companions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-companions.md)
+
 ## Release Confidence
 
 Use this when you are deciding whether to ship:

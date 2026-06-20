@@ -455,6 +455,8 @@ mod tests {
                         page: "docs/book/reference-redis-sorted-set-surface.md".into(),
                         entries: vec!["zadd".into(), "zrange".into()],
                     }),
+                    overlays: Vec::new(),
+                    selected_overlay: None,
                 }),
                 has_external_sidecar_context: false,
                 has_external_evidence_chain_enrichment: false,

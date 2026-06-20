@@ -46,7 +46,7 @@ Default entry: `udp`
 Protocol aliases: none  
 Entry aliases:
 - `udp` (default): none
-- `tcp`: `dns-tcp`, `dns_tcp`
+- `tcp`: `dns-over-tls`, `dns-tcp`, `dns_over_tls`, `dns_tcp`, `dot`
 
 ## `ftp`
 
@@ -74,7 +74,7 @@ Entry aliases:
 Default entry: `request`  
 Protocol aliases: `http-connect`, `http-connect-auth-required`, `http-connect-auth-tunnel`, `http-connect-denied`, `http-request`, `http-server`, `http_connect`, `http_connect_auth_required`, `http_connect_auth_tunnel`, `http_connect_denied`, `http_request`, `http_server`  
 Entry aliases:
-- `request` (default): `client`, `http-client`, `http-request`, `http_client`, `http_request`
+- `request` (default): `client`, `dns-over-https`, `dns_over_https`, `doh`, `http-client`, `http-request`, `http_client`, `http_request`
 - `auth-required`: `http-connect-auth-required`, `http_connect_auth_required`
 - `auth-tunnel`: `http-connect-auth-tunnel`, `http_connect_auth_tunnel`
 - `connect`: `http-connect`, `http_connect`
