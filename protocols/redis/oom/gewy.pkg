@@ -1,0 +1,7 @@
+name=redis_oom
+version=0.16.0
+entry=main.gewy
+register.protocol=redis
+register.entry=oom
+register.default=false
+register.entry_aliases=memory-limit,write-over-capacity

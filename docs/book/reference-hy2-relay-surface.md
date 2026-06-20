@@ -25,3 +25,17 @@ Operational split:
 Return to the family hub:
 
 - [docs/book/reference-hy2-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `hy2-relay`
+- `hy2-stream`
+- `hy2-tcp`
+- `hy2-udp`
+- `hysteria2-tcp`
+- `hysteria2-udp`
+
+<!-- gewyvern:entry-aliases:end -->

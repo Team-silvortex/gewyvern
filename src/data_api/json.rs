@@ -397,7 +397,9 @@ fn estimate_api_target_list_capacity(snapshot: &ApiSnapshot) -> usize {
 mod tests {
     use super::*;
     use crate::data_api::{ApiSnapshot, ApiTargetSnapshot};
-    use gewyvern::protocol_profiles::{ProtocolShelfSummary, ProtocolSurfaceSummary};
+    use gewyvern::protocol_profiles::{
+        ProtocolClusterHintSummary, ProtocolShelfSummary, ProtocolSurfaceSummary,
+    };
 
     #[test]
     fn api_target_path_segment_percent_encodes_reserved_bytes() {
@@ -441,6 +443,12 @@ mod tests {
                     protocol_aliases: vec!["redis-session".into()],
                     entry_aliases: vec!["sorted-write".into()],
                     sibling_entries: vec!["zadd".into(), "zrange".into()],
+                    cluster_hint: Some(ProtocolClusterHintSummary {
+                        key: "cache-queue-stream".into(),
+                        label: "Cache, Queue, And Stream".into(),
+                        operator_hint: "check role and refusal signals first".into(),
+                        sibling_protocols: vec!["redis".into(), "mqtt".into()],
+                    }),
                     shelf: Some(ProtocolShelfSummary {
                         key: "sorted-set".into(),
                         label: "Sorted Set".into(),

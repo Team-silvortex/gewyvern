@@ -6,6 +6,7 @@ fn capabilities_advertise_protocol_catalog_surfaces() {
     let (status, _, body) = api_response_for_request("/v1/capabilities", &snapshot);
     assert_eq!(status, 200);
     assert!(body.contains("\"protocol_catalog\":true"));
+    assert!(body.contains("\"protocol_cluster_catalog\":true"));
     assert!(body.contains("\"protocol_surface_catalog\":true"));
     assert!(body.contains("\"/v1/protocols\""));
     assert!(body.contains("\"/v1/protocols/<protocol>/entries/<entry>/surface.json\""));
@@ -21,6 +22,7 @@ fn protocol_catalog_endpoint_lists_mysql_and_entry_metadata() {
     assert!(body.contains("\"protocol\":\"mysql\""));
     assert!(body.contains("\"default_entry\":\"session\""));
     assert!(body.contains("\"entry_count\":"));
+    assert!(body.contains("\"cluster_hint\":{"));
     assert!(body.contains("\"mode\":\"query\""));
 }
 
@@ -31,8 +33,33 @@ fn protocol_summary_endpoint_returns_ldap_entries() {
     assert_eq!(status, 200);
     assert!(body.contains("\"protocol\":\"ldap\""));
     assert!(body.contains("\"default_entry\":\"sync\""));
+    assert!(body.contains("\"cluster_hint\":{"));
+    assert!(body.contains("\"key\":\"identity-directory-access\""));
     assert!(body.contains("\"mode\":\"bind\""));
     assert!(body.contains("\"mode\":\"search\""));
+}
+
+#[test]
+fn protocol_cluster_catalog_endpoint_groups_cache_queue_stream_families() {
+    let snapshot = ApiSnapshot::default();
+    let (status, content_type, body) = api_response_for_request("/v1/protocol-clusters", &snapshot);
+    assert_eq!(status, 200);
+    assert_eq!(content_type, "application/json; charset=utf-8");
+    assert!(body.contains("\"surface\":\"protocol_cluster_catalog\""));
+    assert!(body.contains("\"key\":\"cache-queue-stream\""));
+    assert!(body.contains("\"protocol\":\"redis\""));
+    assert!(body.contains("\"protocol\":\"amqp\""));
+}
+
+#[test]
+fn protocol_cluster_endpoint_returns_identity_directory_access_view() {
+    let snapshot = ApiSnapshot::default();
+    let (status, _, body) =
+        api_response_for_request("/v1/protocol-clusters/identity-directory-access", &snapshot);
+    assert_eq!(status, 200);
+    assert!(body.contains("\"key\":\"identity-directory-access\""));
+    assert!(body.contains("\"protocol\":\"ldap\""));
+    assert!(body.contains("\"protocol\":\"ssh\""));
 }
 
 #[test]
@@ -44,6 +71,8 @@ fn protocol_entry_surface_endpoint_returns_redis_shelf_context() {
     assert!(body.contains("\"protocol\":\"redis\""));
     assert!(body.contains("\"entry\":\"zadd\""));
     assert!(body.contains("\"selected_is_default\":false"));
+    assert!(body.contains("\"cluster_hint\":{"));
+    assert!(body.contains("\"key\":\"cache-queue-stream\""));
     assert!(body.contains("\"key\":\"sorted-set\""));
     assert!(body.contains("\"page\":\"docs/book/reference-redis-sorted-set-surface.md\""));
 }
@@ -62,4 +91,9 @@ fn protocol_catalog_endpoints_report_unknown_protocols_cleanly() {
     );
     assert_eq!(surface_status, 404);
     assert!(surface_body.contains("\"error\":\"unknown_protocol_entry\""));
+
+    let (cluster_status, _, cluster_body) =
+        api_response_for_request("/v1/protocol-clusters/not-a-real-cluster", &snapshot);
+    assert_eq!(cluster_status, 404);
+    assert!(cluster_body.contains("\"error\":\"unknown_protocol_cluster\""));
 }

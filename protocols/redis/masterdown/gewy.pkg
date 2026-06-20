@@ -1,0 +1,7 @@
+name=redis_masterdown
+version=0.16.0
+entry=main.gewy
+register.protocol=redis
+register.entry=masterdown
+register.default=false
+register.entry_aliases=primary-unavailable,failover-window

@@ -35,3 +35,23 @@ Protocol package aliases also remain accepted:
 Return to the family hub:
 
 - [docs/book/reference-coap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `coap-delete`
+- `coap-post`
+- `coap-put`
+- `coap_delete`
+- `coap_post`
+- `coap_put`
+- `create`
+- `destroy`
+- `remove`
+- `replace`
+- `update`
+- `write`
+
+<!-- gewyvern:entry-aliases:end -->

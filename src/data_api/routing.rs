@@ -2,11 +2,19 @@ use std::borrow::Cow;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
+use super::anomaly_flow_view::api_target_anomaly_flow_json;
 use super::json::{api_target_list_json, decode_api_target_path_segment, json_string};
 use super::protocol_catalog::{
-    api_protocol_catalog_json, api_protocol_summary_json, api_protocol_surface_by_name_json,
+    api_protocol_catalog_json, api_protocol_cluster_json, api_protocol_clusters_json,
+    api_protocol_summary_json, api_protocol_surface_by_name_json,
 };
 use super::resilience_status::{api_runtime_resilience_json, append_runtime_resilience_flag_json};
+use super::runtime_cluster_attention::{
+    api_runtime_cluster_attention_json, api_runtime_cluster_attention_reasons_json,
+    api_runtime_cluster_attention_summary_json,
+};
+use super::runtime_capability_digest::api_runtime_capability_digest_json;
+use super::runtime_cluster_overview::api_runtime_cluster_overview_json;
 use super::training_manifest::{
     target_training_dataset_manifest_json, training_dataset_manifest_json,
 };
@@ -29,6 +37,9 @@ fn api_response_for_request_uncapped<'a>(
 ) -> (u16, &'static str, Cow<'a, str>) {
     if let Some(rest) = path.strip_prefix("/v1/protocols/") {
         return protocol_catalog_response(rest);
+    }
+    if let Some(rest) = path.strip_prefix("/v1/protocol-clusters/") {
+        return protocol_cluster_response(rest);
     }
     if let Some(rest) = path.strip_prefix("/v1/latest/targets/") {
         if rest.is_empty() {
@@ -75,6 +86,18 @@ fn api_response_for_request_uncapped<'a>(
                         "application/json; charset=utf-8",
                         Cow::Borrowed(target.analysis_json.as_str()),
                     ),
+                    "anomaly-flow.json" => match api_target_anomaly_flow_json(&target_name, target) {
+                        Some(body) => (
+                            200,
+                            "application/json; charset=utf-8",
+                            Cow::Owned(body),
+                        ),
+                        None => (
+                            404,
+                            "text/plain; charset=utf-8",
+                            Cow::Borrowed("no anomaly flow view available for target"),
+                        ),
+                    },
                     "training-example.json" => (
                         200,
                         "application/json; charset=utf-8",
@@ -165,10 +188,40 @@ fn api_response_for_request_uncapped<'a>(
             "application/json; charset=utf-8",
             Cow::Owned(api_protocol_catalog_json()),
         ),
+        "/v1/protocol-clusters" => (
+            200,
+            "application/json; charset=utf-8",
+            Cow::Owned(api_protocol_clusters_json()),
+        ),
         "/v1/latest/meta" => (
             200,
             "application/json; charset=utf-8",
             Cow::Owned(super::json::api_snapshot_meta_json(snapshot)),
+        ),
+        "/v1/latest/runtime-capability-digest.json" => (
+            200,
+            "application/json; charset=utf-8",
+            Cow::Owned(api_runtime_capability_digest_json(snapshot)),
+        ),
+        "/v1/latest/runtime-cluster-overview.json" => (
+            200,
+            "application/json; charset=utf-8",
+            Cow::Owned(api_runtime_cluster_overview_json(snapshot)),
+        ),
+        "/v1/latest/runtime-cluster-attention.json" => (
+            200,
+            "application/json; charset=utf-8",
+            Cow::Owned(api_runtime_cluster_attention_json(snapshot)),
+        ),
+        "/v1/latest/runtime-cluster-attention-reasons.json" => (
+            200,
+            "application/json; charset=utf-8",
+            Cow::Owned(api_runtime_cluster_attention_reasons_json()),
+        ),
+        "/v1/latest/runtime-cluster-attention-summary.json" => (
+            200,
+            "application/json; charset=utf-8",
+            Cow::Owned(api_runtime_cluster_attention_summary_json(snapshot)),
         ),
         "/v1/latest/targets" => (
             200,
@@ -179,7 +232,7 @@ fn api_response_for_request_uncapped<'a>(
             200,
             "application/json; charset=utf-8",
             Cow::Owned(format!(
-                "{{\"service\":\"gewyvern-api\",\"version\":{},\"latest_snapshot\":true,\"serve_required\":true,\"training_example\":true,\"training_dataset_manifest\":true,\"protocol_catalog\":true,\"protocol_surface_catalog\":true,\"external_sidecar_context\":true,\"external_capability_profile\":true,\"external_context_status\":true,\"external_sidecar_trust_level\":true,\"external_sidecar_consumption_mode\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":{}}}",
+                "{{\"service\":\"gewyvern-api\",\"version\":{},\"latest_snapshot\":true,\"serve_required\":true,\"training_example\":true,\"training_dataset_manifest\":true,\"protocol_catalog\":true,\"protocol_cluster_catalog\":true,\"protocol_surface_catalog\":true,\"runtime_capability_digest\":true,\"runtime_cluster_overview\":true,\"runtime_cluster_attention\":true,\"runtime_cluster_attention_reasons\":true,\"runtime_cluster_attention_summary\":true,\"external_sidecar_context\":true,\"external_capability_profile\":true,\"external_context_status\":true,\"external_sidecar_trust_level\":true,\"external_sidecar_consumption_mode\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":{}}}",
                 json_string(API_VERSION),
                 API_ENDPOINTS_JSON,
             )),
@@ -372,6 +425,27 @@ fn protocol_catalog_response<'a>(rest: &str) -> (u16, &'static str, Cow<'a, str>
             "application/json; charset=utf-8",
             Cow::Owned(format!(
                 "{{\"error\":\"unknown_protocol\",\"protocol\":{}}}",
+                json_string(rest),
+            )),
+        ),
+    }
+}
+
+fn protocol_cluster_response<'a>(rest: &str) -> (u16, &'static str, Cow<'a, str>) {
+    if rest.is_empty() {
+        return (
+            404,
+            "application/json; charset=utf-8",
+            Cow::Borrowed("{\"error\":\"unknown_protocol_cluster\"}"),
+        );
+    }
+    match api_protocol_cluster_json(rest) {
+        Some(body) => (200, "application/json; charset=utf-8", Cow::Owned(body)),
+        None => (
+            404,
+            "application/json; charset=utf-8",
+            Cow::Owned(format!(
+                "{{\"error\":\"unknown_protocol_cluster\",\"cluster\":{}}}",
                 json_string(rest),
             )),
         ),

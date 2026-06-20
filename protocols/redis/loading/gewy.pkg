@@ -1,0 +1,7 @@
+name=redis_loading
+version=0.16.0
+entry=main.gewy
+register.protocol=redis
+register.entry=loading
+register.default=false
+register.entry_aliases=loading-window,warmup-busy

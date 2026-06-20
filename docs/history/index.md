@@ -44,7 +44,8 @@ background cleanup.
   Forward-looking minor-line plan from `0.15.x` through `0.20.x`, intended to
   make `v1.0.0` the direct next step after the final pre-`1.0` seal.
 - [docs/history/v0.16.x-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.16.x-checklist.md)
-  Contract-tightening execution checklist for the planned `0.16.x` line.
+  Protocol-semantics and runtime-evidence execution checklist for the planned
+  `0.16.x` line.
 - [docs/history/minor-line-evidence-bundle.md](/Users/Shared/chroot/dev/gewyvern/docs/history/minor-line-evidence-bundle.md)
   Small durable template for what validation artifacts should accompany a new
   minor-line history page.

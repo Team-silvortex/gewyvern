@@ -117,7 +117,27 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
     let targets = fs::read_to_string(latest_root.join("targets.json")).unwrap();
     let dataset = fs::read_to_string(latest_root.join("training-dataset.json")).unwrap();
     let protocol_catalog = fs::read_to_string(latest_root.join("protocols.json")).unwrap();
+    let protocol_clusters =
+        fs::read_to_string(latest_root.join("protocol-clusters.json")).unwrap();
+    let runtime_capability_digest =
+        fs::read_to_string(latest_root.join("runtime-capability-digest.json")).unwrap();
+    let runtime_cluster_overview =
+        fs::read_to_string(latest_root.join("runtime-cluster-overview.json")).unwrap();
+    let runtime_cluster_attention =
+        fs::read_to_string(latest_root.join("runtime-cluster-attention.json")).unwrap();
+    let runtime_cluster_attention_reasons = fs::read_to_string(
+        latest_root.join("runtime-cluster-attention-reasons.json"),
+    )
+    .unwrap();
+    let runtime_cluster_attention_summary = fs::read_to_string(
+        latest_root.join("runtime-cluster-attention-summary.json"),
+    )
+    .unwrap();
+    let protocol_delta = fs::read_to_string(latest_root.join("protocol-delta.json")).unwrap();
+    let protocol_evolution =
+        fs::read_to_string(latest_root.join("protocol-evolution.md")).unwrap();
     let protocol_surface = fs::read_to_string(target_root.join("protocol-surface.json")).unwrap();
+    let anomaly_flow = fs::read_to_string(target_root.join("anomaly-flow.json")).unwrap();
     let protocol_summary = fs::read_to_string(
         latest_root.join("protocols").join("http").join("summary.json"),
     )
@@ -131,6 +151,12 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
             .join("surface.json"),
     )
     .unwrap();
+    let cluster_surface = fs::read_to_string(
+        latest_root
+            .join("protocol-clusters")
+            .join("cache-queue-stream.json"),
+    )
+    .unwrap();
     let target_dataset = fs::read_to_string(target_root.join("training-dataset.json")).unwrap();
 
     assert!(meta.contains("\"kind\":\"single\""));
@@ -138,11 +164,32 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
     assert!(targets.contains("\"path_segment\":\"scan:http:request\""));
     assert!(dataset.contains(&training_sample_id(target_name)));
     assert!(protocol_catalog.contains("\"surface\":\"protocol_catalog\""));
+    assert!(protocol_clusters.contains("\"surface\":\"protocol_cluster_catalog\""));
+    assert!(protocol_clusters.contains("\"key\":\"cache-queue-stream\""));
+    assert!(runtime_capability_digest.contains("\"surface\":\"runtime_capability_digest\""));
+    assert!(runtime_capability_digest.contains("\"targets_with_protocol_surface\":1"));
+    assert!(runtime_cluster_overview.contains("\"surface\":\"runtime_cluster_overview\""));
+    assert!(runtime_cluster_overview.contains("\"key\":\"web-proxy-request-response\""));
+    assert!(runtime_cluster_attention.contains("\"surface\":\"runtime_cluster_attention\""));
+    assert!(runtime_cluster_attention.contains("\"attention_cluster_count\":1"));
+    assert!(runtime_cluster_attention_reasons
+        .contains("\"surface\":\"runtime_cluster_attention_reasons\""));
+    assert!(runtime_cluster_attention_reasons
+        .contains("\"key\":\"automation.targeted_escalation\""));
+    assert!(runtime_cluster_attention_summary
+        .contains("\"surface\":\"runtime_cluster_attention_summary\""));
+    assert!(runtime_cluster_attention_summary.contains("\"clusters\":["));
     assert!(protocol_catalog.contains("\"protocol\":\"mysql\""));
+    assert_eq!(protocol_delta, "null");
+    assert!(protocol_evolution.contains("# Protocol Evolution"));
+    assert!(protocol_evolution.contains("No prior protocol catalog snapshot exists yet."));
     assert!(protocol_surface.contains("\"protocol\":\"http\""));
+    assert!(anomaly_flow.contains("\"surface\":\"anomaly_flow_view\""));
     assert!(protocol_summary.contains("\"protocol\":\"http\""));
     assert!(entry_surface.contains("\"protocol\":\"redis\""));
     assert!(entry_surface.contains("\"entry\":\"zadd\""));
+    assert!(cluster_surface.contains("\"key\":\"cache-queue-stream\""));
+    assert!(cluster_surface.contains("\"protocol\":\"redis\""));
     assert!(target_dataset.contains("\"snapshot_kind\":\"target\""));
     assert!(latest_root.join("summary.json").exists());
     assert!(target_root.join("analysis.json").exists());
@@ -239,6 +286,22 @@ fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward()
     let history_root = state_root.join("history").join("api").join("v1");
     let latest_targets = fs::read_to_string(latest_root.join("targets.json")).unwrap();
     let history_index = fs::read_to_string(history_root.join("index.json")).unwrap();
+    let latest_protocol_delta =
+        fs::read_to_string(latest_root.join("protocol-delta.json")).unwrap();
+    let latest_protocol_evolution =
+        fs::read_to_string(latest_root.join("protocol-evolution.md")).unwrap();
+    let current_history_protocol_delta = fs::read_to_string(
+        history_root
+            .join(second_updated.to_string())
+            .join("protocol-delta.json"),
+    )
+    .unwrap();
+    let current_history_protocol_evolution = fs::read_to_string(
+        history_root
+            .join(second_updated.to_string())
+            .join("protocol-evolution.md"),
+    )
+    .unwrap();
 
     assert!(latest_targets.contains("scan:http:response"));
     assert!(
@@ -250,7 +313,26 @@ fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward()
     assert!(
         history_root
             .join(first_updated.to_string())
+            .join("protocol-delta.json")
+            .exists()
+    );
+    assert!(
+        history_root
+            .join(first_updated.to_string())
             .join("protocols.json")
+            .exists()
+    );
+    assert!(
+        history_root
+            .join(first_updated.to_string())
+            .join("protocol-clusters.json")
+            .exists()
+    );
+    assert!(
+        history_root
+            .join(second_updated.to_string())
+            .join("protocol-clusters")
+            .join("cache-queue-stream.json")
             .exists()
     );
     assert!(
@@ -291,8 +373,16 @@ fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward()
     assert!(history_index.contains(&second_updated.to_string()));
     assert!(history_index.contains("\"protocol_catalog_path\":"));
     assert!(history_index.contains("\"protocol_root_path\":"));
+    assert!(history_index.contains("\"protocol_delta_path\":"));
+    assert!(history_index.contains("\"protocol_evolution_path\":"));
     assert!(history_index.contains("\"latest_protocol_catalog_delta\":{"));
     assert!(history_index.contains("\"status\":\"unchanged\""));
+    assert!(history_index.contains("\"latest_protocol_catalog_delta_path\":"));
+    assert!(latest_protocol_delta.contains("\"status\":\"unchanged\""));
+    assert_eq!(latest_protocol_delta, current_history_protocol_delta);
+    assert!(latest_protocol_evolution.contains("# Protocol Evolution"));
+    assert!(latest_protocol_evolution.contains("No protocol catalog changes detected"));
+    assert_eq!(latest_protocol_evolution, current_history_protocol_evolution);
 
     fs::remove_dir_all(&root).unwrap();
 }

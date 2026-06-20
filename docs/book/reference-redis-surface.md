@@ -17,6 +17,7 @@ The current Redis surface is organized by operator intent:
 - list push/pop/move flows
 - sorted-set mutation and ranked lookup
 - stream publish, backlog, group, and claim flow
+- explicit failure-oriented control/error flow
 
 Each subpage focuses on:
 
@@ -164,6 +165,19 @@ Typical entries:
 - `xdel`
 - `xinfo`
 
+### Failure And Control Signals
+
+- [docs/book/reference-redis-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-failure-semantics.md)
+  Explicit auth, denial, command-error, and wrong-type paths for operator
+  diagnosis.
+
+Typical entries:
+
+- `auth-required`
+- `auth-denied`
+- `error`
+- `wrongtype`
+
 ## Reading Order
 
 If you are checking current Redis capability coverage, the shortest useful
@@ -176,6 +190,6 @@ order is:
 
 ## Stability Note
 
-This page is the lookup hub for the current Redis family in the `0.15.x` line.
+This page is the lookup hub for the current Redis family in the `0.16.x` line.
 New Redis command families should prefer landing behind this shelf instead of
 being linked from multiple higher-level pages independently.

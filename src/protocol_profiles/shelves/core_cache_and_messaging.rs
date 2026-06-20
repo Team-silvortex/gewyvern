@@ -204,6 +204,26 @@ pub(crate) fn redis_shelf(entry: &str) -> Option<ShelfMatch> {
         "xdel",
         "xinfo",
     ];
+    const FAILURE: &[&str] = &[
+        "auth-required",
+        "auth-denied",
+        "error",
+        "wrongtype",
+        "busygroup",
+        "readonly",
+        "noscript",
+        "moved",
+        "ask",
+        "tryagain",
+        "loading",
+        "crossslot",
+        "clusterdown",
+        "masterdown",
+        "oom",
+        "busy",
+        "execabort",
+        "misconf",
+    ];
     if KV.contains(&entry) {
         Some((
             "kv-session",
@@ -247,6 +267,13 @@ pub(crate) fn redis_shelf(entry: &str) -> Option<ShelfMatch> {
             "Stream",
             "docs/book/reference-redis-stream-surface.md",
             STREAM,
+        ))
+    } else if FAILURE.contains(&entry) {
+        Some((
+            "failure",
+            "Failure Semantics",
+            "docs/book/reference-redis-failure-semantics.md",
+            FAILURE,
         ))
     } else {
         None

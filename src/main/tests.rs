@@ -42,6 +42,10 @@ mod ambiguity;
 mod analysis;
 #[path = "tests/api_bench.rs"]
 mod api_bench;
+#[path = "tests/api_debugger.rs"]
+mod api_debugger;
+#[path = "tests/api_multi_instance.rs"]
+mod api_multi_instance;
 #[path = "tests/api_protocol_catalog.rs"]
 mod api_protocol_catalog;
 #[path = "tests/api_persistence.rs"]
@@ -74,6 +78,8 @@ mod pop_kerberos;
 mod relay_and_mail;
 #[path = "tests/reports.rs"]
 mod reports;
+#[path = "tests/redis_failure_semantics.rs"]
+mod redis_failure_semantics;
 #[path = "tests/resilience_api.rs"]
 mod resilience_api;
 #[path = "tests/rtsp_http_tls.rs"]

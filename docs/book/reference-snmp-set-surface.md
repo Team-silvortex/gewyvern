@@ -21,3 +21,15 @@ This slice covers explicit managed-value mutation rather than passive polling.
 Return to the family hub:
 
 - [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `snmp-set`
+- `snmp_set`
+- `update`
+- `write`
+
+<!-- gewyvern:entry-aliases:end -->

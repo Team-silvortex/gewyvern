@@ -33,3 +33,21 @@ Protocol package aliases also remain accepted:
 Return to the family hub:
 
 - [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `bulk-walk`
+- `next`
+- `query`
+- `read`
+- `snmp-bulk`
+- `snmp-get-next`
+- `snmp_bulk`
+- `snmp_get_next`
+- `table-read`
+- `walk`
+
+<!-- gewyvern:entry-aliases:end -->

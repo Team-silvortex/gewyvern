@@ -12,6 +12,36 @@ pub(crate) const PROTOCOL_ALIASES: &[ProtocolAlias] = &[
         entry: Some("tcp"),
     },
     ProtocolAlias {
+        alias: "dot",
+        protocol: "dns",
+        entry: Some("tcp"),
+    },
+    ProtocolAlias {
+        alias: "dns-over-tls",
+        protocol: "dns",
+        entry: Some("tcp"),
+    },
+    ProtocolAlias {
+        alias: "dns_over_tls",
+        protocol: "dns",
+        entry: Some("tcp"),
+    },
+    ProtocolAlias {
+        alias: "doh",
+        protocol: "http",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "dns-over-https",
+        protocol: "http",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "dns_over_https",
+        protocol: "http",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
         alias: "http-request",
         protocol: "http",
         entry: Some("request"),

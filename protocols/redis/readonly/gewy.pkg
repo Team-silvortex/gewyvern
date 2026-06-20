@@ -1,0 +1,7 @@
+name=redis_readonly
+version=0.16.0
+entry=main.gewy
+register.protocol=redis
+register.entry=readonly
+register.default=false
+register.entry_aliases=replica-write-denied,readonly-replica

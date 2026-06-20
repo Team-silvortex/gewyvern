@@ -1,0 +1,7 @@
+name=redis_crossslot
+version=0.16.0
+entry=main.gewy
+register.protocol=redis
+register.entry=crossslot
+register.default=false
+register.entry_aliases=multi-key-slot-conflict,cluster-slot-conflict

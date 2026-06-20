@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::aliases::{PROTOCOL_ALIASES, protocol_entry_aliases, split_protocol_alias};
+use super::clusters::built_in_protocol_cluster_hint;
 use super::profiles::{PROTOCOL_PROFILES, ProtocolProfile, find_protocol_profile};
 use super::{ProtocolEntrySummary, ProtocolSummary, RegistryManifest};
 
@@ -34,6 +35,7 @@ pub(super) fn protocol_summaries_from_registry(
                 .into_iter()
                 .collect();
             ProtocolSummary {
+                cluster_hint: built_in_protocol_cluster_hint(&protocol),
                 protocol,
                 default_entry,
                 aliases,
@@ -112,6 +114,7 @@ fn summary_for_profile(profile: &ProtocolProfile) -> ProtocolSummary {
         protocol: profile.name.to_string(),
         default_entry: profile.default_entry.to_string(),
         aliases: protocol_aliases_for(profile.name),
+        cluster_hint: built_in_protocol_cluster_hint(profile.name),
         entries: profile
             .entries
             .iter()

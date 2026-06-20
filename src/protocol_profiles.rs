@@ -1,4 +1,5 @@
 mod aliases;
+mod clusters;
 mod profiles;
 mod registry;
 mod shelves;
@@ -36,7 +37,16 @@ pub struct ProtocolSummary {
     pub protocol: String,
     pub default_entry: String,
     pub aliases: Vec<String>,
+    pub cluster_hint: Option<ProtocolClusterHintSummary>,
     pub entries: Vec<ProtocolEntrySummary>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProtocolClusterHintSummary {
+    pub key: String,
+    pub label: String,
+    pub operator_hint: String,
+    pub sibling_protocols: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -56,6 +66,7 @@ pub struct ProtocolSurfaceSummary {
     pub protocol_aliases: Vec<String>,
     pub entry_aliases: Vec<String>,
     pub sibling_entries: Vec<String>,
+    pub cluster_hint: Option<ProtocolClusterHintSummary>,
     pub shelf: Option<ProtocolShelfSummary>,
 }
 
@@ -81,6 +92,7 @@ pub fn protocol_summaries() -> Vec<ProtocolSummary> {
 }
 
 pub fn protocol_summary(protocol: &str) -> Option<ProtocolSummary> {
+    let (protocol, _) = split_protocol_alias(protocol);
     if let Some(registry) = scan_protocol_registry() {
         return protocol_summary_from_registry(registry, protocol);
     }
@@ -88,6 +100,7 @@ pub fn protocol_summary(protocol: &str) -> Option<ProtocolSummary> {
 }
 
 pub fn protocol_surface(protocol: &str, entry: &str) -> Option<ProtocolSurfaceSummary> {
+    let (protocol, _) = split_protocol_alias(protocol);
     let summary = protocol_summary(protocol)?;
     let selected_entry = summary
         .entries

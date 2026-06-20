@@ -29,3 +29,19 @@ Protocol package aliases also remain accepted:
 Return to the family hub:
 
 - [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `keepalive`
+- `relay`
+- `stun-allocate`
+- `stun-refresh`
+- `stun_allocate`
+- `stun_refresh`
+- `turn-allocate`
+- `turn-refresh`
+
+<!-- gewyvern:entry-aliases:end -->

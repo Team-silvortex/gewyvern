@@ -30,10 +30,38 @@ pub(crate) fn latest_protocol_catalog_delta(
     .map(Some)
 }
 
+pub(crate) fn protocol_catalog_delta_between_paths(
+    current_updated_unix_ms: u128,
+    current_root: &Path,
+    previous_updated_unix_ms: u128,
+    previous_root: &Path,
+) -> Result<ProtocolCatalogDelta, String> {
+    protocol_catalog_delta_between(
+        current_updated_unix_ms,
+        current_root,
+        previous_updated_unix_ms,
+        previous_root,
+    )
+}
+
 pub(crate) fn protocol_catalog_delta_json(delta: Option<&ProtocolCatalogDelta>) -> String {
     match delta {
         Some(delta) => delta.to_json(),
         None => "null".into(),
+    }
+}
+
+pub(crate) fn protocol_catalog_delta_markdown(delta: Option<&ProtocolCatalogDelta>) -> String {
+    match delta {
+        Some(delta) => delta.to_markdown(),
+        None => [
+            "# Protocol Evolution",
+            "",
+            "No prior protocol catalog snapshot exists yet.",
+            "",
+            "This is the first captured protocol shelf for the current line.",
+        ]
+        .join("\n"),
     }
 }
 
@@ -228,6 +256,41 @@ impl ProtocolCatalogDelta {
         json.push('}');
         json
     }
+
+    pub(crate) fn to_markdown(&self) -> String {
+        let mut md = vec![
+            "# Protocol Evolution".to_string(),
+            String::new(),
+            format!(
+                "Current snapshot: `{}`  ",
+                self.current_updated_unix_ms
+            ),
+            format!(
+                "Previous snapshot: `{}`",
+                self.previous_updated_unix_ms
+            ),
+            String::new(),
+        ];
+        if self.is_empty() {
+            md.push("No protocol catalog changes detected between these snapshots.".into());
+            return md.join("\n");
+        }
+        push_markdown_section(&mut md, "Added Protocols", &self.added_protocols);
+        push_markdown_section(&mut md, "Removed Protocols", &self.removed_protocols);
+        push_markdown_section(
+            &mut md,
+            "Changed Protocol Summaries",
+            &self.changed_protocol_summaries,
+        );
+        push_markdown_section(&mut md, "Added Entries", &self.added_entries);
+        push_markdown_section(&mut md, "Removed Entries", &self.removed_entries);
+        push_markdown_section(
+            &mut md,
+            "Changed Entry Surfaces",
+            &self.changed_entry_surfaces,
+        );
+        md.join("\n")
+    }
 }
 
 fn append_text_line(target: &mut String, label: &str, items: &[String]) {
@@ -237,3 +300,14 @@ fn append_text_line(target: &mut String, label: &str, items: &[String]) {
     target.push_str(&format!("  {label}: {}\n", items.join(", ")));
 }
 
+fn push_markdown_section(target: &mut Vec<String>, title: &str, items: &[String]) {
+    if items.is_empty() {
+        return;
+    }
+    target.push(format!("## {title}"));
+    target.push(String::new());
+    for item in items {
+        target.push(format!("- `{item}`"));
+    }
+    target.push(String::new());
+}

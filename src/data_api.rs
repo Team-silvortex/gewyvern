@@ -9,9 +9,14 @@ use crate::runtime_events::{
 };
 use crate::runtime_logging::{log_error_event, log_warn_event};
 
+mod anomaly_flow_view;
+mod anomaly_phase_hints;
 mod json;
 mod persistence;
 mod protocol_catalog;
+mod runtime_cluster_attention;
+mod runtime_capability_digest;
+mod runtime_cluster_overview;
 mod resilience_status;
 mod routing;
 mod service;
@@ -28,7 +33,7 @@ const API_CLIENT_WRITE_TIMEOUT: Duration = Duration::from_secs(3);
 const API_MAX_CONCURRENT_CLIENTS: usize = 128;
 const API_MAX_RESPONSE_BODY_BYTES: usize = 512 * 1024;
 const API_VERSION: &str = env!("CARGO_PKG_VERSION");
-const API_ENDPOINTS_JSON: &str = "[\"/health\",\"/v1/capabilities\",\"/v1/runtime/resilience.json\",\"/v1/protocols\",\"/v1/protocols/<protocol>\",\"/v1/protocols/<protocol>/entries/<entry>/surface.json\",\"/v1/latest/meta\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/training-example.json\",\"/v1/latest/training-dataset.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/training-example.json\",\"/v1/latest/targets/<name>/training-dataset.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\",\"/v1/latest/targets/<name>/protocol-surface.json\"]";
+const API_ENDPOINTS_JSON: &str = "[\"/health\",\"/v1/capabilities\",\"/v1/runtime/resilience.json\",\"/v1/protocols\",\"/v1/protocols/<protocol>\",\"/v1/protocols/<protocol>/entries/<entry>/surface.json\",\"/v1/protocol-clusters\",\"/v1/protocol-clusters/<cluster>\",\"/v1/latest/meta\",\"/v1/latest/runtime-capability-digest.json\",\"/v1/latest/runtime-cluster-overview.json\",\"/v1/latest/runtime-cluster-attention.json\",\"/v1/latest/runtime-cluster-attention-reasons.json\",\"/v1/latest/runtime-cluster-attention-summary.json\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/training-example.json\",\"/v1/latest/training-dataset.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/anomaly-flow.json\",\"/v1/latest/targets/<name>/training-example.json\",\"/v1/latest/targets/<name>/training-dataset.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\",\"/v1/latest/targets/<name>/protocol-surface.json\"]";
 
 #[derive(Clone, Debug, Default)]
 pub struct ApiSnapshot {

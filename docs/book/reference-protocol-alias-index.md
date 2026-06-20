@@ -33,10 +33,11 @@ Entry aliases:
 ## `dhcp`
 
 Default entry: `client`  
-Protocol aliases: `dhcp-discover`, `dhcp-request`, `dhcp_discover`, `dhcp_request`  
+Protocol aliases: `dhcp-discover`, `dhcp-nak`, `dhcp-request`, `dhcp_discover`, `dhcp_nak`, `dhcp_request`  
 Entry aliases:
 - `client` (default): none
 - `discover`: `dhcp-discover`, `dhcp_discover`, `lease-discover`, `offer-probe`
+- `nak`: `dhcp-nak`, `dhcp_nak`, `lease-denied`, `offer-denied`
 - `request`: `dhcp-request`, `dhcp_request`, `lease-request`, `renew`
 
 ## `dns`
@@ -227,16 +228,25 @@ Default entry: `ping`
 Protocol aliases: `redis-get`, `redis-ping`, `redis-session`, `redis-set`, `redis_get`, `redis_ping`, `redis_session`, `redis_set`  
 Entry aliases:
 - `ping` (default): `health`, `redis-ping`, `redis_ping`
+- `ask`: `cluster-ask`, `slot-ask`
+- `auth-denied`: `login-denied`, `wrongpass`
+- `auth-required`: `login-required`, `noauth`
 - `blmove`: `blocking-left-right-move`, `blocking-right-left-move`, `list-blocking-directional-move`, `list-blocking-move`
 - `blmpop`: `blocking-list-pop-many`, `list-blocking-multi-pop`
 - `blpop`: `left-blocking-pop`, `list-blocking-pop-left`
 - `brpop`: `list-blocking-pop-right`, `right-blocking-pop`
 - `brpoplpush`: `list-blocking-move-right-to-left`, `right-blocking-pop-left-push`
+- `busy`: `lua-blocked`, `script-busy`
+- `busygroup`: `consumer-group-exists`, `stream-group-exists`
 - `bzmpop`: `score-blocking-pop-many`, `sorted-blocking-multi-pop`
 - `bzpopmax`: `score-blocking-pop-highest`, `sorted-blocking-pop-max`
 - `bzpopmin`: `score-blocking-pop-lowest`, `sorted-blocking-pop-min`
+- `clusterdown`: `cluster-unavailable`, `slot-map-down`
+- `crossslot`: `cluster-slot-conflict`, `multi-key-slot-conflict`
 - `decr`: `count-down`, `decrement`
 - `del`: `delete`, `remove`
+- `error`: `command-error`, `resp-error`
+- `execabort`: `multi-exec-abort`, `transaction-abort`
 - `exists`: `key-check`, `present`
 - `expire`: `expiry`, `set-ttl`
 - `get`: `kv-read`, `read`, `redis-get`, `redis_get`
@@ -247,12 +257,19 @@ Entry aliases:
 - `incr`: `count-up`, `increment`
 - `lmove`: `left-right-move`, `list-directional-move`, `list-move`, `right-left-move`
 - `lmpop`: `list-multi-pop`, `list-pop-many`
+- `loading`: `loading-window`, `warmup-busy`
 - `lpop`: `left-pop`, `list-pop-left`
 - `lpush`: `left-push`, `list-prepend`
+- `masterdown`: `failover-window`, `primary-unavailable`
 - `mget`: `bulk-read`, `multi-read`
+- `misconf`: `persistence-misconfig`, `write-guarded`
+- `moved`: `cluster-redirect`, `slot-moved`
 - `mset`: `bulk-write`, `multi-write`
+- `noscript`: `evalsha-miss`, `script-missing`
+- `oom`: `memory-limit`, `write-over-capacity`
 - `pttl`: `ms-ttl`, `precise-ttl`
 - `publish`: `channel-write`, `pubsub-send`
+- `readonly`: `readonly-replica`, `replica-write-denied`
 - `rpop`: `list-pop-right`, `right-pop`
 - `rpoplpush`: `list-move-right-to-left`, `right-pop-left-push`
 - `rpush`: `list-append`, `right-push`
@@ -261,7 +278,9 @@ Entry aliases:
 - `set`: `kv-write`, `redis-set`, `redis_set`, `write`
 - `smembers`: `members-read`, `set-read`
 - `subscribe`: `channel-read`, `pubsub-listen`
+- `tryagain`: `backoff-retry`, `cluster-retry`
 - `ttl`: `key-ttl`, `time-to-live`
+- `wrongtype`: `type-conflict`, `wrong-type`
 - `xack`: `stream-ack`, `stream-acknowledge`
 - `xadd`: `stream-append`, `stream-write`
 - `xautoclaim`: `stream-auto-claim`, `stream-idle-reassign`
@@ -326,11 +345,20 @@ Entry aliases:
 ## `snmp`
 
 Default entry: `get`  
-Protocol aliases: `snmp-get-next`, `snmp-set`, `snmp_get_next`, `snmp_set`  
+Protocol aliases: `snmp-bulk`, `snmp-engine-sync`, `snmp-get-next`, `snmp-report`, `snmp-set`, `snmp-trap`, `snmp-trap-recv`, `snmp-unauthorized`, `snmp-v3-auth`, `snmp-v3-priv`, `snmp_bulk`, `snmp_engine_sync`, `snmp_get_next`, `snmp_report`, `snmp_set`, `snmp_trap`, `snmp_trap_recv`, `snmp_unauthorized`, `snmp_v3_auth`, `snmp_v3_priv`  
 Entry aliases:
 - `get` (default): `query`, `read`
+- `bulk`: `bulk-walk`, `snmp-bulk`, `snmp_bulk`, `table-read`
+- `engine-sync`: `engine-discovery`, `report-sync`, `snmp-engine-sync`, `snmp_engine_sync`
 - `get-next`: `next`, `snmp-get-next`, `snmp_get_next`, `walk`
+- `inform`: `ack-notify`, `confirm-notify`
+- `report`: `engine-report`, `report-pdu`, `snmp-report`, `snmp_report`
 - `set`: `snmp-set`, `snmp_set`, `update`, `write`
+- `trap`: `alert`, `notify`, `snmp-trap`, `snmp_trap`
+- `trap-recv`: `listen-trap`, `snmp-trap-recv`, `snmp_trap_recv`, `trap-listener`
+- `unauthorized`: `access-denied`, `auth-failed`, `snmp-unauthorized`, `snmp_unauthorized`
+- `v3-auth`: `auth-session`, `auth-user`, `snmp-v3-auth`, `snmp_v3_auth`
+- `v3-priv`: `encrypted-session`, `private-session`, `snmp-v3-priv`, `snmp_v3_priv`
 
 ## `socks5`
 
@@ -363,10 +391,11 @@ Entry aliases:
 ## `stun`
 
 Default entry: `binding`  
-Protocol aliases: `stun-allocate`, `stun-refresh`, `stun_allocate`, `stun_refresh`  
+Protocol aliases: `stun-allocate`, `stun-binding-error`, `stun-refresh`, `stun_allocate`, `stun_binding_error`, `stun_refresh`  
 Entry aliases:
 - `binding` (default): none
 - `allocate`: `relay`, `stun-allocate`, `stun_allocate`, `turn-allocate`
+- `binding-error`: `binding-denied`, `binding-error`, `stun-binding-error`, `stun_binding_error`
 - `refresh`: `keepalive`, `stun-refresh`, `stun_refresh`, `turn-refresh`
 
 ## `tls`

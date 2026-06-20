@@ -21,3 +21,15 @@ Accepted aliases here:
 Return to the family hub:
 
 - [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `binding-denied`
+- `binding-error`
+- `stun-binding-error`
+- `stun_binding_error`
+
+<!-- gewyvern:entry-aliases:end -->

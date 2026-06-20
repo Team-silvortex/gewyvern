@@ -1,5 +1,4 @@
 use super::*;
-
 #[test]
 fn api_snapshot_meta_and_routes_cover_single_export() {
     let _guard = test_guard();
@@ -38,7 +37,6 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
         },
     );
     let snapshot = state.lock().unwrap().clone();
-
     let meta = api_snapshot_meta_json(&snapshot);
     assert!(meta.contains("\"kind\":\"single\""));
     assert!(meta.contains("\"name\":\"dsl_demo\""));
@@ -52,7 +50,6 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
     assert!(meta.contains("\"external_sidecar_trust_level\":null"));
     assert!(meta.contains("\"external_context_status\":null"));
     assert!(meta.contains("\"external_sidecar_consumption_mode\":null"));
-
     let (_, _, targets_body) = api_response_for_request("/v1/latest/targets", &snapshot);
     assert!(targets_body.contains("\"targets\":[\"dsl_demo\"]"));
     assert!(targets_body.contains("\"has_external_sidecar_context\":false"));
@@ -62,7 +59,6 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
     assert!(targets_body.contains("\"external_context_status\":null"));
     assert!(targets_body.contains("\"external_sidecar_consumption_mode\":null"));
     assert!(targets_body.contains("\"has_protocol_surface\":false"));
-
     let (_, _, summary_body) = api_response_for_request("/v1/latest/summary.json", &snapshot);
     assert!(summary_body.contains("\"demo\":\"dsl_demo\""));
     let (_, _, analysis_body) = api_response_for_request("/v1/latest/analysis.json", &snapshot);
@@ -76,10 +72,8 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
     let (_, _, dataset_body) =
         api_response_for_request("/v1/latest/training-dataset.json", &snapshot);
     assert!(dataset_body.contains("\"kind\":\"training_dataset_manifest\""));
-
     let (_, _, export_body) = api_response_for_request("/v1/latest/export.json", &snapshot);
     assert!(export_body.contains("\"template_id\""));
-
     let (_, _, target_summary_body) =
         api_response_for_request("/v1/latest/targets/dsl_demo/summary.json", &snapshot);
     assert!(target_summary_body.contains("\"demo\":\"dsl_demo\""));
@@ -92,8 +86,13 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
     );
     assert_eq!(surface_status, 404);
     assert!(surface_body.contains("no protocol surface available"));
+    let (_, _, digest_body) =
+        api_response_for_request("/v1/latest/runtime-capability-digest.json", &snapshot);
+    assert!(digest_body.contains("\"surface\":\"runtime_capability_digest\""));
+    assert!(digest_body.contains("\"targets_with_protocol_surface\":0"));
+    assert!(digest_body.contains("\"targets_without_protocol_surface\":1"));
+    assert!(digest_body.contains("\"cluster_count\":0"));
 }
-
 #[test]
 fn api_snapshot_routes_cover_scan_export() {
     let _guard = test_guard();
@@ -168,11 +167,9 @@ fn api_snapshot_routes_cover_scan_export() {
         scan_report_html(&outputs),
     );
     let snapshot = state.lock().unwrap().clone();
-
     let (health_status, _, health_body) = api_response_for_request("/health", &snapshot);
     assert_eq!(health_status, 200);
     assert!(health_body.contains("\"has_snapshot\":true"));
-
     let (cap_status, _, cap_body) = api_response_for_request("/v1/capabilities", &snapshot);
     assert_eq!(cap_status, 200);
     assert!(cap_body.contains("\"service\":\"gewyvern-api\""));
@@ -182,7 +179,7 @@ fn api_snapshot_routes_cover_scan_export() {
     assert!(cap_body.contains("\"external_capability_profile\":true"));
     assert!(cap_body.contains("\"external_sidecar_trust_level\":true"));
     assert!(cap_body.contains("\"external_sidecar_consumption_mode\":true"));
-
+    assert!(cap_body.contains("\"runtime_capability_digest\":true"));
     let (targets_status, _, targets_body) =
         api_response_for_request("/v1/latest/targets", &snapshot);
     assert_eq!(targets_status, 200);
@@ -233,6 +230,14 @@ fn api_snapshot_routes_cover_scan_export() {
     assert!(surface_body.contains("\"entry\":\"request\""));
     assert!(surface_body.contains("\"default_entry\":\"request\""));
     assert!(surface_body.contains("\"selected_is_default\":true"));
+    let (_, _, digest_body) =
+        api_response_for_request("/v1/latest/runtime-capability-digest.json", &snapshot);
+    assert!(digest_body.contains("\"surface\":\"runtime_capability_digest\""));
+    assert!(digest_body.contains("\"targets_with_protocol_surface\":1"));
+    assert!(digest_body.contains("\"targets_without_protocol_surface\":0"));
+    assert!(digest_body.contains("\"key\":\"web-proxy-request-response\""));
+    assert!(digest_body.contains("\"protocol\":\"http\""));
+    assert!(digest_body.contains("\"entries\":[\"request\"]"));
 
     let (findings_status, _, _) = api_response_for_request("/v1/latest/findings.json", &snapshot);
     assert_eq!(findings_status, 404);

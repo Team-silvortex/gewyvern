@@ -1,0 +1,7 @@
+name=redis_misconf
+version=0.16.0
+entry=main.gewy
+register.protocol=redis
+register.entry=misconf
+register.default=false
+register.entry_aliases=persistence-misconfig,write-guarded

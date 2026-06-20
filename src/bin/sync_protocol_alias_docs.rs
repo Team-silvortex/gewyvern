@@ -207,6 +207,11 @@ fn render_protocol_surface_overview(summaries: &[ProtocolSummary]) -> String {
         out.push_str("` -> default `");
         out.push_str(&summary.default_entry);
         out.push('`');
+        if let Some(hint) = summary.cluster_hint.as_ref() {
+            out.push_str(" in cluster `");
+            out.push_str(&hint.key);
+            out.push_str("`");
+        }
         if let Some(page) = family_pages.get(&summary.protocol) {
             out.push_str(" via ");
             out.push_str(&markdown_link(page));
@@ -220,6 +225,10 @@ fn render_protocol_surface_overview(summaries: &[ProtocolSummary]) -> String {
 
 fn render_protocol_groups_directory(summaries: &[ProtocolSummary]) -> String {
     let hubs = current_family_hub_pages(summaries);
+    let summary_by_protocol = summaries
+        .iter()
+        .map(|summary| (summary.protocol.as_str(), summary))
+        .collect::<BTreeMap<_, _>>();
     let mut out = String::new();
     out.push_str(PROTOCOL_GROUPS_BLOCK_START);
     for group in PROTOCOL_GROUPS {
@@ -231,6 +240,27 @@ fn render_protocol_groups_directory(summaries: &[ProtocolSummary]) -> String {
                 out.push_str("- ");
                 out.push_str(&markdown_link(page));
                 out.push('\n');
+            }
+        }
+        if let Some(first_protocol) = group.families.first() {
+            if let Some(summary) = summary_by_protocol.get(first_protocol) {
+                if let Some(hint) = summary.cluster_hint.as_ref() {
+                    out.push_str("\nCluster hint:\n\n");
+                    out.push_str("- key: `");
+                    out.push_str(&hint.key);
+                    out.push_str("`\n- operator hint: ");
+                    out.push_str(&hint.operator_hint);
+                    out.push_str("\n- sibling protocols: ");
+                    out.push_str(
+                        &hint
+                            .sibling_protocols
+                            .iter()
+                            .map(|item| format!("`{item}`"))
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    );
+                    out.push('\n');
+                }
             }
         }
         for (label, page) in group.fallback_links {

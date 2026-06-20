@@ -14,6 +14,24 @@ fn built_in_redis_summary_covers_packaged_family_shape() {
         "session",
         "get",
         "set",
+        "auth-required",
+        "auth-denied",
+        "error",
+        "wrongtype",
+        "busygroup",
+        "readonly",
+        "noscript",
+        "moved",
+        "ask",
+        "tryagain",
+        "loading",
+        "crossslot",
+        "clusterdown",
+        "masterdown",
+        "oom",
+        "busy",
+        "execabort",
+        "misconf",
         "publish",
         "subscribe",
         "zadd",
@@ -40,11 +58,113 @@ fn built_in_redis_summary_keeps_high_value_entry_aliases() {
     assert!(get.aliases.contains(&"read".to_string()));
     assert!(get.aliases.contains(&"kv-read".to_string()));
 
+    let auth_required = entries
+        .iter()
+        .find(|entry| entry.mode == "auth-required")
+        .expect("redis auth-required entry should exist");
+    assert!(auth_required.aliases.contains(&"login-required".to_string()));
+
+    let auth_denied = entries
+        .iter()
+        .find(|entry| entry.mode == "auth-denied")
+        .expect("redis auth-denied entry should exist");
+    assert!(auth_denied.aliases.contains(&"wrongpass".to_string()));
+
     let publish = entries
         .iter()
         .find(|entry| entry.mode == "publish")
         .expect("redis publish entry should exist");
     assert!(publish.aliases.contains(&"pubsub-send".to_string()));
+
+    let wrongtype = entries
+        .iter()
+        .find(|entry| entry.mode == "wrongtype")
+        .expect("redis wrongtype entry should exist");
+    assert!(wrongtype.aliases.contains(&"type-conflict".to_string()));
+
+    let busygroup = entries
+        .iter()
+        .find(|entry| entry.mode == "busygroup")
+        .expect("redis busygroup entry should exist");
+    assert!(busygroup.aliases.contains(&"stream-group-exists".to_string()));
+
+    let readonly = entries
+        .iter()
+        .find(|entry| entry.mode == "readonly")
+        .expect("redis readonly entry should exist");
+    assert!(readonly.aliases.contains(&"replica-write-denied".to_string()));
+
+    let noscript = entries
+        .iter()
+        .find(|entry| entry.mode == "noscript")
+        .expect("redis noscript entry should exist");
+    assert!(noscript.aliases.contains(&"script-missing".to_string()));
+
+    let moved = entries
+        .iter()
+        .find(|entry| entry.mode == "moved")
+        .expect("redis moved entry should exist");
+    assert!(moved.aliases.contains(&"cluster-redirect".to_string()));
+
+    let ask = entries
+        .iter()
+        .find(|entry| entry.mode == "ask")
+        .expect("redis ask entry should exist");
+    assert!(ask.aliases.contains(&"cluster-ask".to_string()));
+
+    let tryagain = entries
+        .iter()
+        .find(|entry| entry.mode == "tryagain")
+        .expect("redis tryagain entry should exist");
+    assert!(tryagain.aliases.contains(&"cluster-retry".to_string()));
+
+    let loading = entries
+        .iter()
+        .find(|entry| entry.mode == "loading")
+        .expect("redis loading entry should exist");
+    assert!(loading.aliases.contains(&"loading-window".to_string()));
+
+    let crossslot = entries
+        .iter()
+        .find(|entry| entry.mode == "crossslot")
+        .expect("redis crossslot entry should exist");
+    assert!(crossslot.aliases.contains(&"multi-key-slot-conflict".to_string()));
+
+    let clusterdown = entries
+        .iter()
+        .find(|entry| entry.mode == "clusterdown")
+        .expect("redis clusterdown entry should exist");
+    assert!(clusterdown.aliases.contains(&"cluster-unavailable".to_string()));
+
+    let masterdown = entries
+        .iter()
+        .find(|entry| entry.mode == "masterdown")
+        .expect("redis masterdown entry should exist");
+    assert!(masterdown.aliases.contains(&"primary-unavailable".to_string()));
+
+    let oom = entries
+        .iter()
+        .find(|entry| entry.mode == "oom")
+        .expect("redis oom entry should exist");
+    assert!(oom.aliases.contains(&"memory-limit".to_string()));
+
+    let busy = entries
+        .iter()
+        .find(|entry| entry.mode == "busy")
+        .expect("redis busy entry should exist");
+    assert!(busy.aliases.contains(&"script-busy".to_string()));
+
+    let execabort = entries
+        .iter()
+        .find(|entry| entry.mode == "execabort")
+        .expect("redis execabort entry should exist");
+    assert!(execabort.aliases.contains(&"transaction-abort".to_string()));
+
+    let misconf = entries
+        .iter()
+        .find(|entry| entry.mode == "misconf")
+        .expect("redis misconf entry should exist");
+    assert!(misconf.aliases.contains(&"persistence-misconfig".to_string()));
 
     let zadd = entries
         .iter()

@@ -62,8 +62,20 @@ pub(super) fn protocol_surface_text(surface: Option<&ProtocolSurfaceSummary>) ->
                     )
                 },
             );
+            let cluster_hint = surface.cluster_hint.as_ref().map_or_else(
+                || "none".to_string(),
+                |hint| {
+                    format!(
+                        "{}:{}:{}:{}",
+                        hint.key,
+                        hint.label,
+                        hint.operator_hint,
+                        join_or_none(&hint.sibling_protocols)
+                    )
+                },
+            );
             format!(
-                "protocol_surface={} entry={} default={} selected_default={} protocol_aliases={} entry_aliases={} sibling_entries={} shelf={}",
+                "protocol_surface={} entry={} default={} selected_default={} protocol_aliases={} entry_aliases={} sibling_entries={} cluster_hint={} shelf={}",
                 surface.protocol,
                 surface.entry,
                 surface.default_entry,
@@ -71,6 +83,7 @@ pub(super) fn protocol_surface_text(surface: Option<&ProtocolSurfaceSummary>) ->
                 join_or_none(&surface.protocol_aliases),
                 join_or_none(&surface.entry_aliases),
                 join_or_none(&surface.sibling_entries),
+                cluster_hint,
                 shelf,
             )
         }
@@ -93,8 +106,20 @@ pub(super) fn protocol_surface_html(surface: Option<&ProtocolSurfaceSummary>) ->
                     )
                 },
             );
+            let cluster_hint = surface.cluster_hint.as_ref().map_or_else(
+                || "<li><strong>cluster hint:</strong> none</li>".to_string(),
+                |hint| {
+                    format!(
+                        "<li><strong>cluster hint:</strong> {} ({})</li><li><strong>operator hint:</strong> {}</li><li><strong>cluster siblings:</strong> {}</li>",
+                        html_escape(&hint.label),
+                        html_escape(&hint.key),
+                        html_escape(&hint.operator_hint),
+                        html_escape(&join_or_none(&hint.sibling_protocols)),
+                    )
+                },
+            );
             format!(
-                "<h3>Protocol Surface</h3><ul><li><strong>protocol:</strong> {}</li><li><strong>entry:</strong> {}</li><li><strong>default entry:</strong> {}{}</li><li><strong>protocol aliases:</strong> {}</li><li><strong>entry aliases:</strong> {}</li><li><strong>sibling entries:</strong> {}</li>{}</ul>",
+                "<h3>Protocol Surface</h3><ul><li><strong>protocol:</strong> {}</li><li><strong>entry:</strong> {}</li><li><strong>default entry:</strong> {}{}</li><li><strong>protocol aliases:</strong> {}</li><li><strong>entry aliases:</strong> {}</li><li><strong>sibling entries:</strong> {}</li>{}{}</ul>",
                 html_escape(&surface.protocol),
                 html_escape(&surface.entry),
                 html_escape(&surface.default_entry),
@@ -106,6 +131,7 @@ pub(super) fn protocol_surface_html(surface: Option<&ProtocolSurfaceSummary>) ->
                 html_escape(&join_or_none(&surface.protocol_aliases)),
                 html_escape(&join_or_none(&surface.entry_aliases)),
                 html_escape(&join_or_none(&surface.sibling_entries)),
+                cluster_hint,
                 shelf,
             )
         }

@@ -37,3 +37,17 @@ Protocol package aliases that remain accepted:
 Return to the family hub:
 
 - [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `ack-notify`
+- `alert`
+- `confirm-notify`
+- `notify`
+- `snmp-trap`
+- `snmp_trap`
+
+<!-- gewyvern:entry-aliases:end -->

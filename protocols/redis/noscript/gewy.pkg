@@ -1,0 +1,7 @@
+name=redis_noscript
+version=0.16.0
+entry=main.gewy
+register.protocol=redis
+register.entry=noscript
+register.default=false
+register.entry_aliases=script-missing,evalsha-miss

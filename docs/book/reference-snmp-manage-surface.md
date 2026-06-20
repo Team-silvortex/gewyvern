@@ -40,3 +40,19 @@ SNMP response.
 Return to the family hub:
 
 - [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `engine-discovery`
+- `listen-trap`
+- `report-sync`
+- `snmp-engine-sync`
+- `snmp-trap-recv`
+- `snmp_engine_sync`
+- `snmp_trap_recv`
+- `trap-listener`
+
+<!-- gewyvern:entry-aliases:end -->

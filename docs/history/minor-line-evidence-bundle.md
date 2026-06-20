@@ -84,6 +84,8 @@ moment.
 At minimum, keep:
 
 - `protocols.json`
+- `protocol-delta.json`
+- `protocol-evolution.md`
 - `protocols/<protocol>/summary.json`
 - `protocols/<protocol>/entries/<entry>/surface.json`
 

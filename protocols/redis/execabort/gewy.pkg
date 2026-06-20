@@ -1,0 +1,7 @@
+name=redis_execabort
+version=0.16.0
+entry=main.gewy
+register.protocol=redis
+register.entry=execabort
+register.default=false
+register.entry_aliases=transaction-abort,multi-exec-abort

@@ -23,6 +23,7 @@ pub(super) fn built_in_protocol_surface(
         protocol_aliases: summary.aliases.clone(),
         entry_aliases: selected.aliases.clone(),
         sibling_entries,
+        cluster_hint: summary.cluster_hint.clone(),
         shelf: built_in_protocol_shelf(&summary.protocol, &selected.mode),
     }
 }

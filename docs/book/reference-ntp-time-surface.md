@@ -30,3 +30,19 @@ Protocol package aliases also remain accepted:
 Return to the family hub:
 
 - [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `check`
+- `clock-sync`
+- `ntp-query`
+- `ntp-sync`
+- `ntp_query`
+- `ntp_sync`
+- `probe`
+- `time-sync`
+
+<!-- gewyvern:entry-aliases:end -->

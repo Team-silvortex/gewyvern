@@ -1,0 +1,7 @@
+name=redis_wrongtype
+version=0.16.0
+entry=main.gewy
+register.protocol=redis
+register.entry=wrongtype
+register.default=false
+register.entry_aliases=type-conflict,wrong-type

@@ -96,6 +96,8 @@ fn list_history_json_renders_empty_index_when_history_is_missing() {
     assert!(rendered.contains("\"minor_line\":\"v0.15.x\""));
     assert!(rendered.contains("\"history_retention\":7"));
     assert!(rendered.contains("\"catalog_artifacts\":["));
+    assert!(rendered.contains("\"protocol-clusters.json\""));
+    assert!(rendered.contains("\"protocol-clusters/<cluster>.json\""));
     assert!(rendered.contains("\"latest_protocol_catalog_delta\":null"));
     assert!(rendered.contains("\"entries\":[]"));
 }

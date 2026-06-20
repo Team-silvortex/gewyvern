@@ -1,0 +1,7 @@
+name=redis_ask
+version=0.16.0
+entry=main.gewy
+register.protocol=redis
+register.entry=ask
+register.default=false
+register.entry_aliases=cluster-ask,slot-ask

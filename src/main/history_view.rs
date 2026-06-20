@@ -79,7 +79,7 @@ fn render_history_index_text(history_root: &Path) -> Result<String, String> {
 
 fn empty_history_index_json(history_root: &Path) -> String {
     format!(
-        "{{\"schema_version\":2,\"api_version\":\"{}\",\"minor_line\":\"{}\",\"history_retention\":{},\"latest_updated_unix_ms\":null,\"oldest_updated_unix_ms\":null,\"lines\":[{{\"line\":\"{}\",\"status\":\"active\",\"entry_count\":0,\"latest_updated_unix_ms\":null,\"oldest_updated_unix_ms\":null}}],\"entries\":[],\"root\":\"{}\",\"catalog_artifacts\":[\"protocols.json\",\"protocols/<protocol>/summary.json\",\"protocols/<protocol>/entries/<entry>/surface.json\"],\"latest_protocol_catalog_delta\":null}}",
+        "{{\"schema_version\":2,\"api_version\":\"{}\",\"minor_line\":\"{}\",\"history_retention\":{},\"latest_updated_unix_ms\":null,\"oldest_updated_unix_ms\":null,\"lines\":[{{\"line\":\"{}\",\"status\":\"active\",\"entry_count\":0,\"latest_updated_unix_ms\":null,\"oldest_updated_unix_ms\":null}}],\"entries\":[],\"root\":\"{}\",\"catalog_artifacts\":[\"protocols.json\",\"protocol-clusters.json\",\"protocol-clusters/<cluster>.json\",\"protocols/<protocol>/summary.json\",\"protocols/<protocol>/entries/<entry>/surface.json\"],\"latest_protocol_catalog_delta\":null}}",
         API_VERSION,
         current_minor_line(),
         history_retention_limit(),

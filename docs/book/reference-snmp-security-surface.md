@@ -30,3 +30,19 @@ Protocol package aliases also remain accepted:
 Return to the family hub:
 
 - [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `auth-session`
+- `auth-user`
+- `encrypted-session`
+- `private-session`
+- `snmp-v3-auth`
+- `snmp-v3-priv`
+- `snmp_v3_auth`
+- `snmp_v3_priv`
+
+<!-- gewyvern:entry-aliases:end -->

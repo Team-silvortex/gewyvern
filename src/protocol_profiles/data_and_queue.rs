@@ -109,6 +109,78 @@ pub(super) const REDIS_PROFILE: ProtocolProfile = ProtocolProfile {
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_set_path.gewy",
         },
         ProtocolEntryProfile {
+            mode: "auth-required",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/auth-required/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "auth-denied",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/auth-denied/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "error",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/error/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "wrongtype",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/wrongtype/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "busygroup",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/busygroup/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "readonly",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/readonly/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "noscript",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/noscript/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "moved",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/moved/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "ask",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/ask/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "tryagain",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/tryagain/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "loading",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/loading/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "crossslot",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/crossslot/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "clusterdown",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/clusterdown/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "masterdown",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/masterdown/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "oom",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/oom/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "busy",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/busy/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "execabort",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/execabort/main.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "misconf",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/misconf/main.gewy",
+        },
+        ProtocolEntryProfile {
             mode: "del",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_del_path.gewy",
         },

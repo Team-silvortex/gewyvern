@@ -35,3 +35,23 @@ Protocol package aliases also remain accepted:
 Return to the family hub:
 
 - [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `dhcp-discover`
+- `dhcp-nak`
+- `dhcp-request`
+- `dhcp_discover`
+- `dhcp_nak`
+- `dhcp_request`
+- `lease-denied`
+- `lease-discover`
+- `lease-request`
+- `offer-denied`
+- `offer-probe`
+- `renew`
+
+<!-- gewyvern:entry-aliases:end -->

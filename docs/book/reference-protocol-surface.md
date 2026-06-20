@@ -94,41 +94,41 @@ The manifest and registry scan together provide:
 ## Current Surface Snapshot
 
 - Built-in families: `33`
-- Built-in canonical entries: `175`
+- Built-in canonical entries: `204`
 - Family/default map:
-  - `amqp` -> default `session` via [docs/book/reference-amqp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-surface.md)
-  - `coap` -> default `get`
-  - `dhcp` -> default `client`
-  - `dns` -> default `udp` via [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md)
-  - `ftp` -> default `session` via [docs/book/reference-ftp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-surface.md)
-  - `gtpu` -> default `echo`
-  - `http` -> default `request` via [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md)
-  - `http3` -> default `request` via [docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md)
-  - `https` -> default `connect`
-  - `hy2` -> default `auth`
-  - `imap` -> default `auth` via [docs/book/reference-imap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-surface.md)
-  - `kerberos` -> default `as`
-  - `ldap` -> default `sync` via [docs/book/reference-ldap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-surface.md)
-  - `mdns` -> default `query`
-  - `memcached` -> default `get` via [docs/book/reference-memcached-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-surface.md)
-  - `mqtt` -> default `connect` via [docs/book/reference-mqtt-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-surface.md)
-  - `mysql` -> default `session` via [docs/book/reference-mysql-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-surface.md)
-  - `ntp` -> default `client`
-  - `pop3` -> default `auth` via [docs/book/reference-pop3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-surface.md)
-  - `postgres` -> default `query` via [docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md)
-  - `quic` -> default `initial` via [docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md)
-  - `radius` -> default `access`
-  - `redis` -> default `ping` via [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md)
-  - `rtsp` -> default `options` via [docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md)
-  - `sip` -> default `register` via [docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md)
-  - `smtp` -> default `session` via [docs/book/reference-smtp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-surface.md)
-  - `snmp` -> default `get`
-  - `socks5` -> default `session` via [docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md)
-  - `ssdp` -> default `discovery`
-  - `ssh` -> default `session` via [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md)
-  - `stun` -> default `binding`
-  - `tls` -> default `client`
-  - `wireguard` -> default `handshake`
+  - `amqp` -> default `session` in cluster `cache-queue-stream` via [docs/book/reference-amqp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-surface.md)
+  - `coap` -> default `get` in cluster `network-control-discovery` via [docs/book/reference-coap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-surface.md)
+  - `dhcp` -> default `client` in cluster `network-control-discovery` via [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
+  - `dns` -> default `udp` in cluster `network-control-discovery` via [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md)
+  - `ftp` -> default `session` in cluster `session-control-media-transfer` via [docs/book/reference-ftp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-surface.md)
+  - `gtpu` -> default `echo` in cluster `network-control-discovery` via [docs/book/reference-gtpu-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gtpu-surface.md)
+  - `http` -> default `request` in cluster `web-proxy-request-response` via [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md)
+  - `http3` -> default `request` in cluster `web-proxy-request-response` via [docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md)
+  - `https` -> default `connect` in cluster `web-proxy-request-response` via [docs/book/reference-https-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-https-surface.md)
+  - `hy2` -> default `auth` in cluster `secure-transport-session` via [docs/book/reference-hy2-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-surface.md)
+  - `imap` -> default `auth` in cluster `mail-delivery-mailbox` via [docs/book/reference-imap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-surface.md)
+  - `kerberos` -> default `as` in cluster `identity-directory-access` via [docs/book/reference-kerberos-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-surface.md)
+  - `ldap` -> default `sync` in cluster `identity-directory-access` via [docs/book/reference-ldap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-surface.md)
+  - `mdns` -> default `query` in cluster `network-control-discovery` via [docs/book/reference-mdns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mdns-surface.md)
+  - `memcached` -> default `get` in cluster `cache-queue-stream` via [docs/book/reference-memcached-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-surface.md)
+  - `mqtt` -> default `connect` in cluster `cache-queue-stream` via [docs/book/reference-mqtt-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-surface.md)
+  - `mysql` -> default `session` in cluster `database-query-session` via [docs/book/reference-mysql-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-surface.md)
+  - `ntp` -> default `client` in cluster `network-control-discovery` via [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
+  - `pop3` -> default `auth` in cluster `mail-delivery-mailbox` via [docs/book/reference-pop3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-surface.md)
+  - `postgres` -> default `query` in cluster `database-query-session` via [docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md)
+  - `quic` -> default `initial` in cluster `secure-transport-session` via [docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md)
+  - `radius` -> default `access` in cluster `identity-directory-access` via [docs/book/reference-radius-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-radius-surface.md)
+  - `redis` -> default `ping` in cluster `cache-queue-stream` via [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md)
+  - `rtsp` -> default `options` in cluster `session-control-media-transfer` via [docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md)
+  - `sip` -> default `register` in cluster `session-control-media-transfer` via [docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md)
+  - `smtp` -> default `session` in cluster `mail-delivery-mailbox` via [docs/book/reference-smtp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-surface.md)
+  - `snmp` -> default `get` in cluster `network-control-discovery` via [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
+  - `socks5` -> default `session` in cluster `web-proxy-request-response` via [docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md)
+  - `ssdp` -> default `discovery` in cluster `network-control-discovery` via [docs/book/reference-ssdp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssdp-surface.md)
+  - `ssh` -> default `session` in cluster `identity-directory-access` via [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md)
+  - `stun` -> default `binding` in cluster `network-control-discovery` via [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)
+  - `tls` -> default `client` in cluster `secure-transport-session` via [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
+  - `wireguard` -> default `handshake` in cluster `network-control-discovery` via [docs/book/reference-wireguard-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-surface.md)
 
 <!-- gewyvern:protocol-surface-overview:end -->
 
@@ -270,6 +270,22 @@ Use these paths when you want machine-stable protocol discovery:
 - `GET /v1/protocols/<protocol>/entries/<entry>/surface.json`
   - returns the selected entry surface, including sibling entries, aliases, and
     shelf metadata when available
+
+The API now also exposes `cluster_hint` alongside protocol summaries and entry
+surfaces:
+
+- `cluster_hint`
+  - coarse protocol-cluster guidance for operators and UIs
+  - answers "what broader family shape does this protocol belong to?"
+  - carries an operator-facing hint and sibling protocols in the same cluster
+- `shelf`
+  - entry-local organization inside one canonical protocol family
+  - answers "which nearby entries should I read together for this protocol?"
+
+Treat them as complementary:
+
+- `cluster_hint` is for family-level orientation
+- `shelf` is for entry-level drill-down
 
 This complements, rather than replaces:
 
