@@ -85,6 +85,14 @@ python_bin = "/usr/bin/python3"
 protocol_registry_root = "/srv/gewyvern/protocols"
 share_root = "/srv/gewyvern/share"
 
+[certificates]
+root = "/srv/gewyvern/certificates"
+trust_root = "/srv/gewyvern/certificates/trust"
+authority_root = "/srv/gewyvern/certificates/authorities"
+identity_root = "/srv/gewyvern/certificates/identities"
+state_root = "/srv/gewyvern/state/certificates"
+require_explicit_remote_trust = true
+
 [logging]
 level = "info"
 stderr = false
@@ -104,6 +112,12 @@ socket_failure_backoff_cap_ms = 2500
     let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
     let _registry_root = EnvGuard::remove("GEWY_PROTOCOL_REGISTRY_ROOT");
     let _share_root = EnvGuard::remove("GEWY_SHARE_ROOT");
+    let _certificate_root = EnvGuard::remove("GEWY_CERTIFICATE_ROOT");
+    let _trust_root = EnvGuard::remove("GEWY_TRUST_ROOT");
+    let _authority_root = EnvGuard::remove("GEWY_AUTHORITY_ROOT");
+    let _identity_root = EnvGuard::remove("GEWY_IDENTITY_ROOT");
+    let _certificate_state_root = EnvGuard::remove("GEWY_CERTIFICATE_STATE_ROOT");
+    let _require_explicit_remote_trust = EnvGuard::remove("GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST");
     let _history_retention = EnvGuard::remove("GEWY_HISTORY_RETENTION");
     let _external_threshold = EnvGuard::remove("GEWY_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD");
     let _external_cooldown = EnvGuard::remove("GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS");
@@ -133,6 +147,27 @@ socket_failure_backoff_cap_ms = 2500
         Some("/srv/gewyvern/protocols")
     );
     assert_eq!(config.share_root.as_deref(), Some("/srv/gewyvern/share"));
+    assert_eq!(
+        config.certificate_root.as_deref(),
+        Some("/srv/gewyvern/certificates")
+    );
+    assert_eq!(
+        config.trust_root.as_deref(),
+        Some("/srv/gewyvern/certificates/trust")
+    );
+    assert_eq!(
+        config.authority_root.as_deref(),
+        Some("/srv/gewyvern/certificates/authorities")
+    );
+    assert_eq!(
+        config.identity_root.as_deref(),
+        Some("/srv/gewyvern/certificates/identities")
+    );
+    assert_eq!(
+        config.certificate_state_root.as_deref(),
+        Some("/srv/gewyvern/state/certificates")
+    );
+    assert_eq!(config.require_explicit_remote_trust, Some(true));
     assert_eq!(config.defaults.log_level, Some(LogLevel::Info));
     assert_eq!(config.defaults.log_to_stderr, Some(false));
     assert_eq!(
@@ -154,6 +189,32 @@ socket_failure_backoff_cap_ms = 2500
     assert_eq!(
         std::env::var("GEWY_SHARE_ROOT").ok().as_deref(),
         Some("/srv/gewyvern/share")
+    );
+    assert_eq!(
+        std::env::var("GEWY_CERTIFICATE_ROOT").ok().as_deref(),
+        Some("/srv/gewyvern/certificates")
+    );
+    assert_eq!(
+        std::env::var("GEWY_TRUST_ROOT").ok().as_deref(),
+        Some("/srv/gewyvern/certificates/trust")
+    );
+    assert_eq!(
+        std::env::var("GEWY_AUTHORITY_ROOT").ok().as_deref(),
+        Some("/srv/gewyvern/certificates/authorities")
+    );
+    assert_eq!(
+        std::env::var("GEWY_IDENTITY_ROOT").ok().as_deref(),
+        Some("/srv/gewyvern/certificates/identities")
+    );
+    assert_eq!(
+        std::env::var("GEWY_CERTIFICATE_STATE_ROOT").ok().as_deref(),
+        Some("/srv/gewyvern/state/certificates")
+    );
+    assert_eq!(
+        std::env::var("GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST")
+            .ok()
+            .as_deref(),
+        Some("true")
     );
     assert_eq!(
         std::env::var("GEWY_HISTORY_RETENTION").ok().as_deref(),

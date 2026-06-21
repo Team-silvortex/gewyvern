@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::render_utils::append_json_string;
+use gewyvern::certificate_policy::runtime_certificate_policy;
 
 use super::{ApiSnapshot, ApiTargetSnapshot};
 
@@ -17,6 +18,8 @@ pub(super) fn api_runtime_cluster_overview_json(snapshot: &ApiSnapshot) -> Strin
     json.push_str(&overview.clusters.len().to_string());
     json.push_str(",\"unclustered_target_count\":");
     json.push_str(&overview.unclustered_targets.len().to_string());
+    json.push_str(",\"runtime_posture\":");
+    append_runtime_posture_json(&mut json);
     json.push_str(",\"clusters\":[");
     for (index, cluster) in overview.clusters.iter().enumerate() {
         if index > 0 {
@@ -53,6 +56,25 @@ pub(super) fn api_runtime_cluster_overview_json(snapshot: &ApiSnapshot) -> Strin
     }
     json.push_str("]}");
     json
+}
+
+fn append_runtime_posture_json(target: &mut String) {
+    let policy = runtime_certificate_policy();
+    target.push('{');
+    target.push_str("\"certificate_policy_status\":");
+    append_json_string(target, policy.status);
+    target.push_str(",\"certificate_policy_severity\":");
+    append_json_string(target, policy.severity);
+    target.push_str(",\"certificate_reason_count\":");
+    target.push_str(&policy.reasons.len().to_string());
+    target.push_str(",\"certificate_reason_codes\":[");
+    for (index, reason) in policy.reasons.iter().enumerate() {
+        if index > 0 {
+            target.push(',');
+        }
+        append_json_string(target, reason.code);
+    }
+    target.push_str("]}");
 }
 
 #[derive(Default)]

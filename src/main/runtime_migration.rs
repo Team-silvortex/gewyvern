@@ -11,6 +11,8 @@ pub(crate) struct RuntimeMigrationReport {
     pub(crate) copied_config_to: Option<PathBuf>,
     pub(crate) copied_protocol_entries: usize,
     pub(crate) copied_dsl_entries: usize,
+    pub(crate) copied_certificate_entries: usize,
+    pub(crate) copied_certificate_state_entries: usize,
 }
 
 pub(crate) fn prepare_runtime_layout() -> Result<RuntimeMigrationReport, String> {
@@ -24,6 +26,14 @@ pub(crate) fn prepare_runtime_layout() -> Result<RuntimeMigrationReport, String>
     )?;
     report.copied_dsl_entries =
         migrate_legacy_tree(legacy_subdir(&layout, "dsl"), layout.data_root.join("dsl"))?;
+    report.copied_certificate_entries = migrate_legacy_certificate_tree(
+        legacy_certificate_root(&layout),
+        layout.certificate_root.clone(),
+    )?;
+    report.copied_certificate_state_entries = migrate_legacy_tree(
+        legacy_certificate_state_root(&layout),
+        layout.certificate_state_root.clone(),
+    )?;
     Ok(report)
 }
 
@@ -36,6 +46,11 @@ fn ensure_standard_roots(
         layout.data_root.clone(),
         layout.state_root.clone(),
         layout.cache_root.clone(),
+        layout.certificate_root.clone(),
+        layout.trust_root.clone(),
+        layout.authority_root.clone(),
+        layout.identity_root.clone(),
+        layout.certificate_state_root.clone(),
     ] {
         if !root.exists() {
             fs::create_dir_all(&root).map_err(|err| {
@@ -96,7 +111,27 @@ fn legacy_subdir(layout: &RuntimeLayout, name: &str) -> Option<PathBuf> {
     candidate.exists().then_some(candidate)
 }
 
+fn legacy_certificate_root(layout: &RuntimeLayout) -> Option<PathBuf> {
+    legacy_subdir(layout, "certificates")
+}
+
+fn legacy_certificate_state_root(layout: &RuntimeLayout) -> Option<PathBuf> {
+    let root = layout.legacy_root.as_ref()?;
+    let candidate = root.join("state").join("certificates");
+    candidate.exists().then_some(candidate)
+}
+
 fn migrate_legacy_tree(source: Option<PathBuf>, target: PathBuf) -> Result<usize, String> {
+    let Some(source) = source else {
+        return Ok(0);
+    };
+    copy_missing_tree(&source, &target)
+}
+
+fn migrate_legacy_certificate_tree(
+    source: Option<PathBuf>,
+    target: PathBuf,
+) -> Result<usize, String> {
     let Some(source) = source else {
         return Ok(0);
     };

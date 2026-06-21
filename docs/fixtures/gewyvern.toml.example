@@ -16,6 +16,14 @@ python_bin = "/usr/bin/python3"
 protocol_registry_root = "/srv/gewyvern/protocols"
 share_root = "/srv/gewyvern/share"
 
+[certificates]
+root = "/srv/gewyvern/certificates"
+trust_root = "/srv/gewyvern/certificates/trust"
+authority_root = "/srv/gewyvern/certificates/authorities"
+identity_root = "/srv/gewyvern/certificates/identities"
+state_root = "/srv/gewyvern/state/certificates"
+require_explicit_remote_trust = true
+
 [logging]
 level = "info"
 stderr = true

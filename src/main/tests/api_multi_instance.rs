@@ -216,6 +216,7 @@ fn runtime_cluster_attention_rollup_prioritizes_clusters_and_targets() {
     assert!(body.contains("\"priority\":\"warning\""));
     assert!(body.contains("\"reason_tags\":[\"automation.targeted_escalation\"]"));
     assert!(body.contains("\"reason_tags\":[\"automation.manual_review\",\"sidecar.unverified\",\"capability.unavailable\"]"));
+    assert!(body.contains("\"runtime_policy_reasons\":["));
     assert!(body.contains("\"reason_catalog\":["));
     assert!(body.contains("\"name\":\"dsl_demo\""));
 }
@@ -236,6 +237,12 @@ fn runtime_cluster_attention_reason_catalog_lists_standardized_reason_specs() {
     assert!(body.contains("\"priority\":\"warning\""));
     assert!(body.contains("\"key\":\"sidecar.context_without_profile\""));
     assert!(body.contains("\"priority\":\"observe\""));
+    assert!(body.contains("\"key\":\"explicit_remote_trust_without_anchors\""));
+    assert!(body.contains("\"key\":\"expired_certificate_material\""));
+    assert!(body.contains("\"key\":\"overdue_certificate_rotation\""));
+    assert!(body.contains("\"runtime_policy_attention_count\":"));
+    assert!(body.contains("\"runtime_policy_reasons\":["));
+    assert!(body.contains("\"runtime_policy_reason_counts\":["));
 }
 
 #[test]
@@ -340,4 +347,5 @@ fn runtime_cluster_attention_summary_compacts_cluster_card_data() {
     assert!(body.contains("\"key\":\"sidecar.unverified\""));
     assert!(body.contains("\"key\":\"capability.unavailable\""));
     assert!(body.contains("\"unclustered_attention_target_count\":1"));
+    assert!(body.contains("\"runtime_policy_reason_counts\":["));
 }

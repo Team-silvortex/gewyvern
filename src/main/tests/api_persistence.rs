@@ -128,6 +128,12 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
         fs::read_to_string(latest_root.join("runtime-cluster-attention-reasons.json")).unwrap();
     let runtime_cluster_attention_summary =
         fs::read_to_string(latest_root.join("runtime-cluster-attention-summary.json")).unwrap();
+    let runtime_certificates =
+        fs::read_to_string(latest_root.join("runtime-certificates.json")).unwrap();
+    let runtime_certificate_policy =
+        fs::read_to_string(latest_root.join("runtime-certificate-policy.json")).unwrap();
+    let runtime_certificate_state =
+        fs::read_to_string(latest_root.join("runtime-certificate-state.json")).unwrap();
     let protocol_delta = fs::read_to_string(latest_root.join("protocol-delta.json")).unwrap();
     let protocol_evolution = fs::read_to_string(latest_root.join("protocol-evolution.md")).unwrap();
     let protocol_surface = fs::read_to_string(target_root.join("protocol-surface.json")).unwrap();
@@ -166,9 +172,11 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
     assert!(runtime_capability_digest.contains("\"surface\":\"runtime_capability_digest\""));
     assert!(runtime_capability_digest.contains("\"targets_with_protocol_surface\":1"));
     assert!(runtime_cluster_overview.contains("\"surface\":\"runtime_cluster_overview\""));
+    assert!(runtime_cluster_overview.contains("\"runtime_posture\":{"));
     assert!(runtime_cluster_overview.contains("\"key\":\"web-proxy-request-response\""));
     assert!(runtime_cluster_attention.contains("\"surface\":\"runtime_cluster_attention\""));
     assert!(runtime_cluster_attention.contains("\"attention_cluster_count\":1"));
+    assert!(runtime_cluster_attention.contains("\"runtime_policy_reasons\":["));
     assert!(
         runtime_cluster_attention_reasons
             .contains("\"surface\":\"runtime_cluster_attention_reasons\"")
@@ -176,11 +184,17 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
     assert!(
         runtime_cluster_attention_reasons.contains("\"key\":\"automation.targeted_escalation\"")
     );
+    assert!(runtime_cluster_attention_reasons.contains("\"runtime_policy_reasons\":["));
     assert!(
         runtime_cluster_attention_summary
             .contains("\"surface\":\"runtime_cluster_attention_summary\"")
     );
     assert!(runtime_cluster_attention_summary.contains("\"clusters\":["));
+    assert!(runtime_certificates.contains("\"surface\":\"runtime_certificates\""));
+    assert!(runtime_certificates.contains("\"policy\":{"));
+    assert!(runtime_certificates.contains("\"state\":{"));
+    assert!(runtime_certificate_policy.contains("\"surface\":\"runtime_certificate_policy\""));
+    assert!(runtime_certificate_state.contains("\"surface\":\"runtime_certificate_state\""));
     assert!(protocol_catalog.contains("\"protocol\":\"mysql\""));
     assert_eq!(protocol_delta, "null");
     assert!(protocol_evolution.contains("# Protocol Evolution"));

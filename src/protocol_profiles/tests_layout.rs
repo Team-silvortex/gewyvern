@@ -57,6 +57,26 @@ fn runtime_layout_prefers_explicit_standard_root_overrides() {
     assert_eq!(layout.data_root, PathBuf::from("/tmp/gewy-data"));
     assert_eq!(layout.state_root, PathBuf::from("/tmp/gewy-state"));
     assert_eq!(layout.cache_root, PathBuf::from("/tmp/gewy-cache"));
+    assert_eq!(
+        layout.certificate_root,
+        PathBuf::from("/tmp/gewy-config/certificates")
+    );
+    assert_eq!(
+        layout.trust_root,
+        PathBuf::from("/tmp/gewy-config/certificates/trust")
+    );
+    assert_eq!(
+        layout.authority_root,
+        PathBuf::from("/tmp/gewy-config/certificates/authorities")
+    );
+    assert_eq!(
+        layout.identity_root,
+        PathBuf::from("/tmp/gewy-config/certificates/identities")
+    );
+    assert_eq!(
+        layout.certificate_state_root,
+        PathBuf::from("/tmp/gewy-state/certificates")
+    );
 }
 
 #[test]

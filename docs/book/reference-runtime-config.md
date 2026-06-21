@@ -19,6 +19,8 @@ Do not use this page as:
 For those, use:
 
 - [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
+- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
+- [docs/book/reference-runtime-certificate-state.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-state.md)
 - [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
 - [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
 
@@ -60,6 +62,15 @@ roots and performs a conservative config copy-forward:
 - the legacy file is copied into the standard config root
 - the legacy source file is left untouched
 
+The same conservative copy-forward behavior now applies to legacy operator
+certificate assets:
+
+- legacy `~/.gewyvern/certificates/` contents are copied into the standard
+  certificate root when the destination files are missing
+- legacy `~/.gewyvern/state/certificates/` contents are copied into the
+  standard certificate state root when the destination files are missing
+- existing files in the standard roots are never overwritten during migration
+
 ## Current Config Shape
 
 The current config format is a small TOML-style file with these sections:
@@ -67,6 +78,7 @@ The current config format is a small TOML-style file with these sections:
 - `[runtime]`
 - `[external_engine]`
 - `[paths]`
+- `[certificates]`
 - `[logging]`
 - `[resilience]`
 
@@ -111,6 +123,55 @@ The runtime history key also has an environment-level override:
 - `file = "/path/to/gewyvern.log"`
 - `max_bytes = 1048576`
 - `max_files = 4`
+
+### `[certificates]`
+
+- `root = "/path/to/certificates"`
+- `trust_root = "/path/to/certificates/trust"`
+- `authority_root = "/path/to/certificates/authorities"`
+- `identity_root = "/path/to/certificates/identities"`
+- `state_root = "/path/to/state/certificates"`
+- `require_explicit_remote_trust = true|false`
+
+These keys establish the operator-facing certificate shelf used by the runtime
+for future TLS identity, trust-anchor, and local authority management.
+
+The corresponding environment overrides are:
+
+- `GEWY_CERTIFICATE_ROOT`
+- `GEWY_TRUST_ROOT`
+- `GEWY_AUTHORITY_ROOT`
+- `GEWY_IDENTITY_ROOT`
+- `GEWY_CERTIFICATE_STATE_ROOT`
+- `GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST`
+
+The runtime also publishes the current discovered certificate inventory at:
+
+- `/v1/runtime/certificates.json`
+
+And it now publishes a policy interpretation layer at:
+
+- `/v1/runtime/certificate-policy.json`
+
+And it now publishes the runtime-managed certificate state shelf at:
+
+- `/v1/runtime/certificate-state.json`
+
+This policy surface is intentionally conservative. In the current `0.15.x`
+line it highlights:
+
+- explicit remote trust without any trust anchors
+- private keys mistakenly stored in the trust shelf
+- identity keys without matching certificate material
+- identity certificates present without matching private keys
+- empty authority shelves
+- missing certificate state roots
+- parsed certificate material that is already expired
+- parsed certificate material that is approaching expiry
+
+For the stable reason-code contract and status meanings, use:
+
+- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
 
 ### `[resilience]`
 
@@ -192,6 +253,14 @@ python_bin = "/usr/bin/python3"
 [paths]
 protocol_registry_root = "/srv/gewyvern/protocols"
 share_root = "/srv/gewyvern/share"
+
+[certificates]
+root = "/srv/gewyvern/certificates"
+trust_root = "/srv/gewyvern/certificates/trust"
+authority_root = "/srv/gewyvern/certificates/authorities"
+identity_root = "/srv/gewyvern/certificates/identities"
+state_root = "/srv/gewyvern/state/certificates"
+require_explicit_remote_trust = true
 
 [logging]
 level = "info"

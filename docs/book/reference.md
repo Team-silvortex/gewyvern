@@ -110,6 +110,12 @@ If you are in the protocol volume specifically, start with:
 - [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
   Config file search order, supported sections, override precedence, and
   legacy fallback behavior for the `0.15.x` line.
+- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
+  Stable runtime certificate policy statuses, reason codes, and operator-facing
+  interpretation rules for the certificate shelf.
+- [docs/book/reference-runtime-certificate-state.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-state.md)
+  Runtime-managed certificate rotation and revocation shelf layout plus the
+  certificate-state API contract.
 - [docs/book/reference-runtime-events.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-events.md)
   Stable runtime event names, structured log shape, and event-naming contract
   candidates for the `0.16.x` tightening line.

@@ -1,3 +1,7 @@
+pub mod certificate_inventory;
+pub mod certificate_policy;
+pub mod certificate_state;
+pub mod certificate_validity;
 pub mod dsl;
 pub mod export;
 pub mod flow;

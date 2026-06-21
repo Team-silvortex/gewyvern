@@ -3,6 +3,9 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 
 use super::anomaly_flow_view::api_target_anomaly_flow_json;
+use super::certificate_inventory::api_runtime_certificates_json;
+use super::certificate_policy::api_runtime_certificate_policy_json;
+use super::certificate_state::api_runtime_certificate_state_json;
 use super::json::{api_target_list_json, decode_api_target_path_segment, json_string};
 use super::protocol_catalog::{
     api_protocol_catalog_json, api_protocol_cluster_json, api_protocol_clusters_json,
@@ -184,6 +187,21 @@ fn api_response_for_request_uncapped<'a>(
             "application/json; charset=utf-8",
             Cow::Owned(api_runtime_resilience_json()),
         ),
+        "/v1/runtime/certificates.json" => (
+            200,
+            "application/json; charset=utf-8",
+            Cow::Owned(api_runtime_certificates_json()),
+        ),
+        "/v1/runtime/certificate-policy.json" => (
+            200,
+            "application/json; charset=utf-8",
+            Cow::Owned(api_runtime_certificate_policy_json()),
+        ),
+        "/v1/runtime/certificate-state.json" => (
+            200,
+            "application/json; charset=utf-8",
+            Cow::Owned(api_runtime_certificate_state_json()),
+        ),
         "/v1/protocols" => (
             200,
             "application/json; charset=utf-8",
@@ -233,7 +251,7 @@ fn api_response_for_request_uncapped<'a>(
             200,
             "application/json; charset=utf-8",
             Cow::Owned(format!(
-                "{{\"service\":\"gewyvern-api\",\"version\":{},\"latest_snapshot\":true,\"serve_required\":true,\"training_example\":true,\"training_dataset_manifest\":true,\"protocol_catalog\":true,\"protocol_cluster_catalog\":true,\"protocol_surface_catalog\":true,\"runtime_capability_digest\":true,\"runtime_cluster_overview\":true,\"runtime_cluster_attention\":true,\"runtime_cluster_attention_reasons\":true,\"runtime_cluster_attention_summary\":true,\"external_sidecar_context\":true,\"external_capability_profile\":true,\"external_context_status\":true,\"external_sidecar_trust_level\":true,\"external_sidecar_consumption_mode\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":{}}}",
+                "{{\"service\":\"gewyvern-api\",\"version\":{},\"latest_snapshot\":true,\"serve_required\":true,\"training_example\":true,\"training_dataset_manifest\":true,\"protocol_catalog\":true,\"protocol_cluster_catalog\":true,\"protocol_surface_catalog\":true,\"runtime_capability_digest\":true,\"runtime_cluster_overview\":true,\"runtime_cluster_attention\":true,\"runtime_cluster_attention_reasons\":true,\"runtime_cluster_attention_summary\":true,\"runtime_certificates\":true,\"runtime_certificate_policy\":true,\"runtime_certificate_state\":true,\"external_sidecar_context\":true,\"external_capability_profile\":true,\"external_context_status\":true,\"external_sidecar_trust_level\":true,\"external_sidecar_consumption_mode\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":{}}}",
                 json_string(API_VERSION),
                 API_ENDPOINTS_JSON,
             )),

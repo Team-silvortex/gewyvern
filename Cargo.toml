@@ -9,3 +9,4 @@ edition = "2024"
 default-run = "gewyvern"
 
 [dependencies]
+x509-parser = "0.16"

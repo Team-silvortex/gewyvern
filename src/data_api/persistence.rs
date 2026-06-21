@@ -5,6 +5,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::anomaly_flow_view::api_target_anomaly_flow_json;
+use super::certificate_inventory::api_runtime_certificates_json;
+use super::certificate_policy::api_runtime_certificate_policy_json;
+use super::certificate_state::api_runtime_certificate_state_json;
 use super::json::{api_snapshot_meta_json, api_target_list_json, api_target_path_segment};
 use super::protocol_catalog::{
     api_protocol_catalog_json, api_protocol_cluster_json, api_protocol_clusters_json,
@@ -135,6 +138,18 @@ fn persist_snapshot_tree(
     write_text_file(
         &root.join("runtime-cluster-attention-summary.json"),
         &api_runtime_cluster_attention_summary_json(snapshot),
+    )?;
+    write_text_file(
+        &root.join("runtime-certificates.json"),
+        &api_runtime_certificates_json(),
+    )?;
+    write_text_file(
+        &root.join("runtime-certificate-policy.json"),
+        &api_runtime_certificate_policy_json(),
+    )?;
+    write_text_file(
+        &root.join("runtime-certificate-state.json"),
+        &api_runtime_certificate_state_json(),
     )?;
     write_optional_file(
         root.join("findings.json"),

@@ -2,6 +2,15 @@ use std::cmp::Reverse;
 use std::collections::BTreeMap;
 
 use crate::render_utils::{append_json_string, append_string_list_json};
+use gewyvern::certificate_policy::{
+    REASON_CERTIFICATE_SHELF_BOOTSTRAP_EMPTY, REASON_CERTIFICATE_STATE_ROOT_MISSING,
+    REASON_DISTRUSTED_TRUST_ANCHOR_MATERIAL,
+    REASON_EMPTY_AUTHORITY_ROOT, REASON_EXPLICIT_REMOTE_TRUST_WITHOUT_ANCHORS,
+    REASON_EXPIRED_CERTIFICATE_MATERIAL, REASON_EXPIRING_CERTIFICATE_MATERIAL,
+    REASON_IDENTITY_CERTIFICATES_WITHOUT_KEYS, REASON_IDENTITY_KEYS_WITHOUT_CERTIFICATES,
+    REASON_OVERDUE_CERTIFICATE_ROTATION, REASON_REVOKED_CERTIFICATE_MATERIAL,
+    REASON_PRIVATE_KEYS_PRESENT_IN_TRUST_ROOT, runtime_certificate_policy,
+};
 
 use super::{ApiSnapshot, ApiTargetSnapshot};
 
@@ -48,6 +57,78 @@ const REASON_SPECS: &[AttentionReasonSpec] = &[
         priority: AttentionPriority::Observe,
         note: "A sidecar context exists, but there is still no capability profile to anchor decisions.",
     },
+    AttentionReasonSpec {
+        key: REASON_EXPLICIT_REMOTE_TRUST_WITHOUT_ANCHORS,
+        label: "Remote trust without anchors",
+        priority: AttentionPriority::Warning,
+        note: "Remote trust protection is enabled, but the trust shelf does not contain any trust anchors yet.",
+    },
+    AttentionReasonSpec {
+        key: REASON_PRIVATE_KEYS_PRESENT_IN_TRUST_ROOT,
+        label: "Trust shelf contains private keys",
+        priority: AttentionPriority::Warning,
+        note: "Private-key material was found in the trust shelf, which should normally contain anchors only.",
+    },
+    AttentionReasonSpec {
+        key: REASON_IDENTITY_KEYS_WITHOUT_CERTIFICATES,
+        label: "Identity keys without certificates",
+        priority: AttentionPriority::Warning,
+        note: "Identity private keys exist without matching identity certificate material.",
+    },
+    AttentionReasonSpec {
+        key: REASON_IDENTITY_CERTIFICATES_WITHOUT_KEYS,
+        label: "Identity certificates without keys",
+        priority: AttentionPriority::Observe,
+        note: "Identity certificate material exists without matching private keys in the identity shelf.",
+    },
+    AttentionReasonSpec {
+        key: REASON_EMPTY_AUTHORITY_ROOT,
+        label: "Empty authority shelf",
+        priority: AttentionPriority::Observe,
+        note: "The authority shelf exists but still does not contain local authority material.",
+    },
+    AttentionReasonSpec {
+        key: REASON_CERTIFICATE_STATE_ROOT_MISSING,
+        label: "Missing certificate state root",
+        priority: AttentionPriority::Observe,
+        note: "The certificate state root has not been prepared yet.",
+    },
+    AttentionReasonSpec {
+        key: REASON_CERTIFICATE_SHELF_BOOTSTRAP_EMPTY,
+        label: "Certificate shelf bootstrap empty",
+        priority: AttentionPriority::Observe,
+        note: "The certificate shelf is still empty and remains in bootstrap posture.",
+    },
+    AttentionReasonSpec {
+        key: REASON_EXPIRED_CERTIFICATE_MATERIAL,
+        label: "Expired certificate material",
+        priority: AttentionPriority::Warning,
+        note: "Certificate material has already expired and should be rotated before trust or identity workflows continue.",
+    },
+    AttentionReasonSpec {
+        key: REASON_EXPIRING_CERTIFICATE_MATERIAL,
+        label: "Expiring certificate material",
+        priority: AttentionPriority::Observe,
+        note: "Certificate material is approaching expiry and should be rotated soon.",
+    },
+    AttentionReasonSpec {
+        key: REASON_OVERDUE_CERTIFICATE_ROTATION,
+        label: "Overdue certificate rotation",
+        priority: AttentionPriority::Warning,
+        note: "Certificate rotation records show overdue or failed rotations that need operator attention.",
+    },
+    AttentionReasonSpec {
+        key: REASON_REVOKED_CERTIFICATE_MATERIAL,
+        label: "Revoked certificate material",
+        priority: AttentionPriority::Warning,
+        note: "Certificate material has been explicitly revoked and should not be used by runtime workflows.",
+    },
+    AttentionReasonSpec {
+        key: REASON_DISTRUSTED_TRUST_ANCHOR_MATERIAL,
+        label: "Distrusted trust anchor",
+        priority: AttentionPriority::Warning,
+        note: "Trust-anchor material has been explicitly distrusted and should be removed from active use.",
+    },
 ];
 
 pub(super) fn api_runtime_cluster_attention_json(snapshot: &ApiSnapshot) -> String {
@@ -61,6 +142,8 @@ pub(super) fn api_runtime_cluster_attention_json(snapshot: &ApiSnapshot) -> Stri
     json.push_str(&rollup.clusters.len().to_string());
     json.push_str(",\"attention_target_count\":");
     json.push_str(&rollup.attention_target_count.to_string());
+    json.push_str(",\"runtime_policy_attention_count\":");
+    json.push_str(&rollup.runtime_policy_reasons.len().to_string());
     json.push_str(",\"clusters\":[");
     for (index, cluster) in rollup.clusters.iter().enumerate() {
         if index > 0 {
@@ -91,6 +174,8 @@ pub(super) fn api_runtime_cluster_attention_json(snapshot: &ApiSnapshot) -> Stri
         }
         append_attention_target_json(&mut json, target);
     }
+    json.push_str("],\"runtime_policy_reasons\":[");
+    append_runtime_policy_reasons_json(&mut json, &rollup.runtime_policy_reasons);
     json.push_str("],\"reason_catalog\":");
     append_reason_catalog_json(&mut json);
     json.push('}');
@@ -98,11 +183,19 @@ pub(super) fn api_runtime_cluster_attention_json(snapshot: &ApiSnapshot) -> Stri
 }
 
 pub(super) fn api_runtime_cluster_attention_reasons_json() -> String {
+    let runtime_policy_reasons = runtime_policy_attention_reasons();
     let mut json = String::with_capacity(1024);
     json.push_str("{\"surface\":\"runtime_cluster_attention_reasons\",\"count\":");
     json.push_str(&REASON_SPECS.len().to_string());
+    json.push_str(",\"runtime_policy_attention_count\":");
+    json.push_str(&runtime_policy_reasons.len().to_string());
     json.push_str(",\"reasons\":");
     append_reason_catalog_json(&mut json);
+    json.push_str(",\"runtime_policy_reasons\":[");
+    append_runtime_policy_reasons_json(&mut json, &runtime_policy_reasons);
+    json.push_str("],\"runtime_policy_reason_counts\":[");
+    append_runtime_policy_reason_counts_json(&mut json, &runtime_policy_reasons);
+    json.push(']');
     json.push('}');
     json
 }
@@ -118,6 +211,8 @@ pub(super) fn api_runtime_cluster_attention_summary_json(snapshot: &ApiSnapshot)
     json.push_str(&rollup.clusters.len().to_string());
     json.push_str(",\"attention_target_count\":");
     json.push_str(&rollup.attention_target_count.to_string());
+    json.push_str(",\"runtime_policy_attention_count\":");
+    json.push_str(&rollup.runtime_policy_reasons.len().to_string());
     json.push_str(",\"clusters\":[");
     for (index, cluster) in rollup.clusters.iter().enumerate() {
         if index > 0 {
@@ -140,6 +235,8 @@ pub(super) fn api_runtime_cluster_attention_summary_json(snapshot: &ApiSnapshot)
     json.push_str(&rollup.unclustered_targets.len().to_string());
     json.push_str(",\"unclustered_reason_counts\":[");
     append_reason_counts_json(&mut json, &reason_counts(&rollup.unclustered_targets));
+    json.push_str("],\"runtime_policy_reason_counts\":[");
+    append_runtime_policy_reason_counts_json(&mut json, &rollup.runtime_policy_reasons);
     json.push_str("]}");
     json
 }
@@ -184,6 +281,7 @@ struct AttentionRollup {
     attention_target_count: usize,
     clusters: Vec<AttentionCluster>,
     unclustered_targets: Vec<AttentionTarget>,
+    runtime_policy_reasons: Vec<&'static AttentionReasonSpec>,
 }
 
 struct AttentionCluster {
@@ -213,6 +311,7 @@ fn build_rollup(snapshot: &ApiSnapshot) -> AttentionRollup {
     let mut grouped = BTreeMap::<String, (String, Vec<AttentionTarget>)>::new();
     let mut unclustered_targets = Vec::new();
     let mut attention_target_count = 0usize;
+    let runtime_policy_reasons = runtime_policy_attention_reasons();
 
     for name in &snapshot.target_names {
         let Some(target) = snapshot.target_snapshots.get(name) else {
@@ -268,6 +367,7 @@ fn build_rollup(snapshot: &ApiSnapshot) -> AttentionRollup {
         attention_target_count,
         clusters,
         unclustered_targets,
+        runtime_policy_reasons,
     }
 }
 
@@ -335,6 +435,14 @@ fn reason_spec(key: &str) -> &'static AttentionReasonSpec {
         .expect("attention reason spec should exist")
 }
 
+fn runtime_policy_attention_reasons() -> Vec<&'static AttentionReasonSpec> {
+    runtime_certificate_policy()
+        .reasons
+        .into_iter()
+        .map(|reason| reason_spec(reason.code))
+        .collect()
+}
+
 fn append_attention_target_json(target: &mut String, rendered: &AttentionTarget) {
     target.push('{');
     target.push_str("\"name\":");
@@ -382,6 +490,55 @@ fn append_reason_catalog_json(target: &mut String) {
         target.push('}');
     }
     target.push(']');
+}
+
+fn append_runtime_policy_reasons_json(
+    target: &mut String,
+    reasons: &[&'static AttentionReasonSpec],
+) {
+    for (index, reason) in reasons.iter().enumerate() {
+        if index > 0 {
+            target.push(',');
+        }
+        target.push('{');
+        target.push_str("\"key\":");
+        append_json_string(target, reason.key);
+        target.push_str(",\"priority\":");
+        append_json_string(target, reason.priority.label());
+        target.push_str(",\"label\":");
+        append_json_string(target, reason.label);
+        target.push_str(",\"note\":");
+        append_json_string(target, reason.note);
+        target.push('}');
+    }
+}
+
+fn append_runtime_policy_reason_counts_json(
+    target: &mut String,
+    reasons: &[&'static AttentionReasonSpec],
+) {
+    let mut counts = BTreeMap::<&'static str, (&'static str, usize)>::new();
+    for reason in reasons {
+        counts
+            .entry(reason.key)
+            .and_modify(|(_, count)| *count += 1)
+            .or_insert((reason.priority.label(), 1));
+    }
+    let mut first = true;
+    for (key, (priority, count)) in counts {
+        if !first {
+            target.push(',');
+        }
+        first = false;
+        target.push('{');
+        target.push_str("\"key\":");
+        append_json_string(target, key);
+        target.push_str(",\"priority\":");
+        append_json_string(target, priority);
+        target.push_str(",\"count\":");
+        target.push_str(&count.to_string());
+        target.push('}');
+    }
 }
 
 fn reason_counts(targets: &[AttentionTarget]) -> Vec<ReasonCount> {

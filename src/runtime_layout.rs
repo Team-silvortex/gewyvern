@@ -11,15 +11,38 @@ pub struct RuntimeLayout {
     pub data_root: PathBuf,
     pub state_root: PathBuf,
     pub cache_root: PathBuf,
+    pub certificate_root: PathBuf,
+    pub trust_root: PathBuf,
+    pub authority_root: PathBuf,
+    pub identity_root: PathBuf,
+    pub certificate_state_root: PathBuf,
     pub legacy_root: Option<PathBuf>,
 }
 
 pub fn runtime_layout() -> RuntimeLayout {
+    let config_root = env_path("GEWY_CONFIG_HOME").unwrap_or_else(default_config_root);
+    let data_root = env_path("GEWY_DATA_HOME").unwrap_or_else(default_data_root);
+    let state_root = env_path("GEWY_STATE_HOME").unwrap_or_else(default_state_root);
+    let cache_root = env_path("GEWY_CACHE_HOME").unwrap_or_else(default_cache_root);
+    let certificate_root =
+        env_path("GEWY_CERTIFICATE_ROOT").unwrap_or_else(|| config_root.join("certificates"));
+    let trust_root = env_path("GEWY_TRUST_ROOT").unwrap_or_else(|| certificate_root.join("trust"));
+    let authority_root =
+        env_path("GEWY_AUTHORITY_ROOT").unwrap_or_else(|| certificate_root.join("authorities"));
+    let identity_root =
+        env_path("GEWY_IDENTITY_ROOT").unwrap_or_else(|| certificate_root.join("identities"));
+    let certificate_state_root =
+        env_path("GEWY_CERTIFICATE_STATE_ROOT").unwrap_or_else(|| state_root.join("certificates"));
     RuntimeLayout {
-        config_root: env_path("GEWY_CONFIG_HOME").unwrap_or_else(default_config_root),
-        data_root: env_path("GEWY_DATA_HOME").unwrap_or_else(default_data_root),
-        state_root: env_path("GEWY_STATE_HOME").unwrap_or_else(default_state_root),
-        cache_root: env_path("GEWY_CACHE_HOME").unwrap_or_else(default_cache_root),
+        config_root,
+        data_root,
+        state_root,
+        cache_root,
+        certificate_root,
+        trust_root,
+        authority_root,
+        identity_root,
+        certificate_state_root,
         legacy_root: legacy_root(),
     }
 }

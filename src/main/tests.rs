@@ -52,6 +52,8 @@ mod api_persistence;
 mod api_protocol_catalog;
 #[path = "tests/api_sidecar.rs"]
 mod api_sidecar;
+#[path = "tests/certificate_api.rs"]
+mod certificate_api;
 #[path = "tests/demo_cli.rs"]
 mod demo_cli;
 #[path = "tests/directory_protocols.rs"]

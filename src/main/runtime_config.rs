@@ -10,6 +10,12 @@ const LEGACY_CONFIG_NAME: &str = "config.toml";
 const EXTERNAL_FAILURE_CIRCUIT_THRESHOLD_ENV: &str = "GEWY_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD";
 const EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_ENV: &str =
     "GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS";
+const CERTIFICATE_ROOT_ENV: &str = "GEWY_CERTIFICATE_ROOT";
+const TRUST_ROOT_ENV: &str = "GEWY_TRUST_ROOT";
+const AUTHORITY_ROOT_ENV: &str = "GEWY_AUTHORITY_ROOT";
+const IDENTITY_ROOT_ENV: &str = "GEWY_IDENTITY_ROOT";
+const CERTIFICATE_STATE_ROOT_ENV: &str = "GEWY_CERTIFICATE_STATE_ROOT";
+const REQUIRE_EXPLICIT_REMOTE_TRUST_ENV: &str = "GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST";
 const SOCKET_FAILURE_BACKOFF_BASE_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_BASE_MS";
 const SOCKET_FAILURE_BACKOFF_CAP_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_CAP_MS";
 
@@ -19,6 +25,12 @@ pub(crate) struct RuntimeConfigFile {
     pub(crate) history_retention: Option<usize>,
     pub(crate) protocol_registry_root: Option<String>,
     pub(crate) share_root: Option<String>,
+    pub(crate) certificate_root: Option<String>,
+    pub(crate) trust_root: Option<String>,
+    pub(crate) authority_root: Option<String>,
+    pub(crate) identity_root: Option<String>,
+    pub(crate) certificate_state_root: Option<String>,
+    pub(crate) require_explicit_remote_trust: Option<bool>,
     pub(crate) external_failure_circuit_threshold: Option<usize>,
     pub(crate) external_failure_circuit_cooldown_seconds: Option<usize>,
     pub(crate) socket_failure_backoff_base_ms: Option<usize>,
@@ -61,6 +73,24 @@ pub(crate) fn apply_runtime_path_overrides(config: &RuntimeConfigFile) {
             }
         }
     }
+    apply_env_string_override(CERTIFICATE_ROOT_ENV, config.certificate_root.as_deref());
+    apply_env_string_override(TRUST_ROOT_ENV, config.trust_root.as_deref());
+    apply_env_string_override(AUTHORITY_ROOT_ENV, config.authority_root.as_deref());
+    apply_env_string_override(IDENTITY_ROOT_ENV, config.identity_root.as_deref());
+    apply_env_string_override(
+        CERTIFICATE_STATE_ROOT_ENV,
+        config.certificate_state_root.as_deref(),
+    );
+    if let Some(value) = config.require_explicit_remote_trust {
+        if std::env::var_os(REQUIRE_EXPLICIT_REMOTE_TRUST_ENV).is_none() {
+            unsafe {
+                std::env::set_var(
+                    REQUIRE_EXPLICIT_REMOTE_TRUST_ENV,
+                    if value { "true" } else { "false" },
+                );
+            }
+        }
+    }
     apply_env_usize_override(
         EXTERNAL_FAILURE_CIRCUIT_THRESHOLD_ENV,
         config.external_failure_circuit_threshold,
@@ -77,6 +107,16 @@ pub(crate) fn apply_runtime_path_overrides(config: &RuntimeConfigFile) {
         SOCKET_FAILURE_BACKOFF_CAP_ENV,
         config.socket_failure_backoff_cap_ms,
     );
+}
+
+fn apply_env_string_override(key: &str, value: Option<&str>) {
+    if let Some(value) = value {
+        if std::env::var_os(key).is_none() {
+            unsafe {
+                std::env::set_var(key, value);
+            }
+        }
+    }
 }
 
 fn apply_env_usize_override(key: &str, value: Option<usize>) {
@@ -135,6 +175,9 @@ fn parse_runtime_config(input: &str) -> Result<RuntimeConfigFile, String> {
     if let Some(paths) = sections.get("paths") {
         apply_paths_section(paths, &mut config)?;
     }
+    if let Some(certificates) = sections.get("certificates") {
+        apply_certificates_section(certificates, &mut config)?;
+    }
     if let Some(logging) = sections.get("logging") {
         apply_logging_section(logging, &mut config)?;
     }
@@ -147,12 +190,39 @@ fn parse_runtime_config(input: &str) -> Result<RuntimeConfigFile, String> {
         }
         if !matches!(
             section.as_str(),
-            "runtime" | "external_engine" | "paths" | "logging" | "resilience"
+            "runtime" | "external_engine" | "paths" | "certificates" | "logging" | "resilience"
         ) {
             return Err(format!("unsupported runtime config section '{section}'"));
         }
     }
     Ok(config)
+}
+
+fn apply_certificates_section(
+    certificates: &BTreeMap<String, String>,
+    config: &mut RuntimeConfigFile,
+) -> Result<(), String> {
+    for (key, value) in certificates {
+        match key.as_str() {
+            "root" => config.certificate_root = Some(parse_string(value)),
+            "trust_root" => config.trust_root = Some(parse_string(value)),
+            "authority_root" => config.authority_root = Some(parse_string(value)),
+            "identity_root" => config.identity_root = Some(parse_string(value)),
+            "state_root" => config.certificate_state_root = Some(parse_string(value)),
+            "require_explicit_remote_trust" => {
+                config.require_explicit_remote_trust = Some(parse_bool(
+                    value,
+                    "certificates.require_explicit_remote_trust",
+                )?)
+            }
+            other => {
+                return Err(format!(
+                    "unsupported runtime config key 'certificates.{other}'"
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn apply_runtime_section(

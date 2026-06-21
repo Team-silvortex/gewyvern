@@ -22,6 +22,8 @@ For those, use:
 - [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
 - [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
 - [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
+- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
+- [docs/book/reference-runtime-certificate-state.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-state.md)
 
 ## Layout Policy
 
@@ -94,6 +96,22 @@ The current `0.15.x` expectation is:
 
 - protocol registry packages live under `data/protocols/`
 - built-in DSL helpers can live under `data/dsl/`
+- operator certificate assets live under `config/certificates/`
+  - trust anchors under `config/certificates/trust/`
+  - local authorities under `config/certificates/authorities/`
+  - runtime identities under `config/certificates/identities/`
+- certificate runtime state and future issued material can live under
+  `state/certificates/`
+  - rotation records under `state/certificates/rotation-records.tsv`
+  - revocation records under `state/certificates/revocation-records.tsv`
+
+For the operator-facing interpretation of these shelves, use:
+
+- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
+
+During standard-root preparation, `gewyvern` also creates these certificate
+roots up front and copy-forwards missing legacy assets from `~/.gewyvern/`
+without overwriting files already present in the standard layout.
 - latest API snapshot artifacts live under `state/latest/api/`
 - archived API snapshot artifacts live under `state/history/api/`
 - packaged read-only assets still live under `/usr/share/gewyvern/` on Linux
@@ -137,6 +155,11 @@ The runtime currently honors these explicit overrides:
 - `GEWY_DATA_HOME`
 - `GEWY_STATE_HOME`
 - `GEWY_CACHE_HOME`
+- `GEWY_CERTIFICATE_ROOT`
+- `GEWY_TRUST_ROOT`
+- `GEWY_AUTHORITY_ROOT`
+- `GEWY_IDENTITY_ROOT`
+- `GEWY_CERTIFICATE_STATE_ROOT`
 - `GEWY_SHARE_ROOT`
 - `GEWY_PROTOCOL_REGISTRY_ROOT`
 

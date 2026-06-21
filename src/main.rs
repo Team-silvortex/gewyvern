@@ -154,7 +154,11 @@ fn main() {
             "copied legacy runtime config into standard root",
         );
     }
-    if migration_report.copied_protocol_entries > 0 || migration_report.copied_dsl_entries > 0 {
+    if migration_report.copied_protocol_entries > 0
+        || migration_report.copied_dsl_entries > 0
+        || migration_report.copied_certificate_entries > 0
+        || migration_report.copied_certificate_state_entries > 0
+    {
         log_info_event(
             "startup",
             EVENT_LEGACY_ENTRIES_MIGRATED,
@@ -164,6 +168,16 @@ fn main() {
                     migration_report.copied_protocol_entries.to_string(),
                 ),
                 ("dsl", migration_report.copied_dsl_entries.to_string()),
+                (
+                    "certificates",
+                    migration_report.copied_certificate_entries.to_string(),
+                ),
+                (
+                    "certificate_state",
+                    migration_report
+                        .copied_certificate_state_entries
+                        .to_string(),
+                ),
             ],
             "migrated legacy runtime entries",
         );
