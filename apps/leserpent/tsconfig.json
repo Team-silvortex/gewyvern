@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "none",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": false,
+    "noImplicitAny": false,
+    "allowJs": false,
+    "checkJs": false,
+    "skipLibCheck": true,
+    "removeComments": false,
+    "sourceMap": false,
+    "outFile": "src/Leserpent/wwwroot/app.js"
+  },
+  "include": ["src/Leserpent/frontend/**/*.ts"]
+}

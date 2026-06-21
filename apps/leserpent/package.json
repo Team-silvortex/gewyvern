@@ -1,0 +1,13 @@
+{
+  "name": "leserpent-frontend",
+  "private": true,
+  "version": "0.1.9",
+  "description": "TypeScript build pipeline for leserpent wwwroot assets",
+  "scripts": {
+    "build:frontend": "tsc -p tsconfig.json",
+    "check:frontend": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}

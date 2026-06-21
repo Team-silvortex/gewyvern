@@ -81,7 +81,7 @@ cargo run -- \
   --api-socket 127.0.0.1:9100 \
   --json \
   --summary-only \
-  --external-engine-bin /Users/Shared/chroot/dev/etragon/target/debug/etragon
+  --external-engine-bin /Users/Shared/chroot/dev/gewyvern/target/debug/etragon
 ```
 
 If you want the Python-backed worker path instead of the engine's default Rust
@@ -96,8 +96,8 @@ cargo run -- \
   --api-socket 127.0.0.1:9100 \
   --json \
   --summary-only \
-  --external-engine-bin /Users/Shared/chroot/dev/etragon/target/debug/etragon \
-  --external-engine-worker /Users/Shared/chroot/dev/etragon/scripts/python_baseline_worker.py
+  --external-engine-bin /Users/Shared/chroot/dev/gewyvern/target/debug/etragon \
+  --external-engine-worker /Users/Shared/chroot/dev/gewyvern/apps/etragon/scripts/python_baseline_worker.py
 ```
 
 ## Step 1: Confirm The API Is Alive First
@@ -165,7 +165,7 @@ bash scripts/demos/external_engine_roundtrip_demo.sh \
   /tmp/external-engine-augmentations.json
 ```
 
-By default this looks for a sibling `../etragon` repo and runs:
+By default this now looks for the monorepo app shelf at `apps/etragon` and runs:
 
 ```bash
 cargo run -- analyze-url

@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/gewyc"]
+members = [".", "crates/gewyc", "apps/etragon"]
 resolver = "3"
 
 [package]

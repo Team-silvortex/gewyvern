@@ -57,6 +57,25 @@ Recommended operator/control-plane fetch trio:
 2. `/v1/runtime/certificate-policy.json`
 3. `/v1/runtime/certificate-state.json`
 
+## CLI Management
+
+The current line also exposes a light operator CLI:
+
+- `gewyvern certificate-state show --json`
+- `gewyvern certificate-state sync-rotation --json`
+- `gewyvern certificate-state set-rotation --path <relative-path> --status <active|due|overdue|error>`
+- `gewyvern certificate-state clear-rotation --path <relative-path>`
+- `gewyvern certificate-state set-revocation --path <relative-path> --scope <trust|authority|identity|other> --status <revoked|distrusted|cleared>`
+- `gewyvern certificate-state clear-revocation --path <relative-path>`
+
+Use it as the simplest way to stage or correct certificate rotation and
+revocation posture without editing the TSV shelf files by hand.
+
+`sync-rotation` is the first automatic workflow hook in this shelf. It inspects
+the current certificate inventory, derives `active` / `due` / `overdue`
+rotation state from parsed validity windows, and refreshes the managed
+rotation-record set.
+
 ## Rotation Records
 
 `rotation-records.tsv` uses a tab-separated line format:

@@ -18,6 +18,10 @@ If you want the global documentation map instead of the reading order, use:
 
 - [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
 
+If you want the repository-wide stack layout before reading by chapter, use:
+
+- [docs/monorepo-stack.md](/Users/Shared/chroot/dev/gewyvern/docs/monorepo-stack.md)
+
 ## Book Shape
 
 This book is organized in two different ways at once:
@@ -84,13 +88,14 @@ use this order:
 18. [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
 19. [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
 20. [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+21. [docs/monorepo-stack.md](/Users/Shared/chroot/dev/gewyvern/docs/monorepo-stack.md)
 
 ### Part VI: Operating, Validating, And Extending
 
-21. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-22. [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
-23. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
-24. [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
+22. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+23. [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
+24. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+25. [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
 
 ## Current Release Line
 

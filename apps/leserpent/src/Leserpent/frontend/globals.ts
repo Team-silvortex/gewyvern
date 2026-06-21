@@ -1,0 +1,32 @@
+interface DashboardState {
+  filter: {
+    environment: string;
+    cluster: string;
+    role: string;
+  };
+  languagePreference: string;
+  language: string;
+  themePreference: string;
+  theme: string;
+  layoutMode: string;
+  activeTab: string;
+  activeOverviewTab: string;
+  activeRuntimeMainTab: string;
+  activeRuntimeSideTab: string;
+  activeRuntimeDetailTab: string;
+  runtimePanelView: string;
+  runtimeSearch: string;
+  runtimeSort: string;
+  selectedRuntimeId: string | null;
+  runtimeAttentionById: Map<string, RuntimeAttentionView>;
+  recentBadgeRefresh: {
+    runtime: Nullable<number>;
+    sidecar: Nullable<number>;
+  };
+  latestRuntimes: RuntimeSummary[];
+  registerNameTouched: boolean;
+  adminToken: string;
+  adminTokenVisible: boolean;
+  adminTokenTestState: string;
+  cache?: Record<string, any>;
+}

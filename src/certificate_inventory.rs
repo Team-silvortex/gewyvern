@@ -215,11 +215,13 @@ mod tests {
             item.relative_path == "prod/runtime.key"
                 && item.asset_kind == CertificateAssetKind::PrivateKeyPem
         }));
-        assert!(inventory
-            .identity_items
-            .iter()
-            .filter(|item| item.asset_kind == CertificateAssetKind::PrivateKeyPem)
-            .all(|item| item.validity.is_none()));
+        assert!(
+            inventory
+                .identity_items
+                .iter()
+                .filter(|item| item.asset_kind == CertificateAssetKind::PrivateKeyPem)
+                .all(|item| item.validity.is_none())
+        );
 
         fs::remove_dir_all(root).unwrap();
     }

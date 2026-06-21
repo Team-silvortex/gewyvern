@@ -49,7 +49,11 @@ pub(super) fn api_runtime_certificate_state_json_from_state(
             .count(),
     );
     json.push(',');
-    append_count_field(&mut json, "revocation_records", state.revocation_records.len());
+    append_count_field(
+        &mut json,
+        "revocation_records",
+        state.revocation_records.len(),
+    );
     json.push(',');
     append_count_field(
         &mut json,
@@ -208,9 +212,7 @@ fn material_scope_label(scope: CertificateMaterialScope) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gewyvern::certificate_state::{
-        CertificateRevocationRecord, CertificateRotationRecord,
-    };
+    use gewyvern::certificate_state::{CertificateRevocationRecord, CertificateRotationRecord};
     use std::path::PathBuf;
 
     #[test]

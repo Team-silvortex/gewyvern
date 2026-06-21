@@ -340,7 +340,9 @@ fn recommended_actions(reasons: &[CertificatePolicyReason]) -> Vec<&'static str>
         .iter()
         .any(|reason| reason.code == REASON_EXPIRING_CERTIFICATE_MATERIAL)
     {
-        actions.push("schedule a certificate rotation before the current material reaches its expiry window");
+        actions.push(
+            "schedule a certificate rotation before the current material reaches its expiry window",
+        );
     }
     if reasons
         .iter()
@@ -396,7 +398,9 @@ mod tests {
         CertificateRuntimeState {
             root: PathBuf::from("/tmp/state/certificates"),
             rotation_records_path: PathBuf::from("/tmp/state/certificates/rotation-records.tsv"),
-            revocation_records_path: PathBuf::from("/tmp/state/certificates/revocation-records.tsv"),
+            revocation_records_path: PathBuf::from(
+                "/tmp/state/certificates/revocation-records.tsv",
+            ),
             rotation_records_exist: false,
             revocation_records_exist: false,
             rotation_records: Vec::new(),
@@ -494,10 +498,11 @@ mod tests {
         });
         let view = certificate_policy_for_inventory(&inventory);
         assert_eq!(view.status, "attention");
-        assert!(view
-            .reasons
-            .iter()
-            .any(|reason| reason.code == REASON_EXPIRED_CERTIFICATE_MATERIAL));
+        assert!(
+            view.reasons
+                .iter()
+                .any(|reason| reason.code == REASON_EXPIRED_CERTIFICATE_MATERIAL)
+        );
     }
 
     #[test]
@@ -520,10 +525,11 @@ mod tests {
         });
         let view = certificate_policy_for_inventory(&inventory);
         assert_eq!(view.status, "observe");
-        assert!(view
-            .reasons
-            .iter()
-            .any(|reason| reason.code == REASON_EXPIRING_CERTIFICATE_MATERIAL));
+        assert!(
+            view.reasons
+                .iter()
+                .any(|reason| reason.code == REASON_EXPIRING_CERTIFICATE_MATERIAL)
+        );
     }
 
     #[test]
@@ -532,30 +538,36 @@ mod tests {
         inventory.require_explicit_remote_trust = false;
         inventory.authority_root_exists = false;
         let mut state = empty_state();
-        state.rotation_records.push(crate::certificate_state::CertificateRotationRecord {
-            relative_path: "identities/prod/runtime.pem".into(),
-            status: CertificateRotationStatus::Overdue,
-            due_unix_ms: Some(10),
-            last_rotated_unix_ms: Some(5),
-            updated_unix_ms: Some(12),
-            note: Some("stuck".into()),
-        });
-        state.revocation_records.push(crate::certificate_state::CertificateRevocationRecord {
-            relative_path: "trust/anchors/root-ca.pem".into(),
-            scope: CertificateMaterialScope::Trust,
-            status: CertificateRevocationStatus::Distrusted,
-            effective_unix_ms: Some(20),
-            updated_unix_ms: Some(21),
-            note: Some("legacy anchor".into()),
-        });
+        state
+            .rotation_records
+            .push(crate::certificate_state::CertificateRotationRecord {
+                relative_path: "identities/prod/runtime.pem".into(),
+                status: CertificateRotationStatus::Overdue,
+                due_unix_ms: Some(10),
+                last_rotated_unix_ms: Some(5),
+                updated_unix_ms: Some(12),
+                note: Some("stuck".into()),
+            });
+        state
+            .revocation_records
+            .push(crate::certificate_state::CertificateRevocationRecord {
+                relative_path: "trust/anchors/root-ca.pem".into(),
+                scope: CertificateMaterialScope::Trust,
+                status: CertificateRevocationStatus::Distrusted,
+                effective_unix_ms: Some(20),
+                updated_unix_ms: Some(21),
+                note: Some("legacy anchor".into()),
+            });
         let view = certificate_policy_for_inventory_and_state(&inventory, &state);
-        assert!(view
-            .reasons
-            .iter()
-            .any(|reason| reason.code == REASON_OVERDUE_CERTIFICATE_ROTATION));
-        assert!(view
-            .reasons
-            .iter()
-            .any(|reason| reason.code == REASON_DISTRUSTED_TRUST_ANCHOR_MATERIAL));
+        assert!(
+            view.reasons
+                .iter()
+                .any(|reason| reason.code == REASON_OVERDUE_CERTIFICATE_ROTATION)
+        );
+        assert!(
+            view.reasons
+                .iter()
+                .any(|reason| reason.code == REASON_DISTRUSTED_TRUST_ANCHOR_MATERIAL)
+        );
     }
 }

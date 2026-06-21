@@ -1,0 +1,8 @@
+[package]
+name = "etragon"
+version = "0.1.0"
+edition = "2024"
+description = "Composable external analysis engine for gewyvern snapshots"
+license = "MIT"
+
+[dependencies]

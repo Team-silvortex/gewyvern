@@ -1,0 +1,92 @@
+.runtime-panel-reading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel-2);
+  min-width: 0;
+}
+
+.runtime-panel-reading.hidden {
+  display: none;
+}
+
+.protocol-reading-kicker,
+.protocol-reading-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.protocol-reading-links {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.protocol-reading-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--panel);
+  text-decoration: none;
+  font-weight: 600;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.protocol-reading-link:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+}
+
+.protocol-reading-link.is-current {
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line-strong));
+}
+
+.protocol-reading-link small {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.protocol-reading-sep {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+:root[data-layout-mode="compact"] .runtime-panel-reading,
+:root[data-layout-mode="safe-compact"] .runtime-panel-reading,
+:root[data-layout-mode="emergency"] .runtime-panel-reading {
+  gap: 6px;
+  margin-top: 6px;
+  padding: 7px 9px;
+}
+
+:root[data-layout-mode="compact"] .protocol-reading-kicker,
+:root[data-layout-mode="compact"] .protocol-reading-meta,
+:root[data-layout-mode="safe-compact"] .protocol-reading-kicker,
+:root[data-layout-mode="safe-compact"] .protocol-reading-meta,
+:root[data-layout-mode="emergency"] .protocol-reading-kicker,
+:root[data-layout-mode="emergency"] .protocol-reading-meta {
+  font-size: 0.76rem;
+}
+
+:root[data-layout-mode="compact"] .protocol-reading-link,
+:root[data-layout-mode="safe-compact"] .protocol-reading-link,
+:root[data-layout-mode="emergency"] .protocol-reading-link {
+  padding: 4px 9px;
+  font-size: 0.9rem;
+}

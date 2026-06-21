@@ -2,10 +2,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-DEV_ROOT="$(cd "${ROOT}/.." && pwd)"
 GEWY_ROOT="${ROOT}"
-ETRAGON_ROOT="${DEV_ROOT}/etragon"
-LESERPENT_ROOT="${DEV_ROOT}/leserpent"
+ETRAGON_ROOT="${ROOT}/apps/etragon"
+LESERPENT_ROOT="${ROOT}/apps/leserpent"
 
 IMAGE_TAG="${IMAGE_TAG:-gewyvern-stack-dev}"
 NETWORK_NAME="${NETWORK_NAME:-gewyvern-stack-net}"
@@ -59,12 +58,12 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 if [ ! -d "${ETRAGON_ROOT}" ]; then
-  echo "missing sibling etragon repo at ${ETRAGON_ROOT}" >&2
+  echo "missing etragon app at ${ETRAGON_ROOT}" >&2
   exit 1
 fi
 
 if [ ! -d "${LESERPENT_ROOT}" ]; then
-  echo "missing sibling leserpent repo at ${LESERPENT_ROOT}" >&2
+  echo "missing leserpent app at ${LESERPENT_ROOT}" >&2
   exit 1
 fi
 
@@ -74,13 +73,13 @@ docker network rm "${NETWORK_NAME}" >/dev/null 2>&1 || true
 docker network create "${NETWORK_NAME}" >/dev/null
 
 docker run --rm \
-  -v "${DEV_ROOT}:/workspace/dev" \
+  -v "${ROOT}:/workspace/dev/gewyvern" \
   -v "${TARGET_CACHE_DIR}:/stack-target" \
   "${IMAGE_TAG}" \
   bash -lc '
     set -euo pipefail
     export CARGO_TARGET_DIR=/stack-target/etragon
-    cd /workspace/dev/etragon
+    cd /workspace/dev/gewyvern/apps/etragon
     cargo build --quiet
     export CARGO_TARGET_DIR=/stack-target/gewyvern
     cd /workspace/dev/gewyvern
@@ -97,7 +96,7 @@ start_gewyvern() {
     --network "${NETWORK_NAME}" \
     -p "${socket_port}:9000" \
     -p "${api_port}:9100" \
-    -v "${DEV_ROOT}:/workspace/dev" \
+    -v "${ROOT}:/workspace/dev/gewyvern" \
     -v "${TARGET_CACHE_DIR}:/stack-target" \
     "${IMAGE_TAG}" \
     bash -lc "
@@ -123,19 +122,19 @@ start_etragon() {
     --network "${NETWORK_NAME}" \
     -p "${ET_A_API_PORT}:4321" \
     -e "ETRAGON_ADMIN_TOKEN=${ET_A_ADMIN_TOKEN}" \
-    -v "${DEV_ROOT}:/workspace/dev" \
+    -v "${ROOT}:/workspace/dev/gewyvern" \
     -v "${TARGET_CACHE_DIR}:/stack-target" \
     "${IMAGE_TAG}" \
     bash -lc "
       set -euo pipefail
       export CARGO_TARGET_DIR=/stack-target/etragon
-      cd /workspace/dev/etragon
+      cd /workspace/dev/gewyvern/apps/etragon
       /stack-target/etragon/debug/etragon \
         serve-python-url \
         http://${GW_A_NAME}:9100/v1/latest/analysis.json \
         --bind 0.0.0.0:4321 \
         --interval-ms 500 \
-        --python-worker /workspace/dev/etragon/scripts/python_baseline_worker.py \
+        --python-worker /workspace/dev/gewyvern/apps/etragon/scripts/python_baseline_worker.py \
         --python-state /tmp/etragon-online-state.json \
         --daemon-state /tmp/etragon-daemon-state.json
     " >/dev/null

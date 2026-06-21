@@ -173,6 +173,10 @@ pub(crate) fn persist_api_snapshot(state: &ApiState) -> Result<(), String> {
     persistence::persist_latest_snapshot(&snapshot)
 }
 
+pub(crate) fn render_runtime_certificate_state_json() -> String {
+    certificate_state::api_runtime_certificate_state_json()
+}
+
 pub fn update_api_snapshot_for_single(state: &ApiState, rendered: ApiRenderedTarget) {
     let target_name = rendered.name.clone();
     let has_external_sidecar_context = rendered.has_external_sidecar_context;

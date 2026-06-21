@@ -4,8 +4,8 @@ use gewyvern::certificate_inventory::{
 use gewyvern::certificate_policy::certificate_policy_for_inventory;
 use gewyvern::certificate_state::runtime_certificate_state;
 
-use crate::render_utils::append_json_string;
 use super::certificate_state::append_state_summary_json;
+use crate::render_utils::append_json_string;
 
 pub(super) fn api_runtime_certificates_json() -> String {
     api_runtime_certificates_json_from_inventory(&runtime_certificate_inventory())

@@ -1,0 +1,592 @@
+# 🐍 leserpent v0.1.9 Design Spec
+
+### eBPF Control Plane & Visual Orchestration Service
+
+MIT License
+Status: Active v0.1.9
+
+Monorepo home:
+
+* `apps/leserpent`
+* works alongside `gewyvern` and `etragon` in the same repository
+
+---
+
+## 0. 定位
+
+leserpent 是：
+
+> control plane / management service
+
+不是：
+
+* CLI wrapper
+* runtime
+* execution engine
+
+它负责：
+
+* 生成 pipeline spec
+* 分发
+* 管理
+* 可视化
+* 审计
+
+---
+
+## 1. 核心原则
+
+1. 不直接操作 kernel
+2. 不直接 attach eBPF
+3. 所有 execution 委托 gewyvern
+4. 必须依赖 runtime capability
+5. runtime 权威优先
+
+---
+
+## 2. 部署模型
+
+* ASP.NET Core
+* server-first
+* 可跨平台部署
+* 不建议部署普通客户端
+
+### Runtime posture
+
+`leserpent` 的运行时目标是：
+
+* 跨平台
+* 尽量纯用户态
+* 尽量少外部依赖
+* 在 runtime / sidecar 全部降级时自己仍然可操作
+
+更完整的运行边界见：
+
+* `docs/runtime-posture.md`
+* `docs/frontend-layout-maintenance.md`
+
+### Frontend source layout
+
+`leserpent` 的前端现在采用“TypeScript 源码 + 静态输出”的轻量模式：
+
+* 源码入口：`src/Leserpent/frontend/app.ts`
+* 生成产物：`src/Leserpent/wwwroot/app.js`
+* 构建命令：`npm run build:frontend`
+* 类型检查命令：`npm run check:frontend`
+* .NET 构建命令：`dotnet build src/Leserpent/Leserpent.csproj`
+
+这样可以保持：
+
+* 运行时仍然只消费静态 `wwwroot` 资源
+* 不引入 bundler
+* 不改变 ASP.NET Core 的部署模型
+* 后续可以逐步把现有脚本从宽松 JS 收紧成更完整的 TS
+
+### Frontend layout maintenance
+
+控制面板前端现在同时追求三件事：
+
+* 单页 shell 导航
+* 在较小窗口中尽量首屏可用
+* deep-link 可以稳定恢复到指定 tab / pane / runtime
+
+维护这部分时，优先参考：
+
+* `docs/frontend-layout-maintenance.md`
+
+---
+
+## 3. 连接模型
+
+```
+leserpent → gewyvern
+```
+
+短连接：
+
+* 即时 gRPC
+
+非：
+
+* 长连接 agent 控制
+
+---
+
+## 4. 配对模型
+
+流程：
+
+1. gewyvern 提供 token
+2. leserpent 生成密钥对
+3. 交换公钥
+4. 建立 trust
+
+之后：
+
+* 所有请求签名
+
+---
+
+## 5. Pipeline assembler
+
+用户：
+
+* 不接触 protobuf
+* 不写 JSON
+
+UI：
+
+* 组合 pipeline
+
+leserpent：
+
+> 生成 protobuf spec
+
+---
+
+## 6. 能力依赖模型
+
+leserpent：
+
+* 必须读取 gewyvern capability
+* 不可假设 runtime 能力
+
+---
+
+## 7. 三态处理
+
+| 状态              | 行为           |
+| --------------- | ------------ |
+| not supported   | 禁止           |
+| risky           | UI提示，不允许远程执行 |
+| fully supported | 允许           |
+
+---
+
+## 8. session 管理
+
+leserpent：
+
+* 创建
+* 查询
+* 停止
+* 审计
+
+但：
+
+> 不管理 kernel state
+
+---
+
+## 9. 安全责任
+
+身份：
+
+* user auth
+* RBAC
+* audit
+
+runtime：
+
+* 不承担
+
+---
+
+## 10. UI 目标
+
+* pipeline 可视化
+* session 可视化
+* metrics / trace 展示
+
+---
+
+## 11. 不做的事情
+
+* 不做 kernel runtime
+* 不做 attach
+* 不做 verifier
+* 不做 eBPF 编译
+
+---
+
+## 12. 当前代码骨架
+
+当前仓库已经有一个最小 ASP.NET Core control-plane 骨架：
+
+- `src/Leserpent`
+  - standalone Web API service
+  - built-in static dashboard
+  - in-memory runtime registry
+  - capability-aware session creation
+  - session query / stop surface
+
+当前公开路由：
+
+- `GET /health`
+- `GET /v1/capabilities`
+- `GET /v1/fleet/summary`
+- `GET /v1/fleet/attention-summary`
+- `POST /v1/fleet/refresh-all`
+- `POST /v1/fleet/refresh-capabilities`
+- `POST /v1/fleet/refresh-status`
+- `GET /v1/fleet/runtimes-needing-attention`
+- `GET /v1/runtimes`
+- `GET /v1/runtimes/{id}`
+- `GET /v1/runtimes/{id}/attention`
+- `GET /v1/runtimes/{id}/status`
+- `POST /v1/runtimes/register`
+- `POST /v1/runtimes/{id}/refresh-capabilities`
+- `POST /v1/runtimes/{id}/refresh-status`
+- `GET /v1/persistence/export`
+- `POST /v1/persistence/import`
+- `POST /v1/persistence/save`
+- `GET /v1/sessions`
+- `GET /v1/sessions/{id}`
+- `POST /v1/sessions`
+- `POST /v1/sessions/{id}/stop`
+
+当前这层故意保持很轻：
+
+- 现在已经能主动抓取 gewyvern `/v1/capabilities`
+- runtime registry / session state 现在会持久化到本地 state file
+- 还没有真实 gRPC runtime client
+- 还没有 pairing / signing
+- 还没有 RBAC / audit persistence
+
+### 当前持久化行为
+
+当前 `leserpent` 会把 control-plane 状态持久化到本地 JSON 文件：
+
+- 默认路径：
+  - `src/Leserpent/data/control-plane-state.json`
+- very-light backup:
+  - `src/Leserpent/data/control-plane-state.json.bak`
+- 可用环境变量覆盖：
+  - `LESERPENT_STATE_PATH=/path/to/control-plane-state.json`
+
+当前会恢复和保存：
+
+- registered runtimes
+- discovered capabilities
+- latest runtime status snapshots
+- created sessions
+
+也就是说，重启 `leserpent` 后，runtime registry 和 session 列表不会重新变成空白。
+
+### 当前 API 安全边界
+
+当前 `leserpent` 已经补了一层 very-light 的 control-plane 安全边界：
+
+- 默认 API 模式：
+  - `loopback_only`
+  - 也就是只有本机 loopback 请求可以直接访问控制面
+- 如果设置：
+  - `LESERPENT_ADMIN_TOKEN=...`
+  - API 模式会变成：`loopback_or_token`
+  - 远端请求必须带：
+    - `X-Leserpent-Admin-Token: <token>`
+- 对本地但敏感的写操作，还会要求 very-light intent header：
+  - `X-Leserpent-Intent: mutate`
+  - `X-Leserpent-Intent: export`
+- dashboard 现在已经内建了一个 `Security` 小折叠区：
+  - 可在浏览器本地保存 admin token
+  - 之后所有控制面请求会自动带上 `X-Leserpent-Admin-Token`
+
+同时，runtime / sidecar endpoint 的 server-side discovery 默认也已经收紧：
+
+- 默认只允许 loopback 或私网地址
+- 如果你明确要让控制面抓公网 endpoint，需要设置：
+  - `LESERPENT_ALLOW_PUBLIC_ENDPOINTS=true`
+
+当前 `/health` 和 `/v1/capabilities` 还会显式暴露 very-light runtime posture signals：
+
+- `runtimePosture.coreReady`
+- `runtimePosture.persistenceReady`
+- `runtimePosture.degradedButOperable`
+- `runtimePosture.optionalAdapters[]`
+
+这层的目标不是把 adapter system 一次做满，而是先把控制面的核心姿态说清楚：
+
+- 核心服务已经 ready
+- persistence 现在是否 healthy
+- 即使 persistence 降级，当前是否仍可操作
+- 哪些能力只是 optional adapters，而不是启动前提
+
+当前这些 very-light persistence signals 也会直接暴露出来：
+
+- `GET /health`
+  - `persistence.statePath`
+  - `persistence.backupStatePath`
+  - `persistence.lastSavedAt`
+  - `persistence.schemaVersion`
+  - `persistence.isDirty`
+  - `persistence.lastSaveError`
+  - `persistence.restoredRuntimeCount`
+  - `persistence.restoredSessionCount`
+  - `persistence.restoredFromSavedAt`
+- `GET /v1/capabilities`
+  - `persistence.enabled`
+  - `persistence.statePath`
+  - `persistence.backupStatePath`
+  - `persistence.lastSavedAt`
+  - `persistence.schemaVersion`
+  - `persistence.isDirty`
+  - `persistence.lastSaveError`
+  - `persistence.restoredRuntimeCount`
+  - `persistence.restoredSessionCount`
+  - `persistence.restoredFromSavedAt`
+- `GET /v1/persistence/export`
+  - downloads the current control-plane state as JSON
+- `POST /v1/persistence/import`
+  - imports a compatible control-plane state JSON document
+  - immediately persists the imported state and refreshes the in-memory registry
+- `POST /v1/persistence/save`
+  - very-light manual flush of current control-plane state
+
+它的目标是先把最小控制面 contract 站住：
+
+- leserpent 认识多个 gewyvern runtime
+- leserpent 基于 runtime capability 决定 session 是否允许创建
+- leserpent 读取 runtime latest-meta 来判断当前 snapshot/status
+- risky / unsupported capability 不会被静默放过
+
+### 当前 fleet summary 语义
+
+现在还有一个 very-light 的总览入口：
+
+- `GET /v1/fleet/summary`
+
+它当前聚合这些控制面信号：
+
+- `runtimeCount`
+- `runtimesWithLatestSnapshot`
+- `runtimesWithSummaryJson`
+- `runtimesWithAnalysisJson`
+- `runtimesWithExternalSidecarContext`
+- `runtimesWithExternalEvidenceChainEnrichment`
+- `runtimesWithExternalDiagnosticOpinion`
+- `runtimesWithObservedStatus`
+- `runtimesWithStatusFetchFailed`
+- `snapshotKindCounts`
+- `statusSourceCounts`
+- `environmentCounts`
+- `clusterCounts`
+- `roleCounts`
+
+这样 leserpent 已经能先回答：
+
+- 当前接了多少个 gewyvern runtime
+- 有多少个 runtime 已经有 latest snapshot
+- 有多少个 runtime 已经能给 summary / analysis machine-facing surfaces
+- 有多少个 runtime 当前带 sidecar context
+- 有多少个 runtime 当前已经带 evidence-chain enrichment / diagnostic opinion
+- 有多少个 runtime 当前已经被观测到 status，以及其中多少个 status fetch 已失败
+- latest snapshot 更偏 `single` 还是 `scan`
+- 当前 status source 更偏 `gewyvern-api`、`fetch_failed` 还是 `unobserved`
+- 这些 runtime 分别属于哪些 environment / cluster / role
+
+### 当前 fleet attention 语义
+
+现在还有一个 very-light 的 attention 入口：
+
+- `GET /v1/fleet/runtimes-needing-attention`
+- `GET /v1/fleet/attention-summary`
+
+它当前只列出值得优先下钻的 runtime，并给 very-light reasons，例如：
+
+- `status_fetch_failed`
+- `no_latest_snapshot`
+- `no_analysis_json`
+
+同时还会给 very-light 的 `severity`：
+
+- `critical`
+  - 当前主要表示 status fetch 已失败
+- `warning`
+  - 当前主要表示还没观测到 latest snapshot / analysis 面
+
+`attention-summary` 则会继续把这一层 very-light 地聚成：
+
+- `criticalCount`
+- `warningCount`
+- `reasonCounts`
+
+### 当前 single-runtime attention 语义
+
+单个 runtime 现在也有一个对称的 very-light 入口：
+
+- `GET /v1/runtimes/{id}/attention`
+
+它会返回：
+
+- `needsAttention`
+- `severity`
+- `reasons`
+
+健康节点当前会落成：
+
+- `needsAttention: false`
+- `severity: "none"`
+- `reasons: []`
+
+### 当前 fleet refresh 语义
+
+现在还有一个 very-light 的批量状态刷新入口：
+
+- `POST /v1/fleet/refresh-all`
+- `POST /v1/fleet/refresh-capabilities`
+- `POST /v1/fleet/refresh-status`
+
+它们会对当前过滤范围内的已注册 runtime 逐个拉取：
+
+- `gewyvern /v1/capabilities`
+- `gewyvern /v1/latest/meta`
+
+并分别返回：
+
+- all refresh:
+  - `refreshedCount`
+  - `runtimes[]`
+- capability refresh:
+  - `refreshedCount`
+  - `runtimes[]`
+- status refresh:
+  - `refreshedCount`
+  - `runtimes[]`
+
+它们也都支持和其他 fleet 入口一致的 filtering：
+
+- `?environment=...`
+- `?cluster=...`
+- `?role=...`
+
+它也支持和 runtime list / fleet summary 一样的：
+
+- `?environment=...`
+- `?cluster=...`
+- `?role=...`
+
+这个总览入口现在也支持 very-light filtering：
+
+- `?environment=prod`
+- `?cluster=alpha`
+- `?role=edge`
+- 也可以组合使用，例如：
+  - `?environment=prod&cluster=alpha`
+
+### 当前 runtime tagging 语义
+
+`POST /v1/runtimes/register` 现在支持 very-light 的 runtime tags：
+
+- `environment`
+- `cluster`
+- `role`
+
+这些 tags 只用于：
+
+- fleet 可视化
+- grouping
+- operator filtering 前置语义
+
+目前还**不**代表真正的调度策略，也不会改变 capability gating 逻辑。
+
+### 当前 runtime filtering 语义
+
+`GET /v1/runtimes` 现在支持按 tags 做 very-light filtering：
+
+- `?environment=prod`
+- `?cluster=alpha`
+- `?role=edge`
+- 也可以组合使用，例如：
+  - `?environment=prod&cluster=alpha`
+
+这层 filtering 只是 control-plane 视角下的 runtime 浏览与分组，不代表真正的 placement / scheduling policy。
+
+### 本地运行
+
+```bash
+cd /Users/Shared/chroot/dev/gewyvern/apps/leserpent/src/Leserpent
+dotnet run
+```
+
+启动后：
+
+- dashboard:
+  - `/`
+- control-plane API:
+  - `/v1/...`
+
+当前 dashboard 已经支持：
+
+- tab-shell single-page layout
+- bilingual UI (`English` / `简体中文`)
+- auto-follow browser language with manual override
+- very-light runtime registration
+- fleet summary / attention summary
+- runtime list / attention list
+- per-runtime child panel with embedded gewyvern views
+- optional paired `etragon` sidecar child views
+- runtime/sidecar source switch shell inside the child panel
+- child-panel view state persisted in URL
+- fleet refresh actions
+- single-runtime detail inspection
+- single-runtime refresh actions
+- persistence export / import / save controls
+
+### 当前 runtime discovery 语义
+
+`POST /v1/runtimes/register` 现在支持两种模式：
+
+- 手工注册 capability
+- `fetchCapabilities=true` 时主动抓取 `gewyvern /v1/capabilities`
+
+同时也支持 very-light 的 nearby sidecar pairing：
+
+- `sidecarEndpoint`
+
+如果提供这条 endpoint，leserpent 会把这台 `gewyvern` 当成
+“runtime + optional paired etragon sidecar”的单元来管理。
+
+抓取成功后，leserpent 会把 gewyvern 的轻量 API surface 归一化成控制面可读的 capability，例如：
+
+- `api.latest_snapshot`
+- `api.target_routing`
+- `api.analysis_json`
+- `api.summary_json`
+- `api.report_html`
+- `api.external_sidecar_context`
+- `runtime.serve_required`
+
+这意味着现在 leserpent 已经开始真的依赖 runtime 权威，而不是只相信人工录入。
+
+### 当前 runtime status 语义
+
+除了 capability 抓取，leserpent 现在还会读取 `gewyvern /v1/latest/meta`，并缓存 very-light runtime status：
+
+- `hasLatestSnapshot`
+- `snapshotKind`
+- `targetCount`
+- `hasSummaryJson`
+- `hasAnalysisJson`
+- `hasExternalSidecarContext`
+- `hasExternalEvidenceChainEnrichment`
+- `hasExternalDiagnosticOpinion`
+
+如果 runtime 还配置了 `sidecarEndpoint`，leserpent 也会去读取 paired
+`etragon` 的 very-light sidecar status：
+
+- `healthy`
+- `daemonStatus`
+- `learningActive`
+- `learnedRoutes`
+- `hasEvidenceChainEnrichment`
+- `hasDiagnosticOpinion`
+
+相关控制面入口现在包括：
+
+- `POST /v1/runtimes/{id}/refresh-sidecar`
+- `GET /v1/runtimes/{id}/sidecar`
+- `POST /v1/fleet/refresh-sidecars`
+
+`POST /v1/fleet/refresh-all` 现在也会在刷新 `gewyvern` capability/status 的同时，
+顺手刷新已配对的 `etragon` sidecar 状态。

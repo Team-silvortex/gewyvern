@@ -32,9 +32,7 @@ pub fn inspect_certificate_validity(
     certificate_validity_from_pem_bytes(&contents)
 }
 
-pub fn certificate_validity_from_pem_bytes(
-    contents: &[u8],
-) -> Option<CertificateValidityWindow> {
+pub fn certificate_validity_from_pem_bytes(contents: &[u8]) -> Option<CertificateValidityWindow> {
     let mut certificate_count = 0usize;
     let mut earliest_not_before_unix_ms: Option<i128> = None;
     let mut earliest_not_after_unix_ms: Option<i128> = None;
@@ -104,13 +102,7 @@ m1mukAGYQJ1NnRIr044e4WtIhEi7\n\
             validity.earliest_not_before_unix_ms,
             Some(1_782_020_066_000)
         );
-        assert_eq!(
-            validity.earliest_not_after_unix_ms,
-            Some(2_097_380_066_000)
-        );
-        assert_eq!(
-            validity.latest_not_after_unix_ms,
-            Some(2_097_380_066_000)
-        );
+        assert_eq!(validity.earliest_not_after_unix_ms, Some(2_097_380_066_000));
+        assert_eq!(validity.latest_not_after_unix_ms, Some(2_097_380_066_000));
     }
 }

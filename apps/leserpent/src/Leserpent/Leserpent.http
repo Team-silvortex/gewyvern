@@ -1,0 +1,6 @@
+@Leserpent_HostAddress = http://localhost:5210
+
+GET {{Leserpent_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

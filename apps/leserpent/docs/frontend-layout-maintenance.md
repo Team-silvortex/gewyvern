@@ -1,0 +1,181 @@
+# Leserpent Frontend Layout Maintenance
+
+## Purpose
+
+This note exists to keep the control-plane dashboard maintainable as the UI
+gets denser.
+
+The dashboard is intentionally optimized for:
+
+- single-page shell navigation
+- fast first-screen usability
+- low-scroll or no-scroll operation in tighter desktop windows
+- stable deep-link restoration into tabs, panes, and selected runtimes
+
+This document is the working contract for future layout changes.
+
+## Source Of Truth
+
+The layout system is split across a few clear files:
+
+- `src/Leserpent/frontend/15-preferences-bootstrap.ts`
+  - bootstraps preference and resize behavior
+- `src/Leserpent/frontend/20-security-transport.ts`
+  - resolves layout mode and restores URL-driven state
+- `src/Leserpent/frontend/app.ts`
+  - renders shell regions, tabs, panes, and preview surfaces
+- `src/Leserpent/wwwroot/styles.css`
+  - owns almost all density, spacing, and anti-overlap rules
+
+When changing layout behavior, update the TypeScript source first, then rebuild
+the static output.
+
+## Layout Modes
+
+The dashboard no longer relies only on scattered media queries.
+
+Instead, runtime layout is normalized into explicit modes on
+`document.documentElement.dataset.layoutMode`.
+
+Current modes:
+
+- `default`
+- `compact`
+- `safe-compact`
+- `emergency`
+
+The mode is computed from viewport width and height, then reflected into CSS
+selectors like:
+
+- `:root[data-layout-mode="compact"]`
+- `:root[data-layout-mode="safe-compact"]`
+- `:root[data-layout-mode="emergency"]`
+
+This gives us a predictable place to compress:
+
+- shell spacing
+- card padding
+- toolbar density
+- sidebar width
+- form heights
+- runtime panel action strips
+- register page preview density
+
+## Responsive Maintenance Rules
+
+When we tighten or extend the UI, prefer these rules:
+
+1. Prefer `data-layout-mode` rules over adding another full media-query fork.
+2. Keep the first screen useful at common laptop sizes before optimizing for
+   long-page scrolling.
+3. Make action rows horizontally scrollable before allowing them to wrap into
+   tall multi-line stacks.
+4. Reduce density by shrinking gaps, padding, and min-heights before deleting
+   useful information.
+5. Keep blank, loading, and degraded states compact; these happen often and
+   should not consume more height than real data.
+6. Avoid repeating the same status labels in multiple stacked cards unless that
+   duplication improves orientation.
+
+In practice, the dashboard should remain comfortable around:
+
+- `1366x768`
+- `1180x820`
+- `1024x720`
+- `900x650`
+
+The smaller the viewport, the more important it is that the shell remains
+understandable without vertical trapping or overlapping controls.
+
+## Deep-Link Contract
+
+URL state must remain authoritative for restorable navigation.
+
+That means query parameters such as:
+
+- `tab`
+- `runtimeId`
+- `runtimePane`
+- `runtimeMode`
+- `runtimeSide`
+- view-specific sub-tab parameters
+
+must win over default in-memory state when we hydrate the page.
+
+Important rule:
+
+- defaults may fill missing URL state
+- defaults must not overwrite URL intent
+
+If a deep-link is broken, check hydration order before changing rendering code.
+
+## Runtime Workspace Structure
+
+The runtime workspace is intentionally shell-like.
+
+The outer shell chooses the major area:
+
+- `Select`
+- `Register`
+- `Detail`
+- `Child Panel`
+
+Each major area should be able to occupy the primary content region cleanly,
+rather than fighting for space with sibling panes.
+
+This is especially important because the dashboard is designed around
+full-screen desktop use where overgrown stacked blocks quickly become unusable.
+
+## Compact Blank States
+
+When no runtime panel or embedded child content can be shown, blank states
+should feel operational rather than decorative.
+
+Good fallback states should:
+
+- explain what is missing
+- tell the operator what to do next
+- avoid giant empty illustrations
+- preserve room for the rest of the control surface
+
+If a placeholder is visually louder than the surrounding runtime controls, it
+is probably too large.
+
+## Validation Workflow
+
+Before landing layout-sensitive changes:
+
+1. Run `npm run check:frontend`
+2. Run `npm run build:frontend`
+3. Start the local server and verify real pages
+4. Capture a few small-window screenshots when the change is risky
+
+Useful audit routes are usually of the form:
+
+- `/?tab=runtimes`
+- `/?tab=runtimes&runtimePane=detail&runtimeId=...`
+- `/?tab=runtimes&runtimePane=panel&runtimeId=...`
+- `/?tab=runtimes&runtimePane=register`
+
+Suggested spot checks:
+
+- light theme
+- dark theme
+- one observed runtime
+- one degraded runtime
+- register form with preview visible
+- child panel with no embedded content available
+
+## Editing Checklist
+
+Use this checklist whenever the dashboard starts feeling crowded again:
+
+- Did the change reduce first-screen usability?
+- Did we accidentally reintroduce duplicated media-query logic?
+- Does the URL still restore the same tab and pane after reload?
+- Are action rows scrollable instead of colliding?
+- Do dark-mode text and chip contrasts still pass a basic visual check?
+- Is the degraded or blank state compact enough to stay out of the way?
+
+If the answer to any of these is no, adjust layout-mode rules before adding
+more structure.

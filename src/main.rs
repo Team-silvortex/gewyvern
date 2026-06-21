@@ -1,5 +1,7 @@
 #[path = "main/binding_demo.rs"]
 mod binding_demo;
+#[path = "main/certificate_state_cli.rs"]
+mod certificate_state_cli;
 #[path = "main/cli.rs"]
 mod cli;
 mod data_api;
@@ -24,6 +26,8 @@ mod runtime_migration;
 mod serve_runtime;
 #[path = "main/socket_resilience.rs"]
 mod socket_resilience;
+#[path = "main/startup.rs"]
+mod startup;
 #[cfg(test)]
 #[path = "main/tests.rs"]
 mod tests;
@@ -61,7 +65,7 @@ use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 use crate::diagnosis_runtime::*;
-use crate::external_analysis::{ExternalAnalysisConfig, set_external_analysis_config};
+use crate::external_analysis::ExternalAnalysisConfig;
 use crate::history_view::render_history_index;
 use crate::report_runtime::{
     findings_json, findings_json_with_analysis, findings_text, http_transactions_json,
@@ -72,18 +76,14 @@ use crate::report_runtime::{
 };
 #[cfg(test)]
 use crate::report_runtime::{scan_report_json, scan_report_text, training_example_json};
-use crate::runtime_config::{apply_runtime_path_overrides, load_runtime_config};
 use crate::runtime_events::{
     EVENT_DIAGNOSTICS_COMPILE_FAILED, EVENT_DIAGNOSTICS_REQUIRES_DSL, EVENT_HISTORY_RENDER_FAILED,
-    EVENT_LEGACY_CONFIG_COPIED, EVENT_LEGACY_ENTRIES_MIGRATED, EVENT_RUNTIME_CONFIG_LOADED,
-    EVENT_RUNTIME_ROOTS_PREPARED, EVENT_SCAN_TARGET_RESOLVE_FAILED,
-    EVENT_SOCKET_SESSION_COLLECT_FAILED, EVENT_SOCKET_SESSION_RUN_FAILED, EVENT_WRITE_FAILED,
+    EVENT_SCAN_TARGET_RESOLVE_FAILED, EVENT_SOCKET_SESSION_COLLECT_FAILED,
+    EVENT_SOCKET_SESSION_RUN_FAILED, EVENT_WRITE_FAILED,
 };
-use crate::runtime_logging::{
-    init_runtime_logger, log_error_event, log_info_event, log_warn_event,
-};
-use crate::runtime_migration::prepare_runtime_layout;
+use crate::runtime_logging::log_error_event;
 use crate::serve_runtime::serve_socket_sessions;
+use crate::startup::bootstrap_cli;
 
 pub(crate) use self::binding_demo::run_binding_demo;
 pub(crate) use self::ui_locale::UiLocale;
@@ -91,98 +91,7 @@ pub(crate) use self::ui_locale::UiLocale;
 fn main() {
     let locale = UiLocale::detect();
     let args = env::args().skip(1).collect::<Vec<_>>();
-    let migration_report = prepare_runtime_layout().unwrap_or_else(|message| {
-        eprintln!("{message}");
-        std::process::exit(2);
-    });
-    let runtime_config = load_runtime_config().unwrap_or_else(|message| {
-        eprintln!("{message}");
-        std::process::exit(2);
-    });
-    apply_runtime_path_overrides(&runtime_config);
-    let cli =
-        Cli::from_args_with_defaults(args, runtime_config.defaults).unwrap_or_else(|message| {
-            eprintln!("{message}");
-            std::process::exit(2);
-        });
-    let mut logging_config = cli.logging_config();
-    if logging_config.log_file.is_none() {
-        logging_config.log_file = Some(gewyvern::runtime_layout::default_runtime_log_path());
-    }
-    init_runtime_logger(logging_config).unwrap_or_else(|message| {
-        eprintln!("{message}");
-        std::process::exit(2);
-    });
-    if let Some(path) = runtime_config.source_path.as_ref() {
-        if runtime_config.used_legacy_path {
-            log_warn_event(
-                "config",
-                EVENT_RUNTIME_CONFIG_LOADED,
-                &[("path", path.display().to_string())],
-                "loaded legacy runtime config",
-            );
-        } else {
-            log_info_event(
-                "config",
-                EVENT_RUNTIME_CONFIG_LOADED,
-                &[("path", path.display().to_string())],
-                "loaded runtime config",
-            );
-        }
-    }
-    if !migration_report.created_roots.is_empty() {
-        log_info_event(
-            "startup",
-            EVENT_RUNTIME_ROOTS_PREPARED,
-            &[(
-                "roots",
-                migration_report
-                    .created_roots
-                    .iter()
-                    .map(|path| path.display().to_string())
-                    .collect::<Vec<_>>()
-                    .join(","),
-            )],
-            "prepared runtime roots",
-        );
-    }
-    if let Some(path) = migration_report.copied_config_to.as_ref() {
-        log_info_event(
-            "startup",
-            EVENT_LEGACY_CONFIG_COPIED,
-            &[("path", path.display().to_string())],
-            "copied legacy runtime config into standard root",
-        );
-    }
-    if migration_report.copied_protocol_entries > 0
-        || migration_report.copied_dsl_entries > 0
-        || migration_report.copied_certificate_entries > 0
-        || migration_report.copied_certificate_state_entries > 0
-    {
-        log_info_event(
-            "startup",
-            EVENT_LEGACY_ENTRIES_MIGRATED,
-            &[
-                (
-                    "protocols",
-                    migration_report.copied_protocol_entries.to_string(),
-                ),
-                ("dsl", migration_report.copied_dsl_entries.to_string()),
-                (
-                    "certificates",
-                    migration_report.copied_certificate_entries.to_string(),
-                ),
-                (
-                    "certificate_state",
-                    migration_report
-                        .copied_certificate_state_entries
-                        .to_string(),
-                ),
-            ],
-            "migrated legacy runtime entries",
-        );
-    }
-    set_external_analysis_config(cli.external_analysis_config());
+    let cli = bootstrap_cli(args);
 
     if cli.list_protocols {
         let rendered = if cli.json {

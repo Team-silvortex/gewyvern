@@ -34,6 +34,10 @@ If you want the command shelf first, jump to:
 
 - [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
 
+If you want the current monorepo stack layout first, jump to:
+
+- [docs/monorepo-stack.md](/Users/Shared/chroot/dev/gewyvern/docs/monorepo-stack.md)
+
 ## Goal-Based Routes
 
 - release answer:
@@ -44,6 +48,8 @@ If you want the command shelf first, jump to:
   [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
 - runtime CLI, `gewyc`, socket, and API commands:
   [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+- current monorepo stack layout and subproject entrypoints:
+  [docs/monorepo-stack.md](/Users/Shared/chroot/dev/gewyvern/docs/monorepo-stack.md)
 - packaging and native artifacts:
   [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
 - runtime exposure and security preflight:
@@ -112,6 +118,7 @@ Use these when you want reading order instead of topic lookup:
 - [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
 - [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
 - [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+- [docs/monorepo-stack.md](/Users/Shared/chroot/dev/gewyvern/docs/monorepo-stack.md)
 
 ### Build, Package, And Measure
 

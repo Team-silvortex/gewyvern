@@ -1,9 +1,15 @@
-use crate::runtime_layout::{runtime_layout, RuntimeLayout};
+use crate::certificate_inventory::{
+    CertificateAssetKind, CertificateInventory, CertificateItem, runtime_certificate_inventory,
+};
+use crate::runtime_layout::{RuntimeLayout, runtime_layout};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const ROTATION_RECORDS_FILE: &str = "rotation-records.tsv";
 const REVOCATION_RECORDS_FILE: &str = "revocation-records.tsv";
+const AUTO_ROTATION_NOTE: &str = "auto:validity-sync";
+const ROTATION_DUE_WINDOW_MS: i128 = 30_i128 * 24 * 60 * 60 * 1000;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CertificateRuntimeState {
@@ -36,6 +42,14 @@ pub struct CertificateRevocationRecord {
     pub note: Option<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CertificateRotationSyncReport {
+    pub updated_record_count: usize,
+    pub active_count: usize,
+    pub due_count: usize,
+    pub overdue_count: usize,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CertificateRotationStatus {
     Active,
@@ -61,6 +75,147 @@ pub enum CertificateMaterialScope {
 
 pub fn runtime_certificate_state() -> CertificateRuntimeState {
     runtime_certificate_state_from_layout(runtime_layout())
+}
+
+pub fn sync_rotation_records_from_inventory() -> Result<CertificateRotationSyncReport, String> {
+    sync_rotation_records_from_inventory_at(runtime_current_unix_ms())
+}
+
+pub fn sync_rotation_records_from_inventory_at(
+    now_unix_ms: i128,
+) -> Result<CertificateRotationSyncReport, String> {
+    let layout = runtime_layout();
+    fs::create_dir_all(&layout.certificate_state_root).map_err(|err| {
+        format!(
+            "failed to prepare certificate state root '{}': {err}",
+            layout.certificate_state_root.display()
+        )
+    })?;
+    let inventory = runtime_certificate_inventory();
+    let mut state = runtime_certificate_state_from_layout(layout);
+    let generated = generated_rotation_records(&inventory, now_unix_ms);
+    let generated_paths = generated
+        .iter()
+        .map(|record| record.relative_path.clone())
+        .collect::<Vec<_>>();
+    state.rotation_records.retain(|record| {
+        let managed = record
+            .note
+            .as_deref()
+            .is_some_and(|note| note.starts_with(AUTO_ROTATION_NOTE));
+        if managed {
+            return false;
+        }
+        !generated_paths.contains(&record.relative_path)
+    });
+    state.rotation_records.extend(generated.clone());
+    state
+        .rotation_records
+        .sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    write_rotation_records_file(&state.rotation_records_path, &state.rotation_records)?;
+    Ok(CertificateRotationSyncReport {
+        updated_record_count: generated.len(),
+        active_count: generated
+            .iter()
+            .filter(|record| record.status == CertificateRotationStatus::Active)
+            .count(),
+        due_count: generated
+            .iter()
+            .filter(|record| record.status == CertificateRotationStatus::Due)
+            .count(),
+        overdue_count: generated
+            .iter()
+            .filter(|record| record.status == CertificateRotationStatus::Overdue)
+            .count(),
+    })
+}
+
+pub fn write_rotation_record(
+    relative_path: &str,
+    status: CertificateRotationStatus,
+    due_unix_ms: Option<i128>,
+    last_rotated_unix_ms: Option<i128>,
+    updated_unix_ms: Option<i128>,
+    note: Option<&str>,
+) -> Result<(), String> {
+    let layout = runtime_layout();
+    fs::create_dir_all(&layout.certificate_state_root).map_err(|err| {
+        format!(
+            "failed to prepare certificate state root '{}': {err}",
+            layout.certificate_state_root.display()
+        )
+    })?;
+    let mut state = runtime_certificate_state_from_layout(layout);
+    upsert_rotation_record(
+        &mut state.rotation_records,
+        CertificateRotationRecord {
+            relative_path: relative_path.trim().to_string(),
+            status,
+            due_unix_ms,
+            last_rotated_unix_ms,
+            updated_unix_ms,
+            note: note.map(|value| value.trim().to_string()),
+        },
+    );
+    write_rotation_records_file(&state.rotation_records_path, &state.rotation_records)
+}
+
+pub fn remove_rotation_record(relative_path: &str) -> Result<bool, String> {
+    let layout = runtime_layout();
+    let mut state = runtime_certificate_state_from_layout(layout);
+    let before = state.rotation_records.len();
+    state
+        .rotation_records
+        .retain(|record| record.relative_path != relative_path.trim());
+    let changed = state.rotation_records.len() != before;
+    if changed {
+        write_rotation_records_file(&state.rotation_records_path, &state.rotation_records)?;
+    }
+    Ok(changed)
+}
+
+pub fn write_revocation_record(
+    relative_path: &str,
+    scope: CertificateMaterialScope,
+    status: CertificateRevocationStatus,
+    effective_unix_ms: Option<i128>,
+    updated_unix_ms: Option<i128>,
+    note: Option<&str>,
+) -> Result<(), String> {
+    let layout = runtime_layout();
+    fs::create_dir_all(&layout.certificate_state_root).map_err(|err| {
+        format!(
+            "failed to prepare certificate state root '{}': {err}",
+            layout.certificate_state_root.display()
+        )
+    })?;
+    let mut state = runtime_certificate_state_from_layout(layout);
+    upsert_revocation_record(
+        &mut state.revocation_records,
+        CertificateRevocationRecord {
+            relative_path: relative_path.trim().to_string(),
+            scope,
+            status,
+            effective_unix_ms,
+            updated_unix_ms,
+            note: note.map(|value| value.trim().to_string()),
+        },
+    );
+    write_revocation_records_file(&state.revocation_records_path, &state.revocation_records)
+}
+
+pub fn remove_revocation_record(relative_path: &str) -> Result<bool, String> {
+    let layout = runtime_layout();
+    let mut state = runtime_certificate_state_from_layout(layout);
+    let before = state.revocation_records.len();
+    state
+        .revocation_records
+        .retain(|record| record.relative_path != relative_path.trim());
+    let changed = state.revocation_records.len() != before;
+    if changed {
+        write_revocation_records_file(&state.revocation_records_path, &state.revocation_records)?;
+    }
+    Ok(changed)
 }
 
 pub fn runtime_certificate_state_from_layout(layout: RuntimeLayout) -> CertificateRuntimeState {
@@ -167,62 +322,192 @@ fn parse_optional_i128(value: &str) -> Option<i128> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::{SystemTime, UNIX_EPOCH};
+fn generated_rotation_records(
+    inventory: &CertificateInventory,
+    now_unix_ms: i128,
+) -> Vec<CertificateRotationRecord> {
+    let mut records = Vec::new();
+    append_generated_rotation_records(&mut records, "trust", &inventory.trust_items, now_unix_ms);
+    append_generated_rotation_records(
+        &mut records,
+        "authority",
+        &inventory.authority_items,
+        now_unix_ms,
+    );
+    append_generated_rotation_records(
+        &mut records,
+        "identity",
+        &inventory.identity_items,
+        now_unix_ms,
+    );
+    records.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    records
+}
 
-    fn temp_root(label: &str) -> PathBuf {
-        std::env::temp_dir().join(format!(
-            "gewyvern-certificate-state-{label}-{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ))
-    }
-
-    #[test]
-    fn state_reads_rotation_and_revocation_records() {
-        let root = temp_root("scan");
-        fs::create_dir_all(&root).unwrap();
-        fs::write(
-            root.join(ROTATION_RECORDS_FILE),
-            "identities/prod/runtime.pem\toverdue\t200\t100\t150\trotate now\n",
-        )
-        .unwrap();
-        fs::write(
-            root.join(REVOCATION_RECORDS_FILE),
-            "trust/anchors/root-ca.pem\ttrust\tdistrusted\t300\t350\tlegacy anchor\n",
-        )
-        .unwrap();
-
-        let state = runtime_certificate_state_from_layout(RuntimeLayout {
-            config_root: PathBuf::from("/tmp/config"),
-            data_root: PathBuf::from("/tmp/data"),
-            state_root: PathBuf::from("/tmp/state"),
-            cache_root: PathBuf::from("/tmp/cache"),
-            certificate_root: PathBuf::from("/tmp/config/certificates"),
-            trust_root: PathBuf::from("/tmp/config/certificates/trust"),
-            authority_root: PathBuf::from("/tmp/config/certificates/authorities"),
-            identity_root: PathBuf::from("/tmp/config/certificates/identities"),
-            certificate_state_root: root.clone(),
-            legacy_root: None,
-        });
-
-        assert!(state.rotation_records_exist);
-        assert!(state.revocation_records_exist);
-        assert_eq!(state.rotation_records.len(), 1);
-        assert_eq!(
-            state.rotation_records[0].status,
+fn append_generated_rotation_records(
+    target: &mut Vec<CertificateRotationRecord>,
+    shelf: &str,
+    items: &[CertificateItem],
+    now_unix_ms: i128,
+) {
+    for item in items {
+        if !matches!(
+            item.asset_kind,
+            CertificateAssetKind::CertificatePem
+                | CertificateAssetKind::ChainPem
+                | CertificateAssetKind::BundlePem
+                | CertificateAssetKind::UnknownPem
+        ) {
+            continue;
+        }
+        let Some(validity) = item.validity.as_ref() else {
+            continue;
+        };
+        let Some(not_after_unix_ms) = validity.earliest_not_after_unix_ms else {
+            continue;
+        };
+        let status = if not_after_unix_ms <= now_unix_ms {
             CertificateRotationStatus::Overdue
-        );
-        assert_eq!(state.revocation_records.len(), 1);
-        assert_eq!(
-            state.revocation_records[0].status,
-            CertificateRevocationStatus::Distrusted
-        );
-
-        fs::remove_dir_all(root).unwrap();
+        } else if not_after_unix_ms <= now_unix_ms + ROTATION_DUE_WINDOW_MS {
+            CertificateRotationStatus::Due
+        } else {
+            CertificateRotationStatus::Active
+        };
+        target.push(CertificateRotationRecord {
+            relative_path: format!("{shelf}/{}", item.relative_path),
+            status,
+            due_unix_ms: Some(not_after_unix_ms - ROTATION_DUE_WINDOW_MS),
+            last_rotated_unix_ms: None,
+            updated_unix_ms: Some(now_unix_ms),
+            note: Some(AUTO_ROTATION_NOTE.into()),
+        });
     }
 }
+
+fn upsert_rotation_record(
+    records: &mut Vec<CertificateRotationRecord>,
+    record: CertificateRotationRecord,
+) {
+    if let Some(existing) = records
+        .iter_mut()
+        .find(|existing| existing.relative_path == record.relative_path)
+    {
+        *existing = record;
+    } else {
+        records.push(record);
+        records.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    }
+}
+
+fn upsert_revocation_record(
+    records: &mut Vec<CertificateRevocationRecord>,
+    record: CertificateRevocationRecord,
+) {
+    if let Some(existing) = records
+        .iter_mut()
+        .find(|existing| existing.relative_path == record.relative_path)
+    {
+        *existing = record;
+    } else {
+        records.push(record);
+        records.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    }
+}
+
+fn write_rotation_records_file(
+    path: &Path,
+    records: &[CertificateRotationRecord],
+) -> Result<(), String> {
+    let mut rendered = String::new();
+    for record in records {
+        rendered.push_str(&record.relative_path);
+        rendered.push('\t');
+        rendered.push_str(rotation_status_label(record.status));
+        rendered.push('\t');
+        rendered.push_str(&optional_i128_text(record.due_unix_ms));
+        rendered.push('\t');
+        rendered.push_str(&optional_i128_text(record.last_rotated_unix_ms));
+        rendered.push('\t');
+        rendered.push_str(&optional_i128_text(record.updated_unix_ms));
+        rendered.push('\t');
+        rendered.push_str(record.note.as_deref().unwrap_or(""));
+        rendered.push('\n');
+    }
+    fs::write(path, rendered).map_err(|err| {
+        format!(
+            "failed to write rotation records '{}': {err}",
+            path.display()
+        )
+    })
+}
+
+fn write_revocation_records_file(
+    path: &Path,
+    records: &[CertificateRevocationRecord],
+) -> Result<(), String> {
+    let mut rendered = String::new();
+    for record in records {
+        rendered.push_str(&record.relative_path);
+        rendered.push('\t');
+        rendered.push_str(material_scope_label(record.scope));
+        rendered.push('\t');
+        rendered.push_str(revocation_status_label(record.status));
+        rendered.push('\t');
+        rendered.push_str(&optional_i128_text(record.effective_unix_ms));
+        rendered.push('\t');
+        rendered.push_str(&optional_i128_text(record.updated_unix_ms));
+        rendered.push('\t');
+        rendered.push_str(record.note.as_deref().unwrap_or(""));
+        rendered.push('\n');
+    }
+    fs::write(path, rendered).map_err(|err| {
+        format!(
+            "failed to write revocation records '{}': {err}",
+            path.display()
+        )
+    })
+}
+
+fn optional_i128_text(value: Option<i128>) -> String {
+    value
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "-".into())
+}
+
+fn runtime_current_unix_ms() -> i128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|value| value.as_millis() as i128)
+        .unwrap_or_default()
+}
+
+pub fn rotation_status_label(status: CertificateRotationStatus) -> &'static str {
+    match status {
+        CertificateRotationStatus::Active => "active",
+        CertificateRotationStatus::Due => "due",
+        CertificateRotationStatus::Overdue => "overdue",
+        CertificateRotationStatus::Error => "error",
+    }
+}
+
+pub fn revocation_status_label(status: CertificateRevocationStatus) -> &'static str {
+    match status {
+        CertificateRevocationStatus::Revoked => "revoked",
+        CertificateRevocationStatus::Distrusted => "distrusted",
+        CertificateRevocationStatus::Cleared => "cleared",
+    }
+}
+
+pub fn material_scope_label(scope: CertificateMaterialScope) -> &'static str {
+    match scope {
+        CertificateMaterialScope::Trust => "trust",
+        CertificateMaterialScope::Authority => "authority",
+        CertificateMaterialScope::Identity => "identity",
+        CertificateMaterialScope::Other => "other",
+    }
+}
+
+#[cfg(test)]
+#[path = "certificate_state/tests.rs"]
+mod tests;

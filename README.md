@@ -114,8 +114,8 @@ matching a port number.
 
 ## Repository Shape
 
-This repository is easier to read as a workspace with clear responsibility
-boundaries:
+This repository is easier to read as one ecosystem workspace with clear
+responsibility boundaries:
 
 - [Cargo.toml](/Users/Shared/chroot/dev/gewyvern/Cargo.toml)
   Root workspace manifest.
@@ -125,6 +125,10 @@ boundaries:
   Helper binaries such as socket senders used by local/runtime demos.
 - [crates/gewyc](/Users/Shared/chroot/dev/gewyvern/crates/gewyc)
   Dedicated `.gewy` compiler CLI surface.
+- [apps/etragon](/Users/Shared/chroot/dev/gewyvern/apps/etragon)
+  Nearby diagnosis-partner sidecar crate, version `0.1.0`.
+- [apps/leserpent](/Users/Shared/chroot/dev/gewyvern/apps/leserpent)
+  Cross-platform control plane application, version `0.1.9`.
 - [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
   Built-in protocol and debugging DSL files.
 - [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)

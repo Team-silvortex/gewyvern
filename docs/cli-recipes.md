@@ -11,6 +11,24 @@ For the broader project map, start with:
 - [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
 - [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
 - [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+- [docs/monorepo-stack.md](/Users/Shared/chroot/dev/gewyvern/docs/monorepo-stack.md)
+
+## Monorepo Stack Commands
+
+Use these when the question is about the whole local stack rather than only the
+runtime crate:
+
+```bash
+# Rust workspace
+cargo test --workspace
+
+# etragon sidecar
+cargo run -p etragon -- --help
+
+# leserpent frontend + backend
+cd apps/leserpent && npm run check:frontend
+dotnet build apps/leserpent/src/Leserpent/Leserpent.csproj
+```
 
 ## Fastest Runtime Commands
 

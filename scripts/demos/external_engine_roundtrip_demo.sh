@@ -5,6 +5,7 @@ GEWY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "${GEWY_ROOT}/scripts/demos/demo_common.sh"
 ENGINE_ROOT_DEFAULT="${ENGINE_ROOT:-}"
 ETRAGON_ROOT_DEFAULT="${ETRAGON_ROOT:-}"
+MONOREPO_ETRAGON_ROOT="${GEWY_ROOT}/apps/etragon"
 
 INGEST_ADDR="${1:-127.0.0.1:9900}"
 API_ADDR="${2:-127.0.0.1:9910}"
@@ -22,8 +23,8 @@ ENGINE_ROOT="${ENGINE_ROOT_DEFAULT}"
 if [ -z "${ENGINE_ROOT}" ] && [ -n "${ETRAGON_ROOT_DEFAULT}" ]; then
   ENGINE_ROOT="${ETRAGON_ROOT_DEFAULT}"
 fi
-if [ -z "${ENGINE_ROOT}" ] && [ -d "${GEWY_ROOT}/../etragon" ]; then
-  ENGINE_ROOT="$(cd "${GEWY_ROOT}/../etragon" && pwd)"
+if [ -z "${ENGINE_ROOT}" ] && [ -d "${MONOREPO_ETRAGON_ROOT}" ]; then
+  ENGINE_ROOT="${MONOREPO_ETRAGON_ROOT}"
 fi
 
 ENGINE_CMD="${EXTERNAL_ENGINE_CMD:-}"
@@ -69,7 +70,7 @@ ANALYSIS_BODY="$(demo_wait_for_http_fragment "http://${API_ADDR}${ANALYSIS_ROUTE
 printf '%s' "${ANALYSIS_BODY}" > "${ANALYSIS_OUT}"
 
 if [ -z "${ENGINE_ROOT}" ]; then
-  echo "external engine root is not set and no sibling /../etragon repo was found" >&2
+  echo "external engine root is not set and no apps/etragon checkout was found" >&2
   echo "set ENGINE_ROOT=/path/to/external-engine or ETRAGON_ROOT=/path/to/etragon" >&2
   exit 1
 fi

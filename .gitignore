@@ -29,3 +29,7 @@ target
 .DS_Store
 *~
 *.orig
+node_modules/
+**/bin/
+**/obj/
+apps/etragon/scripts/__pycache__/
