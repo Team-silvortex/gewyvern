@@ -101,8 +101,16 @@ fn snmp_v3_auth_response_keeps_security_surface_healthy() {
         export.program_findings
     );
     assert!(json.contains("\"status\":\"healthy\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"none\""), "json={}", json);
-    assert!(json.contains("\"operations\":[\"snmp_v3_auth\"]"), "json={}", json);
+    assert!(
+        json.contains("\"primary_failure_mode\":\"none\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"operations\":[\"snmp_v3_auth\"]"),
+        "json={}",
+        json
+    );
     assert!(
         json.contains("\"last_phase\":\"receive_v3_auth_response\""),
         "json={}",
@@ -154,8 +162,16 @@ fn snmp_v3_priv_response_keeps_security_surface_healthy() {
         export.program_findings
     );
     assert!(json.contains("\"status\":\"healthy\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"none\""), "json={}", json);
-    assert!(json.contains("\"operations\":[\"snmp_v3_priv\"]"), "json={}", json);
+    assert!(
+        json.contains("\"primary_failure_mode\":\"none\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"operations\":[\"snmp_v3_priv\"]"),
+        "json={}",
+        json
+    );
     assert!(
         json.contains("\"last_phase\":\"receive_v3_priv_response\""),
         "json={}",
@@ -199,8 +215,16 @@ fn snmp_trap_send_keeps_notify_surface_healthy() {
         export.program_findings
     );
     assert!(json.contains("\"status\":\"healthy\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"none\""), "json={}", json);
-    assert!(json.contains("\"operations\":[\"snmp_trap\"]"), "json={}", json);
+    assert!(
+        json.contains("\"primary_failure_mode\":\"none\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"operations\":[\"snmp_trap\"]"),
+        "json={}",
+        json
+    );
     assert!(
         json.contains("\"last_phase\":\"send_trap_notification\""),
         "json={}",
@@ -244,8 +268,16 @@ fn snmp_trap_recv_keeps_manage_surface_healthy() {
         export.program_findings
     );
     assert!(json.contains("\"status\":\"healthy\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"none\""), "json={}", json);
-    assert!(json.contains("\"operations\":[\"snmp_trap_recv\"]"), "json={}", json);
+    assert!(
+        json.contains("\"primary_failure_mode\":\"none\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"operations\":[\"snmp_trap_recv\"]"),
+        "json={}",
+        json
+    );
     assert!(
         json.contains("\"last_phase\":\"receive_trap_notification\""),
         "json={}",

@@ -18,6 +18,7 @@ pub(crate) const EVENT_SCAN_TARGET_RESOLVE_FAILED: &str = "scan_target_resolve_f
 pub(crate) const EVENT_SNAPSHOT_PERSIST_FAILED: &str = "snapshot_persist_failed";
 pub(crate) const EVENT_SOCKET_LISTENER_BIND_FAILED: &str = "socket_listener_bind_failed";
 pub(crate) const EVENT_SOCKET_LISTENER_CLEANUP_FAILED: &str = "socket_listener_cleanup_failed";
+pub(crate) const EVENT_SOCKET_SESSION_IDLE_TIMEOUT: &str = "socket_session_idle_timeout";
 pub(crate) const EVENT_SOCKET_SERVICE_RECOVERED: &str = "socket_service_recovered";
 pub(crate) const EVENT_SOCKET_SESSION_COLLECT_FAILED: &str = "socket_session_collect_failed";
 pub(crate) const EVENT_SOCKET_SESSION_RUN_FAILED: &str = "socket_session_run_failed";

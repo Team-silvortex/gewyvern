@@ -2,23 +2,23 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use gewyvern::protocol_profiles::ProtocolSurfaceSummary;
 use crate::runtime_events::{
     EVENT_API_CLIENT_ACCEPT_FAILED, EVENT_API_CLIENT_OVERLOAD_REJECTED,
     EVENT_API_LISTENER_BIND_FAILED,
 };
 use crate::runtime_logging::{log_error_event, log_warn_event};
+use gewyvern::protocol_profiles::ProtocolSurfaceSummary;
 
 mod anomaly_flow_view;
 mod anomaly_phase_hints;
 mod json;
 mod persistence;
 mod protocol_catalog;
-mod runtime_cluster_attention;
-mod runtime_capability_digest;
-mod runtime_cluster_overview;
 mod resilience_status;
 mod routing;
+mod runtime_capability_digest;
+mod runtime_cluster_attention;
+mod runtime_cluster_overview;
 mod service;
 mod training_manifest;
 

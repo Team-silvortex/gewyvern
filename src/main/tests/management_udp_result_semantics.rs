@@ -102,7 +102,11 @@ fn ntp_query_response_keeps_management_query_healthy() {
         "json={}",
         json
     );
-    assert!(json.contains("\"operations\":[\"ntp_query\"]"), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"ntp_query\"]"),
+        "json={}",
+        json
+    );
     assert!(
         json.contains("\"last_phase\":\"receive_response\""),
         "json={}",
@@ -159,7 +163,11 @@ fn dhcp_offer_result_keeps_discover_surface_healthy() {
         "json={}",
         json
     );
-    assert!(json.contains("\"last_phase\":\"receive_offer\""), "json={}", json);
+    assert!(
+        json.contains("\"last_phase\":\"receive_offer\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -206,8 +214,16 @@ fn dhcp_offer_result_keeps_client_surface_healthy() {
         "json={}",
         json
     );
-    assert!(json.contains("\"operations\":[\"dhcp_client\"]"), "json={}", json);
-    assert!(json.contains("\"last_phase\":\"receive_offer\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"dhcp_client\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"last_phase\":\"receive_offer\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -259,7 +275,11 @@ fn dhcp_ack_result_keeps_request_surface_healthy() {
         "json={}",
         json
     );
-    assert!(json.contains("\"last_phase\":\"receive_ack\""), "json={}", json);
+    assert!(
+        json.contains("\"last_phase\":\"receive_ack\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -306,7 +326,11 @@ fn ntp_response_keeps_client_surface_healthy() {
         "json={}",
         json
     );
-    assert!(json.contains("\"operations\":[\"ntp_client\"]"), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"ntp_client\"]"),
+        "json={}",
+        json
+    );
     assert!(
         json.contains("\"last_phase\":\"receive_response\""),
         "json={}",

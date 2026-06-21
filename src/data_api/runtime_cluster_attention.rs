@@ -281,13 +281,22 @@ fn attention_target(name: &str, target: &ApiTargetSnapshot) -> AttentionTarget {
 
     AttentionTarget {
         name: name.to_string(),
-        protocol: target.protocol_surface.as_ref().map(|surface| surface.protocol.clone()),
-        entry: target.protocol_surface.as_ref().map(|surface| surface.entry.clone()),
+        protocol: target
+            .protocol_surface
+            .as_ref()
+            .map(|surface| surface.protocol.clone()),
+        entry: target
+            .protocol_surface
+            .as_ref()
+            .map(|surface| surface.entry.clone()),
         priority,
         primary_module_family: target.primary_module_family.clone(),
         automation_outcome: target.automation_outcome.clone(),
         evidence_posture: target.evidence_posture.clone(),
-        reason_tags: reasons.into_iter().map(|reason| reason.key.to_string()).collect(),
+        reason_tags: reasons
+            .into_iter()
+            .map(|reason| reason.key.to_string())
+            .collect(),
     }
 }
 

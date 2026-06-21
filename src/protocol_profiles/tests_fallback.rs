@@ -62,7 +62,11 @@ fn built_in_redis_summary_keeps_high_value_entry_aliases() {
         .iter()
         .find(|entry| entry.mode == "auth-required")
         .expect("redis auth-required entry should exist");
-    assert!(auth_required.aliases.contains(&"login-required".to_string()));
+    assert!(
+        auth_required
+            .aliases
+            .contains(&"login-required".to_string())
+    );
 
     let auth_denied = entries
         .iter()
@@ -86,13 +90,21 @@ fn built_in_redis_summary_keeps_high_value_entry_aliases() {
         .iter()
         .find(|entry| entry.mode == "busygroup")
         .expect("redis busygroup entry should exist");
-    assert!(busygroup.aliases.contains(&"stream-group-exists".to_string()));
+    assert!(
+        busygroup
+            .aliases
+            .contains(&"stream-group-exists".to_string())
+    );
 
     let readonly = entries
         .iter()
         .find(|entry| entry.mode == "readonly")
         .expect("redis readonly entry should exist");
-    assert!(readonly.aliases.contains(&"replica-write-denied".to_string()));
+    assert!(
+        readonly
+            .aliases
+            .contains(&"replica-write-denied".to_string())
+    );
 
     let noscript = entries
         .iter()
@@ -128,19 +140,31 @@ fn built_in_redis_summary_keeps_high_value_entry_aliases() {
         .iter()
         .find(|entry| entry.mode == "crossslot")
         .expect("redis crossslot entry should exist");
-    assert!(crossslot.aliases.contains(&"multi-key-slot-conflict".to_string()));
+    assert!(
+        crossslot
+            .aliases
+            .contains(&"multi-key-slot-conflict".to_string())
+    );
 
     let clusterdown = entries
         .iter()
         .find(|entry| entry.mode == "clusterdown")
         .expect("redis clusterdown entry should exist");
-    assert!(clusterdown.aliases.contains(&"cluster-unavailable".to_string()));
+    assert!(
+        clusterdown
+            .aliases
+            .contains(&"cluster-unavailable".to_string())
+    );
 
     let masterdown = entries
         .iter()
         .find(|entry| entry.mode == "masterdown")
         .expect("redis masterdown entry should exist");
-    assert!(masterdown.aliases.contains(&"primary-unavailable".to_string()));
+    assert!(
+        masterdown
+            .aliases
+            .contains(&"primary-unavailable".to_string())
+    );
 
     let oom = entries
         .iter()
@@ -164,7 +188,11 @@ fn built_in_redis_summary_keeps_high_value_entry_aliases() {
         .iter()
         .find(|entry| entry.mode == "misconf")
         .expect("redis misconf entry should exist");
-    assert!(misconf.aliases.contains(&"persistence-misconfig".to_string()));
+    assert!(
+        misconf
+            .aliases
+            .contains(&"persistence-misconfig".to_string())
+    );
 
     let zadd = entries
         .iter()
@@ -392,7 +420,11 @@ fn built_in_snmp_summary_keeps_bulk_read_write_and_notify_aliases() {
         .iter()
         .find(|entry| entry.mode == "engine-sync")
         .expect("snmp engine-sync entry should exist");
-    assert!(engine_sync.aliases.contains(&"engine-discovery".to_string()));
+    assert!(
+        engine_sync
+            .aliases
+            .contains(&"engine-discovery".to_string())
+    );
     assert!(engine_sync.aliases.contains(&"report-sync".to_string()));
 
     let report = entries

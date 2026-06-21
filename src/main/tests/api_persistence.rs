@@ -117,29 +117,26 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
     let targets = fs::read_to_string(latest_root.join("targets.json")).unwrap();
     let dataset = fs::read_to_string(latest_root.join("training-dataset.json")).unwrap();
     let protocol_catalog = fs::read_to_string(latest_root.join("protocols.json")).unwrap();
-    let protocol_clusters =
-        fs::read_to_string(latest_root.join("protocol-clusters.json")).unwrap();
+    let protocol_clusters = fs::read_to_string(latest_root.join("protocol-clusters.json")).unwrap();
     let runtime_capability_digest =
         fs::read_to_string(latest_root.join("runtime-capability-digest.json")).unwrap();
     let runtime_cluster_overview =
         fs::read_to_string(latest_root.join("runtime-cluster-overview.json")).unwrap();
     let runtime_cluster_attention =
         fs::read_to_string(latest_root.join("runtime-cluster-attention.json")).unwrap();
-    let runtime_cluster_attention_reasons = fs::read_to_string(
-        latest_root.join("runtime-cluster-attention-reasons.json"),
-    )
-    .unwrap();
-    let runtime_cluster_attention_summary = fs::read_to_string(
-        latest_root.join("runtime-cluster-attention-summary.json"),
-    )
-    .unwrap();
+    let runtime_cluster_attention_reasons =
+        fs::read_to_string(latest_root.join("runtime-cluster-attention-reasons.json")).unwrap();
+    let runtime_cluster_attention_summary =
+        fs::read_to_string(latest_root.join("runtime-cluster-attention-summary.json")).unwrap();
     let protocol_delta = fs::read_to_string(latest_root.join("protocol-delta.json")).unwrap();
-    let protocol_evolution =
-        fs::read_to_string(latest_root.join("protocol-evolution.md")).unwrap();
+    let protocol_evolution = fs::read_to_string(latest_root.join("protocol-evolution.md")).unwrap();
     let protocol_surface = fs::read_to_string(target_root.join("protocol-surface.json")).unwrap();
     let anomaly_flow = fs::read_to_string(target_root.join("anomaly-flow.json")).unwrap();
     let protocol_summary = fs::read_to_string(
-        latest_root.join("protocols").join("http").join("summary.json"),
+        latest_root
+            .join("protocols")
+            .join("http")
+            .join("summary.json"),
     )
     .unwrap();
     let entry_surface = fs::read_to_string(
@@ -172,19 +169,26 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
     assert!(runtime_cluster_overview.contains("\"key\":\"web-proxy-request-response\""));
     assert!(runtime_cluster_attention.contains("\"surface\":\"runtime_cluster_attention\""));
     assert!(runtime_cluster_attention.contains("\"attention_cluster_count\":1"));
-    assert!(runtime_cluster_attention_reasons
-        .contains("\"surface\":\"runtime_cluster_attention_reasons\""));
-    assert!(runtime_cluster_attention_reasons
-        .contains("\"key\":\"automation.targeted_escalation\""));
-    assert!(runtime_cluster_attention_summary
-        .contains("\"surface\":\"runtime_cluster_attention_summary\""));
+    assert!(
+        runtime_cluster_attention_reasons
+            .contains("\"surface\":\"runtime_cluster_attention_reasons\"")
+    );
+    assert!(
+        runtime_cluster_attention_reasons.contains("\"key\":\"automation.targeted_escalation\"")
+    );
+    assert!(
+        runtime_cluster_attention_summary
+            .contains("\"surface\":\"runtime_cluster_attention_summary\"")
+    );
     assert!(runtime_cluster_attention_summary.contains("\"clusters\":["));
     assert!(protocol_catalog.contains("\"protocol\":\"mysql\""));
     assert_eq!(protocol_delta, "null");
     assert!(protocol_evolution.contains("# Protocol Evolution"));
     assert!(protocol_evolution.contains("No prior protocol catalog snapshot exists yet."));
     assert!(protocol_surface.contains("\"protocol\":\"http\""));
-    assert!(protocol_surface.contains("\"reading_companions\":[{\"protocol\":\"dns\",\"entry\":\"tcp\",\"via_overlay\":\"doh\""));
+    assert!(protocol_surface.contains(
+        "\"reading_companions\":[{\"protocol\":\"dns\",\"entry\":\"tcp\",\"via_overlay\":\"doh\""
+    ));
     assert!(anomaly_flow.contains("\"surface\":\"anomaly_flow_view\""));
     assert!(protocol_summary.contains("\"protocol\":\"http\""));
     assert!(entry_surface.contains("\"protocol\":\"redis\""));
@@ -384,7 +388,10 @@ fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward()
     assert_eq!(latest_protocol_delta, current_history_protocol_delta);
     assert!(latest_protocol_evolution.contains("# Protocol Evolution"));
     assert!(latest_protocol_evolution.contains("No protocol catalog changes detected"));
-    assert_eq!(latest_protocol_evolution, current_history_protocol_evolution);
+    assert_eq!(
+        latest_protocol_evolution,
+        current_history_protocol_evolution
+    );
 
     fs::remove_dir_all(&root).unwrap();
 }

@@ -9,11 +9,11 @@ use super::protocol_catalog::{
     api_protocol_summary_json, api_protocol_surface_by_name_json,
 };
 use super::resilience_status::{api_runtime_resilience_json, append_runtime_resilience_flag_json};
+use super::runtime_capability_digest::api_runtime_capability_digest_json;
 use super::runtime_cluster_attention::{
     api_runtime_cluster_attention_json, api_runtime_cluster_attention_reasons_json,
     api_runtime_cluster_attention_summary_json,
 };
-use super::runtime_capability_digest::api_runtime_capability_digest_json;
 use super::runtime_cluster_overview::api_runtime_cluster_overview_json;
 use super::training_manifest::{
     target_training_dataset_manifest_json, training_dataset_manifest_json,
@@ -86,12 +86,9 @@ fn api_response_for_request_uncapped<'a>(
                         "application/json; charset=utf-8",
                         Cow::Borrowed(target.analysis_json.as_str()),
                     ),
-                    "anomaly-flow.json" => match api_target_anomaly_flow_json(&target_name, target) {
-                        Some(body) => (
-                            200,
-                            "application/json; charset=utf-8",
-                            Cow::Owned(body),
-                        ),
+                    "anomaly-flow.json" => match api_target_anomaly_flow_json(&target_name, target)
+                    {
+                        Some(body) => (200, "application/json; charset=utf-8", Cow::Owned(body)),
                         None => (
                             404,
                             "text/plain; charset=utf-8",
@@ -163,7 +160,11 @@ fn api_response_for_request_uncapped<'a>(
             Cow::Owned({
                 let mut body = String::with_capacity(160);
                 body.push_str("{\"ok\":true,\"has_snapshot\":");
-                body.push_str(if !snapshot.kind.is_empty() { "true" } else { "false" });
+                body.push_str(if !snapshot.kind.is_empty() {
+                    "true"
+                } else {
+                    "false"
+                });
                 body.push_str(",\"kind\":");
                 if snapshot.kind.is_empty() {
                     body.push_str("null");

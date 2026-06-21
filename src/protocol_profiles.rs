@@ -8,12 +8,14 @@ mod summary;
 mod surface;
 
 use aliases::{protocol_entry_aliases, resolve_protocol_entry_alias, split_protocol_alias};
-use profiles::{PROTOCOL_PROFILES, find_protocol_profile};
 use overlays::selected_overlay_for_alias;
+use profiles::{PROTOCOL_PROFILES, find_protocol_profile};
 use registry::{
     default_protocol_scan_set_from_registry, resolve_built_in_dsl_path, resolve_registry_alias,
     resolve_registry_entry_alias, scan_protocol_registry, scan_protocol_registry_in,
 };
+use std::fs;
+use std::path::Path;
 use summary::{
     built_in_protocol_summaries, built_in_protocol_summary, protocol_summaries_from_registry,
     protocol_summary_from_registry,
@@ -135,7 +137,11 @@ pub fn protocol_surface(protocol: &str, entry: &str) -> Option<ProtocolSurfaceSu
         }
         (summary, selected_entry.to_string())
     };
-    Some(built_in_protocol_surface(summary, selected_entry, selected_overlay))
+    Some(built_in_protocol_surface(
+        summary,
+        selected_entry,
+        selected_overlay,
+    ))
 }
 
 pub fn protocol_names() -> Vec<String> {
@@ -242,6 +248,78 @@ pub fn default_protocol_scan_set_from_dir(dir: &str) -> Option<Vec<ResolvedProto
     Some(default_protocol_scan_set_from_registry(registry))
 }
 
+pub fn protocol_target_name_for_template_id(template_id: &str) -> Option<String> {
+    if template_id.trim().is_empty() {
+        return None;
+    }
+    default_protocol_scan_set().into_iter().find_map(|profile| {
+        protocol_profile_matches_template_id(&profile, template_id)
+            .then(|| format!("scan:{}:{}", profile.protocol, profile.entry))
+    })
+}
+
+fn protocol_profile_matches_template_id(
+    profile: &ResolvedProtocolProfile,
+    template_id: &str,
+) -> bool {
+    protocol_template_candidates(&profile.dsl_path)
+        .into_iter()
+        .any(|candidate| candidate == template_id)
+}
+
+fn protocol_template_candidates(dsl_path: &str) -> Vec<String> {
+    let path = Path::new(dsl_path);
+    let mut candidates = Vec::new();
+    if path.is_file() {
+        push_protocol_template_candidates(&mut candidates, path);
+        return candidates;
+    }
+    if path.is_dir() {
+        let main = path.join("main.gewy");
+        if main.exists() {
+            push_protocol_template_candidates(&mut candidates, &main);
+        }
+        if let Ok(entries) = fs::read_dir(path) {
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+                if entry_path == main
+                    || entry_path.extension().and_then(|ext| ext.to_str()) != Some("gewy")
+                {
+                    continue;
+                }
+                push_protocol_template_candidates(&mut candidates, &entry_path);
+            }
+        }
+    }
+    candidates
+}
+
+fn push_protocol_template_candidates(candidates: &mut Vec<String>, path: &Path) {
+    if let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) {
+        candidates.push(stem.to_string());
+    }
+    if let Some(template_id) = read_template_id_from_dsl(path) {
+        if !candidates.iter().any(|candidate| candidate == &template_id) {
+            candidates.push(template_id);
+        }
+    }
+}
+
+fn read_template_id_from_dsl(path: &Path) -> Option<String> {
+    let input = fs::read_to_string(path).ok()?;
+    extract_template_id(&input)
+}
+
+fn extract_template_id(input: &str) -> Option<String> {
+    input.lines().find_map(|line| {
+        let start = line.find("template(:")?;
+        let tail = &line[start + "template(:".len()..];
+        let end = tail.find(')')?;
+        let template_id = tail[..end].trim();
+        (!template_id.is_empty()).then(|| template_id.to_string())
+    })
+}
+
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -266,5 +344,7 @@ mod tests_snmp;
 mod tests_stun;
 #[cfg(test)]
 mod tests_surface;
+#[cfg(test)]
+mod tests_target_names;
 #[cfg(test)]
 mod tests_validation_paths;

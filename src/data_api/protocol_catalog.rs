@@ -1,8 +1,8 @@
 use crate::render_utils::{append_json_string, append_string_list_json};
 use gewyvern::protocol_profiles::{
-    ProtocolClusterHintSummary, ProtocolEntrySummary, ProtocolOverlaySummary,
-    ProtocolShelfSummary, ProtocolSummary, ProtocolSurfaceSummary,
-    protocol_summaries, protocol_summary, protocol_surface,
+    ProtocolClusterHintSummary, ProtocolEntrySummary, ProtocolOverlaySummary, ProtocolShelfSummary,
+    ProtocolSummary, ProtocolSurfaceSummary, protocol_summaries, protocol_summary,
+    protocol_surface,
 };
 use std::collections::BTreeMap;
 
@@ -39,7 +39,9 @@ pub(super) fn api_protocol_clusters_json() -> String {
 }
 
 pub(super) fn api_protocol_cluster_json(key: &str) -> Option<String> {
-    let cluster = protocol_clusters().into_iter().find(|cluster| cluster.key == key)?;
+    let cluster = protocol_clusters()
+        .into_iter()
+        .find(|cluster| cluster.key == key)?;
     let mut json = String::with_capacity(1024);
     append_protocol_cluster_json(&mut json, &cluster);
     Some(json)
@@ -52,7 +54,10 @@ pub(super) fn api_protocol_summary_json(protocol_name: &str) -> Option<String> {
     Some(json)
 }
 
-pub(super) fn api_protocol_surface_by_name_json(protocol_name: &str, entry: &str) -> Option<String> {
+pub(super) fn api_protocol_surface_by_name_json(
+    protocol_name: &str,
+    entry: &str,
+) -> Option<String> {
     let surface = protocol_surface(protocol_name, entry)?;
     Some(api_protocol_surface_json(&surface))
 }
@@ -126,7 +131,10 @@ fn append_protocol_summary_json(target: &mut String, summary: &ProtocolSummary) 
     target.push_str("],\"entry_surface_path_template\":");
     append_json_string(
         target,
-        &format!("/v1/protocols/{}/entries/<entry>/surface.json", summary.protocol),
+        &format!(
+            "/v1/protocols/{}/entries/<entry>/surface.json",
+            summary.protocol
+        ),
     );
     target.push('}');
 }
@@ -210,7 +218,9 @@ fn append_protocol_companions_json(target: &mut String, overlays: &[ProtocolOver
             .or_insert_with(|| (overlay.key.clone(), overlay.label.clone()));
     }
     target.push('[');
-    for (index, ((protocol, entry), (overlay_key, overlay_label))) in emitted.into_iter().enumerate() {
+    for (index, ((protocol, entry), (overlay_key, overlay_label))) in
+        emitted.into_iter().enumerate()
+    {
         if index > 0 {
             target.push(',');
         }
@@ -250,15 +260,16 @@ fn protocol_clusters() -> Vec<ProtocolClusterCatalogItem> {
         let Some(hint) = summary.cluster_hint.clone() else {
             continue;
         };
-        let cluster = grouped
-            .entry(hint.key.clone())
-            .or_insert_with(|| ProtocolClusterCatalogItem {
-                key: hint.key.clone(),
-                label: hint.label.clone(),
-                operator_hint: hint.operator_hint.clone(),
-                sibling_protocols: hint.sibling_protocols.clone(),
-                protocols: Vec::new(),
-            });
+        let cluster =
+            grouped
+                .entry(hint.key.clone())
+                .or_insert_with(|| ProtocolClusterCatalogItem {
+                    key: hint.key.clone(),
+                    label: hint.label.clone(),
+                    operator_hint: hint.operator_hint.clone(),
+                    sibling_protocols: hint.sibling_protocols.clone(),
+                    protocols: Vec::new(),
+                });
         cluster.protocols.push(ProtocolClusterProtocolItem {
             protocol: summary.protocol,
             default_entry: summary.default_entry,
@@ -333,7 +344,9 @@ mod tests {
         assert!(body.contains("\"protocol\":\"mysql\""));
         assert!(body.contains("\"default_entry\":\"session\""));
         assert!(body.contains("\"cluster_hint\":{"));
-        assert!(body.contains("\"entry_surface_path_template\":\"/v1/protocols/mysql/entries/<entry>/surface.json\""));
+        assert!(body.contains(
+            "\"entry_surface_path_template\":\"/v1/protocols/mysql/entries/<entry>/surface.json\""
+        ));
     }
 
     #[test]

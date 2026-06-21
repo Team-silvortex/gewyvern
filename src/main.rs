@@ -7,10 +7,10 @@ mod diagnosis_runtime;
 mod external_analysis;
 #[path = "main/helpers.rs"]
 mod helpers;
-#[path = "main/history_view.rs"]
-mod history_view;
 #[path = "main/history_catalog_delta.rs"]
 mod history_catalog_delta;
+#[path = "main/history_view.rs"]
+mod history_view;
 mod render_utils;
 mod report_runtime;
 #[path = "main/runtime_config.rs"]
@@ -21,9 +21,9 @@ mod runtime_events;
 mod runtime_logging;
 #[path = "main/runtime_migration.rs"]
 mod runtime_migration;
+mod serve_runtime;
 #[path = "main/socket_resilience.rs"]
 mod socket_resilience;
-mod serve_runtime;
 #[cfg(test)]
 #[path = "main/tests.rs"]
 mod tests;

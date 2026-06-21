@@ -9,10 +9,25 @@ fn snmp_protocol_summary_exposes_new_entries_and_aliases() {
     assert!(summary.entries.iter().any(|entry| entry.mode == "set"));
     assert!(summary.entries.iter().any(|entry| entry.mode == "trap"));
     assert!(summary.entries.iter().any(|entry| entry.mode == "inform"));
-    assert!(summary.entries.iter().any(|entry| entry.mode == "engine-sync"));
+    assert!(
+        summary
+            .entries
+            .iter()
+            .any(|entry| entry.mode == "engine-sync")
+    );
     assert!(summary.entries.iter().any(|entry| entry.mode == "report"));
-    assert!(summary.entries.iter().any(|entry| entry.mode == "trap-recv"));
-    assert!(summary.entries.iter().any(|entry| entry.mode == "unauthorized"));
+    assert!(
+        summary
+            .entries
+            .iter()
+            .any(|entry| entry.mode == "trap-recv")
+    );
+    assert!(
+        summary
+            .entries
+            .iter()
+            .any(|entry| entry.mode == "unauthorized")
+    );
     assert!(summary.entries.iter().any(|entry| entry.mode == "v3-auth"));
     assert!(summary.entries.iter().any(|entry| entry.mode == "v3-priv"));
 
@@ -53,7 +68,11 @@ fn snmp_protocol_summary_exposes_new_entries_and_aliases() {
         .iter()
         .find(|entry| entry.mode == "engine-sync")
         .expect("snmp engine-sync entry should exist");
-    assert!(engine_sync.aliases.contains(&"engine-discovery".to_string()));
+    assert!(
+        engine_sync
+            .aliases
+            .contains(&"engine-discovery".to_string())
+    );
     assert!(engine_sync.aliases.contains(&"report-sync".to_string()));
 
     let trap_recv = summary

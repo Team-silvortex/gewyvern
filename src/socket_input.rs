@@ -2,8 +2,8 @@ use crate::export::{ExportBundle, ExportError, fact_from_json};
 use crate::ledger::FactEnvelope;
 use crate::runtime::{RuntimeError, RuntimeSession, SessionConfig};
 use crate::template::{Template, TemplateBinding};
-use std::io::{BufRead, BufReader, Read};
 use std::io::ErrorKind;
+use std::io::{BufRead, BufReader, Read};
 use std::net::TcpListener;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
@@ -22,6 +22,15 @@ pub enum SocketInputError {
     LimitExceeded(String),
     ParseFailed(ExportError),
     Runtime(RuntimeError),
+}
+
+impl SocketInputError {
+    pub fn is_accept_timeout(&self) -> bool {
+        matches!(
+            self,
+            Self::AcceptFailed(message) if message.contains("timed out waiting")
+        )
+    }
 }
 
 #[cfg(target_family = "unix")]
@@ -471,9 +480,7 @@ mod tests {
         let started = std::time::Instant::now();
         let err = accept_tcp_stream_with_timeout(&listener, Duration::from_millis(120))
             .expect_err("accept should time out without a client");
-        assert!(
-            matches!(err, SocketInputError::AcceptFailed(message) if message.contains("timed out"))
-        );
+        assert!(err.is_accept_timeout());
         assert!(started.elapsed() < Duration::from_secs(1));
     }
 }

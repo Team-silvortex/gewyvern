@@ -29,7 +29,8 @@ const EXTERNAL_FAILURE_LOG_EVERY: usize = 10;
 const DEFAULT_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD: usize = 3;
 const DEFAULT_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS: u64 = 30;
 const EXTERNAL_FAILURE_CIRCUIT_THRESHOLD_ENV: &str = "GEWY_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD";
-const EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_ENV: &str = "GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS";
+const EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_ENV: &str =
+    "GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS";
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct ExternalAnalysisConfig {
@@ -281,27 +282,28 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
                 if let Some(reason) = current_external_circuit_block(&config.engine_bin) {
                     external_fallback_augmentations(&reason)
                 } else {
-                let capabilities = capability_profile_for_config(&config);
-                let items = run_external_analysis(&config, capabilities.as_ref(), snapshot_json)
-                    .map(|items| {
-                        note_external_analysis_success(&config.engine_bin);
-                        items
-                    })
-                    .unwrap_or_else(|err| {
-                        note_external_analysis_failure(&config.engine_bin, &err);
-                        external_fallback_augmentations(&err)
-                    });
-                let mut guard = lock_state();
-                if !guard.cache.contains_key(&cache_key) {
-                    guard.cache_order.push_back(cache_key);
-                }
-                guard.cache.insert(cache_key, items.clone());
-                while guard.cache_order.len() > MAX_EXTERNAL_CACHE_ENTRIES {
-                    if let Some(evicted) = guard.cache_order.pop_front() {
-                        guard.cache.remove(&evicted);
+                    let capabilities = capability_profile_for_config(&config);
+                    let items =
+                        run_external_analysis(&config, capabilities.as_ref(), snapshot_json)
+                            .map(|items| {
+                                note_external_analysis_success(&config.engine_bin);
+                                items
+                            })
+                            .unwrap_or_else(|err| {
+                                note_external_analysis_failure(&config.engine_bin, &err);
+                                external_fallback_augmentations(&err)
+                            });
+                    let mut guard = lock_state();
+                    if !guard.cache.contains_key(&cache_key) {
+                        guard.cache_order.push_back(cache_key);
                     }
-                }
-                items
+                    guard.cache.insert(cache_key, items.clone());
+                    while guard.cache_order.len() > MAX_EXTERNAL_CACHE_ENTRIES {
+                        if let Some(evicted) = guard.cache_order.pop_front() {
+                            guard.cache.remove(&evicted);
+                        }
+                    }
+                    items
                 }
             }
         };

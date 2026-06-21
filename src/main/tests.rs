@@ -46,10 +46,10 @@ mod api_bench;
 mod api_debugger;
 #[path = "tests/api_multi_instance.rs"]
 mod api_multi_instance;
-#[path = "tests/api_protocol_catalog.rs"]
-mod api_protocol_catalog;
 #[path = "tests/api_persistence.rs"]
 mod api_persistence;
+#[path = "tests/api_protocol_catalog.rs"]
+mod api_protocol_catalog;
 #[path = "tests/api_sidecar.rs"]
 mod api_sidecar;
 #[path = "tests/demo_cli.rs"]
@@ -66,20 +66,20 @@ mod history_cli;
 mod mail_delivery;
 #[path = "tests/mail_flow.rs"]
 mod mail_flow;
-#[path = "tests/management_udp_failure_semantics.rs"]
-mod management_udp_failure_semantics;
 #[path = "tests/management_udp_direct_signal_semantics.rs"]
 mod management_udp_direct_signal_semantics;
+#[path = "tests/management_udp_failure_semantics.rs"]
+mod management_udp_failure_semantics;
 #[path = "tests/management_udp_result_semantics.rs"]
 mod management_udp_result_semantics;
 #[path = "tests/pop_kerberos.rs"]
 mod pop_kerberos;
+#[path = "tests/redis_failure_semantics.rs"]
+mod redis_failure_semantics;
 #[path = "tests/relay_and_mail.rs"]
 mod relay_and_mail;
 #[path = "tests/reports.rs"]
 mod reports;
-#[path = "tests/redis_failure_semantics.rs"]
-mod redis_failure_semantics;
 #[path = "tests/resilience_api.rs"]
 mod resilience_api;
 #[path = "tests/rtsp_http_tls.rs"]
@@ -88,6 +88,8 @@ mod rtsp_http_tls;
 mod runtime_config;
 #[path = "tests/runtime_migration.rs"]
 mod runtime_migration;
+#[path = "tests/serve_runtime_target_naming.rs"]
+mod serve_runtime_target_naming;
 #[path = "tests/snmp_failure_semantics.rs"]
 mod snmp_failure_semantics;
 #[path = "tests/snmp_result_semantics.rs"]

@@ -109,19 +109,23 @@ fn snmp_result_dsl_files_compile_into_expected_operations() {
     );
 
     let unauthorized =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_unauthorized_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_unauthorized_path.gewy").unwrap();
     assert_eq!(unauthorized.template.id, "snmp_unauthorized_path");
     assert_eq!(
-        unauthorized.template.program_model.as_ref().unwrap().operation,
+        unauthorized
+            .template
+            .program_model
+            .as_ref()
+            .unwrap()
+            .operation,
         ProgramOperation::Custom("snmp_unauthorized".into())
     );
 }
 
 #[test]
 fn snmp_report_runtime_path_materializes_generic_report_response() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_report_path.gewy")
-        .unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_report_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2850, 54020, "snmpget"));
@@ -133,7 +137,15 @@ fn snmp_report_runtime_path_materializes_generic_report_response() {
         PacketDir::Ingress,
         54020,
         161,
-        &[(0, 0x30), (1, 0x50), (2, 0x02), (3, 0x01), (4, 0x03), (13, 0xa8), (18, 0x04)],
+        &[
+            (0, 0x30),
+            (1, 0x50),
+            (2, 0x02),
+            (3, 0x01),
+            (4, 0x03),
+            (13, 0xa8),
+            (18, 0x04),
+        ],
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
@@ -153,8 +165,7 @@ fn snmp_report_runtime_path_materializes_generic_report_response() {
 #[test]
 fn snmp_unauthorized_runtime_path_materializes_auth_failure_report() {
     let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_unauthorized_path.gewy")
-            .unwrap();
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_unauthorized_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2851, 54021, "snmpget"));
@@ -166,7 +177,15 @@ fn snmp_unauthorized_runtime_path_materializes_auth_failure_report() {
         PacketDir::Ingress,
         54021,
         161,
-        &[(0, 0x30), (1, 0x58), (2, 0x02), (3, 0x01), (4, 0x03), (13, 0xa8), (18, 0x05)],
+        &[
+            (0, 0x30),
+            (1, 0x58),
+            (2, 0x02),
+            (3, 0x01),
+            (4, 0x03),
+            (13, 0xa8),
+            (18, 0x05),
+        ],
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 

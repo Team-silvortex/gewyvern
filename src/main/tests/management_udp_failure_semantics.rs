@@ -101,7 +101,11 @@ fn summary_json_carries_ntp_query_timeout_detail() {
         "missing_signal:packet_observed",
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"ntp_query\"]"), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"ntp_query\"]"),
+        "json={}",
+        json
+    );
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),
         "json={}",
@@ -366,7 +370,11 @@ fn summary_json_carries_ntp_sync_timeout_detail() {
         "missing_signal:packet_observed",
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"ntp_sync\"]"), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"ntp_sync\"]"),
+        "json={}",
+        json
+    );
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),
         "json={}",

@@ -79,8 +79,15 @@ struct ProtocolDigest {
 }
 
 fn build_digest(snapshot: &ApiSnapshot) -> Digest {
-    let mut by_cluster =
-        BTreeMap::<String, (String, String, Vec<String>, BTreeMap<String, BTreeSet<String>>)>::new();
+    let mut by_cluster = BTreeMap::<
+        String,
+        (
+            String,
+            String,
+            Vec<String>,
+            BTreeMap<String, BTreeSet<String>>,
+        ),
+    >::new();
     let mut protocol_names = BTreeSet::new();
     let mut targets_with_protocol_surface = 0usize;
     let mut targets_without_protocol_surface = 0usize;

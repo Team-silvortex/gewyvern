@@ -125,7 +125,16 @@ fn build_overview(snapshot: &ApiSnapshot) -> Overview {
         clusters: grouped
             .into_iter()
             .map(
-                |(key, (label, operator_hint, sidecar_context_count, capability_profile_count, mut targets))| {
+                |(
+                    key,
+                    (
+                        label,
+                        operator_hint,
+                        sidecar_context_count,
+                        capability_profile_count,
+                        mut targets,
+                    ),
+                )| {
                     targets.sort_by(|left, right| left.name.cmp(&right.name));
                     ClusterOverview {
                         key,
@@ -145,8 +154,14 @@ fn build_overview(snapshot: &ApiSnapshot) -> Overview {
 fn target_overview(name: &str, target: &ApiTargetSnapshot) -> TargetOverview {
     TargetOverview {
         name: name.to_string(),
-        protocol: target.protocol_surface.as_ref().map(|surface| surface.protocol.clone()),
-        entry: target.protocol_surface.as_ref().map(|surface| surface.entry.clone()),
+        protocol: target
+            .protocol_surface
+            .as_ref()
+            .map(|surface| surface.protocol.clone()),
+        entry: target
+            .protocol_surface
+            .as_ref()
+            .map(|surface| surface.entry.clone()),
         primary_module_family: target.primary_module_family.clone(),
         evidence_posture: target.evidence_posture.clone(),
         automation_outcome: target.automation_outcome.clone(),
@@ -173,9 +188,17 @@ fn append_target_json(target: &mut String, rendered: &TargetOverview) {
     target.push_str(",\"automation_outcome\":");
     append_optional_string_json(target, rendered.automation_outcome.as_deref());
     target.push_str(",\"has_external_sidecar_context\":");
-    target.push_str(if rendered.has_external_sidecar_context { "true" } else { "false" });
+    target.push_str(if rendered.has_external_sidecar_context {
+        "true"
+    } else {
+        "false"
+    });
     target.push_str(",\"has_external_capability_profile\":");
-    target.push_str(if rendered.has_external_capability_profile { "true" } else { "false" });
+    target.push_str(if rendered.has_external_capability_profile {
+        "true"
+    } else {
+        "false"
+    });
     target.push_str(",\"external_capability_status\":");
     append_optional_string_json(target, rendered.external_capability_status.as_deref());
     target.push_str(",\"external_context_status\":");

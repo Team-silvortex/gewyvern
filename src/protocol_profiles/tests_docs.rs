@@ -361,7 +361,10 @@ fn dot_and_doh_overlay_pages_exist_and_link_back_into_current_spines() {
         let actual = fs::read_to_string(overlay)
             .unwrap_or_else(|_| panic!("overlay page should exist: {overlay}"));
         let links = markdown_book_links(&actual);
-        assert!(links.contains(hub), "overlay {overlay} should link hub {hub}");
+        assert!(
+            links.contains(hub),
+            "overlay {overlay} should link hub {hub}"
+        );
         assert!(
             links.contains(PROTOCOL_READING_PATHS_PAGE),
             "overlay {overlay} should link protocol reading paths"

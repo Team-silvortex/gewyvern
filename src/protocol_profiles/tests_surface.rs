@@ -16,9 +16,10 @@ fn every_built_in_protocol_family_has_a_family_hub_page() {
 #[test]
 fn every_built_in_protocol_entry_exposes_a_surface_and_shelf() {
     for summary in protocol_summaries() {
-        let cluster_hint = summary.cluster_hint.clone().unwrap_or_else(|| {
-            panic!("cluster hint missing for protocol {}", summary.protocol)
-        });
+        let cluster_hint = summary
+            .cluster_hint
+            .clone()
+            .unwrap_or_else(|| panic!("cluster hint missing for protocol {}", summary.protocol));
         assert!(
             cluster_hint.sibling_protocols.contains(&summary.protocol),
             "cluster hint for protocol {} should list itself",

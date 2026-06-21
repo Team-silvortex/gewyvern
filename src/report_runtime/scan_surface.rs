@@ -227,9 +227,7 @@ fn companions_text(surface: &ProtocolSurfaceSummary) -> String {
     }
     companions
         .into_iter()
-        .map(|(protocol, entry, overlay_key, _)| {
-            format!("{protocol}:{entry}@{overlay_key}")
-        })
+        .map(|(protocol, entry, overlay_key, _)| format!("{protocol}:{entry}@{overlay_key}"))
         .collect::<Vec<_>>()
         .join(" | ")
 }
@@ -252,15 +250,10 @@ fn companions_html(surface: &ProtocolSurfaceSummary) -> String {
         })
         .collect::<Vec<_>>()
         .join(" | ");
-    format!(
-        "<li><strong>reading companions:</strong> {}</li>",
-        rendered
-    )
+    format!("<li><strong>reading companions:</strong> {}</li>", rendered)
 }
 
-fn reading_companions(
-    surface: &ProtocolSurfaceSummary,
-) -> Vec<(String, String, String, String)> {
+fn reading_companions(surface: &ProtocolSurfaceSummary) -> Vec<(String, String, String, String)> {
     let mut companions = Vec::new();
     for overlay in &surface.overlays {
         let Some(protocol) = overlay.companion_protocol.clone() else {
@@ -269,9 +262,10 @@ fn reading_companions(
         let Some(entry) = overlay.companion_entry.clone() else {
             continue;
         };
-        if companions.iter().any(|item: &(String, String, String, String)| {
-            item.0 == protocol && item.1 == entry
-        }) {
+        if companions
+            .iter()
+            .any(|item: &(String, String, String, String)| item.0 == protocol && item.1 == entry)
+        {
             continue;
         }
         companions.push((protocol, entry, overlay.key.clone(), overlay.label.clone()));

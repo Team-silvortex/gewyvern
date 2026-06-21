@@ -29,7 +29,15 @@ fn redis_get_request_fact(id: u64, cookie: u64) -> FactEnvelope {
         PacketDir::Egress,
         Some(43079),
         Some(6379),
-        &[(0, 0x2a), (1, 0x32), (2, 0x0d), (3, 0x0a), (8, 0x47), (9, 0x45), (10, 0x54)],
+        &[
+            (0, 0x2a),
+            (1, 0x32),
+            (2, 0x0d),
+            (3, 0x0a),
+            (8, 0x47),
+            (9, 0x45),
+            (10, 0x54),
+        ],
     )
 }
 
@@ -75,7 +83,15 @@ fn redis_set_request_fact(id: u64, cookie: u64) -> FactEnvelope {
         PacketDir::Egress,
         Some(43079),
         Some(6379),
-        &[(0, 0x2a), (1, 0x33), (2, 0x0d), (3, 0x0a), (8, 0x53), (9, 0x45), (10, 0x54)],
+        &[
+            (0, 0x2a),
+            (1, 0x33),
+            (2, 0x0d),
+            (3, 0x0a),
+            (8, 0x53),
+            (9, 0x45),
+            (10, 0x54),
+        ],
     )
 }
 
@@ -137,9 +153,21 @@ fn summary_json_carries_redis_auth_required_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_auth_required\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"server_denied\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"auth_required\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_auth_required\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"server_denied\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"auth_required\""),
+        "json={}",
+        json
+    );
     assert!(
         json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""),
         "json={}",
@@ -171,9 +199,21 @@ fn summary_json_carries_redis_auth_denied_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_auth_denied\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"server_denied\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"access_denied\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_auth_denied\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"server_denied\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"access_denied\""),
+        "json={}",
+        json
+    );
     assert!(
         json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""),
         "json={}",
@@ -201,9 +241,21 @@ fn summary_json_carries_redis_error_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_error\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_error\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
     assert!(
         json.contains("\"primary_failure_basis\":\"direct_protocol_signal\""),
         "json={}",
@@ -235,8 +287,16 @@ fn summary_json_carries_redis_wrongtype_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_wrongtype\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_wrongtype\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
     assert!(
         json.contains("\"primary_failure_detail\":\"protocol_constraint_violation\""),
         "json={}",
@@ -269,9 +329,21 @@ fn summary_json_carries_redis_busygroup_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_busygroup\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_busygroup\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -294,9 +366,21 @@ fn summary_json_carries_redis_readonly_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_readonly\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"server_denied\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"access_denied\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_readonly\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"server_denied\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"access_denied\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -319,9 +403,21 @@ fn summary_json_carries_redis_noscript_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_noscript\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_noscript\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -344,9 +440,21 @@ fn summary_json_carries_redis_moved_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_moved\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_moved\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -369,9 +477,21 @@ fn summary_json_carries_redis_ask_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_ask\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_ask\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -394,9 +514,21 @@ fn summary_json_carries_redis_tryagain_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_tryagain\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_tryagain\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -419,9 +551,21 @@ fn summary_json_carries_redis_loading_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_loading\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_loading\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -444,9 +588,21 @@ fn summary_json_carries_redis_crossslot_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_crossslot\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_crossslot\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -469,9 +625,21 @@ fn summary_json_carries_redis_clusterdown_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_clusterdown\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_clusterdown\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -494,9 +662,21 @@ fn summary_json_carries_redis_masterdown_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_masterdown\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_masterdown\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -519,9 +699,21 @@ fn summary_json_carries_redis_oom_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_oom\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_oom\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -544,9 +736,21 @@ fn summary_json_carries_redis_busy_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_busy\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_busy\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -569,9 +773,21 @@ fn summary_json_carries_redis_execabort_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_execabort\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_execabort\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
 }
 
 #[test]
@@ -594,7 +810,19 @@ fn summary_json_carries_redis_misconf_detail() {
         ],
     );
     let json = summary_json("dsl_demo", &export);
-    assert!(json.contains("\"operations\":[\"redis_misconf\"]"), "json={}", json);
-    assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""), "json={}", json);
-    assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""), "json={}", json);
+    assert!(
+        json.contains("\"operations\":[\"redis_misconf\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"semantic_error\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"protocol_error\""),
+        "json={}",
+        json
+    );
 }

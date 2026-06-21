@@ -8,7 +8,8 @@ use std::path::{Path, PathBuf};
 const DEFAULT_CONFIG_NAME: &str = "gewyvern.toml";
 const LEGACY_CONFIG_NAME: &str = "config.toml";
 const EXTERNAL_FAILURE_CIRCUIT_THRESHOLD_ENV: &str = "GEWY_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD";
-const EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_ENV: &str = "GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS";
+const EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_ENV: &str =
+    "GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS";
 const SOCKET_FAILURE_BACKOFF_BASE_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_BASE_MS";
 const SOCKET_FAILURE_BACKOFF_CAP_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_CAP_MS";
 
@@ -258,22 +259,34 @@ fn apply_resilience_section(
     for (key, value) in resilience {
         match key.as_str() {
             "external_failure_circuit_threshold" => {
-                config.external_failure_circuit_threshold =
-                    Some(parse_positive_usize(value, "resilience.external_failure_circuit_threshold")?)
+                config.external_failure_circuit_threshold = Some(parse_positive_usize(
+                    value,
+                    "resilience.external_failure_circuit_threshold",
+                )?)
             }
             "external_failure_circuit_cooldown_seconds" => {
-                config.external_failure_circuit_cooldown_seconds =
-                    Some(parse_positive_usize(value, "resilience.external_failure_circuit_cooldown_seconds")?)
+                config.external_failure_circuit_cooldown_seconds = Some(parse_positive_usize(
+                    value,
+                    "resilience.external_failure_circuit_cooldown_seconds",
+                )?)
             }
             "socket_failure_backoff_base_ms" => {
-                config.socket_failure_backoff_base_ms =
-                    Some(parse_positive_usize(value, "resilience.socket_failure_backoff_base_ms")?)
+                config.socket_failure_backoff_base_ms = Some(parse_positive_usize(
+                    value,
+                    "resilience.socket_failure_backoff_base_ms",
+                )?)
             }
             "socket_failure_backoff_cap_ms" => {
-                config.socket_failure_backoff_cap_ms =
-                    Some(parse_positive_usize(value, "resilience.socket_failure_backoff_cap_ms")?)
+                config.socket_failure_backoff_cap_ms = Some(parse_positive_usize(
+                    value,
+                    "resilience.socket_failure_backoff_cap_ms",
+                )?)
             }
-            other => return Err(format!("unsupported runtime config key 'resilience.{other}'")),
+            other => {
+                return Err(format!(
+                    "unsupported runtime config key 'resilience.{other}'"
+                ));
+            }
         }
     }
     Ok(())

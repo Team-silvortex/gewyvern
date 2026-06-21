@@ -189,7 +189,12 @@ fn append_protocol_surface_json(target_json: &mut String, target: &ApiTargetSnap
     }
 }
 
-fn append_focus_json(target: &mut String, flow: Option<&FlowView>, analysis: &AnalysisView, protocol: Option<&str>) {
+fn append_focus_json(
+    target: &mut String,
+    flow: Option<&FlowView>,
+    analysis: &AnalysisView,
+    protocol: Option<&str>,
+) {
     let breakpoint_transition = flow
         .and_then(|flow| flow.missing_transitions.first().cloned())
         .or_else(|| analysis.missing_transitions.first().cloned());
@@ -454,8 +459,11 @@ fn split_top_level_json_strings(input: &str) -> Result<Vec<String>, String> {
         if !in_string && (ch == ',' || ch.is_ascii_whitespace()) {
             if ch == ',' && !current.trim().is_empty() {
                 values.push(
-                    extract_json_string_field(&format!("{{\"value\":{}}}", current.trim()), "value")
-                        .ok_or_else(|| "invalid string array entry".to_string())?,
+                    extract_json_string_field(
+                        &format!("{{\"value\":{}}}", current.trim()),
+                        "value",
+                    )
+                    .ok_or_else(|| "invalid string array entry".to_string())?,
                 );
                 current.clear();
             }
@@ -516,7 +524,8 @@ fn split_top_level_json_objects(input: &str) -> Result<Vec<&str>, String> {
                     }
                     depth -= 1;
                     if depth == 0 {
-                        let object_start = start.ok_or_else(|| "missing object start".to_string())?;
+                        let object_start =
+                            start.ok_or_else(|| "missing object start".to_string())?;
                         values.push(&input[object_start..=index]);
                         start = None;
                     }

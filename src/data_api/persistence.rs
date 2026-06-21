@@ -1,33 +1,36 @@
 use crate::render_utils::append_json_string;
-use gewyvern::runtime_layout::runtime_layout;
 use gewyvern::protocol_profiles::protocol_summaries;
+use gewyvern::runtime_layout::runtime_layout;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::history_catalog_delta::{
-    latest_protocol_catalog_delta, protocol_catalog_delta_between_paths,
-    protocol_catalog_delta_json, protocol_catalog_delta_markdown,
-};
 use super::anomaly_flow_view::api_target_anomaly_flow_json;
 use super::json::{api_snapshot_meta_json, api_target_list_json, api_target_path_segment};
 use super::protocol_catalog::{
     api_protocol_catalog_json, api_protocol_cluster_json, api_protocol_clusters_json,
     api_protocol_summary_json, api_protocol_surface_by_name_json,
 };
+use super::runtime_capability_digest::api_runtime_capability_digest_json;
 use super::runtime_cluster_attention::{
     api_runtime_cluster_attention_json, api_runtime_cluster_attention_reasons_json,
     api_runtime_cluster_attention_summary_json,
 };
-use super::runtime_capability_digest::api_runtime_capability_digest_json;
 use super::runtime_cluster_overview::api_runtime_cluster_overview_json;
 use super::training_manifest::{
     target_training_dataset_manifest_json, training_dataset_manifest_json,
 };
 use super::{ApiSnapshot, ApiTargetSnapshot};
+use crate::history_catalog_delta::{
+    latest_protocol_catalog_delta, protocol_catalog_delta_between_paths,
+    protocol_catalog_delta_json, protocol_catalog_delta_markdown,
+};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const API_VERSION: &str = env!("CARGO_PKG_VERSION");
 const HISTORY_RETENTION_LIMIT: usize = 32;
 const HISTORY_RETENTION_ENV: &str = "GEWY_HISTORY_RETENTION";
+static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 pub(super) fn persist_latest_snapshot(snapshot: &ApiSnapshot) -> Result<(), String> {
     let state_root = runtime_layout().state_root;
@@ -485,5 +488,29 @@ fn temp_path(path: &Path) -> PathBuf {
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("snapshot");
-    path.with_file_name(format!("{file_name}.tmp"))
+    let sequence = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let unix_nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    let pid = std::process::id();
+    path.with_file_name(format!("{file_name}.{pid}.{unix_nanos}.{sequence}.tmp"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::temp_path;
+    use std::path::Path;
+
+    #[test]
+    fn temp_path_uses_unique_names_per_call() {
+        let path = Path::new("/tmp/meta.json");
+        let first = temp_path(path);
+        let second = temp_path(path);
+
+        assert_ne!(first, second);
+        assert!(first.to_string_lossy().contains("meta.json."));
+        assert!(first.to_string_lossy().ends_with(".tmp"));
+        assert!(second.to_string_lossy().ends_with(".tmp"));
+    }
 }

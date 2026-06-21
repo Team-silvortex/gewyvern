@@ -1,4 +1,5 @@
 use gewyvern::export::ExportBundle;
+use gewyvern::protocol_profiles::protocol_target_name_for_template_id;
 use std::net::TcpListener;
 
 use crate::data_api::{
@@ -12,9 +13,9 @@ use crate::diagnosis_runtime::{
 use crate::runtime_events::{
     EVENT_API_SERVICE_START, EVENT_APPEND_FAILED, EVENT_SNAPSHOT_PERSIST_FAILED,
     EVENT_SOCKET_LISTENER_BIND_FAILED, EVENT_SOCKET_LISTENER_CLEANUP_FAILED,
-    EVENT_SOCKET_SESSION_COLLECT_FAILED, EVENT_SOCKET_SESSION_RUN_FAILED,
-    EVENT_SOCKET_STALE_CLEANUP_FAILED, EVENT_TCP_SERVICE_START, EVENT_UNIX_SERVICE_START,
-    EVENT_WRITE_FAILED,
+    EVENT_SOCKET_SESSION_COLLECT_FAILED, EVENT_SOCKET_SESSION_IDLE_TIMEOUT,
+    EVENT_SOCKET_SESSION_RUN_FAILED, EVENT_SOCKET_STALE_CLEANUP_FAILED, EVENT_TCP_SERVICE_START,
+    EVENT_UNIX_SERVICE_START, EVENT_WRITE_FAILED,
 };
 use crate::runtime_logging::{log_error_event, log_info_event, log_warn_event};
 use crate::socket_resilience::{
@@ -56,6 +57,20 @@ fn log_socket_service_failure(event: &str, transport: &str, endpoint: &str, erro
             ("error", error.to_string()),
         ],
         "socket service failure",
+    );
+}
+
+fn log_socket_idle_timeout(transport: &str, endpoint: &str, idle_polls: usize, error: &str) {
+    log_info_event(
+        "serve",
+        EVENT_SOCKET_SESSION_IDLE_TIMEOUT,
+        &[
+            ("transport", transport.to_string()),
+            ("endpoint", endpoint.to_string()),
+            ("idle_polls", idle_polls.to_string()),
+            ("error", error.to_string()),
+        ],
+        "socket service idle; waiting for the next client",
     );
 }
 
@@ -109,12 +124,23 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<ApiState>
         });
         let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
         let mut loop_health = SocketLoopHealth::default();
-
         for _ in 0..max_sessions {
             if cli.scan_all {
                 let facts = match super::collect_unix_socket_facts_on_listener(&listener) {
                     Ok(facts) => facts,
                     Err(err) => {
+                        if err.is_accept_timeout() {
+                            let idle_polls = loop_health.record_idle_timeout();
+                            if idle_polls == 1 || idle_polls % 12 == 0 {
+                                log_socket_idle_timeout(
+                                    "unix",
+                                    path,
+                                    idle_polls,
+                                    &format!("{err:?}"),
+                                );
+                            }
+                            continue;
+                        }
                         let report = loop_health.record_failure();
                         log_socket_session_failure(
                             EVENT_SOCKET_SESSION_COLLECT_FAILED,
@@ -151,6 +177,13 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<ApiState>
             } {
                 Ok(export) => export,
                 Err(err) => {
+                    if err.is_accept_timeout() {
+                        let idle_polls = loop_health.record_idle_timeout();
+                        if idle_polls == 1 || idle_polls % 12 == 0 {
+                            log_socket_idle_timeout("unix", path, idle_polls, &format!("{err:?}"));
+                        }
+                        continue;
+                    }
                     let report = loop_health.record_failure();
                     log_socket_session_failure(
                         EVENT_SOCKET_SESSION_RUN_FAILED,
@@ -171,7 +204,8 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_state: Option<ApiState>
                 log_socket_loop_recovered("unix", path, recovered);
             }
             let export = annotate_export_trust(export, cli);
-            emit_rendered(cli, "socket_session", &export, true, api_state.as_ref());
+            let target_name = single_runtime_target_name(&export);
+            emit_rendered(cli, &target_name, &export, true, api_state.as_ref());
         }
 
         super::remove_unix_socket_file(path).unwrap_or_else(|err| {
@@ -233,12 +267,18 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_state: Option<ApiState>)
     });
     let max_sessions = cli.max_sessions.unwrap_or(usize::MAX);
     let mut loop_health = SocketLoopHealth::default();
-
     for _ in 0..max_sessions {
         if cli.scan_all {
             let facts = match super::collect_tcp_socket_facts_on_listener(&listener) {
                 Ok(facts) => facts,
                 Err(err) => {
+                    if err.is_accept_timeout() {
+                        let idle_polls = loop_health.record_idle_timeout();
+                        if idle_polls == 1 || idle_polls % 12 == 0 {
+                            log_socket_idle_timeout("tcp", addr, idle_polls, &format!("{err:?}"));
+                        }
+                        continue;
+                    }
                     let report = loop_health.record_failure();
                     log_socket_session_failure(
                         EVENT_SOCKET_SESSION_COLLECT_FAILED,
@@ -275,6 +315,13 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_state: Option<ApiState>)
         } {
             Ok(export) => export,
             Err(err) => {
+                if err.is_accept_timeout() {
+                    let idle_polls = loop_health.record_idle_timeout();
+                    if idle_polls == 1 || idle_polls % 12 == 0 {
+                        log_socket_idle_timeout("tcp", addr, idle_polls, &format!("{err:?}"));
+                    }
+                    continue;
+                }
                 let report = loop_health.record_failure();
                 log_socket_session_failure(
                     EVENT_SOCKET_SESSION_RUN_FAILED,
@@ -295,8 +342,14 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_state: Option<ApiState>)
             log_socket_loop_recovered("tcp", addr, recovered);
         }
         let export = annotate_export_trust(export, cli);
-        emit_rendered(cli, "socket_session", &export, true, api_state.as_ref());
+        let target_name = single_runtime_target_name(&export);
+        emit_rendered(cli, &target_name, &export, true, api_state.as_ref());
     }
+}
+
+pub(crate) fn single_runtime_target_name(export: &ExportBundle) -> String {
+    protocol_target_name_for_template_id(&export.template_id)
+        .unwrap_or_else(|| "socket_session".to_string())
 }
 
 fn emit_rendered(

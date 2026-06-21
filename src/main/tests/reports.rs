@@ -118,7 +118,9 @@ fn scan_report_json_summarizes_all_targets() {
     assert!(report.contains("\"entry\":\"request\""));
     assert!(report.contains("\"sibling_entries\":[\"auth-required\",\"auth-tunnel\",\"connect\",\"denied\",\"request\",\"response\"]"));
     assert!(report.contains("\"selected_overlay\":null"));
-    assert!(report.contains("\"reading_companions\":[{\"protocol\":\"dns\",\"entry\":\"tcp\",\"via_overlay\":\"doh\""));
+    assert!(report.contains(
+        "\"reading_companions\":[{\"protocol\":\"dns\",\"entry\":\"tcp\",\"via_overlay\":\"doh\""
+    ));
     assert!(report.contains("\"ingest_mode\":\"demo\""));
     assert!(report.contains("\"ingest_mode_note\":\"synthetic demo mode: useful for exercising flows and reports, not for real process attribution\""));
     assert!(report.contains("\"ingest_trust_mode\":\"synthetic-demo\""));

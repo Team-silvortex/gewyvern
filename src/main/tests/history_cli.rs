@@ -69,7 +69,10 @@ fn write_protocol_surface(
         .join(entry);
     fs::create_dir_all(&entry_root).unwrap();
     fs::write(
-        snapshot_root.join("protocols").join(protocol).join("summary.json"),
+        snapshot_root
+            .join("protocols")
+            .join(protocol)
+            .join("summary.json"),
         format!("{{\"protocol\":\"{protocol}\"}}"),
     )
     .unwrap();
@@ -139,8 +142,18 @@ fn list_history_text_reports_latest_protocol_catalog_delta() {
     let current = history_root.join("1003");
     fs::create_dir_all(previous.join("targets")).unwrap();
     fs::create_dir_all(current.join("targets")).unwrap();
-    write_protocol_surface(&previous, "http", "request", "{\"entry\":\"request\",\"v\":1}");
-    write_protocol_surface(&current, "http", "request", "{\"entry\":\"request\",\"v\":2}");
+    write_protocol_surface(
+        &previous,
+        "http",
+        "request",
+        "{\"entry\":\"request\",\"v\":1}",
+    );
+    write_protocol_surface(
+        &current,
+        "http",
+        "request",
+        "{\"entry\":\"request\",\"v\":2}",
+    );
     write_protocol_surface(&current, "redis", "zadd", "{\"entry\":\"zadd\",\"v\":1}");
 
     let rendered = render_history_index(false).unwrap();

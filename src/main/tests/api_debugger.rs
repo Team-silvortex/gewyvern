@@ -166,11 +166,17 @@ fn anomaly_flow_route_uses_tls_specific_phase_hint() {
         },
     );
     let snapshot = state.lock().unwrap().clone();
-    let (status, _, body) =
-        api_response_for_request("/v1/latest/targets/scan:tls:client/anomaly-flow.json", &snapshot);
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:tls:client/anomaly-flow.json",
+        &snapshot,
+    );
     assert_eq!(status, 200);
     assert!(body.contains("\"protocol\":\"tls\""), "body={}", body);
-    assert!(body.contains("TLS client hello should be emitted here"), "body={}", body);
+    assert!(
+        body.contains("TLS client hello should be emitted here"),
+        "body={}",
+        body
+    );
 }
 
 #[test]
@@ -227,8 +233,10 @@ fn anomaly_flow_route_uses_dns_tcp_specific_phase_hint() {
         },
     );
     let snapshot = state.lock().unwrap().clone();
-    let (status, _, body) =
-        api_response_for_request("/v1/latest/targets/scan:dns:tcp/anomaly-flow.json", &snapshot);
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:dns:tcp/anomaly-flow.json",
+        &snapshot,
+    );
     assert_eq!(status, 200);
     assert!(body.contains("\"protocol\":\"dns\""), "body={}", body);
     assert!(body.contains("\"entry\":\"tcp\""), "body={}", body);
@@ -294,11 +302,21 @@ fn anomaly_flow_route_uses_dot_and_doh_specific_phase_hints() {
         },
     );
     let dot_snapshot = dot_state.lock().unwrap().clone();
-    let (dot_status, _, dot_body) =
-        api_response_for_request("/v1/latest/targets/scan:dot:tcp/anomaly-flow.json", &dot_snapshot);
+    let (dot_status, _, dot_body) = api_response_for_request(
+        "/v1/latest/targets/scan:dot:tcp/anomaly-flow.json",
+        &dot_snapshot,
+    );
     assert_eq!(dot_status, 200);
-    assert!(dot_body.contains("\"protocol\":\"dns\""), "body={}", dot_body);
-    assert!(dot_body.contains("DNS-over-TLS resolver should be selected here"), "body={}", dot_body);
+    assert!(
+        dot_body.contains("\"protocol\":\"dns\""),
+        "body={}",
+        dot_body
+    );
+    assert!(
+        dot_body.contains("DNS-over-TLS resolver should be selected here"),
+        "body={}",
+        dot_body
+    );
 
     let http_binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
         .expect("http_request_path DSL should compile");
@@ -355,6 +373,14 @@ fn anomaly_flow_route_uses_dot_and_doh_specific_phase_hints() {
         &doh_snapshot,
     );
     assert_eq!(doh_status, 200);
-    assert!(doh_body.contains("\"protocol\":\"http\""), "body={}", doh_body);
-    assert!(doh_body.contains("DNS-over-HTTPS request should leave here"), "body={}", doh_body);
+    assert!(
+        doh_body.contains("\"protocol\":\"http\""),
+        "body={}",
+        doh_body
+    );
+    assert!(
+        doh_body.contains("DNS-over-HTTPS request should leave here"),
+        "body={}",
+        doh_body
+    );
 }

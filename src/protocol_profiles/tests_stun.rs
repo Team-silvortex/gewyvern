@@ -5,7 +5,12 @@ fn stun_protocol_summary_exposes_new_entries_and_aliases() {
     let summary = protocol_summary("stun").expect("stun summary should exist");
     assert_eq!(summary.default_entry, "binding");
     assert!(summary.entries.iter().any(|entry| entry.mode == "allocate"));
-    assert!(summary.entries.iter().any(|entry| entry.mode == "binding-error"));
+    assert!(
+        summary
+            .entries
+            .iter()
+            .any(|entry| entry.mode == "binding-error")
+    );
     assert!(summary.entries.iter().any(|entry| entry.mode == "refresh"));
 
     let allocate = summary
@@ -21,7 +26,11 @@ fn stun_protocol_summary_exposes_new_entries_and_aliases() {
         .iter()
         .find(|entry| entry.mode == "binding-error")
         .expect("stun binding-error entry should exist");
-    assert!(binding_error.aliases.contains(&"binding-denied".to_string()));
+    assert!(
+        binding_error
+            .aliases
+            .contains(&"binding-denied".to_string())
+    );
     assert!(binding_error.aliases.contains(&"binding-error".to_string()));
 }
 

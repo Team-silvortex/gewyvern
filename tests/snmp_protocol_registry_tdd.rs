@@ -224,7 +224,8 @@ fn snmp_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn snmp_bulk_runtime_path_materializes_request_and_response_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_bulk_path.gewy").unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_bulk_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2828, 54000, "snmpbulkget"));
@@ -383,7 +384,8 @@ fn snmp_set_runtime_path_rejects_wrong_response_pdu_type() {
 
 #[test]
 fn snmp_trap_runtime_path_materializes_one_way_notification_datagram() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_trap_path.gewy").unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_trap_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2831, 54003, "snmptrap"));
@@ -489,7 +491,14 @@ fn snmp_v3_auth_runtime_path_materializes_authenticated_exchange() {
         PacketDir::Egress,
         54005,
         161,
-        &[(0, 0x30), (1, 0x40), (2, 0x02), (3, 0x01), (4, 0x03), (18, 0x01)],
+        &[
+            (0, 0x30),
+            (1, 0x40),
+            (2, 0x02),
+            (3, 0x01),
+            (4, 0x03),
+            (18, 0x01),
+        ],
     ));
     session.ingest(snmp_v3_udp_packet_fact(
         4,
@@ -498,7 +507,14 @@ fn snmp_v3_auth_runtime_path_materializes_authenticated_exchange() {
         PacketDir::Ingress,
         54005,
         161,
-        &[(0, 0x30), (1, 0x50), (2, 0x02), (3, 0x01), (4, 0x03), (18, 0x01)],
+        &[
+            (0, 0x30),
+            (1, 0x50),
+            (2, 0x02),
+            (3, 0x01),
+            (4, 0x03),
+            (18, 0x01),
+        ],
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
@@ -536,7 +552,14 @@ fn snmp_v3_priv_runtime_path_materializes_privacy_protected_exchange() {
         PacketDir::Egress,
         54006,
         161,
-        &[(0, 0x30), (1, 0x60), (2, 0x02), (3, 0x01), (4, 0x03), (18, 0x03)],
+        &[
+            (0, 0x30),
+            (1, 0x60),
+            (2, 0x02),
+            (3, 0x01),
+            (4, 0x03),
+            (18, 0x03),
+        ],
     ));
     session.ingest(snmp_v3_udp_packet_fact(
         4,
@@ -545,7 +568,14 @@ fn snmp_v3_priv_runtime_path_materializes_privacy_protected_exchange() {
         PacketDir::Ingress,
         54006,
         161,
-        &[(0, 0x30), (1, 0x70), (2, 0x02), (3, 0x01), (4, 0x03), (18, 0x03)],
+        &[
+            (0, 0x30),
+            (1, 0x70),
+            (2, 0x02),
+            (3, 0x01),
+            (4, 0x03),
+            (18, 0x03),
+        ],
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 

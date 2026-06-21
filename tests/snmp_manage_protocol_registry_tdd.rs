@@ -104,7 +104,12 @@ fn snmp_manage_dsl_files_compile_into_expected_operations() {
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_engine_sync_path.gewy").unwrap();
     assert_eq!(engine_sync.template.id, "snmp_engine_sync_path");
     assert_eq!(
-        engine_sync.template.program_model.as_ref().unwrap().operation,
+        engine_sync
+            .template
+            .program_model
+            .as_ref()
+            .unwrap()
+            .operation,
         ProgramOperation::Custom("snmp_engine_sync".into())
     );
 
@@ -132,7 +137,15 @@ fn snmp_engine_sync_runtime_path_materializes_probe_and_report() {
         PacketDir::Egress,
         54010,
         161,
-        &[(0, 0x30), (1, 0x40), (2, 0x02), (3, 0x01), (4, 0x03), (13, 0xa0), (18, 0x04)],
+        &[
+            (0, 0x30),
+            (1, 0x40),
+            (2, 0x02),
+            (3, 0x01),
+            (4, 0x03),
+            (13, 0xa0),
+            (18, 0x04),
+        ],
     ));
     session.ingest(snmp_v3_udp_packet_fact(
         4,
@@ -141,7 +154,15 @@ fn snmp_engine_sync_runtime_path_materializes_probe_and_report() {
         PacketDir::Ingress,
         54010,
         161,
-        &[(0, 0x30), (1, 0x50), (2, 0x02), (3, 0x01), (4, 0x03), (13, 0xa8), (18, 0x04)],
+        &[
+            (0, 0x30),
+            (1, 0x50),
+            (2, 0x02),
+            (3, 0x01),
+            (4, 0x03),
+            (13, 0xa8),
+            (18, 0x04),
+        ],
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 

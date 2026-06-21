@@ -223,8 +223,10 @@ fn runtime_cluster_attention_rollup_prioritizes_clusters_and_targets() {
 #[test]
 fn runtime_cluster_attention_reason_catalog_lists_standardized_reason_specs() {
     let snapshot = ApiSnapshot::default();
-    let (status, content_type, body) =
-        api_response_for_request("/v1/latest/runtime-cluster-attention-reasons.json", &snapshot);
+    let (status, content_type, body) = api_response_for_request(
+        "/v1/latest/runtime-cluster-attention-reasons.json",
+        &snapshot,
+    );
     assert_eq!(status, 200);
     assert_eq!(content_type, "application/json; charset=utf-8");
     assert!(body.contains("\"surface\":\"runtime_cluster_attention_reasons\""));
@@ -321,8 +323,10 @@ fn runtime_cluster_attention_summary_compacts_cluster_card_data() {
     );
 
     let snapshot = state.lock().unwrap().clone();
-    let (status, content_type, body) =
-        api_response_for_request("/v1/latest/runtime-cluster-attention-summary.json", &snapshot);
+    let (status, content_type, body) = api_response_for_request(
+        "/v1/latest/runtime-cluster-attention-summary.json",
+        &snapshot,
+    );
     assert_eq!(status, 200);
     assert_eq!(content_type, "application/json; charset=utf-8");
     assert!(body.contains("\"surface\":\"runtime_cluster_attention_summary\""));

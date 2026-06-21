@@ -21,13 +21,8 @@ pub(crate) fn latest_protocol_catalog_delta(
     if entries.len() < 2 {
         return Ok(None);
     }
-    protocol_catalog_delta_between(
-        entries[0].0,
-        &entries[0].1,
-        entries[1].0,
-        &entries[1].1,
-    )
-    .map(Some)
+    protocol_catalog_delta_between(entries[0].0, &entries[0].1, entries[1].0, &entries[1].1)
+        .map(Some)
 }
 
 pub(crate) fn protocol_catalog_delta_between_paths(
@@ -104,17 +99,21 @@ fn protocol_catalog_delta_between(
             delta.changed_protocol_summaries.push(protocol_name.clone());
         }
         let current_entries = current_protocol.entries.keys().cloned().collect::<Vec<_>>();
-        let previous_entries = previous_protocol.entries.keys().cloned().collect::<Vec<_>>();
-        delta
-            .added_entries
-            .extend(difference(&current_entries, &previous_entries).into_iter().map(|entry| {
-                format!("{protocol_name}:{entry}")
-            }));
-        delta
-            .removed_entries
-            .extend(difference(&previous_entries, &current_entries).into_iter().map(|entry| {
-                format!("{protocol_name}:{entry}")
-            }));
+        let previous_entries = previous_protocol
+            .entries
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>();
+        delta.added_entries.extend(
+            difference(&current_entries, &previous_entries)
+                .into_iter()
+                .map(|entry| format!("{protocol_name}:{entry}")),
+        );
+        delta.removed_entries.extend(
+            difference(&previous_entries, &current_entries)
+                .into_iter()
+                .map(|entry| format!("{protocol_name}:{entry}")),
+        );
         for entry_name in current_entries {
             let Some(previous_body) = previous_protocol.entries.get(&entry_name) else {
                 continue;
@@ -160,7 +159,12 @@ fn load_protocol_catalog_snapshot(root: &Path) -> Result<ProtocolCatalogSnapshot
 
 fn read_sorted_dirs(root: &Path) -> Result<Vec<PathBuf>, String> {
     let mut dirs = fs::read_dir(root)
-        .map_err(|err| format!("failed to inspect protocol catalog root '{}': {err}", root.display()))?
+        .map_err(|err| {
+            format!(
+                "failed to inspect protocol catalog root '{}': {err}",
+                root.display()
+            )
+        })?
         .filter_map(Result::ok)
         .map(|entry| entry.path())
         .filter(|path| path.is_dir())
@@ -180,8 +184,12 @@ fn read_optional_file(path: &Path) -> Result<String, String> {
     if !path.exists() {
         return Ok(String::new());
     }
-    fs::read_to_string(path)
-        .map_err(|err| format!("failed to read protocol catalog file '{}': {err}", path.display()))
+    fs::read_to_string(path).map_err(|err| {
+        format!(
+            "failed to read protocol catalog file '{}': {err}",
+            path.display()
+        )
+    })
 }
 
 fn difference(left: &[String], right: &[String]) -> Vec<String> {
@@ -261,14 +269,8 @@ impl ProtocolCatalogDelta {
         let mut md = vec![
             "# Protocol Evolution".to_string(),
             String::new(),
-            format!(
-                "Current snapshot: `{}`  ",
-                self.current_updated_unix_ms
-            ),
-            format!(
-                "Previous snapshot: `{}`",
-                self.previous_updated_unix_ms
-            ),
+            format!("Current snapshot: `{}`  ", self.current_updated_unix_ms),
+            format!("Previous snapshot: `{}`", self.previous_updated_unix_ms),
             String::new(),
         ];
         if self.is_empty() {
