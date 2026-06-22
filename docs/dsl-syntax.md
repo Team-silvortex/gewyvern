@@ -101,9 +101,10 @@ Current rule:
 
 Function parameters carry a lightweight inferred kind surface. `gewylang` does
 not implement a full global type system, but it does infer parameter intent
-from placeholder usage inside a function body.
+from placeholder usage inside a function body. Placeholders support both the
+explicit `${name}` form and the shorthand `$name` form.
 
-Current inferred kinds are:
+Current inferred or declared kinds are:
 
 - `atom`
 - `bool`
@@ -115,10 +116,10 @@ Example:
 
 ```text
 fn udp_core(model_name, op_name = :datagram_exchange, dedupe_flag = true, duration_ms = 5000) =>
-  |> window(duration_ms: ${duration_ms}, lateness_ms: 200)
-  |> operation(${op_name})
-  |> program_model(${model_name})
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: ${dedupe_flag}, module: :frontend_summary, phase: :bind)
+  |> window(duration_ms: $duration_ms, lateness_ms: 200)
+  |> operation($op_name)
+  |> program_model($model_name)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: $dedupe_flag, module: :frontend_summary, phase: :bind)
 ```
 
 In that function:
@@ -133,6 +134,19 @@ Current hard validation is intentionally narrow:
 - inferred `bool` parameters are validated at `use(...)` application time
 - inferred `u64` parameters are validated at `use(...)` application time
 - other inferred kinds are advisory/reporting-only for now
+
+You may also declare a lightweight kind directly in the function signature when
+you want the contract to be explicit:
+
+```text
+fn udp_core(model_name: atom, dedupe_flag: bool = true, duration_ms: u64 = 5000) =>
+  |> window(duration_ms: $duration_ms, lateness_ms: 200)
+  |> program_model($model_name)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: $dedupe_flag, module: :frontend_summary, phase: :bind)
+```
+
+Explicit kinds use the same value-family names and must agree with actual
+function-body usage. If they disagree, `gewylang` fails at compile time.
 
 ## Block Form
 
@@ -247,10 +261,12 @@ arg_list             = arg, { ",", ws, arg } ;
 arg                  = value | keyword_arg ;
 keyword_arg          = ident, ":", ws, value ;
 
-param_list           = ident, { ",", ws, ident } ;
+param_list           = param_decl, { ",", ws, param_decl } ;
+param_decl           = ident, [ ":", ws, kind_name ], [ ws, "=", ws, value ] ;
 value                = atom | string | placeholder | raw_token ;
 atom                 = ":", ident ;
-placeholder          = "${", ident, "}" ;
+placeholder          = "${", ident, "}" | "$", ident ;
+kind_name            = "atom" | "bool" | "u64" | "predicate" | "narrative" | "stage" | "key_event" | "phase" ;
 ```
 
 Operational notes:

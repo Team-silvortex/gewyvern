@@ -1,5 +1,5 @@
 use super::entry::looks_like_pipeline_dsl;
-use super::function_types::pipeline_value_kind_text;
+use super::function_types::{format_pipeline_function_signature, pipeline_value_kind_text};
 use super::{
     DslError, PackageContext, PipelineCall, PipelineModule, parse_pipeline_module,
     parse_pipeline_single_arg,
@@ -41,6 +41,7 @@ pub struct FrontendIncludeSource {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FrontendFunctionNode {
     pub name: String,
+    pub signature: String,
     pub step_count: usize,
     pub source_id: String,
     pub package_scope: String,
@@ -51,7 +52,8 @@ pub struct FrontendFunctionNode {
 pub struct FrontendFunctionParam {
     pub name: String,
     pub has_default: bool,
-    pub inferred_kind: Option<String>,
+    pub declared_kind: Option<String>,
+    pub effective_kind: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -121,6 +123,7 @@ fn summarize_frontend_str_with_base(
             .iter()
             .map(|(name, function)| FrontendFunctionNode {
                 name: name.clone(),
+                signature: format_pipeline_function_signature(name, &function.params),
                 step_count: function.body.len(),
                 source_id: function.source_id.clone(),
                 package_scope: function.package_scope.clone(),
@@ -130,7 +133,11 @@ fn summarize_frontend_str_with_base(
                     .map(|param| FrontendFunctionParam {
                         name: param.name.clone(),
                         has_default: param.default_value.is_some(),
-                        inferred_kind: param
+                        declared_kind: param
+                            .declared_kind
+                            .map(pipeline_value_kind_text)
+                            .map(str::to_string),
+                        effective_kind: param
                             .inferred_kind
                             .map(pipeline_value_kind_text)
                             .map(str::to_string),

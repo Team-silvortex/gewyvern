@@ -177,14 +177,14 @@ pub(super) fn frontend_report_text_compact(
                         .function_nodes
                         .iter()
                         .map(|node| {
-                            let params = frontend_function_param_summary(&node.params);
+                            let notes = frontend_function_param_summary(&node.params);
                             format!(
                                 "{}:{}@{}#{}{}",
-                                node.name,
+                                node.signature,
                                 node.step_count,
                                 node.source_id,
                                 node.package_scope,
-                                params
+                                notes
                             )
                         })
                         .collect::<Vec<_>>()
@@ -277,15 +277,15 @@ pub(super) fn frontend_focus_text_lines(
                 lines.push("- none".into());
             } else {
                 lines.extend(report.function_nodes.iter().map(|node| {
-                    let params = frontend_function_param_text(&node.params);
+                    let notes = frontend_function_param_text(&node.params);
                     format!(
                         "- {} (steps={}, source={}, package={}{}{})",
-                        node.name,
+                        node.signature,
                         node.step_count,
                         node.source_id,
                         node.package_scope,
-                        if params.is_empty() { "" } else { ", " },
-                        params
+                        if notes.is_empty() { "" } else { ", " },
+                        notes
                     )
                 }));
             }
@@ -361,8 +361,9 @@ pub(super) fn frontend_focus_json(report: &FrontendReport, focus: FrontendFocus)
                 .function_nodes
                 .iter()
                 .map(|node| format!(
-                    "{{\"name\":{},\"step_count\":{},\"source_id\":{},\"package_scope\":{},\"params\":[{}]}}",
+                    "{{\"name\":{},\"signature\":{},\"step_count\":{},\"source_id\":{},\"package_scope\":{},\"params\":[{}]}}",
                     json_string(&node.name),
+                    json_string(&node.signature),
                     node.step_count,
                     json_string(&node.source_id),
                     json_string(&node.package_scope),
@@ -423,8 +424,9 @@ pub(super) fn frontend_json(frontend: Option<&FrontendReport>) -> String {
                 .function_nodes
                 .iter()
                 .map(|node| format!(
-                    "{{\"name\":{},\"step_count\":{},\"source_id\":{},\"package_scope\":{},\"params\":[{}]}}",
+                    "{{\"name\":{},\"signature\":{},\"step_count\":{},\"source_id\":{},\"package_scope\":{},\"params\":[{}]}}",
                     json_string(&node.name),
+                    json_string(&node.signature),
                     node.step_count,
                     json_string(&node.source_id),
                     json_string(&node.package_scope),
@@ -512,42 +514,43 @@ pub(super) fn frontend_expansion_preview_json(preview: &FrontendExpansionPreview
 }
 
 fn frontend_function_param_summary(params: &[FrontendFunctionParamReport]) -> String {
-    if params.is_empty() {
+    let notes = params
+        .iter()
+        .filter_map(frontend_function_param_note)
+        .collect::<Vec<_>>();
+    if notes.is_empty() {
         return String::new();
     }
-    format!(
-        " [{}]",
-        params
-            .iter()
-            .map(frontend_function_param_inline)
-            .collect::<Vec<_>>()
-            .join(", ")
-    )
+    format!(" {{notes: {}}}", notes.join(", "))
 }
 
 fn frontend_function_param_text(params: &[FrontendFunctionParamReport]) -> String {
-    if params.is_empty() {
-        return "params=none".to_string();
+    let notes = params
+        .iter()
+        .filter_map(frontend_function_param_note)
+        .collect::<Vec<_>>();
+    if notes.is_empty() {
+        return String::new();
     }
-    format!(
-        "params={}",
-        params
-            .iter()
-            .map(frontend_function_param_inline)
-            .collect::<Vec<_>>()
-            .join(", ")
-    )
+    format!("param_notes: {}", notes.join(", "))
 }
 
-fn frontend_function_param_inline(param: &FrontendFunctionParamReport) -> String {
-    let mut parts = vec![param.name.clone()];
-    if let Some(kind) = &param.inferred_kind {
-        parts.push(format!("type={kind}"));
+fn frontend_function_param_note(param: &FrontendFunctionParamReport) -> Option<String> {
+    let mut details = Vec::new();
+    match (&param.declared_kind, &param.effective_kind) {
+        (Some(declared), Some(effective)) if declared != effective => {
+            details.push(format!("declared {declared} -> {effective}"));
+        }
+        (None, Some(effective)) => {
+            details.push(format!("inferred {effective}"));
+        }
+        _ => {}
     }
-    if param.has_default {
-        parts.push("default".to_string());
+    if details.is_empty() {
+        None
+    } else {
+        Some(format!("{} <{}>", param.name, details.join(", ")))
     }
-    parts.join(":")
 }
 
 fn frontend_function_params_json(params: &[FrontendFunctionParamReport]) -> String {
@@ -555,11 +558,16 @@ fn frontend_function_params_json(params: &[FrontendFunctionParamReport]) -> Stri
         .iter()
         .map(|param| {
             format!(
-                "{{\"name\":{},\"has_default\":{},\"inferred_kind\":{}}}",
+                "{{\"name\":{},\"has_default\":{},\"declared_kind\":{},\"effective_kind\":{}}}",
                 json_string(&param.name),
                 if param.has_default { "true" } else { "false" },
                 param
-                    .inferred_kind
+                    .declared_kind
+                    .as_ref()
+                    .map(|kind| json_string(kind))
+                    .unwrap_or_else(|| "null".to_string()),
+                param
+                    .effective_kind
                     .as_ref()
                     .map(|kind| json_string(kind))
                     .unwrap_or_else(|| "null".to_string())

@@ -64,7 +64,21 @@ Shape:
     "kind": "pipeline",
     "function_count": 1,
     "function_nodes": [
-      { "name": "network_module", "step_count": 3 }
+      {
+        "name": "network_module",
+        "signature": "network_module(model_name: atom)",
+        "step_count": 3,
+        "source_id": "entry",
+        "package_scope": "inline",
+        "params": [
+          {
+            "name": "model_name",
+            "has_default": false,
+            "declared_kind": "atom",
+            "effective_kind": "atom"
+          }
+        ]
+      }
     ],
     "merged_step_count": 4,
     "include_sources": [],
@@ -91,7 +105,13 @@ Shape:
 
 ### `frontend.report`
 
-- `function_nodes`: declared functions with step counts
+- `function_nodes`: declared functions with step counts, source/package origin,
+  and parameter surfaces
+- `function_nodes[].signature`: normalized function signature shared by compiler
+  reports and frontend summaries
+- `function_nodes[].params[].declared_kind`: explicit signature kind, if present
+- `function_nodes[].params[].effective_kind`: final compiler-visible kind after
+  declared-kind resolution and inference
 - `include_sources`: `include(...)` file references
 - `use_edges`: `template/use` call edges
 - `graph_nodes`: lightweight graph nodes for template/functions/includes

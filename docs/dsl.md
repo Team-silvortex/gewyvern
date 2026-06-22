@@ -77,6 +77,9 @@ template(:structured_udp_process_debug)
 The pipeline parser first merges files and function units into a single
 pipeline/front-end IR, then lowers that IR into the current compiler surface.
 
+Function units support both `${name}` and shorthand `$name` placeholders, so
+parameterized pipelines can stay concise without changing their lowering model.
+
 ## Durable Source Shelves
 
 `gewyvern` DSL files use the `.gewy` extension.

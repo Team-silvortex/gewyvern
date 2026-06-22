@@ -475,6 +475,7 @@ pub struct FrontendIncludeSourceReport {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FrontendFunctionReport {
     pub name: String,
+    pub signature: String,
     pub step_count: usize,
     pub source_id: String,
     pub package_scope: String,
@@ -485,7 +486,8 @@ pub struct FrontendFunctionReport {
 pub struct FrontendFunctionParamReport {
     pub name: String,
     pub has_default: bool,
-    pub inferred_kind: Option<String>,
+    pub declared_kind: Option<String>,
+    pub effective_kind: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

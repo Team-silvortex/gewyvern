@@ -19,7 +19,9 @@ pub use self::frontend::{
     FrontendIncludeSource, FrontendIncludeSourceKind, FrontendModuleSummary, FrontendUseEdge,
     summarize_frontend_file, summarize_frontend_str,
 };
-use self::function_types::{PipelineValueKind, infer_pipeline_param_kinds};
+use self::function_types::{
+    PipelineValueKind, infer_pipeline_param_kinds, resolve_pipeline_param_kind,
+};
 use self::package::PackageContext;
 pub use self::package::build_lockfile;
 use self::pipeline::{
@@ -72,6 +74,7 @@ struct PipelineFunction {
 struct PipelineParam {
     name: String,
     default_value: Option<String>,
+    declared_kind: Option<PipelineValueKind>,
     inferred_kind: Option<PipelineValueKind>,
 }
 
@@ -228,7 +231,11 @@ fn parse_pipeline_module_into(
             let params = params
                 .into_iter()
                 .map(|mut param| {
-                    param.inferred_kind = inferred_param_kinds.get(&param.name).copied();
+                    param.inferred_kind = resolve_pipeline_param_kind(
+                        &param.name,
+                        param.declared_kind,
+                        inferred_param_kinds.get(&param.name).copied(),
+                    )?;
                     Ok(param)
                 })
                 .collect::<Result<Vec<_>, DslError>>()?;

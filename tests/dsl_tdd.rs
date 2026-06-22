@@ -15251,6 +15251,70 @@ template(:pipeline_parameter_fn_udp)
 }
 
 #[test]
+fn dsl_accepts_shorthand_parameterized_pipeline_function_units() {
+    let binding = compile_str(
+        r#"
+fn udp_core(model_name, op_name) {
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation($op_name)
+  |> program_model($model_name)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: $model_name, phase: :bind)
+}
+
+template(:pipeline_shorthand_fn_udp)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core, :pipeline_shorthand_fn_udp_model, :datagram_exchange)
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "pipeline_shorthand_fn_udp");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "pipeline_shorthand_fn_udp_model"
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::DatagramExchange
+    );
+}
+
+#[test]
+fn dsl_accepts_explicit_pipeline_parameter_kinds() {
+    let binding = compile_str(
+        r#"
+fn udp_core(model_name: atom, op_name: atom = :datagram_exchange, dedupe_flag: bool = true, duration_ms: u64 = 5000) =>
+  |> window(duration_ms: $duration_ms, lateness_ms: 200)
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation($op_name)
+  |> program_model($model_name)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: $dedupe_flag, module: :pipeline_typed_fn_udp, phase: :bind)
+
+template(:pipeline_typed_fn_udp)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core, :pipeline_typed_fn_udp_model)
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "pipeline_typed_fn_udp");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "pipeline_typed_fn_udp_model"
+    );
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::DatagramExchange
+    );
+}
+
+#[test]
 fn dsl_accepts_expression_style_pipeline_function_units() {
     let binding = compile_str(
         r#"
@@ -15375,6 +15439,36 @@ template(:pipeline_param_let_fn_udp)
 }
 
 #[test]
+fn dsl_accepts_shorthand_parameterized_pipeline_function_local_let_bindings() {
+    let binding = compile_str(
+        r#"
+fn udp_core(model_name) {
+  let op_name = :datagram_exchange
+  let phase_module = $model_name
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation($op_name)
+  |> program_model($model_name)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: $phase_module, phase: :bind)
+}
+
+template(:pipeline_shorthand_param_let_fn_udp)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core, :pipeline_shorthand_param_let_fn_udp_model)
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "pipeline_shorthand_param_let_fn_udp");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().id,
+        "pipeline_shorthand_param_let_fn_udp_model"
+    );
+}
+
+#[test]
 fn dsl_accepts_nested_pipeline_function_use_units() {
     let binding = compile_str(
         r#"
@@ -15408,6 +15502,92 @@ template(:pipeline_nested_fn_udp)
         binding.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::DatagramExchange
     );
+}
+
+#[test]
+fn dsl_reports_unknown_pipeline_function_with_known_candidates() {
+    let err = compile_str(
+        r#"
+fn udp_core() =>
+  |> operation(:datagram_exchange)
+  |> program_model(:udp_core_model)
+
+template(:pipeline_unknown_fn)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_cor)
+"#,
+    )
+    .expect_err("unknown function should fail");
+
+    let message = format!("{:?}", err.root());
+    assert!(message.contains("unknown pipeline function 'udp_cor'"));
+    assert!(message.contains("Known functions: udp_core."));
+}
+
+#[test]
+fn dsl_reports_unknown_named_parameter_with_signature_context() {
+    let err = compile_str(
+        r#"
+fn udp_core(model_name, op_name = :datagram_exchange) =>
+  |> operation($op_name)
+  |> program_model($model_name)
+
+template(:pipeline_unknown_param)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core, model_name: :udp_model, mode_name: :oops)
+"#,
+    )
+    .expect_err("unknown named parameter should fail");
+
+    let message = format!("{:?}", err.root());
+    assert!(message.contains("pipeline function call does not match udp_core(model_name, op_name = :datagram_exchange)"));
+    assert!(message.contains("unknown named parameter 'mode_name'"));
+    assert!(message.contains("Known parameters: model_name, op_name."));
+}
+
+#[test]
+fn dsl_reports_unknown_placeholder_with_in_scope_names() {
+    let err = compile_str(
+        r#"
+fn udp_core(model_name) {
+  let op_name = :datagram_exchange
+  |> operation($op_name)
+  |> program_model($model_nam)
+}
+
+template(:pipeline_unknown_placeholder)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core, :udp_model)
+"#,
+    )
+    .expect_err("unknown placeholder should fail");
+
+    let message = format!("{:?}", err.root());
+    assert!(message.contains("unknown pipeline parameter placeholder 'model_nam'"));
+    assert!(message.contains("In-scope names: model_name, op_name."));
+}
+
+#[test]
+fn dsl_rejects_pipeline_parameter_kind_annotation_that_conflicts_with_usage() {
+    let err = compile_str(
+        r#"
+fn udp_core(model_name: bool) =>
+  |> operation(:datagram_exchange)
+  |> program_model($model_name)
+
+template(:pipeline_kind_conflict)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core, true)
+"#,
+    )
+    .expect_err("conflicting explicit kind should fail");
+
+    let message = format!("{:?}", err.root());
+    assert!(message.contains("pipeline parameter 'model_name' declares kind 'bool' but is used like 'atom'"));
 }
 
 #[test]

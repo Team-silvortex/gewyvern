@@ -89,7 +89,8 @@ convergence and clarity rather than widening the language again.
 ## The Chosen Model
 
 Instead of full typing, `gewylang` now infers a light parameter kind from how a
-function parameter is used.
+function parameter is used. Authors may also declare that lightweight kind
+directly in the function signature when they want the boundary to stay explicit.
 
 Current kinds include:
 

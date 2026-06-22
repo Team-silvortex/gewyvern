@@ -28,5 +28,6 @@ mod core;
 mod explain_compact;
 mod explain_surface;
 mod findings;
+mod frontend_surface;
 mod integration;
 mod ir;

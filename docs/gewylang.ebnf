@@ -27,10 +27,12 @@ arg_list             = arg, { ",", ws, arg } ;
 arg                  = value | keyword_arg ;
 keyword_arg          = ident, ":", ws, value ;
 
-param_list           = ident, { ",", ws, ident } ;
+param_list           = param_decl, { ",", ws, param_decl } ;
+param_decl           = ident, [ ":", ws, kind_name ], [ ws, "=", ws, value ] ;
 value                = atom | string | placeholder | raw_token ;
 atom                 = ":", ident ;
-placeholder          = "${", ident, "}" ;
+placeholder          = "${", ident, "}" | "$", ident ;
+kind_name            = "atom" | "bool" | "u64" | "predicate" | "narrative" | "stage" | "key_event" | "phase" ;
 
 ident                = ? non-empty identifier token ? ;
 string               = ? double-quoted string literal ? ;

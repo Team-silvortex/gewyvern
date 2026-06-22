@@ -196,7 +196,9 @@ Rejected:
 ## Inferred Parameter Kinds
 
 `gewylang` now infers a light parameter kind from use position and applies
-hard validation for the most safety-relevant kinds.
+hard validation for the most safety-relevant kinds. A function signature may
+also declare a lightweight kind explicitly, such as `model_name: atom` or
+`dedupe_flag: bool = true`.
 
 Current inferred kinds include:
 

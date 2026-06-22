@@ -58,6 +58,7 @@ pub(super) fn frontend_include_source_report(
 pub(super) fn frontend_function_report(node: FrontendFunctionNode) -> FrontendFunctionReport {
     FrontendFunctionReport {
         name: node.name,
+        signature: node.signature,
         step_count: node.step_count,
         source_id: node.source_id,
         package_scope: node.package_scope,
@@ -75,7 +76,8 @@ pub(super) fn frontend_function_param_report(
     FrontendFunctionParamReport {
         name: param.name,
         has_default: param.has_default,
-        inferred_kind: param.inferred_kind,
+        declared_kind: param.declared_kind,
+        effective_kind: param.effective_kind,
     }
 }
 

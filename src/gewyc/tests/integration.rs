@@ -90,6 +90,7 @@ template(:frontend_summary)
         vec![
             FrontendFunctionReport {
                 name: "udp_core".to_string(),
+                signature: "udp_core()".to_string(),
                 step_count: 3,
                 source_id: "entry".to_string(),
                 package_scope: "inline".to_string(),
@@ -97,6 +98,7 @@ template(:frontend_summary)
             },
             FrontendFunctionReport {
                 name: "udp_rules".to_string(),
+                signature: "udp_rules()".to_string(),
                 step_count: 3,
                 source_id: "entry".to_string(),
                 package_scope: "inline".to_string(),
@@ -283,27 +285,89 @@ template(:frontend_summary)
         .find(|node| node.name == "udp_core")
         .unwrap();
     assert_eq!(
+        function.signature,
+        "udp_core(model_name, op_name = :datagram_exchange, dedupe_flag = true, duration_ms = 5000)"
+    );
+    assert_eq!(
         function.params,
         vec![
             FrontendFunctionParamReport {
                 name: "model_name".to_string(),
                 has_default: false,
-                inferred_kind: Some("atom".to_string()),
+                declared_kind: None,
+                effective_kind: Some("atom".to_string()),
             },
             FrontendFunctionParamReport {
                 name: "op_name".to_string(),
                 has_default: true,
-                inferred_kind: Some("atom".to_string()),
+                declared_kind: None,
+                effective_kind: Some("atom".to_string()),
             },
             FrontendFunctionParamReport {
                 name: "dedupe_flag".to_string(),
                 has_default: true,
-                inferred_kind: Some("bool".to_string()),
+                declared_kind: None,
+                effective_kind: Some("bool".to_string()),
             },
             FrontendFunctionParamReport {
                 name: "duration_ms".to_string(),
                 has_default: true,
-                inferred_kind: Some("u64".to_string()),
+                declared_kind: None,
+                effective_kind: Some("u64".to_string()),
+            },
+        ]
+    );
+}
+
+#[test]
+fn stages_report_surfaces_declared_and_effective_pipeline_parameter_kinds() {
+    let report = compile_stages_report_str(
+        r#"
+fn udp_core(model_name: atom, dedupe_flag: bool = true, duration_ms: u64 = 5000) =
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> window(duration_ms: $duration_ms, lateness_ms: 200)
+  |> operation(:datagram_exchange)
+  |> program_model($model_name)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: $dedupe_flag, module: :frontend_summary, phase: :bind)
+
+template(:frontend_summary_typed)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core, :typed_model)
+"#,
+    );
+    let frontend = report.parse.frontend.as_ref().unwrap();
+    let function = frontend
+        .function_nodes
+        .iter()
+        .find(|node| node.name == "udp_core")
+        .unwrap();
+    assert_eq!(
+        function.signature,
+        "udp_core(model_name: atom, dedupe_flag: bool = true, duration_ms: u64 = 5000)"
+    );
+    assert_eq!(
+        function.params,
+        vec![
+            FrontendFunctionParamReport {
+                name: "model_name".to_string(),
+                has_default: false,
+                declared_kind: Some("atom".to_string()),
+                effective_kind: Some("atom".to_string()),
+            },
+            FrontendFunctionParamReport {
+                name: "dedupe_flag".to_string(),
+                has_default: true,
+                declared_kind: Some("bool".to_string()),
+                effective_kind: Some("bool".to_string()),
+            },
+            FrontendFunctionParamReport {
+                name: "duration_ms".to_string(),
+                has_default: true,
+                declared_kind: Some("u64".to_string()),
+                effective_kind: Some("u64".to_string()),
             },
         ]
     );
