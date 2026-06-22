@@ -2,6 +2,26 @@ use super::ProtocolAlias;
 
 pub(super) const PROTOCOL_ENTRY_ALIASES_MANIFEST_LATEST: &[ProtocolAlias] = &[
     ProtocolAlias {
+        alias: "login-denied",
+        protocol: "postgres",
+        entry: Some("auth-denied"),
+    },
+    ProtocolAlias {
+        alias: "password-denied",
+        protocol: "postgres",
+        entry: Some("auth-denied"),
+    },
+    ProtocolAlias {
+        alias: "login-denied",
+        protocol: "mysql",
+        entry: Some("auth-denied"),
+    },
+    ProtocolAlias {
+        alias: "handshake-denied",
+        protocol: "mysql",
+        entry: Some("auth-denied"),
+    },
+    ProtocolAlias {
         alias: "snmp-bulk",
         protocol: "snmp",
         entry: Some("bulk"),

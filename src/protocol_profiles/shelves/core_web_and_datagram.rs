@@ -194,12 +194,28 @@ pub(crate) fn dhcp_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn wireguard_shelf(entry: &str) -> Option<ShelfMatch> {
     const HANDSHAKE: &[&str] = &["handshake"];
+    const COOKIE: &[&str] = &["cookie"];
+    const TRANSPORT: &[&str] = &["transport"];
     if HANDSHAKE.contains(&entry) {
         Some((
             "handshake",
             "Handshake",
-            "docs/book/reference-wireguard-surface.md",
+            "docs/book/reference-wireguard-handshake-surface.md",
             HANDSHAKE,
+        ))
+    } else if COOKIE.contains(&entry) {
+        Some((
+            "cookie",
+            "Cookie Reply",
+            "docs/book/reference-wireguard-cookie-surface.md",
+            COOKIE,
+        ))
+    } else if TRANSPORT.contains(&entry) {
+        Some((
+            "transport",
+            "Transport",
+            "docs/book/reference-wireguard-transport-surface.md",
+            TRANSPORT,
         ))
     } else {
         None

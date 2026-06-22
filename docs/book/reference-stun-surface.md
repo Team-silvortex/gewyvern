@@ -8,8 +8,8 @@ Use it for:
 - `stun` family lookup
 - default entry selection for `binding`
 - relay-oriented control flows such as `allocate` and `refresh`
-- explicit binding failure paths such as `stun-binding-error`
-- alias spellings such as `stun-allocate`, `stun_allocate`, `stun-refresh`, and `stun_refresh`
+- explicit binding failure paths such as `stun-binding-error` and `stun_binding_error`
+- alias spellings such as `stun-allocate`, `stun_allocate`, `stun-binding-error`, `stun_binding_error`, `stun-refresh`, and `stun_refresh`
 - shared management-UDP timeout, reply, and result-surface semantics
 
 Primary subpages:

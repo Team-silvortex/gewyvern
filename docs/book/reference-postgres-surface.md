@@ -33,11 +33,13 @@ The current registry also accepts these family-level spellings for PostgreSQL
 entry selection:
 
 - `postgres-auth`
+- `postgres-auth-denied`
 - `postgres-connect`
 - `postgres-error`
 - `postgres-query`
 - `postgres-session`
 - `postgres_auth`
+- `postgres_auth_denied`
 - `postgres_connect`
 - `postgres_error`
 - `postgres_query`
@@ -56,6 +58,7 @@ Typical entries:
 
 - `connect`
 - `auth`
+- `auth-denied`
 
 ### Query And Session
 

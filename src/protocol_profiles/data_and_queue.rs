@@ -13,6 +13,10 @@ pub(super) const POSTGRES_PROFILE: ProtocolProfile = ProtocolProfile {
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy",
         },
         ProtocolEntryProfile {
+            mode: "auth-denied",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_denied_path.gewy",
+        },
+        ProtocolEntryProfile {
             mode: "query",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_simple_query_path.gewy",
         },
@@ -34,6 +38,14 @@ pub(super) const MYSQL_PROFILE: ProtocolProfile = ProtocolProfile {
         ProtocolEntryProfile {
             mode: "connect",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mysql_connect_process.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "auth",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mysql_auth_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "auth-denied",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mysql_auth_denied_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "query",
@@ -72,6 +84,10 @@ pub(super) const AMQP_PROFILE: ProtocolProfile = ProtocolProfile {
         ProtocolEntryProfile {
             mode: "start",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "auth-denied",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/amqp_auth_denied_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "publish",
@@ -461,10 +477,20 @@ pub(super) const MQTT_PROFILE: ProtocolProfile = ProtocolProfile {
 pub(super) const RADIUS_PROFILE: ProtocolProfile = ProtocolProfile {
     name: "radius",
     default_entry: "access",
-    entries: &[ProtocolEntryProfile {
-        mode: "access",
-        dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy",
-    }],
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "access",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "challenge",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/radius_challenge_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "denied",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/radius_denied_path.gewy",
+        },
+    ],
 };
 
 pub(super) const GTPU_PROFILE: ProtocolProfile = ProtocolProfile {

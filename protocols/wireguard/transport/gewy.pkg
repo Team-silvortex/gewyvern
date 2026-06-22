@@ -1,0 +1,7 @@
+name=wireguard_transport
+version=0.15.0
+entry=main.gewy
+register.protocol=wireguard
+register.entry=transport
+register.default=false
+register.entry_aliases=data,session,wireguard-data,wireguard_data

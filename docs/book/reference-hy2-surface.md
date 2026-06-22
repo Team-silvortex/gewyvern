@@ -9,7 +9,20 @@ Use it for:
 - `hy2` family lookup
 - default entry selection for `auth`
 - relay-oriented traffic such as `udp` and `tcp`
-- family aliases such as `hy2-auth`, `hysteria2-auth`, and `hysteria2`
+- family aliases such as `hy2-auth`, `hy2-relay`, `hy2-stream`,
+  `hy2-tcp`, `hy2-udp`, `hysteria2-auth`, and `hysteria2`
+
+Family aliases currently accepted by the registry:
+
+- `hy2-auth`
+- `hy2-relay`
+- `hy2-stream`
+- `hy2-tcp`
+- `hy2-udp`
+- `hysteria2`
+- `hysteria2-auth`
+- `hysteria2-tcp`
+- `hysteria2-udp`
 
 Primary subpages:
 

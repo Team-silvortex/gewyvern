@@ -275,7 +275,7 @@ fn built_in_amqp_summary_keeps_session_publish_and_consume() {
         .map(|entry| entry.mode)
         .collect::<Vec<_>>();
 
-    for mode in ["start", "publish", "consume", "session"] {
+    for mode in ["start", "auth-denied", "publish", "consume", "session"] {
         assert!(
             entries.contains(&mode.to_string()),
             "built-in amqp summary should contain `{mode}`"
@@ -293,6 +293,13 @@ fn built_in_amqp_summary_keeps_handshake_and_delivery_aliases() {
         .find(|entry| entry.mode == "start")
         .expect("amqp start entry should exist");
     assert!(start.aliases.contains(&"login".to_string()));
+
+    let auth_denied = entries
+        .iter()
+        .find(|entry| entry.mode == "auth-denied")
+        .expect("amqp auth-denied entry should exist");
+    assert!(auth_denied.aliases.contains(&"login-denied".to_string()));
+    assert!(auth_denied.aliases.contains(&"negotiate-denied".to_string()));
 
     let session = entries
         .iter()

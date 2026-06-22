@@ -82,6 +82,26 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES_MANIFEST: &[ProtocolAlias] = &[
         entry: Some("request"),
     },
     ProtocolAlias {
+        alias: "amqp-auth-denied",
+        protocol: "amqp",
+        entry: Some("auth-denied"),
+    },
+    ProtocolAlias {
+        alias: "amqp_auth_denied",
+        protocol: "amqp",
+        entry: Some("auth-denied"),
+    },
+    ProtocolAlias {
+        alias: "login-denied",
+        protocol: "amqp",
+        entry: Some("auth-denied"),
+    },
+    ProtocolAlias {
+        alias: "negotiate-denied",
+        protocol: "amqp",
+        entry: Some("auth-denied"),
+    },
+    ProtocolAlias {
         alias: "imap-auth",
         protocol: "imap",
         entry: Some("auth"),

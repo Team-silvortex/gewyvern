@@ -46,6 +46,29 @@ Coarse response shape:
 - password send
 - ready-for-query (`Z`)
 
+### `auth-denied`
+
+Aliases:
+
+- `login-denied`
+- `password-denied`
+- `postgres-auth-denied`
+- `postgres_auth_denied`
+
+Intent:
+
+- establish the PostgreSQL socket
+- receive server auth challenge
+- send password message
+- receive explicit rejection instead of ready state
+
+Coarse response shape:
+
+- same bind/connect/route scaffolding as `connect`
+- auth challenge (`R`)
+- password send
+- error response (`E`)
+
 ## Operator Reading Order
 
 Read the current PostgreSQL connect family in this order:
@@ -55,7 +78,20 @@ Read the current PostgreSQL connect family in this order:
 3. route resolution
 4. auth challenge
 5. password send
-6. ready state
+6. ready state or explicit error response
+
+## Machine-readable Semantics
+
+When selected through the JSON protocol-surface API, `auth-denied` currently
+exposes these machine-readable semantics:
+
+- category: `failure-path`
+- operator focus:
+  `database authentication rejection after PostgreSQL password exchange`
+- typical signal: `ErrorResponse`
+- primary failure mode: `server_denied`
+- primary failure detail: `access_denied`
+- primary failure basis: `direct_protocol_signal`
 
 ## Validation Surface
 
@@ -76,8 +112,12 @@ When you need the broader family map, return to
 This generated block tracks the aliases that currently resolve into this custom surface.
 
 - `postgres-auth`
+- `postgres-auth-denied`
 - `postgres-connect`
 - `postgres_auth`
+- `postgres_auth_denied`
 - `postgres_connect`
+- `login-denied`
+- `password-denied`
 
 <!-- gewyvern:entry-aliases:end -->

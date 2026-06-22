@@ -45,14 +45,16 @@ high-level grouping shown on this page:
 Families:
 
 - [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md)
+- [docs/book/reference-https-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-https-surface.md)
 - [docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md)
+- [docs/book/reference-hy2-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-surface.md)
 - [docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md)
 
 Cluster hint:
 
 - key: `web-proxy-request-response`
 - operator hint: Start with request/response intent, proxy handoff, and selected surface entry before drilling into transport details.
-- sibling protocols: `http`, `https`, `http3`, `socks5`
+- sibling protocols: `http`, `https`, `http3`, `hy2`, `socks5`
 
 ## Messaging, Queue, And Cache
 
@@ -102,22 +104,29 @@ Families:
 
 - [docs/book/reference-ldap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-surface.md)
 - [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md)
+- [docs/book/reference-kerberos-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-surface.md)
+- [docs/book/reference-radius-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-radius-surface.md)
 
 Cluster hint:
 
 - key: `identity-directory-access`
 - operator hint: Prioritize bind, credential, authorization, and access-gate stages; these protocols tend to fail with explicit denial semantics rather than silent payload drift.
 - sibling protocols: `ldap`, `ssh`, `kerberos`, `radius`
-- Kerberos: [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-
-Note:
-
-- Kerberos currently routes through the general protocol surface and family contract pages rather than a dedicated hub page in this book.
 
 ## Transport, Media, And Session Control
 
 Families:
 
+- [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)
+- [docs/book/reference-coap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-surface.md)
+- [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
+- [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
+- [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
+- [docs/book/reference-mdns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mdns-surface.md)
+- [docs/book/reference-ssdp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssdp-surface.md)
+- [docs/book/reference-gtpu-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gtpu-surface.md)
+- [docs/book/reference-wireguard-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-surface.md)
+- [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
 - [docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md)
 - [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md)
 - [docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md)
@@ -128,7 +137,7 @@ Cluster hint:
 
 - key: `secure-transport-session`
 - operator hint: Bias toward handshake, cipher, tunnel, and session-establishment stages; many failures here look like setup posture before payload semantics exist.
-- sibling protocols: `quic`, `tls`, `hy2`
+- sibling protocols: `stun`, `coap`, `dhcp`, `ntp`, `snmp`, `mdns`, `ssdp`, `gtpu`, `wireguard`, `tls`, `quic`, `dns`, `rtsp`, `sip`, `ftp`
 
 <!-- gewyvern:protocol-groups:end -->
 

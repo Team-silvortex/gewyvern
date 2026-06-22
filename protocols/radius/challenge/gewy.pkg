@@ -1,0 +1,8 @@
+name=radius_challenge
+version=0.15.0
+entry=main.gewy
+register.protocol=radius
+register.entry=challenge
+register.default=false
+register.aliases=radius-challenge,radius_challenge
+register.entry_aliases=otp,mfa

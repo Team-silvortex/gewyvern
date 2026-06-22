@@ -212,10 +212,20 @@ pub(super) const DHCP_PROFILE: ProtocolProfile = ProtocolProfile {
 pub(super) const WIREGUARD_PROFILE: ProtocolProfile = ProtocolProfile {
     name: "wireguard",
     default_entry: "handshake",
-    entries: &[ProtocolEntryProfile {
-        mode: "handshake",
-        dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_path.gewy",
-    }],
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "handshake",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "cookie",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_cookie_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "transport",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_transport_path.gewy",
+        },
+    ],
 };
 
 pub(super) const MDNS_PROFILE: ProtocolProfile = ProtocolProfile {

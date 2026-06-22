@@ -132,6 +132,16 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES: &[ProtocolAlias] = &[
         entry: Some("start"),
     },
     ProtocolAlias {
+        alias: "login-denied",
+        protocol: "amqp",
+        entry: Some("auth-denied"),
+    },
+    ProtocolAlias {
+        alias: "negotiate-denied",
+        protocol: "amqp",
+        entry: Some("auth-denied"),
+    },
+    ProtocolAlias {
         alias: "send",
         protocol: "amqp",
         entry: Some("publish"),
@@ -340,6 +350,76 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES: &[ProtocolAlias] = &[
         alias: "auth",
         protocol: "radius",
         entry: Some("access"),
+    },
+    ProtocolAlias {
+        alias: "radius-access",
+        protocol: "radius",
+        entry: Some("access"),
+    },
+    ProtocolAlias {
+        alias: "radius_access",
+        protocol: "radius",
+        entry: Some("access"),
+    },
+    ProtocolAlias {
+        alias: "otp",
+        protocol: "radius",
+        entry: Some("challenge"),
+    },
+    ProtocolAlias {
+        alias: "mfa",
+        protocol: "radius",
+        entry: Some("challenge"),
+    },
+    ProtocolAlias {
+        alias: "access-denied",
+        protocol: "radius",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "login-denied",
+        protocol: "radius",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "reject",
+        protocol: "radius",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "cookie-reply",
+        protocol: "wireguard",
+        entry: Some("cookie"),
+    },
+    ProtocolAlias {
+        alias: "wireguard-cookie",
+        protocol: "wireguard",
+        entry: Some("cookie"),
+    },
+    ProtocolAlias {
+        alias: "wireguard_cookie",
+        protocol: "wireguard",
+        entry: Some("cookie"),
+    },
+    ProtocolAlias {
+        alias: "data",
+        protocol: "wireguard",
+        entry: Some("transport"),
+    },
+    ProtocolAlias {
+        alias: "session",
+        protocol: "wireguard",
+        entry: Some("transport"),
+    },
+    ProtocolAlias {
+        alias: "wireguard-data",
+        protocol: "wireguard",
+        entry: Some("transport"),
+    },
+    ProtocolAlias {
+        alias: "wireguard_data",
+        protocol: "wireguard",
+        entry: Some("transport"),
     },
     ProtocolAlias {
         alias: "login",

@@ -1,7 +1,7 @@
 use super::super::ShelfMatch;
 
 pub(crate) fn amqp_shelf(entry: &str) -> Option<ShelfMatch> {
-    const START: &[&str] = &["start"];
+    const START: &[&str] = &["start", "auth-denied"];
     const SESSION_PUBLISH: &[&str] = &["session", "publish"];
     const CONSUME: &[&str] = &["consume"];
     if START.contains(&entry) {

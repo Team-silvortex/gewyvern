@@ -1,15 +1,15 @@
 use super::super::ShelfMatch;
 
 pub(crate) fn mysql_shelf(entry: &str) -> Option<ShelfMatch> {
-    const CONNECT: &[&str] = &["connect"];
+    const CONNECT_AUTH: &[&str] = &["connect", "auth", "auth-denied"];
     const QUERY_SESSION: &[&str] = &["query", "session"];
     const ERROR: &[&str] = &["error"];
-    if CONNECT.contains(&entry) {
+    if CONNECT_AUTH.contains(&entry) {
         Some((
-            "connect",
-            "Connect",
+            "connect-auth",
+            "Connect And Auth",
             "docs/book/reference-mysql-connect-surface.md",
-            CONNECT,
+            CONNECT_AUTH,
         ))
     } else if QUERY_SESSION.contains(&entry) {
         Some((
@@ -31,7 +31,7 @@ pub(crate) fn mysql_shelf(entry: &str) -> Option<ShelfMatch> {
 }
 
 pub(crate) fn postgres_shelf(entry: &str) -> Option<ShelfMatch> {
-    const CONNECT_AUTH: &[&str] = &["connect", "auth"];
+    const CONNECT_AUTH: &[&str] = &["connect", "auth", "auth-denied"];
     const QUERY_SESSION: &[&str] = &["query", "session"];
     const ERROR: &[&str] = &["error"];
     if CONNECT_AUTH.contains(&entry) {

@@ -30,6 +30,15 @@ Intent:
 - send modify traffic
 - receive modify denial
 
+Machine-readable semantics:
+
+- `category = failure-path`
+- `operator_focus = directory write refusal during LDAP modify result evaluation`
+- `typical_signal = modifyResponse`
+- `primary_failure_mode = server_denied`
+- `primary_failure_detail = access_denied`
+- `primary_failure_basis = direct_protocol_signal`
+
 ### `constraint`
 
 Aliases:
@@ -41,6 +50,15 @@ Intent:
 
 - send modify traffic
 - receive explicit constraint violation
+
+Machine-readable semantics:
+
+- `category = failure-path`
+- `operator_focus = directory constraint violation during LDAP modify result evaluation`
+- `typical_signal = modifyResponse`
+- `primary_failure_mode = semantic_error`
+- `primary_failure_detail = protocol_constraint_violation`
+- `primary_failure_basis = direct_protocol_signal`
 
 ### `write`
 
@@ -79,6 +97,14 @@ The write-oriented entries currently share a staged model built from:
 
 `sync` extends that write-oriented shape with search before modify so the whole
 directory synchronization path is visible in one model.
+
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("ldap", "denied")` and
+`protocol_surface("ldap", "constraint")` contracts now publish
+`entry_semantics` so operators and higher-level tooling can distinguish policy
+rejection from constraint violation without scraping lower-level diagnosis
+labels.
 
 ## Operator Reading Order
 

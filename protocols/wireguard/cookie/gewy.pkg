@@ -1,0 +1,7 @@
+name=wireguard_cookie
+version=0.15.0
+entry=main.gewy
+register.protocol=wireguard
+register.entry=cookie
+register.default=false
+register.entry_aliases=cookie-reply,wireguard-cookie,wireguard_cookie

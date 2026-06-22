@@ -34,9 +34,11 @@ The current registry also accepts these family-level spellings for AMQP entry
 selection:
 
 - `amqp-consume`
+- `amqp-auth-denied`
 - `amqp-publish`
 - `amqp-session`
 - `amqp-start`
+- `amqp_auth_denied`
 - `amqp_consume`
 - `amqp_publish`
 - `amqp_session`
@@ -54,6 +56,8 @@ Default entry: `session`
 Typical entries:
 
 - `start`
+- `auth-denied`
+- `amqp-auth-denied`
 
 ### Session And Publish
 

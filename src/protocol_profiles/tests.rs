@@ -492,6 +492,14 @@ fn access_and_messaging_entry_aliases_resolve_to_canonical_entries() {
         Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/start".to_string())
     );
     assert_eq!(
+        protocol_dsl_path("amqp-auth-denied", None),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/auth-denied".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("amqp", Some("login-denied")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/auth-denied".to_string())
+    );
+    assert_eq!(
         protocol_dsl_path("amqp", Some("connect")),
         Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/session".to_string())
     );

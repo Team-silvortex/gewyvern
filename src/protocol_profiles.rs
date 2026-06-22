@@ -339,6 +339,8 @@ mod tests_alias_policy;
 #[cfg(test)]
 mod tests_coap;
 #[cfg(test)]
+mod tests_database_error_surfaces;
+#[cfg(test)]
 mod tests_dhcp;
 #[cfg(test)]
 mod tests_docs;
@@ -347,9 +349,17 @@ mod tests_fallback;
 #[cfg(test)]
 mod tests_layout;
 #[cfg(test)]
+mod tests_ldap_write_failures;
+#[cfg(test)]
 mod tests_manifest_parity;
 #[cfg(test)]
 mod tests_ntp;
+#[cfg(test)]
+mod tests_postgres_auth_denied;
+#[cfg(test)]
+mod tests_radius;
+#[cfg(test)]
+mod tests_mysql_auth;
 #[cfg(test)]
 mod tests_semantics;
 #[cfg(test)]
@@ -362,3 +372,5 @@ mod tests_surface;
 mod tests_target_names;
 #[cfg(test)]
 mod tests_validation_paths;
+#[cfg(test)]
+mod tests_wireguard;

@@ -10,10 +10,23 @@ Use it for:
 - default entry selection for `get`
 - separating read traversal from explicit mutation
 - package aliases such as `snmp-bulk`, `snmp_bulk`, `snmp-get-next`, `snmp_get_next`, `snmp-set`, and `snmp_set`
-- notification-oriented traffic such as `snmp-trap` and `snmp_trap`
-- security-oriented SNMPv3 traffic such as `snmp-v3-auth` and `snmp-v3-priv`
-- management-oriented traffic such as `snmp-engine-sync` and `snmp-trap-recv`
-- result-oriented traffic such as `snmp-report` and `snmp-unauthorized`
+- notification-oriented traffic such as `snmp-trap`, `snmp_trap`, `snmp-trap-recv`, and `snmp_trap_recv`
+- security-oriented SNMPv3 traffic such as `snmp-v3-auth`, `snmp_v3_auth`, `snmp-v3-priv`, and `snmp_v3_priv`
+- management-oriented traffic such as `snmp-engine-sync`, `snmp_engine_sync`, `snmp-trap-recv`, and `snmp_trap_recv`
+- result-oriented traffic such as `snmp-report`, `snmp_report`, `snmp-unauthorized`, and `snmp_unauthorized`
+
+Current registry aliases also include:
+
+- `snmp-bulk`, `snmp_bulk`
+- `snmp-engine-sync`, `snmp_engine_sync`
+- `snmp-get-next`, `snmp_get_next`
+- `snmp-report`, `snmp_report`
+- `snmp-set`, `snmp_set`
+- `snmp-trap`, `snmp_trap`
+- `snmp-trap-recv`, `snmp_trap_recv`
+- `snmp-unauthorized`, `snmp_unauthorized`
+- `snmp-v3-auth`, `snmp_v3_auth`
+- `snmp-v3-priv`, `snmp_v3_priv`
 - diagnosis semantics for SNMP timeout, denial, and explicit report outcomes
 
 Quick role map:
@@ -34,7 +47,6 @@ Quick role map:
 Primary subpages:
 
 - [docs/book/reference-snmp-role-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-role-matrix.md)
-- [docs/book/reference-snmp-bulk-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-bulk-surface.md)
 - [docs/book/reference-snmp-read-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-read-surface.md)
 - [docs/book/reference-snmp-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-set-surface.md)
 - [docs/book/reference-snmp-notify-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-notify-surface.md)

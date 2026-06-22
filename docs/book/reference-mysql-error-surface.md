@@ -30,6 +30,21 @@ Coarse response shape:
 - query send
 - error receive
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("mysql", "error")` contract now publishes
+`entry_semantics` so operators and higher-level tooling can treat explicit
+database error packets as a structured failure surface.
+
+Current query-error semantics:
+
+- `category = failure-path`
+- `operator_focus = database error response during MySQL query result handling`
+- `typical_signal = ERR`
+- `primary_failure_mode = semantic_error`
+- `primary_failure_detail = protocol_error`
+- `primary_failure_basis = direct_protocol_signal`
+
 ## Operator Reading Order
 
 Read the current MySQL error family in this order:
@@ -53,6 +68,9 @@ registry path:
 
 For the broader family map, see
 [docs/book/reference-mysql-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-surface.md).
+
+For the cross-database comparison table, see
+[docs/book/reference-database-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-database-failure-semantics.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

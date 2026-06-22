@@ -1,0 +1,7 @@
+name=mysql_auth
+version=0.15.0
+entry=main.gewy
+register.protocol=mysql
+register.entry=auth
+register.default=false
+register.aliases=mysql-auth,mysql_auth

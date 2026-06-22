@@ -1,0 +1,8 @@
+name=postgres_auth_denied
+version=0.15.0
+entry=main.gewy
+register.protocol=postgres
+register.entry=auth-denied
+register.default=false
+register.aliases=postgres-auth-denied,postgres_auth_denied
+register.entry_aliases=login-denied,password-denied

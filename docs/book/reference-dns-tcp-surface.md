@@ -7,10 +7,12 @@ DNS behavior.
 
 ### `tcp`
 
+### `dot`
+
 - Protocol:
   `dns`
 - Aliases:
-  `dns-tcp`, `dns_tcp`
+  `dns-over-tls`, `dns-tcp`, `dns_over_tls`, `dns_tcp`, `dot`
 - Default entry:
   no
 
@@ -24,6 +26,13 @@ The current `tcp` flow models:
 
 This is the narrowest DNS page to use when you need to distinguish stream-based
 DNS query posture from the default UDP lookup path.
+
+The same custom shelf also covers the encrypted-resolver alias family that
+selects the TCP path first:
+
+- `dot`
+- `dns-over-tls`
+- `dns_over_tls`
 
 ## Operator Reading Order
 
@@ -47,6 +56,9 @@ For the broader family map, see
 This generated block tracks the aliases that currently resolve into this custom surface.
 
 - `dns-tcp`
+- `dns-over-tls`
+- `dns_over_tls`
 - `dns_tcp`
+- `dot`
 
 <!-- gewyvern:entry-aliases:end -->

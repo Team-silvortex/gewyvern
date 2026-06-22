@@ -133,6 +133,53 @@ Then continue with:
   - [docs/book/reference-amqp-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-session-surface.md)
   - [docs/book/reference-amqp-start-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-start-surface.md)
 
+### CoAP
+
+- Hub:
+  [docs/book/reference-coap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-surface.md)
+- Subpages:
+  - [docs/book/reference-coap-get-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-get-surface.md)
+  - [docs/book/reference-coap-write-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-write-surface.md)
+
+### DHCP
+
+- Hub:
+  [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
+- Subpages:
+  - [docs/book/reference-dhcp-client-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-client-surface.md)
+  - [docs/book/reference-dhcp-lease-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-lease-surface.md)
+
+### GTP-U
+
+- Hub:
+  [docs/book/reference-gtpu-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gtpu-surface.md)
+
+### HTTPS
+
+- Hub:
+  [docs/book/reference-https-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-https-surface.md)
+
+### Hysteria 2
+
+- Hub:
+  [docs/book/reference-hy2-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-surface.md)
+- Subpages:
+  - [docs/book/reference-hy2-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-auth-surface.md)
+  - [docs/book/reference-hy2-relay-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-relay-surface.md)
+
+### Kerberos
+
+- Hub:
+  [docs/book/reference-kerberos-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-surface.md)
+- Subpages:
+  - [docs/book/reference-kerberos-as-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-as-surface.md)
+  - [docs/book/reference-kerberos-tgs-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-tgs-surface.md)
+
+### mDNS
+
+- Hub:
+  [docs/book/reference-mdns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mdns-surface.md)
+
 ### SSH
 
 - Hub:
@@ -141,6 +188,14 @@ Then continue with:
   - [docs/book/reference-ssh-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-auth-surface.md)
   - [docs/book/reference-ssh-channel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-channel-surface.md)
   - [docs/book/reference-ssh-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-session-surface.md)
+
+### NTP
+
+- Hub:
+  [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
+- Subpages:
+  - [docs/book/reference-ntp-client-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-client-surface.md)
+  - [docs/book/reference-ntp-time-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-time-surface.md)
 
 ### RTSP
 
@@ -210,6 +265,54 @@ Then continue with:
 - Subpages:
   - [docs/book/reference-memcached-get-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-get-surface.md)
   - [docs/book/reference-memcached-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-set-surface.md)
+
+### RADIUS
+
+- Hub:
+  [docs/book/reference-radius-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-radius-surface.md)
+- Subpages:
+  - [docs/book/reference-radius-access-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-radius-access-surface.md)
+  - [docs/book/reference-radius-challenge-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-radius-challenge-surface.md)
+  - [docs/book/reference-radius-denied-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-radius-denied-surface.md)
+
+### SNMP
+
+- Hub:
+  [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
+- Subpages:
+  - [docs/book/reference-snmp-manage-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-manage-surface.md)
+  - [docs/book/reference-snmp-notify-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-notify-surface.md)
+  - [docs/book/reference-snmp-read-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-read-surface.md)
+  - [docs/book/reference-snmp-result-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-result-surface.md)
+  - [docs/book/reference-snmp-security-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-security-surface.md)
+  - [docs/book/reference-snmp-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-set-surface.md)
+
+### SSDP
+
+- Hub:
+  [docs/book/reference-ssdp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssdp-surface.md)
+
+### STUN
+
+- Hub:
+  [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)
+- Subpages:
+  - [docs/book/reference-stun-binding-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-binding-surface.md)
+  - [docs/book/reference-stun-relay-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-relay-surface.md)
+
+### TLS
+
+- Hub:
+  [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
+
+### WireGuard
+
+- Hub:
+  [docs/book/reference-wireguard-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-surface.md)
+- Subpages:
+  - [docs/book/reference-wireguard-cookie-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-cookie-surface.md)
+  - [docs/book/reference-wireguard-handshake-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-handshake-surface.md)
+  - [docs/book/reference-wireguard-transport-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-transport-surface.md)
 
 <!-- gewyvern:family-shelves:end -->
 

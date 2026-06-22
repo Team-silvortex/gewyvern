@@ -1,0 +1,8 @@
+name=radius_denied
+version=0.15.0
+entry=main.gewy
+register.protocol=radius
+register.entry=denied
+register.default=false
+register.aliases=radius-denied,radius_denied
+register.entry_aliases=access-denied,login-denied,reject

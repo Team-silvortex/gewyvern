@@ -4,4 +4,4 @@ entry=main.gewy
 register.protocol=radius
 register.entry=access
 register.default=true
-register.entry_aliases=login,auth
+register.entry_aliases=login,auth,radius-access,radius_access

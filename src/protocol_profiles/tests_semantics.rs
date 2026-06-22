@@ -427,3 +427,29 @@ fn ftp_and_ssh_login_denied_surfaces_expose_machine_readable_entry_semantics() {
     let ssh_auth = protocol_surface("ssh", "auth").expect("ssh auth should exist");
     assert!(ssh_auth.entry_semantics.is_none());
 }
+
+#[test]
+fn amqp_auth_denied_surface_exposes_machine_readable_entry_semantics() {
+    let amqp = protocol_surface("amqp", "auth-denied").expect("amqp auth-denied should exist");
+    let semantics = amqp
+        .entry_semantics
+        .expect("amqp auth-denied should expose semantics");
+    assert_eq!(semantics.category, "failure-path");
+    assert_eq!(
+        semantics.operator_focus,
+        "broker connection close after AMQP start-ok credential or mechanism negotiation"
+    );
+    assert_eq!(semantics.typical_signal.as_deref(), Some("connection.close"));
+    assert_eq!(
+        semantics.primary_failure_mode.as_deref(),
+        Some("server_denied")
+    );
+    assert_eq!(
+        semantics.primary_failure_detail.as_deref(),
+        Some("access_denied")
+    );
+    assert_eq!(
+        semantics.primary_failure_basis.as_deref(),
+        Some("direct_protocol_signal")
+    );
+}

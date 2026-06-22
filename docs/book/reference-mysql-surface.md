@@ -6,7 +6,7 @@ stable lookup material instead of a tutorial.
 This shelf groups the current MySQL coverage into three narrower
 operator-facing surfaces:
 
-- socket connect
+- socket connect and auth
 - query and query-session flow
 - query error flow
 
@@ -31,10 +31,14 @@ Across the subpages, the lookup contract focuses on:
 The current registry also accepts these family-level spellings for MySQL entry
 selection:
 
+- `mysql-auth`
+- `mysql-auth-denied`
 - `mysql-connect`
 - `mysql-error`
 - `mysql-query`
 - `mysql-session`
+- `mysql_auth`
+- `mysql_auth_denied`
 - `mysql_connect`
 - `mysql_error`
 - `mysql_query`
@@ -44,14 +48,16 @@ Default entry: `session`
 
 ## MySQL Surface Map
 
-### Connect
+### Connect And Auth
 
 - [docs/book/reference-mysql-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-connect-surface.md)
-  Socket establishment and route-resolution flow.
+  Socket establishment, handshake, and auth-denial flow.
 
 Typical entries:
 
 - `connect`
+- `auth`
+- `auth-denied`
 
 ### Query And Session
 

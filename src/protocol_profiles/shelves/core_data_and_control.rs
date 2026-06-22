@@ -68,12 +68,28 @@ pub(crate) fn quic_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn radius_shelf(entry: &str) -> Option<ShelfMatch> {
     const ACCESS: &[&str] = &["access"];
+    const CHALLENGE: &[&str] = &["challenge"];
+    const DENIED: &[&str] = &["denied"];
     if ACCESS.contains(&entry) {
         Some((
             "access",
             "Access",
-            "docs/book/reference-radius-surface.md",
+            "docs/book/reference-radius-access-surface.md",
             ACCESS,
+        ))
+    } else if CHALLENGE.contains(&entry) {
+        Some((
+            "challenge",
+            "Challenge",
+            "docs/book/reference-radius-challenge-surface.md",
+            CHALLENGE,
+        ))
+    } else if DENIED.contains(&entry) {
+        Some((
+            "denied",
+            "Denied",
+            "docs/book/reference-radius-denied-surface.md",
+            DENIED,
         ))
     } else {
         None

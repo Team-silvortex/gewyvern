@@ -74,7 +74,6 @@ If you are validating current DNS support, the shortest useful order is:
   [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
 - For encrypted resolver intent layered on the TCP branch:
   treat `dot` as the DNS `tcp` shelf plus the TLS client handshake reading path
-  in [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
 - For the compact DoT reading spine itself:
   [docs/book/reference-dot-overlay.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dot-overlay.md)
 

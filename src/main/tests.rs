@@ -50,8 +50,22 @@ mod api_multi_instance;
 mod api_persistence;
 #[path = "tests/api_protocol_catalog.rs"]
 mod api_protocol_catalog;
+#[path = "tests/api_protocol_surface_semantics_database.rs"]
+mod api_protocol_surface_semantics_database;
 #[path = "tests/api_protocol_surface_semantics.rs"]
 mod api_protocol_surface_semantics;
+#[path = "tests/api_protocol_surface_semantics_amqp.rs"]
+mod api_protocol_surface_semantics_amqp;
+#[path = "tests/api_protocol_surface_semantics_ldap.rs"]
+mod api_protocol_surface_semantics_ldap;
+#[path = "tests/api_protocol_surface_semantics_mysql.rs"]
+mod api_protocol_surface_semantics_mysql;
+#[path = "tests/api_protocol_surface_semantics_postgres.rs"]
+mod api_protocol_surface_semantics_postgres;
+#[path = "tests/api_protocol_surface_semantics_radius.rs"]
+mod api_protocol_surface_semantics_radius;
+#[path = "tests/api_protocol_surface_semantics_wireguard.rs"]
+mod api_protocol_surface_semantics_wireguard;
 #[path = "tests/api_sidecar.rs"]
 mod api_sidecar;
 #[path = "tests/certificate_api.rs"]

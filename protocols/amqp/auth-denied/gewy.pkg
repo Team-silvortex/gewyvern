@@ -1,0 +1,9 @@
+name=amqp_auth_denied
+version=0.15.0
+entry=main.gewy
+register.protocol=amqp
+register.entry=auth-denied
+register.default=false
+register.aliases=amqp-auth-denied,amqp_auth_denied
+register.entry_aliases=login-denied,negotiate-denied
+description=AMQP start negotiation denied path

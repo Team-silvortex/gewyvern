@@ -7,20 +7,49 @@ Use it for:
 
 - `wireguard` family lookup
 - default entry selection for `handshake`
+- cookie-reply continuation paths such as `cookie-reply` and `wireguard-cookie`
+- encrypted payload paths such as `data`, `session`, and `wireguard-data`
 
 Current canonical entries:
 
 - `handshake` as the default entry
+- `cookie`
+- `transport`
 
 Default entry: `handshake`
 
-The current line keeps WireGuard as a compact single-slice family:
+## WireGuard Surface Map
 
-- identify a WireGuard peer handshake path
-- keep the family hub tight until there is enough protocol depth to justify narrower subpages
+### Handshake
+
+- [docs/book/reference-wireguard-handshake-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-handshake-surface.md)
+  Peer initiation and response exchange.
+
+Typical entries:
+
+- `handshake`
+
+### Cookie Reply
+
+- [docs/book/reference-wireguard-cookie-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-cookie-surface.md)
+  Peer anti-abuse continuation branch.
+
+Typical entries:
+
+- `cookie`
+
+### Transport
+
+- [docs/book/reference-wireguard-transport-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-transport-surface.md)
+  Encrypted payload datagrams after setup.
+
+Typical entries:
+
+- `transport`
 
 Read in this order:
 
 1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
 2. [docs/book/reference-wireguard-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-surface.md)
-3. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+3. one exact WireGuard subpage
+4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)

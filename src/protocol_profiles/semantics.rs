@@ -5,20 +5,47 @@ pub(super) fn built_in_protocol_entry_semantics(
     entry: &str,
 ) -> Option<ProtocolEntrySemanticsSummary> {
     match protocol {
+        "amqp" => amqp_entry_semantics(entry),
         "ftp" => ftp_entry_semantics(entry),
         "http" => http_entry_semantics(entry),
         "imap" => imap_entry_semantics(entry),
         "kerberos" => kerberos_entry_semantics(entry),
         "ldap" => ldap_entry_semantics(entry),
+        "mysql" => mysql_entry_semantics(entry),
         "pop3" => pop3_entry_semantics(entry),
+        "postgres" => postgres_entry_semantics(entry),
+        "radius" => radius_entry_semantics(entry),
         "redis" => redis_entry_semantics(entry),
         "snmp" => snmp_entry_semantics(entry),
         "socks5" => socks5_entry_semantics(entry),
         "smtp" => smtp_entry_semantics(entry),
         "stun" => stun_entry_semantics(entry),
         "ssh" => ssh_entry_semantics(entry),
+        "wireguard" => wireguard_entry_semantics(entry),
         _ => None,
     }
+}
+
+fn amqp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (operator_focus, typical_signal, failure_mode, failure_detail, failure_basis) = match entry
+    {
+        "auth-denied" => (
+            "broker connection close after AMQP start-ok credential or mechanism negotiation",
+            Some("connection.close"),
+            Some("server_denied"),
+            Some("access_denied"),
+            Some("direct_protocol_signal"),
+        ),
+        _ => return None,
+    };
+    Some(ProtocolEntrySemanticsSummary {
+        category: "failure-path".into(),
+        operator_focus: operator_focus.into(),
+        typical_signal: typical_signal.map(str::to_string),
+        primary_failure_mode: failure_mode.map(str::to_string),
+        primary_failure_detail: failure_detail.map(str::to_string),
+        primary_failure_basis: failure_basis.map(str::to_string),
+    })
 }
 
 fn ftp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
@@ -88,11 +115,27 @@ fn http_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
 }
 
 fn ldap_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
-    let (operator_focus, failure_mode, failure_detail, failure_basis) = match entry {
+    let (operator_focus, typical_signal, failure_mode, failure_detail, failure_basis) = match entry
+    {
         "bind-denied" => (
             "directory credential or bind-policy rejection during auth establishment",
+            None,
             Some("server_denied"),
             Some("access_denied"),
+            Some("direct_protocol_signal"),
+        ),
+        "denied" => (
+            "directory write refusal during LDAP modify result evaluation",
+            Some("modifyResponse"),
+            Some("server_denied"),
+            Some("access_denied"),
+            Some("direct_protocol_signal"),
+        ),
+        "constraint" => (
+            "directory constraint violation during LDAP modify result evaluation",
+            Some("modifyResponse"),
+            Some("semantic_error"),
+            Some("protocol_constraint_violation"),
             Some("direct_protocol_signal"),
         ),
         _ => return None,
@@ -100,7 +143,36 @@ fn ldap_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     Some(ProtocolEntrySemanticsSummary {
         category: "failure-path".into(),
         operator_focus: operator_focus.into(),
-        typical_signal: None,
+        typical_signal: typical_signal.map(str::to_string),
+        primary_failure_mode: failure_mode.map(str::to_string),
+        primary_failure_detail: failure_detail.map(str::to_string),
+        primary_failure_basis: failure_basis.map(str::to_string),
+    })
+}
+
+fn mysql_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (operator_focus, typical_signal, failure_mode, failure_detail, failure_basis) = match entry
+    {
+        "auth-denied" => (
+            "database authentication rejection during MySQL handshake response evaluation",
+            Some("ERR"),
+            Some("server_denied"),
+            Some("access_denied"),
+            Some("direct_protocol_signal"),
+        ),
+        "error" => (
+            "database error response during MySQL query result handling",
+            Some("ERR"),
+            Some("semantic_error"),
+            Some("protocol_error"),
+            Some("direct_protocol_signal"),
+        ),
+        _ => return None,
+    };
+    Some(ProtocolEntrySemanticsSummary {
+        category: "failure-path".into(),
+        operator_focus: operator_focus.into(),
+        typical_signal: typical_signal.map(str::to_string),
         primary_failure_mode: failure_mode.map(str::to_string),
         primary_failure_detail: failure_detail.map(str::to_string),
         primary_failure_basis: failure_basis.map(str::to_string),
@@ -143,6 +215,66 @@ fn pop3_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     };
     Some(ProtocolEntrySemanticsSummary {
         category: "failure-path".into(),
+        operator_focus: operator_focus.into(),
+        typical_signal: typical_signal.map(str::to_string),
+        primary_failure_mode: failure_mode.map(str::to_string),
+        primary_failure_detail: failure_detail.map(str::to_string),
+        primary_failure_basis: failure_basis.map(str::to_string),
+    })
+}
+
+fn postgres_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (operator_focus, typical_signal, failure_mode, failure_detail, failure_basis) = match entry
+    {
+        "auth-denied" => (
+            "database authentication rejection after PostgreSQL password exchange",
+            Some("ErrorResponse"),
+            Some("server_denied"),
+            Some("access_denied"),
+            Some("direct_protocol_signal"),
+        ),
+        "error" => (
+            "database error frame during PostgreSQL query result handling",
+            Some("ErrorResponse"),
+            Some("semantic_error"),
+            Some("protocol_error"),
+            Some("direct_protocol_signal"),
+        ),
+        _ => return None,
+    };
+    Some(ProtocolEntrySemanticsSummary {
+        category: "failure-path".into(),
+        operator_focus: operator_focus.into(),
+        typical_signal: typical_signal.map(str::to_string),
+        primary_failure_mode: failure_mode.map(str::to_string),
+        primary_failure_detail: failure_detail.map(str::to_string),
+        primary_failure_basis: failure_basis.map(str::to_string),
+    })
+}
+
+fn radius_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal, failure_mode, failure_detail, failure_basis) =
+        match entry {
+            "challenge" => (
+                "continuation-path",
+                "identity challenge continuation during RADIUS Access-Challenge evaluation",
+                Some("Access-Challenge"),
+                None,
+                None,
+                None,
+            ),
+            "denied" => (
+                "failure-path",
+                "identity access rejection during RADIUS Access-Reject evaluation",
+                Some("Access-Reject"),
+                Some("server_denied"),
+                Some("access_denied"),
+                Some("direct_protocol_signal"),
+            ),
+            _ => return None,
+        };
+    Some(ProtocolEntrySemanticsSummary {
+        category: category.into(),
         operator_focus: operator_focus.into(),
         typical_signal: typical_signal.map(str::to_string),
         primary_failure_mode: failure_mode.map(str::to_string),
@@ -255,6 +387,29 @@ fn stun_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
         category: "failure-path".into(),
         operator_focus: operator_focus.into(),
         typical_signal: None,
+        primary_failure_mode: failure_mode.map(str::to_string),
+        primary_failure_detail: failure_detail.map(str::to_string),
+        primary_failure_basis: failure_basis.map(str::to_string),
+    })
+}
+
+fn wireguard_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal, failure_mode, failure_detail, failure_basis) =
+        match entry {
+            "cookie" => (
+                "continuation-path",
+                "peer anti-abuse continuation during WireGuard cookie reply evaluation",
+                Some("Cookie Reply"),
+                None,
+                None,
+                None,
+            ),
+            _ => return None,
+        };
+    Some(ProtocolEntrySemanticsSummary {
+        category: category.into(),
+        operator_focus: operator_focus.into(),
+        typical_signal: typical_signal.map(str::to_string),
         primary_failure_mode: failure_mode.map(str::to_string),
         primary_failure_detail: failure_detail.map(str::to_string),
         primary_failure_basis: failure_basis.map(str::to_string),

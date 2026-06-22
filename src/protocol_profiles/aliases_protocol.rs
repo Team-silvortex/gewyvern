@@ -117,6 +117,26 @@ pub(crate) const PROTOCOL_ALIASES: &[ProtocolAlias] = &[
         entry: Some("udp"),
     },
     ProtocolAlias {
+        alias: "radius-challenge",
+        protocol: "radius",
+        entry: Some("challenge"),
+    },
+    ProtocolAlias {
+        alias: "radius_challenge",
+        protocol: "radius",
+        entry: Some("challenge"),
+    },
+    ProtocolAlias {
+        alias: "radius-denied",
+        protocol: "radius",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "radius_denied",
+        protocol: "radius",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
         alias: "postgres-connect",
         protocol: "postgres",
         entry: Some("connect"),
@@ -135,6 +155,16 @@ pub(crate) const PROTOCOL_ALIASES: &[ProtocolAlias] = &[
         alias: "postgres_auth",
         protocol: "postgres",
         entry: Some("auth"),
+    },
+    ProtocolAlias {
+        alias: "postgres-auth-denied",
+        protocol: "postgres",
+        entry: Some("auth-denied"),
+    },
+    ProtocolAlias {
+        alias: "postgres_auth_denied",
+        protocol: "postgres",
+        entry: Some("auth-denied"),
     },
     ProtocolAlias {
         alias: "postgres-query",
@@ -175,6 +205,26 @@ pub(crate) const PROTOCOL_ALIASES: &[ProtocolAlias] = &[
         alias: "mysql_connect",
         protocol: "mysql",
         entry: Some("connect"),
+    },
+    ProtocolAlias {
+        alias: "mysql-auth",
+        protocol: "mysql",
+        entry: Some("auth"),
+    },
+    ProtocolAlias {
+        alias: "mysql_auth",
+        protocol: "mysql",
+        entry: Some("auth"),
+    },
+    ProtocolAlias {
+        alias: "mysql-auth-denied",
+        protocol: "mysql",
+        entry: Some("auth-denied"),
+    },
+    ProtocolAlias {
+        alias: "mysql_auth_denied",
+        protocol: "mysql",
+        entry: Some("auth-denied"),
     },
     ProtocolAlias {
         alias: "mysql-query",

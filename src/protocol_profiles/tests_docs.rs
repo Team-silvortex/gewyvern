@@ -463,6 +463,7 @@ fn expected_hub_subpages() -> BTreeMap<String, BTreeSet<String>> {
             .filter_map(|entry| protocol_surface(&summary.protocol, &entry.mode))
             .filter_map(|surface| surface.shelf)
             .map(|shelf| shelf.page)
+            .filter(|page| page.ends_with("-surface.md"))
             .filter(|page| page != PROTOCOL_SURFACE_PAGE && page != &hub_page)
             .collect::<BTreeSet<_>>();
         if !subpages.is_empty() {
@@ -483,6 +484,9 @@ fn current_custom_subpages() -> BTreeMap<String, CustomSubpageSummary> {
             let Some(shelf) = surface.shelf else {
                 continue;
             };
+            if !shelf.page.ends_with("-surface.md") {
+                continue;
+            }
             if shelf.page == PROTOCOL_SURFACE_PAGE || shelf.page == hub_page {
                 continue;
             }

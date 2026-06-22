@@ -26,6 +26,21 @@ Coarse response shape:
 - query send
 - error receive (`E`)
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("postgres", "error")` contract now publishes
+`entry_semantics` so operators and higher-level tooling can treat explicit
+server error frames as a structured failure surface.
+
+Current query-error semantics:
+
+- `category = failure-path`
+- `operator_focus = database error frame during PostgreSQL query result handling`
+- `typical_signal = ErrorResponse`
+- `primary_failure_mode = semantic_error`
+- `primary_failure_detail = protocol_error`
+- `primary_failure_basis = direct_protocol_signal`
+
 ## Operator Reading Order
 
 Read the current PostgreSQL error family in this order:
@@ -50,6 +65,9 @@ registry path:
 
 For the broader family map, see
 [docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md).
+
+For the cross-database comparison table, see
+[docs/book/reference-database-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-database-failure-semantics.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

@@ -1,0 +1,8 @@
+name=mysql_auth_denied
+version=0.15.0
+entry=main.gewy
+register.protocol=mysql
+register.entry=auth-denied
+register.default=false
+register.aliases=mysql-auth-denied,mysql_auth_denied
+register.entry_aliases=handshake-denied,login-denied

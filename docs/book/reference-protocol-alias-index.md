@@ -13,9 +13,10 @@ This index is intended to stay synchronized with the registry-backed protocol su
 ## `amqp`
 
 Default entry: `session`  
-Protocol aliases: `amqp-consume`, `amqp-publish`, `amqp-session`, `amqp-start`, `amqp_consume`, `amqp_publish`, `amqp_session`, `amqp_start`  
+Protocol aliases: `amqp-auth-denied`, `amqp-consume`, `amqp-publish`, `amqp-session`, `amqp-start`, `amqp_auth_denied`, `amqp_consume`, `amqp_publish`, `amqp_session`, `amqp_start`  
 Entry aliases:
 - `session` (default): `amqp-session`, `amqp_session`, `connect`
+- `auth-denied`: `amqp-auth-denied`, `amqp_auth_denied`, `login-denied`, `negotiate-denied`
 - `consume`: `amqp-consume`, `amqp_consume`, `deliver`, `receive`
 - `publish`: `amqp-publish`, `amqp_publish`, `send`
 - `start`: `amqp-start`, `amqp_start`, `login`, `negotiate`
@@ -169,9 +170,11 @@ Entry aliases:
 ## `mysql`
 
 Default entry: `session`  
-Protocol aliases: `mysql-connect`, `mysql-error`, `mysql-query`, `mysql-session`, `mysql_connect`, `mysql_error`, `mysql_query`, `mysql_session`  
+Protocol aliases: `mysql-auth`, `mysql-auth-denied`, `mysql-connect`, `mysql-error`, `mysql-query`, `mysql-session`, `mysql_auth`, `mysql_auth_denied`, `mysql_connect`, `mysql_error`, `mysql_query`, `mysql_session`  
 Entry aliases:
 - `session` (default): `mysql-session`, `mysql_session`
+- `auth`: `mysql-auth`, `mysql_auth`
+- `auth-denied`: `handshake-denied`, `login-denied`, `mysql-auth-denied`, `mysql_auth_denied`
 - `connect`: `mysql-connect`, `mysql_connect`
 - `error`: `mysql-error`, `mysql_error`
 - `query`: `mysql-query`, `mysql_query`
@@ -197,10 +200,11 @@ Entry aliases:
 ## `postgres`
 
 Default entry: `query`  
-Protocol aliases: `postgres-auth`, `postgres-connect`, `postgres-error`, `postgres-query`, `postgres-session`, `postgres_auth`, `postgres_connect`, `postgres_error`, `postgres_query`, `postgres_session`  
+Protocol aliases: `postgres-auth`, `postgres-auth-denied`, `postgres-connect`, `postgres-error`, `postgres-query`, `postgres-session`, `postgres_auth`, `postgres_auth_denied`, `postgres_connect`, `postgres_error`, `postgres_query`, `postgres_session`  
 Entry aliases:
 - `query` (default): `postgres-query`, `postgres_query`
 - `auth`: `postgres-auth`, `postgres_auth`
+- `auth-denied`: `login-denied`, `password-denied`, `postgres-auth-denied`, `postgres_auth_denied`
 - `connect`: `postgres-connect`, `postgres_connect`
 - `error`: `postgres-error`, `postgres_error`
 - `session`: `auth-query`, `postgres-session`, `postgres_session`, `query-session`
@@ -218,9 +222,11 @@ Entry aliases:
 ## `radius`
 
 Default entry: `access`  
-Protocol aliases: none  
+Protocol aliases: `radius-challenge`, `radius-denied`, `radius_challenge`, `radius_denied`  
 Entry aliases:
-- `access` (default): `auth`, `login`
+- `access` (default): `auth`, `login`, `radius-access`, `radius_access`
+- `challenge`: `mfa`, `otp`, `radius-challenge`, `radius_challenge`
+- `denied`: `access-denied`, `login-denied`, `radius-denied`, `radius_denied`, `reject`
 
 ## `redis`
 
@@ -336,6 +342,7 @@ Protocol aliases: none
 Entry aliases:
 - `session` (default): none
 - `auth`: `login`
+- `auth-denied`: `login-denied`
 - `data`: `message`
 - `data-denied`: `message-denied`
 - `mail`: `sender`
@@ -411,3 +418,5 @@ Default entry: `handshake`
 Protocol aliases: none  
 Entry aliases:
 - `handshake` (default): none
+- `cookie`: `cookie-reply`, `wireguard-cookie`, `wireguard_cookie`
+- `transport`: `data`, `session`, `wireguard-data`, `wireguard_data`

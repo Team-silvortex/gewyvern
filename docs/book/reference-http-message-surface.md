@@ -10,6 +10,9 @@ request and response traffic.
 Aliases:
 
 - `client`
+- `dns-over-https`
+- `dns_over_https`
+- `doh`
 - `http-client`
 - `http-request`
 - `http_client`
@@ -76,6 +79,9 @@ When you need the broader family map, return to
 This generated block tracks the aliases that currently resolve into this custom surface.
 
 - `client`
+- `dns-over-https`
+- `dns_over_https`
+- `doh`
 - `http-client`
 - `http-request`
 - `http-server`
