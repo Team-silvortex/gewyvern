@@ -1,0 +1,7 @@
+name=quic_local_close
+version=0.17.0
+entry=main.gewy
+register.protocol=quic
+register.entry=local-close
+register.default=false
+register.entry_aliases=local-close,local_close,quic-local-close,quic_local_close,active-close,active_close

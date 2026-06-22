@@ -2315,6 +2315,67 @@ fn tls_client_path_missing_packet_phase_produces_establish_transition() {
 }
 
 #[test]
+fn built_in_tls_server_path_dsl_compiles_into_template_binding() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_server_path.gewy").unwrap();
+    assert_eq!(binding.template.id, "tls_server_path");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::Custom("tls_server".into())
+    );
+}
+
+#[test]
+fn tls_server_path_materializes_accept_and_server_hello_phases() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_server_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 811, 8443, "nginx"));
+    session.ingest(tcp_state_fact_with_ports(2, 811, 1, 2, 443, 53000));
+    session.ingest(tcp_state_fact_with_ports(3, 811, 2, 3, 443, 53000));
+    session.ingest(packet_fact_with_dir(4, 811, 0x18, PacketDir::Ingress));
+    session.ingest(packet_fact_with_dir(5, 811, 0x18, PacketDir::Egress));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
+
+    let export = session.export_bundle();
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("tls_server".into())
+    );
+    let phases = export.program_flows[0]
+        .stages
+        .iter()
+        .filter_map(|stage| stage.phase.clone())
+        .collect::<Vec<_>>();
+    assert!(phases.contains(&"accept".to_string()));
+    assert!(phases.contains(&"establish".to_string()));
+    assert!(phases.contains(&"receive_client_hello".to_string()));
+    assert!(phases.contains(&"send_server_hello".to_string()));
+    assert_eq!(export.module_findings.len(), 0);
+}
+
+#[test]
+fn tls_server_path_missing_server_hello_produces_receive_to_send_transition() {
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_server_path.gewy").unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 812, 8443, "nginx"));
+    session.ingest(tcp_state_fact_with_ports(2, 812, 1, 2, 443, 53000));
+    session.ingest(tcp_state_fact_with_ports(3, 812, 2, 3, 443, 53000));
+    session.ingest(packet_fact_with_dir(4, 812, 0x18, PacketDir::Ingress));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert!(export.program_findings.iter().any(|finding| {
+        finding.phase.as_deref() == Some("send_server_hello")
+            && finding.phase_transition.as_deref()
+                == Some("receive_client_hello->send_server_hello")
+    }));
+}
+
+#[test]
 fn quic_client_initial_path_materializes_initial_and_handshake_datagrams() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")

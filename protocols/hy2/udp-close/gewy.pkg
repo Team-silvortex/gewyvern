@@ -1,0 +1,7 @@
+name=hy2_udp_close
+version=0.17.0
+entry=main.gewy
+register.protocol=hy2
+register.entry=udp-close
+register.default=false
+register.entry_aliases=udp-close,udp_close,hy2-udp-close,hy2_udp_close,hysteria2-udp-close,hysteria2_udp_close,datagram-close,datagram_close

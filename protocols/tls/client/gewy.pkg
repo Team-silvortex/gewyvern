@@ -1,6 +1,7 @@
 name=tls_client
-version=0.15.0
+version=0.17.0
 entry=main.gewy
 register.protocol=tls
 register.entry=client
 register.default=true
+register.entry_aliases=initiator,tls-client,tls_client

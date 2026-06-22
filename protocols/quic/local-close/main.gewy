@@ -1,0 +1,25 @@
+# gewyvern stable-subset protocol path
+
+fn quic_local_close_rules() =
+  let module_name = :quic_local_close_path
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:quic_local_close_observation)
+  |> reason_model(:quic_local_close_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :quic_packet_observed:local:quic:remote_to_local:min_len:1200:long_header:true:type:initial, stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_initial)
+  |> program_rule(predicate: :quic_frame_observed:local:quic:remote_to_local:type:initial:frame:crypto, stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_crypto)
+  |> program_rule(predicate: :quic_packet_observed:local:quic:local_to_remote:long_header:true:type:handshake, stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_handshake)
+  |> program_rule(predicate: :quic_frame_observed:local:quic:local_to_remote:type:handshake:frame:crypto, stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_crypto)
+  |> program_rule(predicate: :quic_frame_observed:local:quic:local_to_remote:frame:connection_close, stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_close)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :quic_packet_observed:local:quic:remote_to_local:min_len:1200:long_header:true:type:initial, key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_initial)
+  |> reason_rule(predicate: :quic_frame_observed:local:quic:remote_to_local:type:initial:frame:crypto, key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_crypto)
+  |> reason_rule(predicate: :quic_packet_observed:local:quic:local_to_remote:long_header:true:type:handshake, key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_handshake)
+  |> reason_rule(predicate: :quic_frame_observed:local:quic:local_to_remote:type:handshake:frame:crypto, key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_crypto)
+  |> reason_rule(predicate: :quic_frame_observed:local:quic:local_to_remote:frame:connection_close, key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_close)
+
+template(:quic_local_close_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:quic_local_close_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

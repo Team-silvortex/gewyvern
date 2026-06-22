@@ -55,8 +55,8 @@ For the broader family map, see
 
 This generated block tracks the aliases that currently resolve into this custom surface.
 
-- `dns-tcp`
 - `dns-over-tls`
+- `dns-tcp`
 - `dns_over_tls`
 - `dns_tcp`
 - `dot`

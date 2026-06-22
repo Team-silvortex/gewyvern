@@ -88,7 +88,9 @@ Default entry: `request`
 Protocol aliases: `h3-request`, `h3-server`, `h3_request`, `h3_server`, `http3-server-response`  
 Entry aliases:
 - `request` (default): `h3-request`, `h3_request`
+- `close`: `connection-close`, `connection_close`, `h3-close`, `h3_close`, `http3-close`, `http3_close`, `terminate`
 - `server`: `h3-server`, `h3_server`, `http3-server-response`, `http3_server_response`
+- `server-close`: `h3-server-close`, `h3_server_close`, `http3-server-close`, `http3_server_close`, `response-close`, `response_close`, `server-close`, `server_close`
 
 ## `https`
 
@@ -103,8 +105,11 @@ Default entry: `auth`
 Protocol aliases: `hy2-auth`, `hy2-relay`, `hy2-stream`, `hy2-tcp`, `hy2-udp`, `hysteria2`, `hysteria2-auth`, `hysteria2-tcp`, `hysteria2-udp`  
 Entry aliases:
 - `auth` (default): `hy2-auth`, `hysteria2`, `hysteria2-auth`
+- `close`: `hy2-close`, `hy2_close`, `hysteria2-close`, `hysteria2_close`, `session-close`, `session_close`, `terminate`
 - `tcp`: `hy2-stream`, `hy2-tcp`, `hysteria2-tcp`
+- `tcp-close`: `hy2-tcp-close`, `hy2_tcp_close`, `hysteria2-tcp-close`, `hysteria2_tcp_close`, `stream-close`, `stream_close`, `tcp-close`, `tcp_close`
 - `udp`: `hy2-relay`, `hy2-udp`, `hysteria2-udp`
+- `udp-close`: `datagram-close`, `datagram_close`, `hy2-udp-close`, `hy2_udp_close`, `hysteria2-udp-close`, `hysteria2_udp_close`, `udp-close`, `udp_close`
 
 ## `imap`
 
@@ -216,7 +221,10 @@ Protocol aliases: none
 Entry aliases:
 - `initial` (default): none
 - `bidi`: none
+- `close`: `connection-close`, `connection_close`, `quic-close`, `quic_close`, `terminate`
 - `crypto`: none
+- `local-close`: `active-close`, `active_close`, `local-close`, `local_close`, `quic-local-close`, `quic_local_close`
+- `retry`: `address-validation`, `quic-retry`, `quic_retry`, `token-challenge`
 - `stream`: none
 
 ## `radius`
@@ -410,7 +418,8 @@ Entry aliases:
 Default entry: `client`  
 Protocol aliases: none  
 Entry aliases:
-- `client` (default): none
+- `client` (default): `initiator`, `tls-client`, `tls_client`
+- `server`: `acceptor`, `tls-server`, `tls_server`
 
 ## `wireguard`
 

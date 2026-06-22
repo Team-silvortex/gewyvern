@@ -284,6 +284,8 @@ pub(crate) fn http3_shelf(entry: &str) -> Option<ShelfMatch> {
     const REQUEST: &[&str] = &["request"];
     const RESPONSE: &[&str] = &["response"];
     const SERVER: &[&str] = &["server"];
+    const CLOSE: &[&str] = &["close"];
+    const SERVER_CLOSE: &[&str] = &["server-close"];
     if REQUEST.contains(&entry) {
         Some((
             "request",
@@ -301,6 +303,20 @@ pub(crate) fn http3_shelf(entry: &str) -> Option<ShelfMatch> {
             } else {
                 SERVER
             },
+        ))
+    } else if CLOSE.contains(&entry) {
+        Some((
+            "close",
+            "Connection Close",
+            "docs/book/reference-http3-close-surface.md",
+            CLOSE,
+        ))
+    } else if SERVER_CLOSE.contains(&entry) {
+        Some((
+            "server-close",
+            "Server Close",
+            "docs/book/reference-http3-server-close-surface.md",
+            SERVER_CLOSE,
         ))
     } else {
         None

@@ -1,0 +1,7 @@
+name=quic_retry
+version=0.17.0
+entry=main.gewy
+register.protocol=quic
+register.entry=retry
+register.default=false
+register.entry_aliases=address-validation,token-challenge,quic-retry,quic_retry

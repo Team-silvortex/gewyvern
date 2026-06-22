@@ -28,12 +28,18 @@ Primary subpages:
 
 - [docs/book/reference-hy2-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-auth-surface.md)
 - [docs/book/reference-hy2-relay-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-relay-surface.md)
+- [docs/book/reference-hy2-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-close-surface.md)
+- [docs/book/reference-hy2-tcp-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-tcp-close-surface.md)
+- [docs/book/reference-hy2-udp-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-udp-close-surface.md)
 
 Current canonical entries:
 
 - `auth` as the default entry
 - `udp`
 - `tcp`
+- `close`
+- `tcp-close`
+- `udp-close`
 
 Default entry: `auth`
 

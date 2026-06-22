@@ -111,13 +111,13 @@ When you need the broader family map, return to
 
 This generated block tracks the aliases that currently resolve into this custom surface.
 
+- `login-denied`
+- `password-denied`
 - `postgres-auth`
 - `postgres-auth-denied`
 - `postgres-connect`
 - `postgres_auth`
 - `postgres_auth_denied`
 - `postgres_connect`
-- `login-denied`
-- `password-denied`
 
 <!-- gewyvern:entry-aliases:end -->

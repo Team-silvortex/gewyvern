@@ -30,7 +30,10 @@ pub(crate) fn ssdp_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn quic_shelf(entry: &str) -> Option<ShelfMatch> {
     const INITIAL: &[&str] = &["initial"];
+    const RETRY: &[&str] = &["retry"];
     const CRYPTO: &[&str] = &["crypto"];
+    const CLOSE: &[&str] = &["close"];
+    const LOCAL_CLOSE: &[&str] = &["local-close"];
     const STREAM: &[&str] = &["stream"];
     const BIDI: &[&str] = &["bidi"];
     if INITIAL.contains(&entry) {
@@ -40,12 +43,33 @@ pub(crate) fn quic_shelf(entry: &str) -> Option<ShelfMatch> {
             "docs/book/reference-quic-initial-surface.md",
             INITIAL,
         ))
+    } else if RETRY.contains(&entry) {
+        Some((
+            "retry",
+            "Retry Validation",
+            "docs/book/reference-quic-retry-surface.md",
+            RETRY,
+        ))
     } else if CRYPTO.contains(&entry) {
         Some((
             "crypto",
             "Crypto Handshake",
             "docs/book/reference-quic-crypto-surface.md",
             CRYPTO,
+        ))
+    } else if CLOSE.contains(&entry) {
+        Some((
+            "close",
+            "Connection Close",
+            "docs/book/reference-quic-close-surface.md",
+            CLOSE,
+        ))
+    } else if LOCAL_CLOSE.contains(&entry) {
+        Some((
+            "local-close",
+            "Local Connection Close",
+            "docs/book/reference-quic-local-close-surface.md",
+            LOCAL_CLOSE,
         ))
     } else if STREAM.contains(&entry) {
         Some((

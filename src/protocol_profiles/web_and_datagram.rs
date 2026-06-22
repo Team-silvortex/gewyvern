@@ -67,6 +67,14 @@ pub(super) const HTTP3_PROFILE: ProtocolProfile = ProtocolProfile {
             mode: "server",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy",
         },
+        ProtocolEntryProfile {
+            mode: "close",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_close_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "server-close",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_close_path.gewy",
+        },
     ],
 };
 
@@ -86,16 +94,34 @@ pub(super) const HY2_PROFILE: ProtocolProfile = ProtocolProfile {
             mode: "tcp",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy",
         },
+        ProtocolEntryProfile {
+            mode: "close",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/hy2_close_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "tcp-close",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_close_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "udp-close",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_close_path.gewy",
+        },
     ],
 };
 
 pub(super) const TLS_PROFILE: ProtocolProfile = ProtocolProfile {
     name: "tls",
     default_entry: "client",
-    entries: &[ProtocolEntryProfile {
-        mode: "client",
-        dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy",
-    }],
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "client",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "server",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/tls_server_path.gewy",
+        },
+    ],
 };
 
 pub(super) const QUIC_PROFILE: ProtocolProfile = ProtocolProfile {
@@ -107,8 +133,20 @@ pub(super) const QUIC_PROFILE: ProtocolProfile = ProtocolProfile {
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy",
         },
         ProtocolEntryProfile {
+            mode: "retry",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_retry_path.gewy",
+        },
+        ProtocolEntryProfile {
             mode: "crypto",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_crypto_handshake_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "close",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_close_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "local-close",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_local_close_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "stream",

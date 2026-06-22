@@ -1,0 +1,20 @@
+fn tls_server_rules() =
+  let module_name = :tls_server_path
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:tls_server)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: "socket_state_observed:local:https", stage: :socket_state_transition, narrative: "static:program accepted or advanced a TLS server socket", dedupe: false, module: ${module_name}, phase: :accept)
+  |> program_rule(predicate: "socket_state_observed:local:https:established", stage: :socket_state_transition, narrative: "static:program reached an established TLS server socket state", dedupe: true, module: ${module_name}, phase: :establish)
+  |> program_rule(predicate: "packet_observed:tcp:remote_to_local", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_client_hello)
+  |> program_rule(predicate: "packet_observed:tcp:local_to_remote", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_server_hello)
+  |> reason_rule(predicate: :process_bound, key_event: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: "socket_state_observed:local:https", key_event: :socket_state_transition, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :accept)
+  |> reason_rule(predicate: "socket_state_observed:local:https:established", key_event: :socket_state_transition, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :establish)
+  |> reason_rule(predicate: "packet_observed:tcp:remote_to_local", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_client_hello)
+  |> reason_rule(predicate: "packet_observed:tcp:local_to_remote", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_server_hello)
+
+template(:tls_server_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:tls_server_rules)

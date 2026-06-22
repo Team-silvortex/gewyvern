@@ -3,11 +3,14 @@
 Use this page when you want the QUIC portion of the built-in protocol shelf as
 stable lookup material instead of a tutorial.
 
-This shelf groups the current QUIC coverage into three narrower operator-facing
+This shelf groups the current QUIC coverage into six narrower operator-facing
 surfaces:
 
 - client initial datagram posture
+- retry/address-validation continuation
 - crypto-handshake progression
+- explicit connection-close termination
+- explicit locally emitted connection-close termination
 - stream activity progression
 
 ## What This Shelf Covers
@@ -16,8 +19,11 @@ The current built-in QUIC family models transport-stage milestones rather than
 application-level command verbs:
 
 - send an Initial packet
+- receive a Retry packet
 - receive a Handshake packet
 - exchange CRYPTO frames
+- observe a `CONNECTION_CLOSE` frame
+- emit a `CONNECTION_CLOSE` frame
 - observe stream frames
 - eventually observe connection close
 
@@ -42,6 +48,15 @@ Typical entries:
 
 - `initial`
 
+### Retry
+
+- [docs/book/reference-quic-retry-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-retry-surface.md)
+  Address-validation continuation after the first client Initial.
+
+Typical entries:
+
+- `retry`
+
 ### Crypto
 
 - [docs/book/reference-quic-crypto-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-crypto-surface.md)
@@ -50,6 +65,18 @@ Typical entries:
 Typical entries:
 
 - `crypto`
+
+### Close
+
+- [docs/book/reference-quic-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-close-surface.md)
+  Explicit transport termination after early QUIC progression.
+- [docs/book/reference-quic-local-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-local-close-surface.md)
+  Explicit locally initiated transport termination after handshake progress.
+
+Typical entries:
+
+- `close`
+- `local-close`
 
 ### Streams
 
@@ -81,6 +108,6 @@ If you are validating current QUIC support, the shortest useful order is:
 
 ## Stability Note
 
-This page is the lookup hub for the current QUIC family in the `0.15.x` line.
+This page is the lookup hub for the current QUIC family in the `0.17.x` line.
 New QUIC transport-stage branches should prefer landing behind this shelf
 instead of being linked from multiple higher-level pages independently.

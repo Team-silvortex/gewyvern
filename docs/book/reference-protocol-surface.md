@@ -104,7 +104,7 @@ machine-facing protocol surface can also include:
 ## Current Surface Snapshot
 
 - Built-in families: `33`
-- Built-in canonical entries: `204`
+- Built-in canonical entries: `222`
 - Family/default map:
   - `amqp` -> default `session` in cluster `cache-queue-stream` via [docs/book/reference-amqp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-surface.md)
   - `coap` -> default `get` in cluster `network-control-discovery` via [docs/book/reference-coap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-surface.md)

@@ -1,0 +1,7 @@
+name=http3_close
+version=0.17.0
+entry=main.gewy
+register.protocol=http3
+register.entry=close
+register.default=false
+register.entry_aliases=terminate,connection-close,connection_close,h3-close,h3_close,http3-close,http3_close

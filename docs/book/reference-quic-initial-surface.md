@@ -31,7 +31,7 @@ Read this page after the generic protocol surface when:
 
 - you are checking whether `quic` resolves to its default entry
 - you want the earliest currently modeled QUIC transport posture
-- you do not yet care about CRYPTO frames or stream activity
+- you do not yet care about Retry, CRYPTO frames, or stream activity
 
 ## Stability Notes
 

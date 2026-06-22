@@ -347,6 +347,8 @@ mod tests_docs;
 #[cfg(test)]
 mod tests_fallback;
 #[cfg(test)]
+mod tests_http3_hy2;
+#[cfg(test)]
 mod tests_layout;
 #[cfg(test)]
 mod tests_ldap_write_failures;
@@ -354,6 +356,10 @@ mod tests_ldap_write_failures;
 mod tests_manifest_parity;
 #[cfg(test)]
 mod tests_ntp;
+#[cfg(test)]
+mod tests_quic;
+#[cfg(test)]
+mod tests_tls;
 #[cfg(test)]
 mod tests_postgres_auth_denied;
 #[cfg(test)]

@@ -117,13 +117,13 @@ When you need the broader family map, return to
 
 This generated block tracks the aliases that currently resolve into this custom surface.
 
-- `mysql-connect`
-- `mysql-auth`
-- `mysql-auth-denied`
-- `mysql_connect`
-- `mysql_auth`
-- `mysql_auth_denied`
 - `handshake-denied`
 - `login-denied`
+- `mysql-auth`
+- `mysql-auth-denied`
+- `mysql-connect`
+- `mysql_auth`
+- `mysql_auth_denied`
+- `mysql_connect`
 
 <!-- gewyvern:entry-aliases:end -->

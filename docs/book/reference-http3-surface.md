@@ -3,11 +3,13 @@
 Use this page when you want the HTTP/3 portion of the built-in protocol shelf
 as stable lookup material instead of a tutorial.
 
-This shelf groups the current HTTP/3 coverage into two narrower operator-facing
+This shelf groups the current HTTP/3 coverage into four narrower operator-facing
 surfaces:
 
 - client request progression
 - server response progression
+- explicit connection close diagnosis
+- server-side termination after response work has started
 
 ## What This Shelf Covers
 
@@ -17,6 +19,7 @@ The current built-in HTTP/3 family models application behavior on top of QUIC:
 - observe request stream activity
 - observe response stream activity
 - observe connection close
+- observe locally emitted close after server response work
 
 Across the subpages, the lookup contract focuses on:
 
@@ -59,6 +62,24 @@ Typical entries:
 Typical entries:
 
 - `server`
+
+### Connection Close
+
+- [docs/book/reference-http3-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-close-surface.md)
+  Client-side request path that terminates through peer connection close.
+
+Typical entries:
+
+- `close`
+
+### Server Close
+
+- [docs/book/reference-http3-server-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-server-close-surface.md)
+  Server-side response path that ends with a locally emitted close.
+
+Typical entries:
+
+- `server-close`
 
 ## Reading Order
 

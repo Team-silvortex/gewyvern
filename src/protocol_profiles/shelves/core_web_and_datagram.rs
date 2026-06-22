@@ -68,6 +68,9 @@ pub(crate) fn http_shelf(entry: &str) -> Option<ShelfMatch> {
 pub(crate) fn hy2_shelf(entry: &str) -> Option<ShelfMatch> {
     const AUTH: &[&str] = &["auth"];
     const RELAY: &[&str] = &["udp", "tcp"];
+    const CLOSE: &[&str] = &["close"];
+    const TCP_CLOSE: &[&str] = &["tcp-close"];
+    const UDP_CLOSE: &[&str] = &["udp-close"];
     if AUTH.contains(&entry) {
         Some((
             "auth",
@@ -82,6 +85,27 @@ pub(crate) fn hy2_shelf(entry: &str) -> Option<ShelfMatch> {
             "docs/book/reference-hy2-relay-surface.md",
             RELAY,
         ))
+    } else if CLOSE.contains(&entry) {
+        Some((
+            "close",
+            "Session Close",
+            "docs/book/reference-hy2-close-surface.md",
+            CLOSE,
+        ))
+    } else if TCP_CLOSE.contains(&entry) {
+        Some((
+            "tcp-close",
+            "TCP Relay Close",
+            "docs/book/reference-hy2-tcp-close-surface.md",
+            TCP_CLOSE,
+        ))
+    } else if UDP_CLOSE.contains(&entry) {
+        Some((
+            "udp-close",
+            "UDP Relay Close",
+            "docs/book/reference-hy2-udp-close-surface.md",
+            UDP_CLOSE,
+        ))
     } else {
         None
     }
@@ -89,12 +113,20 @@ pub(crate) fn hy2_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn tls_shelf(entry: &str) -> Option<ShelfMatch> {
     const CLIENT: &[&str] = &["client"];
+    const SERVER: &[&str] = &["server"];
     if CLIENT.contains(&entry) {
         Some((
             "client",
             "Client",
-            "docs/book/reference-tls-surface.md",
+            "docs/book/reference-tls-client-surface.md",
             CLIENT,
+        ))
+    } else if SERVER.contains(&entry) {
+        Some((
+            "server",
+            "Server",
+            "docs/book/reference-tls-server-surface.md",
+            SERVER,
         ))
     } else {
         None

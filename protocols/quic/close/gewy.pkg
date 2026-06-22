@@ -1,0 +1,7 @@
+name=quic_close
+version=0.17.0
+entry=main.gewy
+register.protocol=quic
+register.entry=close
+register.default=false
+register.entry_aliases=terminate,connection-close,connection_close,quic-close,quic_close

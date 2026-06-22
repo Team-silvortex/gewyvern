@@ -13,6 +13,14 @@ fn http3_hy2_and_transport_registry_entries_resolve_to_packaged_paths() {
         Some("/Users/Shared/chroot/dev/gewyvern/protocols/http3/server".to_string())
     );
     assert_eq!(
+        protocol_dsl_path("http3", Some("h3-close")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http3/close".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("http3", Some("h3-server-close")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http3/server-close".to_string())
+    );
+    assert_eq!(
         protocol_dsl_path("hy2", Some("hy2-stream")),
         Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/tcp".to_string())
     );
@@ -21,8 +29,24 @@ fn http3_hy2_and_transport_registry_entries_resolve_to_packaged_paths() {
         Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/udp".to_string())
     );
     assert_eq!(
+        protocol_dsl_path("hy2", Some("session-close")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/close".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("hy2", Some("hy2-tcp-close")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/tcp-close".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("hy2", Some("hy2-udp-close")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/udp-close".to_string())
+    );
+    assert_eq!(
         protocol_dsl_path("tls", Some("client")),
         Some("/Users/Shared/chroot/dev/gewyvern/protocols/tls/client".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("tls", Some("tls-server")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/tls/server".to_string())
     );
     assert_eq!(
         protocol_dsl_path("wireguard", Some("handshake")),
@@ -73,9 +97,49 @@ fn gap_protocol_default_entries_and_surface_shelves_stay_stable() {
 
     let http3 = protocol_surface("http3", "server").expect("http3 server surface should exist");
     assert_eq!(http3.shelf.expect("http3 shelf should exist").key, "server");
+    let http3_close = protocol_surface("http3", "close").expect("http3 close surface should exist");
+    assert_eq!(
+        http3_close
+            .shelf
+            .expect("http3 close shelf should exist")
+            .key,
+        "close"
+    );
+    let http3_server_close =
+        protocol_surface("http3", "server-close").expect("http3 server-close surface should exist");
+    assert_eq!(
+        http3_server_close
+            .shelf
+            .expect("http3 server-close shelf should exist")
+            .key,
+        "server-close"
+    );
 
     let hy2 = protocol_surface("hy2", "tcp").expect("hy2 tcp surface should exist");
     assert_eq!(hy2.shelf.expect("hy2 shelf should exist").key, "relay");
+    let hy2_close = protocol_surface("hy2", "close").expect("hy2 close surface should exist");
+    assert_eq!(
+        hy2_close.shelf.expect("hy2 close shelf should exist").key,
+        "close"
+    );
+    let hy2_tcp_close =
+        protocol_surface("hy2", "tcp-close").expect("hy2 tcp-close surface should exist");
+    assert_eq!(
+        hy2_tcp_close
+            .shelf
+            .expect("hy2 tcp-close shelf should exist")
+            .key,
+        "tcp-close"
+    );
+    let hy2_udp_close =
+        protocol_surface("hy2", "udp-close").expect("hy2 udp-close surface should exist");
+    assert_eq!(
+        hy2_udp_close
+            .shelf
+            .expect("hy2 udp-close shelf should exist")
+            .key,
+        "udp-close"
+    );
 
     let socks5 =
         protocol_surface("socks5", "auth-connect-denied").expect("socks5 shelf should exist");
@@ -92,6 +156,19 @@ fn gap_protocol_default_entries_and_surface_shelves_stay_stable() {
         kerberos.shelf.expect("kerberos shelf should exist").key,
         "as"
     );
+
+    let tls = protocol_surface("tls", "server").expect("tls server surface should exist");
+    assert_eq!(tls.shelf.expect("tls shelf should exist").key, "server");
+
+    let quic_local_close =
+        protocol_surface("quic", "local-close").expect("quic local-close surface should exist");
+    assert_eq!(
+        quic_local_close
+            .shelf
+            .expect("quic local-close shelf should exist")
+            .key,
+        "local-close"
+    );
 }
 
 #[test]
@@ -99,11 +176,16 @@ fn gap_protocol_entries_remain_visible_in_family_summaries() {
     let http3 = protocol_entries("http3").expect("http3 entries should resolve");
     assert!(http3.contains(&"request".to_string()));
     assert!(http3.contains(&"server".to_string()));
+    assert!(http3.contains(&"close".to_string()));
+    assert!(http3.contains(&"server-close".to_string()));
 
     let hy2 = protocol_entries("hy2").expect("hy2 entries should resolve");
     assert!(hy2.contains(&"auth".to_string()));
     assert!(hy2.contains(&"tcp".to_string()));
     assert!(hy2.contains(&"udp".to_string()));
+    assert!(hy2.contains(&"close".to_string()));
+    assert!(hy2.contains(&"tcp-close".to_string()));
+    assert!(hy2.contains(&"udp-close".to_string()));
 
     let socks5 = protocol_entries("socks5").expect("socks5 entries should resolve");
     assert!(socks5.contains(&"session".to_string()));
@@ -120,4 +202,15 @@ fn gap_protocol_entries_remain_visible_in_family_summaries() {
     assert!(smtp.contains(&"rcpt-denied".to_string()));
     assert!(smtp.contains(&"data".to_string()));
     assert!(smtp.contains(&"data-denied".to_string()));
+
+    let tls = protocol_entries("tls").expect("tls entries should resolve");
+    assert!(tls.contains(&"client".to_string()));
+    assert!(tls.contains(&"server".to_string()));
+
+    let quic = protocol_entries("quic").expect("quic entries should resolve");
+    assert!(quic.contains(&"initial".to_string()));
+    assert!(quic.contains(&"retry".to_string()));
+    assert!(quic.contains(&"crypto".to_string()));
+    assert!(quic.contains(&"close".to_string()));
+    assert!(quic.contains(&"local-close".to_string()));
 }

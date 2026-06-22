@@ -8,12 +8,14 @@ pub(super) fn built_in_protocol_entry_semantics(
         "amqp" => amqp_entry_semantics(entry),
         "ftp" => ftp_entry_semantics(entry),
         "http" => http_entry_semantics(entry),
+        "http3" => http3_entry_semantics(entry),
         "imap" => imap_entry_semantics(entry),
         "kerberos" => kerberos_entry_semantics(entry),
         "ldap" => ldap_entry_semantics(entry),
         "mysql" => mysql_entry_semantics(entry),
         "pop3" => pop3_entry_semantics(entry),
         "postgres" => postgres_entry_semantics(entry),
+        "quic" => quic_entry_semantics(entry),
         "radius" => radius_entry_semantics(entry),
         "redis" => redis_entry_semantics(entry),
         "snmp" => snmp_entry_semantics(entry),
@@ -21,6 +23,7 @@ pub(super) fn built_in_protocol_entry_semantics(
         "smtp" => smtp_entry_semantics(entry),
         "stun" => stun_entry_semantics(entry),
         "ssh" => ssh_entry_semantics(entry),
+        "hy2" => hy2_entry_semantics(entry),
         "wireguard" => wireguard_entry_semantics(entry),
         _ => None,
     }
@@ -100,6 +103,35 @@ fn http_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
             Some("403"),
             Some("server_denied"),
             Some("access_denied"),
+            Some("direct_protocol_signal"),
+        ),
+        _ => return None,
+    };
+    Some(ProtocolEntrySemanticsSummary {
+        category: "failure-path".into(),
+        operator_focus: operator_focus.into(),
+        typical_signal: typical_signal.map(str::to_string),
+        primary_failure_mode: failure_mode.map(str::to_string),
+        primary_failure_detail: failure_detail.map(str::to_string),
+        primary_failure_basis: failure_basis.map(str::to_string),
+    })
+}
+
+fn http3_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (operator_focus, typical_signal, failure_mode, failure_detail, failure_basis) = match entry
+    {
+        "close" => (
+            "application-layer HTTP/3 request path terminated by peer connection close before steady response completion",
+            Some("CONNECTION_CLOSE"),
+            Some("peer_closed"),
+            Some("transport_terminated"),
+            Some("direct_protocol_signal"),
+        ),
+        "server-close" => (
+            "HTTP/3 server response path ended with a locally emitted connection close after request handling and response delivery had already started",
+            Some("CONNECTION_CLOSE"),
+            Some("local_closed"),
+            Some("server_terminated_session"),
             Some("direct_protocol_signal"),
         ),
         _ => return None,
@@ -393,6 +425,45 @@ fn stun_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     })
 }
 
+fn quic_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal, failure_mode, failure_detail, failure_basis) =
+        match entry {
+            "retry" => (
+                "continuation-path",
+                "peer address-validation continuation during QUIC Retry evaluation",
+                Some("Retry"),
+                None,
+                None,
+                None,
+            ),
+            "close" => (
+                "failure-path",
+                "peer transport termination during QUIC connection close evaluation",
+                Some("CONNECTION_CLOSE"),
+                Some("peer_closed"),
+                Some("transport_terminated"),
+                Some("direct_protocol_signal"),
+            ),
+            "local-close" => (
+                "failure-path",
+                "local transport termination during QUIC connection close evaluation",
+                Some("CONNECTION_CLOSE"),
+                Some("local_closed"),
+                Some("transport_terminated"),
+                Some("direct_protocol_signal"),
+            ),
+            _ => return None,
+        };
+    Some(ProtocolEntrySemanticsSummary {
+        category: category.into(),
+        operator_focus: operator_focus.into(),
+        typical_signal: typical_signal.map(str::to_string),
+        primary_failure_mode: failure_mode.map(str::to_string),
+        primary_failure_detail: failure_detail.map(str::to_string),
+        primary_failure_basis: failure_basis.map(str::to_string),
+    })
+}
+
 fn wireguard_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     let (category, operator_focus, typical_signal, failure_mode, failure_detail, failure_basis) =
         match entry {
@@ -565,6 +636,42 @@ fn redis_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
             Some("-MISCONF"),
             Some("semantic_error"),
             Some("protocol_error"),
+            Some("direct_protocol_signal"),
+        ),
+        _ => return None,
+    };
+    Some(ProtocolEntrySemanticsSummary {
+        category: "failure-path".into(),
+        operator_focus: operator_focus.into(),
+        typical_signal: typical_signal.map(str::to_string),
+        primary_failure_mode: failure_mode.map(str::to_string),
+        primary_failure_detail: failure_detail.map(str::to_string),
+        primary_failure_basis: failure_basis.map(str::to_string),
+    })
+}
+
+fn hy2_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (operator_focus, typical_signal, failure_mode, failure_detail, failure_basis) = match entry
+    {
+        "close" => (
+            "authenticated Hysteria2 session terminated by peer connection close before relay continuity could be maintained",
+            Some("CONNECTION_CLOSE"),
+            Some("peer_closed"),
+            Some("secure_session_terminated"),
+            Some("direct_protocol_signal"),
+        ),
+        "tcp-close" => (
+            "authenticated Hysteria2 TCP relay terminated by peer connection close after relay request and response activity had already started",
+            Some("CONNECTION_CLOSE"),
+            Some("peer_closed"),
+            Some("tcp_relay_terminated"),
+            Some("direct_protocol_signal"),
+        ),
+        "udp-close" => (
+            "authenticated Hysteria2 UDP relay terminated by peer connection close after relay datagram exchange had already started",
+            Some("CONNECTION_CLOSE"),
+            Some("peer_closed"),
+            Some("udp_relay_terminated"),
             Some("direct_protocol_signal"),
         ),
         _ => return None,

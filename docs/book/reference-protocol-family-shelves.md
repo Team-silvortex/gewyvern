@@ -166,6 +166,9 @@ Then continue with:
 - Subpages:
   - [docs/book/reference-hy2-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-auth-surface.md)
   - [docs/book/reference-hy2-relay-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-relay-surface.md)
+  - [docs/book/reference-hy2-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-close-surface.md)
+  - [docs/book/reference-hy2-tcp-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-tcp-close-surface.md)
+  - [docs/book/reference-hy2-udp-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-udp-close-surface.md)
 
 ### Kerberos
 
@@ -213,8 +216,11 @@ Then continue with:
   [docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md)
 - Subpages:
   - [docs/book/reference-quic-bidi-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-bidi-surface.md)
+  - [docs/book/reference-quic-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-close-surface.md)
   - [docs/book/reference-quic-crypto-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-crypto-surface.md)
   - [docs/book/reference-quic-initial-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-initial-surface.md)
+  - [docs/book/reference-quic-local-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-local-close-surface.md)
+  - [docs/book/reference-quic-retry-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-retry-surface.md)
   - [docs/book/reference-quic-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-stream-surface.md)
 
 ### DNS
@@ -232,6 +238,8 @@ Then continue with:
 - Subpages:
   - [docs/book/reference-http3-request-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-request-surface.md)
   - [docs/book/reference-http3-server-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-server-surface.md)
+  - [docs/book/reference-http3-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-close-surface.md)
+  - [docs/book/reference-http3-server-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-server-close-surface.md)
 
 ### IMAP
 
@@ -304,6 +312,9 @@ Then continue with:
 
 - Hub:
   [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
+- Subpages:
+  - [docs/book/reference-tls-client-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-client-surface.md)
+  - [docs/book/reference-tls-server-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-server-surface.md)
 
 ### WireGuard
 
@@ -343,22 +354,29 @@ The first high-yield family shelves are now in place for:
 - `socks5`
 - `mysql`
 - `amqp`
+- `coap`
+- `dhcp`
+- `gtpu`
+- `https`
+- `hy2`
+- `kerberos`
+- `mdns`
 - `ssh`
+- `ntp`
 - `rtsp`
 - `quic`
 - `dns`
-- `stun`
-- `coap`
-- `dhcp`
-- `snmp`
-- `radius`
-- `gtpu`
-- `wireguard`
 - `http3`
 - `imap`
 - `sip`
 - `pop3`
 - `memcached`
+- `radius`
+- `snmp`
+- `ssdp`
+- `stun`
+- `tls`
+- `wireguard`
 
 That means the remaining work is no longer about closing the most obvious
 reference gaps. It is about choosing the next-most-useful families without

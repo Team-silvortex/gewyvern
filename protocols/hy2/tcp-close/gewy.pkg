@@ -1,0 +1,7 @@
+name=hy2_tcp_close
+version=0.17.0
+entry=main.gewy
+register.protocol=hy2
+register.entry=tcp-close
+register.default=false
+register.entry_aliases=tcp-close,tcp_close,hy2-tcp-close,hy2_tcp_close,hysteria2-tcp-close,hysteria2_tcp_close,stream-close,stream_close

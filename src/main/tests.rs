@@ -56,12 +56,18 @@ mod api_protocol_surface_semantics_database;
 mod api_protocol_surface_semantics;
 #[path = "tests/api_protocol_surface_semantics_amqp.rs"]
 mod api_protocol_surface_semantics_amqp;
+#[path = "tests/api_protocol_surface_semantics_http3_hy2.rs"]
+mod api_protocol_surface_semantics_http3_hy2;
 #[path = "tests/api_protocol_surface_semantics_ldap.rs"]
 mod api_protocol_surface_semantics_ldap;
 #[path = "tests/api_protocol_surface_semantics_mysql.rs"]
 mod api_protocol_surface_semantics_mysql;
 #[path = "tests/api_protocol_surface_semantics_postgres.rs"]
 mod api_protocol_surface_semantics_postgres;
+#[path = "tests/api_protocol_surface_semantics_quic.rs"]
+mod api_protocol_surface_semantics_quic;
+#[path = "tests/api_protocol_surface_semantics_tls.rs"]
+mod api_protocol_surface_semantics_tls;
 #[path = "tests/api_protocol_surface_semantics_radius.rs"]
 mod api_protocol_surface_semantics_radius;
 #[path = "tests/api_protocol_surface_semantics_wireguard.rs"]

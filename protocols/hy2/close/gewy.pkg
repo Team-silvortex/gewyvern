@@ -1,0 +1,7 @@
+name=hy2_close
+version=0.17.0
+entry=main.gewy
+register.protocol=hy2
+register.entry=close
+register.default=false
+register.entry_aliases=terminate,session-close,session_close,hy2-close,hy2_close,hysteria2-close,hysteria2_close
