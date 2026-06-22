@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 const DEFAULT_CONFIG_NAME: &str = "gewyvern.toml";
 const LEGACY_CONFIG_NAME: &str = "config.toml";
+const CURRENT_RUNTIME_CONFIG_SCHEMA_VERSION: usize = 1;
 const EXTERNAL_FAILURE_CIRCUIT_THRESHOLD_ENV: &str = "GEWY_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD";
 const EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_ENV: &str =
     "GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS";
@@ -19,8 +20,10 @@ const REQUIRE_EXPLICIT_REMOTE_TRUST_ENV: &str = "GEWY_REQUIRE_EXPLICIT_REMOTE_TR
 const SOCKET_FAILURE_BACKOFF_BASE_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_BASE_MS";
 const SOCKET_FAILURE_BACKOFF_CAP_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_CAP_MS";
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RuntimeConfigFile {
+    pub(crate) schema_version: usize,
+    pub(crate) schema_version_explicit: bool,
     pub(crate) defaults: CliDefaults,
     pub(crate) history_retention: Option<usize>,
     pub(crate) protocol_registry_root: Option<String>,
@@ -37,6 +40,31 @@ pub(crate) struct RuntimeConfigFile {
     pub(crate) socket_failure_backoff_cap_ms: Option<usize>,
     pub(crate) source_path: Option<PathBuf>,
     pub(crate) used_legacy_path: bool,
+}
+
+impl Default for RuntimeConfigFile {
+    fn default() -> Self {
+        Self {
+            schema_version: CURRENT_RUNTIME_CONFIG_SCHEMA_VERSION,
+            schema_version_explicit: false,
+            defaults: CliDefaults::default(),
+            history_retention: None,
+            protocol_registry_root: None,
+            share_root: None,
+            certificate_root: None,
+            trust_root: None,
+            authority_root: None,
+            identity_root: None,
+            certificate_state_root: None,
+            require_explicit_remote_trust: None,
+            external_failure_circuit_threshold: None,
+            external_failure_circuit_cooldown_seconds: None,
+            socket_failure_backoff_base_ms: None,
+            socket_failure_backoff_cap_ms: None,
+            source_path: None,
+            used_legacy_path: false,
+        }
+    }
 }
 
 pub(crate) fn load_runtime_config() -> Result<RuntimeConfigFile, String> {
@@ -166,6 +194,9 @@ fn is_legacy_path(path: &Path) -> bool {
 fn parse_runtime_config(input: &str) -> Result<RuntimeConfigFile, String> {
     let sections = parse_sections(input)?;
     let mut config = RuntimeConfigFile::default();
+    if let Some(root) = sections.get("") {
+        apply_root_section(root, &mut config)?;
+    }
     if let Some(runtime) = sections.get("runtime") {
         apply_runtime_section(runtime, &mut config)?;
     }
@@ -196,6 +227,31 @@ fn parse_runtime_config(input: &str) -> Result<RuntimeConfigFile, String> {
         }
     }
     Ok(config)
+}
+
+fn apply_root_section(
+    root: &BTreeMap<String, String>,
+    config: &mut RuntimeConfigFile,
+) -> Result<(), String> {
+    for (key, value) in root {
+        match key.as_str() {
+            "schema_version" => {
+                let version = parse_positive_usize(value, "schema_version")?;
+                if version > CURRENT_RUNTIME_CONFIG_SCHEMA_VERSION {
+                    return Err(format!(
+                        "unsupported runtime config schema_version '{version}'; current supported version is {}",
+                        CURRENT_RUNTIME_CONFIG_SCHEMA_VERSION
+                    ));
+                }
+                config.schema_version = version;
+                config.schema_version_explicit = true;
+            }
+            other => {
+                return Err(format!("unsupported runtime config key '{other}'"));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn apply_certificates_section(

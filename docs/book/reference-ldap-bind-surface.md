@@ -47,6 +47,20 @@ Coarse response shape:
 - same bind/connect/route scaffolding as `bind`
 - terminal denial response instead of generic bind success
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("ldap", "bind-denied")` contract now publishes
+`entry_semantics` so operators and higher-level tooling can identify explicit
+directory bind rejection without scraping this page.
+
+Current denial semantics:
+
+- `category = failure-path`
+- `operator_focus = directory credential or bind-policy rejection during auth establishment`
+- `primary_failure_mode = server_denied`
+- `primary_failure_detail = access_denied`
+- `primary_failure_basis = direct_protocol_signal`
+
 ## Operator Reading Order
 
 Read the current LDAP bind family in this order:

@@ -31,7 +31,7 @@ pub(crate) fn amqp_shelf(entry: &str) -> Option<ShelfMatch> {
 }
 
 pub(crate) fn smtp_shelf(entry: &str) -> Option<ShelfMatch> {
-    const SESSION: &[&str] = &["session", "auth"];
+    const SESSION: &[&str] = &["session", "auth", "auth-denied"];
     const ENVELOPE: &[&str] = &["mail", "rcpt", "rcpt-denied"];
     const DATA: &[&str] = &["data", "data-denied"];
     if SESSION.contains(&entry) {

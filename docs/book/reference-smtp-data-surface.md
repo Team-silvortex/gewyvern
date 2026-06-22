@@ -53,6 +53,21 @@ The current models differ only in the final server decision:
 - `data` ends on queued/successful acceptance
 - `data-denied` ends on message rejection after body handoff
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("smtp", "data-denied")` contract now publishes
+`entry_semantics` so tooling can identify post-body rejection as a structured
+server decision instead of a generic transfer failure.
+
+Current denial semantics:
+
+- `category = failure-path`
+- `operator_focus = message rejection after SMTP body handoff`
+- `typical_signal = 550`
+- `primary_failure_mode = server_denied`
+- `primary_failure_detail = access_denied`
+- `primary_failure_basis = direct_protocol_signal`
+
 ## Operator Reading Order
 
 If you are reviewing SMTP message-submission coverage, read it in this order:

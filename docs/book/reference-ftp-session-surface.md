@@ -45,6 +45,21 @@ Coarse response shape:
 - `USER` and `PASS` exchange
 - terminal `530` denial response
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("ftp", "denied")` contract now publishes
+`entry_semantics` so tooling can classify explicit login rejection separately
+from short sessions or transport failure.
+
+Current denial semantics:
+
+- `category = failure-path`
+- `operator_focus = ftp login rejection after USER/PASS credential exchange`
+- `typical_signal = 530`
+- `primary_failure_mode = server_denied`
+- `primary_failure_detail = access_denied`
+- `primary_failure_basis = direct_protocol_signal`
+
 ## Operator Reading Order
 
 Read the current FTP session family in this order:

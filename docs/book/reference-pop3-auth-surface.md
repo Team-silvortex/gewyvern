@@ -55,6 +55,21 @@ The `auth-denied` entry models:
 Use the success branch when you want authenticated mailbox posture. Use the
 denial branch when you need an explicit failed-password interpretation.
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("pop3", "auth-denied")` contract now publishes
+`entry_semantics` so higher-level tooling can identify explicit password
+rejection without scraping this page.
+
+Current denial semantics:
+
+- `category = failure-path`
+- `operator_focus = mailbox password rejection after USER/PASS credential exchange`
+- `typical_signal = -ERR`
+- `primary_failure_mode = server_denied`
+- `primary_failure_detail = access_denied`
+- `primary_failure_basis = direct_protocol_signal`
+
 ## Operator Reading Order
 
 Read this page after the POP3 family hub when:

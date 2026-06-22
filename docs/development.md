@@ -238,6 +238,8 @@ The default contributor commands remain:
 - `cargo tdd`: run the acceptance behavior suite first
 - `cargo tdd-one <name>`: iterate on one named acceptance test
 - `cargo tdd-rules`: run rule/invariant specs
+- `bash /Users/Shared/chroot/dev/gewyvern/scripts/perf/trim_workspace_disk.sh --dry-run`: preview rebuildable disk usage
+- `bash /Users/Shared/chroot/dev/gewyvern/scripts/perf/trim_workspace_disk.sh`: reclaim local workspace disk from build artifacts and caches
 - `cargo test --workspace`: run the full suite before finishing
 
 ## Linux Bring-Up

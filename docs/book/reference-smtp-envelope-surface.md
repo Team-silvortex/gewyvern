@@ -60,6 +60,21 @@ reply family they terminate on:
 - `rcpt` stops at recipient acceptance (`250 2.1.5`)
 - `rcpt-denied` stops at recipient denial (`550`)
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("smtp", "rcpt-denied")` contract now publishes
+`entry_semantics` so tooling can distinguish explicit recipient rejection from
+transport or greeting failure.
+
+Current denial semantics:
+
+- `category = failure-path`
+- `operator_focus = recipient rejection during SMTP envelope construction`
+- `typical_signal = 550`
+- `primary_failure_mode = server_denied`
+- `primary_failure_detail = access_denied`
+- `primary_failure_basis = direct_protocol_signal`
+
 ## Operator Reading Order
 
 If you are reviewing SMTP envelope coverage, read it in this order:

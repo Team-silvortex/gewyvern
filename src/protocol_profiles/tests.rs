@@ -223,7 +223,7 @@ fn protocol_surface_exposes_single_entry_shelves() {
         ("mdns", "query", "query"),
         ("ssdp", "discovery", "discovery"),
         ("gtpu", "echo", "echo"),
-        ("snmp", "get", "get"),
+        ("snmp", "get", "read"),
     ] {
         let surface = protocol_surface(protocol, entry).expect("single-entry surface should exist");
         assert_eq!(
@@ -318,6 +318,10 @@ fn smtp_entry_aliases_resolve_to_canonical_entries() {
     assert_eq!(
         protocol_dsl_path("smtp", Some("login")),
         Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/auth".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("smtp", Some("login-denied")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/auth-denied".to_string())
     );
     assert_eq!(
         protocol_dsl_path("smtp", Some("sender")),

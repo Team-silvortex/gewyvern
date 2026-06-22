@@ -95,6 +95,8 @@ pub(super) fn api_protocol_surface_json(surface: &ProtocolSurfaceSummary) -> Str
     append_protocol_cluster_hint_json(&mut json, surface.cluster_hint.as_ref());
     json.push_str(",\"shelf\":");
     append_protocol_shelf_json(&mut json, surface.shelf.as_ref());
+    json.push_str(",\"entry_semantics\":");
+    append_protocol_entry_semantics_json(&mut json, surface);
     json.push_str(",\"selected_overlay\":");
     if let Some(overlay) = surface.selected_overlay.as_ref() {
         append_json_string(&mut json, overlay);
@@ -333,6 +335,36 @@ fn append_protocol_shelf_json(target: &mut String, shelf: Option<&ProtocolShelfS
     }
 }
 
+fn append_protocol_entry_semantics_json(target: &mut String, surface: &ProtocolSurfaceSummary) {
+    match surface.entry_semantics.as_ref() {
+        Some(semantics) => {
+            target.push('{');
+            target.push_str("\"category\":");
+            append_json_string(target, &semantics.category);
+            target.push_str(",\"operator_focus\":");
+            append_json_string(target, &semantics.operator_focus);
+            target.push_str(",\"typical_signal\":");
+            append_optional_string_json(target, semantics.typical_signal.as_deref());
+            target.push_str(",\"primary_failure_mode\":");
+            append_optional_string_json(target, semantics.primary_failure_mode.as_deref());
+            target.push_str(",\"primary_failure_detail\":");
+            append_optional_string_json(target, semantics.primary_failure_detail.as_deref());
+            target.push_str(",\"primary_failure_basis\":");
+            append_optional_string_json(target, semantics.primary_failure_basis.as_deref());
+            target.push('}');
+        }
+        None => target.push_str("null"),
+    }
+}
+
+fn append_optional_string_json(target: &mut String, value: Option<&str>) {
+    if let Some(value) = value {
+        append_json_string(target, value);
+    } else {
+        target.push_str("null");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -359,6 +391,52 @@ mod tests {
         assert!(body.contains("\"cluster_hint\":{"));
         assert!(body.contains("\"key\":\"cache-queue-stream\""));
         assert!(body.contains("\"key\":\"sorted-set\""));
+        assert!(body.contains("\"entry_semantics\":null"));
+    }
+
+    #[test]
+    fn protocol_surface_by_name_includes_redis_failure_entry_semantics() {
+        let body = api_protocol_surface_by_name_json("redis", "clusterdown")
+            .expect("redis clusterdown surface should exist");
+        assert!(body.contains("\"entry\":\"clusterdown\""));
+        assert!(body.contains("\"entry_semantics\":{"));
+        assert!(body.contains("\"category\":\"failure-path\""));
+        assert!(body.contains("\"typical_signal\":\"-CLUSTERDOWN\""));
+        assert!(body.contains("\"primary_failure_mode\":\"semantic_error\""));
+        assert!(body.contains("\"primary_failure_detail\":\"protocol_error\""));
+        assert!(body.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
+    }
+
+    #[test]
+    fn protocol_surface_by_name_includes_socks5_denied_entry_semantics() {
+        let body = api_protocol_surface_by_name_json("socks5", "auth-connect-denied")
+            .expect("socks5 auth-connect-denied surface should exist");
+        assert!(body.contains("\"entry\":\"auth-connect-denied\""));
+        assert!(body.contains("\"entry_semantics\":{"));
+        assert!(body.contains("\"category\":\"failure-path\""));
+        assert!(body.contains(
+            "\"operator_focus\":\"upstream connect refusal after authenticated proxy setup\""
+        ));
+        assert!(body.contains("\"typical_signal\":null"));
+        assert!(body.contains("\"primary_failure_mode\":\"server_denied\""));
+        assert!(body.contains("\"primary_failure_detail\":\"access_denied\""));
+        assert!(body.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
+    }
+
+    #[test]
+    fn protocol_surface_by_name_includes_http_connect_denied_entry_semantics() {
+        let body = api_protocol_surface_by_name_json("http", "denied")
+            .expect("http denied surface should exist");
+        assert!(body.contains("\"entry\":\"denied\""));
+        assert!(body.contains("\"entry_semantics\":{"));
+        assert!(body.contains("\"category\":\"failure-path\""));
+        assert!(
+            body.contains("\"operator_focus\":\"proxy tunnel refusal after CONNECT policy evaluation\"")
+        );
+        assert!(body.contains("\"typical_signal\":\"403\""));
+        assert!(body.contains("\"primary_failure_mode\":\"server_denied\""));
+        assert!(body.contains("\"primary_failure_detail\":\"access_denied\""));
+        assert!(body.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
     }
 
     #[test]
@@ -450,6 +528,12 @@ mod tests {
         assert!(smtp.contains("\"selected_overlay\":null"));
         assert!(smtp.contains("\"key\":\"starttls\""));
         assert!(smtp.contains("\"kind\":\"tls_upgrade_overlay\""));
+
+        let smtp_denied = api_protocol_surface_by_name_json("smtp", "auth-denied")
+            .expect("smtp denied auth surface should exist");
+        assert!(smtp_denied.contains("\"protocol\":\"smtp\""));
+        assert!(smtp_denied.contains("\"entry\":\"auth-denied\""));
+        assert!(smtp_denied.contains("\"key\":\"starttls\""));
 
         let imap = api_protocol_surface_by_name_json("imap", "auth-denied")
             .expect("imap denied auth surface should exist");

@@ -18,6 +18,21 @@ Accepted aliases here:
 - `binding-denied`
 - `binding-error`
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("stun", "binding-error")` contract now publishes
+`entry_semantics`, and the `binding-denied` alias resolves into the same
+surface, so tooling can treat explicit binding failure as a structured denial
+path instead of a timeout-only interpretation.
+
+Current denial semantics:
+
+- `category = failure-path`
+- `operator_focus = explicit binding failure response instead of successful reachability confirmation`
+- `primary_failure_mode = server_denied`
+- `primary_failure_detail = access_denied`
+- `primary_failure_basis = direct_protocol_signal`
+
 Return to the family hub:
 
 - [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)

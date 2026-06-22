@@ -20,6 +20,20 @@ Operational split:
 - `report` models a generic SNMPv3 report response
 - `unauthorized` models a report-shaped authorization failure outcome
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("snmp", "unauthorized")` contract now publishes
+`entry_semantics` so tooling can classify explicit authorization failure without
+scraping this page.
+
+Current denial semantics:
+
+- `category = failure-path`
+- `operator_focus = authorization failure report after SNMPv3 access evaluation`
+- `primary_failure_mode = server_denied`
+- `primary_failure_detail = access_denied`
+- `primary_failure_basis = direct_protocol_signal`
+
 Protocol package aliases also remain accepted:
 
 - `snmp-report`

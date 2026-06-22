@@ -44,6 +44,21 @@ The branch point is the terminal proxy decision:
 - `connect` ends on tunnel-established success (`200`)
 - `denied` ends on tunnel denial (`403`)
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("http", "denied")` contract now publishes
+`entry_semantics` so downstream tooling can distinguish CONNECT policy refusal
+from transport setup failures.
+
+Current denial semantics:
+
+- `category = failure-path`
+- `operator_focus = proxy tunnel refusal after CONNECT policy evaluation`
+- `typical_signal = 403`
+- `primary_failure_mode = server_denied`
+- `primary_failure_detail = access_denied`
+- `primary_failure_basis = direct_protocol_signal`
+
 ## Operator Reading Order
 
 If you are reviewing plain CONNECT coverage, read it in this order:

@@ -1,0 +1,8 @@
+name=smtp
+version=0.15.0
+entry=main.gewy
+register.protocol=smtp
+register.entry=auth-denied
+register.default=false
+register.entry_aliases=login-denied
+description=SMTP EHLO and AUTH denial path

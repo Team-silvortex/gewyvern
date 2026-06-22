@@ -1,0 +1,32 @@
+# gewyvern stable-subset protocol path
+
+fn smtp_auth_denied_rules() =
+  let module_name = :smtp_auth_denied_path
+  let route_narrative = "static:program resolved an upstream route for this SMTP auth-denied path"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:smtp_auth)
+  |> reason_model(:smtp_auth_denied_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "socket_state_observed:remote:smtp", stage: :socket_state_transition, narrative: "static:program initiated or advanced an SMTP socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "packet_observed:tcp:remote:smtp:remote_to_local:prefix4:0x32323020", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_banner)
+  |> program_rule(predicate: "packet_observed:tcp:remote:smtp:local_to_remote:prefix4:0x45484c4f", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_ehlo)
+  |> program_rule(predicate: "packet_observed:tcp:remote:smtp:remote_to_local:prefix4:0x32353020", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_ehlo_ok)
+  |> program_rule(predicate: "packet_observed:tcp:remote:smtp:local_to_remote:prefix4:0x41555448", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_auth_request)
+  |> program_rule(predicate: "packet_observed:tcp:remote:smtp:remote_to_local:prefix4:0x35333520", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_auth_denied)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "socket_state_observed:remote:smtp", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:smtp:remote_to_local:prefix4:0x32323020", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_banner)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:smtp:local_to_remote:prefix4:0x45484c4f", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_ehlo)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:smtp:remote_to_local:prefix4:0x32353020", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_ehlo_ok)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:smtp:local_to_remote:prefix4:0x41555448", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_auth_request)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:smtp:remote_to_local:prefix4:0x35333520", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_auth_denied)
+
+template(:smtp_auth_denied_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:smtp_auth_denied_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

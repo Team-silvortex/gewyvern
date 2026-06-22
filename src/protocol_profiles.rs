@@ -3,6 +3,7 @@ mod clusters;
 mod overlays;
 mod profiles;
 mod registry;
+mod semantics;
 mod shelves;
 mod summary;
 mod surface;
@@ -73,6 +74,16 @@ pub struct ProtocolOverlaySummary {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProtocolEntrySemanticsSummary {
+    pub category: String,
+    pub operator_focus: String,
+    pub typical_signal: Option<String>,
+    pub primary_failure_mode: Option<String>,
+    pub primary_failure_detail: Option<String>,
+    pub primary_failure_basis: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProtocolSurfaceSummary {
     pub protocol: String,
     pub entry: String,
@@ -83,6 +94,7 @@ pub struct ProtocolSurfaceSummary {
     pub sibling_entries: Vec<String>,
     pub cluster_hint: Option<ProtocolClusterHintSummary>,
     pub shelf: Option<ProtocolShelfSummary>,
+    pub entry_semantics: Option<ProtocolEntrySemanticsSummary>,
     pub overlays: Vec<ProtocolOverlaySummary>,
     pub selected_overlay: Option<String>,
 }
@@ -338,6 +350,8 @@ mod tests_layout;
 mod tests_manifest_parity;
 #[cfg(test)]
 mod tests_ntp;
+#[cfg(test)]
+mod tests_semantics;
 #[cfg(test)]
 mod tests_snmp;
 #[cfg(test)]

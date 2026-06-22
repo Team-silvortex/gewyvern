@@ -43,6 +43,7 @@ Typical entries:
 
 - `session`
 - `auth`
+- `auth-denied`
 
 ### Envelope
 

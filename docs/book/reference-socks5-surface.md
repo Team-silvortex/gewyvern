@@ -25,6 +25,7 @@ Across the subpages, the lookup contract focuses on:
 - canonical entry names
 - accepted aliases
 - coarse request/response shape
+- machine-readable failure semantics for denial branches
 - operator reading order
 - validation and lowering posture
 

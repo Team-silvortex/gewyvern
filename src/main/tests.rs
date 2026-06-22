@@ -50,6 +50,8 @@ mod api_multi_instance;
 mod api_persistence;
 #[path = "tests/api_protocol_catalog.rs"]
 mod api_protocol_catalog;
+#[path = "tests/api_protocol_surface_semantics.rs"]
+mod api_protocol_surface_semantics;
 #[path = "tests/api_sidecar.rs"]
 mod api_sidecar;
 #[path = "tests/certificate_api.rs"]

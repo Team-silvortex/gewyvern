@@ -13,6 +13,10 @@ pub(super) const SMTP_PROFILE: ProtocolProfile = ProtocolProfile {
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_auth_path.gewy",
         },
         ProtocolEntryProfile {
+            mode: "auth-denied",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_auth_denied_path.gewy",
+        },
+        ProtocolEntryProfile {
             mode: "mail",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy",
         },

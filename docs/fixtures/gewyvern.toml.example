@@ -1,3 +1,5 @@
+schema_version = 1
+
 [runtime]
 serve = true
 socket = "unix:/tmp/gewyvern.sock"

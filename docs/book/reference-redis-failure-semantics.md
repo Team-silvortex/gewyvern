@@ -29,6 +29,10 @@ The current Redis family includes these failure-oriented entries:
 They are intentionally narrow. Each one exists so runtime diagnosis can lean
 on a direct Redis signal instead of only inferring a timeout or missing stage.
 
+The same contract is now also reflected in the protocol surface JSON through
+`entry_semantics`, so nearby tooling does not have to scrape this page to
+recover the current denial or failure meaning.
+
 ## Current Diagnosis Contract
 
 | Entry | Typical signal | Failure mode | Failure detail | Basis |

@@ -90,6 +90,16 @@ The manifest and registry scan together provide:
 - entry aliases
 - effective DSL path
 
+For surfaces that carry explicit failure or denial posture, the current
+machine-facing protocol surface can also include:
+
+- `entry_semantics.category`
+- `entry_semantics.operator_focus`
+- `entry_semantics.typical_signal`
+- `entry_semantics.primary_failure_mode`
+- `entry_semantics.primary_failure_detail`
+- `entry_semantics.primary_failure_basis`
+
 <!-- gewyvern:protocol-surface-overview:start -->
 ## Current Surface Snapshot
 
@@ -232,6 +242,24 @@ It is expected to:
 2. normalize entry aliases to the canonical entry
 3. choose the default entry when `entry` is omitted
 4. return the resolved package DSL path
+
+### `protocol_surface(protocol, entry)`
+
+This is the richer lookup surface used by runtime JSON, reports, and nearby
+control planes.
+
+It is expected to expose:
+
+- canonical protocol and entry identity
+- family-level cluster hints
+- shelf grouping and reading page
+- overlay companions when a family rides on another transport
+- `entry_semantics` when one entry already carries a stable denial or
+  failure-oriented diagnosis contract
+
+In the current `0.16.x` tightening line, Redis failure entries are the first
+family where `entry_semantics` is deliberately published as a machine-facing
+contract rather than only prose in the book.
 
 ## CLI Contract Candidate
 

@@ -51,6 +51,21 @@ The `auth-denied` entry models:
 Use the success branch when you want an authenticated mailbox posture. Use the
 denial branch when you need an explicit failed-login interpretation.
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("imap", "auth-denied")` contract now publishes
+`entry_semantics` so tooling can classify explicit login rejection without
+scraping prose.
+
+Current denial semantics:
+
+- `category = failure-path`
+- `operator_focus = mailbox login rejection after LOGIN credential exchange`
+- `typical_signal = NO`
+- `primary_failure_mode = server_denied`
+- `primary_failure_detail = access_denied`
+- `primary_failure_basis = direct_protocol_signal`
+
 ## Operator Reading Order
 
 Read this page after the IMAP family hub when:

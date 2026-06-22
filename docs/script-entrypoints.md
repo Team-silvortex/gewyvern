@@ -26,7 +26,7 @@ The naming split used throughout the repository is:
 - [`scripts/linux/`](/Users/Shared/chroot/dev/gewyvern/scripts/linux)
   Run Linux-only attach, kprobe, and tc smoke checks.
 - [`scripts/perf/`](/Users/Shared/chroot/dev/gewyvern/scripts/perf)
-  Run targeted benchmark wrappers.
+  Run targeted benchmark wrappers and local maintenance helpers.
 - [`scripts/history/`](/Users/Shared/chroot/dev/gewyvern/scripts/history)
   Render history artifacts such as minor-line IR snapshots.
 
@@ -176,8 +176,21 @@ Run:
 
 ```bash
 bash /Users/Shared/chroot/dev/gewyvern/scripts/perf/benchmark_summary.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/perf/trim_workspace_disk.sh --dry-run
+bash /Users/Shared/chroot/dev/gewyvern/scripts/perf/trim_workspace_disk.sh
 bash /Users/Shared/chroot/dev/gewyvern/scripts/history/render_minor_line_ir_snapshot.sh v0.15.x
 ```
+
+Use `trim_workspace_disk.sh` when local iteration has left behind large
+rebuildable artifacts. It removes:
+
+- Rust `target/`
+- frontend `node_modules/`
+- .NET `bin/` and `obj/`
+- Python cache directories such as `__pycache__/`
+
+The script intentionally skips source, docs, Git history, and
+`apps/leserpent/src/Leserpent/data`.
 
 ## Suggested Reading Order
 

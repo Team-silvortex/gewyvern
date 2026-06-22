@@ -50,6 +50,20 @@ Use the success branch when you want a positive authenticated posture. Use the
 denial branch when you want an explicit failed-login interpretation rather than
 just a short or incomplete session.
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("ssh", "auth-denied")` contract now publishes
+`entry_semantics` so higher-level tooling can classify explicit auth rejection
+without scraping this page.
+
+Current denial semantics:
+
+- `category = failure-path`
+- `operator_focus = ssh authentication rejection after explicit auth request`
+- `primary_failure_mode = server_denied`
+- `primary_failure_detail = access_denied`
+- `primary_failure_basis = direct_protocol_signal`
+
 ## Operator Reading Order
 
 Read this page after the SSH family hub when:

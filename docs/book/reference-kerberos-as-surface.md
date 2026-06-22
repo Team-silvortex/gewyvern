@@ -19,6 +19,21 @@ Operational split:
 - `as` models AS-REQ to AS-REP success posture
 - `as-error` models AS-REQ to KRB-ERROR denial posture
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("kerberos", "as-error")` contract now publishes
+`entry_semantics` so higher-level tooling can classify explicit authentication
+exchange failure without scraping this page.
+
+Current failure semantics:
+
+- `category = failure-path`
+- `operator_focus = initial Kerberos authentication exchange failed with explicit KRB-ERROR`
+- `typical_signal = KRB-ERROR`
+- `primary_failure_mode = semantic_error`
+- `primary_failure_detail = protocol_error`
+- `primary_failure_basis = direct_protocol_signal`
+
 Return to the family hub:
 
 - [docs/book/reference-kerberos-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-surface.md)

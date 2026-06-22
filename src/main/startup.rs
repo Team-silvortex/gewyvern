@@ -54,14 +54,36 @@ fn log_runtime_bootstrap(
             log_warn_event(
                 "config",
                 EVENT_RUNTIME_CONFIG_LOADED,
-                &[("path", path.display().to_string())],
+                &[
+                    ("path", path.display().to_string()),
+                    ("schema_version", runtime_config.schema_version.to_string()),
+                    (
+                        "schema_status",
+                        if runtime_config.schema_version_explicit {
+                            "current".to_string()
+                        } else {
+                            "legacy_unversioned".to_string()
+                        },
+                    ),
+                ],
                 "loaded legacy runtime config",
             );
         } else {
             log_info_event(
                 "config",
                 EVENT_RUNTIME_CONFIG_LOADED,
-                &[("path", path.display().to_string())],
+                &[
+                    ("path", path.display().to_string()),
+                    ("schema_version", runtime_config.schema_version.to_string()),
+                    (
+                        "schema_status",
+                        if runtime_config.schema_version_explicit {
+                            "current".to_string()
+                        } else {
+                            "legacy_unversioned".to_string()
+                        },
+                    ),
+                ],
                 "loaded runtime config",
             );
         }

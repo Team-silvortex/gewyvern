@@ -67,6 +67,8 @@ fn runtime_config_loads_service_defaults_from_standard_path() {
     fs::write(
         config_root.join("gewyvern.toml"),
         r#"
+schema_version = 1
+
 [runtime]
 serve = true
 socket = "unix:/tmp/gewyvern.sock"
@@ -125,6 +127,8 @@ socket_failure_backoff_cap_ms = 2500
     let _socket_backoff_cap = EnvGuard::remove("GEWY_SOCKET_FAILURE_BACKOFF_CAP_MS");
 
     let config = load_runtime_config().unwrap();
+    assert_eq!(config.schema_version, 1);
+    assert!(config.schema_version_explicit);
     assert_eq!(config.defaults.serve, Some(true));
     assert_eq!(
         config.defaults.socket_target,
@@ -266,6 +270,8 @@ fn runtime_config_legacy_path_is_used_as_fallback() {
 
     let config = load_runtime_config().unwrap();
     assert!(config.used_legacy_path);
+    assert_eq!(config.schema_version, 1);
+    assert!(!config.schema_version_explicit);
     assert_eq!(config.defaults.serve, Some(true));
     assert_eq!(
         config.defaults.socket_target,
@@ -273,6 +279,26 @@ fn runtime_config_legacy_path_is_used_as_fallback() {
     );
 
     fs::remove_dir_all(&home).unwrap();
+}
+
+#[test]
+fn runtime_config_rejects_future_schema_version() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("future-schema");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    fs::write(
+        config_root.join("gewyvern.toml"),
+        "schema_version = 99\n[runtime]\nserve = true\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
+
+    let err = load_runtime_config().unwrap_err();
+    assert!(err.contains("unsupported runtime config schema_version '99'"));
+
+    fs::remove_dir_all(&root).unwrap();
 }
 
 #[test]

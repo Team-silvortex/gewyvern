@@ -347,6 +347,11 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES: &[ProtocolAlias] = &[
         entry: Some("auth"),
     },
     ProtocolAlias {
+        alias: "login-denied",
+        protocol: "smtp",
+        entry: Some("auth-denied"),
+    },
+    ProtocolAlias {
         alias: "sender",
         protocol: "smtp",
         entry: Some("mail"),

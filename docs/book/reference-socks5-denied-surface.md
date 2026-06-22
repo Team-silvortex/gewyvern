@@ -74,6 +74,33 @@ The current branch points are:
 - `auth-denied`: denial during username/password auth
 - `auth-connect-denied`: denial after auth succeeds but connect fails
 
+## Machine-Readable Surface Semantics
+
+The `protocol_surface("socks5", entry)` contract now publishes
+`entry_semantics` for the denial-oriented entries on this page so downstream
+tools can classify them without scraping prose.
+
+Current semantics posture:
+
+- `denied`
+  - `category = failure-path`
+  - `operator_focus = upstream connect refusal after no-auth method selection`
+  - `primary_failure_mode = server_denied`
+  - `primary_failure_detail = access_denied`
+  - `primary_failure_basis = direct_protocol_signal`
+- `auth-denied`
+  - `category = failure-path`
+  - `operator_focus = username/password rejection during proxy auth exchange`
+  - `primary_failure_mode = server_denied`
+  - `primary_failure_detail = access_denied`
+  - `primary_failure_basis = direct_protocol_signal`
+- `auth-connect-denied`
+  - `category = failure-path`
+  - `operator_focus = upstream connect refusal after authenticated proxy setup`
+  - `primary_failure_mode = server_denied`
+  - `primary_failure_detail = access_denied`
+  - `primary_failure_basis = direct_protocol_signal`
+
 ## Operator Reading Order
 
 If you are reviewing SOCKS5 denial coverage, read it in this order:

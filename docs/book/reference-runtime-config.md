@@ -75,6 +75,8 @@ certificate assets:
 
 The current config format is a small TOML-style file with these sections:
 
+- top-level `schema_version = 1`
+
 - `[runtime]`
 - `[external_engine]`
 - `[paths]`
@@ -83,6 +85,40 @@ The current config format is a small TOML-style file with these sections:
 - `[resilience]`
 
 Unknown sections or keys are rejected.
+
+Unknown top-level keys are also rejected. The only supported top-level key is:
+
+- `schema_version = 1`
+
+## Schema Version Rules
+
+The current config contract version is:
+
+- `schema_version = 1`
+
+Recommended posture:
+
+- new config files should include `schema_version = 1` at the top of the file
+- unversioned older files are still accepted as a compatibility path in the
+  current `0.15.x` line
+- if a file declares a higher version than the runtime understands, startup
+  fails instead of guessing
+
+This means `gewyvern` treats config upgrades conservatively:
+
+- explicit future schema -> reject
+- explicit current schema -> load normally
+- missing schema version -> load as `legacy_unversioned` compatibility input
+
+The runtime logger now records both:
+
+- `schema_version`
+- `schema_status`
+
+where `schema_status` is currently either:
+
+- `current`
+- `legacy_unversioned`
 
 ## Supported Keys
 

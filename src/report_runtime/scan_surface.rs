@@ -45,6 +45,8 @@ pub(super) fn append_protocol_surface_json(
         } else {
             json.push_str("null");
         }
+        json.push_str(",\"entry_semantics\":");
+        append_entry_semantics_json(json, surface);
         json.push_str(",\"reading_companions\":");
         append_companions_json(json, surface);
         json.push_str(",\"shelf\":");
@@ -83,8 +85,9 @@ pub(super) fn protocol_surface_text(surface: Option<&ProtocolSurfaceSummary>) ->
                 },
             );
             let companions = companions_text(surface);
+            let entry_semantics = entry_semantics_text(surface);
             format!(
-                "protocol_surface={} entry={} default={} selected_default={} protocol_aliases={} entry_aliases={} sibling_entries={} selected_overlay={} reading_companions={} cluster_hint={} shelf={}",
+                "protocol_surface={} entry={} default={} selected_default={} protocol_aliases={} entry_aliases={} sibling_entries={} selected_overlay={} entry_semantics={} reading_companions={} cluster_hint={} shelf={}",
                 surface.protocol,
                 surface.entry,
                 surface.default_entry,
@@ -93,6 +96,7 @@ pub(super) fn protocol_surface_text(surface: Option<&ProtocolSurfaceSummary>) ->
                 join_or_none(&surface.entry_aliases),
                 join_or_none(&surface.sibling_entries),
                 surface.selected_overlay.as_deref().unwrap_or("none"),
+                entry_semantics,
                 companions,
                 cluster_hint,
                 shelf,
@@ -139,8 +143,9 @@ pub(super) fn protocol_surface_html(surface: Option<&ProtocolSurfaceSummary>) ->
                 },
             );
             let companions = companions_html(surface);
+            let entry_semantics = entry_semantics_html(surface);
             format!(
-                "<h3>Protocol Surface</h3><ul><li><strong>protocol:</strong> {}</li><li><strong>entry:</strong> {}</li><li><strong>default entry:</strong> {}{}</li><li><strong>protocol aliases:</strong> {}</li><li><strong>entry aliases:</strong> {}</li><li><strong>sibling entries:</strong> {}</li>{}{}{}{}</ul>",
+                "<h3>Protocol Surface</h3><ul><li><strong>protocol:</strong> {}</li><li><strong>entry:</strong> {}</li><li><strong>default entry:</strong> {}{}</li><li><strong>protocol aliases:</strong> {}</li><li><strong>entry aliases:</strong> {}</li><li><strong>sibling entries:</strong> {}</li>{}{}{}{}{}</ul>",
                 html_escape(&surface.protocol),
                 html_escape(&surface.entry),
                 html_escape(&surface.default_entry),
@@ -153,6 +158,7 @@ pub(super) fn protocol_surface_html(surface: Option<&ProtocolSurfaceSummary>) ->
                 html_escape(&join_or_none(&surface.entry_aliases)),
                 html_escape(&join_or_none(&surface.sibling_entries)),
                 selected_overlay,
+                entry_semantics,
                 companions,
                 cluster_hint,
                 shelf,
@@ -199,6 +205,36 @@ fn append_shelf_json(json: &mut String, surface: &ProtocolSurfaceSummary) {
     }
 }
 
+fn append_entry_semantics_json(json: &mut String, surface: &ProtocolSurfaceSummary) {
+    match surface.entry_semantics.as_ref() {
+        Some(semantics) => {
+            json.push('{');
+            json.push_str("\"category\":");
+            append_json_string(json, &semantics.category);
+            json.push_str(",\"operator_focus\":");
+            append_json_string(json, &semantics.operator_focus);
+            json.push_str(",\"typical_signal\":");
+            append_optional_string_json(json, semantics.typical_signal.as_deref());
+            json.push_str(",\"primary_failure_mode\":");
+            append_optional_string_json(json, semantics.primary_failure_mode.as_deref());
+            json.push_str(",\"primary_failure_detail\":");
+            append_optional_string_json(json, semantics.primary_failure_detail.as_deref());
+            json.push_str(",\"primary_failure_basis\":");
+            append_optional_string_json(json, semantics.primary_failure_basis.as_deref());
+            json.push('}');
+        }
+        None => json.push_str("null"),
+    }
+}
+
+fn append_optional_string_json(json: &mut String, value: Option<&str>) {
+    if let Some(value) = value {
+        append_json_string(json, value);
+    } else {
+        json.push_str("null");
+    }
+}
+
 fn append_companions_json(json: &mut String, surface: &ProtocolSurfaceSummary) {
     let companions = reading_companions(surface);
     json.push('[');
@@ -232,6 +268,26 @@ fn companions_text(surface: &ProtocolSurfaceSummary) -> String {
         .join(" | ")
 }
 
+fn entry_semantics_text(surface: &ProtocolSurfaceSummary) -> String {
+    surface.entry_semantics.as_ref().map_or_else(
+        || "none".to_string(),
+        |semantics| {
+            format!(
+                "{}:{}:{}:{}:{}:{}",
+                semantics.category,
+                semantics.operator_focus,
+                semantics.typical_signal.as_deref().unwrap_or("none"),
+                semantics.primary_failure_mode.as_deref().unwrap_or("none"),
+                semantics
+                    .primary_failure_detail
+                    .as_deref()
+                    .unwrap_or("none"),
+                semantics.primary_failure_basis.as_deref().unwrap_or("none"),
+            )
+        },
+    )
+}
+
 fn companions_html(surface: &ProtocolSurfaceSummary) -> String {
     let companions = reading_companions(surface);
     if companions.is_empty() {
@@ -251,6 +307,35 @@ fn companions_html(surface: &ProtocolSurfaceSummary) -> String {
         .collect::<Vec<_>>()
         .join(" | ");
     format!("<li><strong>reading companions:</strong> {}</li>", rendered)
+}
+
+fn entry_semantics_html(surface: &ProtocolSurfaceSummary) -> String {
+    surface.entry_semantics.as_ref().map_or_else(String::new, |semantics| {
+        format!(
+            "<li><strong>entry semantics:</strong> {}</li><li><strong>operator focus:</strong> {}</li><li><strong>typical signal:</strong> {}</li><li><strong>primary failure mode:</strong> {}</li><li><strong>primary failure detail:</strong> {}</li><li><strong>primary failure basis:</strong> {}</li>",
+            html_escape(&semantics.category),
+            html_escape(&semantics.operator_focus),
+            html_escape(semantics.typical_signal.as_deref().unwrap_or("none")),
+            html_escape(
+                semantics
+                    .primary_failure_mode
+                    .as_deref()
+                    .unwrap_or("none"),
+            ),
+            html_escape(
+                semantics
+                    .primary_failure_detail
+                    .as_deref()
+                    .unwrap_or("none"),
+            ),
+            html_escape(
+                semantics
+                    .primary_failure_basis
+                    .as_deref()
+                    .unwrap_or("none"),
+            ),
+        )
+    })
 }
 
 fn reading_companions(surface: &ProtocolSurfaceSummary) -> Vec<(String, String, String, String)> {
