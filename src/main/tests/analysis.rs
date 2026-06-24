@@ -1,5 +1,14 @@
 use super::*;
 
+fn demo_analysis_export() -> ExportBundle {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+        .expect("http_request_path DSL should compile");
+    annotate_export_trust(
+        run_binding_demo(binding),
+        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+    )
+}
+
 #[test]
 fn analysis_snapshot_supports_composable_augmenters() {
     let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
@@ -408,6 +417,75 @@ fn analysis_snapshot_adds_missing_transition_recommendation() {
     ));
     assert!(json.contains("\"missing_transitions\":[\"send_request->receive_response\"]"));
     assert!(json.contains("\"suspect_areas\":[\"transport_io\"]"));
+}
+
+#[test]
+fn analysis_snapshot_contract_keeps_stable_top_level_fields() {
+    let export = demo_analysis_export();
+    let snapshot = analysis_snapshot(&export);
+    let json = analysis_snapshot_json(&snapshot);
+
+    assert!(json.contains("\"target_status\":"));
+    assert!(json.contains("\"primary_process_profile\":"));
+    assert!(json.contains("\"primary_module_kind\":"));
+    assert!(json.contains("\"primary_module_family\":"));
+    assert!(json.contains("\"primary_failure_stage\":"));
+    assert!(json.contains("\"primary_failure_mode\":"));
+    assert!(json.contains("\"primary_failure_detail\":"));
+    assert!(json.contains("\"primary_failure_confidence\":"));
+    assert!(json.contains("\"primary_failure_basis\":"));
+    assert!(json.contains("\"evidence_posture\":"));
+    assert!(json.contains("\"automation_outcome\":"));
+    assert!(json.contains("\"operator_guidance_status\":"));
+    assert!(json.contains("\"operator_guidance_action\":"));
+    assert!(json.contains("\"operator_guidance_reason\":"));
+    assert!(json.contains("\"operator_guidance_summary\":"));
+    assert!(json.contains("\"ambiguous\":"));
+    assert!(json.contains("\"competing_hypotheses\":"));
+    assert!(json.contains("\"operations\":["));
+    assert!(json.contains("\"phases\":["));
+    assert!(json.contains("\"missing_transitions\":["));
+    assert!(json.contains("\"suspect_areas\":["));
+    assert!(json.contains("\"suspect_modules\":["));
+    assert!(json.contains("\"augmentations\":["));
+    assert!(json.contains("\"external_sidecar_context\":"));
+    assert!(json.contains("\"has_external_capability_profile\":"));
+    assert!(json.contains("\"external_capability_status\":"));
+    assert!(json.contains("\"external_hint_status\":"));
+    assert!(json.contains("\"external_context_status\":"));
+    assert!(json.contains("\"external_sidecar_trust_level\":"));
+    assert!(json.contains("\"external_sidecar_consumption_mode\":"));
+    assert!(json.contains("\"process_network_profiles\":["));
+    assert!(json.contains("\"protocol_flows\":["));
+}
+
+#[test]
+fn analysis_snapshot_contract_keeps_stable_nested_profile_and_flow_fields() {
+    let export = demo_analysis_export();
+    let snapshot = analysis_snapshot(&export);
+    let json = analysis_snapshot_json(&snapshot);
+
+    assert!(json.contains("\"primary_process_profile\":{\"pid\":"));
+    assert!(json.contains("\"comm\":"));
+    assert!(json.contains("\"status\":"));
+    assert!(json.contains("\"primary_module_kind\":"));
+    assert!(json.contains("\"primary_failure_stage\":"));
+    assert!(json.contains("\"primary_failure_mode\":"));
+    assert!(json.contains("\"primary_failure_detail\":"));
+    assert!(json.contains("\"primary_failure_confidence\":"));
+    assert!(json.contains("\"primary_failure_basis\":"));
+    assert!(json.contains("\"operations\":["));
+    assert!(json.contains("\"module_kinds\":["));
+    assert!(json.contains("\"healthy_flows\":"));
+    assert!(json.contains("\"attention_flows\":"));
+    assert!(json.contains("\"process_network_profiles\":[{\"pid\":"));
+    assert!(json.contains("\"protocol_flows\":[{\"program_flow\":"));
+    assert!(json.contains("\"process\":{\"pid\":"));
+    assert!(json.contains("\"network_module_kind\":"));
+    assert!(json.contains("\"network_module_kinds\":["));
+    assert!(json.contains("\"failure_confidence\":"));
+    assert!(json.contains("\"failure_basis\":"));
+    assert!(json.contains("\"last_phase\":"));
 }
 
 #[test]

@@ -1,85 +1,207 @@
 {
-  "ok": false,
-  "summary": {
-    "parse_ok": false,
-    "validation_ok": false,
-    "diagnostics_ok": false,
-    "template_id": null,
-    "operation": null,
-    "finding_count": 1,
-    "next_step": "fix the parse finding first, then rerun `gewyc explain`",
-    "focus": null,
-    "stage_status": {
-      "parse": false,
-      "validation": false,
-      "diagnostics": false
-    },
-    "analysis": {
-      "authoring_context": null,
-      "lowered_binding_summary": null,
-      "frontend_lowering_delta": null
-    },
-    "shape_notes": {
-      "binding": null,
-      "validation": null,
-      "diagnostics": null
-    },
-    "excerpts": {
-      "parse_source": {
-        "line": 2,
-        "column": 11,
-        "line_text": "fn broken( =",
-        "marker": "          ^"
-      },
-      "validation": null,
-      "diagnostics": null
-    },
-    "authoring_context": null,
-    "lowered_binding_summary": null,
-    "frontend_lowering_delta": null,
-    "binding_shape_note": null,
-    "validation_shape_note": null,
-    "diagnostics_shape_note": null,
-    "parse_source_excerpt": {
-      "line": 2,
-      "column": 11,
-      "line_text": "fn broken( =",
-      "marker": "          ^"
-    },
-    "validation_excerpt": null,
-    "diagnostics_excerpt": null
+  "surface_id": "gewyc.explain",
+  "schema_hint": {
+    "family": "gewyc",
+    "surface": "explain",
+    "schema_version": 1
   },
-  "focused_report": null,
-  "frontend": null,
-  "binding": null,
-  "validation": {
+  "contract_hint": {
+    "stability": "candidate",
+    "compatibility": "grouped_payload_preferred",
+    "legacy_fields": "retained_in_payload"
+  },
+  "payload": {
     "ok": false,
-    "registry": "builtin",
-    "fragment_count": 0,
-    "program_rule_count": 0,
-    "reason_rule_count": 0,
-    "checks": [
-      "binding_schema",
-      "fragment_params",
-      "rule_evidence",
-      "payload_offsets"
-    ],
-    "sampled_payload_offsets": [],
-    "required_payload_offsets": [],
-    "unsupported_payload_offsets": [],
-    "finding": null
-  },
-  "diagnostics": null,
-  "findings": {
-    "findings": [
-      {
-        "stage": "parse",
-        "severity": "error",
-        "code": "GEWYC-PARSE-INVALID-VALUE",
-        "line": 2,
-        "column": 11,
-        "message": "invalid function signature 'broken('"
+    "summary": {
+      "parse_ok": false,
+      "validation_ok": false,
+      "diagnostics_ok": false,
+      "template_id": null,
+      "operation": null,
+      "finding_count": 1,
+      "next_step": "fix the parse finding first, then inspect the standalone frontend graph with `gewyc frontend`",
+      "focus": "parse",
+      "stage_status": {
+        "parse": false,
+        "validation": false,
+        "diagnostics": false
+      },
+      "analysis": {
+        "authoring_context": {
+          "module_doc": null,
+          "template_doc": null,
+          "documented_functions": []
+        },
+        "lowered_binding_summary": null,
+        "frontend_lowering_delta": null
+      },
+      "shape_notes": {
+        "binding": null,
+        "validation": null,
+        "diagnostics": null
+      },
+      "excerpts": {
+        "parse_source": {
+          "line": 3,
+          "column": null,
+          "line_text": "|> use(:missing_function)",
+          "marker": "^"
+        },
+        "validation": null,
+        "diagnostics": null
+      },
+      "authoring_context": {
+        "module_doc": null,
+        "template_doc": null,
+        "documented_functions": []
+      },
+      "lowered_binding_summary": null,
+      "frontend_lowering_delta": null,
+      "binding_shape_note": null,
+      "validation_shape_note": null,
+      "diagnostics_shape_note": null,
+      "parse_source_excerpt": {
+        "line": 3,
+        "column": null,
+        "line_text": "|> use(:missing_function)",
+        "marker": "^"
+      },
+      "validation_excerpt": null,
+      "diagnostics_excerpt": null
+    },
+    "focused_report": {
+      "kind": "parse",
+      "status": {
+        "ok": false
+      },
+      "analysis": {
+        "finding": {
+          "stage": "parse",
+          "severity": "error",
+          "code": "GEWYC-PARSE-UNKNOWN-PIPELINE-FUNCTION",
+          "line": 3,
+          "column": null,
+          "message": "unknown pipeline function 'missing_function'. No reusable pipeline functions are declared in this module."
+        }
+      },
+      "excerpts": {
+        "parse_source": {
+          "line": 3,
+          "column": null,
+          "line_text": "|> use(:missing_function)",
+          "marker": "^"
+        }
+      },
+      "report": {
+        "finding": {
+          "stage": "parse",
+          "severity": "error",
+          "code": "GEWYC-PARSE-UNKNOWN-PIPELINE-FUNCTION",
+          "line": 3,
+          "column": null,
+          "message": "unknown pipeline function 'missing_function'. No reusable pipeline functions are declared in this module."
+        },
+        "source_excerpt": {
+          "line": 3,
+          "column": null,
+          "line_text": "|> use(:missing_function)",
+          "marker": "^"
+        }
       }
-    ]
+    },
+    "frontend": {
+      "kind": "pipeline",
+      "status": {
+        "present": true
+      },
+      "authoring": {
+        "module_doc": null,
+        "template_doc": null,
+        "documented_functions": []
+      },
+      "counts": {
+        "functions": 0,
+        "merged_steps": 2,
+        "includes": 0,
+        "use_edges": 1,
+        "graph_nodes": 1,
+        "graph_edges": 1,
+        "expansion_previews": 1
+      },
+      "module_doc": null,
+      "template_doc": null,
+      "function_count": 0,
+      "function_nodes": [],
+      "merged_step_count": 2,
+      "include_sources": [],
+      "use_edges": [
+        {
+          "from": "entry",
+          "to": "missing_function",
+          "line": 3
+        }
+      ],
+      "graph_nodes": [
+        {
+          "id": "entry",
+          "kind": "entry",
+          "label": "entry",
+          "package_scope": "standalone",
+          "step_count": 2
+        }
+      ],
+      "graph_edges": [
+        {
+          "from": "entry",
+          "to": "fn:missing_function",
+          "kind": "use",
+          "line": 3
+        }
+      ],
+      "expansion_previews": [
+        {
+          "scope": "entry",
+          "local_bindings": [],
+          "steps": [
+            "window(:default_5s)",
+            "use(:missing_function)"
+          ],
+          "use_targets": [
+            "missing_function"
+          ]
+        }
+      ]
+    },
+    "binding": null,
+    "validation": {
+      "ok": false,
+      "registry": "builtin",
+      "fragment_count": 0,
+      "program_rule_count": 0,
+      "reason_rule_count": 0,
+      "checks": [
+        "binding_schema",
+        "fragment_params",
+        "rule_evidence",
+        "payload_offsets"
+      ],
+      "sampled_payload_offsets": [],
+      "required_payload_offsets": [],
+      "unsupported_payload_offsets": [],
+      "finding": null
+    },
+    "diagnostics": null,
+    "findings": {
+      "findings": [
+        {
+          "stage": "parse",
+          "severity": "error",
+          "code": "GEWYC-PARSE-UNKNOWN-PIPELINE-FUNCTION",
+          "line": 3,
+          "column": null,
+          "message": "unknown pipeline function 'missing_function'. No reusable pipeline functions are declared in this module."
+        }
+      ]
+    }
   }
 }

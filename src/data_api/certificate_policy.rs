@@ -68,8 +68,11 @@ mod tests {
         };
         let body = api_runtime_certificate_policy_json_from_view(&view);
         assert!(body.contains("\"surface\":\"runtime_certificate_policy\""));
+        assert!(body.contains("\"status\":\"attention\""));
+        assert!(body.contains("\"severity\":\"warning\""));
         assert!(body.contains("\"reason_count\":1"));
         assert!(body.contains("\"code\":\"explicit_remote_trust_without_anchors\""));
+        assert!(body.contains("\"severity\":\"warning\",\"summary\":\"remote trust is locked down but no trust anchors are present yet\""));
         assert!(body.contains("\"recommended_actions\":[\"add a trust anchor\"]"));
     }
 }

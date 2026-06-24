@@ -90,12 +90,16 @@ mod history_cli;
 mod mail_delivery;
 #[path = "tests/mail_flow.rs"]
 mod mail_flow;
+#[path = "tests/machine_surface_matrix.rs"]
+mod machine_surface_matrix;
 #[path = "tests/management_udp_direct_signal_semantics.rs"]
 mod management_udp_direct_signal_semantics;
 #[path = "tests/management_udp_failure_semantics.rs"]
 mod management_udp_failure_semantics;
 #[path = "tests/management_udp_result_semantics.rs"]
 mod management_udp_result_semantics;
+#[path = "tests/persisted_machine_surface_matrix.rs"]
+mod persisted_machine_surface_matrix;
 #[path = "tests/pop_kerberos.rs"]
 mod pop_kerberos;
 #[path = "tests/redis_failure_semantics.rs"]

@@ -302,6 +302,53 @@ fn runtime_config_rejects_future_schema_version() {
 }
 
 #[test]
+fn runtime_config_explicit_file_overrides_standard_path() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("explicit-file");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    let explicit_path = root.join("explicit.toml");
+    fs::write(
+        config_root.join("gewyvern.toml"),
+        "schema_version = 1\n[runtime]\nserve = false\nmax_sessions = 11\n",
+    )
+    .unwrap();
+    fs::write(
+        &explicit_path,
+        "schema_version = 1\n[runtime]\nserve = true\nmax_sessions = 29\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::set("GEWY_CONFIG_FILE", explicit_path.to_string_lossy());
+
+    let config = load_runtime_config().unwrap();
+    assert_eq!(config.defaults.serve, Some(true));
+    assert_eq!(config.defaults.max_sessions, Some(29));
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn runtime_config_rejects_unknown_section() {
+    let _lock = env_lock().lock().unwrap();
+    let root = temp_dir("unknown-section");
+    let config_root = root.join("config");
+    fs::create_dir_all(&config_root).unwrap();
+    fs::write(
+        config_root.join("gewyvern.toml"),
+        "schema_version = 1\n[unknown]\nvalue = true\n",
+    )
+    .unwrap();
+    let _config_home = EnvGuard::set("GEWY_CONFIG_HOME", config_root.to_string_lossy());
+    let _config_file = EnvGuard::remove("GEWY_CONFIG_FILE");
+
+    let err = load_runtime_config().unwrap_err();
+    assert!(err.contains("unsupported runtime config section 'unknown'"));
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
 fn cli_arguments_override_runtime_config_defaults() {
     let defaults = CliDefaults {
         serve: Some(true),

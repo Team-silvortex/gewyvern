@@ -255,6 +255,9 @@ fn render_ir_history_snapshot_exposes_archival_shape() {
     assert!(text.contains("reason_model.id=amqp_basic_publish_path_reason"));
     assert!(text.contains("model_compare.rule_count_delta=0"));
     assert!(text.contains("model_compare.shared_modules=amqp_basic_publish_path"));
+    assert!(json.contains("\"surface_id\":\"gewyc.ir_history_snapshot\""));
+    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"ir_history_snapshot\",\"schema_version\":1}"));
+    assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
     assert!(json.contains("\"template_id\":\"amqp_basic_publish_path\""));
     assert!(json.contains("\"operation\":\"amqp_basic_publish\""));
     assert!(json.contains("\"program_model\":{"));

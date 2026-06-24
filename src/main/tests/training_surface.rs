@@ -1,17 +1,22 @@
 use super::support_facts::push_synthetic_missing_stage_finding;
 use super::*;
+use crate::data_api::training_sample_id;
 use crate::render_utils::extract_json_string_field;
+
+fn demo_training_export() -> ExportBundle {
+    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+        .expect("http_request_path DSL should compile");
+    annotate_export_trust(
+        run_binding_demo(binding),
+        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+    )
+}
 
 #[test]
 fn training_example_json_exposes_input_supervision_and_provenance() {
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
-        .expect("http_request_path DSL should compile");
-    let export = annotate_export_trust(
-        run_binding_demo(binding),
-        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
-    );
+    let export = demo_training_export();
     let body = training_example_json("dsl_demo", &export);
     assert!(body.contains("\"kind\":\"training_example\""));
     assert!(body.contains("\"sample_id\":\"gewy:"));
@@ -48,12 +53,7 @@ fn training_example_array_supports_scan_level_export() {
 fn training_example_promotes_top_level_diagnosis_aggregates() {
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
-        .expect("http_request_path DSL should compile");
-    let mut export = annotate_export_trust(
-        run_binding_demo(binding),
-        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
-    );
+    let mut export = demo_training_export();
     let flow = export.program_flows[0].clone();
     push_synthetic_missing_stage_finding(
         &mut export,
@@ -82,15 +82,74 @@ fn training_example_promotes_top_level_diagnosis_aggregates() {
 }
 
 #[test]
+fn training_example_contract_keeps_stable_top_level_and_input_fields() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let export = demo_training_export();
+    let body = training_example_json("dsl_demo", &export);
+    let sample_id = extract_json_string_field(&body, "sample_id")
+        .expect("training example should expose sample_id");
+
+    assert!(body.contains("\"kind\":\"training_example\""));
+    assert!(body.contains("\"schema_version\":1"));
+    assert!(body.contains("\"name\":\"dsl_demo\""));
+    assert_eq!(sample_id, training_sample_id("dsl_demo"));
+    assert!(body.contains("\"template_id\":"));
+    assert!(body.contains("\"input\":{"));
+    assert!(body.contains("\"target_status\":"));
+    assert!(body.contains("\"primary_module_kind\":"));
+    assert!(body.contains("\"primary_failure_stage\":"));
+    assert!(body.contains("\"primary_failure_mode\":"));
+    assert!(body.contains("\"primary_failure_detail\":"));
+    assert!(body.contains("\"primary_failure_confidence\":"));
+    assert!(body.contains("\"primary_failure_basis\":"));
+    assert!(body.contains("\"ambiguous\":"));
+    assert!(body.contains("\"competing_hypotheses\":"));
+    assert!(body.contains("\"suspect_modules\":"));
+    assert!(body.contains("\"protocol_flows\":["));
+    assert!(body.contains("\"process_network_profiles\":["));
+    assert!(body.contains("\"augmentations\":["));
+    assert!(body.contains("\"external_sidecar_context\":"));
+    assert!(body.contains("\"has_external_capability_profile\":"));
+    assert!(body.contains("\"external_capability_status\":"));
+    assert!(body.contains("\"external_hint_status\":"));
+    assert!(body.contains("\"external_context_status\":"));
+    assert!(body.contains("\"external_sidecar_trust_level\":"));
+    assert!(body.contains("\"external_sidecar_consumption_mode\":"));
+}
+
+#[test]
+fn training_example_contract_keeps_supervision_and_provenance_fields() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let export = demo_training_export();
+    let body = training_example_json("dsl_demo", &export);
+
+    assert!(body.contains("\"supervision\":{"));
+    assert!(body.contains("\"operator_guidance_status\":"));
+    assert!(body.contains("\"operator_guidance_action\":"));
+    assert!(body.contains("\"operator_guidance_reason\":"));
+    assert!(body.contains("\"operator_guidance_summary\":"));
+    assert!(body.contains("\"targets\":{\"diagnosis\":{"));
+    assert!(body.contains("\"guidance\":{\"status\":"));
+    assert!(body.contains("\"automation\":{\"posture\":"));
+    assert!(body.contains("\"ranking\":{\"attention_priority\":"));
+    assert!(body.contains("\"provenance\":{"));
+    assert!(body.contains("\"ingest_mode\":"));
+    assert!(body.contains("\"ingest_mode_note\":"));
+    assert!(body.contains("\"ingest_trust_mode\":"));
+    assert!(body.contains("\"pid_attribution_status\":"));
+    assert!(body.contains("\"fragments_loaded\":"));
+    assert!(body.contains("\"flows\":"));
+    assert!(body.contains("\"program_findings\":"));
+    assert!(body.contains("\"module_findings\":"));
+}
+
+#[test]
 fn api_training_example_routes_cover_single_export() {
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
-        .expect("http_request_path DSL should compile");
-    let export = annotate_export_trust(
-        run_binding_demo(binding),
-        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
-    );
+    let export = demo_training_export();
     let analysis = analysis_snapshot(&export);
     let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
     update_api_snapshot_for_single(

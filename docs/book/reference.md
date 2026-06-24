@@ -54,6 +54,12 @@ If you are in the protocol volume specifically, start with:
   Draft formal grammar.
 - [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
   `gewyc` frontend/explain JSON output.
+- [docs/gewyc-field-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-field-contract.md)
+  Field-by-field bless/compat/evolving contract shelf for `gewyc` JSON.
+- [docs/gewyc-contract-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-contract-matrix.md)
+  Matrix from grouped contract shelves to the primary real fixture files.
+- [docs/gewyc-freeze-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-freeze-checklist.md)
+  Short release-line freeze ritual for tightening grouped fields without losing compatibility discipline.
 - [docs/gewyc-sample-index.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-sample-index.md)
   Sample-first index for real success/failure `gewyc` JSON fixtures.
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
@@ -112,9 +118,13 @@ If you are in the protocol volume specifically, start with:
 - [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
   Config file search order, supported sections, override precedence, and
   legacy fallback behavior for the `0.15.x` line.
+- [docs/runtime-config-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/runtime-config-contract.md)
+  Narrow machine-facing contract candidate for config search order, section/key surface, and compatibility fallback.
 - [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
   Stable runtime certificate policy statuses, reason codes, and operator-facing
   interpretation rules for the certificate shelf.
+- [docs/runtime-certificate-policy-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/runtime-certificate-policy-contract.md)
+  Narrow machine-facing contract candidate for policy status words, reason codes, and additive evolution posture.
 - [docs/book/reference-runtime-certificate-state.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-state.md)
   Runtime-managed certificate rotation and revocation shelf layout plus the
   certificate-state API contract.
@@ -131,8 +141,12 @@ If you are in the protocol volume specifically, start with:
   training dataset and sample export surfaces.
 - [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
   Export bundle structure.
+- [docs/export-format-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format-contract.md)
+  Narrow machine-facing contract candidate for replay-critical bundle fields and summary-vs-replay discipline.
 - [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
   Machine-facing JSON and API contract candidate.
+- [docs/machine-surface-freeze.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-surface-freeze.md)
+  Shared freeze ritual for compiler, runtime-config, certificate, and export machine surfaces.
 - [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
   Stable versus intentionally unstable surfaces.
 

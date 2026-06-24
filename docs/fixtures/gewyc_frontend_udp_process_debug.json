@@ -1,110 +1,123 @@
 {
-  "summary": {
-    "kind": "pipeline",
-    "module_doc": null,
-    "template_doc": null,
-    "function_count": 1,
-    "merged_step_count": 11,
-    "focus": null
+  "surface_id": "gewyc.frontend",
+  "schema_hint": {
+    "family": "gewyc",
+    "surface": "frontend",
+    "schema_version": 1
   },
-  "focused_report": null,
-  "report": {
-    "kind": "pipeline",
-    "status": {
-      "present": true
-    },
-    "authoring": {
+  "contract_hint": {
+    "stability": "candidate",
+    "compatibility": "grouped_payload_preferred",
+    "legacy_fields": "retained_in_payload"
+  },
+  "payload": {
+    "summary": {
+      "kind": "pipeline",
       "module_doc": null,
       "template_doc": null,
-      "documented_functions": []
+      "function_count": 1,
+      "merged_step_count": 11,
+      "focus": null
     },
-    "counts": {
-      "functions": 1,
-      "merged_steps": 11,
-      "includes": 0,
-      "use_edges": 1,
-      "graph_nodes": 2,
-      "graph_edges": 1,
-      "expansion_previews": 2
-    },
-    "module_doc": null,
-    "template_doc": null,
-    "function_count": 1,
-    "function_nodes": [
-      {
-        "name": "udp_process_rules",
-        "signature": "udp_process_rules()",
-        "doc": null,
-        "step_count": 7,
-        "source_id": "entry",
-        "package_scope": "standalone",
-        "params": []
-      }
-    ],
-    "merged_step_count": 11,
-    "include_sources": [],
-    "use_edges": [
-      {
-        "from": "entry",
-        "to": "udp_process_rules",
-        "line": 17
-      }
-    ],
-    "graph_nodes": [
-      {
-        "id": "entry",
-        "kind": "entry",
-        "label": "entry",
-        "package_scope": "standalone",
-        "step_count": 4
+    "focused_report": null,
+    "report": {
+      "kind": "pipeline",
+      "status": {
+        "present": true
       },
-      {
-        "id": "fn:udp_process_rules",
-        "kind": "function",
-        "label": "udp_process_rules",
-        "package_scope": "standalone",
-        "step_count": 7
-      }
-    ],
-    "graph_edges": [
-      {
-        "from": "entry",
-        "to": "fn:udp_process_rules",
-        "kind": "use",
-        "line": 17
-      }
-    ],
-    "expansion_previews": [
-      {
-        "scope": "entry",
-        "local_bindings": [],
-        "steps": [
-          "window(duration_ms: 5000, lateness_ms: 200)",
-          "reason(:udp_datagram_l1)",
-          "use(:udp_process_rules)",
-          "param(:sock_lineage_fragment.capture_comm, true)"
-        ],
-        "use_targets": [
-          "udp_process_rules"
-        ]
+      "authoring": {
+        "module_doc": null,
+        "template_doc": null,
+        "documented_functions": []
       },
-      {
-        "scope": "udp_process_rules",
-        "local_bindings": [
-          "transport_predicate",
-          "route_narrative"
-        ],
-        "steps": [
-          "fragment(:udp_packet_meta_fragment)",
-          "fragment(:route_meta_fragment)",
-          "fragment(:sock_lineage_fragment)",
-          "operation(:datagram_exchange)",
-          "program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)",
-          "program_rule(predicate: ${transport_predicate}, stage: :datagram_observed, narrative: \"static:program emitted or received a UDP datagram\", dedupe: true)",
-          "program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true)"
-        ],
-        "use_targets": []
-      }
-    ]
+      "counts": {
+        "functions": 1,
+        "merged_steps": 11,
+        "includes": 0,
+        "use_edges": 1,
+        "graph_nodes": 2,
+        "graph_edges": 1,
+        "expansion_previews": 2
+      },
+      "module_doc": null,
+      "template_doc": null,
+      "function_count": 1,
+      "function_nodes": [
+        {
+          "name": "udp_process_rules",
+          "signature": "udp_process_rules()",
+          "doc": null,
+          "step_count": 7,
+          "source_id": "entry",
+          "package_scope": "standalone",
+          "params": []
+        }
+      ],
+      "merged_step_count": 11,
+      "include_sources": [],
+      "use_edges": [
+        {
+          "from": "entry",
+          "to": "udp_process_rules",
+          "line": 17
+        }
+      ],
+      "graph_nodes": [
+        {
+          "id": "entry",
+          "kind": "entry",
+          "label": "entry",
+          "package_scope": "standalone",
+          "step_count": 4
+        },
+        {
+          "id": "fn:udp_process_rules",
+          "kind": "function",
+          "label": "udp_process_rules",
+          "package_scope": "standalone",
+          "step_count": 7
+        }
+      ],
+      "graph_edges": [
+        {
+          "from": "entry",
+          "to": "fn:udp_process_rules",
+          "kind": "use",
+          "line": 17
+        }
+      ],
+      "expansion_previews": [
+        {
+          "scope": "entry",
+          "local_bindings": [],
+          "steps": [
+            "window(duration_ms: 5000, lateness_ms: 200)",
+            "reason(:udp_datagram_l1)",
+            "use(:udp_process_rules)",
+            "param(:sock_lineage_fragment.capture_comm, true)"
+          ],
+          "use_targets": [
+            "udp_process_rules"
+          ]
+        },
+        {
+          "scope": "udp_process_rules",
+          "local_bindings": [
+            "transport_predicate",
+            "route_narrative"
+          ],
+          "steps": [
+            "fragment(:udp_packet_meta_fragment)",
+            "fragment(:route_meta_fragment)",
+            "fragment(:sock_lineage_fragment)",
+            "operation(:datagram_exchange)",
+            "program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)",
+            "program_rule(predicate: ${transport_predicate}, stage: :datagram_observed, narrative: \"static:program emitted or received a UDP datagram\", dedupe: true)",
+            "program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true)"
+          ],
+          "use_targets": []
+        }
+      ]
+    }
   }
 }

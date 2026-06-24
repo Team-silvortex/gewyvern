@@ -257,4 +257,45 @@ mod tests {
             "\"summary\":{\"trust_items\":0,\"authority_items\":0,\"identity_items\":0}"
         ));
     }
+
+    #[test]
+    fn certificates_json_keeps_policy_and_state_machine_summary_fields() {
+        let inventory = CertificateInventory {
+            root: PathBuf::from("/srv/gewyvern/certificates"),
+            trust_root: PathBuf::from("/srv/gewyvern/certificates/trust"),
+            authority_root: PathBuf::from("/srv/gewyvern/certificates/authorities"),
+            identity_root: PathBuf::from("/srv/gewyvern/certificates/identities"),
+            state_root: PathBuf::from("/srv/gewyvern/state/certificates"),
+            root_exists: false,
+            trust_root_exists: false,
+            authority_root_exists: true,
+            identity_root_exists: true,
+            state_root_exists: false,
+            require_explicit_remote_trust: true,
+            trust_items: vec![],
+            authority_items: vec![],
+            identity_items: vec![],
+        };
+
+        let body = api_runtime_certificates_json_from_inventory(&inventory);
+        assert!(body.contains("\"root\":\"/srv/gewyvern/certificates\""));
+        assert!(body.contains(
+            "\"trust_root\":\"/srv/gewyvern/certificates/trust\""
+        ));
+        assert!(body.contains("\"roots\":{\"root_exists\":false"));
+        assert!(body.contains("\"trust_root_exists\":false"));
+        assert!(body.contains("\"authority_root_exists\":true"));
+        assert!(body.contains("\"identity_root_exists\":true"));
+        assert!(body.contains("\"state_root_exists\":false"));
+        assert!(body.contains("\"require_explicit_remote_trust\":true"));
+        assert!(body.contains("\"policy\":{\"status\":"));
+        assert!(body.contains("\"severity\":"));
+        assert!(body.contains("\"summary\":"));
+        assert!(body.contains("\"reason_count\":"));
+        assert!(body.contains("\"reason_codes\":["));
+        assert!(body.contains("\"state\":{\"rotation_records\":"));
+        assert!(body.contains("\"overdue_rotations\":"));
+        assert!(body.contains("\"revocation_records\":"));
+        assert!(body.contains("\"active_revocations\":"));
+    }
 }

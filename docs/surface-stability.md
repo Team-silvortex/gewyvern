@@ -216,6 +216,37 @@ In other words:
 - depend on the diagnosis spine
 - avoid depending on incidental presentation details
 
+## Compiler JSON Wrapper Candidate
+
+For the compiler-facing `gewyc ... --json` surfaces, the current wrapper
+contract candidate is:
+
+- `surface_id`
+- `schema_hint.family`
+- `schema_hint.surface`
+- `schema_hint.schema_version`
+- `contract_hint.stability`
+- `contract_hint.compatibility`
+- `contract_hint.legacy_fields`
+- `payload`
+
+Practical reading rule:
+
+- route by `surface_id`
+- gate parser behavior by `schema_hint`
+- choose grouped reads using `contract_hint`
+- treat legacy flat payload fields as compatibility residue, not the preferred
+  long-term entrypoint
+
+The current `contract_hint` values are:
+
+- `stability = "candidate"`
+- `compatibility = "grouped_payload_preferred"`
+- `legacy_fields = "retained_in_payload"`
+
+That is a real machine-facing signal for the `0.17.*` line, but not yet a
+forever `1.0.0` freeze.
+
 ## Practical Guidance
 
 If you are integrating against `gewyvern`:

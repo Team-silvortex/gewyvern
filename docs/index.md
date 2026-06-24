@@ -87,6 +87,10 @@ Use these when you want reading order instead of topic lookup:
 - [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
 - [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
 - [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
+- [docs/machine-surface-freeze.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-surface-freeze.md)
+- [docs/runtime-config-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/runtime-config-contract.md)
+- [docs/runtime-certificate-policy-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/runtime-certificate-policy-contract.md)
+- [docs/export-format-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format-contract.md)
 
 ### Understand `gewylang` And `gewyc`
 
@@ -96,6 +100,9 @@ Use these when you want reading order instead of topic lookup:
 - [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
 - [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
 - [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+- [docs/gewyc-field-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-field-contract.md)
+- [docs/gewyc-contract-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-contract-matrix.md)
+- [docs/gewyc-freeze-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-freeze-checklist.md)
 - [docs/gewyc-sample-index.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-sample-index.md)
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
 

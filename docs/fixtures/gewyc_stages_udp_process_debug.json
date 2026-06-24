@@ -1,247 +1,260 @@
 {
-  "status": {
-    "parse_ok": true,
-    "validation_ok": true,
-    "diagnostics_ok": true
+  "surface_id": "gewyc.stages",
+  "schema_hint": {
+    "family": "gewyc",
+    "surface": "stages",
+    "schema_version": 1
   },
-  "counts": {
-    "validation_fragments": 3,
-    "validation_program_rules": 3,
-    "validation_reason_rules": 0,
-    "sampled_payload_offsets": 7,
-    "required_payload_offsets": 0,
-    "unsupported_payload_offsets": 0
+  "contract_hint": {
+    "stability": "candidate",
+    "compatibility": "grouped_payload_preferred",
+    "legacy_fields": "retained_in_payload"
   },
-  "parse": {
-    "ok": true,
-    "frontend": {
-      "kind": "pipeline",
-      "status": {
-        "present": true
-      },
-      "authoring": {
+  "payload": {
+    "status": {
+      "parse_ok": true,
+      "validation_ok": true,
+      "diagnostics_ok": true
+    },
+    "counts": {
+      "validation_fragments": 3,
+      "validation_program_rules": 3,
+      "validation_reason_rules": 0,
+      "sampled_payload_offsets": 7,
+      "required_payload_offsets": 0,
+      "unsupported_payload_offsets": 0
+    },
+    "parse": {
+      "ok": true,
+      "frontend": {
+        "kind": "pipeline",
+        "status": {
+          "present": true
+        },
+        "authoring": {
+          "module_doc": null,
+          "template_doc": null,
+          "documented_functions": []
+        },
+        "counts": {
+          "functions": 1,
+          "merged_steps": 11,
+          "includes": 0,
+          "use_edges": 1,
+          "graph_nodes": 2,
+          "graph_edges": 1,
+          "expansion_previews": 2
+        },
         "module_doc": null,
         "template_doc": null,
-        "documented_functions": []
-      },
-      "counts": {
-        "functions": 1,
-        "merged_steps": 11,
-        "includes": 0,
-        "use_edges": 1,
-        "graph_nodes": 2,
-        "graph_edges": 1,
-        "expansion_previews": 2
-      },
-      "module_doc": null,
-      "template_doc": null,
-      "function_count": 1,
-      "function_nodes": [
-        {
-          "name": "udp_process_rules",
-          "signature": "udp_process_rules()",
-          "doc": null,
-          "step_count": 7,
-          "source_id": "entry",
-          "package_scope": "standalone",
-          "params": []
-        }
-      ],
-      "merged_step_count": 11,
-      "include_sources": [],
-      "use_edges": [
-        {
-          "from": "entry",
-          "to": "udp_process_rules",
-          "line": 17
-        }
-      ],
-      "graph_nodes": [
-        {
-          "id": "entry",
-          "kind": "entry",
-          "label": "entry",
-          "package_scope": "standalone",
-          "step_count": 4
-        },
-        {
-          "id": "fn:udp_process_rules",
-          "kind": "function",
-          "label": "udp_process_rules",
-          "package_scope": "standalone",
-          "step_count": 7
-        }
-      ],
-      "graph_edges": [
-        {
-          "from": "entry",
-          "to": "fn:udp_process_rules",
-          "kind": "use",
-          "line": 17
-        }
-      ],
-      "expansion_previews": [
-        {
-          "scope": "entry",
-          "local_bindings": [],
-          "steps": [
-            "window(duration_ms: 5000, lateness_ms: 200)",
-            "reason(:udp_datagram_l1)",
-            "use(:udp_process_rules)",
-            "param(:sock_lineage_fragment.capture_comm, true)"
-          ],
-          "use_targets": [
-            "udp_process_rules"
-          ]
-        },
-        {
-          "scope": "udp_process_rules",
-          "local_bindings": [
-            "transport_predicate",
-            "route_narrative"
-          ],
-          "steps": [
-            "fragment(:udp_packet_meta_fragment)",
-            "fragment(:route_meta_fragment)",
-            "fragment(:sock_lineage_fragment)",
-            "operation(:datagram_exchange)",
-            "program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)",
-            "program_rule(predicate: ${transport_predicate}, stage: :datagram_observed, narrative: \"static:program emitted or received a UDP datagram\", dedupe: true)",
-            "program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true)"
-          ],
-          "use_targets": []
-        }
-      ]
-    },
-    "finding": null,
-    "report": {
-      "template_id": "udp_process_debug",
-      "status": {
-        "has_window": true,
-        "has_reason_profile": true,
-        "has_program_model": true
-      },
-      "counts": {
-        "fragments": 3,
-        "fragment_params": 1,
-        "evidence_overrides": 0
-      },
-      "fragments": [
-        "udp_packet_meta_fragment",
-        "route_meta_fragment",
-        "sock_lineage_fragment"
-      ],
-      "window": {
-        "id": "inline",
-        "duration_ms": 5000,
-        "lateness_ms": 200
-      },
-      "reason_profile": {
-        "kind": "builtin",
-        "id": "udp_datagram_l1"
-      },
-      "program_model": {
-        "id": "udp_process_debug_dsl_model",
-        "operation": "datagram_exchange",
-        "rules": 3
-      },
-      "fragment_params": {
-        "sock_lineage_fragment": {
-          "capture_comm": true
-        }
-      },
-      "evidence_overrides": {}
-    }
-  },
-  "validation": {
-    "ok": true,
-    "registry": "builtin",
-    "fragment_count": 3,
-    "program_rule_count": 3,
-    "reason_rule_count": 0,
-    "checks": [
-      "binding_schema",
-      "fragment_params",
-      "rule_evidence",
-      "payload_offsets"
-    ],
-    "sampled_payload_offsets": [
-      0,
-      1,
-      4,
-      5,
-      9,
-      10,
-      13
-    ],
-    "required_payload_offsets": [],
-    "unsupported_payload_offsets": [],
-    "finding": null
-  },
-  "diagnostics": {
-    "ok": true,
-    "finding": null,
-    "report": {
-      "template_id": "udp_process_debug",
-      "status": {
-        "has_program_model": true,
-        "has_reason_model": false
-      },
-      "counts": {
-        "fragments": 3,
-        "program_rules": 3,
-        "reason_rules": 0
-      },
-      "fragments": [
-        "udp_packet_meta_fragment",
-        "route_meta_fragment",
-        "sock_lineage_fragment"
-      ],
-      "program_model": {
-        "model": "udp_process_debug_dsl_model",
-        "rules": [
+        "function_count": 1,
+        "function_nodes": [
           {
-            "rule_index": 0,
-            "tier": "optional_enhancement",
-            "supported": true,
-            "required_facts": [
-              "sock_lineage"
-            ],
-            "supporting_fragments": [
-              "sock_lineage_fragment"
-            ],
-            "missing_facts": [],
-            "unsupported_payload_offsets": []
+            "name": "udp_process_rules",
+            "signature": "udp_process_rules()",
+            "doc": null,
+            "step_count": 7,
+            "source_id": "entry",
+            "package_scope": "standalone",
+            "params": []
+          }
+        ],
+        "merged_step_count": 11,
+        "include_sources": [],
+        "use_edges": [
+          {
+            "from": "entry",
+            "to": "udp_process_rules",
+            "line": 17
+          }
+        ],
+        "graph_nodes": [
+          {
+            "id": "entry",
+            "kind": "entry",
+            "label": "entry",
+            "package_scope": "standalone",
+            "step_count": 4
           },
           {
-            "rule_index": 1,
-            "tier": "core_requirement",
-            "supported": true,
-            "required_facts": [
-              "packet_meta"
+            "id": "fn:udp_process_rules",
+            "kind": "function",
+            "label": "udp_process_rules",
+            "package_scope": "standalone",
+            "step_count": 7
+          }
+        ],
+        "graph_edges": [
+          {
+            "from": "entry",
+            "to": "fn:udp_process_rules",
+            "kind": "use",
+            "line": 17
+          }
+        ],
+        "expansion_previews": [
+          {
+            "scope": "entry",
+            "local_bindings": [],
+            "steps": [
+              "window(duration_ms: 5000, lateness_ms: 200)",
+              "reason(:udp_datagram_l1)",
+              "use(:udp_process_rules)",
+              "param(:sock_lineage_fragment.capture_comm, true)"
             ],
-            "supporting_fragments": [
-              "udp_packet_meta_fragment"
-            ],
-            "missing_facts": [],
-            "unsupported_payload_offsets": []
+            "use_targets": [
+              "udp_process_rules"
+            ]
           },
           {
-            "rule_index": 2,
-            "tier": "core_requirement",
-            "supported": true,
-            "required_facts": [
-              "route_decision"
+            "scope": "udp_process_rules",
+            "local_bindings": [
+              "transport_predicate",
+              "route_narrative"
             ],
-            "supporting_fragments": [
-              "route_meta_fragment"
+            "steps": [
+              "fragment(:udp_packet_meta_fragment)",
+              "fragment(:route_meta_fragment)",
+              "fragment(:sock_lineage_fragment)",
+              "operation(:datagram_exchange)",
+              "program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)",
+              "program_rule(predicate: ${transport_predicate}, stage: :datagram_observed, narrative: \"static:program emitted or received a UDP datagram\", dedupe: true)",
+              "program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true)"
             ],
-            "missing_facts": [],
-            "unsupported_payload_offsets": []
+            "use_targets": []
           }
         ]
       },
-      "reason_model": null
+      "finding": null,
+      "report": {
+        "template_id": "udp_process_debug",
+        "status": {
+          "has_window": true,
+          "has_reason_profile": true,
+          "has_program_model": true
+        },
+        "counts": {
+          "fragments": 3,
+          "fragment_params": 1,
+          "evidence_overrides": 0
+        },
+        "fragments": [
+          "udp_packet_meta_fragment",
+          "route_meta_fragment",
+          "sock_lineage_fragment"
+        ],
+        "window": {
+          "id": "inline",
+          "duration_ms": 5000,
+          "lateness_ms": 200
+        },
+        "reason_profile": {
+          "kind": "builtin",
+          "id": "udp_datagram_l1"
+        },
+        "program_model": {
+          "id": "udp_process_debug_dsl_model",
+          "operation": "datagram_exchange",
+          "rules": 3
+        },
+        "fragment_params": {
+          "sock_lineage_fragment": {
+            "capture_comm": true
+          }
+        },
+        "evidence_overrides": {}
+      }
+    },
+    "validation": {
+      "ok": true,
+      "registry": "builtin",
+      "fragment_count": 3,
+      "program_rule_count": 3,
+      "reason_rule_count": 0,
+      "checks": [
+        "binding_schema",
+        "fragment_params",
+        "rule_evidence",
+        "payload_offsets"
+      ],
+      "sampled_payload_offsets": [
+        0,
+        1,
+        4,
+        5,
+        9,
+        10,
+        13
+      ],
+      "required_payload_offsets": [],
+      "unsupported_payload_offsets": [],
+      "finding": null
+    },
+    "diagnostics": {
+      "ok": true,
+      "finding": null,
+      "report": {
+        "template_id": "udp_process_debug",
+        "status": {
+          "has_program_model": true,
+          "has_reason_model": false
+        },
+        "counts": {
+          "fragments": 3,
+          "program_rules": 3,
+          "reason_rules": 0
+        },
+        "fragments": [
+          "udp_packet_meta_fragment",
+          "route_meta_fragment",
+          "sock_lineage_fragment"
+        ],
+        "program_model": {
+          "model": "udp_process_debug_dsl_model",
+          "rules": [
+            {
+              "rule_index": 0,
+              "tier": "optional_enhancement",
+              "supported": true,
+              "required_facts": [
+                "sock_lineage"
+              ],
+              "supporting_fragments": [
+                "sock_lineage_fragment"
+              ],
+              "missing_facts": [],
+              "unsupported_payload_offsets": []
+            },
+            {
+              "rule_index": 1,
+              "tier": "core_requirement",
+              "supported": true,
+              "required_facts": [
+                "packet_meta"
+              ],
+              "supporting_fragments": [
+                "udp_packet_meta_fragment"
+              ],
+              "missing_facts": [],
+              "unsupported_payload_offsets": []
+            },
+            {
+              "rule_index": 2,
+              "tier": "core_requirement",
+              "supported": true,
+              "required_facts": [
+                "route_decision"
+              ],
+              "supporting_fragments": [
+                "route_meta_fragment"
+              ],
+              "missing_facts": [],
+              "unsupported_payload_offsets": []
+            }
+          ]
+        },
+        "reason_model": null
+      }
     }
   }
 }

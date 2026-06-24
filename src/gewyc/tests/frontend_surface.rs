@@ -114,6 +114,9 @@ template(:frontend_docs)
     .unwrap();
 
     let json = render_frontend_report(&report, RenderFormat::Json);
+    assert!(json.contains("\"surface_id\":\"gewyc.frontend\""));
+    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"frontend\",\"schema_version\":1}"));
+    assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
     assert!(json.contains("\"status\":{\"present\":true}"));
     assert!(json.contains("\"authoring\":{\"module_doc\":\"UDP demo module\""));
     assert!(json.contains("\"documented_functions\":[\"udp_rules\"]"));

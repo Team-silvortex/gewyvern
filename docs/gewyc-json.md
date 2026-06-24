@@ -15,6 +15,7 @@ Read these companion pages beside it:
 
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
 - [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
+- [docs/gewyc-field-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-field-contract.md)
 - [docs/gewyc-sample-index.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-sample-index.md)
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
 - [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
@@ -43,6 +44,49 @@ This page covers the JSON emitted by the compiler-facing `gewyc` surfaces:
 
 This page does not define the runtime API under `--serve`.
 
+## JSON Wrapper
+
+Every current `gewyc ... --json` surface now uses one shared top-level wrapper:
+
+```json
+{
+  "surface_id": "gewyc.frontend",
+  "schema_hint": {
+    "family": "gewyc",
+    "surface": "frontend",
+    "schema_version": 1
+  },
+  "contract_hint": {
+    "stability": "candidate",
+    "compatibility": "grouped_payload_preferred",
+    "legacy_fields": "retained_in_payload"
+  },
+  "payload": {
+    "...": "surface-specific body"
+  }
+}
+```
+
+Read the wrapper in this order:
+
+1. `surface_id`
+2. `schema_hint.family`
+3. `schema_hint.surface`
+4. `schema_hint.schema_version`
+5. `contract_hint`
+6. `payload`
+
+Wrapper meaning:
+
+- `contract_hint.stability = "candidate"`
+  Stable enough for real consumers in the current line, but still pre-`1.0.0`.
+- `contract_hint.compatibility = "grouped_payload_preferred"`
+  New consumers should read grouped objects under `payload` first.
+- `contract_hint.legacy_fields = "retained_in_payload"`
+  Flat compatibility fields may still exist inside `payload`.
+
+The examples below describe the structure inside `payload`.
+
 ## Design Rule
 
 The current JSON direction follows one simple rule:
@@ -52,25 +96,19 @@ The current JSON direction follows one simple rule:
 3. let callers migrate toward grouped reads
 4. remove compatibility duplicates only in a clearly announced later line
 
-That means many surfaces intentionally expose both:
-
-- a grouped shape such as `status`, `counts`, `analysis`, `shape_notes`, or
-  `excerpts`
-- older flat fields such as `template_id`, `program_model`, `finding`, or
-  `module_doc`
-
-When both exist, new consumers should prefer the grouped shape first.
-
 ## Stable Reading Heuristic
 
 For most surfaces, read in this order:
 
-1. `status`
-2. `counts`
-3. `analysis`
-4. `shape_notes`
-5. `excerpts`
-6. `report` or legacy flat fields
+1. `surface_id`
+2. `schema_hint`
+3. `contract_hint`
+4. `payload.status`
+5. `payload.counts`
+6. `payload.analysis`
+7. `payload.shape_notes`
+8. `payload.excerpts`
+9. `payload.report` or legacy flat fields
 
 This keeps scripts resilient even when detail payloads widen.
 
@@ -91,31 +129,39 @@ Top-level shape:
 
 ```json
 {
-  "summary": {
-    "kind": "pipeline",
-    "module_doc": null,
-    "template_doc": null,
-    "function_count": 1,
-    "merged_step_count": 8,
-    "focus": null
+  "surface_id": "gewyc.frontend",
+  "schema_hint": {
+    "family": "gewyc",
+    "surface": "frontend",
+    "schema_version": 1
   },
-  "focused_report": null,
-  "report": {
-    "kind": "pipeline",
-    "status": { "present": true },
-    "authoring": {
+  "payload": {
+    "summary": {
+      "kind": "pipeline",
       "module_doc": null,
       "template_doc": null,
-      "documented_functions": []
+      "function_count": 1,
+      "merged_step_count": 8,
+      "focus": null
     },
-    "counts": {
-      "functions": 1,
-      "merged_steps": 8,
-      "includes": 0,
-      "use_edges": 1,
-      "graph_nodes": 2,
-      "graph_edges": 1,
-      "expansion_previews": 1
+    "focused_report": null,
+    "report": {
+      "kind": "pipeline",
+      "status": { "present": true },
+      "authoring": {
+        "module_doc": null,
+        "template_doc": null,
+        "documented_functions": []
+      },
+      "counts": {
+        "functions": 1,
+        "merged_steps": 8,
+        "includes": 0,
+        "use_edges": 1,
+        "graph_nodes": 2,
+        "graph_edges": 1,
+        "expansion_previews": 1
+      }
     }
   }
 }
@@ -123,22 +169,9 @@ Top-level shape:
 
 Grouped fields to prefer:
 
-- `report.status.present`
-- `report.authoring`
-- `report.counts`
-
-Legacy fields still present:
-
-- `report.module_doc`
-- `report.template_doc`
-- `report.function_count`
-- `report.merged_step_count`
-- `report.function_nodes`
-- `report.include_sources`
-- `report.use_edges`
-- `report.graph_nodes`
-- `report.graph_edges`
-- `report.expansion_previews`
+- `payload.report.status.present`
+- `payload.report.authoring`
+- `payload.report.counts`
 
 ## Binding Surface
 
@@ -150,22 +183,22 @@ cargo run -p gewyc -- binding /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_
 
 Grouped fields to prefer:
 
-- `status.has_window`
-- `status.has_reason_profile`
-- `status.has_program_model`
-- `counts.fragments`
-- `counts.fragment_params`
-- `counts.evidence_overrides`
+- `payload.status.has_window`
+- `payload.status.has_reason_profile`
+- `payload.status.has_program_model`
+- `payload.counts.fragments`
+- `payload.counts.fragment_params`
+- `payload.counts.evidence_overrides`
 
 Legacy fields still present:
 
-- `template_id`
-- `fragments`
-- `window`
-- `reason_profile`
-- `program_model`
-- `fragment_params`
-- `evidence_overrides`
+- `payload.template_id`
+- `payload.fragments`
+- `payload.window`
+- `payload.reason_profile`
+- `payload.program_model`
+- `payload.fragment_params`
+- `payload.evidence_overrides`
 
 Use the grouped fields when you only need posture.
 Use the legacy fields when you need exact binding detail.
@@ -180,18 +213,18 @@ cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_proc
 
 Grouped fields to prefer:
 
-- `status.has_program_model`
-- `status.has_reason_model`
-- `counts.fragments`
-- `counts.program_rules`
-- `counts.reason_rules`
+- `payload.status.has_program_model`
+- `payload.status.has_reason_model`
+- `payload.counts.fragments`
+- `payload.counts.program_rules`
+- `payload.counts.reason_rules`
 
 Legacy fields still present:
 
-- `template_id`
-- `fragments`
-- `program_model`
-- `reason_model`
+- `payload.template_id`
+- `payload.fragments`
+- `payload.program_model`
+- `payload.reason_model`
 
 Each model still carries exact per-rule diagnostics under `rules[]`.
 
@@ -207,13 +240,21 @@ Current shape:
 
 ```json
 {
-  "findings": []
+  "surface_id": "gewyc.findings",
+  "schema_hint": {
+    "family": "gewyc",
+    "surface": "findings",
+    "schema_version": 1
+  },
+  "payload": {
+    "findings": []
+  }
 }
 ```
 
 This is intentionally narrow.
 
-Treat `findings[]` as the stable contract.
+Treat `payload.findings[]` as the stable contract.
 
 ## Stages Surface
 
@@ -229,21 +270,21 @@ Full fixture:
 
 Grouped fields to prefer:
 
-- `status.parse_ok`
-- `status.validation_ok`
-- `status.diagnostics_ok`
-- `counts.validation_fragments`
-- `counts.validation_program_rules`
-- `counts.validation_reason_rules`
-- `counts.sampled_payload_offsets`
-- `counts.required_payload_offsets`
-- `counts.unsupported_payload_offsets`
+- `payload.status.parse_ok`
+- `payload.status.validation_ok`
+- `payload.status.diagnostics_ok`
+- `payload.counts.validation_fragments`
+- `payload.counts.validation_program_rules`
+- `payload.counts.validation_reason_rules`
+- `payload.counts.sampled_payload_offsets`
+- `payload.counts.required_payload_offsets`
+- `payload.counts.unsupported_payload_offsets`
 
 Detailed phase sections remain:
 
-- `parse`
-- `validation`
-- `diagnostics`
+- `payload.parse`
+- `payload.validation`
+- `payload.diagnostics`
 
 This surface is the best machine-readable phase spine below `explain`.
 
@@ -257,20 +298,20 @@ cargo run -p gewyc -- envelope /Users/Shared/chroot/dev/gewyvern/dsl/udp_process
 
 Grouped fields to prefer:
 
-- `status.has_binding`
-- `status.has_diagnostics`
-- `status.finding_count`
-- `surfaces.binding`
-- `surfaces.diagnostics`
-- `surfaces.findings`
-- `surfaces.stages`
+- `payload.status.has_binding`
+- `payload.status.has_diagnostics`
+- `payload.status.finding_count`
+- `payload.surfaces.binding`
+- `payload.surfaces.diagnostics`
+- `payload.surfaces.findings`
+- `payload.surfaces.stages`
 
 Compatibility fields remain at top level:
 
-- `binding`
-- `diagnostics`
-- `findings`
-- `stages`
+- `payload.binding`
+- `payload.diagnostics`
+- `payload.findings`
+- `payload.stages`
 
 The `surfaces` object is the preferred grouped entry point for new consumers.
 
@@ -284,21 +325,21 @@ cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_
 
 Grouped fields to prefer:
 
-- `status.has_program_model`
-- `status.has_reason_model`
-- `status.has_model_compare`
-- `counts.program_rules`
-- `counts.reason_rules`
-- `analysis.model_compare`
-- `analysis.history_snapshot`
+- `payload.status.has_program_model`
+- `payload.status.has_reason_model`
+- `payload.status.has_model_compare`
+- `payload.counts.program_rules`
+- `payload.counts.reason_rules`
+- `payload.analysis.model_compare`
+- `payload.analysis.history_snapshot`
 
 Legacy fields remain:
 
-- `template_id`
-- `program_model`
-- `reason_model`
-- `model_compare`
-- `history_snapshot`
+- `payload.template_id`
+- `payload.program_model`
+- `payload.reason_model`
+- `payload.model_compare`
+- `payload.history_snapshot`
 
 ## Explain Surface
 
@@ -319,18 +360,26 @@ Top-level shape:
 
 ```json
 {
-  "ok": true,
-  "summary": { "...": "..." },
-  "focused_report": null,
-  "frontend": { "...": "..." },
-  "binding": { "...": "..." },
-  "validation": { "...": "..." },
-  "diagnostics": { "...": "..." },
-  "findings": { "...": "..." }
+  "surface_id": "gewyc.explain",
+  "schema_hint": {
+    "family": "gewyc",
+    "surface": "explain",
+    "schema_version": 1
+  },
+  "payload": {
+    "ok": true,
+    "summary": { "...": "..." },
+    "focused_report": null,
+    "frontend": { "...": "..." },
+    "binding": { "...": "..." },
+    "validation": { "...": "..." },
+    "diagnostics": { "...": "..." },
+    "findings": { "...": "..." }
+  }
 }
 ```
 
-Prefer these grouped fields in `summary`:
+Prefer these grouped fields in `payload.summary`:
 
 - `stage_status`
 - `analysis`
@@ -399,14 +448,14 @@ Examples:
 This section is for practical consumers that want a stable first read without
 relearning every surface.
 
-### `jq`: gate on `explain.summary.stage_status`
+### `jq`: gate on `explain.payload.summary.stage_status`
 
 Use this when you want one command that decides whether the source is healthy
 enough to continue.
 
 ```bash
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json \
-  | jq '.summary.stage_status'
+  | jq '.payload.summary.stage_status'
 ```
 
 Typical read pattern:
@@ -422,14 +471,14 @@ Use this when an editor or pre-commit hook wants a source-local marker.
 
 ```bash
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --focus parse \
-  | jq '.focused_report.excerpts.parse_source'
+  | jq '.payload.focused_report.excerpts.parse_source'
 ```
 
 Preferred read:
 
-- `focused_report.status.ok`
-- `focused_report.analysis.finding`
-- `focused_report.excerpts.parse_source`
+- `payload.focused_report.status.ok`
+- `payload.focused_report.analysis.finding`
+- `payload.focused_report.excerpts.parse_source`
 
 Failure fixture:
 
@@ -441,14 +490,14 @@ Use this when a tool wants payload-offset posture instead of general findings.
 
 ```bash
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --focus validation \
-  | jq '.focused_report.excerpts.validation'
+  | jq '.payload.focused_report.excerpts.validation'
 ```
 
 Preferred read:
 
-- `focused_report.status.ok`
-- `focused_report.shape_notes.validation`
-- `focused_report.excerpts.validation`
+- `payload.focused_report.status.ok`
+- `payload.focused_report.shape_notes.validation`
+- `payload.focused_report.excerpts.validation`
 
 Failure fixture:
 
@@ -461,59 +510,48 @@ entire frontend graph.
 
 ```bash
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json \
-  | jq '.report.authoring'
+  | jq '.payload.report.authoring'
 ```
 
 Preferred read:
 
-- `report.status.present`
-- `report.authoring.module_doc`
-- `report.authoring.template_doc`
-- `report.authoring.documented_functions`
+- `payload.report.status.present`
+- `payload.report.authoring.module_doc`
+- `payload.report.authoring.template_doc`
+- `payload.report.authoring.documented_functions`
 
 ### Editor / diagnostics adapter
 
 For a lightweight editor integration, the practical sequence is:
 
 1. run `gewyc explain <path> --json`
-2. read `summary.stage_status`
+2. read `payload.summary.stage_status`
 3. if parse failed, rerun with `--focus parse`
 4. if validation failed, rerun with `--focus validation`
 5. if diagnostics failed, rerun with `--focus diagnostics`
 6. only show `report` detail panes after the stage gate is green
-
-That keeps the editor behavior progressive:
-
-- syntax and authoring failures first
-- coverage failures second
-- semantic rule-support failures third
 
 ### Lese / panel consumer
 
 For a panel-oriented consumer such as `leserpent`, a good default mapping is:
 
 - top strip:
-  - `explain.summary.stage_status`
-  - `explain.summary.next_step`
+  - `explain.payload.summary.stage_status`
+  - `explain.payload.summary.next_step`
 - authoring card:
-  - `explain.summary.analysis.authoring_context`
+  - `explain.payload.summary.analysis.authoring_context`
 - lowering card:
-  - `explain.summary.analysis.lowered_binding_summary`
-  - `explain.summary.analysis.frontend_lowering_delta`
+  - `explain.payload.summary.analysis.lowered_binding_summary`
+  - `explain.payload.summary.analysis.frontend_lowering_delta`
 - diagnostics card:
-  - `explain.summary.shape_notes`
-  - `explain.summary.excerpts`
+  - `explain.payload.summary.shape_notes`
+  - `explain.payload.summary.excerpts`
 - drilldown tabs:
-  - `frontend.report`
-  - `binding`
-  - `validation`
-  - `diagnostics`
-  - `focused_report`
-
-The important design rule is:
-
-- use grouped objects for panel summaries
-- use legacy flat fields only when rendering exact detail blocks
+  - `explain.payload.frontend`
+  - `explain.payload.binding`
+  - `explain.payload.validation`
+  - `explain.payload.diagnostics`
+  - `explain.payload.focused_report`
 
 ### Migration rule for existing consumers
 

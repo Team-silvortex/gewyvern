@@ -14,6 +14,9 @@ fn compile_explain_report_file_materializes_human_summary_surface() {
     assert!(text.contains("surface=explain"));
     assert!(text.contains("validation:"));
     assert!(text.contains("next_step="));
+    assert!(json.contains("\"surface_id\":\"gewyc.explain\""));
+    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"explain\",\"schema_version\":1}"));
+    assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
     assert!(json.contains("\"summary\""));
     assert!(json.contains("\"next_step\""));
 }

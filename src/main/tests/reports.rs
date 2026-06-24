@@ -1,25 +1,24 @@
 use super::*;
 
-#[test]
-fn export_json_carries_ingest_trust_mode() {
+fn demo_reports_export() -> ExportBundle {
     let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
         .expect("http_request_path DSL should compile");
-    let export = annotate_export_trust(
+    annotate_export_trust(
         run_binding_demo(binding),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
-    );
+    )
+}
+
+#[test]
+fn export_json_carries_ingest_trust_mode() {
+    let export = demo_reports_export();
     let json = export.to_json();
     assert!(json.contains("\"ingest_trust_mode\":\"synthetic-demo\""));
 }
 
 #[test]
 fn summary_json_carries_ingest_trust_mode() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
-        .expect("http_request_path DSL should compile");
-    let export = annotate_export_trust(
-        run_binding_demo(binding),
-        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
-    );
+    let export = demo_reports_export();
     let json = summary_json("dsl_demo", &export);
     assert!(json.contains("\"ingest_mode\":\"demo\""));
     assert!(json.contains("\"ingest_mode_note\":\"synthetic demo mode: useful for exercising flows and reports, not for real process attribution\""));
@@ -44,12 +43,7 @@ fn summary_json_marks_socket_ingest_as_unverified_local() {
 
 #[test]
 fn summary_json_exposes_single_object_identity_fields() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
-        .expect("http_request_path DSL should compile");
-    let export = annotate_export_trust(
-        run_binding_demo(binding),
-        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
-    );
+    let export = demo_reports_export();
     let json = summary_json("dsl_demo", &export);
     assert!(json.contains("\"kind\":\"single\""));
     assert!(json.contains("\"name\":\"dsl_demo\""));
@@ -58,18 +52,57 @@ fn summary_json_exposes_single_object_identity_fields() {
 
 #[test]
 fn summary_json_includes_protocol_flow_progress_for_healthy_export() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
-        .expect("http_request_path DSL should compile");
-    let export = annotate_export_trust(
-        run_binding_demo(binding),
-        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
-    );
+    let export = demo_reports_export();
     let json = summary_json("dsl_demo", &export);
     assert!(json.contains("\"protocol_flows\":["));
     assert!(json.contains("\"process_network_profiles\":["));
     assert!(json.contains("\"status\":\"healthy\""));
     assert!(json.contains("\"last_phase\":\"receive_response\""));
     assert!(json.contains("\"module_kinds\":[\"http_request_response\"]"));
+}
+
+#[test]
+fn summary_json_contract_keeps_stable_top_level_fields() {
+    let export = demo_reports_export();
+    let json = summary_json("dsl_demo", &export);
+
+    assert!(json.contains("\"kind\":\"single\""));
+    assert!(json.contains("\"name\":\"dsl_demo\""));
+    assert!(json.contains("\"primary_module_kind\":"));
+    assert!(json.contains("\"primary_failure_stage\":"));
+    assert!(json.contains("\"primary_failure_mode\":"));
+    assert!(json.contains("\"primary_failure_detail\":"));
+    assert!(json.contains("\"primary_failure_confidence\":"));
+    assert!(json.contains("\"primary_failure_basis\":"));
+    assert!(json.contains("\"operator_guidance_status\":"));
+    assert!(json.contains("\"operator_guidance_action\":"));
+    assert!(json.contains("\"operator_guidance_reason\":"));
+    assert!(json.contains("\"operator_guidance_summary\":"));
+    assert!(json.contains("\"ambiguous\":"));
+    assert!(json.contains("\"competing_hypotheses\":["));
+    assert!(json.contains("\"ingest_mode\":"));
+    assert!(json.contains("\"ingest_mode_note\":"));
+    assert!(json.contains("\"ingest_trust_mode\":"));
+    assert!(json.contains("\"pid_attribution_status\":"));
+    assert!(json.contains("\"pid_attribution_note\":"));
+    assert!(json.contains("\"augmentations\":["));
+}
+
+#[test]
+fn summary_json_contract_keeps_guidance_and_ambiguity_surface() {
+    let export = demo_reports_export();
+    let json = summary_json("dsl_demo", &export);
+
+    assert!(json.contains("\"operator_guidance_status\":"));
+    assert!(json.contains("\"operator_guidance_action\":"));
+    assert!(json.contains("\"operator_guidance_reason\":"));
+    assert!(json.contains("\"operator_guidance_summary\":"));
+    assert!(json.contains("\"ambiguous\":false"));
+    assert!(json.contains("\"competing_hypotheses\":[]"));
+    assert!(json.contains("\"ingest_mode\":\"demo\""));
+    assert!(json.contains("\"ingest_trust_mode\":\"synthetic-demo\""));
+    assert!(json.contains("\"pid_attribution_status\":\"synthetic\""));
+    assert!(json.contains("\"augmentations\":["));
 }
 
 #[test]

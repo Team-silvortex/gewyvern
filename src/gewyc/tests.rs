@@ -25,9 +25,12 @@ pub(super) fn assert_valid_json_document(json: &str) {
 }
 
 mod core;
+mod contract;
+mod fixture_contract;
 mod explain_compact;
 mod explain_surface;
 mod findings;
 mod frontend_surface;
 mod integration;
+mod integration_validation;
 mod ir;

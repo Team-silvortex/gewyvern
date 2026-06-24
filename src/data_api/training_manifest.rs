@@ -169,3 +169,85 @@ fn fnv1a64(bytes: &[u8]) -> u64 {
     }
     hash
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data_api::{ApiSnapshot, ApiTargetSnapshot};
+    use gewyvern::protocol_profiles::protocol_surface;
+    use std::collections::HashMap;
+
+    #[test]
+    fn training_sample_id_is_stable_for_target_name() {
+        assert_eq!(
+            training_sample_id("scan:http:request"),
+            training_sample_id("scan:http:request")
+        );
+        assert_ne!(
+            training_sample_id("scan:http:request"),
+            training_sample_id("scan:redis:zadd")
+        );
+    }
+
+    #[test]
+    fn dataset_manifest_preserves_stable_top_level_and_sample_fields() {
+        let target_name = "scan:http:request".to_string();
+        let mut snapshot = ApiSnapshot {
+            kind: "scan".into(),
+            target_names: vec![target_name.clone()],
+            ..ApiSnapshot::default()
+        };
+        snapshot.target_snapshots = HashMap::from([(
+            target_name.clone(),
+            ApiTargetSnapshot {
+                protocol_surface: protocol_surface("http", "request"),
+                ..ApiTargetSnapshot::default()
+            },
+        )]);
+
+        let body = training_dataset_manifest_json(&snapshot);
+        let sample_id = training_sample_id(&target_name);
+
+        assert!(body.contains("\"kind\":\"training_dataset_manifest\""));
+        assert!(body.contains("\"schema_version\":1"));
+        assert!(body.contains("\"snapshot_kind\":\"scan\""));
+        assert!(body.contains("\"target_count\":1"));
+        assert!(body.contains("\"sample_format\":\"training_example_json\""));
+        assert!(body.contains("\"sample_schema_version\":1"));
+        assert!(body.contains("\"split_policies\":{\"default\":\"name_bucket_mod_10\""));
+        assert!(body.contains("\"supervision_heads\":{\"diagnosis\":["));
+        assert!(body.contains("\"samples\":[{"));
+        assert!(body.contains("\"name\":\"scan:http:request\""));
+        assert!(body.contains(&format!("\"sample_id\":\"{sample_id}\"")));
+        assert!(body.contains("\"path_segment\":\"scan:http:request\""));
+        assert!(body.contains("\"group_key\":\"http\""));
+        assert!(body.contains("\"split_hints\":{\"name_bucket_mod_10\":"));
+        assert!(body.contains(
+            "\"sample_path\":\"/v1/latest/targets/scan:http:request/training-example.json\""
+        ));
+        assert!(body.contains(
+            "\"dataset_path\":\"/v1/latest/targets/scan:http:request/training-dataset.json\""
+        ));
+    }
+
+    #[test]
+    fn target_dataset_manifest_uses_same_sample_identity_and_unknown_group_fallback() {
+        let target_name = "custom target/alpha";
+        let target = ApiTargetSnapshot::default();
+        let body = target_training_dataset_manifest_json(target_name, &target);
+        let sample_id = training_sample_id(target_name);
+        let path_segment = api_target_path_segment(target_name);
+
+        assert!(body.contains("\"snapshot_kind\":\"target\""));
+        assert!(body.contains("\"target_count\":1"));
+        assert!(body.contains(&format!("\"sample_id\":\"{sample_id}\"")));
+        assert!(body.contains(&format!("\"path_segment\":\"{path_segment}\"")));
+        assert!(body.contains("\"group_key\":\"unknown\""));
+        assert!(body.contains(&format!(
+            "\"sample_path\":\"/v1/latest/targets/{path_segment}/training-example.json\""
+        )));
+        assert!(body.contains(&format!(
+            "\"dataset_path\":\"/v1/latest/targets/{path_segment}/training-dataset.json\""
+        )));
+    }
+}

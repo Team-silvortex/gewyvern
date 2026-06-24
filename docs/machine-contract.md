@@ -14,6 +14,10 @@ For the broader release posture, see
 For the operator-facing surface overview, see
 [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md).
 
+For the shared tightening ritual across compiler, runtime-config, certificate,
+and export surfaces, see
+[docs/machine-surface-freeze.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-surface-freeze.md).
+
 If you want the nearby companion shelves around this page, use:
 
 - [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
@@ -36,6 +40,25 @@ It is the recommended machine-facing surface for:
 
 It is not a promise that every JSON field produced by `gewyvern` is equally
 stable.
+
+## Compiler Surface Wrapper
+
+For compiler-oriented `gewyc ... --json` consumers, the top-level wrapper is
+now part of the intended machine contract candidate:
+
+- `surface_id`
+- `schema_hint`
+- `contract_hint`
+- `payload`
+
+Use it this way:
+
+- route by `surface_id`
+- gate parser behavior with `schema_hint.schema_version`
+- prefer grouped reads under `payload` when
+  `contract_hint.compatibility == "grouped_payload_preferred"`
+- treat flat fields inside `payload` as compatibility carry-over when
+  `contract_hint.legacy_fields == "retained_in_payload"`
 
 ## Preferred Inputs By Use Case
 
