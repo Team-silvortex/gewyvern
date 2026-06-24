@@ -14,7 +14,9 @@ fn radius_surfaces_split_access_challenge_and_denied_shelves() {
 
     let challenge =
         protocol_surface("radius", "challenge").expect("radius challenge surface should exist");
-    let challenge_shelf = challenge.shelf.expect("radius challenge should have a shelf");
+    let challenge_shelf = challenge
+        .shelf
+        .expect("radius challenge should have a shelf");
     assert_eq!(challenge_shelf.key, "challenge");
     assert_eq!(challenge_shelf.label, "Challenge");
     assert_eq!(

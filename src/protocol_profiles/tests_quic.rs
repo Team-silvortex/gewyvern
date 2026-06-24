@@ -14,12 +14,18 @@ fn quic_surfaces_split_initial_retry_crypto_close_and_stream_shelves() {
     let retry = protocol_surface("quic", "retry").expect("quic retry should exist");
     let retry_shelf = retry.shelf.expect("quic retry shelf should exist");
     assert_eq!(retry_shelf.key, "retry");
-    assert_eq!(retry_shelf.page, "docs/book/reference-quic-retry-surface.md");
+    assert_eq!(
+        retry_shelf.page,
+        "docs/book/reference-quic-retry-surface.md"
+    );
 
     let close = protocol_surface("quic", "close").expect("quic close should exist");
     let close_shelf = close.shelf.expect("quic close shelf should exist");
     assert_eq!(close_shelf.key, "close");
-    assert_eq!(close_shelf.page, "docs/book/reference-quic-close-surface.md");
+    assert_eq!(
+        close_shelf.page,
+        "docs/book/reference-quic-close-surface.md"
+    );
 
     let local_close =
         protocol_surface("quic", "local-close").expect("quic local-close should exist");
@@ -92,7 +98,10 @@ fn quic_summary_and_semantics_expose_retry_and_close_entries() {
         close_semantics.operator_focus,
         "peer transport termination during QUIC connection close evaluation"
     );
-    assert_eq!(close_semantics.typical_signal.as_deref(), Some("CONNECTION_CLOSE"));
+    assert_eq!(
+        close_semantics.typical_signal.as_deref(),
+        Some("CONNECTION_CLOSE")
+    );
     assert_eq!(
         close_semantics.primary_failure_mode.as_deref(),
         Some("peer_closed")
@@ -104,7 +113,11 @@ fn quic_summary_and_semantics_expose_retry_and_close_entries() {
         .find(|entry| entry.mode == "local-close")
         .expect("quic local-close summary should exist");
     assert!(local_close.aliases.contains(&"active-close".to_string()));
-    assert!(local_close.aliases.contains(&"quic-local-close".to_string()));
+    assert!(
+        local_close
+            .aliases
+            .contains(&"quic-local-close".to_string())
+    );
 
     let local_close_semantics = protocol_surface("quic", "local-close")
         .expect("quic local-close should exist")

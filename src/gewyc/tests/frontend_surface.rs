@@ -29,9 +29,9 @@ fn frontend_functions_text_uses_signature_and_only_shows_extra_param_notes() {
         RenderFormat::Text,
         Some(FrontendFocus::Functions),
     );
-    assert!(text.contains(
-        "udp_core(model_name: atom, dedupe_flag: bool = true, duration_ms = 5000)"
-    ));
+    assert!(
+        text.contains("udp_core(model_name: atom, dedupe_flag: bool = true, duration_ms = 5000)")
+    );
     assert!(text.contains("param_notes: duration_ms <inferred u64>"));
     assert!(!text.contains("dedupe_flag <bool, default>"));
 }
@@ -115,7 +115,9 @@ template(:frontend_docs)
 
     let json = render_frontend_report(&report, RenderFormat::Json);
     assert!(json.contains("\"surface_id\":\"gewyc.frontend\""));
-    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"frontend\",\"schema_version\":1}"));
+    assert!(json.contains(
+        "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"frontend\",\"schema_version\":1}"
+    ));
     assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
     assert!(json.contains("\"status\":{\"present\":true}"));
     assert!(json.contains("\"authoring\":{\"module_doc\":\"UDP demo module\""));

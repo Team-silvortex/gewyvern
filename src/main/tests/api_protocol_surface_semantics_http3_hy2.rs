@@ -65,8 +65,10 @@ fn protocol_entry_surface_endpoint_exposes_hy2_close_semantics() {
 #[test]
 fn protocol_entry_surface_endpoint_exposes_hy2_tcp_close_semantics() {
     let snapshot = ApiSnapshot::default();
-    let (status, _, body) =
-        api_response_for_request("/v1/protocols/hy2/entries/tcp-close/surface.json", &snapshot);
+    let (status, _, body) = api_response_for_request(
+        "/v1/protocols/hy2/entries/tcp-close/surface.json",
+        &snapshot,
+    );
     assert_eq!(status, 200);
     assert!(body.contains("\"protocol\":\"hy2\""));
     assert!(body.contains("\"entry\":\"tcp-close\""));
@@ -85,8 +87,10 @@ fn protocol_entry_surface_endpoint_exposes_hy2_tcp_close_semantics() {
 #[test]
 fn protocol_entry_surface_endpoint_exposes_hy2_udp_close_semantics() {
     let snapshot = ApiSnapshot::default();
-    let (status, _, body) =
-        api_response_for_request("/v1/protocols/hy2/entries/udp-close/surface.json", &snapshot);
+    let (status, _, body) = api_response_for_request(
+        "/v1/protocols/hy2/entries/udp-close/surface.json",
+        &snapshot,
+    );
     assert_eq!(status, 200);
     assert!(body.contains("\"protocol\":\"hy2\""));
     assert!(body.contains("\"entry\":\"udp-close\""));

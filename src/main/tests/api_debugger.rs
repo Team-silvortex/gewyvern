@@ -384,3 +384,107 @@ fn anomaly_flow_route_uses_dot_and_doh_specific_phase_hints() {
         doh_body
     );
 }
+
+#[test]
+fn debugger_console_rolls_up_targets_with_attention_first_focus() {
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    update_api_snapshot_for_scan(
+        &state,
+        vec![
+            debugger_target(
+                "scan:http:response",
+                "request-response",
+                "heuristic_summary",
+                "manual_review",
+                "healthy",
+                "receive_response",
+                "none",
+                "",
+                "manual_review",
+                "keep watching response posture",
+                None,
+            ),
+            debugger_target(
+                "scan:http:request",
+                "request-response",
+                "missing_transition",
+                "collect_more_evidence",
+                "attention",
+                "send_request->receive_response",
+                "no_response",
+                "synthetic missing response",
+                "collect_more_evidence",
+                "collect packet evidence around the missing response",
+                Some("send_request->receive_response"),
+            ),
+        ],
+        String::new(),
+        String::new(),
+        String::new(),
+        String::new(),
+        String::new(),
+        String::new(),
+    );
+    let snapshot = state.lock().unwrap().clone();
+    let (status, content_type, body) =
+        api_response_for_request("/v1/latest/debugger-console.json", &snapshot);
+    assert_eq!(status, 200);
+    assert_eq!(content_type, "application/json; charset=utf-8");
+    assert!(body.contains("\"surface\":\"debugger_console\""));
+    assert!(body.contains("\"attention_count\":1"));
+    assert!(body.contains("\"recommended_focus\":{\"name\":\"scan:http:request\""));
+    assert!(body.contains("\"first_missing_transition\":\"send_request->receive_response\""));
+    assert!(
+        body.contains(
+            "\"anomaly_flow\":\"/v1/latest/targets/scan:http:request/anomaly-flow.json\""
+        )
+    );
+
+    let (cap_status, _, caps) = api_response_for_request("/v1/capabilities", &snapshot);
+    assert_eq!(cap_status, 200);
+    assert!(caps.contains("\"debugger_console\":true"));
+    assert!(caps.contains("\"/v1/latest/debugger-console.json\""));
+}
+
+fn debugger_target(
+    name: &str,
+    family: &str,
+    evidence: &str,
+    outcome: &str,
+    status: &str,
+    stage: &str,
+    mode: &str,
+    detail: &str,
+    guidance_action: &str,
+    guidance_summary: &str,
+    missing_transition: Option<&str>,
+) -> ApiRenderedTarget {
+    let missing = missing_transition
+        .map(|value| format!("\"{value}\""))
+        .unwrap_or_default();
+    ApiRenderedTarget {
+        name: name.into(),
+        primary_module_family: family.into(),
+        evidence_posture: evidence.into(),
+        automation_outcome: outcome.into(),
+        summary_text: String::new(),
+        summary_json: String::new(),
+        findings_json: String::new(),
+        analysis_json: format!(
+            "{{\"target_status\":\"{status}\",\"primary_failure_stage\":\"{stage}\",\"primary_failure_mode\":\"{mode}\",\"primary_failure_detail\":\"{detail}\",\"operator_guidance_action\":\"{guidance_action}\",\"operator_guidance_summary\":\"{guidance_summary}\",\"missing_transitions\":[{missing}]}}"
+        ),
+        training_example_json: String::new(),
+        has_external_sidecar_context: false,
+        has_external_evidence_chain_enrichment: false,
+        has_external_diagnostic_opinion: false,
+        has_external_capability_profile: false,
+        external_capability_status: None,
+        external_hint_status: None,
+        external_context_status: None,
+        external_sidecar_trust_level: None,
+        external_sidecar_consumption_mode: None,
+        export_json: String::new(),
+        report_json: String::new(),
+        report_html: String::new(),
+    }
+}

@@ -3,9 +3,9 @@ use crate::template::TemplateBinding;
 use std::collections::BTreeMap;
 use std::fs;
 
+mod diagnostics;
 mod entry;
 mod frontend;
-mod diagnostics;
 mod function_types;
 mod legacy;
 mod package;
@@ -13,19 +13,20 @@ mod parser;
 mod pipeline;
 mod predicate;
 
-pub use self::entry::{compile_file, parse_file_unvalidated, parse_str_unvalidated};
+pub use self::entry::{
+    compile_file, parse_file_unvalidated, parse_file_with_frontend_unvalidated,
+    parse_str_unvalidated, parse_str_with_frontend_unvalidated,
+};
 pub use self::frontend::{
     FrontendDslKind, FrontendExpansionPreview, FrontendFunctionNode, FrontendFunctionParam,
     FrontendGraphEdge, FrontendGraphEdgeKind, FrontendGraphNode, FrontendGraphNodeKind,
     FrontendIncludeSource, FrontendIncludeSourceKind, FrontendModuleSummary, FrontendUseEdge,
     summarize_frontend_file, summarize_frontend_str,
 };
-use self::function_types::{
-    PipelineValueKind,
-};
+use self::function_types::PipelineValueKind;
 use self::package::PackageContext;
-use self::parser::{parse_pipeline_function_head, parse_pipeline_module};
 pub use self::package::build_lockfile;
+use self::parser::{parse_pipeline_function_head, parse_pipeline_module};
 use self::pipeline::{lower_pipeline_module_to_legacy, parse_pipeline_single_arg};
 pub(crate) use self::predicate::{parse_flow_predicate, parse_reason_key_event};
 

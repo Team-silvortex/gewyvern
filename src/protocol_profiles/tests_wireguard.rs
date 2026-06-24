@@ -5,7 +5,9 @@ use super::{protocol_dsl_path, protocol_surface};
 fn wireguard_surfaces_split_handshake_cookie_and_transport_shelves() {
     let handshake =
         protocol_surface("wireguard", "handshake").expect("wireguard handshake should exist");
-    let handshake_shelf = handshake.shelf.expect("wireguard handshake shelf should exist");
+    let handshake_shelf = handshake
+        .shelf
+        .expect("wireguard handshake shelf should exist");
     assert_eq!(handshake_shelf.key, "handshake");
     assert_eq!(
         handshake_shelf.page,
@@ -22,7 +24,9 @@ fn wireguard_surfaces_split_handshake_cookie_and_transport_shelves() {
 
     let transport =
         protocol_surface("wireguard", "transport").expect("wireguard transport should exist");
-    let transport_shelf = transport.shelf.expect("wireguard transport shelf should exist");
+    let transport_shelf = transport
+        .shelf
+        .expect("wireguard transport shelf should exist");
     assert_eq!(transport_shelf.key, "transport");
     assert_eq!(
         transport_shelf.page,

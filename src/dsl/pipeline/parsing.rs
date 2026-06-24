@@ -175,9 +175,10 @@ fn parse_pipeline_param(param: &str) -> Result<PipelineParam, DslError> {
             if !candidate_name.trim().is_empty() {
                 (
                     candidate_name,
-                    Some(parse_pipeline_value_kind_name(candidate_kind.trim()).map_err(
-                        |err| err.at_line_column(0, Some(trimmed.len() + 1)),
-                    )?),
+                    Some(
+                        parse_pipeline_value_kind_name(candidate_kind.trim())
+                            .map_err(|err| err.at_line_column(0, Some(trimmed.len() + 1)))?,
+                    ),
                 )
             } else {
                 (name_src, None)
@@ -256,10 +257,7 @@ pub(crate) fn parse_pipeline_literal(value: &str) -> String {
     }
 }
 
-pub(crate) fn parse_pipeline_single_arg(
-    args: &[String],
-    step: &str,
-) -> Result<String, DslError> {
+pub(crate) fn parse_pipeline_single_arg(args: &[String], step: &str) -> Result<String, DslError> {
     if args.len() != 1 {
         return Err(DslError::InvalidValue(format!(
             "pipeline step '{step}' expects exactly one argument"

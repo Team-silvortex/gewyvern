@@ -97,8 +97,14 @@ pub(super) fn explain_text(report: &ExplainReport, focus: Option<ExplainFocus>) 
             "- documented_functions={}",
             explain_documented_functions(frontend, "none")
         ));
-        lines.push(format!("- merged_step_count={}", frontend.merged_step_count));
-        lines.push(format!("- include_sources={}", frontend.include_sources.len()));
+        lines.push(format!(
+            "- merged_step_count={}",
+            frontend.merged_step_count
+        ));
+        lines.push(format!(
+            "- include_sources={}",
+            frontend.include_sources.len()
+        ));
         lines.push(format!("- use_edges={}", frontend.use_edges.len()));
         lines.push(format!("- graph_nodes={}", frontend.graph_nodes.len()));
         lines.push(format!("- graph_edges={}", frontend.graph_edges.len()));
@@ -108,7 +114,10 @@ pub(super) fn explain_text(report: &ExplainReport, focus: Option<ExplainFocus>) 
 
     lines.push("validation:".into());
     lines.push(format!("- registry={}", report.stages.validation.registry));
-    lines.push(format!("- fragments={}", report.stages.validation.fragment_count));
+    lines.push(format!(
+        "- fragments={}",
+        report.stages.validation.fragment_count
+    ));
     lines.push(format!(
         "- program_rules={}",
         report.stages.validation.program_rule_count
@@ -382,7 +391,10 @@ pub(super) fn explain_text_compact(report: &ExplainReport, focus: Option<Explain
         lines.push(format!("binding_note={note}"));
     }
     if let Some(excerpt) = &report.parse_source_excerpt {
-        lines.push(format!("parse_source={} {}", excerpt.line_text, excerpt.marker));
+        lines.push(format!(
+            "parse_source={} {}",
+            excerpt.line_text, excerpt.marker
+        ));
     }
     if let Some(excerpt) = &report.validation_excerpt {
         lines.push(format!(
@@ -528,7 +540,10 @@ pub(super) fn explain_json(report: &ExplainReport, focus: Option<ExplainFocus>) 
         diagnostics_excerpt_json,
         focused_report_json,
         frontend_json(report.frontend.as_ref()),
-        report.binding.as_ref().map_or_else(|| "null".to_string(), binding_json),
+        report
+            .binding
+            .as_ref()
+            .map_or_else(|| "null".to_string(), binding_json),
         stages_validation_json(&report.stages.validation),
         report
             .diagnostics
@@ -570,10 +585,18 @@ fn explain_authoring_context_json(frontend: &FrontendReport) -> String {
     )
 }
 
-fn explain_doc_text(doc: Option<&str>, fallback: &str) -> String { doc.unwrap_or(fallback).replace('\n', " / ") }
+fn explain_doc_text(doc: Option<&str>, fallback: &str) -> String {
+    doc.unwrap_or(fallback).replace('\n', " / ")
+}
 
 fn explain_documented_functions(frontend: &FrontendReport, fallback: &str) -> String {
-    frontend.function_nodes.iter().filter_map(|node| node.doc.as_ref().map(|_| node.name.as_str())).collect::<Vec<_>>().join(",").if_empty_then(fallback)
+    frontend
+        .function_nodes
+        .iter()
+        .filter_map(|node| node.doc.as_ref().map(|_| node.name.as_str()))
+        .collect::<Vec<_>>()
+        .join(",")
+        .if_empty_then(fallback)
 }
 
 pub(super) fn stages_validation_json(report: &ValidationReport) -> String {

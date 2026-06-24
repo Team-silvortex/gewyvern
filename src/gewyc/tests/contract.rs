@@ -15,7 +15,9 @@ fn blessed_wrapper_fields_exist_for_binding_surface() {
 
     assert_valid_json_document(&json);
     assert!(json.contains("\"surface_id\":\"gewyc.binding\""));
-    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"binding\",\"schema_version\":1}"));
+    assert!(json.contains(
+        "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"binding\",\"schema_version\":1}"
+    ));
     assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
     assert!(json.contains("\"payload\":{"));
     assert!(json.contains("\"template_id\":\"udp_process_debug\""));
@@ -35,7 +37,9 @@ fn blessed_grouped_fields_exist_for_explain_surface() {
     assert!(json.contains("\"surface_id\":\"gewyc.explain\""));
     assert!(json.contains("\"payload\":{"));
     assert!(json.contains("\"summary\":{"));
-    assert!(json.contains("\"stage_status\":{\"parse\":true,\"validation\":true,\"diagnostics\":true}"));
+    assert!(
+        json.contains("\"stage_status\":{\"parse\":true,\"validation\":true,\"diagnostics\":true}")
+    );
     assert!(json.contains("\"analysis\":{"));
     assert!(json.contains("\"shape_notes\":{"));
     assert!(json.contains("\"excerpts\":{"));
@@ -80,9 +84,17 @@ fn compat_explain_fields_remain_available_inside_payload() {
 
     assert!(json.contains("\"summary\":{"));
     assert!(json.contains("\"ok\":true"));
-    assert!(json.contains("\"summary\":{\"parse_ok\":true,\"validation_ok\":true,\"diagnostics_ok\":true"));
+    assert!(
+        json.contains(
+            "\"summary\":{\"parse_ok\":true,\"validation_ok\":true,\"diagnostics_ok\":true"
+        )
+    );
     assert!(json.contains("\"analysis\":{\"authoring_context\":"));
-    assert!(json.contains("\"excerpts\":{\"parse_source\":null,\"validation\":null,\"diagnostics\":null}"));
+    assert!(
+        json.contains(
+            "\"excerpts\":{\"parse_source\":null,\"validation\":null,\"diagnostics\":null}"
+        )
+    );
     assert!(json.contains("\"authoring_context\":"));
 }
 

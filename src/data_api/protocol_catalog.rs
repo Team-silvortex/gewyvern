@@ -430,9 +430,9 @@ mod tests {
         assert!(body.contains("\"entry\":\"denied\""));
         assert!(body.contains("\"entry_semantics\":{"));
         assert!(body.contains("\"category\":\"failure-path\""));
-        assert!(
-            body.contains("\"operator_focus\":\"proxy tunnel refusal after CONNECT policy evaluation\"")
-        );
+        assert!(body.contains(
+            "\"operator_focus\":\"proxy tunnel refusal after CONNECT policy evaluation\""
+        ));
         assert!(body.contains("\"typical_signal\":\"403\""));
         assert!(body.contains("\"primary_failure_mode\":\"server_denied\""));
         assert!(body.contains("\"primary_failure_detail\":\"access_denied\""));

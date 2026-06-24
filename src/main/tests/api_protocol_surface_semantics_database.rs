@@ -19,8 +19,10 @@ fn protocol_entry_surface_endpoint_exposes_database_error_surface_semantics() {
     assert!(mysql_body.contains("\"primary_failure_detail\":\"protocol_error\""));
     assert!(mysql_body.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
 
-    let (postgres_status, _, postgres_body) =
-        api_response_for_request("/v1/protocols/postgres/entries/error/surface.json", &snapshot);
+    let (postgres_status, _, postgres_body) = api_response_for_request(
+        "/v1/protocols/postgres/entries/error/surface.json",
+        &snapshot,
+    );
     assert_eq!(postgres_status, 200);
     assert!(postgres_body.contains("\"protocol\":\"postgres\""));
     assert!(postgres_body.contains("\"entry\":\"error\""));

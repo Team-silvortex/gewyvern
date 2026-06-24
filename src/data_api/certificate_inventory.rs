@@ -279,9 +279,7 @@ mod tests {
 
         let body = api_runtime_certificates_json_from_inventory(&inventory);
         assert!(body.contains("\"root\":\"/srv/gewyvern/certificates\""));
-        assert!(body.contains(
-            "\"trust_root\":\"/srv/gewyvern/certificates/trust\""
-        ));
+        assert!(body.contains("\"trust_root\":\"/srv/gewyvern/certificates/trust\""));
         assert!(body.contains("\"roots\":{\"root_exists\":false"));
         assert!(body.contains("\"trust_root_exists\":false"));
         assert!(body.contains("\"authority_root_exists\":true"));

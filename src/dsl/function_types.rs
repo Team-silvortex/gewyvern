@@ -3,8 +3,10 @@ use super::{
     diagnostics::{
         pipeline_declared_kind_conflict_message, pipeline_inferred_kind_conflict_message,
     },
-    legacy::parse_stage, parse_bool, parse_flow_predicate,
-    predicate::parse_narrative_template, predicate::parse_reason_key_event,
+    legacy::parse_stage,
+    parse_bool, parse_flow_predicate,
+    predicate::parse_narrative_template,
+    predicate::parse_reason_key_event,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -81,16 +83,14 @@ pub(super) fn resolve_pipeline_param_kind(
     inferred_kind: Option<PipelineValueKind>,
 ) -> Result<Option<PipelineValueKind>, DslError> {
     match (declared_kind, inferred_kind) {
-        (Some(declared), Some(inferred)) if declared != inferred => {
-            Err(DslError::InvalidValue(
-                pipeline_declared_kind_conflict_message(
-                    function_signature,
-                    param_name,
-                    pipeline_value_kind_text(declared),
-                    pipeline_value_kind_text(inferred),
-                ),
-            ))
-        }
+        (Some(declared), Some(inferred)) if declared != inferred => Err(DslError::InvalidValue(
+            pipeline_declared_kind_conflict_message(
+                function_signature,
+                param_name,
+                pipeline_value_kind_text(declared),
+                pipeline_value_kind_text(inferred),
+            ),
+        )),
         (Some(declared), _) => Ok(Some(declared)),
         (None, inferred) => Ok(inferred),
     }
@@ -328,28 +328,24 @@ fn infer_call_placeholder_kinds(
             for arg in &call.args {
                 if let Some((name, value)) = split_keyword_arg(arg) {
                     match name {
-                        "predicate" => {
-                            note_placeholders(
-                                function_signature,
-                                output,
-                                value,
-                                PipelineValueKind::Predicate,
-                            )?
-                        }
+                        "predicate" => note_placeholders(
+                            function_signature,
+                            output,
+                            value,
+                            PipelineValueKind::Predicate,
+                        )?,
                         "stage" => note_placeholders(
                             function_signature,
                             output,
                             value,
                             PipelineValueKind::Stage,
                         )?,
-                        "key_event" => {
-                            note_placeholders(
-                                function_signature,
-                                output,
-                                value,
-                                PipelineValueKind::KeyEvent,
-                            )?
-                        }
+                        "key_event" => note_placeholders(
+                            function_signature,
+                            output,
+                            value,
+                            PipelineValueKind::KeyEvent,
+                        )?,
                         "module" => note_placeholders(
                             function_signature,
                             output,
@@ -362,14 +358,12 @@ fn infer_call_placeholder_kinds(
                             value,
                             PipelineValueKind::Phase,
                         )?,
-                        "narrative" => {
-                            note_placeholders(
-                                function_signature,
-                                output,
-                                value,
-                                PipelineValueKind::Narrative,
-                            )?
-                        }
+                        "narrative" => note_placeholders(
+                            function_signature,
+                            output,
+                            value,
+                            PipelineValueKind::Narrative,
+                        )?,
                         "dedupe" => note_placeholders(
                             function_signature,
                             output,

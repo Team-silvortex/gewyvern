@@ -3,8 +3,10 @@ use super::*;
 #[test]
 fn protocol_entry_surface_endpoint_exposes_amqp_auth_denied_semantics() {
     let snapshot = ApiSnapshot::default();
-    let (status, _, body) =
-        api_response_for_request("/v1/protocols/amqp/entries/auth-denied/surface.json", &snapshot);
+    let (status, _, body) = api_response_for_request(
+        "/v1/protocols/amqp/entries/auth-denied/surface.json",
+        &snapshot,
+    );
     assert_eq!(status, 200);
     assert!(body.contains("\"protocol\":\"amqp\""));
     assert!(body.contains("\"entry\":\"auth-denied\""));

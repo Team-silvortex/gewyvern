@@ -76,7 +76,9 @@ fn persisted_single_snapshot(state_home: &PathBuf, target_name: &str) -> (ApiSna
             findings_json: findings_json(target_name, &export),
             analysis_json: analysis_snapshot_json(&analysis),
             training_example_json: training_example_json_with_analysis(
-                target_name, &export, &analysis,
+                target_name,
+                &export,
+                &analysis,
             ),
             has_external_sidecar_context: false,
             has_external_evidence_chain_enrichment: false,
@@ -124,10 +126,8 @@ fn persisted_machine_surfaces_match_live_api_for_core_payloads() {
 
     let persisted_summary = fs::read_to_string(latest_root.join("summary.json")).unwrap();
     let persisted_analysis = fs::read_to_string(latest_root.join("analysis.json")).unwrap();
-    let persisted_training =
-        fs::read_to_string(latest_root.join("training-example.json")).unwrap();
-    let persisted_dataset =
-        fs::read_to_string(latest_root.join("training-dataset.json")).unwrap();
+    let persisted_training = fs::read_to_string(latest_root.join("training-example.json")).unwrap();
+    let persisted_dataset = fs::read_to_string(latest_root.join("training-dataset.json")).unwrap();
     let persisted_export = fs::read_to_string(latest_root.join("export.json")).unwrap();
 
     assert_eq!(live_summary.as_ref(), persisted_summary);

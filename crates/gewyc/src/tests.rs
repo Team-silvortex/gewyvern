@@ -264,7 +264,9 @@ fn binding_json_mentions_template_id() {
             .unwrap();
     let json = render_binding_report(&report, RenderFormat::Json);
     assert!(json.contains("\"surface_id\":\"gewyc.binding\""));
-    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"binding\",\"schema_version\":1}"));
+    assert!(json.contains(
+        "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"binding\",\"schema_version\":1}"
+    ));
     assert!(json.contains("\"template_id\":\"udp_process_debug\""));
     assert!(json.contains("\"program_model\""));
 }
@@ -292,7 +294,9 @@ fn envelope_json_mentions_all_surfaces() {
             .unwrap();
     let json = render_envelope_report(&envelope, RenderFormat::Json);
     assert!(json.contains("\"surface_id\":\"gewyc.envelope\""));
-    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"envelope\",\"schema_version\":1}"));
+    assert!(json.contains(
+        "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"envelope\",\"schema_version\":1}"
+    ));
     assert!(json.contains("\"binding\":"));
     assert!(json.contains("\"diagnostics\":"));
     assert!(json.contains("\"findings\":{\"findings\":[]}"));
@@ -322,7 +326,9 @@ fn frontend_command_renders_pipeline_graph_summary() {
     assert!(text.contains("graph_nodes:"));
     assert!(text.contains("graph_edges:"));
     assert!(json.contains("\"surface_id\":\"gewyc.frontend\""));
-    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"frontend\",\"schema_version\":1}"));
+    assert!(json.contains(
+        "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"frontend\",\"schema_version\":1}"
+    ));
     assert!(json.contains("\"kind\":\"pipeline\""));
     assert!(json.contains("\"graph_edges\""));
 }
@@ -390,7 +396,9 @@ fn explain_command_renders_human_oriented_compiler_summary() {
     assert!(text.contains("frontend:"));
     assert!(text.contains("validation:"));
     assert!(json.contains("\"surface_id\":\"gewyc.explain\""));
-    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"explain\",\"schema_version\":1}"));
+    assert!(json.contains(
+        "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"explain\",\"schema_version\":1}"
+    ));
     assert!(json.contains("\"summary\""));
     assert!(json.contains("\"findings\""));
 }

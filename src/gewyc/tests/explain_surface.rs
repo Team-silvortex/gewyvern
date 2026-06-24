@@ -15,7 +15,9 @@ fn compile_explain_report_file_materializes_human_summary_surface() {
     assert!(text.contains("validation:"));
     assert!(text.contains("next_step="));
     assert!(json.contains("\"surface_id\":\"gewyc.explain\""));
-    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"explain\",\"schema_version\":1}"));
+    assert!(json.contains(
+        "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"explain\",\"schema_version\":1}"
+    ));
     assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
     assert!(json.contains("\"summary\""));
     assert!(json.contains("\"next_step\""));
@@ -134,11 +136,8 @@ template(:frontend_docs)
         Some(ExplainFocus::Frontend),
         true,
     );
-    let focused = render_explain_report_with_focus(
-        &report,
-        RenderFormat::Text,
-        Some(ExplainFocus::Frontend),
-    );
+    let focused =
+        render_explain_report_with_focus(&report, RenderFormat::Text, Some(ExplainFocus::Frontend));
     let json = render_explain_report(&report, RenderFormat::Json);
 
     assert!(text.contains(
@@ -154,11 +153,19 @@ template(:frontend_docs)
     assert!(focused.contains("template_doc=Entry template for frontend docs"));
     assert!(focused.contains("doc: Shared UDP rules"));
     assert!(json.contains("\"authoring_context\":{\"module_doc\":\"UDP authoring demo\\nKeeps the module intent obvious\",\"template_doc\":\"Entry template for frontend docs\",\"documented_functions\":[\"udp_rules\"]}"));
-    assert!(json.contains("\"stage_status\":{\"parse\":true,\"validation\":true,\"diagnostics\":true}"));
+    assert!(
+        json.contains("\"stage_status\":{\"parse\":true,\"validation\":true,\"diagnostics\":true}")
+    );
     assert!(json.contains("\"analysis\":{\"authoring_context\":{\"module_doc\":\"UDP authoring demo\\nKeeps the module intent obvious\",\"template_doc\":\"Entry template for frontend docs\",\"documented_functions\":[\"udp_rules\"]}"));
     assert!(json.contains("\"shape_notes\":{\"binding\":"));
-    assert!(json.contains("\"excerpts\":{\"parse_source\":null,\"validation\":null,\"diagnostics\":null}"));
-    assert!(json.contains("\"module_doc\":\"UDP authoring demo\\nKeeps the module intent obvious\""));
+    assert!(
+        json.contains(
+            "\"excerpts\":{\"parse_source\":null,\"validation\":null,\"diagnostics\":null}"
+        )
+    );
+    assert!(
+        json.contains("\"module_doc\":\"UDP authoring demo\\nKeeps the module intent obvious\"")
+    );
     assert!(json.contains("\"template_doc\":\"Entry template for frontend docs\""));
 }
 
@@ -181,20 +188,17 @@ template(:focus_json_demo)
 "#,
     );
 
-    let frontend_json = render_explain_report_with_focus(
-        &report,
-        RenderFormat::Json,
-        Some(ExplainFocus::Frontend),
-    );
-    let binding_json = render_explain_report_with_focus(
-        &report,
-        RenderFormat::Json,
-        Some(ExplainFocus::Binding),
-    );
+    let frontend_json =
+        render_explain_report_with_focus(&report, RenderFormat::Json, Some(ExplainFocus::Frontend));
+    let binding_json =
+        render_explain_report_with_focus(&report, RenderFormat::Json, Some(ExplainFocus::Binding));
 
     assert!(frontend_json.contains("\"focused_report\":{\"kind\":\"frontend\""));
     assert!(frontend_json.contains("\"status\":{\"present\":true}"));
-    assert!(frontend_json.contains("\"analysis\":{\"authoring_context\":{\"module_doc\":\"Focus JSON demo\""));
+    assert!(
+        frontend_json
+            .contains("\"analysis\":{\"authoring_context\":{\"module_doc\":\"Focus JSON demo\"")
+    );
     assert!(binding_json.contains("\"focused_report\":{\"kind\":\"binding\""));
     assert!(binding_json.contains("\"analysis\":{\"lowered_binding_summary\":"));
     assert!(binding_json.contains("\"shape_notes\":{\"binding\":"));
@@ -205,7 +209,10 @@ fn binding_and_diagnostics_json_surface_status_and_counts() {
     let report =
         compile_explain_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
             .unwrap();
-    let binding = report.binding.as_ref().expect("binding report should exist");
+    let binding = report
+        .binding
+        .as_ref()
+        .expect("binding report should exist");
     let diagnostics = report
         .diagnostics
         .as_ref()

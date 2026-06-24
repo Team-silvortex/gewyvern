@@ -330,9 +330,10 @@ fn parse_pipeline_module_into(
                         .collect(),
                 });
                 if other == "use" {
-                    if let Ok(target_name) =
-                        parse_pipeline_single_arg(&target.last().expect("call just inserted").args, "use")
-                    {
+                    if let Ok(target_name) = parse_pipeline_single_arg(
+                        &target.last().expect("call just inserted").args,
+                        "use",
+                    ) {
                         module.use_edges.push(FrontendUseEdge {
                             from: function_name.unwrap_or("entry").to_string(),
                             to: target_name,

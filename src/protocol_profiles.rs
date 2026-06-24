@@ -355,17 +355,15 @@ mod tests_ldap_write_failures;
 #[cfg(test)]
 mod tests_manifest_parity;
 #[cfg(test)]
+mod tests_mysql_auth;
+#[cfg(test)]
 mod tests_ntp;
-#[cfg(test)]
-mod tests_quic;
-#[cfg(test)]
-mod tests_tls;
 #[cfg(test)]
 mod tests_postgres_auth_denied;
 #[cfg(test)]
-mod tests_radius;
+mod tests_quic;
 #[cfg(test)]
-mod tests_mysql_auth;
+mod tests_radius;
 #[cfg(test)]
 mod tests_semantics;
 #[cfg(test)]
@@ -376,6 +374,8 @@ mod tests_stun;
 mod tests_surface;
 #[cfg(test)]
 mod tests_target_names;
+#[cfg(test)]
+mod tests_tls;
 #[cfg(test)]
 mod tests_validation_paths;
 #[cfg(test)]

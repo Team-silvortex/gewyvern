@@ -15591,9 +15591,7 @@ template(:pipeline_unknown_fn)
 
     let message = format!("{:?}", err.root());
     assert!(message.contains("unknown pipeline function 'udp_cor'"));
-    assert!(message.contains(
-        "Declared pipeline functions in this module: udp_core."
-    ));
+    assert!(message.contains("Declared pipeline functions in this module: udp_core."));
 }
 
 #[test]
@@ -15632,11 +15630,9 @@ template(:pipeline_unknown_param)
     .expect_err("unknown named parameter should fail");
 
     let message = format!("{:?}", err.root());
-    assert!(
-        message.contains(
-            "pipeline function call does not match udp_core(model_name, op_name = :datagram_exchange)"
-        )
-    );
+    assert!(message.contains(
+        "pipeline function call does not match udp_core(model_name, op_name = :datagram_exchange)"
+    ));
     assert!(message.contains("unknown named parameter 'mode_name'"));
     assert!(message.contains(
         "Declared parameters for udp_core(model_name, op_name = :datagram_exchange): model_name, op_name."

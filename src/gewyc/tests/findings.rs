@@ -208,7 +208,9 @@ template(:broken)
     );
     let json = render_findings_report(&report, RenderFormat::Json);
     assert!(json.contains("\"surface_id\":\"gewyc.findings\""));
-    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"findings\",\"schema_version\":1}"));
+    assert!(json.contains(
+        "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"findings\",\"schema_version\":1}"
+    ));
     assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
     assert!(json.contains("\"code\":\"GEWYC-PARSE-INVALID-VALUE\""));
     assert!(json.contains("\"severity\":\"error\""));

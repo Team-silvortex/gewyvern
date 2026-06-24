@@ -10,7 +10,10 @@ fn postgres_auth_denied_surface_shares_connect_auth_shelf() {
         .expect("postgres auth-denied should have a shelf");
     assert_eq!(shelf.key, "connect-auth");
     assert_eq!(shelf.label, "Connect And Auth");
-    assert_eq!(shelf.page, "docs/book/reference-postgres-connect-surface.md");
+    assert_eq!(
+        shelf.page,
+        "docs/book/reference-postgres-connect-surface.md"
+    );
     assert!(shelf.entries.contains(&"connect".to_string()));
     assert!(shelf.entries.contains(&"auth".to_string()));
     assert!(shelf.entries.contains(&"auth-denied".to_string()));
@@ -40,7 +43,11 @@ fn postgres_auth_denied_surface_exposes_summary_aliases_and_semantics() {
         .iter()
         .find(|entry| entry.mode == "auth-denied")
         .expect("postgres auth-denied summary should exist");
-    assert!(auth_denied.aliases.contains(&"postgres-auth-denied".to_string()));
+    assert!(
+        auth_denied
+            .aliases
+            .contains(&"postgres-auth-denied".to_string())
+    );
     assert!(auth_denied.aliases.contains(&"login-denied".to_string()));
     assert!(auth_denied.aliases.contains(&"password-denied".to_string()));
 

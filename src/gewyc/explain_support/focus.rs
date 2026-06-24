@@ -234,7 +234,10 @@ pub(super) fn explain_focus_json(report: &ExplainReport, focus: ExplainFocus) ->
                 lowered_binding_summary_json,
                 frontend_lowering_delta_json,
                 binding_shape_note_json,
-                report.binding.as_ref().map_or_else(|| "null".to_string(), binding_json)
+                report
+                    .binding
+                    .as_ref()
+                    .map_or_else(|| "null".to_string(), binding_json)
             )
         }
         ExplainFocus::Ir => {
@@ -253,7 +256,11 @@ pub(super) fn explain_focus_json(report: &ExplainReport, focus: ExplainFocus) ->
                 report.ir_report.is_some(),
                 ir_lowering_delta_json,
                 ir_shape_note_json,
-                report.ir_report.as_ref().map(ir_json).unwrap_or_else(|| "null".to_string())
+                report
+                    .ir_report
+                    .as_ref()
+                    .map(ir_json)
+                    .unwrap_or_else(|| "null".to_string())
             )
         }
         ExplainFocus::Validation => {
@@ -292,7 +299,10 @@ pub(super) fn explain_focus_json(report: &ExplainReport, focus: ExplainFocus) ->
                 report.diagnostics.is_some(),
                 diagnostics_shape_note_json,
                 diagnostics_excerpt_json,
-                report.diagnostics.as_ref().map_or_else(|| "null".to_string(), diagnostics_json)
+                report
+                    .diagnostics
+                    .as_ref()
+                    .map_or_else(|| "null".to_string(), diagnostics_json)
             )
         }
         ExplainFocus::Findings => format!(

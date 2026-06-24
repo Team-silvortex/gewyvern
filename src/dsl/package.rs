@@ -166,7 +166,9 @@ fn resolve_dependency_root(
         let source_root = sources.get(source_name).ok_or_else(|| {
             DslError::InvalidValue(format!("unknown package source '{source_name}'"))
         })?;
-        return canonicalize_existing_path(&source_root.join(package_path));
+        let resolved = canonicalize_existing_path(&source_root.join(package_path))?;
+        ensure_within_root(&resolved, source_root)?;
+        return Ok(resolved);
     }
     canonicalize_existing_path(&manifest_root.join(value))
 }
@@ -205,5 +207,48 @@ fn ensure_within_root(path: &Path, root: &Path) -> Result<(), DslError> {
             path.display(),
             normalized_root.display()
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_root(label: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "gewy-package-{label}-{}-{unique}",
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn source_dependency_rejects_escape_from_named_source_root() {
+        let root = temp_root("source-escape");
+        let app = root.join("app");
+        let registry = root.join("registry");
+        let outside = root.join("outside_dep");
+        fs::create_dir_all(&app).unwrap();
+        fs::create_dir_all(&registry).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(
+            app.join(PACKAGE_MANIFEST_FILE),
+            format!(
+                "name=source_escape\nversion=0.1.0\nentry=main.gewy\nsource.local={}\ndep.std=source:local/../outside_dep\n",
+                registry.to_string_lossy()
+            ),
+        )
+        .unwrap();
+
+        let err = read_package_manifest(&app.join(PACKAGE_MANIFEST_FILE)).unwrap_err();
+        let _ = fs::remove_dir_all(root);
+        assert!(
+            format!("{err:?}").contains("escapes package root"),
+            "unexpected error: {err:?}"
+        );
     }
 }

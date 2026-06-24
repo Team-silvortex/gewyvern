@@ -2,6 +2,9 @@ use super::*;
 use crate::runtime_events::EVENT_DSL_COMPILE_FAILED;
 use crate::runtime_logging::{LogLevel, LoggingConfig, log_error_event};
 
+mod trusted_path;
+use self::trusted_path::next_trusted_path_value;
+
 #[derive(Debug)]
 pub(crate) struct Cli {
     pub(crate) demo_mode: DemoMode,
@@ -21,6 +24,7 @@ pub(crate) struct Cli {
     pub(crate) diagnostics: bool,
     pub(crate) findings: bool,
     pub(crate) http_transactions: bool,
+    pub(crate) debugger_console: bool,
     pub(crate) serve: bool,
     pub(crate) api_socket: Option<String>,
     #[cfg_attr(not(test), allow(dead_code))]
@@ -238,6 +242,7 @@ impl Cli {
         let mut diagnostics = false;
         let mut findings = false;
         let mut http_transactions = false;
+        let mut debugger_console = false;
         let mut serve = defaults.serve.unwrap_or(false);
         let mut api_socket = defaults.api_socket;
         let mut allow_remote_api = defaults.allow_remote_api.unwrap_or(false);
@@ -283,6 +288,7 @@ impl Cli {
                 }
                 "--findings" => findings = true,
                 "--http-transactions" => http_transactions = true,
+                "--debugger-console" => debugger_console = true,
                 "--max-sessions" => {
                     let value = args
                         .next()
@@ -384,20 +390,19 @@ impl Cli {
                 }
                 "--external-engine-bin" => {
                     external_engine_bin =
-                        Some(args.next().ok_or_else(|| {
-                            "missing value for --external-engine-bin".to_string()
-                        })?);
+                        Some(next_trusted_path_value(&mut args, "--external-engine-bin")?);
                 }
                 "--external-engine-worker" => {
-                    external_engine_worker =
-                        Some(args.next().ok_or_else(|| {
-                            "missing value for --external-engine-worker".to_string()
-                        })?);
+                    external_engine_worker = Some(next_trusted_path_value(
+                        &mut args,
+                        "--external-engine-worker",
+                    )?);
                 }
                 "--external-engine-python-bin" => {
-                    external_engine_python_bin = Some(args.next().ok_or_else(|| {
-                        "missing value for --external-engine-python-bin".to_string()
-                    })?);
+                    external_engine_python_bin = Some(next_trusted_path_value(
+                        &mut args,
+                        "--external-engine-python-bin",
+                    )?);
                 }
                 "--log-level" => {
                     let value = args
@@ -436,11 +441,23 @@ impl Cli {
         if diagnostics && http_transactions {
             return Err(locale.msg("findings_diagnostics_conflict").into());
         }
+        if debugger_console && diagnostics {
+            return Err("--debugger-console cannot be combined with --diagnostics".into());
+        }
+        if debugger_console && findings {
+            return Err("--debugger-console cannot be combined with --findings".into());
+        }
+        if debugger_console && http_transactions {
+            return Err("--debugger-console cannot be combined with --http-transactions".into());
+        }
         if report_format.is_some() && diagnostics {
             return Err("--report-format cannot be combined with --diagnostics".into());
         }
         if report_format.is_some() && http_transactions {
             return Err("--report-format cannot be combined with --http-transactions".into());
+        }
+        if report_format.is_some() && debugger_console {
+            return Err("--report-format cannot be combined with --debugger-console".into());
         }
         if scan_all && dsl_path.is_some() {
             return Err("--scan-all cannot be combined with --dsl".into());
@@ -530,6 +547,7 @@ impl Cli {
             diagnostics,
             findings,
             http_transactions,
+            debugger_console,
             serve,
             api_socket,
             allow_remote_api,

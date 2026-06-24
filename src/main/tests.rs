@@ -9,10 +9,11 @@ use super::{
     analysis_snapshot_json, analysis_snapshot_with_augmenters, annotate_export_trust,
     filter_export_by_pid, findings_json, findings_json_with_analysis, http_transactions_json,
     http_transactions_text, list_entries_json, list_entries_text, list_protocols_json,
-    list_protocols_text, protocol_dsl_path, push_analysis_augmentation, render_report_outputs,
-    route_fact, run_binding_demo, scan_report_html, scan_report_json, scan_report_text,
-    scan_targets_for_cli, summary_json, summary_line, training_example_json,
-    training_example_json_array, training_example_json_with_analysis,
+    list_protocols_text, protocol_dsl_path, push_analysis_augmentation,
+    render_debugger_console_outputs, render_report_outputs, route_fact, run_binding_demo,
+    scan_report_html, scan_report_json, scan_report_text, scan_targets_for_cli, summary_json,
+    summary_line, training_example_json, training_example_json_array,
+    training_example_json_with_analysis,
 };
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
@@ -50,12 +51,12 @@ mod api_multi_instance;
 mod api_persistence;
 #[path = "tests/api_protocol_catalog.rs"]
 mod api_protocol_catalog;
-#[path = "tests/api_protocol_surface_semantics_database.rs"]
-mod api_protocol_surface_semantics_database;
 #[path = "tests/api_protocol_surface_semantics.rs"]
 mod api_protocol_surface_semantics;
 #[path = "tests/api_protocol_surface_semantics_amqp.rs"]
 mod api_protocol_surface_semantics_amqp;
+#[path = "tests/api_protocol_surface_semantics_database.rs"]
+mod api_protocol_surface_semantics_database;
 #[path = "tests/api_protocol_surface_semantics_http3_hy2.rs"]
 mod api_protocol_surface_semantics_http3_hy2;
 #[path = "tests/api_protocol_surface_semantics_ldap.rs"]
@@ -66,16 +67,20 @@ mod api_protocol_surface_semantics_mysql;
 mod api_protocol_surface_semantics_postgres;
 #[path = "tests/api_protocol_surface_semantics_quic.rs"]
 mod api_protocol_surface_semantics_quic;
-#[path = "tests/api_protocol_surface_semantics_tls.rs"]
-mod api_protocol_surface_semantics_tls;
 #[path = "tests/api_protocol_surface_semantics_radius.rs"]
 mod api_protocol_surface_semantics_radius;
+#[path = "tests/api_protocol_surface_semantics_tls.rs"]
+mod api_protocol_surface_semantics_tls;
 #[path = "tests/api_protocol_surface_semantics_wireguard.rs"]
 mod api_protocol_surface_semantics_wireguard;
 #[path = "tests/api_sidecar.rs"]
 mod api_sidecar;
 #[path = "tests/certificate_api.rs"]
 mod certificate_api;
+#[path = "tests/cli_security.rs"]
+mod cli_security;
+#[path = "tests/debugger_console_cli.rs"]
+mod debugger_console_cli;
 #[path = "tests/demo_cli.rs"]
 mod demo_cli;
 #[path = "tests/directory_protocols.rs"]
@@ -86,12 +91,12 @@ mod failure_labels;
 mod ftp;
 #[path = "tests/history_cli.rs"]
 mod history_cli;
+#[path = "tests/machine_surface_matrix.rs"]
+mod machine_surface_matrix;
 #[path = "tests/mail_delivery.rs"]
 mod mail_delivery;
 #[path = "tests/mail_flow.rs"]
 mod mail_flow;
-#[path = "tests/machine_surface_matrix.rs"]
-mod machine_surface_matrix;
 #[path = "tests/management_udp_direct_signal_semantics.rs"]
 mod management_udp_direct_signal_semantics;
 #[path = "tests/management_udp_failure_semantics.rs"]

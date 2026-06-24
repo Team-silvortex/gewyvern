@@ -83,7 +83,8 @@ fn quic_local_close_dsl_file_compiles_into_expected_operation() {
 
 #[test]
 fn quic_retry_runtime_path_materializes_initial_and_retry_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_retry_path.gewy").unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_retry_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 5901, 4433, "quic-client"));
@@ -125,7 +126,8 @@ fn quic_retry_runtime_path_materializes_initial_and_retry_datagrams() {
 
 #[test]
 fn quic_close_runtime_path_materializes_handshake_and_close_frames() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_close_path.gewy").unwrap();
+    let binding =
+        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_close_path.gewy").unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 5902, 4433, "quic-client"));

@@ -8,7 +8,9 @@ fn envelope_json_contains_all_frontend_surfaces() {
     let envelope = compile_envelope_str(&input);
     let json = render_envelope_report(&envelope, RenderFormat::Json);
     assert!(json.contains("\"surface_id\":\"gewyc.envelope\""));
-    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"envelope\",\"schema_version\":1}"));
+    assert!(json.contains(
+        "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"envelope\",\"schema_version\":1}"
+    ));
     assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
     assert!(json.contains(
         "\"status\":{\"has_binding\":true,\"has_diagnostics\":true,\"finding_count\":0}"
@@ -48,11 +50,15 @@ fn stages_json_includes_parse_and_diagnostics_sections() {
             .unwrap();
     let json = render_stages_report(&report, RenderFormat::Json);
     assert!(json.contains("\"surface_id\":\"gewyc.stages\""));
-    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"stages\",\"schema_version\":1}"));
-    assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
     assert!(json.contains(
-        "\"status\":{\"parse_ok\":true,\"validation_ok\":true,\"diagnostics_ok\":true}"
+        "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"stages\",\"schema_version\":1}"
     ));
+    assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
+    assert!(
+        json.contains(
+            "\"status\":{\"parse_ok\":true,\"validation_ok\":true,\"diagnostics_ok\":true}"
+        )
+    );
     assert!(json.contains("\"counts\":{\"validation_fragments\":3"));
     assert!(json.contains("\"parse\":{\"ok\":true"));
     assert!(json.contains("\"frontend\":"));

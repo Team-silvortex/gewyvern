@@ -7,7 +7,9 @@ fn binding_json_mentions_template_id() {
             .unwrap();
     let json = render_binding(&binding, RenderFormat::Json);
     assert!(json.contains("\"surface_id\":\"gewyc.binding\""));
-    assert!(json.contains("\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"binding\",\"schema_version\":1}"));
+    assert!(json.contains(
+        "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"binding\",\"schema_version\":1}"
+    ));
     assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
     assert!(json.contains("\"template_id\":\"udp_process_debug\""));
     assert!(json.contains("\"program_model\""));

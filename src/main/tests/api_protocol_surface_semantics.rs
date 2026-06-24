@@ -4,35 +4,35 @@ use super::*;
 fn protocol_entry_surface_endpoint_exposes_mail_auth_denied_semantics() {
     let snapshot = ApiSnapshot::default();
 
-    let (imap_status, _, imap_body) =
-        api_response_for_request("/v1/protocols/imap/entries/auth-denied/surface.json", &snapshot);
+    let (imap_status, _, imap_body) = api_response_for_request(
+        "/v1/protocols/imap/entries/auth-denied/surface.json",
+        &snapshot,
+    );
     assert_eq!(imap_status, 200);
     assert!(imap_body.contains("\"protocol\":\"imap\""));
     assert!(imap_body.contains("\"entry\":\"auth-denied\""));
     assert!(imap_body.contains("\"entry_semantics\":{"));
     assert!(imap_body.contains("\"category\":\"failure-path\""));
-    assert!(
-        imap_body.contains(
-            "\"operator_focus\":\"mailbox login rejection after LOGIN credential exchange\""
-        )
-    );
+    assert!(imap_body.contains(
+        "\"operator_focus\":\"mailbox login rejection after LOGIN credential exchange\""
+    ));
     assert!(imap_body.contains("\"typical_signal\":\"NO\""));
     assert!(imap_body.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(imap_body.contains("\"primary_failure_detail\":\"access_denied\""));
     assert!(imap_body.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
 
-    let (pop3_status, _, pop3_body) =
-        api_response_for_request("/v1/protocols/pop3/entries/auth-denied/surface.json", &snapshot);
+    let (pop3_status, _, pop3_body) = api_response_for_request(
+        "/v1/protocols/pop3/entries/auth-denied/surface.json",
+        &snapshot,
+    );
     assert_eq!(pop3_status, 200);
     assert!(pop3_body.contains("\"protocol\":\"pop3\""));
     assert!(pop3_body.contains("\"entry\":\"auth-denied\""));
     assert!(pop3_body.contains("\"entry_semantics\":{"));
     assert!(pop3_body.contains("\"category\":\"failure-path\""));
-    assert!(
-        pop3_body.contains(
-            "\"operator_focus\":\"mailbox password rejection after USER/PASS credential exchange\""
-        )
-    );
+    assert!(pop3_body.contains(
+        "\"operator_focus\":\"mailbox password rejection after USER/PASS credential exchange\""
+    ));
     assert!(pop3_body.contains("\"typical_signal\":\"-ERR\""));
     assert!(pop3_body.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(pop3_body.contains("\"primary_failure_detail\":\"access_denied\""));
@@ -91,10 +91,9 @@ fn protocol_entry_surface_endpoint_exposes_smtp_and_kerberos_failure_semantics()
     assert!(smtp_auth_body.contains("\"entry\":\"auth-denied\""));
     assert!(smtp_auth_body.contains("\"entry_semantics\":{"));
     assert!(smtp_auth_body.contains("\"category\":\"failure-path\""));
-    assert!(
-        smtp_auth_body
-            .contains("\"operator_focus\":\"smtp authentication rejection after explicit AUTH exchange\"")
-    );
+    assert!(smtp_auth_body.contains(
+        "\"operator_focus\":\"smtp authentication rejection after explicit AUTH exchange\""
+    ));
     assert!(smtp_auth_body.contains("\"typical_signal\":\"535\""));
     assert!(smtp_auth_body.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(smtp_auth_body.contains("\"primary_failure_detail\":\"access_denied\""));
@@ -148,9 +147,9 @@ fn protocol_entry_surface_endpoint_exposes_ftp_and_ssh_login_denied_semantics() 
     assert!(ftp_body.contains("\"entry\":\"denied\""));
     assert!(ftp_body.contains("\"entry_semantics\":{"));
     assert!(ftp_body.contains("\"category\":\"failure-path\""));
-    assert!(
-        ftp_body.contains("\"operator_focus\":\"ftp login rejection after USER/PASS credential exchange\"")
-    );
+    assert!(ftp_body.contains(
+        "\"operator_focus\":\"ftp login rejection after USER/PASS credential exchange\""
+    ));
     assert!(ftp_body.contains("\"typical_signal\":\"530\""));
     assert!(ftp_body.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(ftp_body.contains("\"primary_failure_detail\":\"access_denied\""));
@@ -165,11 +164,9 @@ fn protocol_entry_surface_endpoint_exposes_ftp_and_ssh_login_denied_semantics() 
     assert!(ssh_body.contains("\"entry\":\"auth-denied\""));
     assert!(ssh_body.contains("\"entry_semantics\":{"));
     assert!(ssh_body.contains("\"category\":\"failure-path\""));
-    assert!(
-        ssh_body.contains(
-            "\"operator_focus\":\"ssh authentication rejection after explicit auth request\""
-        )
-    );
+    assert!(ssh_body.contains(
+        "\"operator_focus\":\"ssh authentication rejection after explicit auth request\""
+    ));
     assert!(ssh_body.contains("\"typical_signal\":null"));
     assert!(ssh_body.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(ssh_body.contains("\"primary_failure_detail\":\"access_denied\""));

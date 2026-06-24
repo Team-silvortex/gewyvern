@@ -6,12 +6,18 @@ fn tls_surfaces_split_client_and_server_shelves() {
     let client = protocol_surface("tls", "client").expect("tls client should exist");
     let client_shelf = client.shelf.expect("tls client shelf should exist");
     assert_eq!(client_shelf.key, "client");
-    assert_eq!(client_shelf.page, "docs/book/reference-tls-client-surface.md");
+    assert_eq!(
+        client_shelf.page,
+        "docs/book/reference-tls-client-surface.md"
+    );
 
     let server = protocol_surface("tls", "server").expect("tls server should exist");
     let server_shelf = server.shelf.expect("tls server shelf should exist");
     assert_eq!(server_shelf.key, "server");
-    assert_eq!(server_shelf.page, "docs/book/reference-tls-server-surface.md");
+    assert_eq!(
+        server_shelf.page,
+        "docs/book/reference-tls-server-surface.md"
+    );
 }
 
 #[test]

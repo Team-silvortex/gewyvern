@@ -81,8 +81,9 @@ fn stages_report_summarizes_payload_offset_support() {
 
 #[test]
 fn envelope_json_is_valid_for_stable_subset_entry() {
-    let report = compile_envelope_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
-        .unwrap();
+    let report =
+        compile_envelope_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+            .unwrap();
     let json = render_envelope_report(&report, RenderFormat::Json);
     assert_valid_json_document(&json);
 }

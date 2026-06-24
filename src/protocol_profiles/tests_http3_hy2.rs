@@ -6,7 +6,10 @@ fn http3_and_hy2_close_surfaces_expose_failure_shelves() {
     let http3_close = protocol_surface("http3", "close").expect("http3 close should exist");
     let http3_shelf = http3_close.shelf.expect("http3 close shelf should exist");
     assert_eq!(http3_shelf.key, "close");
-    assert_eq!(http3_shelf.page, "docs/book/reference-http3-close-surface.md");
+    assert_eq!(
+        http3_shelf.page,
+        "docs/book/reference-http3-close-surface.md"
+    );
 
     let http3_server_close =
         protocol_surface("http3", "server-close").expect("http3 server-close should exist");
@@ -85,7 +88,10 @@ fn http3_and_hy2_close_summary_and_semantics_stay_exposed() {
         .entry_semantics
         .expect("http3 close should expose semantics");
     assert_eq!(http3_semantics.category, "failure-path");
-    assert_eq!(http3_semantics.typical_signal.as_deref(), Some("CONNECTION_CLOSE"));
+    assert_eq!(
+        http3_semantics.typical_signal.as_deref(),
+        Some("CONNECTION_CLOSE")
+    );
     assert_eq!(
         http3_semantics.primary_failure_mode.as_deref(),
         Some("peer_closed")
@@ -96,12 +102,16 @@ fn http3_and_hy2_close_summary_and_semantics_stay_exposed() {
         .iter()
         .find(|entry| entry.mode == "server-close")
         .expect("http3 server-close summary should exist");
-    assert!(http3_server_close
-        .aliases
-        .contains(&"h3-server-close".to_string()));
-    assert!(http3_server_close
-        .aliases
-        .contains(&"response-close".to_string()));
+    assert!(
+        http3_server_close
+            .aliases
+            .contains(&"h3-server-close".to_string())
+    );
+    assert!(
+        http3_server_close
+            .aliases
+            .contains(&"response-close".to_string())
+    );
 
     let http3_server_close_semantics = protocol_surface("http3", "server-close")
         .expect("http3 server-close should exist")
@@ -131,7 +141,10 @@ fn http3_and_hy2_close_summary_and_semantics_stay_exposed() {
         .entry_semantics
         .expect("hy2 close should expose semantics");
     assert_eq!(hy2_semantics.category, "failure-path");
-    assert_eq!(hy2_semantics.typical_signal.as_deref(), Some("CONNECTION_CLOSE"));
+    assert_eq!(
+        hy2_semantics.typical_signal.as_deref(),
+        Some("CONNECTION_CLOSE")
+    );
     assert_eq!(
         hy2_semantics.primary_failure_detail.as_deref(),
         Some("secure_session_terminated")
@@ -142,12 +155,8 @@ fn http3_and_hy2_close_summary_and_semantics_stay_exposed() {
         .iter()
         .find(|entry| entry.mode == "tcp-close")
         .expect("hy2 tcp-close summary should exist");
-    assert!(hy2_tcp_close
-        .aliases
-        .contains(&"hy2-tcp-close".to_string()));
-    assert!(hy2_tcp_close
-        .aliases
-        .contains(&"stream-close".to_string()));
+    assert!(hy2_tcp_close.aliases.contains(&"hy2-tcp-close".to_string()));
+    assert!(hy2_tcp_close.aliases.contains(&"stream-close".to_string()));
 
     let hy2_tcp_close_semantics = protocol_surface("hy2", "tcp-close")
         .expect("hy2 tcp-close should exist")
@@ -168,12 +177,12 @@ fn http3_and_hy2_close_summary_and_semantics_stay_exposed() {
         .iter()
         .find(|entry| entry.mode == "udp-close")
         .expect("hy2 udp-close summary should exist");
-    assert!(hy2_udp_close
-        .aliases
-        .contains(&"hy2-udp-close".to_string()));
-    assert!(hy2_udp_close
-        .aliases
-        .contains(&"datagram-close".to_string()));
+    assert!(hy2_udp_close.aliases.contains(&"hy2-udp-close".to_string()));
+    assert!(
+        hy2_udp_close
+            .aliases
+            .contains(&"datagram-close".to_string())
+    );
 
     let hy2_udp_close_semantics = protocol_surface("hy2", "udp-close")
         .expect("hy2 udp-close should exist")

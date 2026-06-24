@@ -37,9 +37,17 @@ fn mysql_auth_denied_surface_exposes_summary_aliases_and_semantics() {
         .iter()
         .find(|entry| entry.mode == "auth-denied")
         .expect("mysql auth-denied summary should exist");
-    assert!(auth_denied.aliases.contains(&"mysql-auth-denied".to_string()));
+    assert!(
+        auth_denied
+            .aliases
+            .contains(&"mysql-auth-denied".to_string())
+    );
     assert!(auth_denied.aliases.contains(&"login-denied".to_string()));
-    assert!(auth_denied.aliases.contains(&"handshake-denied".to_string()));
+    assert!(
+        auth_denied
+            .aliases
+            .contains(&"handshake-denied".to_string())
+    );
 
     let semantics = protocol_surface("mysql", "auth-denied")
         .expect("mysql auth-denied surface should exist")

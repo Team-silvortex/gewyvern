@@ -308,10 +308,7 @@ pub(super) fn frontend_focus_text_lines(
                         node.source_id,
                         node.package_scope,
                         if node.doc.is_some() { ", doc=" } else { "" },
-                        node.doc
-                            .as_deref()
-                            .unwrap_or("")
-                            .replace('\n', " / "),
+                        node.doc.as_deref().unwrap_or("").replace('\n', " / "),
                         if notes.is_empty() { "" } else { ", " },
                         notes
                     )

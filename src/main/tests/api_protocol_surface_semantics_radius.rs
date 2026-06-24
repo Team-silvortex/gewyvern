@@ -3,8 +3,10 @@ use super::*;
 #[test]
 fn protocol_entry_surface_endpoint_exposes_radius_denied_semantics() {
     let snapshot = ApiSnapshot::default();
-    let (status, _, body) =
-        api_response_for_request("/v1/protocols/radius/entries/denied/surface.json", &snapshot);
+    let (status, _, body) = api_response_for_request(
+        "/v1/protocols/radius/entries/denied/surface.json",
+        &snapshot,
+    );
     assert_eq!(status, 200);
     assert!(body.contains("\"protocol\":\"radius\""));
     assert!(body.contains("\"entry\":\"denied\""));
@@ -22,8 +24,10 @@ fn protocol_entry_surface_endpoint_exposes_radius_denied_semantics() {
 #[test]
 fn protocol_entry_surface_endpoint_exposes_radius_challenge_semantics() {
     let snapshot = ApiSnapshot::default();
-    let (status, _, body) =
-        api_response_for_request("/v1/protocols/radius/entries/challenge/surface.json", &snapshot);
+    let (status, _, body) = api_response_for_request(
+        "/v1/protocols/radius/entries/challenge/surface.json",
+        &snapshot,
+    );
     assert_eq!(status, 200);
     assert!(body.contains("\"protocol\":\"radius\""));
     assert!(body.contains("\"entry\":\"challenge\""));

@@ -19,8 +19,10 @@ fn protocol_entry_surface_endpoint_exposes_ldap_write_failure_semantics() {
     assert!(denied_body.contains("\"primary_failure_detail\":\"access_denied\""));
     assert!(denied_body.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
 
-    let (constraint_status, _, constraint_body) =
-        api_response_for_request("/v1/protocols/ldap/entries/constraint/surface.json", &snapshot);
+    let (constraint_status, _, constraint_body) = api_response_for_request(
+        "/v1/protocols/ldap/entries/constraint/surface.json",
+        &snapshot,
+    );
     assert_eq!(constraint_status, 200);
     assert!(constraint_body.contains("\"protocol\":\"ldap\""));
     assert!(constraint_body.contains("\"entry\":\"constraint\""));

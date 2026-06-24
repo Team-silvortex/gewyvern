@@ -1,16 +1,12 @@
+use super::parsing::{parse_pipeline_literal, parse_pipeline_single_arg, parse_pipeline_use_call};
 use super::{PipelineKeywordArg, PipelineUseCall, looks_like_pipeline_keyword_arg};
-use super::parsing::{
-    parse_pipeline_literal, parse_pipeline_single_arg, parse_pipeline_use_call,
-};
 use crate::dsl::{
     DslError, PipelineCall, PipelineFunction, PipelineModule,
     diagnostics::{
         pipeline_available_steps_message, pipeline_declared_functions_message,
         pipeline_declared_params_message, pipeline_unknown_placeholder_message,
     },
-    function_types::{
-        format_pipeline_function_signature, validate_pipeline_param_value_kind,
-    },
+    function_types::{format_pipeline_function_signature, validate_pipeline_param_value_kind},
     legacy,
 };
 use std::collections::BTreeMap;
@@ -124,12 +120,9 @@ fn lower_pipeline_call(
             for binding in &function.local_bindings {
                 let binding_context =
                     format!("local binding '{}' in {function_signature}", binding.name);
-                let resolved = substitute_pipeline_arg(
-                    &binding.value,
-                    &function_bindings,
-                    &binding_context,
-                )
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
+                let resolved =
+                    substitute_pipeline_arg(&binding.value, &function_bindings, &binding_context)
+                        .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
                 function_bindings.insert(binding.name.clone(), parse_pipeline_literal(&resolved));
             }
             use_stack.push(function_name.clone());
@@ -288,7 +281,10 @@ fn build_pipeline_function_bindings(
             ))
             .at_line_column(0, Some(1))
         })?;
-        let default_context = format!("default value for parameter '{}' in {signature}", param.name);
+        let default_context = format!(
+            "default value for parameter '{}' in {signature}",
+            param.name
+        );
         let resolved = substitute_pipeline_arg(default_value, &bindings, &default_context)?;
         if let Some(kind) = param.inferred_kind {
             validate_pipeline_param_value_kind(
@@ -377,10 +373,8 @@ fn substitute_pipeline_arg_once(
             let key = arg[name_start..name_end].trim();
             let value = bindings.get(key).ok_or_else(|| {
                 let names = bindings.keys().cloned().collect::<Vec<_>>();
-                DslError::InvalidValue(pipeline_unknown_placeholder_message(
-                    context, key, &names,
-                ))
-                .at_line_column(0, Some(start_column + 2))
+                DslError::InvalidValue(pipeline_unknown_placeholder_message(context, key, &names))
+                    .at_line_column(0, Some(start_column + 2))
             })?;
             output.push_str(value);
             changed = true;
@@ -402,10 +396,8 @@ fn substitute_pipeline_arg_once(
             let key = &arg[name_start..name_end];
             let value = bindings.get(key).ok_or_else(|| {
                 let names = bindings.keys().cloned().collect::<Vec<_>>();
-                DslError::InvalidValue(pipeline_unknown_placeholder_message(
-                    context, key, &names,
-                ))
-                .at_line_column(0, Some(byte_idx + 2))
+                DslError::InvalidValue(pipeline_unknown_placeholder_message(context, key, &names))
+                    .at_line_column(0, Some(byte_idx + 2))
             })?;
             output.push_str(value);
             changed = true;

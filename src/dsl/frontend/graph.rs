@@ -65,7 +65,9 @@ pub(super) fn pipeline_graph_edges(module: &PipelineModule) -> Vec<FrontendGraph
     edges
 }
 
-pub(super) fn pipeline_expansion_previews(module: &PipelineModule) -> Vec<FrontendExpansionPreview> {
+pub(super) fn pipeline_expansion_previews(
+    module: &PipelineModule,
+) -> Vec<FrontendExpansionPreview> {
     let mut previews = vec![FrontendExpansionPreview {
         scope: "entry".to_string(),
         local_bindings: Vec::new(),

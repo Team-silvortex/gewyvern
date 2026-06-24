@@ -98,8 +98,7 @@ fn socks5_denial_surfaces_expose_machine_readable_entry_semantics() {
 
 #[test]
 fn http_and_ldap_denial_surfaces_expose_machine_readable_entry_semantics() {
-    let http_denied =
-        protocol_surface("http", "denied").expect("http denied surface should exist");
+    let http_denied = protocol_surface("http", "denied").expect("http denied surface should exist");
     let http_semantics = http_denied
         .entry_semantics
         .expect("http denied should expose semantics");
@@ -397,8 +396,7 @@ fn ftp_and_ssh_login_denied_surfaces_expose_machine_readable_entry_semantics() {
         Some("direct_protocol_signal")
     );
 
-    let ssh_denied =
-        protocol_surface("ssh", "auth-denied").expect("ssh auth-denied should exist");
+    let ssh_denied = protocol_surface("ssh", "auth-denied").expect("ssh auth-denied should exist");
     let ssh_semantics = ssh_denied
         .entry_semantics
         .expect("ssh auth-denied should expose semantics");
@@ -439,7 +437,10 @@ fn amqp_auth_denied_surface_exposes_machine_readable_entry_semantics() {
         semantics.operator_focus,
         "broker connection close after AMQP start-ok credential or mechanism negotiation"
     );
-    assert_eq!(semantics.typical_signal.as_deref(), Some("connection.close"));
+    assert_eq!(
+        semantics.typical_signal.as_deref(),
+        Some("connection.close")
+    );
     assert_eq!(
         semantics.primary_failure_mode.as_deref(),
         Some("server_denied")

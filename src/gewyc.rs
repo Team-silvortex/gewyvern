@@ -1,6 +1,7 @@
 use crate::dsl::{
-    DslError, compile_file, parse_file_unvalidated, parse_str_unvalidated, summarize_frontend_file,
-    summarize_frontend_str, validate_compiled_binding,
+    DslError, compile_file, parse_file_with_frontend_unvalidated,
+    parse_str_with_frontend_unvalidated, summarize_frontend_file, summarize_frontend_str,
+    validate_compiled_binding,
 };
 use crate::flow::ProgramOperation;
 use crate::fragment::{
@@ -116,19 +117,31 @@ pub fn compile_explain_report_str(input: &str) -> ExplainReport {
 }
 
 pub fn compile_envelope_file(path: &str) -> Result<CompilerEnvelope, DslError> {
-    let frontend = summarize_frontend_file(path).ok().map(frontend_report);
-    Ok(compile_envelope_from_parse_result(
-        parse_file_unvalidated(path),
-        frontend,
-    ))
+    let envelope = match parse_file_with_frontend_unvalidated(path) {
+        Ok((binding, frontend)) => {
+            compile_envelope_from_parts(Ok(binding), Some(frontend_report(frontend)))
+        }
+        Err(err) => {
+            let frontend = summarize_frontend_file(path).ok().map(frontend_report);
+            compile_envelope_from_parts(Err(err), frontend)
+        }
+    };
+    Ok(envelope)
 }
 
 pub fn compile_envelope_str(input: &str) -> CompilerEnvelope {
-    let frontend = summarize_frontend_str(input).ok().map(frontend_report);
-    compile_envelope_from_parse_result(parse_str_unvalidated(input), frontend)
+    match parse_str_with_frontend_unvalidated(input) {
+        Ok((binding, frontend)) => {
+            compile_envelope_from_parts(Ok(binding), Some(frontend_report(frontend)))
+        }
+        Err(err) => {
+            let frontend = summarize_frontend_str(input).ok().map(frontend_report);
+            compile_envelope_from_parts(Err(err), frontend)
+        }
+    }
 }
 
-fn compile_envelope_from_parse_result(
+fn compile_envelope_from_parts(
     parsed: Result<TemplateBinding, DslError>,
     frontend: Option<FrontendReport>,
 ) -> CompilerEnvelope {

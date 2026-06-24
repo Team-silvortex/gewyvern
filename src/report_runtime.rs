@@ -5,6 +5,7 @@ use std::fmt::Write;
 use super::*;
 use crate::render_utils::*;
 
+mod debugger_console;
 mod http_render;
 mod scan;
 mod scan_surface;
@@ -69,6 +70,13 @@ pub(super) fn render_scan_outputs(cli: &Cli, outputs: &[(String, ExportBundle)])
 
 pub(super) fn render_report_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]) -> String {
     self::scan::render_report_outputs(cli, outputs)
+}
+
+pub(super) fn render_debugger_console_outputs(
+    cli: &Cli,
+    outputs: &[(String, ExportBundle)],
+) -> String {
+    self::debugger_console::render_debugger_console_outputs(cli, outputs)
 }
 
 #[cfg(test)]

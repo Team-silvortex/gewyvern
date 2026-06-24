@@ -1,8 +1,9 @@
+use super::frontend::summarize_pipeline_module;
 use super::legacy::parse_legacy_str_unvalidated;
 use super::{
-    DslError, PackageContext, TemplateBinding, lower_pipeline_module_to_legacy, package,
-    parse_pipeline_function_head, parse_pipeline_module, read_file, validate_compiled_binding,
-    strip_comments_preserve_layout,
+    DslError, FrontendModuleSummary, PackageContext, TemplateBinding,
+    lower_pipeline_module_to_legacy, package, parse_pipeline_function_head, parse_pipeline_module,
+    read_file, strip_comments_preserve_layout, validate_compiled_binding,
 };
 
 pub fn parse_file_unvalidated(path: &str) -> Result<TemplateBinding, DslError> {
@@ -10,6 +11,15 @@ pub fn parse_file_unvalidated(path: &str) -> Result<TemplateBinding, DslError> {
     let resolved = package.entry_file.clone();
     let input = read_file(&resolved)?;
     parse_str_unvalidated_with_base(&input, Some(&package))
+}
+
+pub fn parse_file_with_frontend_unvalidated(
+    path: &str,
+) -> Result<(TemplateBinding, FrontendModuleSummary), DslError> {
+    let package = package::resolve_package_context(path)?;
+    let resolved = package.entry_file.clone();
+    let input = read_file(&resolved)?;
+    parse_str_with_frontend_unvalidated_with_base(&input, Some(&package))
 }
 
 pub fn compile_file(path: &str) -> Result<TemplateBinding, DslError> {
@@ -22,6 +32,12 @@ pub fn parse_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError> {
     parse_str_unvalidated_with_base(input, None)
 }
 
+pub fn parse_str_with_frontend_unvalidated(
+    input: &str,
+) -> Result<(TemplateBinding, FrontendModuleSummary), DslError> {
+    parse_str_with_frontend_unvalidated_with_base(input, None)
+}
+
 fn parse_str_unvalidated_with_base(
     input: &str,
     package: Option<&PackageContext>,
@@ -30,6 +46,23 @@ fn parse_str_unvalidated_with_base(
     if looks_like_pipeline_dsl(&normalized) {
         let legacy = pipeline_to_legacy(&normalized, package)?;
         return parse_legacy_str_unvalidated(&legacy);
+    }
+    Err(DslError::InvalidValue(
+        "gewylang now only supports the pipeline stable subset".into(),
+    ))
+}
+
+fn parse_str_with_frontend_unvalidated_with_base(
+    input: &str,
+    package: Option<&PackageContext>,
+) -> Result<(TemplateBinding, FrontendModuleSummary), DslError> {
+    let normalized = strip_comments_preserve_layout(input);
+    if looks_like_pipeline_dsl(&normalized) {
+        let module = parse_pipeline_module(&normalized, package, true)?;
+        let legacy = lower_pipeline_module_to_legacy(&module, true)?;
+        let binding = parse_legacy_str_unvalidated(&legacy)?;
+        let frontend = summarize_pipeline_module(module);
+        return Ok((binding, frontend));
     }
     Err(DslError::InvalidValue(
         "gewylang now only supports the pipeline stable subset".into(),
