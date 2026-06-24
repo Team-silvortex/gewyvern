@@ -4,6 +4,10 @@ use super::parsing::{
 };
 use crate::dsl::{
     DslError, PipelineCall, PipelineFunction, PipelineModule,
+    diagnostics::{
+        pipeline_available_steps_message, pipeline_declared_functions_message,
+        pipeline_declared_params_message, pipeline_unknown_placeholder_message,
+    },
     function_types::{
         format_pipeline_function_signature, validate_pipeline_param_value_kind,
     },
@@ -35,6 +39,7 @@ pub(crate) fn lower_pipeline_module_to_legacy(
         allow_template_head,
         &mut Vec::new(),
         &BTreeMap::new(),
+        "entry pipeline",
     )?;
     Ok(output.join("\n"))
 }
@@ -46,6 +51,7 @@ fn lower_pipeline_calls(
     allow_template_head: bool,
     use_stack: &mut Vec<String>,
     bindings: &BTreeMap<String, String>,
+    scope_context: &str,
 ) -> Result<(), DslError> {
     for call in calls {
         lower_pipeline_call(
@@ -55,6 +61,7 @@ fn lower_pipeline_calls(
             allow_template_head,
             use_stack,
             bindings,
+            scope_context,
         )?;
     }
     Ok(())
@@ -67,13 +74,15 @@ fn lower_pipeline_call(
     allow_template_head: bool,
     use_stack: &mut Vec<String>,
     bindings: &BTreeMap<String, String>,
+    scope_context: &str,
 ) -> Result<(), DslError> {
     let line_no = call.line_no;
     let column_no = call.column_no;
+    let call_context = format!("{} while expanding {}", call.name, scope_context);
     let resolved_args = call
         .args
         .iter()
-        .map(|arg| substitute_pipeline_arg(arg, bindings))
+        .map(|arg| substitute_pipeline_arg(arg, bindings, &call_context))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
     match call.name.as_str() {
@@ -101,17 +110,26 @@ fn lower_pipeline_call(
                 .at_line(line_no));
             }
             let function = module.functions.get(&function_name).ok_or_else(|| {
+                let declared = module.functions.keys().cloned().collect::<Vec<_>>();
                 DslError::InvalidValue(format!(
                     "unknown pipeline function '{function_name}'. {}",
-                    known_pipeline_functions_message(module)
+                    pipeline_declared_functions_message(&declared)
                 ))
                 .at_line(line_no)
             })?;
             let mut function_bindings = build_pipeline_function_bindings(function, &use_call)
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
+            let function_signature =
+                format_pipeline_function_signature(&function_name, &function.params);
             for binding in &function.local_bindings {
-                let resolved = substitute_pipeline_arg(&binding.value, &function_bindings)
-                    .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
+                let binding_context =
+                    format!("local binding '{}' in {function_signature}", binding.name);
+                let resolved = substitute_pipeline_arg(
+                    &binding.value,
+                    &function_bindings,
+                    &binding_context,
+                )
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
                 function_bindings.insert(binding.name.clone(), parse_pipeline_literal(&resolved));
             }
             use_stack.push(function_name.clone());
@@ -122,6 +140,7 @@ fn lower_pipeline_call(
                 false,
                 use_stack,
                 &function_bindings,
+                &function_signature,
             )?;
             use_stack.pop();
         }
@@ -178,7 +197,8 @@ fn lower_pipeline_call(
         ),
         other => {
             return Err(DslError::InvalidValue(format!(
-                "unknown pipeline DSL step '{other}'. Known steps: template, window, reason, reason_model, fragment, operation, program_model, param, evidence, program_rule, reason_rule, include, use"
+                "unknown pipeline DSL step '{other}'. {}",
+                pipeline_available_steps_message()
             ))
             .at_line(line_no));
         }
@@ -268,7 +288,8 @@ fn build_pipeline_function_bindings(
             ))
             .at_line_column(0, Some(1))
         })?;
-        let resolved = substitute_pipeline_arg(default_value, &bindings)?;
+        let default_context = format!("default value for parameter '{}' in {signature}", param.name);
+        let resolved = substitute_pipeline_arg(default_value, &bindings, &default_context)?;
         if let Some(kind) = param.inferred_kind {
             validate_pipeline_param_value_kind(
                 &resolved,
@@ -288,7 +309,7 @@ fn build_pipeline_function_bindings(
     {
         return Err(DslError::InvalidValue(format!(
             "pipeline function call does not match {signature}: unknown named parameter '{unknown_name}'. {}",
-            known_pipeline_params_message(function)
+            known_pipeline_params_message(function_name, function)
         ))
         .at_line_column(0, Some(1)));
     }
@@ -298,11 +319,12 @@ fn build_pipeline_function_bindings(
 pub(crate) fn substitute_pipeline_arg(
     arg: &str,
     bindings: &BTreeMap<String, String>,
+    context: &str,
 ) -> Result<String, DslError> {
     let mut current = arg.to_string();
     let mut iterations = 0usize;
     loop {
-        let (next, changed) = substitute_pipeline_arg_once(&current, bindings)?;
+        let (next, changed) = substitute_pipeline_arg_once(&current, bindings, context)?;
         current = next;
         if !changed || !current.contains('$') {
             return Ok(current);
@@ -317,6 +339,7 @@ pub(crate) fn substitute_pipeline_arg(
 fn substitute_pipeline_arg_once(
     arg: &str,
     bindings: &BTreeMap<String, String>,
+    context: &str,
 ) -> Result<(String, bool), DslError> {
     let chars = arg.char_indices().collect::<Vec<_>>();
     let mut output = String::with_capacity(arg.len());
@@ -353,9 +376,9 @@ fn substitute_pipeline_arg_once(
             let name_end = chars[end_index].0;
             let key = arg[name_start..name_end].trim();
             let value = bindings.get(key).ok_or_else(|| {
-                DslError::InvalidValue(format!(
-                    "unknown pipeline parameter placeholder '{key}'. {}",
-                    known_pipeline_bindings_message(bindings)
+                let names = bindings.keys().cloned().collect::<Vec<_>>();
+                DslError::InvalidValue(pipeline_unknown_placeholder_message(
+                    context, key, &names,
                 ))
                 .at_line_column(0, Some(start_column + 2))
             })?;
@@ -378,9 +401,9 @@ fn substitute_pipeline_arg_once(
                 .unwrap_or_else(|| arg.len());
             let key = &arg[name_start..name_end];
             let value = bindings.get(key).ok_or_else(|| {
-                DslError::InvalidValue(format!(
-                    "unknown pipeline parameter placeholder '{key}'. {}",
-                    known_pipeline_bindings_message(bindings)
+                let names = bindings.keys().cloned().collect::<Vec<_>>();
+                DslError::InvalidValue(pipeline_unknown_placeholder_message(
+                    context, key, &names,
                 ))
                 .at_line_column(0, Some(byte_idx + 2))
             })?;
@@ -401,33 +424,20 @@ fn is_pipeline_placeholder_char(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
 }
 
-fn known_pipeline_params_message(function: &PipelineFunction) -> String {
+fn known_pipeline_params_message(function_name: &str, function: &PipelineFunction) -> String {
     if function.params.is_empty() {
-        return "This function does not declare any parameters.".into();
+        return pipeline_declared_params_message(
+            &format_pipeline_function_signature(function_name, &function.params),
+            &[],
+        );
     }
+    let signature = format_pipeline_function_signature(function_name, &function.params);
     let known = function
         .params
         .iter()
-        .map(|param| param.name.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("Known parameters: {known}.")
-}
-
-fn known_pipeline_functions_message(module: &PipelineModule) -> String {
-    if module.functions.is_empty() {
-        return "No reusable functions are declared in this module.".into();
-    }
-    let known = module.functions.keys().cloned().collect::<Vec<_>>().join(", ");
-    format!("Known functions: {known}.")
-}
-
-fn known_pipeline_bindings_message(bindings: &BTreeMap<String, String>) -> String {
-    if bindings.is_empty() {
-        return "No parameters or local bindings are in scope here.".into();
-    }
-    let known = bindings.keys().cloned().collect::<Vec<_>>().join(", ");
-    format!("In-scope names: {known}.")
+        .map(|param| param.name.clone())
+        .collect::<Vec<_>>();
+    pipeline_declared_params_message(&signature, &known)
 }
 
 fn parse_pipeline_keywords_with_columns(

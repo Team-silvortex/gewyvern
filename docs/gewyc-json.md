@@ -1,443 +1,557 @@
-# `gewyc` JSON Surfaces
+# gewyc JSON Surfaces
 
-Use this page when you need the current JSON contract shape for the
-human-oriented `gewyc` compiler surfaces.
+Use this page when you need the machine-facing contract for `gewyc` output.
 
-This page is intentionally a narrow reference. It focuses on the JSON emitted
-by the higher-level debugging surfaces most likely to be consumed by editors,
-scripts, or lightweight IDE tooling:
+This is the reference shelf for the current JSON surfaces, not a tutorial.
 
-- `gewyc frontend --json`
-- `gewyc frontend --focus ... --json`
-- `gewyc explain --json`
-- `gewyc explain --focus ... --json`
+Read this page when the question is:
 
-It is intentionally narrower than the full compiler envelope. The goal is to
-make these higher-level surfaces easy to consume without reverse-engineering
-the emitted JSON from source.
+- what does `gewyc ... --json` return right now?
+- which top-level groups are stable enough to consume?
+- how should a tool read `summary`, `focused_report`, `status`, or `counts`?
+- where is the same information repeated for compatibility?
 
-This page is not the best place for:
+Read these companion pages beside it:
 
-- your first `gewylang` package walkthrough
-- the full language surface
-- task-oriented validation flows
-
-For those, use:
-
-- [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
 - [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-- [docs/book/how-to-add-or-debug-protocol-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-add-or-debug-protocol-package.md)
+- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
+- [docs/gewyc-sample-index.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-sample-index.md)
+- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
+- [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
 
-## Stability
+Representative fixture snapshots for this page:
 
-These JSON shapes should be treated as:
+- [docs/fixtures/gewyc_frontend_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_frontend_udp_process_debug.json)
+- [docs/fixtures/gewyc_stages_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_stages_udp_process_debug.json)
+- [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_udp_process_debug.json)
+- [docs/fixtures/gewyc_explain_parse_failure.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_parse_failure.json)
+- [docs/fixtures/gewyc_explain_validation_failure.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_failure.json)
 
-- current contract candidates for local tooling and editor integration
-- small, human-oriented summaries rather than lossless compiler internals
-- append-only where practical
+## Scope
 
-Fields may still grow, but consumers should prefer tolerant parsing and ignore
-unknown keys.
+This page covers the JSON emitted by the compiler-facing `gewyc` surfaces:
 
-`--compact` only changes text rendering. It does not change the JSON schema.
+- `frontend`
+- `binding`
+- `diagnostics`
+- `findings`
+- `stages`
+- `envelope`
+- `explain`
+- `ir`
 
-## `frontend --json`
+This page does not define the runtime API under `--serve`.
 
-Command:
+## Design Rule
+
+The current JSON direction follows one simple rule:
+
+1. add structured groups first
+2. keep older flat fields during the tightening line
+3. let callers migrate toward grouped reads
+4. remove compatibility duplicates only in a clearly announced later line
+
+That means many surfaces intentionally expose both:
+
+- a grouped shape such as `status`, `counts`, `analysis`, `shape_notes`, or
+  `excerpts`
+- older flat fields such as `template_id`, `program_model`, `finding`, or
+  `module_doc`
+
+When both exist, new consumers should prefer the grouped shape first.
+
+## Stable Reading Heuristic
+
+For most surfaces, read in this order:
+
+1. `status`
+2. `counts`
+3. `analysis`
+4. `shape_notes`
+5. `excerpts`
+6. `report` or legacy flat fields
+
+This keeps scripts resilient even when detail payloads widen.
+
+## Frontend Surface
+
+Command examples:
 
 ```bash
 cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --focus functions
 ```
 
-Shape:
+Full fixture:
+
+- [docs/fixtures/gewyc_frontend_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_frontend_udp_process_debug.json)
+
+Top-level shape:
 
 ```json
 {
   "summary": {
     "kind": "pipeline",
+    "module_doc": null,
+    "template_doc": null,
     "function_count": 1,
-    "merged_step_count": 4,
+    "merged_step_count": 8,
     "focus": null
   },
   "focused_report": null,
   "report": {
     "kind": "pipeline",
-    "function_count": 1,
-    "function_nodes": [
-      {
-        "name": "network_module",
-        "signature": "network_module(model_name: atom)",
-        "step_count": 3,
-        "source_id": "entry",
-        "package_scope": "inline",
-        "params": [
-          {
-            "name": "model_name",
-            "has_default": false,
-            "declared_kind": "atom",
-            "effective_kind": "atom"
-          }
-        ]
-      }
-    ],
-    "merged_step_count": 4,
-    "include_sources": [],
-    "use_edges": [
-      { "from": "template", "to": "network_module", "line": 8 }
-    ],
-    "graph_nodes": [
-      { "id": "template", "kind": "template", "step_count": 1 },
-      { "id": "network_module", "kind": "function", "step_count": 3 }
-    ],
-    "graph_edges": [
-      { "from": "template", "to": "network_module", "kind": "use", "line": 8 }
-    ]
+    "status": { "present": true },
+    "authoring": {
+      "module_doc": null,
+      "template_doc": null,
+      "documented_functions": []
+    },
+    "counts": {
+      "functions": 1,
+      "merged_steps": 8,
+      "includes": 0,
+      "use_edges": 1,
+      "graph_nodes": 2,
+      "graph_edges": 1,
+      "expansion_previews": 1
+    }
   }
 }
 ```
 
-### `frontend.summary`
+Grouped fields to prefer:
 
-- `kind`: current frontend surface kind, currently `pipeline`
-- `function_count`: number of declared function units
-- `merged_step_count`: steps visible after entry-level pipeline merge
-- `focus`: `null` unless `--focus` is used
+- `report.status.present`
+- `report.authoring`
+- `report.counts`
 
-### `frontend.report`
+Legacy fields still present:
 
-- `function_nodes`: declared functions with step counts, source/package origin,
-  and parameter surfaces
-- `function_nodes[].signature`: normalized function signature shared by compiler
-  reports and frontend summaries
-- `function_nodes[].params[].declared_kind`: explicit signature kind, if present
-- `function_nodes[].params[].effective_kind`: final compiler-visible kind after
-  declared-kind resolution and inference
-- `include_sources`: `include(...)` file references
-- `use_edges`: `template/use` call edges
-- `graph_nodes`: lightweight graph nodes for template/functions/includes
-- `graph_edges`: lightweight graph edges for `use`/`include` relationships
+- `report.module_doc`
+- `report.template_doc`
+- `report.function_count`
+- `report.merged_step_count`
+- `report.function_nodes`
+- `report.include_sources`
+- `report.use_edges`
+- `report.graph_nodes`
+- `report.graph_edges`
+- `report.expansion_previews`
 
-## `frontend --focus ... --json`
+## Binding Surface
 
-Command:
+Command example:
 
 ```bash
-cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus graph --json
+cargo run -p gewyc -- binding /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
 ```
 
-`summary` and `report` stay present. `focused_report` becomes a narrowed view.
+Grouped fields to prefer:
 
-Example:
+- `status.has_window`
+- `status.has_reason_profile`
+- `status.has_program_model`
+- `counts.fragments`
+- `counts.fragment_params`
+- `counts.evidence_overrides`
+
+Legacy fields still present:
+
+- `template_id`
+- `fragments`
+- `window`
+- `reason_profile`
+- `program_model`
+- `fragment_params`
+- `evidence_overrides`
+
+Use the grouped fields when you only need posture.
+Use the legacy fields when you need exact binding detail.
+
+## Diagnostics Surface
+
+Command example:
+
+```bash
+cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+```
+
+Grouped fields to prefer:
+
+- `status.has_program_model`
+- `status.has_reason_model`
+- `counts.fragments`
+- `counts.program_rules`
+- `counts.reason_rules`
+
+Legacy fields still present:
+
+- `template_id`
+- `fragments`
+- `program_model`
+- `reason_model`
+
+Each model still carries exact per-rule diagnostics under `rules[]`.
+
+## Findings Surface
+
+Command example:
+
+```bash
+cargo run -p gewyc -- findings /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+```
+
+Current shape:
 
 ```json
 {
-  "summary": {
-    "kind": "pipeline",
-    "function_count": 1,
-    "merged_step_count": 4,
-    "focus": "graph"
-  },
-  "focused_report": {
-    "kind": "graph",
-    "graph_nodes": [
-      { "id": "template", "kind": "template", "step_count": 1 }
-    ],
-    "graph_edges": []
-  },
-  "report": { "...": "full frontend report still present" }
+  "findings": []
 }
 ```
 
-Supported focus values:
+This is intentionally narrow.
 
-- `functions`
-- `includes`
-- `graph`
+Treat `findings[]` as the stable contract.
 
-## `explain --json`
+## Stages Surface
 
-Command:
+Command example:
+
+```bash
+cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+```
+
+Full fixture:
+
+- [docs/fixtures/gewyc_stages_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_stages_udp_process_debug.json)
+
+Grouped fields to prefer:
+
+- `status.parse_ok`
+- `status.validation_ok`
+- `status.diagnostics_ok`
+- `counts.validation_fragments`
+- `counts.validation_program_rules`
+- `counts.validation_reason_rules`
+- `counts.sampled_payload_offsets`
+- `counts.required_payload_offsets`
+- `counts.unsupported_payload_offsets`
+
+Detailed phase sections remain:
+
+- `parse`
+- `validation`
+- `diagnostics`
+
+This surface is the best machine-readable phase spine below `explain`.
+
+## Envelope Surface
+
+Command example:
+
+```bash
+cargo run -p gewyc -- envelope /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+```
+
+Grouped fields to prefer:
+
+- `status.has_binding`
+- `status.has_diagnostics`
+- `status.finding_count`
+- `surfaces.binding`
+- `surfaces.diagnostics`
+- `surfaces.findings`
+- `surfaces.stages`
+
+Compatibility fields remain at top level:
+
+- `binding`
+- `diagnostics`
+- `findings`
+- `stages`
+
+The `surfaces` object is the preferred grouped entry point for new consumers.
+
+## IR Surface
+
+Command example:
+
+```bash
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --focus ir
+```
+
+Grouped fields to prefer:
+
+- `status.has_program_model`
+- `status.has_reason_model`
+- `status.has_model_compare`
+- `counts.program_rules`
+- `counts.reason_rules`
+- `analysis.model_compare`
+- `analysis.history_snapshot`
+
+Legacy fields remain:
+
+- `template_id`
+- `program_model`
+- `reason_model`
+- `model_compare`
+- `history_snapshot`
+
+## Explain Surface
+
+Command examples:
 
 ```bash
 cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --focus frontend
 ```
 
-Shape:
+Focused validation fixture:
+
+- [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_udp_process_debug.json)
+
+The explain surface is the umbrella machine-facing troubleshooting view.
+
+Top-level shape:
 
 ```json
 {
   "ok": true,
-  "summary": {
-    "parse_ok": true,
-    "validation_ok": true,
-    "diagnostics_ok": true,
-    "template_id": "udp_process_debug",
-    "operation": "datagram_exchange",
-    "finding_count": 0,
-    "next_step": "binding is healthy; validate with runtime/demo input next",
-    "focus": null,
-    "parse_source_excerpt": null,
-    "validation_excerpt": null,
-    "diagnostics_excerpt": null
-  },
+  "summary": { "...": "..." },
   "focused_report": null,
-  "frontend": { "...": "frontend report" },
-  "binding": { "...": "binding report" },
-  "validation": { "...": "validation report" },
-  "diagnostics": { "...": "diagnostics report" },
-  "findings": {
-    "findings": []
-  }
+  "frontend": { "...": "..." },
+  "binding": { "...": "..." },
+  "validation": { "...": "..." },
+  "diagnostics": { "...": "..." },
+  "findings": { "...": "..." }
 }
 ```
 
-### `explain.summary`
+Prefer these grouped fields in `summary`:
 
-- `parse_ok`: parse/front-end status
-- `validation_ok`: registry/fragment coverage status
-- `diagnostics_ok`: rule-support/diagnostics status
-- `template_id`: compiled template id when available
-- `operation`: compiled operation when available
-- `finding_count`: total compiler findings
-- `next_step`: human-oriented recommended next action
-- `focus`: `null` unless `--focus` is used
-- `parse_source_excerpt`: optional parse failure excerpt
-- `validation_excerpt`: optional validation failure excerpt
-- `diagnostics_excerpt`: optional diagnostics failure excerpt
+- `stage_status`
+- `analysis`
+- `shape_notes`
+- `excerpts`
 
-### `parse_source_excerpt`
+Compatibility fields remain in parallel:
 
-Shape:
+- `parse_ok`
+- `validation_ok`
+- `diagnostics_ok`
+- `authoring_context`
+- `lowered_binding_summary`
+- `frontend_lowering_delta`
+- `binding_shape_note`
+- `validation_shape_note`
+- `diagnostics_shape_note`
+- `parse_source_excerpt`
+- `validation_excerpt`
+- `diagnostics_excerpt`
 
-```json
-{
-  "line": 3,
-  "column": 9,
-  "line_text": "  let broken =",
-  "marker": "        ^"
-}
-```
+### Explain `focused_report`
 
-Used when parse/front-end compilation fails and `gewyc` can point at a concrete
-source line.
+Focused JSON now tries to use one shared shell:
 
-### `validation_excerpt`
+- `kind`
+- `status`
+- `analysis`
+- `shape_notes`
+- `excerpts`
+- `report`
 
-Shape:
+Not every focus uses every group, but new consumers should expect this shell.
 
-```json
-{
-  "model": "broken_offsets_model",
-  "rule_index": 0,
-  "unsupported_payload_offsets": [8, 9],
-  "supporting_fragments": ["udp_packet_meta_fragment"]
-}
-```
+Examples:
 
-Used when payload coverage validation fails and `gewyc` can point at the first
-failing model/rule.
+- parse focus:
+  - `status.ok`
+  - `analysis.finding`
+  - `excerpts.parse_source`
+- frontend focus:
+  - `status.present`
+  - `analysis.authoring_context`
+  - `report`
+- binding focus:
+  - `status.present`
+  - `analysis.lowered_binding_summary`
+  - `analysis.frontend_lowering_delta`
+  - `shape_notes.binding`
+- ir focus:
+  - `status.present`
+  - `analysis.ir_lowering_delta`
+  - `shape_notes.ir`
+- validation focus:
+  - `status.ok`
+  - `shape_notes.validation`
+  - `excerpts.validation`
+- diagnostics focus:
+  - `status.ok`
+  - `status.present`
+  - `shape_notes.diagnostics`
+  - `excerpts.diagnostics`
 
-### `diagnostics_excerpt`
+## Consumption Patterns
 
-Shape:
+This section is for practical consumers that want a stable first read without
+relearning every surface.
 
-```json
-{
-  "model": "broken_rule_model",
-  "rule_index": 0,
-  "missing_facts": ["PacketMeta"],
-  "unsupported_payload_offsets": [],
-  "supporting_fragments": ["sock_lineage_fragment"]
-}
-```
+### `jq`: gate on `explain.summary.stage_status`
 
-Used when diagnostics/rule-support fails and `gewyc` can point at the first
-unsupported rule-sized unit.
-
-## `explain --focus ... --json`
-
-Command:
+Use this when you want one command that decides whether the source is healthy
+enough to continue.
 
 ```bash
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation --json
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json \
+  | jq '.summary.stage_status'
 ```
 
-`summary` remains present. `focused_report` becomes a narrowed surface-specific
-object. The broader reports still remain at top level so tooling can keep a
-single code path if it wants.
+Typical read pattern:
 
-Supported focus values:
+1. if `parse == false`, stop and inspect parse-focused output
+2. if `validation == false`, inspect validation-focused output
+3. if `diagnostics == false`, inspect diagnostics-focused output
+4. otherwise continue into binding, IR, or runtime validation
 
-- `parse`
-- `frontend`
-- `binding`
-- `ir`
-- `validation`
-- `diagnostics`
-- `findings`
+### `jq`: pull the first parse excerpt
 
-Example validation focus:
-
-```json
-{
-  "summary": {
-    "focus": "validation"
-  },
-  "focused_report": {
-    "kind": "validation",
-    "report": {
-      "ok": false,
-      "registry": "builtin",
-      "unsupported_payload_offsets": [8, 9]
-    },
-    "validation_excerpt": {
-      "model": "broken_offsets_model",
-      "rule_index": 0,
-      "unsupported_payload_offsets": [8, 9],
-      "supporting_fragments": ["udp_packet_meta_fragment"]
-    }
-  }
-}
-```
-
-### IR focus
-
-Command:
+Use this when an editor or pre-commit hook wants a source-local marker.
 
 ```bash
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy --focus ir --json
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --focus parse \
+  | jq '.focused_report.excerpts.parse_source'
 ```
 
-Shape:
+Preferred read:
 
-```json
-{
-  "summary": {
-    "focus": "ir"
-  },
-  "focused_report": {
-    "kind": "ir",
-    "ir_lowering_delta": {
-      "lowered_program_rule_count": 6,
-      "lowered_reason_rule_count": 6
-    },
-    "report": {
-      "template_id": "amqp_basic_publish_path",
-      "program_model": {
-        "id": "amqp_basic_publish_path_dsl_model",
-        "kind": "program_model",
-        "operation": "amqp_basic_publish",
-        "rules": []
-      },
-      "reason_model": {
-        "id": "amqp_basic_publish_path_reason",
-        "kind": "declarative_reason_model",
-        "rules": []
-      },
-      "model_compare": {
-        "rule_count_delta": 0,
-        "shared_modules": ["amqp_basic_publish_path"]
-      },
-      "history_snapshot": {
-        "template_id": "amqp_basic_publish_path",
-        "operation": "amqp_basic_publish",
-        "model_compare": {
-          "rule_count_delta": 0
-        }
-      }
-    }
-  }
-}
-```
+- `focused_report.status.ok`
+- `focused_report.analysis.finding`
+- `focused_report.excerpts.parse_source`
 
-`ir` is the best fit when you want a stable, lowered view for:
+Failure fixture:
 
-- protocol authoring and review
-- IR evolution work
-- debugging `module` / `phase` / `phase_kind`
-- checking rule support and reason-model provenance
+- [docs/fixtures/gewyc_explain_parse_failure.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_parse_failure.json)
 
-The focused IR report now also carries:
+### `jq`: pull the first validation coverage issue
 
-- `ir_lowering_delta`
-  A compact compare view between the front-end module graph and the lowered IR.
-  It includes front-end counts plus lowered rule counts, support counts,
-  modules, phases, phase kinds, and per-model lowered summaries for the
-  `program_model` and `reason_model`.
-- `report.model_compare`
-  A direct compare block between `program_model` and `reason_model` when both
-  exist. It carries rule-count deltas, supported-rule deltas, and shared vs.
-  side-specific `modules` / `phases` so snapshot tooling can reason about IR
-  alignment without re-deriving the relation client-side.
-- `ir_shape_note`
-  A short human-oriented summary of the most important drift pattern.
-
-For the exact lowering contract candidate behind these IR-focused fields, see
-[docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md).
-
-## Consumer Patterns
-
-### Shell / `jq`: grab the first parse excerpt
+Use this when a tool wants payload-offset posture instead of general findings.
 
 ```bash
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus parse --json \
-  | jq '.summary.parse_source_excerpt // .focused_report.parse_source_excerpt'
+cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --focus validation \
+  | jq '.focused_report.excerpts.validation'
 ```
 
-This is a good fit for:
+Preferred read:
 
-- editor task runners
-- pre-commit DSL validation hooks
-- tiny shell wrappers that only need `line/column + caret`
+- `focused_report.status.ok`
+- `focused_report.shape_notes.validation`
+- `focused_report.excerpts.validation`
 
-### Shell / `jq`: grab the first validation coverage issue
+Failure fixture:
+
+- [docs/fixtures/gewyc_explain_validation_failure.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_failure.json)
+
+### `jq`: pull frontend authoring context
+
+Use this when a review tool wants the documentation posture without reading the
+entire frontend graph.
 
 ```bash
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation --json \
-  | jq '.focused_report.validation_excerpt'
+cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json \
+  | jq '.report.authoring'
 ```
 
-This is a good fit for tooling that wants:
+Preferred read:
 
-- the first failing model/rule
-- unsupported payload offsets
-- the supporting fragments already present
+- `report.status.present`
+- `report.authoring.module_doc`
+- `report.authoring.template_doc`
+- `report.authoring.documented_functions`
 
-### Editor / IDE quick-inspect pattern
+### Editor / diagnostics adapter
 
-For a lightweight editor integration, a practical flow is:
+For a lightweight editor integration, the practical sequence is:
 
-1. Run `gewyc explain <path.gewy> --focus parse --json`
-2. If `summary.parse_ok == false`, read `summary.parse_source_excerpt`
-3. Otherwise run `gewyc explain <path.gewy> --focus validation --json`
-4. If `summary.validation_ok == false`, read `focused_report.validation_excerpt`
-5. Otherwise run `gewyc explain <path.gewy> --focus diagnostics --json`
-6. If `summary.diagnostics_ok == false`, read `focused_report.diagnostics_excerpt`
+1. run `gewyc explain <path> --json`
+2. read `summary.stage_status`
+3. if parse failed, rerun with `--focus parse`
+4. if validation failed, rerun with `--focus validation`
+5. if diagnostics failed, rerun with `--focus diagnostics`
+6. only show `report` detail panes after the stage gate is green
 
-That sequence keeps the UI small and progressive:
+That keeps the editor behavior progressive:
 
-- parse gets source-local feedback first
-- validation gets payload-coverage feedback second
-- diagnostics gets rule-support feedback last
+- syntax and authoring failures first
+- coverage failures second
+- semantic rule-support failures third
 
-## Surface Selection
+### Lese / panel consumer
 
-- Use `frontend --json` when you want function/include/graph structure.
-- Use `frontend --focus graph --json` when you only care about graph shape.
-- Use `explain --json` when you want one human-oriented compiler summary.
-- Use `explain --focus parse --json` when you are building editor diagnostics.
-- Use `explain --focus binding --json` when you want the compact compiled shape.
-- Use `explain --focus ir --json` when you want lowered rule/program/reason detail.
-- Use `explain --focus validation --json` when you are building coverage/debug tooling.
-- Use `explain --focus diagnostics --json` when you want the first unsupported rule-sized entry point.
+For a panel-oriented consumer such as `leserpent`, a good default mapping is:
 
-## Companion References
+- top strip:
+  - `explain.summary.stage_status`
+  - `explain.summary.next_step`
+- authoring card:
+  - `explain.summary.analysis.authoring_context`
+- lowering card:
+  - `explain.summary.analysis.lowered_binding_summary`
+  - `explain.summary.analysis.frontend_lowering_delta`
+- diagnostics card:
+  - `explain.summary.shape_notes`
+  - `explain.summary.excerpts`
+- drilldown tabs:
+  - `frontend.report`
+  - `binding`
+  - `validation`
+  - `diagnostics`
+  - `focused_report`
 
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-  Stable language surface and current preferred subset.
-- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
-  Exact package/module lookup rules.
-- [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
-  Draft formal grammar.
-- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
-  Source-layering note for contributors changing compiler internals.
+The important design rule is:
+
+- use grouped objects for panel summaries
+- use legacy flat fields only when rendering exact detail blocks
+
+### Migration rule for existing consumers
+
+If a consumer already reads older flat fields, migrate in this order:
+
+1. switch routing logic to grouped fields
+2. keep legacy field reads for fallback rendering
+3. stop branching on ad hoc sibling fields
+4. treat missing grouped objects as an older-surface compatibility path
+
+This lets consumers become more robust without requiring an all-at-once
+rewrite.
+
+## Evolution Rules
+
+If you are adding to a `gewyc` JSON surface, prefer this order:
+
+1. add to a grouped object first
+2. keep older flat fields if they are already shipped
+3. update tests that lock the grouped contract
+4. update this page in the same patch
+
+Do not widen the surface by adding ad hoc sibling fields when one of the
+existing groups already matches the meaning.
+
+## Implementation Anchors
+
+These files are the current implementation anchors for the JSON surfaces:
+
+- [src/gewyc/frontend_focus/json.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/frontend_focus/json.rs)
+- [src/gewyc/render/surfaces.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/render/surfaces.rs)
+- [src/gewyc/explain/render.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/explain/render.rs)
+- [src/gewyc/explain_support/focus.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/explain_support/focus.rs)
+- [src/gewyc/ir_focus/render.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/ir_focus/render.rs)
+
+These tests currently lock the grouped contract direction:
+
+- [src/gewyc/tests/frontend_surface.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/tests/frontend_surface.rs)
+- [src/gewyc/tests/explain_surface.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/tests/explain_surface.rs)
+- [src/gewyc/tests/integration.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/tests/integration.rs)
+- [src/gewyc/tests/ir.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/tests/ir.rs)

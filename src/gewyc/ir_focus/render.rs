@@ -20,9 +20,29 @@ pub(super) fn ir_text(report: &IrReport) -> String {
 }
 
 pub(super) fn ir_json(report: &IrReport) -> String {
+    let program_rules = report
+        .program_model
+        .as_ref()
+        .map(|model| model.rules.len())
+        .unwrap_or(0);
+    let reason_rules = report
+        .reason_model
+        .as_ref()
+        .map(|model| model.rules.len())
+        .unwrap_or(0);
     format!(
-        "{{\"template_id\":{},\"program_model\":{},\"reason_model\":{},\"model_compare\":{},\"history_snapshot\":{}}}",
+        "{{\"template_id\":{},\"status\":{{\"has_program_model\":{},\"has_reason_model\":{},\"has_model_compare\":{}}},\"counts\":{{\"program_rules\":{},\"reason_rules\":{}}},\"analysis\":{{\"model_compare\":{},\"history_snapshot\":{}}},\"program_model\":{},\"reason_model\":{},\"model_compare\":{},\"history_snapshot\":{}}}",
         json_string(&report.template_id),
+        report.program_model.is_some(),
+        report.reason_model.is_some(),
+        report.compare_models().is_some(),
+        program_rules,
+        reason_rules,
+        report
+            .compare_models()
+            .map(|compare| ir_compare_json(&compare))
+            .unwrap_or_else(|| "null".into()),
+        ir_history_snapshot_json(&report.history_snapshot()),
         report
             .program_model
             .as_ref()

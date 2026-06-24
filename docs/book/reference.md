@@ -54,6 +54,8 @@ If you are in the protocol volume specifically, start with:
   Draft formal grammar.
 - [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
   `gewyc` frontend/explain JSON output.
+- [docs/gewyc-sample-index.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-sample-index.md)
+  Sample-first index for real success/failure `gewyc` JSON fixtures.
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
   Current lowering contract candidate for `program_model`, `reason_model`, and
   `ir_lowering_delta`.

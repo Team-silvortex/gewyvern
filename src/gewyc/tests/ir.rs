@@ -199,6 +199,29 @@ fn explain_ir_focus_reports_builtin_reason_and_lowered_program_shape() {
 }
 
 #[test]
+fn ir_json_surfaces_status_count_and_analysis_groups() {
+    let report = compile_ir_report_file(
+        "/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy",
+    )
+    .unwrap();
+    let json = render_explain_report_with_focus(
+        &compile_explain_report_file(
+            "/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy",
+        )
+        .unwrap(),
+        RenderFormat::Json,
+        Some(ExplainFocus::Ir),
+    );
+
+    assert_eq!(report.template_id, "amqp_basic_publish_path");
+    assert!(json.contains("\"status\":{\"present\":true}"));
+    assert!(json.contains("\"analysis\":{\"ir_lowering_delta\":"));
+    assert!(json.contains("\"report\":{\"template_id\":\"amqp_basic_publish_path\""));
+    assert!(json.contains("\"counts\":{\"program_rules\":"));
+    assert!(json.contains("\"analysis\":{\"model_compare\":"));
+}
+
+#[test]
 fn compile_ir_report_file_materializes_ir_surface_directly() {
     let report = compile_ir_report_file(
         "/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy",

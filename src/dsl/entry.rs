@@ -2,6 +2,7 @@ use super::legacy::parse_legacy_str_unvalidated;
 use super::{
     DslError, PackageContext, TemplateBinding, lower_pipeline_module_to_legacy, package,
     parse_pipeline_function_head, parse_pipeline_module, read_file, validate_compiled_binding,
+    strip_comments_preserve_layout,
 };
 
 pub fn parse_file_unvalidated(path: &str) -> Result<TemplateBinding, DslError> {
@@ -25,8 +26,9 @@ fn parse_str_unvalidated_with_base(
     input: &str,
     package: Option<&PackageContext>,
 ) -> Result<TemplateBinding, DslError> {
-    if looks_like_pipeline_dsl(input) {
-        let legacy = pipeline_to_legacy(input, package)?;
+    let normalized = strip_comments_preserve_layout(input);
+    if looks_like_pipeline_dsl(&normalized) {
+        let legacy = pipeline_to_legacy(&normalized, package)?;
         return parse_legacy_str_unvalidated(&legacy);
     }
     Err(DslError::InvalidValue(
@@ -38,7 +40,12 @@ pub(super) fn looks_like_pipeline_dsl(input: &str) -> bool {
     input
         .lines()
         .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .filter(|line| {
+            !line.is_empty()
+                && !line.starts_with('#')
+                && !line.starts_with("///")
+                && !line.starts_with("//!")
+        })
         .next()
         .is_some_and(|line| {
             (line.starts_with("template(") && line.ends_with(')'))

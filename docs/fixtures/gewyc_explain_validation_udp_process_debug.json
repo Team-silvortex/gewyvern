@@ -1,0 +1,348 @@
+{
+  "ok": true,
+  "summary": {
+    "parse_ok": true,
+    "validation_ok": true,
+    "diagnostics_ok": true,
+    "template_id": "udp_process_debug",
+    "operation": "datagram_exchange",
+    "finding_count": 0,
+    "next_step": "binding, frontend, validation, and diagnostics are all healthy; continue with runtime/demo verification",
+    "focus": "validation",
+    "stage_status": {
+      "parse": true,
+      "validation": true,
+      "diagnostics": true
+    },
+    "analysis": {
+      "authoring_context": {
+        "module_doc": null,
+        "template_doc": null,
+        "documented_functions": []
+      },
+      "lowered_binding_summary": {
+        "fragment_count": 3,
+        "has_window": true,
+        "has_reason_profile": true,
+        "has_program_model": true,
+        "program_rule_count": 3,
+        "fragment_param_count": 1,
+        "evidence_override_count": 0
+      },
+      "frontend_lowering_delta": {
+        "frontend_function_count": 1,
+        "frontend_merged_step_count": 11,
+        "frontend_use_edge_count": 1,
+        "frontend_include_source_count": 0,
+        "lowered_fragment_count": 3,
+        "lowered_program_rule_count": 3,
+        "lowered_fragment_param_count": 1,
+        "lowered_evidence_override_count": 0
+      }
+    },
+    "shape_notes": {
+      "binding": "lowered binding looks different because use(...) edges inline reusable function bodies into one binding; program_rule(...) calls lower into explicit program-model rules; param(...) and evidence(...) survive as binding-level overrides",
+      "validation": null,
+      "diagnostics": null
+    },
+    "excerpts": {
+      "parse_source": null,
+      "validation": null,
+      "diagnostics": null
+    },
+    "authoring_context": {
+      "module_doc": null,
+      "template_doc": null,
+      "documented_functions": []
+    },
+    "lowered_binding_summary": {
+      "fragment_count": 3,
+      "has_window": true,
+      "has_reason_profile": true,
+      "has_program_model": true,
+      "program_rule_count": 3,
+      "fragment_param_count": 1,
+      "evidence_override_count": 0
+    },
+    "frontend_lowering_delta": {
+      "frontend_function_count": 1,
+      "frontend_merged_step_count": 11,
+      "frontend_use_edge_count": 1,
+      "frontend_include_source_count": 0,
+      "lowered_fragment_count": 3,
+      "lowered_program_rule_count": 3,
+      "lowered_fragment_param_count": 1,
+      "lowered_evidence_override_count": 0
+    },
+    "binding_shape_note": "lowered binding looks different because use(...) edges inline reusable function bodies into one binding; program_rule(...) calls lower into explicit program-model rules; param(...) and evidence(...) survive as binding-level overrides",
+    "validation_shape_note": null,
+    "diagnostics_shape_note": null,
+    "parse_source_excerpt": null,
+    "validation_excerpt": null,
+    "diagnostics_excerpt": null
+  },
+  "focused_report": {
+    "kind": "validation",
+    "status": {
+      "ok": true
+    },
+    "shape_notes": {
+      "validation": null
+    },
+    "excerpts": {
+      "validation": null
+    },
+    "report": {
+      "ok": true,
+      "registry": "builtin",
+      "fragment_count": 3,
+      "program_rule_count": 3,
+      "reason_rule_count": 0,
+      "checks": [
+        "binding_schema",
+        "fragment_params",
+        "rule_evidence",
+        "payload_offsets"
+      ],
+      "sampled_payload_offsets": [
+        0,
+        1,
+        4,
+        5,
+        9,
+        10,
+        13
+      ],
+      "required_payload_offsets": [],
+      "unsupported_payload_offsets": [],
+      "finding": null
+    }
+  },
+  "frontend": {
+    "kind": "pipeline",
+    "status": {
+      "present": true
+    },
+    "authoring": {
+      "module_doc": null,
+      "template_doc": null,
+      "documented_functions": []
+    },
+    "counts": {
+      "functions": 1,
+      "merged_steps": 11,
+      "includes": 0,
+      "use_edges": 1,
+      "graph_nodes": 2,
+      "graph_edges": 1,
+      "expansion_previews": 2
+    },
+    "module_doc": null,
+    "template_doc": null,
+    "function_count": 1,
+    "function_nodes": [
+      {
+        "name": "udp_process_rules",
+        "signature": "udp_process_rules()",
+        "doc": null,
+        "step_count": 7,
+        "source_id": "entry",
+        "package_scope": "standalone",
+        "params": []
+      }
+    ],
+    "merged_step_count": 11,
+    "include_sources": [],
+    "use_edges": [
+      {
+        "from": "entry",
+        "to": "udp_process_rules",
+        "line": 17
+      }
+    ],
+    "graph_nodes": [
+      {
+        "id": "entry",
+        "kind": "entry",
+        "label": "entry",
+        "package_scope": "standalone",
+        "step_count": 4
+      },
+      {
+        "id": "fn:udp_process_rules",
+        "kind": "function",
+        "label": "udp_process_rules",
+        "package_scope": "standalone",
+        "step_count": 7
+      }
+    ],
+    "graph_edges": [
+      {
+        "from": "entry",
+        "to": "fn:udp_process_rules",
+        "kind": "use",
+        "line": 17
+      }
+    ],
+    "expansion_previews": [
+      {
+        "scope": "entry",
+        "local_bindings": [],
+        "steps": [
+          "window(duration_ms: 5000, lateness_ms: 200)",
+          "reason(:udp_datagram_l1)",
+          "use(:udp_process_rules)",
+          "param(:sock_lineage_fragment.capture_comm, true)"
+        ],
+        "use_targets": [
+          "udp_process_rules"
+        ]
+      },
+      {
+        "scope": "udp_process_rules",
+        "local_bindings": [
+          "transport_predicate",
+          "route_narrative"
+        ],
+        "steps": [
+          "fragment(:udp_packet_meta_fragment)",
+          "fragment(:route_meta_fragment)",
+          "fragment(:sock_lineage_fragment)",
+          "operation(:datagram_exchange)",
+          "program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)",
+          "program_rule(predicate: ${transport_predicate}, stage: :datagram_observed, narrative: \"static:program emitted or received a UDP datagram\", dedupe: true)",
+          "program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true)"
+        ],
+        "use_targets": []
+      }
+    ]
+  },
+  "binding": {
+    "template_id": "udp_process_debug",
+    "status": {
+      "has_window": true,
+      "has_reason_profile": true,
+      "has_program_model": true
+    },
+    "counts": {
+      "fragments": 3,
+      "fragment_params": 1,
+      "evidence_overrides": 0
+    },
+    "fragments": [
+      "udp_packet_meta_fragment",
+      "route_meta_fragment",
+      "sock_lineage_fragment"
+    ],
+    "window": {
+      "id": "inline",
+      "duration_ms": 5000,
+      "lateness_ms": 200
+    },
+    "reason_profile": {
+      "kind": "builtin",
+      "id": "udp_datagram_l1"
+    },
+    "program_model": {
+      "id": "udp_process_debug_dsl_model",
+      "operation": "datagram_exchange",
+      "rules": 3
+    },
+    "fragment_params": {
+      "sock_lineage_fragment": {
+        "capture_comm": true
+      }
+    },
+    "evidence_overrides": {}
+  },
+  "validation": {
+    "ok": true,
+    "registry": "builtin",
+    "fragment_count": 3,
+    "program_rule_count": 3,
+    "reason_rule_count": 0,
+    "checks": [
+      "binding_schema",
+      "fragment_params",
+      "rule_evidence",
+      "payload_offsets"
+    ],
+    "sampled_payload_offsets": [
+      0,
+      1,
+      4,
+      5,
+      9,
+      10,
+      13
+    ],
+    "required_payload_offsets": [],
+    "unsupported_payload_offsets": [],
+    "finding": null
+  },
+  "diagnostics": {
+    "template_id": "udp_process_debug",
+    "status": {
+      "has_program_model": true,
+      "has_reason_model": false
+    },
+    "counts": {
+      "fragments": 3,
+      "program_rules": 3,
+      "reason_rules": 0
+    },
+    "fragments": [
+      "udp_packet_meta_fragment",
+      "route_meta_fragment",
+      "sock_lineage_fragment"
+    ],
+    "program_model": {
+      "model": "udp_process_debug_dsl_model",
+      "rules": [
+        {
+          "rule_index": 0,
+          "tier": "optional_enhancement",
+          "supported": true,
+          "required_facts": [
+            "sock_lineage"
+          ],
+          "supporting_fragments": [
+            "sock_lineage_fragment"
+          ],
+          "missing_facts": [],
+          "unsupported_payload_offsets": []
+        },
+        {
+          "rule_index": 1,
+          "tier": "core_requirement",
+          "supported": true,
+          "required_facts": [
+            "packet_meta"
+          ],
+          "supporting_fragments": [
+            "udp_packet_meta_fragment"
+          ],
+          "missing_facts": [],
+          "unsupported_payload_offsets": []
+        },
+        {
+          "rule_index": 2,
+          "tier": "core_requirement",
+          "supported": true,
+          "required_facts": [
+            "route_decision"
+          ],
+          "supporting_fragments": [
+            "route_meta_fragment"
+          ],
+          "missing_facts": [],
+          "unsupported_payload_offsets": []
+        }
+      ]
+    },
+    "reason_model": null
+  },
+  "findings": {
+    "findings": []
+  }
+}

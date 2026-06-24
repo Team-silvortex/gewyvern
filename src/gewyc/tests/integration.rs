@@ -7,6 +7,10 @@ fn envelope_json_contains_all_frontend_surfaces() {
             .unwrap();
     let envelope = compile_envelope_str(&input);
     let json = render_envelope_report(&envelope, RenderFormat::Json);
+    assert!(json.contains(
+        "\"status\":{\"has_binding\":true,\"has_diagnostics\":true,\"finding_count\":0}"
+    ));
+    assert!(json.contains("\"surfaces\":{\"binding\":"));
     assert!(json.contains("\"binding\":"));
     assert!(json.contains("\"diagnostics\":"));
     assert!(json.contains("\"findings\":{\"findings\":[]}"));
@@ -40,6 +44,10 @@ fn stages_json_includes_parse_and_diagnostics_sections() {
         compile_stages_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
             .unwrap();
     let json = render_stages_report(&report, RenderFormat::Json);
+    assert!(json.contains(
+        "\"status\":{\"parse_ok\":true,\"validation_ok\":true,\"diagnostics_ok\":true}"
+    ));
+    assert!(json.contains("\"counts\":{\"validation_fragments\":3"));
     assert!(json.contains("\"parse\":{\"ok\":true"));
     assert!(json.contains("\"frontend\":"));
     assert!(json.contains("\"function_nodes\""));
@@ -84,6 +92,8 @@ template(:frontend_summary)
     );
     let frontend = report.parse.frontend.as_ref().unwrap();
     assert_eq!(frontend.kind, "pipeline");
+    assert_eq!(frontend.module_doc, None);
+    assert_eq!(frontend.template_doc, None);
     assert_eq!(frontend.function_count, 2);
     assert_eq!(
         frontend.function_nodes,
@@ -91,6 +101,7 @@ template(:frontend_summary)
             FrontendFunctionReport {
                 name: "udp_core".to_string(),
                 signature: "udp_core()".to_string(),
+                doc: None,
                 step_count: 3,
                 source_id: "entry".to_string(),
                 package_scope: "inline".to_string(),
@@ -99,6 +110,7 @@ template(:frontend_summary)
             FrontendFunctionReport {
                 name: "udp_rules".to_string(),
                 signature: "udp_rules()".to_string(),
+                doc: None,
                 step_count: 3,
                 source_id: "entry".to_string(),
                 package_scope: "inline".to_string(),
@@ -205,6 +217,8 @@ fn udp_core() {
     let report = compile_stages_report_file(package_dir.to_str().unwrap()).unwrap();
     let frontend = report.parse.frontend.as_ref().unwrap();
     assert_eq!(frontend.kind, "pipeline");
+    assert_eq!(frontend.module_doc, None);
+    assert_eq!(frontend.template_doc, None);
     assert_eq!(frontend.function_count, 1);
     assert_eq!(frontend.function_nodes.len(), 1);
     assert_eq!(frontend.function_nodes[0].name, "udp_core");
@@ -219,6 +233,7 @@ fn udp_core() {
             .source_id
             .ends_with("module.gewy")
     );
+    assert_eq!(frontend.function_nodes[0].doc, None);
     assert_eq!(frontend.include_sources.len(), 1);
     assert_eq!(frontend.include_sources[0].request, "./module.gewy");
     assert_eq!(frontend.include_sources[0].kind, "local");

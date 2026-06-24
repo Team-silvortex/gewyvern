@@ -1,0 +1,85 @@
+{
+  "ok": false,
+  "summary": {
+    "parse_ok": false,
+    "validation_ok": false,
+    "diagnostics_ok": false,
+    "template_id": null,
+    "operation": null,
+    "finding_count": 1,
+    "next_step": "fix the parse finding first, then rerun `gewyc explain`",
+    "focus": null,
+    "stage_status": {
+      "parse": false,
+      "validation": false,
+      "diagnostics": false
+    },
+    "analysis": {
+      "authoring_context": null,
+      "lowered_binding_summary": null,
+      "frontend_lowering_delta": null
+    },
+    "shape_notes": {
+      "binding": null,
+      "validation": null,
+      "diagnostics": null
+    },
+    "excerpts": {
+      "parse_source": {
+        "line": 2,
+        "column": 11,
+        "line_text": "fn broken( =",
+        "marker": "          ^"
+      },
+      "validation": null,
+      "diagnostics": null
+    },
+    "authoring_context": null,
+    "lowered_binding_summary": null,
+    "frontend_lowering_delta": null,
+    "binding_shape_note": null,
+    "validation_shape_note": null,
+    "diagnostics_shape_note": null,
+    "parse_source_excerpt": {
+      "line": 2,
+      "column": 11,
+      "line_text": "fn broken( =",
+      "marker": "          ^"
+    },
+    "validation_excerpt": null,
+    "diagnostics_excerpt": null
+  },
+  "focused_report": null,
+  "frontend": null,
+  "binding": null,
+  "validation": {
+    "ok": false,
+    "registry": "builtin",
+    "fragment_count": 0,
+    "program_rule_count": 0,
+    "reason_rule_count": 0,
+    "checks": [
+      "binding_schema",
+      "fragment_params",
+      "rule_evidence",
+      "payload_offsets"
+    ],
+    "sampled_payload_offsets": [],
+    "required_payload_offsets": [],
+    "unsupported_payload_offsets": [],
+    "finding": null
+  },
+  "diagnostics": null,
+  "findings": {
+    "findings": [
+      {
+        "stage": "parse",
+        "severity": "error",
+        "code": "GEWYC-PARSE-INVALID-VALUE",
+        "line": 2,
+        "column": 11,
+        "message": "invalid function signature 'broken('"
+      }
+    ]
+  }
+}

@@ -100,3 +100,119 @@ template(:broken_offset_validation)
     assert!(json.contains("\"diagnostics_shape_note\""));
     assert!(json.contains("\"model\":\"broken_offset_validation_model\""));
 }
+
+#[test]
+fn explain_report_surfaces_frontend_docs_in_summary_and_focus() {
+    let report = compile_explain_report_str(
+        r#"
+//! UDP authoring demo
+//! Keeps the module intent obvious
+/// Shared UDP rules
+fn udp_rules() =
+  |> operation(:datagram_exchange)
+  |> program_model(:frontend_docs_model)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :frontend_docs, phase: :bind)
+
+/// Entry template for frontend docs
+template(:frontend_docs)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> use(:udp_rules)
+"#,
+    );
+
+    let text = render_explain_report(&report, RenderFormat::Text);
+    let compact = render_explain_report_with_options(
+        &report,
+        RenderFormat::Text,
+        Some(ExplainFocus::Frontend),
+        true,
+    );
+    let focused = render_explain_report_with_focus(
+        &report,
+        RenderFormat::Text,
+        Some(ExplainFocus::Frontend),
+    );
+    let json = render_explain_report(&report, RenderFormat::Json);
+
+    assert!(text.contains(
+        "authoring=module_doc=UDP authoring demo / Keeps the module intent obvious ; template_doc=Entry template for frontend docs ; documented_functions=udp_rules"
+    ));
+    assert!(text.contains("- module_doc=UDP authoring demo / Keeps the module intent obvious"));
+    assert!(text.contains("- template_doc=Entry template for frontend docs"));
+    assert!(text.contains("- documented_functions=udp_rules"));
+    assert!(compact.contains("module_doc=UDP authoring demo / Keeps the module intent obvious"));
+    assert!(compact.contains("template_doc=Entry template for frontend docs"));
+    assert!(compact.contains("documented_functions=udp_rules"));
+    assert!(focused.contains("module_doc=UDP authoring demo / Keeps the module intent obvious"));
+    assert!(focused.contains("template_doc=Entry template for frontend docs"));
+    assert!(focused.contains("doc: Shared UDP rules"));
+    assert!(json.contains("\"authoring_context\":{\"module_doc\":\"UDP authoring demo\\nKeeps the module intent obvious\",\"template_doc\":\"Entry template for frontend docs\",\"documented_functions\":[\"udp_rules\"]}"));
+    assert!(json.contains("\"stage_status\":{\"parse\":true,\"validation\":true,\"diagnostics\":true}"));
+    assert!(json.contains("\"analysis\":{\"authoring_context\":{\"module_doc\":\"UDP authoring demo\\nKeeps the module intent obvious\",\"template_doc\":\"Entry template for frontend docs\",\"documented_functions\":[\"udp_rules\"]}"));
+    assert!(json.contains("\"shape_notes\":{\"binding\":"));
+    assert!(json.contains("\"excerpts\":{\"parse_source\":null,\"validation\":null,\"diagnostics\":null}"));
+    assert!(json.contains("\"module_doc\":\"UDP authoring demo\\nKeeps the module intent obvious\""));
+    assert!(json.contains("\"template_doc\":\"Entry template for frontend docs\""));
+}
+
+#[test]
+fn explain_focus_json_uses_structured_groups() {
+    let report = compile_explain_report_str(
+        r#"
+//! Focus JSON demo
+/// Shared UDP rules
+fn udp_rules() =
+  |> operation(:datagram_exchange)
+  |> program_model(:focus_json_model)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :focus_json, phase: :bind)
+
+template(:focus_json_demo)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> use(:udp_rules)
+"#,
+    );
+
+    let frontend_json = render_explain_report_with_focus(
+        &report,
+        RenderFormat::Json,
+        Some(ExplainFocus::Frontend),
+    );
+    let binding_json = render_explain_report_with_focus(
+        &report,
+        RenderFormat::Json,
+        Some(ExplainFocus::Binding),
+    );
+
+    assert!(frontend_json.contains("\"focused_report\":{\"kind\":\"frontend\""));
+    assert!(frontend_json.contains("\"status\":{\"present\":true}"));
+    assert!(frontend_json.contains("\"analysis\":{\"authoring_context\":{\"module_doc\":\"Focus JSON demo\""));
+    assert!(binding_json.contains("\"focused_report\":{\"kind\":\"binding\""));
+    assert!(binding_json.contains("\"analysis\":{\"lowered_binding_summary\":"));
+    assert!(binding_json.contains("\"shape_notes\":{\"binding\":"));
+}
+
+#[test]
+fn binding_and_diagnostics_json_surface_status_and_counts() {
+    let report =
+        compile_explain_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
+            .unwrap();
+    let binding = report.binding.as_ref().expect("binding report should exist");
+    let diagnostics = report
+        .diagnostics
+        .as_ref()
+        .expect("diagnostics report should exist");
+
+    let binding_json = render_binding_report(binding, RenderFormat::Json);
+    let diagnostics_json = render_diagnostics_report(diagnostics, RenderFormat::Json);
+
+    assert!(binding_json.contains("\"status\":{\"has_window\":true"));
+    assert!(binding_json.contains("\"counts\":{\"fragments\":3"));
+    assert!(diagnostics_json.contains("\"status\":{\"has_program_model\":true"));
+    assert!(diagnostics_json.contains("\"counts\":{\"fragments\":3"));
+}

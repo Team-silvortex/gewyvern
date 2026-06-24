@@ -8,6 +8,8 @@ use crate::dsl::{
 pub(super) fn frontend_report(summary: FrontendModuleSummary) -> FrontendReport {
     FrontendReport {
         kind: frontend_kind_text(summary.kind).to_string(),
+        module_doc: summary.module_doc,
+        template_doc: summary.template_doc,
         function_count: summary.function_count,
         function_nodes: summary
             .function_nodes
@@ -59,6 +61,7 @@ pub(super) fn frontend_function_report(node: FrontendFunctionNode) -> FrontendFu
     FrontendFunctionReport {
         name: node.name,
         signature: node.signature,
+        doc: node.doc,
         step_count: node.step_count,
         source_id: node.source_id,
         package_scope: node.package_scope,

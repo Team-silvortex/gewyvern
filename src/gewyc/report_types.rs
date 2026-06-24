@@ -453,6 +453,8 @@ pub struct ParseStageReport {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FrontendReport {
     pub kind: String,
+    pub module_doc: Option<String>,
+    pub template_doc: Option<String>,
     pub function_count: usize,
     pub function_nodes: Vec<FrontendFunctionReport>,
     pub merged_step_count: usize,
@@ -476,6 +478,7 @@ pub struct FrontendIncludeSourceReport {
 pub struct FrontendFunctionReport {
     pub name: String,
     pub signature: String,
+    pub doc: Option<String>,
     pub step_count: usize,
     pub source_id: String,
     pub package_scope: String,

@@ -11,9 +11,10 @@ use crate::template::{
 use super::predicate::{
     parse_flow_predicate, parse_narrative_template, parse_reason_key_event, parse_reason_narrative,
 };
-use super::{DslError, parse_bool, split_top_level_with_columns};
+use super::{DslError, parse_bool, split_top_level_with_columns, strip_comments_preserve_layout};
 
 pub(super) fn parse_legacy_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError> {
+    let normalized = strip_comments_preserve_layout(input);
     let mut template_id = None;
     let mut window_profile = None;
     let mut inline_window_duration_ms = None;
@@ -28,7 +29,7 @@ pub(super) fn parse_legacy_str_unvalidated(input: &str) -> Result<TemplateBindin
     let mut fragment_params = Vec::new();
     let mut evidence_overrides = Vec::new();
 
-    for (line_no, raw_line) in input.lines().enumerate() {
+    for (line_no, raw_line) in normalized.lines().enumerate() {
         let line_no = line_no + 1;
         let line = raw_line.trim();
         if line.is_empty() || line.starts_with('#') {

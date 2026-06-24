@@ -1,0 +1,291 @@
+{
+  "ok": false,
+  "summary": {
+    "parse_ok": true,
+    "validation_ok": false,
+    "diagnostics_ok": true,
+    "template_id": "broken_offsets",
+    "operation": "snmp_query",
+    "finding_count": 1,
+    "next_step": "inspect `unsupported_payload_offsets` and adjust fragment coverage or payload matchers before rerunning",
+    "focus": null,
+    "stage_status": {
+      "parse": true,
+      "validation": false,
+      "diagnostics": true
+    },
+    "analysis": {
+      "authoring_context": {
+        "module_doc": null,
+        "template_doc": null,
+        "documented_functions": []
+      },
+      "lowered_binding_summary": {
+        "fragment_count": 1,
+        "has_window": true,
+        "has_reason_profile": true,
+        "has_program_model": true,
+        "program_rule_count": 1,
+        "fragment_param_count": 0,
+        "evidence_override_count": 0
+      },
+      "frontend_lowering_delta": {
+        "frontend_function_count": 0,
+        "frontend_merged_step_count": 6,
+        "frontend_use_edge_count": 0,
+        "frontend_include_source_count": 0,
+        "lowered_fragment_count": 1,
+        "lowered_program_rule_count": 1,
+        "lowered_fragment_param_count": 0,
+        "lowered_evidence_override_count": 0
+      }
+    },
+    "shape_notes": {
+      "binding": "lowered binding looks different because program_rule(...) calls lower into explicit program-model rules",
+      "validation": "the first failing rule asks for payload offsets [42] that current fragment coverage does not sample; current support comes from fragments [udp_packet_meta_fragment]",
+      "diagnostics": "it also references unsampled payload offsets [42]; current support comes from fragments [udp_packet_meta_fragment]"
+    },
+    "excerpts": {
+      "parse_source": null,
+      "validation": {
+        "model": "broken_offsets_model",
+        "rule_index": 0,
+        "unsupported_payload_offsets": [
+          42
+        ],
+        "supporting_fragments": [
+          "udp_packet_meta_fragment"
+        ]
+      },
+      "diagnostics": {
+        "model": "broken_offsets_model",
+        "rule_index": 0,
+        "missing_facts": [],
+        "unsupported_payload_offsets": [
+          42
+        ],
+        "supporting_fragments": [
+          "udp_packet_meta_fragment"
+        ]
+      }
+    },
+    "authoring_context": {
+      "module_doc": null,
+      "template_doc": null,
+      "documented_functions": []
+    },
+    "lowered_binding_summary": {
+      "fragment_count": 1,
+      "has_window": true,
+      "has_reason_profile": true,
+      "has_program_model": true,
+      "program_rule_count": 1,
+      "fragment_param_count": 0,
+      "evidence_override_count": 0
+    },
+    "frontend_lowering_delta": {
+      "frontend_function_count": 0,
+      "frontend_merged_step_count": 6,
+      "frontend_use_edge_count": 0,
+      "frontend_include_source_count": 0,
+      "lowered_fragment_count": 1,
+      "lowered_program_rule_count": 1,
+      "lowered_fragment_param_count": 0,
+      "lowered_evidence_override_count": 0
+    },
+    "binding_shape_note": "lowered binding looks different because program_rule(...) calls lower into explicit program-model rules",
+    "validation_shape_note": "the first failing rule asks for payload offsets [42] that current fragment coverage does not sample; current support comes from fragments [udp_packet_meta_fragment]",
+    "diagnostics_shape_note": "it also references unsampled payload offsets [42]; current support comes from fragments [udp_packet_meta_fragment]",
+    "parse_source_excerpt": null,
+    "validation_excerpt": {
+      "model": "broken_offsets_model",
+      "rule_index": 0,
+      "unsupported_payload_offsets": [
+        42
+      ],
+      "supporting_fragments": [
+        "udp_packet_meta_fragment"
+      ]
+    },
+    "diagnostics_excerpt": {
+      "model": "broken_offsets_model",
+      "rule_index": 0,
+      "missing_facts": [],
+      "unsupported_payload_offsets": [
+        42
+      ],
+      "supporting_fragments": [
+        "udp_packet_meta_fragment"
+      ]
+    }
+  },
+  "focused_report": null,
+  "frontend": {
+    "kind": "pipeline",
+    "status": {
+      "present": true
+    },
+    "authoring": {
+      "module_doc": null,
+      "template_doc": null,
+      "documented_functions": []
+    },
+    "counts": {
+      "functions": 0,
+      "merged_steps": 6,
+      "includes": 0,
+      "use_edges": 0,
+      "graph_nodes": 1,
+      "graph_edges": 0,
+      "expansion_previews": 1
+    },
+    "module_doc": null,
+    "template_doc": null,
+    "function_count": 0,
+    "function_nodes": [],
+    "merged_step_count": 6,
+    "include_sources": [],
+    "use_edges": [],
+    "graph_nodes": [
+      {
+        "id": "entry",
+        "kind": "entry",
+        "label": "entry",
+        "package_scope": "standalone",
+        "step_count": 6
+      }
+    ],
+    "graph_edges": [],
+    "expansion_previews": [
+      {
+        "scope": "entry",
+        "local_bindings": [],
+        "steps": [
+          "window(:default_5s)",
+          "reason(:udp_datagram_l1)",
+          "fragment(:udp_packet_meta_fragment)",
+          "operation(:snmp_query)",
+          "program_model(:broken_offsets_model)",
+          "program_rule(predicate: \"packet_observed:tcp:remote:mysql:byte_at:42:255:1\", stage: :packet_observed, narrative: \"static:test\", dedupe: true)"
+        ],
+        "use_targets": []
+      }
+    ]
+  },
+  "binding": {
+    "template_id": "broken_offsets",
+    "status": {
+      "has_window": true,
+      "has_reason_profile": true,
+      "has_program_model": true
+    },
+    "counts": {
+      "fragments": 1,
+      "fragment_params": 0,
+      "evidence_overrides": 0
+    },
+    "fragments": [
+      "udp_packet_meta_fragment"
+    ],
+    "window": {
+      "id": "default_5s",
+      "duration_ms": 5000,
+      "lateness_ms": 200
+    },
+    "reason_profile": {
+      "kind": "builtin",
+      "id": "udp_datagram_l1"
+    },
+    "program_model": {
+      "id": "broken_offsets_model",
+      "operation": "snmp_query",
+      "rules": 1
+    },
+    "fragment_params": {},
+    "evidence_overrides": {}
+  },
+  "validation": {
+    "ok": false,
+    "registry": "builtin",
+    "fragment_count": 1,
+    "program_rule_count": 1,
+    "reason_rule_count": 0,
+    "checks": [
+      "binding_schema",
+      "fragment_params",
+      "rule_evidence",
+      "payload_offsets"
+    ],
+    "sampled_payload_offsets": [
+      0,
+      1,
+      4,
+      5,
+      9,
+      10,
+      13
+    ],
+    "required_payload_offsets": [
+      42
+    ],
+    "unsupported_payload_offsets": [
+      42
+    ],
+    "finding": {
+      "stage": "validation",
+      "severity": "error",
+      "code": "GEWYC-VALIDATE-UNSUPPORTED-PAYLOAD-OFFSETS",
+      "line": null,
+      "column": null,
+      "message": "UnsupportedRulePayloadOffsets { model: \"program_model\", rule_index: 0, offsets: [42] }"
+    }
+  },
+  "diagnostics": {
+    "template_id": "broken_offsets",
+    "status": {
+      "has_program_model": true,
+      "has_reason_model": false
+    },
+    "counts": {
+      "fragments": 1,
+      "program_rules": 1,
+      "reason_rules": 0
+    },
+    "fragments": [
+      "udp_packet_meta_fragment"
+    ],
+    "program_model": {
+      "model": "broken_offsets_model",
+      "rules": [
+        {
+          "rule_index": 0,
+          "tier": "unsupported",
+          "supported": false,
+          "required_facts": [
+            "packet_meta"
+          ],
+          "supporting_fragments": [
+            "udp_packet_meta_fragment"
+          ],
+          "missing_facts": [],
+          "unsupported_payload_offsets": [
+            42
+          ]
+        }
+      ]
+    },
+    "reason_model": null
+  },
+  "findings": {
+    "findings": [
+      {
+        "stage": "validation",
+        "severity": "error",
+        "code": "GEWYC-VALIDATE-UNSUPPORTED-PAYLOAD-OFFSETS",
+        "line": null,
+        "column": null,
+        "message": "UnsupportedRulePayloadOffsets { model: \"program_model\", rule_index: 0, offsets: [42] }"
+      }
+    ]
+  }
+}

@@ -51,3 +51,71 @@ fn frontend_functions_compact_text_uses_signature_and_note_delta_only() {
     assert!(text.contains("{notes: duration_ms <inferred u64>}"));
     assert!(!text.contains("model_name <atom>"));
 }
+
+#[test]
+fn frontend_report_surfaces_module_and_function_docs() {
+    let report = compile_frontend_report_str(
+        r#"
+//! UDP demo module
+//! Small but documented
+/// Shared UDP rules
+fn udp_rules() =
+  |> operation(:datagram_exchange)
+  |> program_model(:frontend_docs_model)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :frontend_docs, phase: :bind)
+
+/// Entry template for frontend docs
+template(:frontend_docs)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> use(:udp_rules)
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        report.module_doc.as_deref(),
+        Some("UDP demo module\nSmall but documented")
+    );
+    assert_eq!(
+        report.template_doc.as_deref(),
+        Some("Entry template for frontend docs")
+    );
+    let function = report
+        .function_nodes
+        .iter()
+        .find(|node| node.name == "udp_rules")
+        .unwrap();
+    assert_eq!(function.doc.as_deref(), Some("Shared UDP rules"));
+}
+
+#[test]
+fn frontend_json_surfaces_authoring_and_count_groups() {
+    let report = compile_frontend_report_str(
+        r#"
+//! UDP demo module
+/// Shared UDP rules
+fn udp_rules() =
+  |> operation(:datagram_exchange)
+  |> program_model(:frontend_docs_model)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :frontend_docs, phase: :bind)
+
+/// Entry template for frontend docs
+template(:frontend_docs)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> use(:udp_rules)
+"#,
+    )
+    .unwrap();
+
+    let json = render_frontend_report(&report, RenderFormat::Json);
+    assert!(json.contains("\"status\":{\"present\":true}"));
+    assert!(json.contains("\"authoring\":{\"module_doc\":\"UDP demo module\""));
+    assert!(json.contains("\"documented_functions\":[\"udp_rules\"]"));
+    assert!(json.contains("\"counts\":{\"functions\":1"));
+}

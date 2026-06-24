@@ -37,6 +37,69 @@ Then extend the binding with Elixir-style pipeline steps:
 
 Current parser rule: one pipeline call per line.
 
+## Comments
+
+`gewylang` supports lightweight comments intended for real authoring, not just
+temporary debugging notes.
+
+Line comments:
+
+```text
+template(:demo_app) # entry binding for the demo
+|> window(:default_5s) # keep the default demo window
+```
+
+Block comments:
+
+```text
+/*
+  Reusable UDP fragment bundle.
+  Keep this block small and composable.
+*/
+fn udp_core() =
+  |> fragment(:udp_packet_meta_fragment)
+  |> operation(:datagram_exchange)
+```
+
+Current comment rules:
+
+- `#` starts a line comment outside string literals
+- `/* ... */` starts and ends a block comment outside string literals
+- comment stripping preserves line layout so compiler line numbers stay stable
+
+## Documentation Comments
+
+`gewylang` also supports lightweight documentation comments for author-facing
+surfaces.
+
+Module header docs:
+
+```text
+//! UDP demo package
+//! Keeps the entry pipeline intentionally small
+/// Entry template for the demo package
+template(:udp_demo)
+|> window(:default_5s)
+```
+
+Function docs:
+
+```text
+/// Reusable UDP rule bundle shared by multiple templates.
+fn udp_rules() =
+  |> operation(:datagram_exchange)
+  |> program_model(:udp_rules_model)
+```
+
+Current doc rules:
+
+- `//!` appends to the module header doc surface
+- `///` attaches to the next `fn ...` declaration
+- if `///` appears before the entry `template(...)`, it attaches to the entry
+  template doc surface
+- blank lines do not break pending `///` attachment
+- plain `#` comments still break pending `///` attachment
+
 ## Function Units
 
 Function units can be declared in two equivalent forms.

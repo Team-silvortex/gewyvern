@@ -101,6 +101,75 @@ fn built_in_pipeline_udp_process_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn pipeline_dsl_supports_inline_and_block_comments() {
+    let binding = compile_str(
+        r#"
+        # header comment
+        template(:commented_demo) # inline comment
+        |> window(:default_5s)
+        |> reason(:udp_datagram_l1)
+        /* this reusable fragment bundle is intentionally small */
+        |> fragment(:udp_packet_meta_fragment)
+        |> fragment(:route_meta_fragment)
+        |> fragment(:sock_lineage_fragment)
+        |> operation(:datagram_exchange)
+        |> program_model(:commented_demo_model)
+        |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(binding.template.id, "commented_demo");
+    assert_eq!(
+        binding.template.program_model.as_ref().unwrap().operation,
+        ProgramOperation::DatagramExchange
+    );
+}
+
+#[test]
+fn pipeline_frontend_surfaces_module_and_function_docs() {
+    let source = r#"
+//! Demo UDP module
+//! Focused on readable authoring
+/// Reusable UDP rules
+fn udp_rules() {
+  |> operation(:datagram_exchange)
+  |> program_model(:frontend_doc_model)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :frontend_doc, phase: :bind)
+}
+
+/// Entry template for the documented demo
+template(:frontend_doc)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> fragment(:route_meta_fragment)
+|> fragment(:sock_lineage_fragment)
+|> use(:udp_rules)
+"#;
+    let frontend = parse_str_unvalidated(source).unwrap();
+
+    assert_eq!(frontend.template.id, "frontend_doc");
+    let summary = gewyvern::dsl::summarize_frontend_str(source).unwrap();
+    assert_eq!(
+        summary.module_doc.as_deref(),
+        Some("Demo UDP module\nFocused on readable authoring")
+    );
+    assert_eq!(
+        summary.template_doc.as_deref(),
+        Some("Entry template for the documented demo")
+    );
+    assert_eq!(
+        summary
+            .function_nodes
+            .iter()
+            .find(|node| node.name == "udp_rules")
+            .and_then(|node| node.doc.as_deref()),
+        Some("Reusable UDP rules")
+    );
+}
+
+#[test]
 fn built_in_dns_udp_process_dsl_compiles_into_template_binding() {
     let binding =
         compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy").unwrap();
@@ -15522,7 +15591,28 @@ template(:pipeline_unknown_fn)
 
     let message = format!("{:?}", err.root());
     assert!(message.contains("unknown pipeline function 'udp_cor'"));
-    assert!(message.contains("Known functions: udp_core."));
+    assert!(message.contains(
+        "Declared pipeline functions in this module: udp_core."
+    ));
+}
+
+#[test]
+fn dsl_reports_unknown_pipeline_step_with_available_candidates() {
+    let err = compile_str(
+        r#"
+template(:pipeline_unknown_step)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> operashun(:datagram_exchange)
+"#,
+    )
+    .expect_err("unknown step should fail");
+
+    let message = format!("{:?}", err.root());
+    assert!(message.contains("unknown pipeline DSL step 'operashun'"));
+    assert!(message.contains(
+        "Available pipeline steps: template, window, reason, reason_model, fragment, operation, program_model, param, evidence, program_rule, reason_rule, include, use."
+    ));
 }
 
 #[test]
@@ -15542,9 +15632,15 @@ template(:pipeline_unknown_param)
     .expect_err("unknown named parameter should fail");
 
     let message = format!("{:?}", err.root());
-    assert!(message.contains("pipeline function call does not match udp_core(model_name, op_name = :datagram_exchange)"));
+    assert!(
+        message.contains(
+            "pipeline function call does not match udp_core(model_name, op_name = :datagram_exchange)"
+        )
+    );
     assert!(message.contains("unknown named parameter 'mode_name'"));
-    assert!(message.contains("Known parameters: model_name, op_name."));
+    assert!(message.contains(
+        "Declared parameters for udp_core(model_name, op_name = :datagram_exchange): model_name, op_name."
+    ));
 }
 
 #[test]
@@ -15566,8 +15662,12 @@ template(:pipeline_unknown_placeholder)
     .expect_err("unknown placeholder should fail");
 
     let message = format!("{:?}", err.root());
-    assert!(message.contains("unknown pipeline parameter placeholder 'model_nam'"));
-    assert!(message.contains("In-scope names: model_name, op_name."));
+    assert!(message.contains(
+        "unknown pipeline placeholder '$model_nam' while expanding program_model while expanding udp_core(model_name)"
+    ));
+    assert!(message.contains(
+        "Names in scope for program_model while expanding udp_core(model_name): model_name, op_name."
+    ));
 }
 
 #[test]
@@ -15587,7 +15687,31 @@ template(:pipeline_kind_conflict)
     .expect_err("conflicting explicit kind should fail");
 
     let message = format!("{:?}", err.root());
-    assert!(message.contains("pipeline parameter 'model_name' declares kind 'bool' but is used like 'atom'"));
+    assert!(message.contains(
+        "pipeline parameter 'model_name' in udp_core(model_name: bool) declares kind 'bool' but is used like 'atom'"
+    ));
+}
+
+#[test]
+fn dsl_reports_inconsistent_pipeline_parameter_inference_with_signature_context() {
+    let err = compile_str(
+        r#"
+fn udp_core(shared_value) =>
+  |> program_model($shared_value)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: $shared_value, module: :frontend_summary, phase: :bind)
+
+template(:pipeline_inferred_kind_conflict)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core, :udp_model)
+"#,
+    )
+    .expect_err("inconsistent inferred kind should fail");
+
+    let message = format!("{:?}", err.root());
+    assert!(message.contains(
+        "pipeline parameter 'shared_value' in udp_core(shared_value) is inferred inconsistently as both atom and bool"
+    ));
 }
 
 #[test]

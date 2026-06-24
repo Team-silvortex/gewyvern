@@ -1,6 +1,10 @@
 use super::{
-    DslError, PipelineCall, PipelineLetBinding, PipelineParam, legacy::parse_stage, parse_bool,
-    parse_flow_predicate, predicate::parse_narrative_template, predicate::parse_reason_key_event,
+    DslError, PipelineCall, PipelineLetBinding, PipelineParam,
+    diagnostics::{
+        pipeline_declared_kind_conflict_message, pipeline_inferred_kind_conflict_message,
+    },
+    legacy::parse_stage, parse_bool, parse_flow_predicate,
+    predicate::parse_narrative_template, predicate::parse_reason_key_event,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -71,17 +75,21 @@ pub(super) fn parse_pipeline_value_kind_name(value: &str) -> Result<PipelineValu
 }
 
 pub(super) fn resolve_pipeline_param_kind(
+    function_signature: &str,
     param_name: &str,
     declared_kind: Option<PipelineValueKind>,
     inferred_kind: Option<PipelineValueKind>,
 ) -> Result<Option<PipelineValueKind>, DslError> {
     match (declared_kind, inferred_kind) {
         (Some(declared), Some(inferred)) if declared != inferred => {
-            Err(DslError::InvalidValue(format!(
-                "pipeline parameter '{param_name}' declares kind '{}' but is used like '{}'. Align the function body with the declared kind or update the annotation.",
-                pipeline_value_kind_text(declared),
-                pipeline_value_kind_text(inferred)
-            )))
+            Err(DslError::InvalidValue(
+                pipeline_declared_kind_conflict_message(
+                    function_signature,
+                    param_name,
+                    pipeline_value_kind_text(declared),
+                    pipeline_value_kind_text(inferred),
+                ),
+            ))
         }
         (Some(declared), _) => Ok(Some(declared)),
         (None, inferred) => Ok(inferred),
@@ -226,6 +234,7 @@ fn validate_phase_value(raw_value: &str, normalized: &str, context: &str) -> Res
 }
 
 pub(super) fn infer_pipeline_param_kinds(
+    function_signature: &str,
     params: &[PipelineParam],
     local_bindings: &[PipelineLetBinding],
     body: &[PipelineCall],
@@ -241,7 +250,7 @@ pub(super) fn infer_pipeline_param_kinds(
     let mut requirements = BTreeMap::<String, PipelineValueKind>::new();
 
     for call in body {
-        infer_call_placeholder_kinds(call, &mut requirements)?;
+        infer_call_placeholder_kinds(function_signature, call, &mut requirements)?;
     }
 
     let mut changed = true;
@@ -257,7 +266,7 @@ pub(super) fn infer_pipeline_param_kinds(
                 {
                     continue;
                 }
-                if note_requirement(&mut requirements, &placeholder, kind)? {
+                if note_requirement(function_signature, &mut requirements, &placeholder, kind)? {
                     changed = true;
                 }
             }
@@ -271,24 +280,35 @@ pub(super) fn infer_pipeline_param_kinds(
 }
 
 fn infer_call_placeholder_kinds(
+    function_signature: &str,
     call: &PipelineCall,
     output: &mut BTreeMap<String, PipelineValueKind>,
 ) -> Result<(), DslError> {
     match call.name.as_str() {
         "template" | "fragment" | "operation" | "program_model" => {
             if let Some(arg) = call.args.first() {
-                note_placeholders(output, arg, PipelineValueKind::Atom)?;
+                note_placeholders(function_signature, output, arg, PipelineValueKind::Atom)?;
             }
         }
         "window" => {
             if call.args.len() == 1 && !looks_like_keyword_arg(&call.args[0]) {
-                note_placeholders(output, &call.args[0], PipelineValueKind::Atom)?;
+                note_placeholders(
+                    function_signature,
+                    output,
+                    &call.args[0],
+                    PipelineValueKind::Atom,
+                )?;
             } else {
                 for arg in &call.args {
                     if let Some((name, value)) = split_keyword_arg(arg) {
                         match name {
                             "duration_ms" | "lateness_ms" => {
-                                note_placeholders(output, value, PipelineValueKind::U64)?;
+                                note_placeholders(
+                                    function_signature,
+                                    output,
+                                    value,
+                                    PipelineValueKind::U64,
+                                )?;
                             }
                             _ => {}
                         }
@@ -298,10 +318,10 @@ fn infer_call_placeholder_kinds(
         }
         "evidence" => {
             if let Some(arg) = call.args.first() {
-                note_placeholders(output, arg, PipelineValueKind::Atom)?;
+                note_placeholders(function_signature, output, arg, PipelineValueKind::Atom)?;
             }
             if let Some(arg) = call.args.get(1) {
-                note_placeholders(output, arg, PipelineValueKind::Atom)?;
+                note_placeholders(function_signature, output, arg, PipelineValueKind::Atom)?;
             }
         }
         "program_rule" | "reason_rule" => {
@@ -309,18 +329,53 @@ fn infer_call_placeholder_kinds(
                 if let Some((name, value)) = split_keyword_arg(arg) {
                     match name {
                         "predicate" => {
-                            note_placeholders(output, value, PipelineValueKind::Predicate)?
+                            note_placeholders(
+                                function_signature,
+                                output,
+                                value,
+                                PipelineValueKind::Predicate,
+                            )?
                         }
-                        "stage" => note_placeholders(output, value, PipelineValueKind::Stage)?,
+                        "stage" => note_placeholders(
+                            function_signature,
+                            output,
+                            value,
+                            PipelineValueKind::Stage,
+                        )?,
                         "key_event" => {
-                            note_placeholders(output, value, PipelineValueKind::KeyEvent)?
+                            note_placeholders(
+                                function_signature,
+                                output,
+                                value,
+                                PipelineValueKind::KeyEvent,
+                            )?
                         }
-                        "module" => note_placeholders(output, value, PipelineValueKind::Atom)?,
-                        "phase" => note_placeholders(output, value, PipelineValueKind::Phase)?,
+                        "module" => note_placeholders(
+                            function_signature,
+                            output,
+                            value,
+                            PipelineValueKind::Atom,
+                        )?,
+                        "phase" => note_placeholders(
+                            function_signature,
+                            output,
+                            value,
+                            PipelineValueKind::Phase,
+                        )?,
                         "narrative" => {
-                            note_placeholders(output, value, PipelineValueKind::Narrative)?
+                            note_placeholders(
+                                function_signature,
+                                output,
+                                value,
+                                PipelineValueKind::Narrative,
+                            )?
                         }
-                        "dedupe" => note_placeholders(output, value, PipelineValueKind::Bool)?,
+                        "dedupe" => note_placeholders(
+                            function_signature,
+                            output,
+                            value,
+                            PipelineValueKind::Bool,
+                        )?,
                         _ => {}
                     }
                 }
@@ -332,28 +387,33 @@ fn infer_call_placeholder_kinds(
 }
 
 fn note_placeholders(
+    function_signature: &str,
     output: &mut BTreeMap<String, PipelineValueKind>,
     value: &str,
     kind: PipelineValueKind,
 ) -> Result<(), DslError> {
     for placeholder in placeholders_in(value) {
-        note_requirement(output, &placeholder, kind)?;
+        note_requirement(function_signature, output, &placeholder, kind)?;
     }
     Ok(())
 }
 
 fn note_requirement(
+    function_signature: &str,
     output: &mut BTreeMap<String, PipelineValueKind>,
     name: &str,
     kind: PipelineValueKind,
 ) -> Result<bool, DslError> {
     match output.get(name).copied() {
         Some(existing) if existing == kind => Ok(false),
-        Some(existing) => Err(DslError::InvalidValue(format!(
-            "pipeline parameter '{name}' is inferred inconsistently as both {} and {}. Split the values into separate parameters or keep every use-site in the same value family.",
-            pipeline_value_kind_text(existing),
-            pipeline_value_kind_text(kind)
-        ))),
+        Some(existing) => Err(DslError::InvalidValue(
+            pipeline_inferred_kind_conflict_message(
+                function_signature,
+                name,
+                pipeline_value_kind_text(existing),
+                pipeline_value_kind_text(kind),
+            ),
+        )),
         None => {
             output.insert(name.to_string(), kind);
             Ok(true)
