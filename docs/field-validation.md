@@ -1,7 +1,7 @@
 # Field Validation
 
-This note defines the practical field-validation phase for the current
-`0.15.x` line.
+This note defines the practical field-validation phase for the active
+`0.17.x` line.
 
 The goal is simple:
 
@@ -13,10 +13,12 @@ This is the bridge between:
 
 - contract freeze
 - benchmark acceptance
-- current release judgment for the active `0.15.x` line
+- current release judgment for the active `0.17.x` line
 
 For the current release posture, see
-[docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md).
+[docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
+and
+[docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md).
 
 For the short running record of what this validation has already shown in
 practice, see [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md).
@@ -36,7 +38,7 @@ Treat this page as the validation-program page for the active line.
 Use it when the question is:
 
 - what kinds of validation should we still be running repeatedly?
-- which scenario families matter most for trust in `0.15.x`?
+- which scenario families matter most for trust in `0.17.x`?
 - what counts as strong enough validation evidence versus shallow smoke?
 
 Do not use this page as:
@@ -48,7 +50,7 @@ Do not use this page as:
 For those, use:
 
 - [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
-- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
 
 ## Companion Shelves
@@ -57,12 +59,14 @@ For those, use:
   for the short evidence log of what this validation line has already shown
 - [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
   for the shortest current release gate
-- [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
+- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
   for the current line's intended claim and scope
+- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
+  for the current second-half closure priorities
 
 ## Current Prelaunch Scope
 
-Keep the current `0.15.x` field-validation line intentionally narrow.
+Keep the current `0.17.x` field-validation line intentionally narrow.
 
 The question is not "what else could `gewyvern` support".
 
@@ -412,6 +416,6 @@ This note does not replace:
 - release gate judgment
 - the dedicated multi-project collaboration gate with `etragon` and `leserpent`
 
-It exists so the current `0.15.x` line has a concrete "start validating for
+It exists so the active `0.17.x` line has a concrete "start validating for
 real" shelf rather
 than only architecture cleanup.

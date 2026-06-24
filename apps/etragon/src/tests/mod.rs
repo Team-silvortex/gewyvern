@@ -9,6 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 mod cli;
 mod core;
 mod daemon;
+mod federation;
 
 fn default_worker_args() -> Vec<String> {
     vec![

@@ -101,7 +101,11 @@ command or script, prefer these top-level operator shelves first:
 ## Prepare For Release Judgement
 
 - [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
-  Current release posture for the active `0.15.x` line.
+  Historical release posture for the earlier `0.15.x` line.
+- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
+  Current release posture for the active `0.17.x` line.
+- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
+  Current second-half closure checklist.
 - [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
   Security and exposure boundaries.
 

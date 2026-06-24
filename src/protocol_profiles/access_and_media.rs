@@ -128,5 +128,13 @@ pub(super) const SIP_PROFILE: ProtocolProfile = ProtocolProfile {
             mode: "bye",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/sip_bye_path.gewy",
         },
+        ProtocolEntryProfile {
+            mode: "response",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/sip_response_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "denied",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/sip_denied_path.gewy",
+        },
     ],
 };

@@ -255,8 +255,10 @@ Then continue with:
   [docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md)
 - Subpages:
   - [docs/book/reference-sip-bye-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-bye-surface.md)
+  - [docs/book/reference-sip-denied-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-denied-surface.md)
   - [docs/book/reference-sip-invite-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-invite-surface.md)
   - [docs/book/reference-sip-register-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-register-surface.md)
+  - [docs/book/reference-sip-response-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-response-surface.md)
 
 ### POP3
 

@@ -32,7 +32,7 @@ Then continue with:
 
 ## What “Nearby Sidecar” Means Here
 
-The intended relationship is:
+The default nearby relationship is:
 
 ```text
 etragon <-> one nearby gewyvern
@@ -47,6 +47,17 @@ It is an additive nearby engine that can return:
 - `diagnostic_opinion`
 
 `gewyvern` remains authoritative for the built-in diagnosis spine.
+
+`etragon` can now also consume a federation manifest when the goal is learning
+from many nearby `gewyvern` runtimes. That creates this shape:
+
+```text
+etragon -> many gewyvern target indexes
+leserpent -> many gewyvern instances
+```
+
+The difference is ownership. `etragon` aggregates learning signals; `leserpent`
+coordinates runtime registration, UI, and fleet policy.
 
 ## Choose The Right Validation Path
 
@@ -231,6 +242,38 @@ This is the high-signal check for:
 
 This is heavier than the local roundtrip demo, but it is the right check when
 you care about stack-level confidence instead of only one local bridge.
+
+## Federated Learning Manifest
+
+When you want one `etragon` process to learn from multiple `gewyvern` runtimes,
+create a manifest like:
+
+```json
+{
+  "runtimes": [
+    {
+      "id": "gw-a",
+      "targets_url": "http://127.0.0.1:9910/v1/latest/targets"
+    },
+    {
+      "id": "gw-b",
+      "targets_url": "http://127.0.0.1:9920/v1/latest/targets"
+    }
+  ]
+}
+```
+
+Then run:
+
+```bash
+cargo run -p etragon -- analyze-python-federation-json /tmp/etragon-federation.json --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+
+cargo run -p etragon -- train-python-federation-json /tmp/etragon-federation.json --label network_observe_longer --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+```
+
+The result keeps runtime identity in every target key, so a learned route can
+be compared across runtimes without pretending all targets came from one
+source.
 
 ## How To Triage A Failure
 

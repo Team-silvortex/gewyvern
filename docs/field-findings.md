@@ -1,6 +1,6 @@
 # Field Findings
 
-This note records the highest-signal findings from the current `0.15.x`
+This note records the highest-signal findings from the earlier `0.15.x`
 field-validation phase.
 
 It is intentionally short.
@@ -9,6 +9,8 @@ It is not a replacement for:
 
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
 - [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
+- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
+- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
 
 Instead, it answers a narrower question:
 
@@ -36,9 +38,9 @@ For those, use:
 
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
 - [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
-- [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
+- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
 
-## Current Stable Findings
+## Historical Stable Findings From `0.15.x`
 
 ### 1. Registry Validation Is Fully Green
 
@@ -51,7 +53,7 @@ entire scanned registry now passes:
 This means the current stable protocol shelf is no longer drifting at the
 compiler/package level.
 
-### 2. Current `0.15.0` Native Artifacts Now Drive The Validation Path
+### 2. `0.15.0` Native Artifacts Drove The Validation Path
 
 The packaged container path is no longer relying on stale historical artifacts.
 
@@ -64,7 +66,8 @@ then used as the input for the packaged validation chain:
 This matters because an earlier validation pass could still succeed while
 quietly exercising an older `0.10.0` package set.
 
-That ambiguity is now gone for the current line.
+That ambiguity was removed for the `0.15.x` line and remains useful context
+for later release validation.
 
 ### 3. Packaged Linux Protocol Support Works After Real Install
 
@@ -245,7 +248,7 @@ That is useful and intentional, but it is not the same thing as saying:
 
 ## Practical Read Of The Current Line
 
-The current `0.15.x` line now looks strong in these ways:
+The earlier `0.15.x` line looked strong in these ways:
 
 - protocol/package shelf is stable
 - current `0.14.0` native artifacts are the ones being exercised

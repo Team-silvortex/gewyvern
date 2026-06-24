@@ -102,6 +102,8 @@ pub(crate) fn sip_shelf(entry: &str) -> Option<ShelfMatch> {
     const REGISTER: &[&str] = &["register"];
     const INVITE: &[&str] = &["invite"];
     const BYE: &[&str] = &["bye"];
+    const RESPONSE: &[&str] = &["response"];
+    const DENIED: &[&str] = &["denied"];
     if REGISTER.contains(&entry) {
         Some((
             "register",
@@ -118,6 +120,20 @@ pub(crate) fn sip_shelf(entry: &str) -> Option<ShelfMatch> {
         ))
     } else if BYE.contains(&entry) {
         Some(("bye", "Bye", "docs/book/reference-sip-bye-surface.md", BYE))
+    } else if RESPONSE.contains(&entry) {
+        Some((
+            "response",
+            "Response",
+            "docs/book/reference-sip-response-surface.md",
+            RESPONSE,
+        ))
+    } else if DENIED.contains(&entry) {
+        Some((
+            "denied",
+            "Denied",
+            "docs/book/reference-sip-denied-surface.md",
+            DENIED,
+        ))
     } else {
         None
     }

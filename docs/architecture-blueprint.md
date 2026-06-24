@@ -2,7 +2,7 @@
 
 Use this page when you need the project-level design sheet for `gewyvern`.
 
-This is the durable blueprint page for the current `0.15.x` line. It is meant
+This is the durable blueprint page for the active `0.17.x` line. It is meant
 to answer four questions quickly:
 
 - what are the major subsystems?
@@ -16,6 +16,7 @@ This page is not the deepest runtime internals note. For that, also read:
 - [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
 - [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
 
 ## Role In The Shelf
 
@@ -35,6 +36,8 @@ Then branch like this:
   [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
 - source-module clustering:
   [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+- project-wide dataflow topology:
+  [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
 - evolution and sequencing:
   [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
   and

@@ -1,0 +1,6 @@
+name=ssdp_notify
+version=0.17.0
+entry=main.gewy
+register.protocol=ssdp
+register.entry=notify
+register.entry_aliases=ssdp-notify,ssdp_notify,advertise,alive,byebye

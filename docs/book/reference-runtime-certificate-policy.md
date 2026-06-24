@@ -70,7 +70,7 @@ The current certificate policy emits these top-level statuses:
 
 This is intentionally conservative.
 
-In `0.15.x`, `gewyvern` does not claim full PKI validation.
+In `0.17.x`, `gewyvern` does not claim full PKI validation.
 
 It reports whether the current shelf shape appears consistent with the runtime's
 expected operator contract and whether parsed certificate material is already
@@ -183,7 +183,7 @@ These reason codes are the stable identifiers for the current policy layer.
 
 ## Root-Policy Expectations
 
-The current `0.15.x` policy assumes this root intent:
+The active `0.17.x` policy assumes this root intent:
 
 - `certificates/trust/`
   - should primarily contain trust anchors, bundles, and chain material

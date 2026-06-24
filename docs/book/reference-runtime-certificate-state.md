@@ -28,7 +28,7 @@ The runtime-managed certificate state root is:
 
 - `state/certificates/`
 
-The current `0.15.x` line reserves these files under that root:
+The active `0.17.x` line reserves these files under that root:
 
 - `rotation-records.tsv`
 - `revocation-records.tsv`

@@ -86,22 +86,24 @@ use this order:
 ### Part V: The Broader Stack
 
 18. [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
-19. [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
-20. [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
-21. [docs/monorepo-stack.md](/Users/Shared/chroot/dev/gewyvern/docs/monorepo-stack.md)
+19. [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
+20. [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
+21. [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+22. [docs/monorepo-stack.md](/Users/Shared/chroot/dev/gewyvern/docs/monorepo-stack.md)
 
 ### Part VI: Operating, Validating, And Extending
 
-22. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-23. [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
-24. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
-25. [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
+23. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+24. [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
+25. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+26. [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
 
 ## Current Release Line
 
-For the current `0.15.x` release posture, see:
+For the current `0.17.x` midline posture, see:
 
-- [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
+- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
+- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
 
 ## Role-Based Reading Paths
 
@@ -125,6 +127,7 @@ Recommended order:
 6. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
 7. [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
 8. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+9. [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
 
 ### DSL Author
 
@@ -175,14 +178,16 @@ Start here if your question is:
 
 Recommended order:
 
-1. [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
-2. [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
-3. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-4. [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
-5. [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-6. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
-7. [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
-8. [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
+1. [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
+2. [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
+3. [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
+4. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+5. [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
+6. [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+7. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+8. [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
+9. [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
+10. [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
 
 ## If You Do Not Know Where To Start
 
@@ -214,7 +219,7 @@ shape and a predictable shelf:
 - reference for exact lookup
 - explanation for deeper mental models
 
-As the `0.15.x` line continues, new documentation should prefer landing into one of
+As the `0.17.x` line closes its second half, new documentation should prefer landing into one of
 these four tracks instead of growing the top-level `docs/` folder without a
 clear reading mode.
 

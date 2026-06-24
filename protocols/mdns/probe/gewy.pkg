@@ -1,0 +1,6 @@
+name=mdns_probe
+version=0.17.0
+entry=main.gewy
+register.protocol=mdns
+register.entry=probe
+register.entry_aliases=mdns-probe,mdns_probe,claim,conflict-check

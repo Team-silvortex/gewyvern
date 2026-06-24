@@ -34,7 +34,7 @@ Then continue with:
 
 ## The Short Version
 
-The intended stack is:
+The intended default stack is:
 
 ```text
 etragon <-> one nearby gewyvern
@@ -47,6 +47,18 @@ Or as responsibilities:
 - `gewyvern` owns runtime truth
 - `etragon` adds nearby diagnosis context
 - `leserpent` owns orchestration, fleet view, and control-plane policy
+
+Starting in the federation learning path, one `etragon` may also learn from
+many nearby `gewyvern` target indexes. That is still not fleet orchestration.
+It is a learning aggregation shape:
+
+```text
+etragon -> many gewyvern target indexes
+leserpent -> many gewyvern instances
+```
+
+The boundary remains the same: `etragon` learns and enriches; `leserpent`
+coordinates and presents.
 
 That boundary is deliberate.
 

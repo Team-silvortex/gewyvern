@@ -39,11 +39,14 @@ background cleanup.
   Earlier maturity line focused on protocol depth, compiler ergonomics, and
   runtime/report maturity.
 - [docs/history/v0.15.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15.x.md)
-  Current active line focused on carrying that maturity into runtime layout,
+  Historical line focused on carrying earlier maturity into runtime layout,
   upgrade handling, and clearer operational contracts.
 - [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
   Current active line focused on family-first protocol deepening plus stronger
   compiler/IR maturity without losing runtime evidence discipline.
+- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
+  Active second-half checklist for closing the `0.17.x` line cleanly before
+  the `0.18.x` validation and runtime-confidence line.
 - [docs/history/v0.15-to-v1-roadmap.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15-to-v1-roadmap.md)
   Forward-looking minor-line plan from `0.15.x` through `0.20.x`, intended to
   make `v1.0.0` the direct next step after the final pre-`1.0` seal.
@@ -110,5 +113,7 @@ Use other pages when you want something else:
 - for the current structured reading paths, use
   [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
 - for the current active release posture, use
-  [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
+  [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
+  and
+  [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
 - for the shortest ledger of historical release lines, use this page

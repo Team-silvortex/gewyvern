@@ -8,7 +8,7 @@ to a narrower question:
 
 - what `gewyvern` is safe to treat as
 - what `gewyvern` is intentionally not trying to be
-- which boundaries matter in the current `0.15.x` line
+- which boundaries matter in the active `0.17.x` line
 
 For long-lived runtime behavior, see
 [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md).
@@ -121,7 +121,7 @@ usable.
 ## Resource And Safety Boundaries
 
 The current tree already enforces several practical bounds that matter for the
-next preparation line:
+current preparation line:
 
 - socket ingest applies line and fact-count limits during read
 - Unix sockets are created with restricted permissions
@@ -163,7 +163,7 @@ service shape.
 
 ## Practical `0.15.x` Goal
 
-For the current `0.15.x` line, the security goal is not “become a control
+For the active `0.17.x` line, the security goal is not “become a control
 plane”.
 
 The goal is narrower:

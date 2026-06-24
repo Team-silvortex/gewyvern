@@ -7,18 +7,32 @@ Use it for:
 
 - `mdns` family lookup
 - default entry selection for `query`
+- response and probe entry selection when the local-link discovery direction is
+  already known
 - keeping multicast discovery lookups separate from unicast DNS pages
 
 Current canonical entries:
 
 - `query` as the default entry
+- `response` with entry aliases `answer`, `announcement`, `mdns-response`, and
+  `mdns_response`
+- `probe` with entry aliases `claim`, `conflict-check`, `mdns-probe`, and
+  `mdns_probe`
 
 Default entry: `query`
 
-The current line keeps mDNS as a compact single-slice family:
+The current line treats mDNS as a compact local-link discovery cluster:
 
-- query local multicast responders
-- keep the family hub small until the surface grows beyond one stable entry
+- `query` for active multicast name lookup
+- `response` for answer or announcement traffic
+- `probe` for name-conflict probing before claiming or advertising a name
+
+Operator rule:
+
+- use `query` when a host is asking for local names
+- use `response` when you are reading responder behavior or announcements
+- use `probe` when the interesting question is whether a host is checking for
+  local name conflicts before publishing
 
 Read in this order:
 

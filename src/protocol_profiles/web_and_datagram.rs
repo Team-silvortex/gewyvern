@@ -269,17 +269,33 @@ pub(super) const WIREGUARD_PROFILE: ProtocolProfile = ProtocolProfile {
 pub(super) const MDNS_PROFILE: ProtocolProfile = ProtocolProfile {
     name: "mdns",
     default_entry: "query",
-    entries: &[ProtocolEntryProfile {
-        mode: "query",
-        dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy",
-    }],
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "query",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "response",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mdns_response_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "probe",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mdns_probe_path.gewy",
+        },
+    ],
 };
 
 pub(super) const SSDP_PROFILE: ProtocolProfile = ProtocolProfile {
     name: "ssdp",
     default_entry: "discovery",
-    entries: &[ProtocolEntryProfile {
-        mode: "discovery",
-        dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy",
-    }],
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "discovery",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "notify",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_notify_path.gewy",
+        },
+    ],
 };

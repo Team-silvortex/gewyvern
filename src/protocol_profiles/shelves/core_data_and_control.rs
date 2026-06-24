@@ -2,12 +2,28 @@ use super::super::ShelfMatch;
 
 pub(crate) fn mdns_shelf(entry: &str) -> Option<ShelfMatch> {
     const QUERY: &[&str] = &["query"];
+    const RESPONSE: &[&str] = &["response"];
+    const PROBE: &[&str] = &["probe"];
     if QUERY.contains(&entry) {
         Some((
             "query",
             "Query",
             "docs/book/reference-mdns-surface.md",
             QUERY,
+        ))
+    } else if RESPONSE.contains(&entry) {
+        Some((
+            "response",
+            "Response",
+            "docs/book/reference-mdns-surface.md",
+            RESPONSE,
+        ))
+    } else if PROBE.contains(&entry) {
+        Some((
+            "probe",
+            "Probe",
+            "docs/book/reference-mdns-surface.md",
+            PROBE,
         ))
     } else {
         None
@@ -16,12 +32,20 @@ pub(crate) fn mdns_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn ssdp_shelf(entry: &str) -> Option<ShelfMatch> {
     const DISCOVERY: &[&str] = &["discovery"];
+    const NOTIFY: &[&str] = &["notify"];
     if DISCOVERY.contains(&entry) {
         Some((
             "discovery",
             "Discovery",
             "docs/book/reference-ssdp-surface.md",
             DISCOVERY,
+        ))
+    } else if NOTIFY.contains(&entry) {
+        Some((
+            "notify",
+            "Notify",
+            "docs/book/reference-ssdp-surface.md",
+            NOTIFY,
         ))
     } else {
         None

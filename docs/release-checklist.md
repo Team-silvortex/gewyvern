@@ -1,7 +1,7 @@
 # Release Checklist
 
-This page is the shortest practical release checklist for the current
-`0.15.x` line.
+This page is the shortest practical release checklist for the active
+`0.17.x` line.
 
 Use it when the question is not "how does packaging work?" or "what does field
 validation mean?", but simply:
@@ -16,7 +16,8 @@ For deeper background, see:
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
 - [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
 - [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
-- [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
+- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
+- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
 
 ## Role In The Shelf
 
@@ -31,13 +32,13 @@ Use it when the question is:
 Do not use this page as:
 
 - the full validation philosophy for the line
-- the durable statement of what `v0.15.0` is supposed to mean
+- the durable statement of what the current minor line is supposed to mean
 - the evidence log of what already passed over time
 
 For those, use:
 
 - [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
-- [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
+- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
 
 ## Companion Shelves
@@ -46,10 +47,12 @@ For those, use:
   for the broader validation program and scenario bands
 - [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
   for the short record of what has already been demonstrated
-- [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
+- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
   for the current line's intended product and documentation posture
+- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
+  for the second-half closure checklist
 
-## Current `0.15.x` Gate
+## Current `0.17.x` Gate
 
 Treat the line as release-ready only when all of the following stay true:
 
@@ -77,6 +80,11 @@ Expected outputs:
 
 - `/Users/Shared/chroot/dev/gewyvern/target/packages/gewyvern_0.15.0-1_arm64.deb`
 - `/Users/Shared/chroot/dev/gewyvern/target/packages/rpm/gewyvern-0.15.0-1.aarch64.rpm`
+
+These filenames follow the crate/package version currently declared by the
+build metadata. The release-line posture can move ahead of that metadata, but
+the package smoke must always verify the artifacts that the tree actually
+builds today.
 
 Do not trust an older green run if it was using stale artifacts from another
 version line.
@@ -186,7 +194,7 @@ Use this triage order:
 
 ## Ship Read
 
-For the current `0.15.x` line, a good practical ship read is:
+For the active `0.17.x` line, a good practical ship read is:
 
 - current artifacts rebuilt
 - `release_gate.sh` green, or the equivalent build + packaged release check +

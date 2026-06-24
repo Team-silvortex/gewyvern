@@ -314,7 +314,8 @@ fn protocol_release_handbook_links_expected_release_and_protocol_routes() {
         "docs/book/reference-protocol-operator-playbook.md",
         "docs/book/reference-protocol-command-paths.md",
         "docs/release-checklist.md",
-        "docs/v0.15-posture.md",
+        "docs/history/v0.17.x.md",
+        "docs/history/v0.17.x-midline-checklist.md",
         "docs/field-validation.md",
         "scripts/validation/registry_validation.sh",
         "scripts/validation/high_frequency_validation.sh",
@@ -341,8 +342,8 @@ fn protocol_release_handbook_links_expected_release_and_protocol_routes() {
         );
     }
     assert!(
-        actual.contains("0.15.x"),
-        "protocol release handbook should mention the current 0.15.x line"
+        actual.contains("0.17.x"),
+        "protocol release handbook should mention the current 0.17.x line"
     );
 }
 

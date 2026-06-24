@@ -1,0 +1,7 @@
+name=sip_response
+version=0.17.0
+entry=main.gewy
+register.protocol=sip
+register.entry=response
+register.default=false
+register.entry_aliases=sip-response,sip_response,reply,provisional,final

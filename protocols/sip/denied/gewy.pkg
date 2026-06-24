@@ -1,0 +1,7 @@
+name=sip_denied
+version=0.17.0
+entry=main.gewy
+register.protocol=sip
+register.entry=denied
+register.default=false
+register.entry_aliases=sip-denied,sip_denied,rejected,failed,4xx,5xx,6xx

@@ -1,8 +1,8 @@
 # Runtime Event Reference
 
 This page is the exact lookup shelf for the runtime event names that are meant
-to stay recognizable in the active `0.15.4` / broader `0.15.x` line, while
-also serving as pre-`0.16.x` contract groundwork.
+to stay recognizable in the active `0.17.x` line, while preserving the earlier
+event-contract groundwork.
 
 Use it when you need to answer:
 
@@ -25,7 +25,7 @@ For those, use:
 ## Contract Posture
 
 The event names on this page are the current named spine for operator-facing log
-streams in `0.15.x`.
+streams in `0.17.x`.
 
 Minor fields may grow over time, but the intent is:
 

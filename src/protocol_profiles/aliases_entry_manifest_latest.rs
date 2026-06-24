@@ -91,4 +91,129 @@ pub(super) const PROTOCOL_ENTRY_ALIASES_MANIFEST_LATEST: &[ProtocolAlias] = &[
         protocol: "snmp",
         entry: Some("unauthorized"),
     },
+    ProtocolAlias {
+        alias: "mdns-response",
+        protocol: "mdns",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "mdns_response",
+        protocol: "mdns",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "announcement",
+        protocol: "mdns",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "answer",
+        protocol: "mdns",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "mdns-probe",
+        protocol: "mdns",
+        entry: Some("probe"),
+    },
+    ProtocolAlias {
+        alias: "mdns_probe",
+        protocol: "mdns",
+        entry: Some("probe"),
+    },
+    ProtocolAlias {
+        alias: "conflict-check",
+        protocol: "mdns",
+        entry: Some("probe"),
+    },
+    ProtocolAlias {
+        alias: "claim",
+        protocol: "mdns",
+        entry: Some("probe"),
+    },
+    ProtocolAlias {
+        alias: "ssdp-notify",
+        protocol: "ssdp",
+        entry: Some("notify"),
+    },
+    ProtocolAlias {
+        alias: "ssdp_notify",
+        protocol: "ssdp",
+        entry: Some("notify"),
+    },
+    ProtocolAlias {
+        alias: "advertise",
+        protocol: "ssdp",
+        entry: Some("notify"),
+    },
+    ProtocolAlias {
+        alias: "alive",
+        protocol: "ssdp",
+        entry: Some("notify"),
+    },
+    ProtocolAlias {
+        alias: "byebye",
+        protocol: "ssdp",
+        entry: Some("notify"),
+    },
+    ProtocolAlias {
+        alias: "sip-response",
+        protocol: "sip",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "sip_response",
+        protocol: "sip",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "reply",
+        protocol: "sip",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "provisional",
+        protocol: "sip",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "final",
+        protocol: "sip",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "sip-denied",
+        protocol: "sip",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "sip_denied",
+        protocol: "sip",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "rejected",
+        protocol: "sip",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "failed",
+        protocol: "sip",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "4xx",
+        protocol: "sip",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "5xx",
+        protocol: "sip",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "6xx",
+        protocol: "sip",
+        entry: Some("denied"),
+    },
 ];

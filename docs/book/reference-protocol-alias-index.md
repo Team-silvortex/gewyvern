@@ -150,6 +150,8 @@ Default entry: `query`
 Protocol aliases: none  
 Entry aliases:
 - `query` (default): none
+- `probe`: `claim`, `conflict-check`, `mdns-probe`, `mdns_probe`
+- `response`: `announcement`, `answer`, `mdns-response`, `mdns_response`
 
 ## `memcached`
 
@@ -341,7 +343,9 @@ Protocol aliases: none
 Entry aliases:
 - `register` (default): `login`, `sip-register`, `sip_register`
 - `bye`: `hangup`, `sip-bye`, `sip_bye`, `terminate`
+- `denied`: `4xx`, `5xx`, `6xx`, `failed`, `rejected`, `sip-denied`, `sip_denied`
 - `invite`: `call`, `session`, `sip-invite`, `sip_invite`
+- `response`: `final`, `provisional`, `reply`, `sip-response`, `sip_response`
 
 ## `smtp`
 
@@ -392,6 +396,7 @@ Default entry: `discovery`
 Protocol aliases: none  
 Entry aliases:
 - `discovery` (default): none
+- `notify`: `advertise`, `alive`, `byebye`, `ssdp-notify`, `ssdp_notify`
 
 ## `ssh`
 

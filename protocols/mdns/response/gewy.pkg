@@ -1,0 +1,6 @@
+name=mdns_response
+version=0.17.0
+entry=main.gewy
+register.protocol=mdns
+register.entry=response
+register.entry_aliases=mdns-response,mdns_response,answer,announcement

@@ -495,6 +495,31 @@ pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
                 &config,
             )
         }
+        [cmd, path, rest @ ..] if cmd == "analyze-python-federation-json" => {
+            let manifest = read_input(path)?;
+            let (interval_ms, cycles, filter_prefix, config) = parse_watch_options(rest)?;
+            if interval_ms != 1000 || cycles != 0 {
+                return Err(
+                    "analyze-python-federation-json only accepts --filter, --python-worker, --python-bin, and --python-state"
+                        .to_string(),
+                );
+            }
+            analyze_federation_manifest_with_python_worker(&manifest, filter_prefix.as_deref(), &config)
+        }
+        [cmd, path, flag, label, rest @ ..]
+            if cmd == "train-python-federation-json" && flag == "--label" =>
+        {
+            let manifest = read_input(path)?;
+            let (filter_prefix, weight, config) = parse_train_options(rest)?;
+            let canonical_label = normalize_training_label(label)?;
+            train_federation_manifest_with_python_worker(
+                &manifest,
+                &canonical_label,
+                weight,
+                filter_prefix.as_deref(),
+                &config,
+            )
+        }
         [cmd, url, rest @ ..] if cmd == "watch-python-url" => {
             let (interval_ms, cycles, _filter_prefix, config) = parse_watch_options(rest)?;
             watch_python_url(url, interval_ms, cycles, &config)
@@ -521,7 +546,7 @@ pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
             )
         }
         _ => Err(
-            "usage: etragon training-labels | etragon python-memory-info [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon python-memory-model-info [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon python-memory-versions [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon python-memory-snapshot [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon save-python-memory-slot <slot> [--label <text>] [--note <text>] [--source <text>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon load-python-memory-slot <slot> [--merge|--replace] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon delete-python-memory-slot <slot> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon import-python-memory <path|-> [--merge|--replace] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon protocol-capabilities [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon clear-python-memory [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-json <path|-> | etragon analyze-url <http://host[:port]/path> | etragon analyze-targets-url <http://host[:port]/v1/latest/targets> [--filter <path-segment-prefix>] | etragon analyze-python-json <path|-> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-python-url <http://host[:port]/path> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon train-python-json <path|-> --label <label> [--weight <n>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon train-python-url <http://host[:port]/path> --label <label> [--weight <n>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-python-targets-url <http://host[:port]/v1/latest/targets> [--filter <path-segment-prefix>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon train-python-targets-url <http://host[:port]/v1/latest/targets> --label <label> [--filter <path-segment-prefix>] [--weight <n>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon watch-python-url <http://host[:port]/path> [--interval-ms <ms>] [--cycles <n>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon watch-python-targets-url <http://host[:port]/v1/latest/targets> [--filter <path-segment-prefix>] [--interval-ms <ms>] [--cycles <n>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon serve-python-url <http://host[:port]/path> [--bind <host:port>] [--interval-ms <ms>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] [--daemon-state <path>] | etragon serve-python-targets-url <http://host[:port]/v1/latest/targets> [--bind <host:port>] [--filter <path-segment-prefix>] [--interval-ms <ms>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] [--daemon-state <path>]"
+            "usage: etragon training-labels | etragon python-memory-info [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon protocol-capabilities [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-json <path|-> | etragon analyze-url <http://host[:port]/path> | etragon analyze-targets-url <http://host[:port]/v1/latest/targets> [--filter <path-segment-prefix>] | etragon analyze-python-json <path|-> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-python-targets-url <http://host[:port]/v1/latest/targets> [--filter <path-segment-prefix>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-python-federation-json <path|-> [--filter <path-segment-prefix>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon train-python-federation-json <path|-> --label <label> [--filter <path-segment-prefix>] [--weight <n>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon watch-python-url <http://host[:port]/path> [--interval-ms <ms>] [--cycles <n>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon serve-python-targets-url <http://host[:port]/v1/latest/targets> [--bind <host:port>] [--filter <path-segment-prefix>] [--interval-ms <ms>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] [--daemon-state <path>]"
                 .to_string(),
         ),
     }

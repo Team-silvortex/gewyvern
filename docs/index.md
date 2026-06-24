@@ -38,6 +38,10 @@ If you want the current monorepo stack layout first, jump to:
 
 - [docs/monorepo-stack.md](/Users/Shared/chroot/dev/gewyvern/docs/monorepo-stack.md)
 
+If you want the project-wide dataflow topology first, jump to:
+
+- [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
+
 ## Goal-Based Routes
 
 - release answer:
@@ -50,12 +54,15 @@ If you want the current monorepo stack layout first, jump to:
   [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
 - current monorepo stack layout and subproject entrypoints:
   [docs/monorepo-stack.md](/Users/Shared/chroot/dev/gewyvern/docs/monorepo-stack.md)
+- project-wide dataflow topology:
+  [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
 - packaging and native artifacts:
   [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
 - runtime exposure and security preflight:
   [docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md)
 - current release posture and history:
-  [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md),
+  [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md),
+  [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md),
   [docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md)
 - current validation program:
   [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
@@ -82,6 +89,7 @@ Use these when you want reading order instead of topic lookup:
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
 - [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
 - [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+- [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
 - [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
 - [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
 - [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
@@ -125,6 +133,7 @@ Use these when you want reading order instead of topic lookup:
 
 - [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
 - [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
+- [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
 - [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
 - [docs/monorepo-stack.md](/Users/Shared/chroot/dev/gewyvern/docs/monorepo-stack.md)
 
@@ -148,7 +157,8 @@ Use these when you want reading order instead of topic lookup:
   [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md),
   [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
 - reviewer:
-  [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md),
+  [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md),
+  [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md),
   [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
 
 ## Scope

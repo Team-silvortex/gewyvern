@@ -13,6 +13,8 @@ If the question is about release-line direction rather than a stable contract,
 start with:
 
 - [ROADMAP.md](/Users/Shared/chroot/dev/gewyvern/ROADMAP.md)
+- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
+- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
 - [docs/history/v0.15-to-v1-roadmap.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15-to-v1-roadmap.md)
 
 ## Book Path
@@ -104,7 +106,7 @@ If you are in the protocol volume specifically, start with:
   Machine-readable jump contract for surfaces that should send the reader into a
   companion protocol/entry shelf next.
 - [docs/book/reference-protocol-release-handbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-release-handbook.md)
-  `0.15.x` protocol-facing minor-line handbook for deciding when family,
+  Protocol-facing minor-line handbook for deciding when family,
   runtime, packaged, and cross-project confidence is strong enough to ship.
 - [docs/book/reference-protocol-alias-index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-alias-index.md)
   Generated-style alias lookup for the current built-in registry surface.
@@ -176,7 +178,7 @@ contracts, also keep nearby:
 
 ## Future Shape
 
-As the current `0.15.x` line continues, new exact-lookup material should prefer
+As the active `0.17.x` line closes its second half, new exact-lookup material should prefer
 this shelf instead of adding more ad hoc “format note” pages at the top level.
 
 By contrast, runnable command collections and operator script routing should

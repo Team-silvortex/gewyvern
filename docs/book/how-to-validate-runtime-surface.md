@@ -149,7 +149,7 @@ This is usually the fastest way to answer:
 
 ## Step 5: Exercise The High-Frequency Shelf
 
-For the current `0.15.x` line, the most valuable operator surface is the
+For the active `0.17.x` line, the most valuable operator surface is the
 high-frequency protocol shelf.
 
 Run:

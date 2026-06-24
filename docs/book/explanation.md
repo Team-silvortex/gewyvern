@@ -14,7 +14,8 @@ track, use:
 4. [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
 5. [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
 6. [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
-7. [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+7. [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
+8. [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
 
 - [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
   How the documentation set itself is layered and maintained.
@@ -33,6 +34,9 @@ track, use:
   How protocol, IR, runtime, and collaboration lines constrain each other.
 - [docs/architecture-walkthrough-http-request.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-walkthrough-http-request.md)
   One representative end-to-end architecture path through the current stack.
+- [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
+  How authored intent, runtime evidence, published surfaces, sidecars, and the
+  control plane move data through the whole stack.
 - [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
   Main runtime/compiler boundary and system map.
 - [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
@@ -78,6 +82,7 @@ attribution.
 
 - [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
 - [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
+- [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
 - [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
 
 These pages explain the additive collaboration model: outside engines can help,

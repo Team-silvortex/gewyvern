@@ -2,14 +2,16 @@
 
 `etragon` is the diagnosis-partner sidecar of the `gewyvern` stack.
 
-Its intended deployment shape is close and local:
+Its default deployment shape is close and local:
 
 - one `etragon` works with one nearby `gewyvern`
 - it consumes `gewyvern` analysis snapshots
 - it adds higher-level evidence-chain enrichments and, when stable enough, more direct diagnostic opinions
 
-It is not the fleet orchestrator for many runtimes. That role belongs to the
-`leserpent` control plane app in the same monorepo.
+It can also work as a small federated learning node for multiple nearby
+`gewyvern` runtimes. In that mode, `etragon` aggregates analysis/training across
+a set of runtime target indexes, while `leserpent` still owns fleet
+orchestration, UI, and policy.
 
 Its first job is deliberately small:
 
@@ -90,6 +92,50 @@ Batch responses also include a top-level `recommendation_summary`, which merges
 augmentation names by `producer_stage` and `producer_pass`. That gives a nearby
 operator, sidecar consumer, or upper-layer control plane a very-light rollup
 before it drills into per-target outputs.
+
+## Federated learning across many gewyvern runtimes
+
+When one `etragon` should learn from multiple nearby `gewyvern` runtimes, give
+it a small federation manifest:
+
+```json
+{
+  "runtimes": [
+    {
+      "id": "gw-a",
+      "targets_url": "http://127.0.0.1:9910/v1/latest/targets"
+    },
+    {
+      "id": "gw-b",
+      "targets_url": "http://127.0.0.1:9920/v1/latest/targets"
+    }
+  ]
+}
+```
+
+Analyze the whole runtime set with one resident Python worker:
+
+```bash
+cargo run -p etragon -- analyze-python-federation-json /tmp/etragon-federation.json --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+```
+
+Train across the same runtime set:
+
+```bash
+cargo run -p etragon -- train-python-federation-json /tmp/etragon-federation.json --label network_observe_longer --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+```
+
+The output is a federated batch with:
+
+- `runtime_count`
+- `target_count`
+- `failed_runtime_count`
+- per-runtime status
+- per-target output keyed by `runtime_id/path_segment`
+- a merged `recommendation_summary`
+
+This is intentionally learning aggregation, not fleet orchestration.
+`etragon` may learn from many runtimes; `leserpent` still coordinates them.
 
 ## Python worker and resident mode
 
@@ -223,6 +269,7 @@ The resident daemon exposes:
 - `/v1/latest/status`
 - `/v1/latest/meta`
 - `/v1/latest/recommendation-summary.json`
+- `/v1/latest/federation-summary.json`
 - `/v1/latest/learning-summary.json`
 - `/v1/latest/evidence-chain-enrichment.json`
 - `/v1/latest/diagnostic-opinion.json`
