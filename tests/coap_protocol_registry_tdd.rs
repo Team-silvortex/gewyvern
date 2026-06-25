@@ -53,9 +53,9 @@ fn coap_default_entry_stays_get_while_surface_grows() {
 fn coap_surface_keeps_generic_shelves_per_entry() {
     for (entry, key) in [
         ("get", "get"),
-        ("post", "post"),
-        ("put", "put"),
-        ("delete", "delete"),
+        ("post", "write"),
+        ("put", "write"),
+        ("delete", "write"),
     ] {
         let surface = protocol_surface("coap", entry).expect("coap surface should exist");
         let shelf = surface.shelf.expect("coap shelf should exist");

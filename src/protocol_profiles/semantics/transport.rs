@@ -147,6 +147,23 @@ pub(super) fn wireguard_entry_semantics(entry: &str) -> Option<ProtocolEntrySema
     }
 }
 
+pub(super) fn ipsec_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "esp" => (
+            "secure-encapsulation-path",
+            "IPsec Encapsulating Security Payload traffic on IP protocol 50",
+            Some("IP protocol 50 ESP packet"),
+        ),
+        "ah" => (
+            "secure-authentication-header-path",
+            "IPsec Authentication Header traffic on IP protocol 51",
+            Some("IP protocol 51 AH packet"),
+        ),
+        _ => return None,
+    };
+    summary(category, operator_focus, typical_signal, None, None, None)
+}
+
 pub(super) fn hy2_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     match entry {
         "close" => failure(

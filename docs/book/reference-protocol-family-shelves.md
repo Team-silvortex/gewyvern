@@ -140,6 +140,13 @@ Then continue with:
   - [docs/book/reference-icmpv6-echo-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-echo-surface.md)
   - [docs/book/reference-icmpv6-failure-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-failure-surface.md)
 
+### IPsec
+
+- Hub:
+  [docs/book/reference-ipsec-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ipsec-surface.md)
+- Subpages:
+  - [docs/book/reference-ipsec-security-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ipsec-security-surface.md)
+
 ### Kerberos
 
 - Hub:

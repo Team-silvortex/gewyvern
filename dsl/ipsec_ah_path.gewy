@@ -1,0 +1,20 @@
+# gewyvern stable-subset protocol path
+
+fn ipsec_ah_rules() =
+  let module_name = :ipsec_ah_path
+  let ah_narrative = "static:observed an IPsec AH packet on IP protocol 51"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:ipsec_ah)
+  |> reason_model(:ipsec_ah_path_reason)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_authenticated_path)
+  |> program_rule(predicate: "packet_observed:51:local_to_remote", stage: :packet_observed, narrative: ${ah_narrative}, dedupe: true, module: ${module_name}, phase: :send_ah_packet)
+  |> program_rule(predicate: "packet_observed:51:remote_to_local", stage: :packet_observed, narrative: ${ah_narrative}, dedupe: true, module: ${module_name}, phase: :receive_ah_packet)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_authenticated_path)
+  |> reason_rule(predicate: "packet_observed:51:local_to_remote", key_event: :packet_observed, narrative: ${ah_narrative}, dedupe: true, module: ${module_name}, phase: :send_ah_packet)
+  |> reason_rule(predicate: "packet_observed:51:remote_to_local", key_event: :packet_observed, narrative: ${ah_narrative}, dedupe: true, module: ${module_name}, phase: :receive_ah_packet)
+
+template(:ipsec_ah_path)
+|> window(:default_5s)
+|> use(:ipsec_ah_rules)
+

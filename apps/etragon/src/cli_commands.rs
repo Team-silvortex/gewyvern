@@ -1,5 +1,7 @@
 use super::*;
 
+const USAGE: &str = "usage: etragon training-labels | etragon python-memory-info [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon python-memory-model-info [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon python-memory-versions [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon python-memory-snapshot [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon clear-python-memory [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon save-python-memory-slot <slot> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon load-python-memory-slot <slot> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon delete-python-memory-slot <slot> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon import-python-memory <path> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon protocol-capabilities [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-json <path|-> | etragon analyze-url <http://host[:port]/path> | etragon analyze-targets-url <http://host[:port]/v1/latest/targets> [--filter <path-segment-prefix>] | etragon analyze-python-json <path|-> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-python-targets-url <http://host[:port]/v1/latest/targets> [--filter <path-segment-prefix>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-python-federation-json <path|-> [--filter <path-segment-prefix>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon train-python-federation-json <path|-> --label <label> [--filter <path-segment-prefix>] [--weight <n>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon watch-python-url <http://host[:port]/path> [--interval-ms <ms>] [--cycles <n>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon watch-python-targets-url <http://host[:port]/v1/latest/targets> [--interval-ms <ms>] [--cycles <n>] [--filter <path-segment-prefix>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon serve-python-url <http://host[:port]/path> [--bind <host:port>] [--interval-ms <ms>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] [--daemon-state <path>] | etragon serve-python-targets-url <http://host[:port]/v1/latest/targets> [--bind <host:port>] [--filter <path-segment-prefix>] [--interval-ms <ms>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] [--daemon-state <path>]";
+
 pub(super) fn analyze_input(input: &str) -> Result<String, String> {
     let output = analyze_gewyvern_analysis_json(&MockMlAdvisoryEngine, input)
         .map_err(|err| format!("failed to analyze gewyvern analysis json: {}", err.message))?;
@@ -337,7 +339,10 @@ pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
         [cmd, rest @ ..] if cmd == "python-memory-info" => {
             let (config, consumed) = parse_python_worker_options(rest)?;
             if consumed != rest.len() {
-                return Err(format!("unknown option for python-memory-info: {}", rest[consumed]));
+                return Err(format!(
+                    "unknown option for python-memory-info: {}",
+                    rest[consumed]
+                ));
             }
             python_memory_info(&config)
         }
@@ -401,7 +406,10 @@ pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
         [cmd, rest @ ..] if cmd == "clear-python-memory" => {
             let (config, consumed) = parse_python_worker_options(rest)?;
             if consumed != rest.len() {
-                return Err(format!("unknown option for clear-python-memory: {}", rest[consumed]));
+                return Err(format!(
+                    "unknown option for clear-python-memory: {}",
+                    rest[consumed]
+                ));
             }
             clear_python_memory(&config)
         }
@@ -440,7 +448,10 @@ pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
             let input = read_input(path)?;
             let (config, consumed) = parse_python_worker_options(rest)?;
             if consumed != rest.len() {
-                return Err(format!("unknown option for analyze-python-json: {}", rest[consumed]));
+                return Err(format!(
+                    "unknown option for analyze-python-json: {}",
+                    rest[consumed]
+                ));
             }
             analyze_input_with_python_worker(&input, &config)
         }
@@ -448,21 +459,20 @@ pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
             let input = read_url(url)?;
             let (config, consumed) = parse_python_worker_options(rest)?;
             if consumed != rest.len() {
-                return Err(format!("unknown option for analyze-python-url: {}", rest[consumed]));
+                return Err(format!(
+                    "unknown option for analyze-python-url: {}",
+                    rest[consumed]
+                ));
             }
             analyze_input_with_python_worker(&input, &config)
         }
-        [cmd, path, flag, label, rest @ ..]
-            if cmd == "train-python-json" && flag == "--label" =>
-        {
+        [cmd, path, flag, label, rest @ ..] if cmd == "train-python-json" && flag == "--label" => {
             let input = read_input(path)?;
             let (_filter_prefix, weight, config) = parse_train_options(rest)?;
             let canonical_label = normalize_training_label(label)?;
             train_input_with_python_worker(&input, &canonical_label, weight, &config)
         }
-        [cmd, url, flag, label, rest @ ..]
-            if cmd == "train-python-url" && flag == "--label" =>
-        {
+        [cmd, url, flag, label, rest @ ..] if cmd == "train-python-url" && flag == "--label" => {
             let input = read_url(url)?;
             let (_filter_prefix, weight, config) = parse_train_options(rest)?;
             let canonical_label = normalize_training_label(label)?;
@@ -504,7 +514,11 @@ pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
                         .to_string(),
                 );
             }
-            analyze_federation_manifest_with_python_worker(&manifest, filter_prefix.as_deref(), &config)
+            analyze_federation_manifest_with_python_worker(
+                &manifest,
+                filter_prefix.as_deref(),
+                &config,
+            )
         }
         [cmd, path, flag, label, rest @ ..]
             if cmd == "train-python-federation-json" && flag == "--label" =>
@@ -531,7 +545,13 @@ pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
         [cmd, url, rest @ ..] if cmd == "serve-python-url" => {
             let (bind_addr, interval_ms, _filter_prefix, config, daemon_state_file) =
                 parse_daemon_options(rest)?;
-            serve_python_url(url, &bind_addr, interval_ms, &config, daemon_state_file.as_deref())
+            serve_python_url(
+                url,
+                &bind_addr,
+                interval_ms,
+                &config,
+                daemon_state_file.as_deref(),
+            )
         }
         [cmd, url, rest @ ..] if cmd == "serve-python-targets-url" => {
             let (bind_addr, interval_ms, filter_prefix, config, daemon_state_file) =
@@ -545,9 +565,6 @@ pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
                 daemon_state_file.as_deref(),
             )
         }
-        _ => Err(
-            "usage: etragon training-labels | etragon python-memory-info [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon protocol-capabilities [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-json <path|-> | etragon analyze-url <http://host[:port]/path> | etragon analyze-targets-url <http://host[:port]/v1/latest/targets> [--filter <path-segment-prefix>] | etragon analyze-python-json <path|-> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-python-targets-url <http://host[:port]/v1/latest/targets> [--filter <path-segment-prefix>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-python-federation-json <path|-> [--filter <path-segment-prefix>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon train-python-federation-json <path|-> --label <label> [--filter <path-segment-prefix>] [--weight <n>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon watch-python-url <http://host[:port]/path> [--interval-ms <ms>] [--cycles <n>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon serve-python-targets-url <http://host[:port]/v1/latest/targets> [--bind <host:port>] [--filter <path-segment-prefix>] [--interval-ms <ms>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] [--daemon-state <path>]"
-                .to_string(),
-        ),
+        _ => Err(USAGE.to_string()),
     }
 }

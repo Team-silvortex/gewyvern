@@ -13,6 +13,6 @@ pub(crate) use core_data_and_control::{
 };
 pub(crate) use core_web_and_datagram::{
     arp_shelf, bgp_shelf, coap_shelf, dhcp_shelf, dns_shelf, gre_shelf, http_shelf, https_shelf,
-    hy2_shelf, icmp_shelf, icmpv6_shelf, ndp_shelf, ntp_shelf, ospf_shelf, snmp_shelf, stun_shelf,
-    tls_shelf, wireguard_shelf,
+    hy2_shelf, icmp_shelf, icmpv6_shelf, ipsec_shelf, ndp_shelf, ntp_shelf, ospf_shelf, snmp_shelf,
+    stun_shelf, tls_shelf, wireguard_shelf,
 };

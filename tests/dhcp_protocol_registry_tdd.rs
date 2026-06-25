@@ -105,8 +105,9 @@ fn dhcp_default_entry_stays_client_while_surface_grows() {
 fn dhcp_surface_keeps_generic_shelves_per_entry() {
     for (entry, key) in [
         ("client", "client"),
-        ("discover", "discover"),
-        ("request", "request"),
+        ("discover", "lease"),
+        ("request", "lease"),
+        ("nak", "lease"),
     ] {
         let surface = protocol_surface("dhcp", entry).expect("dhcp surface should exist");
         let shelf = surface.shelf.expect("dhcp shelf should exist");

@@ -99,3 +99,18 @@ pub(super) const WIREGUARD_PROFILE: ProtocolProfile = ProtocolProfile {
         },
     ],
 };
+
+pub(super) const IPSEC_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "ipsec",
+    default_entry: "esp",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "esp",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ipsec_esp_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "ah",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ipsec_ah_path.gewy",
+        },
+    ],
+};

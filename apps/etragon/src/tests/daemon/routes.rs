@@ -321,7 +321,7 @@ fn daemon_serves_target_specific_output_routes() {
     let daemon = thread::spawn(move || {
         run_python_daemon_until(
             &bind_addr_for_thread,
-            10,
+            500,
             &worker_config,
             None,
             "python-targets-url",
@@ -400,7 +400,7 @@ fn daemon_serves_target_specific_output_routes() {
     assert!(index.contains("\"updated_unix_ms\":"));
     assert!(index.contains("\"state_hash\":\""));
     assert!(index.contains("\"stale\":"));
-    assert!(index.contains("\"stale_after_ms\":30"));
+    assert!(index.contains("\"stale_after_ms\":1500"));
     assert!(index.contains("\"has_memory_state\":false"));
     assert!(index.contains("\"memory_learning_active\":false"));
 
@@ -422,7 +422,7 @@ fn daemon_serves_target_specific_output_routes() {
     assert!(target_meta.contains("\"last_success_unix_ms\":"));
     assert!(target_meta.contains("\"last_error\":null"));
     assert!(target_meta.contains("\"stale\":false"));
-    assert!(target_meta.contains("\"stale_after_ms\":30"));
+    assert!(target_meta.contains("\"stale_after_ms\":1500"));
     assert!(target_meta.contains("\"learning_active\":false"));
     assert!(target_meta.contains("\"learned_routes\":0"));
     assert!(target_meta.contains("\"has_memory_state\":false"));

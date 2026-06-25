@@ -10,7 +10,7 @@ type ClusterMatch = (
 pub(super) fn built_in_protocol_cluster_hint(protocol: &str) -> Option<ProtocolClusterHintSummary> {
     let (key, label, operator_hint, sibling_protocols) = match protocol {
         "http" | "https" | "http3" | "socks5" => web_proxy_cluster(protocol)?,
-        "quic" | "tls" | "hy2" => secure_transport_cluster(protocol)?,
+        "quic" | "tls" | "hy2" | "ipsec" => secure_transport_cluster(protocol)?,
         "redis" | "memcached" | "mqtt" | "amqp" => cache_queue_cluster(protocol)?,
         "postgres" | "mysql" => database_cluster(protocol)?,
         "smtp" | "imap" | "pop3" => mail_cluster(protocol)?,
@@ -44,7 +44,7 @@ fn web_proxy_cluster(protocol: &str) -> Option<ClusterMatch> {
 }
 
 fn secure_transport_cluster(protocol: &str) -> Option<ClusterMatch> {
-    let siblings = &["quic", "tls", "hy2"];
+    let siblings = &["quic", "tls", "hy2", "ipsec"];
     siblings.contains(&protocol).then_some((
         "secure-transport-session",
         "Secure Transport And Session Setup",

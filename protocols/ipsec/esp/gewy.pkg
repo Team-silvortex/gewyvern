@@ -1,0 +1,8 @@
+name=ipsec_esp
+version=0.15.0
+entry=main.gewy
+register.protocol=ipsec
+register.entry=esp
+register.default=true
+register.aliases=esp,ipsec-esp,ipsec_esp,secure-encapsulation
+

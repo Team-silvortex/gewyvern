@@ -397,7 +397,7 @@ fn snmp_trap_runtime_path_materializes_one_way_notification_datagram() {
             112,
             PacketDir::Egress,
             Some(54003),
-            Some(161),
+            Some(162),
             Some(0x30),
             Some(0x3030),
             Some(0x30300201),

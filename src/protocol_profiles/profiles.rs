@@ -46,6 +46,7 @@ pub(super) const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
     network_control::OSPF_PROFILE,
     network_control::GRE_PROFILE,
     secure_transport::WIREGUARD_PROFILE,
+    secure_transport::IPSEC_PROFILE,
     network_control::MDNS_PROFILE,
     network_control::SSDP_PROFILE,
     data_and_queue::POSTGRES_PROFILE,

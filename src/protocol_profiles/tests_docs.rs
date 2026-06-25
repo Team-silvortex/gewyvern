@@ -60,6 +60,7 @@ const EXPECTED_GROUP_FAMILY_HUBS: &[&str] = &[
     "ssdp",
     "gtpu",
     "wireguard",
+    "ipsec",
     "tls",
     "quic",
     "dns",

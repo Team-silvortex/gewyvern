@@ -1,0 +1,7 @@
+name=ipsec_ah
+version=0.15.0
+entry=main.gewy
+register.protocol=ipsec
+register.entry=ah
+register.aliases=ah,ipsec-ah,ipsec_ah,auth-header,authenticated-header
+

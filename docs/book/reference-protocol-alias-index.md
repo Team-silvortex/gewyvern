@@ -160,6 +160,14 @@ Entry aliases:
 - `auth-denied`: `imap-auth-denied`, `imap_auth_denied`, `login-denied`
 - `select`: `imap-select`, `imap_select`, `mailbox`
 
+## `ipsec`
+
+Default entry: `esp`
+Protocol aliases: `ah`, `auth-header`, `authenticated-header`, `esp`, `ipsec-ah`, `ipsec-esp`, `ipsec_ah`, `ipsec_esp`, `secure-encapsulation`
+Entry aliases:
+- `esp` (default): `esp`, `ipsec-esp`, `ipsec_esp`, `secure-encapsulation`
+- `ah`: `ah`, `auth-header`, `authenticated-header`, `ipsec-ah`, `ipsec_ah`
+
 ## `kerberos`
 
 Default entry: `as`

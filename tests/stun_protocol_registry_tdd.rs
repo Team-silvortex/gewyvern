@@ -44,8 +44,8 @@ fn stun_default_entry_stays_binding_while_surface_grows() {
 fn stun_surface_keeps_generic_shelves_per_entry() {
     for (entry, key) in [
         ("binding", "binding"),
-        ("allocate", "allocate"),
-        ("refresh", "refresh"),
+        ("allocate", "relay"),
+        ("refresh", "relay"),
     ] {
         let surface = protocol_surface("stun", entry).expect("stun surface should exist");
         let shelf = surface.shelf.expect("stun shelf should exist");

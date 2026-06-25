@@ -22,6 +22,7 @@ pub(super) fn built_in_protocol_entry_semantics(
         "icmp" => transport::icmp_entry_semantics(entry),
         "icmpv6" => transport::icmpv6_entry_semantics(entry),
         "imap" => identity::imap_entry_semantics(entry),
+        "ipsec" => transport::ipsec_entry_semantics(entry),
         "kerberos" => identity::kerberos_entry_semantics(entry),
         "ldap" => identity::ldap_entry_semantics(entry),
         "mdns" => discovery::mdns_entry_semantics(entry),

@@ -362,6 +362,20 @@ pub(crate) fn gre_shelf(entry: &str) -> Option<ShelfMatch> {
     }
 }
 
+pub(crate) fn ipsec_shelf(entry: &str) -> Option<ShelfMatch> {
+    const SECURITY: &[&str] = &["esp", "ah"];
+    if SECURITY.contains(&entry) {
+        Some((
+            "security",
+            "Security",
+            "docs/book/reference-ipsec-security-surface.md",
+            SECURITY,
+        ))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn wireguard_shelf(entry: &str) -> Option<ShelfMatch> {
     const HANDSHAKE: &[&str] = &["handshake"];
     const COOKIE: &[&str] = &["cookie"];
