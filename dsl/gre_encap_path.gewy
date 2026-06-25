@@ -1,0 +1,19 @@
+# gewyvern stable-subset protocol path
+
+fn gre_encap_rules() =
+  let module_name = :gre_encap_path
+  let encap_narrative = "static:observed a GRE encapsulated packet on IP protocol 47"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:gre_encap)
+  |> reason_model(:gre_encap_path_reason)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_tunnel)
+  |> program_rule(predicate: "packet_observed:47:local_to_remote", stage: :packet_observed, narrative: ${encap_narrative}, dedupe: true, module: ${module_name}, phase: :send_encapsulated_packet)
+  |> program_rule(predicate: "packet_observed:47:remote_to_local", stage: :packet_observed, narrative: ${encap_narrative}, dedupe: true, module: ${module_name}, phase: :receive_encapsulated_packet)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_tunnel)
+  |> reason_rule(predicate: "packet_observed:47:local_to_remote", key_event: :packet_observed, narrative: ${encap_narrative}, dedupe: true, module: ${module_name}, phase: :send_encapsulated_packet)
+  |> reason_rule(predicate: "packet_observed:47:remote_to_local", key_event: :packet_observed, narrative: ${encap_narrative}, dedupe: true, module: ${module_name}, phase: :receive_encapsulated_packet)
+
+template(:gre_encap_path)
+|> window(:default_5s)
+|> use(:gre_encap_rules)

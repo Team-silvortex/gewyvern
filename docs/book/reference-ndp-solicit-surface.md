@@ -27,3 +27,16 @@ NDP solicitation models an IPv6 Neighbor Solicitation message.
 
 - [docs/book/reference-ndp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-surface.md)
 - [docs/book/reference-ndp-advertise-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-advertise-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `ndp-solicit`
+- `ndp_solicit`
+- `neighbor-solicitation`
+- `ns`
+- `solicitation`
+
+<!-- gewyvern:entry-aliases:end -->

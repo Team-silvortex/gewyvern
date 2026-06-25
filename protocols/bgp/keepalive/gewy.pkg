@@ -1,0 +1,6 @@
+name=bgp_keepalive
+version=0.15.0
+entry=main.gewy
+register.protocol=bgp
+register.entry=keepalive
+register.aliases=bgp-keepalive,bgp_keepalive,keep-alive,session-keepalive

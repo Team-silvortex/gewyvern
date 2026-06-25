@@ -1,0 +1,6 @@
+name=gre_keepalive
+version=0.15.0
+entry=main.gewy
+register.protocol=gre
+register.entry=keepalive
+register.aliases=gre-keepalive,gre_keepalive,keep-alive,tunnel-keepalive

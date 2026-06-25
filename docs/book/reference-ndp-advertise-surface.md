@@ -27,3 +27,16 @@ NDP advertisement models an IPv6 Neighbor Advertisement response.
 
 - [docs/book/reference-ndp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-surface.md)
 - [docs/book/reference-ndp-solicit-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-solicit-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `advertisement`
+- `na`
+- `ndp-advertise`
+- `ndp_advertise`
+- `neighbor-advertisement`
+
+<!-- gewyvern:entry-aliases:end -->

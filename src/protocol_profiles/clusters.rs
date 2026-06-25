@@ -16,7 +16,9 @@ pub(super) fn built_in_protocol_cluster_hint(protocol: &str) -> Option<ProtocolC
         "smtp" | "imap" | "pop3" => mail_cluster(protocol)?,
         "ldap" | "ssh" | "kerberos" | "radius" => identity_access_cluster(protocol)?,
         "dns" | "mdns" | "ssdp" | "stun" | "coap" | "ntp" | "dhcp" | "arp" | "icmp" | "icmpv6"
-        | "ndp" | "snmp" | "wireguard" | "gtpu" => control_plane_cluster(protocol)?,
+        | "ndp" | "bgp" | "ospf" | "gre" | "snmp" | "wireguard" | "gtpu" => {
+            control_plane_cluster(protocol)?
+        }
         "rtsp" | "sip" | "ftp" => media_session_cluster(protocol)?,
         _ => return None,
     };
@@ -104,6 +106,9 @@ fn control_plane_cluster(protocol: &str) -> Option<ClusterMatch> {
         "icmp",
         "icmpv6",
         "ndp",
+        "bgp",
+        "ospf",
+        "gre",
         "snmp",
         "wireguard",
         "gtpu",

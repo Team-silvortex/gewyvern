@@ -30,3 +30,18 @@ traffic.
 
 - [docs/book/reference-icmpv6-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-surface.md)
 - [docs/book/reference-icmpv6-echo-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-echo-surface.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `admin-prohibited`
+- `dest-unreachable`
+- `destination-unreachable`
+- `icmpv6-unreachable`
+- `icmpv6_unreachable`
+- `no-route`
+- `port-unreachable`
+
+<!-- gewyvern:entry-aliases:end -->

@@ -11,10 +11,11 @@ pub(super) type ShelfMatch = (
 );
 
 pub(super) use core::{
-    arp_shelf, coap_shelf, dhcp_shelf, dns_shelf, ftp_shelf, gtpu_shelf, http_shelf, http3_shelf,
-    https_shelf, hy2_shelf, icmp_shelf, icmpv6_shelf, mdns_shelf, memcached_shelf, mqtt_shelf,
-    mysql_shelf, ndp_shelf, ntp_shelf, postgres_shelf, quic_shelf, radius_shelf, redis_shelf,
-    snmp_shelf, ssdp_shelf, stun_shelf, tls_shelf, wireguard_shelf,
+    arp_shelf, bgp_shelf, coap_shelf, dhcp_shelf, dns_shelf, ftp_shelf, gre_shelf, gtpu_shelf,
+    http_shelf, http3_shelf, https_shelf, hy2_shelf, icmp_shelf, icmpv6_shelf, mdns_shelf,
+    memcached_shelf, mqtt_shelf, mysql_shelf, ndp_shelf, ntp_shelf, ospf_shelf, postgres_shelf,
+    quic_shelf, radius_shelf, redis_shelf, snmp_shelf, ssdp_shelf, stun_shelf, tls_shelf,
+    wireguard_shelf,
 };
 pub(super) use extended::{
     amqp_shelf, imap_shelf, kerberos_shelf, ldap_shelf, pop3_shelf, rtsp_shelf, sip_shelf,
@@ -37,6 +38,9 @@ pub(super) fn built_in_protocol_shelf(protocol: &str, entry: &str) -> Option<Pro
         "icmp" => icmp_shelf(entry)?,
         "icmpv6" => icmpv6_shelf(entry)?,
         "ndp" => ndp_shelf(entry)?,
+        "bgp" => bgp_shelf(entry)?,
+        "ospf" => ospf_shelf(entry)?,
+        "gre" => gre_shelf(entry)?,
         "wireguard" => wireguard_shelf(entry)?,
         "mdns" => mdns_shelf(entry)?,
         "ssdp" => ssdp_shelf(entry)?,

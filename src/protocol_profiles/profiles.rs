@@ -4,8 +4,12 @@ mod access_and_media;
 mod data_and_queue;
 #[path = "mail_and_directory.rs"]
 mod mail_and_directory;
-#[path = "web_and_datagram.rs"]
-mod web_and_datagram;
+#[path = "network_control.rs"]
+mod network_control;
+#[path = "secure_transport.rs"]
+mod secure_transport;
+#[path = "web_protocols.rs"]
+mod web_protocols;
 
 #[derive(Clone, Copy)]
 pub(super) struct ProtocolEntryProfile {
@@ -23,24 +27,27 @@ pub(super) struct ProtocolProfile {
 pub(super) const PROTOCOL_REGISTRY_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/protocols");
 pub(super) const PACKAGED_SHARE_ROOT: &str = "/usr/share/gewyvern";
 pub(super) const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
-    web_and_datagram::DNS_PROFILE,
-    web_and_datagram::HTTPS_PROFILE,
-    web_and_datagram::HTTP_PROFILE,
-    web_and_datagram::HTTP3_PROFILE,
-    web_and_datagram::HY2_PROFILE,
-    web_and_datagram::TLS_PROFILE,
-    web_and_datagram::QUIC_PROFILE,
-    web_and_datagram::STUN_PROFILE,
-    web_and_datagram::COAP_PROFILE,
-    web_and_datagram::NTP_PROFILE,
-    web_and_datagram::DHCP_PROFILE,
-    web_and_datagram::ARP_PROFILE,
-    web_and_datagram::ICMP_PROFILE,
-    web_and_datagram::ICMPV6_PROFILE,
-    web_and_datagram::NDP_PROFILE,
-    web_and_datagram::WIREGUARD_PROFILE,
-    web_and_datagram::MDNS_PROFILE,
-    web_and_datagram::SSDP_PROFILE,
+    web_protocols::DNS_PROFILE,
+    web_protocols::HTTPS_PROFILE,
+    web_protocols::HTTP_PROFILE,
+    web_protocols::HTTP3_PROFILE,
+    secure_transport::HY2_PROFILE,
+    secure_transport::TLS_PROFILE,
+    secure_transport::QUIC_PROFILE,
+    network_control::STUN_PROFILE,
+    network_control::COAP_PROFILE,
+    network_control::NTP_PROFILE,
+    network_control::DHCP_PROFILE,
+    network_control::ARP_PROFILE,
+    network_control::ICMP_PROFILE,
+    network_control::ICMPV6_PROFILE,
+    network_control::NDP_PROFILE,
+    network_control::BGP_PROFILE,
+    network_control::OSPF_PROFILE,
+    network_control::GRE_PROFILE,
+    secure_transport::WIREGUARD_PROFILE,
+    network_control::MDNS_PROFILE,
+    network_control::SSDP_PROFILE,
     data_and_queue::POSTGRES_PROFILE,
     data_and_queue::MYSQL_PROFILE,
     data_and_queue::MEMCACHED_PROFILE,

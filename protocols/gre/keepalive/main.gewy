@@ -1,0 +1,16 @@
+# gewyvern stable-subset protocol path
+
+fn gre_keepalive_rules() =
+  let module_name = :gre_keepalive_path
+  let keepalive_narrative = "static:observed a minimal GRE keepalive-style packet"
+  |> fragment(:udp_packet_meta_fragment)
+  |> operation(:gre_keepalive)
+  |> reason_model(:gre_keepalive_path_reason)
+  |> program_rule(predicate: "packet_observed:47:local_to_remote:byte_at:0:0xff:0x00:byte_at:1:0xff:0x00", stage: :packet_observed, narrative: ${keepalive_narrative}, dedupe: true, module: ${module_name}, phase: :send_keepalive)
+  |> program_rule(predicate: "packet_observed:47:remote_to_local:byte_at:0:0xff:0x00:byte_at:1:0xff:0x00", stage: :packet_observed, narrative: ${keepalive_narrative}, dedupe: true, module: ${module_name}, phase: :receive_keepalive)
+  |> reason_rule(predicate: "packet_observed:47:local_to_remote:byte_at:0:0xff:0x00:byte_at:1:0xff:0x00", key_event: :packet_observed, narrative: ${keepalive_narrative}, dedupe: true, module: ${module_name}, phase: :send_keepalive)
+  |> reason_rule(predicate: "packet_observed:47:remote_to_local:byte_at:0:0xff:0x00:byte_at:1:0xff:0x00", key_event: :packet_observed, narrative: ${keepalive_narrative}, dedupe: true, module: ${module_name}, phase: :receive_keepalive)
+
+template(:gre_keepalive_path)
+|> window(:default_5s)
+|> use(:gre_keepalive_rules)

@@ -35,3 +35,16 @@ Read this alongside:
 
 - [docs/book/reference-arp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-arp-surface.md)
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `arp-reply`
+- `arp_reply`
+- `is-at`
+- `mac-resolution`
+- `neighbor-reply`
+
+<!-- gewyvern:entry-aliases:end -->

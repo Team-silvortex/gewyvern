@@ -29,6 +29,14 @@ Entry aliases:
 - `request` (default): `arp-request`, `arp_request`, `neighbor-request`, `resolve-ip`, `who-has`
 - `reply`: `arp-reply`, `arp_reply`, `is-at`, `mac-resolution`, `neighbor-reply`
 
+## `bgp`
+
+Default entry: `open`
+Protocol aliases: `bgp-keepalive`, `bgp-open`, `bgp_keepalive`, `bgp_open`, `keep-alive`, `peer-open`, `session-keepalive`, `session-open`
+Entry aliases:
+- `open` (default): `bgp-open`, `bgp_open`, `peer-open`, `session-open`
+- `keepalive`: `bgp-keepalive`, `bgp_keepalive`, `keep-alive`, `session-keepalive`
+
 ## `coap`
 
 Default entry: `get`
@@ -70,6 +78,14 @@ Entry aliases:
 - `list`: `directory`
 - `retr`: `download`
 - `stor`: `upload`
+
+## `gre`
+
+Default entry: `encap`
+Protocol aliases: `encapsulation`, `gre-keepalive`, `gre-tunnel`, `gre_keepalive`, `gre_tunnel`, `keep-alive`, `tunnel`, `tunnel-keepalive`
+Entry aliases:
+- `encap` (default): `encapsulation`, `gre-tunnel`, `gre_tunnel`, `tunnel`
+- `keepalive`: `gre-keepalive`, `gre_keepalive`, `keep-alive`, `tunnel-keepalive`
 
 ## `gtpu`
 
@@ -226,6 +242,14 @@ Entry aliases:
 - `client` (default): none
 - `query`: `check`, `ntp-query`, `ntp_query`, `probe`
 - `sync`: `clock-sync`, `ntp-sync`, `ntp_sync`, `time-sync`
+
+## `ospf`
+
+Default entry: `hello`
+Protocol aliases: `database-description`, `db-description`, `dd`, `neighbor-hello`, `ospf-dbdesc`, `ospf-hello`, `ospf_dbdesc`, `ospf_hello`
+Entry aliases:
+- `hello` (default): `neighbor-hello`, `ospf-hello`, `ospf_hello`
+- `dbdesc`: `database-description`, `db-description`, `dd`, `ospf-dbdesc`, `ospf_dbdesc`
 
 ## `pop3`
 

@@ -82,6 +82,7 @@ pub(crate) fn parse_named_port(value: &str, predicate: &str) -> Result<u16, DslE
         "mqtt" => Ok(1883),
         "radius" => Ok(1812),
         "gtpu" => Ok(2152),
+        "bgp" => Ok(179),
         "sip" => Ok(5060),
         "rtsp" => Ok(554),
         "socks" | "socks5" => Ok(1080),

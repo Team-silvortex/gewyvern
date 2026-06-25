@@ -1,0 +1,17 @@
+# gewyvern stable-subset protocol path
+
+fn ospf_hello_rules() =
+  let module_name = :ospf_hello_path
+  let hello_narrative = "static:observed an OSPF hello packet for neighbor discovery"
+  |> fragment(:udp_packet_meta_fragment)
+  |> param(:udp_packet_meta_fragment.sample_payload_offsets, 1)
+  |> operation(:ospf_hello)
+  |> reason_model(:ospf_hello_path_reason)
+  |> program_rule(predicate: "packet_observed:89:local_to_remote:byte0_mask:0xff:0x02:byte_at:1:0xff:0x01", stage: :packet_observed, narrative: ${hello_narrative}, dedupe: true, module: ${module_name}, phase: :send_hello)
+  |> program_rule(predicate: "packet_observed:89:remote_to_local:byte0_mask:0xff:0x02:byte_at:1:0xff:0x01", stage: :packet_observed, narrative: ${hello_narrative}, dedupe: true, module: ${module_name}, phase: :receive_hello)
+  |> reason_rule(predicate: "packet_observed:89:local_to_remote:byte0_mask:0xff:0x02:byte_at:1:0xff:0x01", key_event: :packet_observed, narrative: ${hello_narrative}, dedupe: true, module: ${module_name}, phase: :send_hello)
+  |> reason_rule(predicate: "packet_observed:89:remote_to_local:byte0_mask:0xff:0x02:byte_at:1:0xff:0x01", key_event: :packet_observed, narrative: ${hello_narrative}, dedupe: true, module: ${module_name}, phase: :receive_hello)
+
+template(:ospf_hello_path)
+|> window(:default_5s)
+|> use(:ospf_hello_rules)

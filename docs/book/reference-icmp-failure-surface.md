@@ -37,3 +37,18 @@ Read this alongside:
 
 - [docs/book/reference-icmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmp-surface.md)
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `dest-unreachable`
+- `destination-unreachable`
+- `host-unreachable`
+- `icmp-unreachable`
+- `icmp_unreachable`
+- `net-unreachable`
+- `port-unreachable`
+
+<!-- gewyvern:entry-aliases:end -->

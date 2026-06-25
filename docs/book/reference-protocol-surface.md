@@ -20,6 +20,7 @@ For the lowering contract after resolution, see:
 
 For the narrower built-in protocol family shelves, see:
 
+- [docs/book/reference-protocol-standard-library.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-standard-library.md)
 - [docs/book/reference-protocol-volume.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-volume.md)
 - [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
 - [docs/book/reference-protocol-reading-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-paths.md)
@@ -41,6 +42,7 @@ Read it first when you need:
 
 Then continue with:
 
+- [docs/book/reference-protocol-standard-library.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-standard-library.md)
 - [docs/book/reference-protocol-volume.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-volume.md)
 - [docs/book/reference-protocol-groups.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-groups.md)
 - [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
@@ -103,15 +105,17 @@ machine-facing protocol surface can also include:
 <!-- gewyvern:protocol-surface-overview:start -->
 ## Current Surface Snapshot
 
-- Built-in families: `37`
-- Built-in canonical entries: `230`
+- Built-in families: `40`
+- Built-in canonical entries: `241`
 - Family/default map:
   - `amqp` -> default `session` in cluster `cache-queue-stream` via [docs/book/reference-amqp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-surface.md)
   - `arp` -> default `request` in cluster `network-control-discovery` via [docs/book/reference-arp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-arp-surface.md)
+  - `bgp` -> default `open` in cluster `network-control-discovery` via [docs/book/reference-bgp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-bgp-surface.md)
   - `coap` -> default `get` in cluster `network-control-discovery` via [docs/book/reference-coap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-surface.md)
   - `dhcp` -> default `client` in cluster `network-control-discovery` via [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
   - `dns` -> default `udp` in cluster `network-control-discovery` via [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md)
   - `ftp` -> default `session` in cluster `session-control-media-transfer` via [docs/book/reference-ftp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-surface.md)
+  - `gre` -> default `encap` in cluster `network-control-discovery` via [docs/book/reference-gre-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gre-surface.md)
   - `gtpu` -> default `echo` in cluster `network-control-discovery` via [docs/book/reference-gtpu-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gtpu-surface.md)
   - `http` -> default `request` in cluster `web-proxy-request-response` via [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md)
   - `http3` -> default `request` in cluster `web-proxy-request-response` via [docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md)
@@ -128,6 +132,7 @@ machine-facing protocol surface can also include:
   - `mysql` -> default `session` in cluster `database-query-session` via [docs/book/reference-mysql-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-surface.md)
   - `ndp` -> default `solicit` in cluster `network-control-discovery` via [docs/book/reference-ndp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-surface.md)
   - `ntp` -> default `client` in cluster `network-control-discovery` via [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
+  - `ospf` -> default `hello` in cluster `network-control-discovery` via [docs/book/reference-ospf-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ospf-surface.md)
   - `pop3` -> default `auth` in cluster `mail-delivery-mailbox` via [docs/book/reference-pop3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-surface.md)
   - `postgres` -> default `query` in cluster `database-query-session` via [docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md)
   - `quic` -> default `initial` in cluster `secure-transport-session` via [docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md)

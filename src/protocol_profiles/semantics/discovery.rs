@@ -45,6 +45,62 @@ pub(super) fn ndp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsS
     )
 }
 
+pub(super) fn bgp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (operator_focus, typical_signal) = match entry {
+        "open" => (
+            "BGP peer session establishment exchanging OPEN messages on TCP/179",
+            Some("BGP message type 1 OPEN"),
+        ),
+        "keepalive" => (
+            "BGP peer liveness confirmation after a session is established",
+            Some("BGP message type 4 KEEPALIVE"),
+        ),
+        _ => return None,
+    };
+    summary(
+        "routing-control-session",
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        None,
+    )
+}
+
+pub(super) fn ospf_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "hello" => (
+            "link-state-neighbor-discovery",
+            "OSPF neighbor discovery and liveness on IP protocol 89",
+            Some("OSPF packet type 1 Hello"),
+        ),
+        "dbdesc" => (
+            "link-state-database-sync",
+            "OSPF database description exchange during adjacency formation",
+            Some("OSPF packet type 2 Database Description"),
+        ),
+        _ => return None,
+    };
+    summary(category, operator_focus, typical_signal, None, None, None)
+}
+
+pub(super) fn gre_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "encap" => (
+            "tunnel-encapsulation-path",
+            "GRE tunnel encapsulation on IP protocol 47 carrying an inner payload",
+            Some("IP protocol 47 GRE packet"),
+        ),
+        "keepalive" => (
+            "tunnel-liveness-path",
+            "minimal GRE keepalive-style liveness probe on a tunnel path",
+            Some("GRE flags/version prefix 0x0000"),
+        ),
+        _ => return None,
+    };
+    summary(category, operator_focus, typical_signal, None, None, None)
+}
+
 pub(super) fn mdns_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     let (operator_focus, typical_signal) = match entry {
         "query" => (

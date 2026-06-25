@@ -1,0 +1,7 @@
+name=bgp_open
+version=0.15.0
+entry=main.gewy
+register.protocol=bgp
+register.entry=open
+register.default=true
+register.aliases=bgp-open,bgp_open,peer-open,session-open

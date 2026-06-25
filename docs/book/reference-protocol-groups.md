@@ -54,7 +54,7 @@ Cluster hint:
 
 - key: `web-proxy-request-response`
 - operator hint: Start with request/response intent, proxy handoff, and selected surface entry before drilling into transport details.
-- sibling protocols: `http`, `https`, `http3`, `hy2`, `socks5`
+- sibling protocols: `http`, `https`, `http3`, `socks5`
 
 ## Messaging, Queue, And Cache
 
@@ -121,10 +121,13 @@ Families:
 - [docs/book/reference-coap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-surface.md)
 - [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
 - [docs/book/reference-arp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-arp-surface.md)
+- [docs/book/reference-bgp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-bgp-surface.md)
 - [docs/book/reference-icmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmp-surface.md)
 - [docs/book/reference-icmpv6-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-surface.md)
 - [docs/book/reference-ndp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-surface.md)
 - [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
+- [docs/book/reference-ospf-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ospf-surface.md)
+- [docs/book/reference-gre-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gre-surface.md)
 - [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
 - [docs/book/reference-mdns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mdns-surface.md)
 - [docs/book/reference-ssdp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssdp-surface.md)
@@ -139,9 +142,9 @@ Families:
 
 Cluster hint:
 
-- key: `secure-transport-session`
-- operator hint: Bias toward handshake, cipher, tunnel, and session-establishment stages; many failures here look like setup posture before payload semantics exist.
-- sibling protocols: `stun`, `coap`, `dhcp`, `arp`, `icmp`, `icmpv6`, `ndp`, `ntp`, `snmp`, `mdns`, `ssdp`, `gtpu`, `wireguard`, `tls`, `quic`, `dns`, `rtsp`, `sip`, `ftp`
+- key: `network-control-discovery`
+- operator hint: Start with discovery scope, control role, and time or tunnel posture; many issues here are topology-sensitive rather than application-payload-specific.
+- sibling protocols: `dns`, `mdns`, `ssdp`, `stun`, `coap`, `ntp`, `dhcp`, `arp`, `icmp`, `icmpv6`, `ndp`, `bgp`, `ospf`, `gre`, `snmp`, `wireguard`, `gtpu`
 
 <!-- gewyvern:protocol-groups:end -->
 

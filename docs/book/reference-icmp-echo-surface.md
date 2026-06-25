@@ -34,3 +34,17 @@ Read this alongside:
 
 - [docs/book/reference-icmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmp-surface.md)
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `echo-reply`
+- `echo-request`
+- `icmp-echo`
+- `icmp_echo`
+- `ping`
+- `ping-check`
+
+<!-- gewyvern:entry-aliases:end -->

@@ -19,7 +19,7 @@ const PROTOCOL_GROUPS_PAGE: &str = "docs/book/reference-protocol-groups.md";
 const PROTOCOL_GROUPS: &[ProtocolGroup] = &[
     ProtocolGroup {
         title: "Web, Proxy, And Request/Response",
-        families: &["http", "http3", "socks5"],
+        families: &["http", "https", "http3", "hy2", "socks5"],
         fallback_links: &[],
         note: None,
     },
@@ -43,15 +43,36 @@ const PROTOCOL_GROUPS: &[ProtocolGroup] = &[
     },
     ProtocolGroup {
         title: "Identity, Directory, And Access",
-        families: &["ldap", "ssh"],
-        fallback_links: &[("Kerberos", PROTOCOL_SURFACE_PAGE)],
-        note: Some(
-            "- Kerberos currently routes through the general protocol surface and family contract pages rather than a dedicated hub page in this book.\n",
-        ),
+        families: &["ldap", "ssh", "kerberos", "radius"],
+        fallback_links: &[],
+        note: None,
     },
     ProtocolGroup {
         title: "Transport, Media, And Session Control",
-        families: &["quic", "dns", "rtsp", "sip", "ftp"],
+        families: &[
+            "stun",
+            "coap",
+            "dhcp",
+            "arp",
+            "bgp",
+            "icmp",
+            "icmpv6",
+            "ndp",
+            "ntp",
+            "ospf",
+            "gre",
+            "snmp",
+            "mdns",
+            "ssdp",
+            "gtpu",
+            "wireguard",
+            "tls",
+            "quic",
+            "dns",
+            "rtsp",
+            "sip",
+            "ftp",
+        ],
         fallback_links: &[],
         note: None,
     },
@@ -118,13 +139,13 @@ fn render_protocol_alias_index(summaries: &[ProtocolSummary]) -> String {
 
     for (index, summary) in summaries.iter().enumerate() {
         out.push_str(&format!("## `{}`\n\n", summary.protocol));
-        out.push_str(&format!("Default entry: `{}`  \n", summary.default_entry));
+        out.push_str(&format!("Default entry: `{}`\n", summary.default_entry));
         if summary.aliases.is_empty() {
-            out.push_str("Protocol aliases: none  \n");
+            out.push_str("Protocol aliases: none\n");
         } else {
             out.push_str("Protocol aliases: ");
             out.push_str(&quoted_csv(&summary.aliases));
-            out.push_str("  \n");
+            out.push('\n');
         }
         out.push_str("Entry aliases:\n");
 
@@ -323,6 +344,9 @@ fn family_shelf_sections(summaries: &[ProtocolSummary]) -> Vec<FamilyShelfSectio
     let mut sections = BTreeMap::<String, BTreeSet<String>>::new();
     for summary in summaries {
         let hub_page = family_hub_page(&summary.protocol);
+        if PathBuf::from(&hub_page).exists() {
+            sections.entry(summary.protocol.clone()).or_default();
+        }
         for entry in &summary.entries {
             let Some(surface) = protocol_surface(&summary.protocol, &entry.mode) else {
                 continue;
@@ -342,7 +366,23 @@ fn family_shelf_sections(summaries: &[ProtocolSummary]) -> Vec<FamilyShelfSectio
 
     let order = [
         "redis",
+        "arp",
+        "bgp",
+        "coap",
+        "dhcp",
         "ftp",
+        "gre",
+        "gtpu",
+        "https",
+        "hy2",
+        "icmp",
+        "icmpv6",
+        "kerberos",
+        "mdns",
+        "ndp",
+        "ntp",
+        "ospf",
+        "radius",
         "smtp",
         "mqtt",
         "ldap",
@@ -355,6 +395,11 @@ fn family_shelf_sections(summaries: &[ProtocolSummary]) -> Vec<FamilyShelfSectio
         "rtsp",
         "quic",
         "dns",
+        "snmp",
+        "ssdp",
+        "stun",
+        "tls",
+        "wireguard",
         "http3",
         "imap",
         "sip",
@@ -378,18 +423,38 @@ fn family_shelf_sections(summaries: &[ProtocolSummary]) -> Vec<FamilyShelfSectio
 fn family_label(protocol: &str) -> &'static str {
     match protocol {
         "redis" => "Redis",
+        "arp" => "ARP",
+        "bgp" => "BGP",
+        "coap" => "CoAP",
+        "dhcp" => "DHCP",
         "http" => "HTTP",
         "http3" => "HTTP/3",
         "ftp" => "FTP",
         "smtp" => "SMTP",
         "mqtt" => "MQTT",
         "ldap" => "LDAP",
+        "kerberos" => "Kerberos",
         "postgres" => "PostgreSQL",
         "mysql" => "MySQL",
+        "gtpu" => "GTP-U",
+        "hy2" => "Hysteria2",
+        "icmp" => "ICMP",
+        "icmpv6" => "ICMPv6",
         "amqp" => "AMQP",
         "ssh" => "SSH",
         "rtsp" => "RTSP",
         "dns" => "DNS",
+        "gre" => "GRE",
+        "mdns" => "mDNS",
+        "ndp" => "NDP",
+        "ntp" => "NTP",
+        "ospf" => "OSPF",
+        "radius" => "RADIUS",
+        "snmp" => "SNMP",
+        "ssdp" => "SSDP",
+        "stun" => "STUN",
+        "tls" => "TLS",
+        "wireguard" => "WireGuard",
         "imap" => "IMAP",
         "sip" => "SIP",
         "pop3" => "POP3",

@@ -1,0 +1,17 @@
+# gewyvern stable-subset protocol path
+
+fn ospf_dbdesc_rules() =
+  let module_name = :ospf_dbdesc_path
+  let dbdesc_narrative = "static:observed an OSPF database description packet during adjacency sync"
+  |> fragment(:udp_packet_meta_fragment)
+  |> param(:udp_packet_meta_fragment.sample_payload_offsets, 1)
+  |> operation(:ospf_dbdesc)
+  |> reason_model(:ospf_dbdesc_path_reason)
+  |> program_rule(predicate: "packet_observed:89:local_to_remote:byte0_mask:0xff:0x02:byte_at:1:0xff:0x02", stage: :packet_observed, narrative: ${dbdesc_narrative}, dedupe: true, module: ${module_name}, phase: :send_dbdesc)
+  |> program_rule(predicate: "packet_observed:89:remote_to_local:byte0_mask:0xff:0x02:byte_at:1:0xff:0x02", stage: :packet_observed, narrative: ${dbdesc_narrative}, dedupe: true, module: ${module_name}, phase: :receive_dbdesc)
+  |> reason_rule(predicate: "packet_observed:89:local_to_remote:byte0_mask:0xff:0x02:byte_at:1:0xff:0x02", key_event: :packet_observed, narrative: ${dbdesc_narrative}, dedupe: true, module: ${module_name}, phase: :send_dbdesc)
+  |> reason_rule(predicate: "packet_observed:89:remote_to_local:byte0_mask:0xff:0x02:byte_at:1:0xff:0x02", key_event: :packet_observed, narrative: ${dbdesc_narrative}, dedupe: true, module: ${module_name}, phase: :receive_dbdesc)
+
+template(:ospf_dbdesc_path)
+|> window(:default_5s)
+|> use(:ospf_dbdesc_rules)

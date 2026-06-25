@@ -1,0 +1,6 @@
+name=ospf_dbdesc
+version=0.15.0
+entry=main.gewy
+register.protocol=ospf
+register.entry=dbdesc
+register.aliases=database-description,db-description,dd,ospf-dbdesc,ospf_dbdesc

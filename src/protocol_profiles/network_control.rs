@@ -1,164 +1,5 @@
 use super::{ProtocolEntryProfile, ProtocolProfile};
 
-pub(super) const DNS_PROFILE: ProtocolProfile = ProtocolProfile {
-    name: "dns",
-    default_entry: "udp",
-    entries: &[
-        ProtocolEntryProfile {
-            mode: "udp",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "tcp",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy",
-        },
-    ],
-};
-
-pub(super) const HTTPS_PROFILE: ProtocolProfile = ProtocolProfile {
-    name: "https",
-    default_entry: "connect",
-    entries: &[ProtocolEntryProfile {
-        mode: "connect",
-        dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy",
-    }],
-};
-
-pub(super) const HTTP_PROFILE: ProtocolProfile = ProtocolProfile {
-    name: "http",
-    default_entry: "request",
-    entries: &[
-        ProtocolEntryProfile {
-            mode: "request",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "response",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "connect",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "denied",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_denied_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "auth-required",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_auth_required_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "auth-tunnel",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy",
-        },
-    ],
-};
-
-pub(super) const HTTP3_PROFILE: ProtocolProfile = ProtocolProfile {
-    name: "http3",
-    default_entry: "request",
-    entries: &[
-        ProtocolEntryProfile {
-            mode: "request",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "server",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "close",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_close_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "server-close",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_close_path.gewy",
-        },
-    ],
-};
-
-pub(super) const HY2_PROFILE: ProtocolProfile = ProtocolProfile {
-    name: "hy2",
-    default_entry: "auth",
-    entries: &[
-        ProtocolEntryProfile {
-            mode: "auth",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "udp",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_relay_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "tcp",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "close",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/hy2_close_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "tcp-close",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_close_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "udp-close",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_close_path.gewy",
-        },
-    ],
-};
-
-pub(super) const TLS_PROFILE: ProtocolProfile = ProtocolProfile {
-    name: "tls",
-    default_entry: "client",
-    entries: &[
-        ProtocolEntryProfile {
-            mode: "client",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "server",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/tls_server_path.gewy",
-        },
-    ],
-};
-
-pub(super) const QUIC_PROFILE: ProtocolProfile = ProtocolProfile {
-    name: "quic",
-    default_entry: "initial",
-    entries: &[
-        ProtocolEntryProfile {
-            mode: "initial",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "retry",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_retry_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "crypto",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_crypto_handshake_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "close",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_close_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "local-close",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_local_close_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "stream",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_stream_session_path.gewy",
-        },
-        ProtocolEntryProfile {
-            mode: "bidi",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/quic_bidi_stream_path.gewy",
-        },
-    ],
-};
-
 pub(super) const STUN_PROFILE: ProtocolProfile = ProtocolProfile {
     name: "stun",
     default_entry: "binding",
@@ -307,21 +148,47 @@ pub(super) const NDP_PROFILE: ProtocolProfile = ProtocolProfile {
     ],
 };
 
-pub(super) const WIREGUARD_PROFILE: ProtocolProfile = ProtocolProfile {
-    name: "wireguard",
-    default_entry: "handshake",
+pub(super) const BGP_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "bgp",
+    default_entry: "open",
     entries: &[
         ProtocolEntryProfile {
-            mode: "handshake",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_path.gewy",
+            mode: "open",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/bgp_open_path.gewy",
         },
         ProtocolEntryProfile {
-            mode: "cookie",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_cookie_path.gewy",
+            mode: "keepalive",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/bgp_keepalive_path.gewy",
+        },
+    ],
+};
+
+pub(super) const OSPF_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "ospf",
+    default_entry: "hello",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "hello",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ospf_hello_path.gewy",
         },
         ProtocolEntryProfile {
-            mode: "transport",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_transport_path.gewy",
+            mode: "dbdesc",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ospf_dbdesc_path.gewy",
+        },
+    ],
+};
+
+pub(super) const GRE_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "gre",
+    default_entry: "encap",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "encap",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/gre_encap_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "keepalive",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/gre_keepalive_path.gewy",
         },
     ],
 };

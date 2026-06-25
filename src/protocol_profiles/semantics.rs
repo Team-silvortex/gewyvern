@@ -14,7 +14,9 @@ pub(super) fn built_in_protocol_entry_semantics(
     match protocol {
         "amqp" => identity::amqp_entry_semantics(entry),
         "arp" => discovery::arp_entry_semantics(entry),
+        "bgp" => discovery::bgp_entry_semantics(entry),
         "ftp" => identity::ftp_entry_semantics(entry),
+        "gre" => discovery::gre_entry_semantics(entry),
         "http" => transport::http_entry_semantics(entry),
         "http3" => transport::http3_entry_semantics(entry),
         "icmp" => transport::icmp_entry_semantics(entry),
@@ -25,6 +27,7 @@ pub(super) fn built_in_protocol_entry_semantics(
         "mdns" => discovery::mdns_entry_semantics(entry),
         "mysql" => data::mysql_entry_semantics(entry),
         "ndp" => discovery::ndp_entry_semantics(entry),
+        "ospf" => discovery::ospf_entry_semantics(entry),
         "pop3" => identity::pop3_entry_semantics(entry),
         "postgres" => data::postgres_entry_semantics(entry),
         "quic" => transport::quic_entry_semantics(entry),

@@ -1,0 +1,7 @@
+name=gre_encap
+version=0.15.0
+entry=main.gewy
+register.protocol=gre
+register.entry=encap
+register.default=true
+register.aliases=gre-tunnel,gre_tunnel,encapsulation,tunnel

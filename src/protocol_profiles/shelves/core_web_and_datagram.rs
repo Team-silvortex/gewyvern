@@ -312,6 +312,56 @@ pub(crate) fn ndp_shelf(entry: &str) -> Option<ShelfMatch> {
     }
 }
 
+pub(crate) fn bgp_shelf(entry: &str) -> Option<ShelfMatch> {
+    const SESSION: &[&str] = &["open", "keepalive"];
+    if SESSION.contains(&entry) {
+        Some((
+            "session",
+            "Session",
+            "docs/book/reference-bgp-session-surface.md",
+            SESSION,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn ospf_shelf(entry: &str) -> Option<ShelfMatch> {
+    const NEIGHBOR: &[&str] = &["hello"];
+    const DATABASE: &[&str] = &["dbdesc"];
+    if NEIGHBOR.contains(&entry) {
+        Some((
+            "neighbor",
+            "Neighbor",
+            "docs/book/reference-ospf-neighbor-surface.md",
+            NEIGHBOR,
+        ))
+    } else if DATABASE.contains(&entry) {
+        Some((
+            "database",
+            "Database Description",
+            "docs/book/reference-ospf-database-surface.md",
+            DATABASE,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn gre_shelf(entry: &str) -> Option<ShelfMatch> {
+    const TUNNEL: &[&str] = &["encap", "keepalive"];
+    if TUNNEL.contains(&entry) {
+        Some((
+            "tunnel",
+            "Tunnel",
+            "docs/book/reference-gre-tunnel-surface.md",
+            TUNNEL,
+        ))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn wireguard_shelf(entry: &str) -> Option<ShelfMatch> {
     const HANDSHAKE: &[&str] = &["handshake"];
     const COOKIE: &[&str] = &["cookie"];

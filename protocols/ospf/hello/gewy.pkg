@@ -1,0 +1,7 @@
+name=ospf_hello
+version=0.15.0
+entry=main.gewy
+register.protocol=ospf
+register.entry=hello
+register.default=true
+register.aliases=ospf-hello,ospf_hello,neighbor-hello
