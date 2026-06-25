@@ -120,6 +120,10 @@ Families:
 - [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)
 - [docs/book/reference-coap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-surface.md)
 - [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
+- [docs/book/reference-arp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-arp-surface.md)
+- [docs/book/reference-icmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmp-surface.md)
+- [docs/book/reference-icmpv6-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-surface.md)
+- [docs/book/reference-ndp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-surface.md)
 - [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
 - [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
 - [docs/book/reference-mdns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mdns-surface.md)
@@ -137,7 +141,7 @@ Cluster hint:
 
 - key: `secure-transport-session`
 - operator hint: Bias toward handshake, cipher, tunnel, and session-establishment stages; many failures here look like setup posture before payload semantics exist.
-- sibling protocols: `stun`, `coap`, `dhcp`, `ntp`, `snmp`, `mdns`, `ssdp`, `gtpu`, `wireguard`, `tls`, `quic`, `dns`, `rtsp`, `sip`, `ftp`
+- sibling protocols: `stun`, `coap`, `dhcp`, `arp`, `icmp`, `icmpv6`, `ndp`, `ntp`, `snmp`, `mdns`, `ssdp`, `gtpu`, `wireguard`, `tls`, `quic`, `dns`, `rtsp`, `sip`, `ftp`
 
 <!-- gewyvern:protocol-groups:end -->
 

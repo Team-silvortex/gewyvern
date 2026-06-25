@@ -11,6 +11,9 @@ LAYOUT_ONLY=0
 MAINTAINER="${GEWY_PACKAGE_MAINTAINER:-OpenAI Codex <codex@example.invalid>}"
 PACKAGE_NAME="${GEWY_PACKAGE_NAME:-gewyvern}"
 PACKAGE_RELEASE="${GEWY_PACKAGE_RELEASE:-1}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v0.17.x}"
+LAYOUT_VERSION="${GEWY_LAYOUT_VERSION:-1}"
+CONFIG_SCHEMA_VERSION="${GEWY_CONFIG_SCHEMA_VERSION:-1}"
 RPM_DIST="${GEWY_RPM_DIST:-}"
 
 usage() {
@@ -78,9 +81,12 @@ PY
 
 stage_layout() {
   local stage_root="$1"
+  local version
+  version="$(read_version)"
 
   mkdir -p \
     "${stage_root}/usr/bin" \
+    "${stage_root}/usr/share/gewyvern/examples" \
     "${stage_root}/usr/share/gewyvern" \
     "${stage_root}/usr/share/doc/${PACKAGE_NAME}"
 
@@ -93,9 +99,28 @@ stage_layout() {
 
   cp -a "${ROOT}/dsl" "${stage_root}/usr/share/gewyvern/dsl"
   cp -a "${ROOT}/protocols" "${stage_root}/usr/share/gewyvern/protocols"
+  install -m 0644 "${ROOT}/docs/fixtures/gewyvern.toml.example" \
+    "${stage_root}/usr/share/gewyvern/examples/gewyvern.toml.example"
   cp -a "${ROOT}/docs" "${stage_root}/usr/share/doc/${PACKAGE_NAME}/docs"
   install -m 0644 "${ROOT}/README.md" \
     "${stage_root}/usr/share/doc/${PACKAGE_NAME}/README.md"
+  install -m 0644 "${ROOT}/LICENSE" \
+    "${stage_root}/usr/share/doc/${PACKAGE_NAME}/LICENSE"
+  cat >"${stage_root}/usr/share/gewyvern/package-compat.toml" <<EOF
+schema_version = 1
+package_name = "${PACKAGE_NAME}"
+package_version = "${version}"
+package_release = "${PACKAGE_RELEASE}"
+release_line = "${RELEASE_LINE}"
+layout_version = ${LAYOUT_VERSION}
+config_schema_version = ${CONFIG_SCHEMA_VERSION}
+share_root = "/usr/share/gewyvern"
+protocol_registry_root = "/usr/share/gewyvern/protocols"
+dsl_root = "/usr/share/gewyvern/dsl"
+config_example = "/usr/share/gewyvern/examples/gewyvern.toml.example"
+legacy_compat_root = "~/.gewyvern"
+upgrade_policy = "copy-forward-without-overwrite"
+EOF
 }
 
 build_release_binaries() {
@@ -159,6 +184,9 @@ build_rpm() {
   export GEWY_TEMPLATE_RPM_ARCH="${rpm_arch}"
   export GEWY_TEMPLATE_SOURCE_ROOT="${ROOT}"
   export GEWY_TEMPLATE_BINARIES_ROOT="${ROOT}/target/release"
+  export GEWY_TEMPLATE_RELEASE_LINE="${RELEASE_LINE}"
+  export GEWY_TEMPLATE_LAYOUT_VERSION="${LAYOUT_VERSION}"
+  export GEWY_TEMPLATE_CONFIG_SCHEMA_VERSION="${CONFIG_SCHEMA_VERSION}"
   render_template \
     "${ROOT}/packaging/rpm/gewyvern.spec.in" \
     "${spec_path}"

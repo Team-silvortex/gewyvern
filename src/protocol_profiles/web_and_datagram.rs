@@ -247,6 +247,66 @@ pub(super) const DHCP_PROFILE: ProtocolProfile = ProtocolProfile {
     ],
 };
 
+pub(super) const ARP_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "arp",
+    default_entry: "request",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "request",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/arp_request_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "reply",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/arp_reply_path.gewy",
+        },
+    ],
+};
+
+pub(super) const ICMP_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "icmp",
+    default_entry: "echo",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "echo",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/icmp_echo_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "unreachable",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/icmp_unreachable_path.gewy",
+        },
+    ],
+};
+
+pub(super) const ICMPV6_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "icmpv6",
+    default_entry: "echo",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "echo",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/icmpv6_echo_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "unreachable",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/icmpv6_unreachable_path.gewy",
+        },
+    ],
+};
+
+pub(super) const NDP_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "ndp",
+    default_entry: "solicit",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "solicit",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ndp_solicit_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "advertise",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ndp_advertise_path.gewy",
+        },
+    ],
+};
+
 pub(super) const WIREGUARD_PROFILE: ProtocolProfile = ProtocolProfile {
     name: "wireguard",
     default_entry: "handshake",

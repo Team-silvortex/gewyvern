@@ -1,0 +1,7 @@
+name=icmpv6_unreachable
+version=0.15.0
+entry=main.gewy
+register.protocol=icmpv6
+register.entry=unreachable
+register.aliases=icmpv6-unreachable,icmpv6_unreachable
+register.entry_aliases=dest-unreachable,destination-unreachable,admin-prohibited,no-route,port-unreachable

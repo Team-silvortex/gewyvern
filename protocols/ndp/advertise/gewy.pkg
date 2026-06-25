@@ -1,0 +1,7 @@
+name=ndp_advertise
+version=0.15.0
+entry=main.gewy
+register.protocol=ndp
+register.entry=advertise
+register.aliases=ndp-advertise,ndp_advertise,neighbor-advertisement
+register.entry_aliases=na,advertisement,neighbor-advertisement

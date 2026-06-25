@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PACKAGES_DIR="${ROOT}/target/packages"
 DEB_IMAGE="${GEWY_DEB_SMOKE_IMAGE:-ubuntu:24.04}"
 RPM_IMAGE="${GEWY_RPM_SMOKE_IMAGE:-fedora:41}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v0.17.x}"
 
 usage() {
   cat <<'EOF'
@@ -90,6 +91,11 @@ run_deb_smoke() {
       gewyc /usr/share/gewyvern/dsl/http_request_path.gewy --json >/dev/null
       test -d /usr/share/gewyvern/dsl
       test -d /usr/share/gewyvern/protocols
+      test -f /usr/share/gewyvern/package-compat.toml
+      grep -q '^schema_version = 1$' /usr/share/gewyvern/package-compat.toml
+      grep -q '^release_line = \"${RELEASE_LINE}\"$' /usr/share/gewyvern/package-compat.toml
+      test -f /usr/share/gewyvern/examples/gewyvern.toml.example
+      test -f /usr/share/doc/gewyvern/LICENSE
     "
 
   echo "deb install smoke: ok (${deb_path})"
@@ -116,6 +122,11 @@ run_rpm_smoke() {
       gewyc /usr/share/gewyvern/dsl/http_request_path.gewy --json >/dev/null
       test -d /usr/share/gewyvern/dsl
       test -d /usr/share/gewyvern/protocols
+      test -f /usr/share/gewyvern/package-compat.toml
+      grep -q '^schema_version = 1$' /usr/share/gewyvern/package-compat.toml
+      grep -q '^release_line = \"${RELEASE_LINE}\"$' /usr/share/gewyvern/package-compat.toml
+      test -f /usr/share/gewyvern/examples/gewyvern.toml.example
+      test -f /usr/share/doc/gewyvern/LICENSE
     "
 
   echo "rpm install smoke: ok (${rpm_path})"

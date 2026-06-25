@@ -61,7 +61,10 @@ The native package layout is:
 - `/usr/bin/gewyc`
 - `/usr/share/gewyvern/dsl`
 - `/usr/share/gewyvern/protocols`
+- `/usr/share/gewyvern/package-compat.toml`
+- `/usr/share/gewyvern/examples/gewyvern.toml.example`
 - `/usr/share/doc/gewyvern/README.md`
+- `/usr/share/doc/gewyvern/LICENSE`
 - `/usr/share/doc/gewyvern/docs`
 
 That is enough for:
@@ -70,6 +73,9 @@ That is enough for:
 - compiler and diagnostics use through `gewyc`
 - local socket validation helpers
 - protocol registry and DSL-driven built-in paths
+- a machine-readable package compatibility marker
+- a packaged example config that operators can copy into the standard config
+  root
 
 For the broader `0.15.x` runtime layout policy beyond the packaged Linux tree,
 also see:
@@ -82,6 +88,45 @@ That page explains:
 - the role of `/usr/share/gewyvern` as the packaged read-only share root
 - how `~/.gewyvern/` style older local layouts should be treated during
   upgrades
+
+## Compatibility Manifest
+
+Every native package now installs:
+
+- `/usr/share/gewyvern/package-compat.toml`
+
+Treat that file as the read-only compatibility contract for the installed
+artifact. It records:
+
+- `schema_version`
+- `package_name`
+- `package_version`
+- `package_release`
+- `release_line`
+- `layout_version`
+- `config_schema_version`
+- `share_root`
+- `protocol_registry_root`
+- `dsl_root`
+- `config_example`
+- `legacy_compat_root`
+- `upgrade_policy`
+
+The default current values are intentionally conservative:
+
+- `release_line = "v0.17.x"`
+- `layout_version = 1`
+- `config_schema_version = 1`
+- `upgrade_policy = "copy-forward-without-overwrite"`
+
+Package builders can override the minor line and schema markers with:
+
+- `GEWY_RELEASE_LINE`
+- `GEWY_LAYOUT_VERSION`
+- `GEWY_CONFIG_SCHEMA_VERSION`
+
+The install smoke checks this manifest for both DEB and RPM packages so the two
+native package paths cannot silently drift.
 
 ## Build Entry Point
 
@@ -167,6 +212,9 @@ That smoke path:
   - `gewyc /usr/share/gewyvern/dsl/http_request_path.gewy --json`
 - checks that packaged DSL and protocol assets exist under
   `/usr/share/gewyvern`
+- checks that `/usr/share/gewyvern/package-compat.toml` exists and matches the
+  expected release line
+- checks that the packaged example config and license are installed
 - checks that `gewyvern`, `gewyc`, and `gewyvern_socket_send` are present on
   `PATH`
 

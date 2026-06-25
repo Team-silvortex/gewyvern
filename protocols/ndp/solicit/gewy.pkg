@@ -1,0 +1,8 @@
+name=ndp_solicit
+version=0.15.0
+entry=main.gewy
+register.protocol=ndp
+register.entry=solicit
+register.default=true
+register.aliases=ndp-solicit,ndp_solicit,neighbor-solicitation
+register.entry_aliases=ns,solicitation,neighbor-solicitation

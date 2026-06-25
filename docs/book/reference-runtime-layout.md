@@ -143,9 +143,27 @@ The packaged Linux tree remains:
 
 - `/usr/share/gewyvern/dsl`
 - `/usr/share/gewyvern/protocols`
+- `/usr/share/gewyvern/package-compat.toml`
+- `/usr/share/gewyvern/examples/gewyvern.toml.example`
 
 That packaged share tree is still considered authoritative for installed
 read-only built-ins.
+
+`package-compat.toml` is the installed artifact's read-only layout marker. The
+current package contract records:
+
+- the release line, such as `v0.17.x`
+- the package version and package release
+- the layout and config schema versions
+- the packaged share, protocol registry, DSL, and example-config paths
+- the legacy compatibility root
+- the upgrade policy, currently `copy-forward-without-overwrite`
+
+Runtime code should treat this file as an observation point, not as mutable
+state. Operator-owned config still belongs in the standard config root, usually
+as a copied and edited version of:
+
+- `/usr/share/gewyvern/examples/gewyvern.toml.example`
 
 ## Environment Overrides
 

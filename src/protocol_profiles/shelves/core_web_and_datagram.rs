@@ -224,6 +224,94 @@ pub(crate) fn dhcp_shelf(entry: &str) -> Option<ShelfMatch> {
     }
 }
 
+pub(crate) fn arp_shelf(entry: &str) -> Option<ShelfMatch> {
+    const REQUEST: &[&str] = &["request"];
+    const REPLY: &[&str] = &["reply"];
+    if REQUEST.contains(&entry) {
+        Some((
+            "request",
+            "Who-Has Request",
+            "docs/book/reference-arp-request-surface.md",
+            REQUEST,
+        ))
+    } else if REPLY.contains(&entry) {
+        Some((
+            "reply",
+            "Is-At Reply",
+            "docs/book/reference-arp-reply-surface.md",
+            REPLY,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn icmp_shelf(entry: &str) -> Option<ShelfMatch> {
+    const ECHO: &[&str] = &["echo"];
+    const FAILURE: &[&str] = &["unreachable"];
+    if ECHO.contains(&entry) {
+        Some((
+            "echo",
+            "Echo Reachability",
+            "docs/book/reference-icmp-echo-surface.md",
+            ECHO,
+        ))
+    } else if FAILURE.contains(&entry) {
+        Some((
+            "failure",
+            "Reachability Failure",
+            "docs/book/reference-icmp-failure-surface.md",
+            FAILURE,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn icmpv6_shelf(entry: &str) -> Option<ShelfMatch> {
+    const ECHO: &[&str] = &["echo"];
+    const FAILURE: &[&str] = &["unreachable"];
+    if ECHO.contains(&entry) {
+        Some((
+            "echo",
+            "Echo Reachability",
+            "docs/book/reference-icmpv6-echo-surface.md",
+            ECHO,
+        ))
+    } else if FAILURE.contains(&entry) {
+        Some((
+            "failure",
+            "Reachability Failure",
+            "docs/book/reference-icmpv6-failure-surface.md",
+            FAILURE,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn ndp_shelf(entry: &str) -> Option<ShelfMatch> {
+    const SOLICIT: &[&str] = &["solicit"];
+    const ADVERTISE: &[&str] = &["advertise"];
+    if SOLICIT.contains(&entry) {
+        Some((
+            "solicit",
+            "Neighbor Solicitation",
+            "docs/book/reference-ndp-solicit-surface.md",
+            SOLICIT,
+        ))
+    } else if ADVERTISE.contains(&entry) {
+        Some((
+            "advertise",
+            "Neighbor Advertisement",
+            "docs/book/reference-ndp-advertise-surface.md",
+            ADVERTISE,
+        ))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn wireguard_shelf(entry: &str) -> Option<ShelfMatch> {
     const HANDSHAKE: &[&str] = &["handshake"];
     const COOKIE: &[&str] = &["cookie"];

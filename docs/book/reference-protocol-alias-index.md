@@ -12,8 +12,8 @@ This index is intended to stay synchronized with the registry-backed protocol su
 
 ## `amqp`
 
-Default entry: `session`  
-Protocol aliases: `amqp-auth-denied`, `amqp-consume`, `amqp-publish`, `amqp-session`, `amqp-start`, `amqp_auth_denied`, `amqp_consume`, `amqp_publish`, `amqp_session`, `amqp_start`  
+Default entry: `session`
+Protocol aliases: `amqp-auth-denied`, `amqp-consume`, `amqp-publish`, `amqp-session`, `amqp-start`, `amqp_auth_denied`, `amqp_consume`, `amqp_publish`, `amqp_session`, `amqp_start`
 Entry aliases:
 - `session` (default): `amqp-session`, `amqp_session`, `connect`
 - `auth-denied`: `amqp-auth-denied`, `amqp_auth_denied`, `login-denied`, `negotiate-denied`
@@ -21,10 +21,18 @@ Entry aliases:
 - `publish`: `amqp-publish`, `amqp_publish`, `send`
 - `start`: `amqp-start`, `amqp_start`, `login`, `negotiate`
 
+## `arp`
+
+Default entry: `request`
+Protocol aliases: `arp-reply`, `arp-request`, `arp_reply`, `arp_request`, `is-at`, `who-has`
+Entry aliases:
+- `request` (default): `arp-request`, `arp_request`, `neighbor-request`, `resolve-ip`, `who-has`
+- `reply`: `arp-reply`, `arp_reply`, `is-at`, `mac-resolution`, `neighbor-reply`
+
 ## `coap`
 
-Default entry: `get`  
-Protocol aliases: `coap-delete`, `coap-post`, `coap-put`, `coap_delete`, `coap_post`, `coap_put`  
+Default entry: `get`
+Protocol aliases: `coap-delete`, `coap-post`, `coap-put`, `coap_delete`, `coap_post`, `coap_put`
 Entry aliases:
 - `get` (default): none
 - `delete`: `coap-delete`, `coap_delete`, `destroy`, `remove`
@@ -33,8 +41,8 @@ Entry aliases:
 
 ## `dhcp`
 
-Default entry: `client`  
-Protocol aliases: `dhcp-discover`, `dhcp-nak`, `dhcp-request`, `dhcp_discover`, `dhcp_nak`, `dhcp_request`  
+Default entry: `client`
+Protocol aliases: `dhcp-discover`, `dhcp-nak`, `dhcp-request`, `dhcp_discover`, `dhcp_nak`, `dhcp_request`
 Entry aliases:
 - `client` (default): none
 - `discover`: `dhcp-discover`, `dhcp_discover`, `lease-discover`, `offer-probe`
@@ -43,16 +51,16 @@ Entry aliases:
 
 ## `dns`
 
-Default entry: `udp`  
-Protocol aliases: none  
+Default entry: `udp`
+Protocol aliases: none
 Entry aliases:
 - `udp` (default): none
 - `tcp`: `dns-over-tls`, `dns-tcp`, `dns_over_tls`, `dns_tcp`, `dot`
 
 ## `ftp`
 
-Default entry: `session`  
-Protocol aliases: none  
+Default entry: `session`
+Protocol aliases: none
 Entry aliases:
 - `session` (default): `control`, `login`
 - `active-list`: `active-directory`
@@ -65,15 +73,15 @@ Entry aliases:
 
 ## `gtpu`
 
-Default entry: `echo`  
-Protocol aliases: `gtp-u`, `gtp_u`  
+Default entry: `echo`
+Protocol aliases: `gtp-u`, `gtp_u`
 Entry aliases:
 - `echo` (default): `gtp-u`, `gtp_u`
 
 ## `http`
 
-Default entry: `request`  
-Protocol aliases: `http-connect`, `http-connect-auth-required`, `http-connect-auth-tunnel`, `http-connect-denied`, `http-request`, `http-server`, `http_connect`, `http_connect_auth_required`, `http_connect_auth_tunnel`, `http_connect_denied`, `http_request`, `http_server`  
+Default entry: `request`
+Protocol aliases: `http-connect`, `http-connect-auth-required`, `http-connect-auth-tunnel`, `http-connect-denied`, `http-request`, `http-server`, `http_connect`, `http_connect_auth_required`, `http_connect_auth_tunnel`, `http_connect_denied`, `http_request`, `http_server`
 Entry aliases:
 - `request` (default): `client`, `dns-over-https`, `dns_over_https`, `doh`, `http-client`, `http-request`, `http_client`, `http_request`
 - `auth-required`: `http-connect-auth-required`, `http_connect_auth_required`
@@ -84,8 +92,8 @@ Entry aliases:
 
 ## `http3`
 
-Default entry: `request`  
-Protocol aliases: `h3-request`, `h3-server`, `h3_request`, `h3_server`, `http3-server-response`  
+Default entry: `request`
+Protocol aliases: `h3-request`, `h3-server`, `h3_request`, `h3_server`, `http3-server-response`
 Entry aliases:
 - `request` (default): `h3-request`, `h3_request`
 - `close`: `connection-close`, `connection_close`, `h3-close`, `h3_close`, `http3-close`, `http3_close`, `terminate`
@@ -94,15 +102,15 @@ Entry aliases:
 
 ## `https`
 
-Default entry: `connect`  
-Protocol aliases: none  
+Default entry: `connect`
+Protocol aliases: none
 Entry aliases:
 - `connect` (default): none
 
 ## `hy2`
 
-Default entry: `auth`  
-Protocol aliases: `hy2-auth`, `hy2-relay`, `hy2-stream`, `hy2-tcp`, `hy2-udp`, `hysteria2`, `hysteria2-auth`, `hysteria2-tcp`, `hysteria2-udp`  
+Default entry: `auth`
+Protocol aliases: `hy2-auth`, `hy2-relay`, `hy2-stream`, `hy2-tcp`, `hy2-udp`, `hysteria2`, `hysteria2-auth`, `hysteria2-tcp`, `hysteria2-udp`
 Entry aliases:
 - `auth` (default): `hy2-auth`, `hysteria2`, `hysteria2-auth`
 - `close`: `hy2-close`, `hy2_close`, `hysteria2-close`, `hysteria2_close`, `session-close`, `session_close`, `terminate`
@@ -111,10 +119,26 @@ Entry aliases:
 - `udp`: `hy2-relay`, `hy2-udp`, `hysteria2-udp`
 - `udp-close`: `datagram-close`, `datagram_close`, `hy2-udp-close`, `hy2_udp_close`, `hysteria2-udp-close`, `hysteria2_udp_close`, `udp-close`, `udp_close`
 
+## `icmp`
+
+Default entry: `echo`
+Protocol aliases: `icmp-echo`, `icmp-unreachable`, `icmp_echo`, `icmp_unreachable`, `ping`
+Entry aliases:
+- `echo` (default): `echo-reply`, `echo-request`, `icmp-echo`, `icmp_echo`, `ping`, `ping-check`
+- `unreachable`: `dest-unreachable`, `destination-unreachable`, `host-unreachable`, `icmp-unreachable`, `icmp_unreachable`, `net-unreachable`, `port-unreachable`
+
+## `icmpv6`
+
+Default entry: `echo`
+Protocol aliases: `icmp-v6`, `icmp6`, `icmpv6-echo`, `icmpv6-unreachable`, `icmpv6_echo`, `icmpv6_unreachable`, `ping6`
+Entry aliases:
+- `echo` (default): `echo-reply`, `echo-request`, `icmp-v6`, `icmp6`, `icmpv6-echo`, `icmpv6_echo`, `ping6`, `ping6-check`
+- `unreachable`: `admin-prohibited`, `dest-unreachable`, `destination-unreachable`, `icmpv6-unreachable`, `icmpv6_unreachable`, `no-route`, `port-unreachable`
+
 ## `imap`
 
-Default entry: `auth`  
-Protocol aliases: none  
+Default entry: `auth`
+Protocol aliases: none
 Entry aliases:
 - `auth` (default): `imap-auth`, `imap_auth`, `login`
 - `auth-denied`: `imap-auth-denied`, `imap_auth_denied`, `login-denied`
@@ -122,8 +146,8 @@ Entry aliases:
 
 ## `kerberos`
 
-Default entry: `as`  
-Protocol aliases: none  
+Default entry: `as`
+Protocol aliases: none
 Entry aliases:
 - `as` (default): `initial-auth`, `login`
 - `as-error`: `initial-auth-error`, `login-denied`
@@ -131,8 +155,8 @@ Entry aliases:
 
 ## `ldap`
 
-Default entry: `sync`  
-Protocol aliases: `ldap-bind`, `ldap-bind-denied`, `ldap-constraint`, `ldap-denied`, `ldap-modify`, `ldap-search`, `ldap-session`, `ldap-sync`, `ldap-write`, `ldap_bind`, `ldap_bind_denied`, `ldap_constraint`, `ldap_denied`, `ldap_modify`, `ldap_search`, `ldap_session`, `ldap_sync`, `ldap_write`  
+Default entry: `sync`
+Protocol aliases: `ldap-bind`, `ldap-bind-denied`, `ldap-constraint`, `ldap-denied`, `ldap-modify`, `ldap-search`, `ldap-session`, `ldap-sync`, `ldap-write`, `ldap_bind`, `ldap_bind_denied`, `ldap_constraint`, `ldap_denied`, `ldap_modify`, `ldap_search`, `ldap_session`, `ldap_sync`, `ldap_write`
 Entry aliases:
 - `sync` (default): `ldap-sync`, `ldap_sync`, `replication`
 - `bind`: `auth`, `ldap-bind`, `ldap_bind`, `login`
@@ -146,8 +170,8 @@ Entry aliases:
 
 ## `mdns`
 
-Default entry: `query`  
-Protocol aliases: none  
+Default entry: `query`
+Protocol aliases: none
 Entry aliases:
 - `query` (default): none
 - `probe`: `claim`, `conflict-check`, `mdns-probe`, `mdns_probe`
@@ -155,16 +179,16 @@ Entry aliases:
 
 ## `memcached`
 
-Default entry: `get`  
-Protocol aliases: `memcached-get`, `memcached-set`, `memcached_get`, `memcached_set`  
+Default entry: `get`
+Protocol aliases: `memcached-get`, `memcached-set`, `memcached_get`, `memcached_set`
 Entry aliases:
 - `get` (default): `memcached-get`, `memcached-read`, `memcached_get`, `memcached_read`, `read`
 - `set`: `memcached-set`, `memcached-write`, `memcached_set`, `memcached_write`, `write`
 
 ## `mqtt`
 
-Default entry: `connect`  
-Protocol aliases: none  
+Default entry: `connect`
+Protocol aliases: none
 Entry aliases:
 - `connect` (default): `login`, `session`
 - `disconnect`: `close`, `teardown`
@@ -176,8 +200,8 @@ Entry aliases:
 
 ## `mysql`
 
-Default entry: `session`  
-Protocol aliases: `mysql-auth`, `mysql-auth-denied`, `mysql-connect`, `mysql-error`, `mysql-query`, `mysql-session`, `mysql_auth`, `mysql_auth_denied`, `mysql_connect`, `mysql_error`, `mysql_query`, `mysql_session`  
+Default entry: `session`
+Protocol aliases: `mysql-auth`, `mysql-auth-denied`, `mysql-connect`, `mysql-error`, `mysql-query`, `mysql-session`, `mysql_auth`, `mysql_auth_denied`, `mysql_connect`, `mysql_error`, `mysql_query`, `mysql_session`
 Entry aliases:
 - `session` (default): `mysql-session`, `mysql_session`
 - `auth`: `mysql-auth`, `mysql_auth`
@@ -186,10 +210,18 @@ Entry aliases:
 - `error`: `mysql-error`, `mysql_error`
 - `query`: `mysql-query`, `mysql_query`
 
+## `ndp`
+
+Default entry: `solicit`
+Protocol aliases: `ndp-advertise`, `ndp-solicit`, `ndp_advertise`, `ndp_solicit`, `neighbor-advertisement`, `neighbor-solicitation`
+Entry aliases:
+- `solicit` (default): `ndp-solicit`, `ndp_solicit`, `neighbor-solicitation`, `ns`, `solicitation`
+- `advertise`: `advertisement`, `na`, `ndp-advertise`, `ndp_advertise`, `neighbor-advertisement`
+
 ## `ntp`
 
-Default entry: `client`  
-Protocol aliases: `ntp-query`, `ntp-sync`, `ntp_query`, `ntp_sync`  
+Default entry: `client`
+Protocol aliases: `ntp-query`, `ntp-sync`, `ntp_query`, `ntp_sync`
 Entry aliases:
 - `client` (default): none
 - `query`: `check`, `ntp-query`, `ntp_query`, `probe`
@@ -197,8 +229,8 @@ Entry aliases:
 
 ## `pop3`
 
-Default entry: `auth`  
-Protocol aliases: none  
+Default entry: `auth`
+Protocol aliases: none
 Entry aliases:
 - `auth` (default): `login`, `pop3-auth`, `pop3_auth`
 - `auth-denied`: `login-denied`, `pop3-auth-denied`, `pop3_auth_denied`
@@ -206,8 +238,8 @@ Entry aliases:
 
 ## `postgres`
 
-Default entry: `query`  
-Protocol aliases: `postgres-auth`, `postgres-auth-denied`, `postgres-connect`, `postgres-error`, `postgres-query`, `postgres-session`, `postgres_auth`, `postgres_auth_denied`, `postgres_connect`, `postgres_error`, `postgres_query`, `postgres_session`  
+Default entry: `query`
+Protocol aliases: `postgres-auth`, `postgres-auth-denied`, `postgres-connect`, `postgres-error`, `postgres-query`, `postgres-session`, `postgres_auth`, `postgres_auth_denied`, `postgres_connect`, `postgres_error`, `postgres_query`, `postgres_session`
 Entry aliases:
 - `query` (default): `postgres-query`, `postgres_query`
 - `auth`: `postgres-auth`, `postgres_auth`
@@ -218,8 +250,8 @@ Entry aliases:
 
 ## `quic`
 
-Default entry: `initial`  
-Protocol aliases: none  
+Default entry: `initial`
+Protocol aliases: none
 Entry aliases:
 - `initial` (default): none
 - `bidi`: none
@@ -231,8 +263,8 @@ Entry aliases:
 
 ## `radius`
 
-Default entry: `access`  
-Protocol aliases: `radius-challenge`, `radius-denied`, `radius_challenge`, `radius_denied`  
+Default entry: `access`
+Protocol aliases: `radius-challenge`, `radius-denied`, `radius_challenge`, `radius_denied`
 Entry aliases:
 - `access` (default): `auth`, `login`, `radius-access`, `radius_access`
 - `challenge`: `mfa`, `otp`, `radius-challenge`, `radius_challenge`
@@ -240,8 +272,8 @@ Entry aliases:
 
 ## `redis`
 
-Default entry: `ping`  
-Protocol aliases: `redis-get`, `redis-ping`, `redis-session`, `redis-set`, `redis_get`, `redis_ping`, `redis_session`, `redis_set`  
+Default entry: `ping`
+Protocol aliases: `redis-get`, `redis-ping`, `redis-session`, `redis-set`, `redis_get`, `redis_ping`, `redis_session`, `redis_set`
 Entry aliases:
 - `ping` (default): `health`, `redis-ping`, `redis_ping`
 - `ask`: `cluster-ask`, `slot-ask`
@@ -328,8 +360,8 @@ Entry aliases:
 
 ## `rtsp`
 
-Default entry: `options`  
-Protocol aliases: `rtsp-describe`, `rtsp-options`, `rtsp-play`, `rtsp-setup`, `rtsp_describe`, `rtsp_options`, `rtsp_play`, `rtsp_setup`  
+Default entry: `options`
+Protocol aliases: `rtsp-describe`, `rtsp-options`, `rtsp-play`, `rtsp-setup`, `rtsp_describe`, `rtsp_options`, `rtsp_play`, `rtsp_setup`
 Entry aliases:
 - `options` (default): `probe`, `rtsp-options`, `rtsp_options`
 - `describe`: `metadata`, `rtsp-describe`, `rtsp_describe`
@@ -338,8 +370,8 @@ Entry aliases:
 
 ## `sip`
 
-Default entry: `register`  
-Protocol aliases: none  
+Default entry: `register`
+Protocol aliases: none
 Entry aliases:
 - `register` (default): `login`, `sip-register`, `sip_register`
 - `bye`: `hangup`, `sip-bye`, `sip_bye`, `terminate`
@@ -349,8 +381,8 @@ Entry aliases:
 
 ## `smtp`
 
-Default entry: `session`  
-Protocol aliases: none  
+Default entry: `session`
+Protocol aliases: none
 Entry aliases:
 - `session` (default): none
 - `auth`: `login`
@@ -363,8 +395,8 @@ Entry aliases:
 
 ## `snmp`
 
-Default entry: `get`  
-Protocol aliases: `snmp-bulk`, `snmp-engine-sync`, `snmp-get-next`, `snmp-report`, `snmp-set`, `snmp-trap`, `snmp-trap-recv`, `snmp-unauthorized`, `snmp-v3-auth`, `snmp-v3-priv`, `snmp_bulk`, `snmp_engine_sync`, `snmp_get_next`, `snmp_report`, `snmp_set`, `snmp_trap`, `snmp_trap_recv`, `snmp_unauthorized`, `snmp_v3_auth`, `snmp_v3_priv`  
+Default entry: `get`
+Protocol aliases: `snmp-bulk`, `snmp-engine-sync`, `snmp-get-next`, `snmp-report`, `snmp-set`, `snmp-trap`, `snmp-trap-recv`, `snmp-unauthorized`, `snmp-v3-auth`, `snmp-v3-priv`, `snmp_bulk`, `snmp_engine_sync`, `snmp_get_next`, `snmp_report`, `snmp_set`, `snmp_trap`, `snmp_trap_recv`, `snmp_unauthorized`, `snmp_v3_auth`, `snmp_v3_priv`
 Entry aliases:
 - `get` (default): `query`, `read`
 - `bulk`: `bulk-walk`, `snmp-bulk`, `snmp_bulk`, `table-read`
@@ -381,8 +413,8 @@ Entry aliases:
 
 ## `socks5`
 
-Default entry: `session`  
-Protocol aliases: `socks`, `socks5-session`, `socks5_session`  
+Default entry: `session`
+Protocol aliases: `socks`, `socks5-session`, `socks5_session`
 Entry aliases:
 - `session` (default): `connect`, `proxy`, `socks`, `socks5-session`, `socks5_session`
 - `auth`: `login`, `userpass`
@@ -392,16 +424,16 @@ Entry aliases:
 
 ## `ssdp`
 
-Default entry: `discovery`  
-Protocol aliases: none  
+Default entry: `discovery`
+Protocol aliases: none
 Entry aliases:
 - `discovery` (default): none
 - `notify`: `advertise`, `alive`, `byebye`, `ssdp-notify`, `ssdp_notify`
 
 ## `ssh`
 
-Default entry: `session`  
-Protocol aliases: none  
+Default entry: `session`
+Protocol aliases: none
 Entry aliases:
 - `session` (default): `connect`, `handshake`, `ssh-session`, `ssh_session`
 - `auth`: `login`, `password`, `ssh-auth`, `ssh_auth`
@@ -410,8 +442,8 @@ Entry aliases:
 
 ## `stun`
 
-Default entry: `binding`  
-Protocol aliases: `stun-allocate`, `stun-binding-error`, `stun-refresh`, `stun_allocate`, `stun_binding_error`, `stun_refresh`  
+Default entry: `binding`
+Protocol aliases: `stun-allocate`, `stun-binding-error`, `stun-refresh`, `stun_allocate`, `stun_binding_error`, `stun_refresh`
 Entry aliases:
 - `binding` (default): none
 - `allocate`: `relay`, `stun-allocate`, `stun_allocate`, `turn-allocate`
@@ -420,16 +452,16 @@ Entry aliases:
 
 ## `tls`
 
-Default entry: `client`  
-Protocol aliases: none  
+Default entry: `client`
+Protocol aliases: none
 Entry aliases:
 - `client` (default): `initiator`, `tls-client`, `tls_client`
 - `server`: `acceptor`, `tls-server`, `tls_server`
 
 ## `wireguard`
 
-Default entry: `handshake`  
-Protocol aliases: none  
+Default entry: `handshake`
+Protocol aliases: none
 Entry aliases:
 - `handshake` (default): none
 - `cookie`: `cookie-reply`, `wireguard-cookie`, `wireguard_cookie`

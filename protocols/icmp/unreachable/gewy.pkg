@@ -1,0 +1,8 @@
+name=icmp_unreachable
+version=0.15.0
+entry=main.gewy
+register.protocol=icmp
+register.entry=unreachable
+register.default=false
+register.aliases=icmp-unreachable,icmp_unreachable
+register.entry_aliases=dest-unreachable,destination-unreachable,port-unreachable,host-unreachable,net-unreachable

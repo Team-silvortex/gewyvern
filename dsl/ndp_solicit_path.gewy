@@ -1,0 +1,14 @@
+# gewyvern stable-subset protocol path
+
+fn ndp_solicit_rules() =
+  let module_name = :ndp_solicit_path
+  let solicit_narrative = "static:observed an IPv6 neighbor solicitation on the local link"
+  |> fragment(:udp_packet_meta_fragment)
+  |> operation(:ndp_solicit)
+  |> reason_model(:ndp_solicit_path_reason)
+  |> program_rule(predicate: "packet_observed:58:local_to_remote:byte0_mask:0xff:0x87", stage: :packet_observed, narrative: ${solicit_narrative}, dedupe: true, module: ${module_name}, phase: :send_neighbor_solicitation)
+  |> reason_rule(predicate: "packet_observed:58:local_to_remote:byte0_mask:0xff:0x87", key_event: :packet_observed, narrative: ${solicit_narrative}, dedupe: true, module: ${module_name}, phase: :send_neighbor_solicitation)
+
+template(:ndp_solicit_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:ndp_solicit_rules)

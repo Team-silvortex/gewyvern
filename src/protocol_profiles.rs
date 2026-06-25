@@ -345,6 +345,8 @@ mod tests_dhcp;
 #[cfg(test)]
 mod tests_docs;
 #[cfg(test)]
+mod tests_docs_support;
+#[cfg(test)]
 mod tests_fallback;
 #[cfg(test)]
 mod tests_http3_hy2;

@@ -67,6 +67,46 @@ pub(super) fn stun_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
     }
 }
 
+pub(super) fn icmp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    match entry {
+        "echo" => summary(
+            "reachability-path",
+            "ICMP echo probe and echo reply reachability check",
+            Some("type 8 request / type 0 reply"),
+            None,
+            None,
+            None,
+        ),
+        "unreachable" => failure(
+            "network, host, or port reachability failed with an ICMP unreachable response",
+            Some("type 3 unreachable"),
+            Some("network_unreachable"),
+            Some("remote_or_path_rejected"),
+        ),
+        _ => None,
+    }
+}
+
+pub(super) fn icmpv6_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    match entry {
+        "echo" => summary(
+            "reachability-path",
+            "ICMPv6 echo probe and echo reply reachability check",
+            Some("type 128 request / type 129 reply"),
+            None,
+            None,
+            None,
+        ),
+        "unreachable" => failure(
+            "IPv6 reachability failed with an ICMPv6 destination unreachable response",
+            Some("type 1 destination unreachable"),
+            Some("network_unreachable"),
+            Some("remote_or_path_rejected"),
+        ),
+        _ => None,
+    }
+}
+
 pub(super) fn quic_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     match entry {
         "retry" => summary(

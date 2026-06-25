@@ -1,0 +1,8 @@
+name=icmpv6_echo
+version=0.15.0
+entry=main.gewy
+register.protocol=icmpv6
+register.entry=echo
+register.default=true
+register.aliases=icmp6,icmp-v6,icmpv6-echo,icmpv6_echo,ping6
+register.entry_aliases=echo-request,echo-reply,ping6-check

@@ -1,0 +1,21 @@
+# gewyvern stable-subset protocol path
+
+fn icmp_unreachable_rules() =
+  let module_name = :icmp_unreachable_path
+  let route_narrative = "static:program resolved a route before receiving an ICMP unreachable signal"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:icmp_unreachable)
+  |> reason_model(:icmp_unreachable_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_peer)
+  |> program_rule(predicate: "packet_observed:1:remote_to_local:byte0_mask:0xff:0x03", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_unreachable)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_peer)
+  |> reason_rule(predicate: "packet_observed:1:remote_to_local:byte0_mask:0xff:0x03", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_unreachable)
+
+template(:icmp_unreachable_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:icmp_unreachable_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

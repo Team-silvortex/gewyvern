@@ -149,6 +149,38 @@ Then continue with:
   - [docs/book/reference-dhcp-client-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-client-surface.md)
   - [docs/book/reference-dhcp-lease-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-lease-surface.md)
 
+### ARP
+
+- Hub:
+  [docs/book/reference-arp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-arp-surface.md)
+- Subpages:
+  - [docs/book/reference-arp-reply-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-arp-reply-surface.md)
+  - [docs/book/reference-arp-request-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-arp-request-surface.md)
+
+### ICMP
+
+- Hub:
+  [docs/book/reference-icmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmp-surface.md)
+- Subpages:
+  - [docs/book/reference-icmp-echo-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmp-echo-surface.md)
+  - [docs/book/reference-icmp-failure-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmp-failure-surface.md)
+
+### ICMPv6
+
+- Hub:
+  [docs/book/reference-icmpv6-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-surface.md)
+- Subpages:
+  - [docs/book/reference-icmpv6-echo-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-echo-surface.md)
+  - [docs/book/reference-icmpv6-failure-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-failure-surface.md)
+
+### NDP
+
+- Hub:
+  [docs/book/reference-ndp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-surface.md)
+- Subpages:
+  - [docs/book/reference-ndp-advertise-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-advertise-surface.md)
+  - [docs/book/reference-ndp-solicit-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-solicit-surface.md)
+
 ### GTP-U
 
 - Hub:
@@ -358,6 +390,7 @@ The first high-yield family shelves are now in place for:
 - `amqp`
 - `coap`
 - `dhcp`
+- `icmp`
 - `gtpu`
 - `https`
 - `hy2`

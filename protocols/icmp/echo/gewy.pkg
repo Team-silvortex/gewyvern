@@ -1,0 +1,8 @@
+name=icmp_echo
+version=0.15.0
+entry=main.gewy
+register.protocol=icmp
+register.entry=echo
+register.default=true
+register.aliases=icmp-echo,icmp_echo,ping
+register.entry_aliases=echo-request,echo-reply,ping-check

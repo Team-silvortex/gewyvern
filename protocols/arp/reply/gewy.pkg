@@ -1,0 +1,7 @@
+name=arp_reply
+version=0.15.0
+entry=main.gewy
+register.protocol=arp
+register.entry=reply
+register.aliases=arp-reply,arp_reply,is-at
+register.entry_aliases=is-at,neighbor-reply,mac-resolution

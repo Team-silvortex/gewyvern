@@ -1,0 +1,15 @@
+# gewyvern stable-subset protocol path
+
+fn arp_request_rules() =
+  let module_name = :arp_request_path
+  let request_narrative = "static:observed an ARP who-has request on the local link"
+  |> fragment(:udp_packet_meta_fragment)
+  |> param(:udp_packet_meta_fragment.sample_payload_offsets, "6,7")
+  |> operation(:arp_request)
+  |> reason_model(:arp_request_path_reason)
+  |> program_rule(predicate: "packet_observed:0:local_to_remote:prefix4:0x00010800:byte_at:6:0xff:0x00:byte_at:7:0xff:0x01", stage: :packet_observed, narrative: ${request_narrative}, dedupe: true, module: ${module_name}, phase: :send_who_has)
+  |> reason_rule(predicate: "packet_observed:0:local_to_remote:prefix4:0x00010800:byte_at:6:0xff:0x00:byte_at:7:0xff:0x01", key_event: :packet_observed, narrative: ${request_narrative}, dedupe: true, module: ${module_name}, phase: :send_who_has)
+
+template(:arp_request_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:arp_request_rules)

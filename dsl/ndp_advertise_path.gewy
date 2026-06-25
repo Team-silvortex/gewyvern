@@ -1,0 +1,14 @@
+# gewyvern stable-subset protocol path
+
+fn ndp_advertise_rules() =
+  let module_name = :ndp_advertise_path
+  let advertise_narrative = "static:observed an IPv6 neighbor advertisement on the local link"
+  |> fragment(:udp_packet_meta_fragment)
+  |> operation(:ndp_advertise)
+  |> reason_model(:ndp_advertise_path_reason)
+  |> program_rule(predicate: "packet_observed:58:remote_to_local:byte0_mask:0xff:0x88", stage: :packet_observed, narrative: ${advertise_narrative}, dedupe: true, module: ${module_name}, phase: :receive_neighbor_advertisement)
+  |> reason_rule(predicate: "packet_observed:58:remote_to_local:byte0_mask:0xff:0x88", key_event: :packet_observed, narrative: ${advertise_narrative}, dedupe: true, module: ${module_name}, phase: :receive_neighbor_advertisement)
+
+template(:ndp_advertise_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:ndp_advertise_rules)

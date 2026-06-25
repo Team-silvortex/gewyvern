@@ -1,0 +1,8 @@
+name=arp_request
+version=0.15.0
+entry=main.gewy
+register.protocol=arp
+register.entry=request
+register.default=true
+register.aliases=arp-request,arp_request,who-has
+register.entry_aliases=who-has,resolve-ip,neighbor-request
