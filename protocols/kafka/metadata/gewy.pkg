@@ -1,0 +1,7 @@
+name=kafka_metadata
+version=0.17.0
+entry=main.gewy
+register.protocol=kafka
+register.entry=metadata
+register.default=true
+register.aliases=kafka-metadata,kafka_metadata,broker-metadata,topic-metadata

@@ -1,0 +1,6 @@
+name=smb_tree
+version=0.17.0
+entry=main.gewy
+register.protocol=smb
+register.entry=tree
+register.aliases=smb-tree,smb2-tree,tree-connect,share-connect

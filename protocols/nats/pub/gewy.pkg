@@ -1,0 +1,6 @@
+name=nats_pub
+version=0.17.0
+entry=main.gewy
+register.protocol=nats
+register.entry=pub
+register.aliases=nats-pub,nats_pub,nats-publish,nats_publish,subject-write

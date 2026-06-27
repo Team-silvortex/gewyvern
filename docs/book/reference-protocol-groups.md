@@ -64,12 +64,14 @@ Families:
 - [docs/book/reference-memcached-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-surface.md)
 - [docs/book/reference-mqtt-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-surface.md)
 - [docs/book/reference-amqp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-surface.md)
+- [docs/book/reference-kafka-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kafka-surface.md)
+- [docs/book/reference-nats-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-nats-surface.md)
 
 Cluster hint:
 
 - key: `cache-queue-stream`
 - operator hint: Check data-shape, routing or consumer role, and server-side refusal signals first; these families often fail after connect but before stable consumption semantics.
-- sibling protocols: `redis`, `memcached`, `mqtt`, `amqp`
+- sibling protocols: `redis`, `memcached`, `mqtt`, `amqp`, `kafka`, `nats`
 
 ## Database And Query
 
@@ -106,12 +108,14 @@ Families:
 - [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md)
 - [docs/book/reference-kerberos-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-surface.md)
 - [docs/book/reference-radius-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-radius-surface.md)
+- [docs/book/reference-smb-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smb-surface.md)
+- [docs/book/reference-rdp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rdp-surface.md)
 
 Cluster hint:
 
 - key: `identity-directory-access`
 - operator hint: Prioritize bind, credential, authorization, and access-gate stages; these protocols tend to fail with explicit denial semantics rather than silent payload drift.
-- sibling protocols: `ldap`, `ssh`, `kerberos`, `radius`
+- sibling protocols: `ldap`, `ssh`, `kerberos`, `radius`, `smb`, `rdp`
 
 ## Transport, Media, And Session Control
 

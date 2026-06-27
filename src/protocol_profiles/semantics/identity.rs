@@ -152,3 +152,25 @@ pub(super) fn ssh_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsS
         _ => None,
     }
 }
+
+pub(super) fn smb_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "negotiate" => (
+            "file-share-negotiate-path",
+            "SMB2 dialect negotiation on TCP port 445 before authentication or tree access",
+            Some("SMB2 NEGOTIATE"),
+        ),
+        "session" => (
+            "file-share-session-path",
+            "SMB2 session setup for user or machine access to a file share endpoint",
+            Some("SMB2 SESSION_SETUP"),
+        ),
+        "tree" => (
+            "file-share-tree-path",
+            "SMB2 tree connect selecting the concrete share path after session setup",
+            Some("SMB2 TREE_CONNECT"),
+        ),
+        _ => return None,
+    };
+    summary(category, operator_focus, typical_signal, None, None, None)
+}

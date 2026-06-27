@@ -200,6 +200,36 @@ full rule list:
 1. Did the front-end lower into the model shape I expected?
 2. Did the lowered `program_model` and `reason_model` stay aligned?
 
+### `protocol_ir`
+
+Runtime export bundles now include a compact protocol-facing IR summary named
+`protocol_ir`.
+
+This is derived from the lowered program flow operation and the current
+protocol-surface registry. It lets downstream tools ask "which protocol family
+did this lowered flow become?" without re-reading package manifests or
+reconstructing alias rules.
+
+Each `protocol_ir` entry currently keeps:
+
+- `operation`
+- `protocol`
+- `entry`
+- `default_entry`
+- `selected_is_default`
+- `sibling_entries`
+- `cluster_key`
+- `cluster_label`
+- `shelf_key`
+- `shelf_label`
+- `semantics_category`
+- `operator_focus`
+- `typical_signal`
+
+The field is additive and optional for older exported JSON. New exports should
+preserve it through JSON round-trips and replay so orchestration, UI panels,
+and release snapshots can consume the same protocol classification surface.
+
 ### `history_snapshot`
 
 `history_snapshot` is the deliberately compact archival form of the focused IR
@@ -254,6 +284,7 @@ practical stability is:
 - `model_compare` as the direct program-vs-reason alignment summary is deliberate
 - `history_snapshot` as the archival lowered-shape summary is deliberate
 - `lowered_models` as a per-model summary surface is deliberate
+- `protocol_ir` as the runtime/export protocol classification surface is deliberate
 
 Still evolving:
 

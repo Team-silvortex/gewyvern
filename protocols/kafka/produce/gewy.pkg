@@ -1,0 +1,6 @@
+name=kafka_produce
+version=0.17.0
+entry=main.gewy
+register.protocol=kafka
+register.entry=produce
+register.aliases=kafka-produce,kafka_produce,produce,broker-write,topic-write

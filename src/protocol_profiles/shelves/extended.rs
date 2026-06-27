@@ -5,7 +5,9 @@ mod extended_identity_and_directory;
 #[path = "extended_mail_and_queue.rs"]
 mod extended_mail_and_queue;
 
-pub(crate) use extended_access_and_media::{rtsp_shelf, sip_shelf, socks5_shelf, ssh_shelf};
+pub(crate) use extended_access_and_media::{
+    rdp_shelf, rtsp_shelf, sip_shelf, smb_shelf, socks5_shelf, ssh_shelf,
+};
 pub(crate) use extended_identity_and_directory::{
     imap_shelf, kerberos_shelf, ldap_shelf, pop3_shelf,
 };

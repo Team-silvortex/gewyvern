@@ -55,6 +55,23 @@ pub(super) fn socks5_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanti
     }
 }
 
+pub(super) fn rdp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "connect" => (
+            "remote-desktop-connect-path",
+            "RDP TPKT/X.224 connection establishment on TCP port 3389",
+            Some("X.224 connection request"),
+        ),
+        "channel" => (
+            "remote-desktop-channel-path",
+            "RDP data TPDU channel traffic after desktop session setup",
+            Some("X.224 data TPDU"),
+        ),
+        _ => return None,
+    };
+    summary(category, operator_focus, typical_signal, None, None, None)
+}
+
 pub(super) fn stun_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     match entry {
         "binding-error" => failure(

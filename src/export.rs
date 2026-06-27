@@ -14,6 +14,7 @@ mod attach_codec;
 mod fact_codec;
 mod json;
 mod program_codec;
+mod protocol_ir;
 mod reason_codec;
 
 use self::attach_codec::{
@@ -30,6 +31,9 @@ use self::program_codec::{
     flow_json, module_finding_json, parse_flow, parse_module_finding, parse_program_finding,
     parse_program_flow, program_finding_json, program_flow_json,
 };
+pub use self::protocol_ir::ProtocolIr;
+pub(crate) use self::protocol_ir::infer_protocol_ir;
+use self::protocol_ir::{parse_protocol_ir, protocol_ir_json};
 use self::reason_codec::{parse_reason, parse_reason_profile, reason_json, reason_profile_json};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -58,6 +62,7 @@ pub struct ExportBundle {
     pub rejected_fact_summary: Vec<RejectedFactSummaryItem>,
     pub flows: Vec<FlowSnapshot>,
     pub program_flows: Vec<ProgramFlow>,
+    pub protocol_ir: Vec<ProtocolIr>,
     pub program_findings: Vec<ProgramFinding>,
     pub module_findings: Vec<ModuleFinding>,
     pub reasons: Vec<ReasonChain>,
@@ -131,6 +136,7 @@ impl ExportBundle {
         replay.debug_summary = self.debug_summary.clone();
         replay.rejected_fact_summary = summarize_rejected_facts(&replay.rejected_facts);
         replay.program_flows = self.program_flows.clone();
+        replay.protocol_ir = self.protocol_ir.clone();
         replay.program_findings = self.program_findings.clone();
         replay.module_findings = self.module_findings.clone();
         Ok(replay)
@@ -239,6 +245,10 @@ impl ExportBundle {
             (
                 "program_flows".into(),
                 JsonValue::Array(self.program_flows.iter().map(program_flow_json).collect()),
+            ),
+            (
+                "protocol_ir".into(),
+                JsonValue::Array(self.protocol_ir.iter().map(protocol_ir_json).collect()),
             ),
             (
                 "program_findings".into(),
@@ -374,6 +384,13 @@ impl ExportBundle {
                 .as_array()?
                 .iter()
                 .map(parse_program_flow)
+                .collect::<Result<Vec<_>, _>>()?,
+            protocol_ir: root
+                .get("protocol_ir")
+                .unwrap_or(&JsonValue::Array(vec![]))
+                .as_array()?
+                .iter()
+                .map(parse_protocol_ir)
                 .collect::<Result<Vec<_>, _>>()?,
             program_findings: root
                 .get("program_findings")

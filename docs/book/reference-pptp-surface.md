@@ -8,7 +8,10 @@ Read this alongside:
 
 - [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
 - [docs/book/reference-pptp-tunnel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pptp-tunnel-surface.md)
-- [docs/book/reference-gre-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gre-surface.md)
+- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+
+GRE remains the data-carrier context for PPTP, while this page owns the PPTP
+control/data family split.
 
 ## Entries
 

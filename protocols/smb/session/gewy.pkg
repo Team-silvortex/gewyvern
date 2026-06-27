@@ -1,0 +1,6 @@
+name=smb_session
+version=0.17.0
+entry=main.gewy
+register.protocol=smb
+register.entry=session
+register.aliases=smb-session,smb2-session,session-setup,share-session

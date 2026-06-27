@@ -41,3 +41,19 @@ The runtime phases are:
 
 - `send_vni_marked_packet`
 - `receive_vni_marked_packet`
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `overlay`
+- `tenant-overlay`
+- `vni`
+- `vni-overlay`
+- `vxlan-tunnel`
+- `vxlan-vni`
+- `vxlan_tunnel`
+- `vxlan_vni`
+
+<!-- gewyvern:entry-aliases:end -->

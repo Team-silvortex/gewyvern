@@ -11,10 +11,14 @@ pub(super) fn built_in_protocol_cluster_hint(protocol: &str) -> Option<ProtocolC
     let (key, label, operator_hint, sibling_protocols) = match protocol {
         "http" | "https" | "http3" | "socks5" => web_proxy_cluster(protocol)?,
         "quic" | "tls" | "hy2" | "ipsec" => secure_transport_cluster(protocol)?,
-        "redis" | "memcached" | "mqtt" | "amqp" => cache_queue_cluster(protocol)?,
+        "redis" | "memcached" | "mqtt" | "amqp" | "kafka" | "nats" => {
+            cache_queue_cluster(protocol)?
+        }
         "postgres" | "mysql" => database_cluster(protocol)?,
         "smtp" | "imap" | "pop3" => mail_cluster(protocol)?,
-        "ldap" | "ssh" | "kerberos" | "radius" => identity_access_cluster(protocol)?,
+        "ldap" | "ssh" | "kerberos" | "radius" | "smb" | "rdp" => {
+            identity_access_cluster(protocol)?
+        }
         "dns" | "mdns" | "ssdp" | "stun" | "coap" | "ntp" | "dhcp" | "arp" | "icmp" | "icmpv6"
         | "ndp" | "bgp" | "ospf" | "gre" | "vxlan" | "geneve" | "l2tp" | "pptp" | "snmp"
         | "wireguard" | "gtpu" => control_plane_cluster(protocol)?,
@@ -53,7 +57,7 @@ fn secure_transport_cluster(protocol: &str) -> Option<ClusterMatch> {
 }
 
 fn cache_queue_cluster(protocol: &str) -> Option<ClusterMatch> {
-    let siblings = &["redis", "memcached", "mqtt", "amqp"];
+    let siblings = &["redis", "memcached", "mqtt", "amqp", "kafka", "nats"];
     siblings.contains(&protocol).then_some((
         "cache-queue-stream",
         "Cache, Queue, And Stream",
@@ -83,7 +87,7 @@ fn mail_cluster(protocol: &str) -> Option<ClusterMatch> {
 }
 
 fn identity_access_cluster(protocol: &str) -> Option<ClusterMatch> {
-    let siblings = &["ldap", "ssh", "kerberos", "radius"];
+    let siblings = &["ldap", "ssh", "kerberos", "radius", "smb", "rdp"];
     siblings.contains(&protocol).then_some((
         "identity-directory-access",
         "Identity, Directory, And Access",

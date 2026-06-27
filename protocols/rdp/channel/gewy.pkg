@@ -1,0 +1,6 @@
+name=rdp_channel
+version=0.17.0
+entry=main.gewy
+register.protocol=rdp
+register.entry=channel
+register.aliases=rdp-channel,rdp-data,desktop-channel

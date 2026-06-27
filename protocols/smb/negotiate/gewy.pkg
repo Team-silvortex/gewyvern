@@ -1,0 +1,7 @@
+name=smb_negotiate
+version=0.17.0
+entry=main.gewy
+register.protocol=smb
+register.entry=negotiate
+register.default=true
+register.aliases=smb-negotiate,smb2-negotiate,share-negotiate

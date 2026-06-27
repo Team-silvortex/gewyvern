@@ -1,0 +1,230 @@
+mod support;
+
+use gewyvern::dsl::compile_file;
+use gewyvern::export::ExportBundle;
+use gewyvern::flow::ProgramOperation;
+use gewyvern::ledger::PacketDir;
+use gewyvern::protocol_profiles::{
+    protocol_default_entry, protocol_dsl_path, protocol_entries, protocol_surface,
+};
+use gewyvern::runtime::{RuntimeSession, SessionConfig};
+use std::time::SystemTime;
+use support::{packet_fact_with_dir_and_payload_bytes, route_fact, tcp_state_fact_with_ports};
+
+#[test]
+fn stream_messaging_registry_entries_resolve_to_packaged_paths() {
+    assert_eq!(
+        protocol_dsl_path("kafka", Some("metadata")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kafka/metadata".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("kafka", Some("topic-write")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kafka/produce".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("kafka", Some("consume")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kafka/fetch".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("nats", Some("nats-session")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/nats/connect".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("nats", Some("subject-write")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/nats/pub".to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("nats", Some("subject-read")),
+        Some("/Users/Shared/chroot/dev/gewyvern/protocols/nats/sub".to_string())
+    );
+}
+
+#[test]
+fn stream_messaging_defaults_shelves_and_semantics_are_stable() {
+    assert_eq!(
+        protocol_default_entry("kafka"),
+        Some("metadata".to_string())
+    );
+    assert_eq!(protocol_default_entry("nats"), Some("connect".to_string()));
+
+    let kafka_entries = protocol_entries("kafka").expect("kafka entries should resolve");
+    assert!(kafka_entries.contains(&"metadata".to_string()));
+    assert!(kafka_entries.contains(&"produce".to_string()));
+    assert!(kafka_entries.contains(&"fetch".to_string()));
+
+    let nats_entries = protocol_entries("nats").expect("nats entries should resolve");
+    assert!(nats_entries.contains(&"connect".to_string()));
+    assert!(nats_entries.contains(&"pub".to_string()));
+    assert!(nats_entries.contains(&"sub".to_string()));
+
+    let kafka = protocol_surface("kafka", "produce").expect("kafka produce surface should exist");
+    assert_eq!(kafka.shelf.expect("kafka shelf should exist").key, "stream");
+    assert_eq!(
+        kafka
+            .entry_semantics
+            .expect("kafka semantics should exist")
+            .category,
+        "stream-produce-path"
+    );
+
+    let nats = protocol_surface("nats", "sub").expect("nats sub surface should exist");
+    assert_eq!(nats.shelf.expect("nats shelf should exist").key, "pubsub");
+    assert_eq!(
+        nats.entry_semantics
+            .expect("nats semantics should exist")
+            .category,
+        "message-subscribe-path"
+    );
+}
+
+#[test]
+fn stream_messaging_dsl_files_compile_into_expected_operations() {
+    let cases = [
+        (
+            "/Users/Shared/chroot/dev/gewyvern/dsl/kafka_metadata_path.gewy",
+            "kafka_metadata_path",
+            ProgramOperation::Custom("kafka_metadata".into()),
+        ),
+        (
+            "/Users/Shared/chroot/dev/gewyvern/dsl/kafka_produce_path.gewy",
+            "kafka_produce_path",
+            ProgramOperation::Custom("kafka_produce".into()),
+        ),
+        (
+            "/Users/Shared/chroot/dev/gewyvern/dsl/kafka_fetch_path.gewy",
+            "kafka_fetch_path",
+            ProgramOperation::Custom("kafka_fetch".into()),
+        ),
+        (
+            "/Users/Shared/chroot/dev/gewyvern/dsl/nats_connect_path.gewy",
+            "nats_connect_path",
+            ProgramOperation::Custom("nats_connect".into()),
+        ),
+        (
+            "/Users/Shared/chroot/dev/gewyvern/dsl/nats_pub_path.gewy",
+            "nats_pub_path",
+            ProgramOperation::Custom("nats_pub".into()),
+        ),
+        (
+            "/Users/Shared/chroot/dev/gewyvern/dsl/nats_sub_path.gewy",
+            "nats_sub_path",
+            ProgramOperation::Custom("nats_sub".into()),
+        ),
+    ];
+
+    for (path, template_id, operation) in cases {
+        let binding = compile_file(path).unwrap();
+        assert_eq!(binding.template.id, template_id);
+        assert_eq!(
+            binding.template.program_model.as_ref().unwrap().operation,
+            operation
+        );
+    }
+}
+
+#[test]
+fn kafka_produce_runtime_path_materializes_broker_stages() {
+    let export = run_stream_path(
+        "/Users/Shared/chroot/dev/gewyvern/dsl/kafka_produce_path.gewy",
+        9092,
+        &[(5, 0x00)],
+        &[(0, 0x00)],
+    );
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("kafka_produce".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_produce_request"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_produce_response"))
+    );
+
+    let protocol_ir = export
+        .protocol_ir
+        .iter()
+        .find(|item| item.operation == "kafka_produce")
+        .expect("kafka produce should materialize protocol IR");
+    assert_eq!(protocol_ir.protocol, "kafka");
+    assert_eq!(protocol_ir.entry, "produce");
+    assert_eq!(protocol_ir.shelf_key.as_deref(), Some("stream"));
+    assert_eq!(
+        protocol_ir.semantics_category.as_deref(),
+        Some("stream-produce-path")
+    );
+
+    let replayed = ExportBundle::from_json(&export.to_json()).expect("export json should replay");
+    assert_eq!(replayed.protocol_ir, export.protocol_ir);
+}
+
+#[test]
+fn nats_sub_runtime_path_materializes_pubsub_stages() {
+    let export = run_stream_path(
+        "/Users/Shared/chroot/dev/gewyvern/dsl/nats_sub_path.gewy",
+        4222,
+        &[(0, 0x53), (1, 0x55), (2, 0x42), (3, 0x20)],
+        &[(0, 0x4d), (1, 0x53), (2, 0x47), (3, 0x20)],
+    );
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("nats_sub".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_subscribe"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_message"))
+    );
+}
+
+fn run_stream_path(
+    path: &str,
+    port: u16,
+    send_payload: &[(u16, u8)],
+    receive_payload: &[(u16, u8)],
+) -> gewyvern::export::ExportBundle {
+    let binding = compile_file(path).unwrap();
+    let config = SessionConfig::for_template(binding.template).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    let cookie = 0x5151;
+    for fact in [
+        route_fact(1, cookie, 2),
+        tcp_state_fact_with_ports(2, cookie, 1, 2, 45000, port),
+        tcp_state_fact_with_ports(3, cookie, 2, 3, 45000, port),
+        packet_fact_with_dir_and_payload_bytes(
+            4,
+            cookie,
+            0x18,
+            PacketDir::Egress,
+            Some(45000),
+            Some(port),
+            send_payload,
+        ),
+        packet_fact_with_dir_and_payload_bytes(
+            5,
+            cookie,
+            0x18,
+            PacketDir::Ingress,
+            Some(45000),
+            Some(port),
+            receive_payload,
+        ),
+    ] {
+        session.ingest(fact);
+    }
+    session.freeze(SystemTime::UNIX_EPOCH + std::time::Duration::from_millis(40));
+    session.export_bundle()
+}

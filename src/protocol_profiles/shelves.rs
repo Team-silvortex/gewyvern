@@ -13,13 +13,14 @@ pub(super) type ShelfMatch = (
 pub(super) use core::{
     arp_shelf, bgp_shelf, coap_shelf, dhcp_shelf, dns_shelf, ftp_shelf, geneve_shelf, gre_shelf,
     gtpu_shelf, http_shelf, http3_shelf, https_shelf, hy2_shelf, icmp_shelf, icmpv6_shelf,
-    ipsec_shelf, l2tp_shelf, mdns_shelf, memcached_shelf, mqtt_shelf, mysql_shelf, ndp_shelf,
-    ntp_shelf, ospf_shelf, postgres_shelf, pptp_shelf, quic_shelf, radius_shelf, redis_shelf,
-    snmp_shelf, ssdp_shelf, stun_shelf, tls_shelf, vxlan_shelf, wireguard_shelf,
+    ipsec_shelf, kafka_shelf, l2tp_shelf, mdns_shelf, memcached_shelf, mqtt_shelf, mysql_shelf,
+    nats_shelf, ndp_shelf, ntp_shelf, ospf_shelf, postgres_shelf, pptp_shelf, quic_shelf,
+    radius_shelf, redis_shelf, snmp_shelf, ssdp_shelf, stun_shelf, tls_shelf, vxlan_shelf,
+    wireguard_shelf,
 };
 pub(super) use extended::{
-    amqp_shelf, imap_shelf, kerberos_shelf, ldap_shelf, pop3_shelf, rtsp_shelf, sip_shelf,
-    smtp_shelf, socks5_shelf, ssh_shelf,
+    amqp_shelf, imap_shelf, kerberos_shelf, ldap_shelf, pop3_shelf, rdp_shelf, rtsp_shelf,
+    sip_shelf, smb_shelf, smtp_shelf, socks5_shelf, ssh_shelf,
 };
 
 pub(super) fn built_in_protocol_shelf(protocol: &str, entry: &str) -> Option<ProtocolShelfSummary> {
@@ -52,6 +53,8 @@ pub(super) fn built_in_protocol_shelf(protocol: &str, entry: &str) -> Option<Pro
         "mysql" => mysql_shelf(entry)?,
         "postgres" => postgres_shelf(entry)?,
         "mqtt" => mqtt_shelf(entry)?,
+        "kafka" => kafka_shelf(entry)?,
+        "nats" => nats_shelf(entry)?,
         "memcached" => memcached_shelf(entry)?,
         "radius" => radius_shelf(entry)?,
         "gtpu" => gtpu_shelf(entry)?,
@@ -65,6 +68,8 @@ pub(super) fn built_in_protocol_shelf(protocol: &str, entry: &str) -> Option<Pro
         "ftp" => ftp_shelf(entry)?,
         "rtsp" => rtsp_shelf(entry)?,
         "ssh" => ssh_shelf(entry)?,
+        "smb" => smb_shelf(entry)?,
+        "rdp" => rdp_shelf(entry)?,
         "socks5" => socks5_shelf(entry)?,
         "sip" => sip_shelf(entry)?,
         "ldap" => ldap_shelf(entry)?,

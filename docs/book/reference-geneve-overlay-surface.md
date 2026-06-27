@@ -41,3 +41,20 @@ The runtime phases are:
 
 - `send_optioned_packet`
 - `receive_optioned_packet`
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `geneve-options`
+- `geneve-overlay`
+- `geneve-tlv`
+- `geneve-tunnel`
+- `geneve_options`
+- `geneve_tlv`
+- `geneve_tunnel`
+- `optioned-overlay`
+- `overlay-options`
+
+<!-- gewyvern:entry-aliases:end -->

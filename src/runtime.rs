@@ -279,6 +279,7 @@ impl RuntimeSession {
         let module_findings = summarize_module_findings(&program_findings);
         let attach_failure_summary = summarize_attach_failures(&self.attach_report);
         let rejected_fact_summary = summarize_rejected_facts(&self.rejected_facts);
+        let protocol_ir = crate::export::infer_protocol_ir(&program_flows);
 
         ExportBundle {
             template_id: self.template.id.into(),
@@ -319,6 +320,7 @@ impl RuntimeSession {
             rejected_fact_summary,
             flows,
             program_flows,
+            protocol_ir,
             program_findings,
             module_findings,
             reasons,

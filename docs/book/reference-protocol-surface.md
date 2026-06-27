@@ -105,8 +105,8 @@ machine-facing protocol surface can also include:
 <!-- gewyvern:protocol-surface-overview:start -->
 ## Current Surface Snapshot
 
-- Built-in families: `41`
-- Built-in canonical entries: `243`
+- Built-in families: `49`
+- Built-in canonical entries: `262`
 - Family/default map:
   - `amqp` -> default `session` in cluster `cache-queue-stream` via [docs/book/reference-amqp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-surface.md)
   - `arp` -> default `request` in cluster `network-control-discovery` via [docs/book/reference-arp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-arp-surface.md)
@@ -115,6 +115,7 @@ machine-facing protocol surface can also include:
   - `dhcp` -> default `client` in cluster `network-control-discovery` via [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
   - `dns` -> default `udp` in cluster `network-control-discovery` via [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md)
   - `ftp` -> default `session` in cluster `session-control-media-transfer` via [docs/book/reference-ftp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-surface.md)
+  - `geneve` -> default `encap` in cluster `network-control-discovery` via [docs/book/reference-geneve-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-geneve-surface.md)
   - `gre` -> default `encap` in cluster `network-control-discovery` via [docs/book/reference-gre-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gre-surface.md)
   - `gtpu` -> default `echo` in cluster `network-control-discovery` via [docs/book/reference-gtpu-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gtpu-surface.md)
   - `http` -> default `request` in cluster `web-proxy-request-response` via [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md)
@@ -125,22 +126,28 @@ machine-facing protocol surface can also include:
   - `icmpv6` -> default `echo` in cluster `network-control-discovery` via [docs/book/reference-icmpv6-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-surface.md)
   - `imap` -> default `auth` in cluster `mail-delivery-mailbox` via [docs/book/reference-imap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-surface.md)
   - `ipsec` -> default `esp` in cluster `secure-transport-session` via [docs/book/reference-ipsec-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ipsec-surface.md)
+  - `kafka` -> default `metadata` in cluster `cache-queue-stream` via [docs/book/reference-kafka-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kafka-surface.md)
   - `kerberos` -> default `as` in cluster `identity-directory-access` via [docs/book/reference-kerberos-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-surface.md)
+  - `l2tp` -> default `control` in cluster `network-control-discovery` via [docs/book/reference-l2tp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-l2tp-surface.md)
   - `ldap` -> default `sync` in cluster `identity-directory-access` via [docs/book/reference-ldap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-surface.md)
   - `mdns` -> default `query` in cluster `network-control-discovery` via [docs/book/reference-mdns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mdns-surface.md)
   - `memcached` -> default `get` in cluster `cache-queue-stream` via [docs/book/reference-memcached-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-surface.md)
   - `mqtt` -> default `connect` in cluster `cache-queue-stream` via [docs/book/reference-mqtt-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-surface.md)
   - `mysql` -> default `session` in cluster `database-query-session` via [docs/book/reference-mysql-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-surface.md)
+  - `nats` -> default `connect` in cluster `cache-queue-stream` via [docs/book/reference-nats-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-nats-surface.md)
   - `ndp` -> default `solicit` in cluster `network-control-discovery` via [docs/book/reference-ndp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-surface.md)
   - `ntp` -> default `client` in cluster `network-control-discovery` via [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
   - `ospf` -> default `hello` in cluster `network-control-discovery` via [docs/book/reference-ospf-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ospf-surface.md)
   - `pop3` -> default `auth` in cluster `mail-delivery-mailbox` via [docs/book/reference-pop3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-surface.md)
   - `postgres` -> default `query` in cluster `database-query-session` via [docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md)
+  - `pptp` -> default `control` in cluster `network-control-discovery` via [docs/book/reference-pptp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pptp-surface.md)
   - `quic` -> default `initial` in cluster `secure-transport-session` via [docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md)
   - `radius` -> default `access` in cluster `identity-directory-access` via [docs/book/reference-radius-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-radius-surface.md)
+  - `rdp` -> default `connect` in cluster `identity-directory-access` via [docs/book/reference-rdp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rdp-surface.md)
   - `redis` -> default `ping` in cluster `cache-queue-stream` via [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md)
   - `rtsp` -> default `options` in cluster `session-control-media-transfer` via [docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md)
   - `sip` -> default `register` in cluster `session-control-media-transfer` via [docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md)
+  - `smb` -> default `negotiate` in cluster `identity-directory-access` via [docs/book/reference-smb-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smb-surface.md)
   - `smtp` -> default `session` in cluster `mail-delivery-mailbox` via [docs/book/reference-smtp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-surface.md)
   - `snmp` -> default `get` in cluster `network-control-discovery` via [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
   - `socks5` -> default `session` in cluster `web-proxy-request-response` via [docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md)
@@ -148,6 +155,7 @@ machine-facing protocol surface can also include:
   - `ssh` -> default `session` in cluster `identity-directory-access` via [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md)
   - `stun` -> default `binding` in cluster `network-control-discovery` via [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)
   - `tls` -> default `client` in cluster `secure-transport-session` via [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
+  - `vxlan` -> default `encap` in cluster `network-control-discovery` via [docs/book/reference-vxlan-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-vxlan-surface.md)
   - `wireguard` -> default `handshake` in cluster `network-control-discovery` via [docs/book/reference-wireguard-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-surface.md)
 
 <!-- gewyvern:protocol-surface-overview:end -->

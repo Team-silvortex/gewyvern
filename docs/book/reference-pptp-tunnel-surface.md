@@ -43,3 +43,19 @@ The runtime phases are:
 
 - `send_gre_data`
 - `receive_gre_data`
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `pptp-control`
+- `pptp-data`
+- `pptp-gre`
+- `pptp-tunnel`
+- `pptp_control`
+- `pptp_data`
+- `pptp_gre`
+- `pptp_tunnel`
+
+<!-- gewyvern:entry-aliases:end -->

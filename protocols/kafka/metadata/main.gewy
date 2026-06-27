@@ -1,0 +1,20 @@
+# gewyvern stable-subset protocol path
+
+fn kafka_metadata_rules() =
+  let module_name = :kafka_metadata_path
+  let metadata_narrative = "static:observed a Kafka Metadata request or response on TCP port 9092"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:kafka_metadata)
+  |> reason_model(:kafka_metadata_path_reason)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_broker)
+  |> program_rule(predicate: "packet_observed:tcp:remote:kafka:local_to_remote:byte_at:5:0xff:0x03", stage: :packet_observed, narrative: ${metadata_narrative}, dedupe: true, module: ${module_name}, phase: :send_metadata_request)
+  |> program_rule(predicate: "packet_observed:tcp:remote:kafka:remote_to_local", stage: :packet_observed, narrative: ${metadata_narrative}, dedupe: true, module: ${module_name}, phase: :receive_metadata_response)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_broker)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:kafka:local_to_remote:byte_at:5:0xff:0x03", key_event: :packet_observed, narrative: ${metadata_narrative}, dedupe: true, module: ${module_name}, phase: :send_metadata_request)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:kafka:remote_to_local", key_event: :packet_observed, narrative: ${metadata_narrative}, dedupe: true, module: ${module_name}, phase: :receive_metadata_response)
+
+template(:kafka_metadata_path)
+|> window(:default_5s)
+|> use(:kafka_metadata_rules)

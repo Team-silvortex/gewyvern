@@ -8,7 +8,10 @@ Read this alongside:
 
 - [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
 - [docs/book/reference-vxlan-overlay-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-vxlan-overlay-surface.md)
-- [docs/book/reference-gre-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gre-surface.md)
+- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+
+GRE is still useful context when debugging encapsulated payload movement, but
+VXLAN keeps its own overlay surface.
 
 ## Entries
 

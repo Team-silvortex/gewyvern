@@ -240,6 +240,22 @@ Then continue with:
   - [docs/book/reference-mqtt-qos2-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-qos2-surface.md)
   - [docs/book/reference-mqtt-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mqtt-session-surface.md)
 
+### Kafka
+
+- Hub:
+  [docs/book/reference-kafka-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kafka-surface.md)
+- Subpages:
+  - [docs/book/reference-kafka-metadata-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kafka-metadata-surface.md)
+  - [docs/book/reference-kafka-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kafka-stream-surface.md)
+
+### NATS
+
+- Hub:
+  [docs/book/reference-nats-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-nats-surface.md)
+- Subpages:
+  - [docs/book/reference-nats-pubsub-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-nats-pubsub-surface.md)
+  - [docs/book/reference-nats-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-nats-session-surface.md)
+
 ### LDAP
 
 - Hub:
@@ -302,6 +318,22 @@ Then continue with:
   - [docs/book/reference-ssh-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-auth-surface.md)
   - [docs/book/reference-ssh-channel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-channel-surface.md)
   - [docs/book/reference-ssh-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-session-surface.md)
+
+### SMB
+
+- Hub:
+  [docs/book/reference-smb-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smb-surface.md)
+- Subpages:
+  - [docs/book/reference-smb-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smb-session-surface.md)
+  - [docs/book/reference-smb-share-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smb-share-surface.md)
+
+### RDP
+
+- Hub:
+  [docs/book/reference-rdp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rdp-surface.md)
+- Subpages:
+  - [docs/book/reference-rdp-channel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rdp-channel-surface.md)
+  - [docs/book/reference-rdp-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rdp-connect-surface.md)
 
 ### RTSP
 

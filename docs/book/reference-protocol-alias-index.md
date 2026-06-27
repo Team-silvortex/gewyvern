@@ -79,6 +79,14 @@ Entry aliases:
 - `retr`: `download`
 - `stor`: `upload`
 
+## `geneve`
+
+Default entry: `encap`
+Protocol aliases: `geneve-options`, `geneve-overlay`, `geneve-tlv`, `geneve-tunnel`, `geneve_options`, `geneve_tlv`, `geneve_tunnel`, `optioned-overlay`, `overlay-options`
+Entry aliases:
+- `encap` (default): `geneve-overlay`, `geneve-tunnel`, `geneve_tunnel`, `overlay-options`
+- `options`: `geneve-options`, `geneve-tlv`, `geneve_options`, `geneve_tlv`, `optioned-overlay`
+
 ## `gre`
 
 Default entry: `encap`
@@ -168,6 +176,15 @@ Entry aliases:
 - `esp` (default): `esp`, `ipsec-esp`, `ipsec_esp`, `secure-encapsulation`
 - `ah`: `ah`, `auth-header`, `authenticated-header`, `ipsec-ah`, `ipsec_ah`
 
+## `kafka`
+
+Default entry: `metadata`
+Protocol aliases: `broker-metadata`, `broker-read`, `broker-write`, `consume`, `kafka-fetch`, `kafka-metadata`, `kafka-produce`, `kafka_fetch`, `kafka_metadata`, `kafka_produce`, `produce`, `topic-metadata`, `topic-read`, `topic-write`
+Entry aliases:
+- `metadata` (default): `broker-metadata`, `kafka-metadata`, `kafka_metadata`, `topic-metadata`
+- `fetch`: `broker-read`, `consume`, `kafka-fetch`, `kafka_fetch`, `topic-read`
+- `produce`: `broker-write`, `kafka-produce`, `kafka_produce`, `produce`, `topic-write`
+
 ## `kerberos`
 
 Default entry: `as`
@@ -176,6 +193,14 @@ Entry aliases:
 - `as` (default): `initial-auth`, `login`
 - `as-error`: `initial-auth-error`, `login-denied`
 - `tgs`: `service-ticket`, `ticket`
+
+## `l2tp`
+
+Default entry: `control`
+Protocol aliases: `l2tp-control`, `l2tp-data`, `l2tp-session`, `l2tp-tunnel`, `l2tp_control`, `l2tp_data`, `l2tp_session`, `l2tp_tunnel`
+Entry aliases:
+- `control` (default): `l2tp-control`, `l2tp-tunnel`, `l2tp_control`, `l2tp_tunnel`
+- `session`: `l2tp-data`, `l2tp-session`, `l2tp_data`, `l2tp_session`
 
 ## `ldap`
 
@@ -234,6 +259,15 @@ Entry aliases:
 - `error`: `mysql-error`, `mysql_error`
 - `query`: `mysql-query`, `mysql_query`
 
+## `nats`
+
+Default entry: `connect`
+Protocol aliases: `nats-connect`, `nats-pub`, `nats-publish`, `nats-session`, `nats-sub`, `nats-subscribe`, `nats_connect`, `nats_pub`, `nats_publish`, `nats_session`, `nats_sub`, `nats_subscribe`, `subject-read`, `subject-write`
+Entry aliases:
+- `connect` (default): `nats-connect`, `nats-session`, `nats_connect`, `nats_session`
+- `pub`: `nats-pub`, `nats-publish`, `nats_pub`, `nats_publish`, `subject-write`
+- `sub`: `nats-sub`, `nats-subscribe`, `nats_sub`, `nats_subscribe`, `subject-read`
+
 ## `ndp`
 
 Default entry: `solicit`
@@ -280,6 +314,14 @@ Entry aliases:
 - `error`: `postgres-error`, `postgres_error`
 - `session`: `auth-query`, `postgres-session`, `postgres_session`, `query-session`
 
+## `pptp`
+
+Default entry: `control`
+Protocol aliases: `pptp-control`, `pptp-data`, `pptp-gre`, `pptp-tunnel`, `pptp_control`, `pptp_data`, `pptp_gre`, `pptp_tunnel`
+Entry aliases:
+- `control` (default): `pptp-control`, `pptp-tunnel`, `pptp_control`, `pptp_tunnel`
+- `data`: `pptp-data`, `pptp-gre`, `pptp_data`, `pptp_gre`
+
 ## `quic`
 
 Default entry: `initial`
@@ -301,6 +343,14 @@ Entry aliases:
 - `access` (default): `auth`, `login`, `radius-access`, `radius_access`
 - `challenge`: `mfa`, `otp`, `radius-challenge`, `radius_challenge`
 - `denied`: `access-denied`, `login-denied`, `radius-denied`, `radius_denied`, `reject`
+
+## `rdp`
+
+Default entry: `connect`
+Protocol aliases: `desktop-channel`, `desktop-connect`, `rdp-channel`, `rdp-connect`, `rdp-data`, `x224-connect`
+Entry aliases:
+- `connect` (default): `desktop-connect`, `rdp-connect`, `x224-connect`
+- `channel`: `desktop-channel`, `rdp-channel`, `rdp-data`
 
 ## `redis`
 
@@ -411,6 +461,15 @@ Entry aliases:
 - `invite`: `call`, `session`, `sip-invite`, `sip_invite`
 - `response`: `final`, `provisional`, `reply`, `sip-response`, `sip_response`
 
+## `smb`
+
+Default entry: `negotiate`
+Protocol aliases: `session-setup`, `share-connect`, `share-negotiate`, `share-session`, `smb-negotiate`, `smb-session`, `smb-tree`, `smb2-negotiate`, `smb2-session`, `smb2-tree`, `tree-connect`
+Entry aliases:
+- `negotiate` (default): `share-negotiate`, `smb-negotiate`, `smb2-negotiate`
+- `session`: `session-setup`, `share-session`, `smb-session`, `smb2-session`
+- `tree`: `share-connect`, `smb-tree`, `smb2-tree`, `tree-connect`
+
 ## `smtp`
 
 Default entry: `session`
@@ -489,6 +548,14 @@ Protocol aliases: none
 Entry aliases:
 - `client` (default): `initiator`, `tls-client`, `tls_client`
 - `server`: `acceptor`, `tls-server`, `tls_server`
+
+## `vxlan`
+
+Default entry: `encap`
+Protocol aliases: `overlay`, `tenant-overlay`, `vni`, `vni-overlay`, `vxlan-tunnel`, `vxlan-vni`, `vxlan_tunnel`, `vxlan_vni`
+Entry aliases:
+- `encap` (default): `overlay`, `vni-overlay`, `vxlan-tunnel`, `vxlan_tunnel`
+- `vni`: `tenant-overlay`, `vni`, `vxlan-vni`, `vxlan_vni`
 
 ## `wireguard`
 

@@ -68,6 +68,50 @@ pub(crate) fn ssh_shelf(entry: &str) -> Option<ShelfMatch> {
     }
 }
 
+pub(crate) fn smb_shelf(entry: &str) -> Option<ShelfMatch> {
+    const SESSION: &[&str] = &["negotiate", "session"];
+    const SHARE: &[&str] = &["tree"];
+    if SESSION.contains(&entry) {
+        Some((
+            "session",
+            "Session",
+            "docs/book/reference-smb-session-surface.md",
+            SESSION,
+        ))
+    } else if SHARE.contains(&entry) {
+        Some((
+            "share",
+            "Share",
+            "docs/book/reference-smb-share-surface.md",
+            SHARE,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn rdp_shelf(entry: &str) -> Option<ShelfMatch> {
+    const CONNECT: &[&str] = &["connect"];
+    const CHANNEL: &[&str] = &["channel"];
+    if CONNECT.contains(&entry) {
+        Some((
+            "connect",
+            "Connect",
+            "docs/book/reference-rdp-connect-surface.md",
+            CONNECT,
+        ))
+    } else if CHANNEL.contains(&entry) {
+        Some((
+            "channel",
+            "Channel",
+            "docs/book/reference-rdp-channel-surface.md",
+            CHANNEL,
+        ))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn socks5_shelf(entry: &str) -> Option<ShelfMatch> {
     const SESSION: &[&str] = &["session"];
     const AUTH: &[&str] = &["auth", "auth-denied"];

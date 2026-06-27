@@ -41,3 +41,19 @@ The runtime phases are:
 
 - `send_session_packet`
 - `receive_session_packet`
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `l2tp-control`
+- `l2tp-data`
+- `l2tp-session`
+- `l2tp-tunnel`
+- `l2tp_control`
+- `l2tp_data`
+- `l2tp_session`
+- `l2tp_tunnel`
+
+<!-- gewyvern:entry-aliases:end -->

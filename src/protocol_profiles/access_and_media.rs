@@ -85,6 +85,40 @@ pub(super) const SSH_PROFILE: ProtocolProfile = ProtocolProfile {
     ],
 };
 
+pub(super) const SMB_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "smb",
+    default_entry: "negotiate",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "negotiate",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smb_negotiate_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "session",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smb_session_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "tree",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smb_tree_path.gewy",
+        },
+    ],
+};
+
+pub(super) const RDP_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "rdp",
+    default_entry: "connect",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "connect",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rdp_connect_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "channel",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rdp_channel_path.gewy",
+        },
+    ],
+};
+
 pub(super) const SOCKS5_PROFILE: ProtocolProfile = ProtocolProfile {
     name: "socks5",
     default_entry: "session",

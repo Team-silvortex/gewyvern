@@ -8,6 +8,8 @@ mod mail_and_directory;
 mod network_control;
 #[path = "secure_transport.rs"]
 mod secure_transport;
+#[path = "stream_messaging.rs"]
+mod stream_messaging;
 #[path = "web_protocols.rs"]
 mod web_protocols;
 
@@ -59,6 +61,8 @@ pub(super) const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
     data_and_queue::AMQP_PROFILE,
     data_and_queue::REDIS_PROFILE,
     data_and_queue::MQTT_PROFILE,
+    stream_messaging::KAFKA_PROFILE,
+    stream_messaging::NATS_PROFILE,
     data_and_queue::RADIUS_PROFILE,
     data_and_queue::GTPU_PROFILE,
     access_and_media::FTP_PROFILE,
@@ -68,6 +72,8 @@ pub(super) const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
     mail_and_directory::KERBEROS_PROFILE,
     access_and_media::RTSP_PROFILE,
     access_and_media::SSH_PROFILE,
+    access_and_media::SMB_PROFILE,
+    access_and_media::RDP_PROFILE,
     access_and_media::SOCKS5_PROFILE,
     access_and_media::SIP_PROFILE,
     mail_and_directory::LDAP_PROFILE,

@@ -43,10 +43,12 @@ The protocol profile registry is split by capability domain:
 - `network_control.rs` covers discovery, control-plane, neighbor, routing, and
   low-level diagnostic protocols such as STUN, CoAP, NTP, DHCP, ARP, ICMP,
   ICMPv6, NDP, BGP, OSPF, GRE, VXLAN, GENEVE, L2TP, PPTP, mDNS, and SSDP.
-- `data_and_queue.rs` covers databases, cache, queue, stream, and mobile core
-  data protocols.
-- `access_and_media.rs` covers access, proxy, signaling, and media-transfer
+- `data_and_queue.rs` covers databases, cache, queue, and mobile core data
   protocols.
+- `stream_messaging.rs` covers streaming and lightweight message-bus protocols
+  such as Kafka and NATS.
+- `access_and_media.rs` covers access, proxy, remote desktop, file-share,
+  signaling, and media-transfer protocols.
 - `mail_and_directory.rs` covers mail, directory, and identity-oriented
   protocol profiles.
 

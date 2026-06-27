@@ -1,4 +1,4 @@
-use super::common::failure;
+use super::common::{failure, summary};
 use crate::protocol_profiles::ProtocolEntrySemanticsSummary;
 
 pub(super) fn mysql_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
@@ -150,4 +150,62 @@ pub(super) fn redis_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantic
         _ => return None,
     };
     failure(operator_focus, typical_signal, failure_mode, failure_detail)
+}
+
+pub(super) fn kafka_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "metadata" => (
+            "broker-metadata-path",
+            "Kafka broker metadata lookup on TCP port 9092",
+            Some("Metadata API key"),
+        ),
+        "produce" => (
+            "stream-produce-path",
+            "Kafka produce request/response against broker topic partitions",
+            Some("Produce API key"),
+        ),
+        "fetch" => (
+            "stream-fetch-path",
+            "Kafka fetch request/response from broker topic partitions",
+            Some("Fetch API key"),
+        ),
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("protocol_entry_signal"),
+    )
+}
+
+pub(super) fn nats_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "connect" => (
+            "message-session-path",
+            "NATS INFO/CONNECT session setup on TCP port 4222",
+            Some("INFO / CONNECT"),
+        ),
+        "pub" => (
+            "message-publish-path",
+            "NATS PUB command sending a subject payload",
+            Some("PUB"),
+        ),
+        "sub" => (
+            "message-subscribe-path",
+            "NATS SUB command and MSG delivery",
+            Some("SUB / MSG"),
+        ),
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("protocol_entry_signal"),
+    )
 }

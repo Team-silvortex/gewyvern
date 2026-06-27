@@ -187,6 +187,18 @@ pub fn infer_network_module_kind(
         }
         return "message_session";
     }
+    if operation_id.starts_with("kafka_") {
+        return "stream_broker_session";
+    }
+    if operation_id.starts_with("nats_") {
+        if operation_id.contains("_pub") {
+            return "message_publish";
+        }
+        if operation_id.contains("_sub") {
+            return "message_subscribe";
+        }
+        return "message_session";
+    }
     if operation_id.starts_with("mqtt_") {
         return "message_session";
     }
@@ -227,6 +239,12 @@ pub fn infer_network_module_kind(
         if operation_id.contains("auth") {
             return "remote_access_authentication";
         }
+        return "remote_access_session";
+    }
+    if operation_id.starts_with("smb_") {
+        return "file_share_session";
+    }
+    if operation_id.starts_with("rdp_") {
         return "remote_access_session";
     }
     if operation_id.starts_with("socks5_") {
