@@ -1,0 +1,19 @@
+# gewyvern stable-subset protocol path
+
+fn vxlan_vni_rules() =
+  let module_name = :vxlan_vni_path
+  let vni_narrative = "static:observed a VXLAN packet with the VNI-present flag set"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:vxlan_vni)
+  |> reason_model(:vxlan_vni_path_reason)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_overlay)
+  |> program_rule(predicate: "datagram_observed:udp:remote:vxlan:local_to_remote:byte0_mask:0x08:0x08", stage: :datagram_observed, narrative: ${vni_narrative}, dedupe: true, module: ${module_name}, phase: :send_vni_marked_packet)
+  |> program_rule(predicate: "datagram_observed:udp:remote:vxlan:remote_to_local:byte0_mask:0x08:0x08", stage: :datagram_observed, narrative: ${vni_narrative}, dedupe: true, module: ${module_name}, phase: :receive_vni_marked_packet)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_overlay)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:vxlan:local_to_remote:byte0_mask:0x08:0x08", key_event: :udp_datagram_seen, narrative: ${vni_narrative}, dedupe: true, module: ${module_name}, phase: :send_vni_marked_packet)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:vxlan:remote_to_local:byte0_mask:0x08:0x08", key_event: :udp_datagram_seen, narrative: ${vni_narrative}, dedupe: true, module: ${module_name}, phase: :receive_vni_marked_packet)
+
+template(:vxlan_vni_path)
+|> window(:default_5s)
+|> use(:vxlan_vni_rules)

@@ -42,7 +42,7 @@ The protocol profile registry is split by capability domain:
   TLS, QUIC, Hysteria 2, and WireGuard.
 - `network_control.rs` covers discovery, control-plane, neighbor, routing, and
   low-level diagnostic protocols such as STUN, CoAP, NTP, DHCP, ARP, ICMP,
-  ICMPv6, NDP, BGP, OSPF, mDNS, and SSDP.
+  ICMPv6, NDP, BGP, OSPF, GRE, VXLAN, GENEVE, L2TP, PPTP, mDNS, and SSDP.
 - `data_and_queue.rs` covers databases, cache, queue, stream, and mobile core
   data protocols.
 - `access_and_media.rs` covers access, proxy, signaling, and media-transfer

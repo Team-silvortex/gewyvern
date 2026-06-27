@@ -1,0 +1,19 @@
+# gewyvern stable-subset protocol path
+
+fn pptp_data_rules() =
+  let module_name = :pptp_data_path
+  let data_narrative = "static:observed a PPTP GRE data packet on IP protocol 47"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:pptp_data)
+  |> reason_model(:pptp_data_path_reason)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_tunnel)
+  |> program_rule(predicate: "packet_observed:47:local_to_remote", stage: :packet_observed, narrative: ${data_narrative}, dedupe: true, module: ${module_name}, phase: :send_gre_data)
+  |> program_rule(predicate: "packet_observed:47:remote_to_local", stage: :packet_observed, narrative: ${data_narrative}, dedupe: true, module: ${module_name}, phase: :receive_gre_data)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_tunnel)
+  |> reason_rule(predicate: "packet_observed:47:local_to_remote", key_event: :packet_observed, narrative: ${data_narrative}, dedupe: true, module: ${module_name}, phase: :send_gre_data)
+  |> reason_rule(predicate: "packet_observed:47:remote_to_local", key_event: :packet_observed, narrative: ${data_narrative}, dedupe: true, module: ${module_name}, phase: :receive_gre_data)
+
+template(:pptp_data_path)
+|> window(:default_5s)
+|> use(:pptp_data_rules)

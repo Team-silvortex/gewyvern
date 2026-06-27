@@ -168,58 +168,50 @@ fn snmp_surface_keeps_generic_shelves_per_entry() {
 
 #[test]
 fn snmp_dsl_files_compile_into_expected_operations() {
-    let bulk = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_bulk_path.gewy").unwrap();
-    assert_eq!(bulk.template.id, "snmp_bulk_path");
-    assert_eq!(
-        bulk.template.program_model.as_ref().unwrap().operation,
-        ProgramOperation::Custom("snmp_bulk".into())
-    );
-
-    let get_next =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_next_path.gewy").unwrap();
-    assert_eq!(get_next.template.id, "snmp_get_next_path");
-    assert_eq!(
-        get_next.template.program_model.as_ref().unwrap().operation,
-        ProgramOperation::Custom("snmp_get_next".into())
-    );
-
-    let set = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_set_path.gewy").unwrap();
-    assert_eq!(set.template.id, "snmp_set_path");
-    assert_eq!(
-        set.template.program_model.as_ref().unwrap().operation,
-        ProgramOperation::Custom("snmp_set".into())
-    );
-
-    let trap = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_trap_path.gewy").unwrap();
-    assert_eq!(trap.template.id, "snmp_trap_path");
-    assert_eq!(
-        trap.template.program_model.as_ref().unwrap().operation,
-        ProgramOperation::Custom("snmp_trap".into())
-    );
-
-    let inform =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_inform_path.gewy").unwrap();
-    assert_eq!(inform.template.id, "snmp_inform_path");
-    assert_eq!(
-        inform.template.program_model.as_ref().unwrap().operation,
-        ProgramOperation::Custom("snmp_inform".into())
-    );
-
-    let v3_auth =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_v3_auth_path.gewy").unwrap();
-    assert_eq!(v3_auth.template.id, "snmp_v3_auth_path");
-    assert_eq!(
-        v3_auth.template.program_model.as_ref().unwrap().operation,
-        ProgramOperation::Custom("snmp_v3_auth".into())
-    );
-
-    let v3_priv =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_v3_priv_path.gewy").unwrap();
-    assert_eq!(v3_priv.template.id, "snmp_v3_priv_path");
-    assert_eq!(
-        v3_priv.template.program_model.as_ref().unwrap().operation,
-        ProgramOperation::Custom("snmp_v3_priv".into())
-    );
+    for (path, template_id, operation) in [
+        (
+            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_bulk_path.gewy",
+            "snmp_bulk_path",
+            "snmp_bulk",
+        ),
+        (
+            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_next_path.gewy",
+            "snmp_get_next_path",
+            "snmp_get_next",
+        ),
+        (
+            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_set_path.gewy",
+            "snmp_set_path",
+            "snmp_set",
+        ),
+        (
+            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_trap_path.gewy",
+            "snmp_trap_path",
+            "snmp_trap",
+        ),
+        (
+            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_inform_path.gewy",
+            "snmp_inform_path",
+            "snmp_inform",
+        ),
+        (
+            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_v3_auth_path.gewy",
+            "snmp_v3_auth_path",
+            "snmp_v3_auth",
+        ),
+        (
+            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_v3_priv_path.gewy",
+            "snmp_v3_priv_path",
+            "snmp_v3_priv",
+        ),
+    ] {
+        let compiled = compile_file(path).unwrap();
+        assert_eq!(compiled.template.id, template_id);
+        assert_eq!(
+            compiled.template.program_model.as_ref().unwrap().operation,
+            ProgramOperation::Custom(operation.into())
+        );
+    }
 }
 
 #[test]

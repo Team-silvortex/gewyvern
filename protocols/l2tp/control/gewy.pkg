@@ -1,0 +1,7 @@
+name=l2tp_control
+version=0.17.0
+entry=main.gewy
+register.protocol=l2tp
+register.entry=control
+register.default=true
+register.aliases=l2tp-control,l2tp_control,l2tp-tunnel,l2tp_tunnel

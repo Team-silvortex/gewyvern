@@ -1,0 +1,7 @@
+name=geneve_encap
+version=0.17.0
+entry=main.gewy
+register.protocol=geneve
+register.entry=encap
+register.default=true
+register.aliases=geneve-tunnel,geneve_tunnel,overlay-options,geneve-overlay

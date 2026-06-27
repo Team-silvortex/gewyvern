@@ -2,15 +2,9 @@ use super::*;
 use crate::data_api::{persist_api_snapshot, training_sample_id};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-fn env_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-}
 
 struct EnvGuard {
     key: &'static str,
@@ -60,7 +54,7 @@ fn temp_dir(label: &str) -> PathBuf {
 
 #[test]
 fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
-    let _lock = env_lock()
+    let _lock = env_test_lock()
         .lock()
         .unwrap_or_else(|poison| poison.into_inner());
     let root = temp_dir("latest");
@@ -219,7 +213,7 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
 
 #[test]
 fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward() {
-    let _lock = env_lock()
+    let _lock = env_test_lock()
         .lock()
         .unwrap_or_else(|poison| poison.into_inner());
     let root = temp_dir("history");
@@ -412,7 +406,7 @@ fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward()
 
 #[test]
 fn persisted_snapshot_history_prunes_older_entries_beyond_retention_limit() {
-    let _lock = env_lock()
+    let _lock = env_test_lock()
         .lock()
         .unwrap_or_else(|poison| poison.into_inner());
     let root = temp_dir("history-prune");
@@ -488,7 +482,7 @@ fn persisted_snapshot_history_prunes_older_entries_beyond_retention_limit() {
 
 #[test]
 fn persisted_snapshot_history_respects_configured_retention_override() {
-    let _lock = env_lock()
+    let _lock = env_test_lock()
         .lock()
         .unwrap_or_else(|poison| poison.into_inner());
     let root = temp_dir("history-retention-override");

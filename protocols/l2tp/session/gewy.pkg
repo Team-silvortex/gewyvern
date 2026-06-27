@@ -1,0 +1,6 @@
+name=l2tp_session
+version=0.17.0
+entry=main.gewy
+register.protocol=l2tp
+register.entry=session
+register.aliases=l2tp-session,l2tp_session,l2tp-data,l2tp_data

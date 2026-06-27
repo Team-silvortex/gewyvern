@@ -1,0 +1,7 @@
+name=pptp_control
+version=0.17.0
+entry=main.gewy
+register.protocol=pptp
+register.entry=control
+register.default=true
+register.aliases=pptp-control,pptp_control,pptp-tunnel,pptp_tunnel

@@ -101,6 +101,34 @@ Then continue with:
 - Subpages:
   - [docs/book/reference-gre-tunnel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gre-tunnel-surface.md)
 
+### VXLAN
+
+- Hub:
+  [docs/book/reference-vxlan-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-vxlan-surface.md)
+- Subpages:
+  - [docs/book/reference-vxlan-overlay-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-vxlan-overlay-surface.md)
+
+### GENEVE
+
+- Hub:
+  [docs/book/reference-geneve-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-geneve-surface.md)
+- Subpages:
+  - [docs/book/reference-geneve-overlay-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-geneve-overlay-surface.md)
+
+### L2TP
+
+- Hub:
+  [docs/book/reference-l2tp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-l2tp-surface.md)
+- Subpages:
+  - [docs/book/reference-l2tp-tunnel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-l2tp-tunnel-surface.md)
+
+### PPTP
+
+- Hub:
+  [docs/book/reference-pptp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pptp-surface.md)
+- Subpages:
+  - [docs/book/reference-pptp-tunnel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pptp-tunnel-surface.md)
+
 ### GTP-U
 
 - Hub:
@@ -425,11 +453,13 @@ The first high-yield family shelves are now in place for:
 - `amqp`
 - `coap`
 - `dhcp`
+- `geneve`
 - `icmp`
 - `gtpu`
 - `https`
 - `hy2`
 - `kerberos`
+- `l2tp`
 - `mdns`
 - `ssh`
 - `ntp`
@@ -440,12 +470,14 @@ The first high-yield family shelves are now in place for:
 - `imap`
 - `sip`
 - `pop3`
+- `pptp`
 - `memcached`
 - `radius`
 - `snmp`
 - `ssdp`
 - `stun`
 - `tls`
+- `vxlan`
 - `wireguard`
 
 That means the remaining work is no longer about closing the most obvious
@@ -472,7 +504,8 @@ The following families should usually stay as protocol-surface entries only for
 now, unless their entry count or operator ambiguity grows:
 
 - smaller families such as `tls`, `wireguard`, `stun`, `radius`, `ntp`,
-  `mdns`, `https`, `gtpu`, `dhcp`, `coap`, `ssdp`, and `snmp`
+  `mdns`, `https`, `gtpu`, `vxlan`, `geneve`, `l2tp`, `pptp`, `dhcp`, `coap`,
+  `ssdp`, and `snmp`
 - three-entry families such as `kerberos` and `hy2`,
   unless a user-facing workflow starts depending on them heavily
 

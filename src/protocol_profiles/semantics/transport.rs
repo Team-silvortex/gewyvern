@@ -164,6 +164,74 @@ pub(super) fn ipsec_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantic
     summary(category, operator_focus, typical_signal, None, None, None)
 }
 
+pub(super) fn vxlan_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "encap" => (
+            "overlay-encapsulation-path",
+            "VXLAN overlay traffic on UDP port 4789 carrying an inner Ethernet frame",
+            Some("UDP/4789 VXLAN packet"),
+        ),
+        "vni" => (
+            "overlay-tenant-path",
+            "VXLAN packet with the VNI-present flag set for tenant overlay analysis",
+            Some("VXLAN flags byte with I flag set"),
+        ),
+        _ => return None,
+    };
+    summary(category, operator_focus, typical_signal, None, None, None)
+}
+
+pub(super) fn geneve_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "encap" => (
+            "overlay-encapsulation-path",
+            "GENEVE overlay traffic on UDP port 6081 carrying a virtual network payload",
+            Some("UDP/6081 GENEVE packet"),
+        ),
+        "options" => (
+            "overlay-option-path",
+            "GENEVE packet carrying option metadata for extensible overlay debugging",
+            Some("GENEVE option length bits set"),
+        ),
+        _ => return None,
+    };
+    summary(category, operator_focus, typical_signal, None, None, None)
+}
+
+pub(super) fn l2tp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "control" => (
+            "tunnel-control-path",
+            "L2TP control traffic on UDP port 1701 establishing or maintaining a tunnel",
+            Some("UDP/1701 packet with L2TP control flags"),
+        ),
+        "session" => (
+            "tunnel-session-path",
+            "L2TP data session traffic on UDP port 1701 carrying tunneled payloads",
+            Some("UDP/1701 packet without the control flag"),
+        ),
+        _ => return None,
+    };
+    summary(category, operator_focus, typical_signal, None, None, None)
+}
+
+pub(super) fn pptp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "control" => (
+            "tunnel-control-path",
+            "PPTP TCP control channel traffic on port 1723 with the PPTP magic cookie",
+            Some("TCP/1723 PPTP control message"),
+        ),
+        "data" => (
+            "tunnel-data-path",
+            "PPTP data traffic carried over GRE after control-channel setup",
+            Some("IP protocol 47 GRE data packet"),
+        ),
+        _ => return None,
+    };
+    summary(category, operator_focus, typical_signal, None, None, None)
+}
+
 pub(super) fn hy2_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     match entry {
         "close" => failure(

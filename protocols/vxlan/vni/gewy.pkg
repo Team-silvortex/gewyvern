@@ -1,0 +1,6 @@
+name=vxlan_vni
+version=0.17.0
+entry=main.gewy
+register.protocol=vxlan
+register.entry=vni
+register.aliases=vxlan-vni,vxlan_vni,vni,tenant-overlay

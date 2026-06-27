@@ -12,7 +12,8 @@ pub(crate) use core_data_and_control::{
     gtpu_shelf, mdns_shelf, quic_shelf, radius_shelf, ssdp_shelf,
 };
 pub(crate) use core_web_and_datagram::{
-    arp_shelf, bgp_shelf, coap_shelf, dhcp_shelf, dns_shelf, gre_shelf, http_shelf, https_shelf,
-    hy2_shelf, icmp_shelf, icmpv6_shelf, ipsec_shelf, ndp_shelf, ntp_shelf, ospf_shelf, snmp_shelf,
-    stun_shelf, tls_shelf, wireguard_shelf,
+    arp_shelf, bgp_shelf, coap_shelf, dhcp_shelf, dns_shelf, geneve_shelf, gre_shelf, http_shelf,
+    https_shelf, hy2_shelf, icmp_shelf, icmpv6_shelf, ipsec_shelf, l2tp_shelf, ndp_shelf,
+    ntp_shelf, ospf_shelf, pptp_shelf, snmp_shelf, stun_shelf, tls_shelf, vxlan_shelf,
+    wireguard_shelf,
 };

@@ -193,6 +193,66 @@ pub(super) const GRE_PROFILE: ProtocolProfile = ProtocolProfile {
     ],
 };
 
+pub(super) const VXLAN_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "vxlan",
+    default_entry: "encap",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "encap",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/vxlan_encap_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "vni",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/vxlan_vni_path.gewy",
+        },
+    ],
+};
+
+pub(super) const GENEVE_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "geneve",
+    default_entry: "encap",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "encap",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/geneve_encap_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "options",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/geneve_options_path.gewy",
+        },
+    ],
+};
+
+pub(super) const L2TP_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "l2tp",
+    default_entry: "control",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "control",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/l2tp_control_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "session",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/l2tp_session_path.gewy",
+        },
+    ],
+};
+
+pub(super) const PPTP_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "pptp",
+    default_entry: "control",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "control",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/pptp_control_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "data",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/pptp_data_path.gewy",
+        },
+    ],
+};
+
 pub(super) const MDNS_PROFILE: ProtocolProfile = ProtocolProfile {
     name: "mdns",
     default_entry: "query",

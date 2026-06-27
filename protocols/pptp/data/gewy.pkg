@@ -1,0 +1,6 @@
+name=pptp_data
+version=0.17.0
+entry=main.gewy
+register.protocol=pptp
+register.entry=data
+register.aliases=pptp-data,pptp_data,pptp-gre,pptp_gre

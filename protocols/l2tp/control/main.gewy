@@ -1,0 +1,19 @@
+# gewyvern stable-subset protocol path
+
+fn l2tp_control_rules() =
+  let module_name = :l2tp_control_path
+  let control_narrative = "static:observed an L2TP control packet on UDP port 1701"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:l2tp_control)
+  |> reason_model(:l2tp_control_path_reason)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_tunnel)
+  |> program_rule(predicate: "datagram_observed:udp:remote:l2tp:local_to_remote:byte0_mask:0xc0:0xc0", stage: :datagram_observed, narrative: ${control_narrative}, dedupe: true, module: ${module_name}, phase: :send_control_message)
+  |> program_rule(predicate: "datagram_observed:udp:remote:l2tp:remote_to_local:byte0_mask:0xc0:0xc0", stage: :datagram_observed, narrative: ${control_narrative}, dedupe: true, module: ${module_name}, phase: :receive_control_message)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_tunnel)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:l2tp:local_to_remote:byte0_mask:0xc0:0xc0", key_event: :udp_datagram_seen, narrative: ${control_narrative}, dedupe: true, module: ${module_name}, phase: :send_control_message)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:l2tp:remote_to_local:byte0_mask:0xc0:0xc0", key_event: :udp_datagram_seen, narrative: ${control_narrative}, dedupe: true, module: ${module_name}, phase: :receive_control_message)
+
+template(:l2tp_control_path)
+|> window(:default_5s)
+|> use(:l2tp_control_rules)

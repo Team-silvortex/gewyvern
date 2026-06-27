@@ -31,10 +31,15 @@ use gewyvern::template::TemplateBinding;
 use std::fs;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+pub(super) fn env_test_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
 
 #[path = "tests/ambiguity.rs"]
 mod ambiguity;

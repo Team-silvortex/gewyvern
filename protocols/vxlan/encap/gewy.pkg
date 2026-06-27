@@ -1,0 +1,7 @@
+name=vxlan_encap
+version=0.17.0
+entry=main.gewy
+register.protocol=vxlan
+register.entry=encap
+register.default=true
+register.aliases=vxlan-tunnel,vxlan_tunnel,overlay,vni-overlay

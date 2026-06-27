@@ -362,6 +362,62 @@ pub(crate) fn gre_shelf(entry: &str) -> Option<ShelfMatch> {
     }
 }
 
+pub(crate) fn vxlan_shelf(entry: &str) -> Option<ShelfMatch> {
+    const OVERLAY: &[&str] = &["encap", "vni"];
+    if OVERLAY.contains(&entry) {
+        Some((
+            "overlay",
+            "Overlay",
+            "docs/book/reference-vxlan-overlay-surface.md",
+            OVERLAY,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn geneve_shelf(entry: &str) -> Option<ShelfMatch> {
+    const OVERLAY: &[&str] = &["encap", "options"];
+    if OVERLAY.contains(&entry) {
+        Some((
+            "overlay",
+            "Overlay",
+            "docs/book/reference-geneve-overlay-surface.md",
+            OVERLAY,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn l2tp_shelf(entry: &str) -> Option<ShelfMatch> {
+    const TUNNEL: &[&str] = &["control", "session"];
+    if TUNNEL.contains(&entry) {
+        Some((
+            "tunnel",
+            "Tunnel",
+            "docs/book/reference-l2tp-tunnel-surface.md",
+            TUNNEL,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn pptp_shelf(entry: &str) -> Option<ShelfMatch> {
+    const TUNNEL: &[&str] = &["control", "data"];
+    if TUNNEL.contains(&entry) {
+        Some((
+            "tunnel",
+            "Tunnel",
+            "docs/book/reference-pptp-tunnel-surface.md",
+            TUNNEL,
+        ))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn ipsec_shelf(entry: &str) -> Option<ShelfMatch> {
     const SECURITY: &[&str] = &["esp", "ah"];
     if SECURITY.contains(&entry) {

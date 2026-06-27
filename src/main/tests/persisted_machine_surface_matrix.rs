@@ -2,13 +2,7 @@ use super::*;
 use crate::data_api::persist_api_snapshot;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
-
-fn env_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-}
 
 struct EnvGuard {
     key: &'static str,
@@ -106,7 +100,7 @@ fn persisted_single_snapshot(state_home: &PathBuf, target_name: &str) -> (ApiSna
 
 #[test]
 fn persisted_machine_surfaces_match_live_api_for_core_payloads() {
-    let _lock = env_lock()
+    let _lock = env_test_lock()
         .lock()
         .unwrap_or_else(|poison| poison.into_inner());
     let root = temp_dir("core");
@@ -164,7 +158,7 @@ fn persisted_machine_surfaces_match_live_api_for_core_payloads() {
 
 #[test]
 fn persisted_machine_surfaces_match_live_api_for_runtime_and_capability_routes() {
-    let _lock = env_lock()
+    let _lock = env_test_lock()
         .lock()
         .unwrap_or_else(|poison| poison.into_inner());
     let root = temp_dir("runtime");

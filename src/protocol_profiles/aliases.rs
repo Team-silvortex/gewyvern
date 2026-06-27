@@ -12,6 +12,8 @@ mod aliases_entry_manifest;
 mod aliases_entry_manifest_continuation;
 #[path = "aliases_entry_manifest_latest.rs"]
 mod aliases_entry_manifest_latest;
+#[path = "aliases_entry_tunnel.rs"]
+mod aliases_entry_tunnel;
 #[path = "aliases_protocol.rs"]
 mod aliases_protocol;
 
@@ -50,4 +52,5 @@ pub(crate) fn protocol_entry_aliases() -> impl Iterator<Item = &'static Protocol
         .chain(aliases_entry_manifest_latest::PROTOCOL_ENTRY_ALIASES_MANIFEST_LATEST.iter())
         .chain(aliases_entry_extended::PROTOCOL_ENTRY_ALIASES_EXTENDED.iter())
         .chain(aliases_entry_latest_redis::PROTOCOL_ENTRY_ALIASES_LATEST_REDIS.iter())
+        .chain(aliases_entry_tunnel::PROTOCOL_ENTRY_ALIASES_TUNNEL.iter())
 }

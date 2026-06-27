@@ -128,6 +128,10 @@ Families:
 - [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
 - [docs/book/reference-ospf-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ospf-surface.md)
 - [docs/book/reference-gre-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gre-surface.md)
+- [docs/book/reference-vxlan-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-vxlan-surface.md)
+- [docs/book/reference-geneve-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-geneve-surface.md)
+- [docs/book/reference-l2tp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-l2tp-surface.md)
+- [docs/book/reference-pptp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pptp-surface.md)
 - [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
 - [docs/book/reference-mdns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mdns-surface.md)
 - [docs/book/reference-ssdp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssdp-surface.md)
@@ -145,7 +149,7 @@ Cluster hint:
 
 - key: `network-control-discovery`
 - operator hint: Start with discovery scope, control role, and time or tunnel posture; many issues here are topology-sensitive rather than application-payload-specific.
-- sibling protocols: `dns`, `mdns`, `ssdp`, `stun`, `coap`, `ntp`, `dhcp`, `arp`, `icmp`, `icmpv6`, `ndp`, `bgp`, `ospf`, `gre`, `snmp`, `wireguard`, `gtpu`
+- sibling protocols: `dns`, `mdns`, `ssdp`, `stun`, `coap`, `ntp`, `dhcp`, `arp`, `icmp`, `icmpv6`, `ndp`, `bgp`, `ospf`, `gre`, `vxlan`, `geneve`, `l2tp`, `pptp`, `snmp`, `wireguard`, `gtpu`
 
 <!-- gewyvern:protocol-groups:end -->
 

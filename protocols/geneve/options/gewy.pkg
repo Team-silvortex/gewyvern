@@ -1,0 +1,6 @@
+name=geneve_options
+version=0.17.0
+entry=main.gewy
+register.protocol=geneve
+register.entry=options
+register.aliases=geneve-options,geneve_options,geneve-tlv,geneve_tlv,optioned-overlay

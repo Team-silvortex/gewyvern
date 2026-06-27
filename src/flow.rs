@@ -265,6 +265,12 @@ pub fn infer_network_module_kind(
     if operation_id.starts_with("gtpu_") {
         return "tunnel_control";
     }
+    if operation_id.starts_with("vxlan_") || operation_id.starts_with("geneve_") {
+        return "overlay_tunnel";
+    }
+    if operation_id.starts_with("l2tp_") || operation_id.starts_with("pptp_") {
+        return "tunnel_control";
+    }
     if operation_id.starts_with("wireguard_") {
         return "tunnel_handshake";
     }
