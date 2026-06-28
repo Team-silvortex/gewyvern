@@ -20,6 +20,12 @@ pub(super) fn read_url(url: &str) -> Result<String, String> {
 pub(super) fn http_get(host: &str, port: u16, path: &str) -> Result<String, String> {
     let mut stream = TcpStream::connect((host, port))
         .map_err(|err| format!("failed to connect to {}:{}: {err}", host, port))?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .map_err(|err| format!("failed to configure read timeout: {err}"))?;
+    stream
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .map_err(|err| format!("failed to configure write timeout: {err}"))?;
     let request = format!(
         "GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nAccept: application/json\r\n\r\n",
         path, host

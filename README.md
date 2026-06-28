@@ -1,6 +1,7 @@
 # gewyvern v0.18.2
 
-Protocol-agnostic network debugging runtime driven by eBPF fragments.
+Protocol-aware local network debugging runtime driven by eBPF fragments,
+`gewylang` packages, and deterministic runtime surfaces.
 
 `gewyvern` is not trying to be a long-running observability platform. The
 current shape is a single-host, window-bounded debugger/runtime that:
@@ -9,7 +10,15 @@ current shape is a single-host, window-bounded debugger/runtime that:
 - ingests structured kernel facts
 - reconstructs transport flows and higher-level program flows
 - derives deterministic reason chains
-- exports a replayable JSON bundle
+- exports replayable JSON, HTML reports, and API-backed runtime surfaces
+
+The repository now also carries the nearby stack pieces that make the debugger
+usable as a system:
+
+- `gewyvern`: Linux/eBPF-oriented runtime, compiler front end, protocol
+  registry, persistence, config, logging, certificates, and runtime API
+- `etragon`: local learning/diagnosis sidecar that can enrich gewyvern output
+- `leserpent`: cross-platform control-plane shell for coordinating instances
 
 The long-term direction is:
 
@@ -39,6 +48,15 @@ cargo run -- --scan-all --json --summary-only
 # Render the same sweep as a visual HTML report
 cargo run -- --scan-all --summary-only --report-format html --out /tmp/gewyvern-scan-report.html
 
+# Validate startup, malformed input recovery, logging, shutdown, and cleanup
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_lifecycle_validation.sh
+
+# Start a bounded runtime API surface for local inspection
+cargo run -- --protocol http --entry request --serve \
+  --tcp-socket 127.0.0.1:9000 \
+  --api-socket 127.0.0.1:9100 \
+  --json --summary-only --max-sessions 1
+
 # Compile a DSL file or package without starting the runtime
 cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy --json
 ```
@@ -47,18 +65,20 @@ cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.ge
 `protocol_flows` array and `process_network_profiles` summary that show whether
 each matched protocol path is healthy or currently stuck at a missing
 transition. `--report-format html` renders the same single-target or full scan
-as a visual report.
+as a visual report. When `--api-socket` is active, the runtime also exposes
+machine surfaces such as `/health`, `/v1/runtime/resilience.json`,
+`/v1/protocols`, protocol catalog snapshots, certificate state, and latest
+session data.
 
 ## Status
 
 - project version: `0.18.2`
-- stage: active `0.18.x` line focused on protocol breadth, runtime confidence,
-  packaged validation, and clearer debugger behavior across local and
-  multi-instance runs
+- stage: active `0.18.x` line focused on protocol breadth, lifecycle
+  reliability, packaged validation, and clearer debugger behavior across local,
+  multi-instance, and physical Linux host runs
 - transport support: TCP + UDP
-- protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP,
-  WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP,
-  RADIUS, GTP-U, SMTP, SSH, SOCKS5, SIP, LDAP, SNMP, RTSP, DNS-over-TCP
+- protocol registry coverage: 49 protocol families and 262 package entries
+  under `protocols/`
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
 - replay: deterministic for exported sessions
@@ -66,7 +86,16 @@ as a visual report.
 - package shape: `gewy.pkg` manifest + `main.gewy` entry + pipeline
   `include(...)` expansion
 - package resolution: `gewyc lock` emits a resolved `gewy.lock` snapshot
-- workspace shape: `gewyvern` runtime crate + `gewyc` compiler CLI crate
+- runtime lifecycle: validated startup, malformed input recovery, structured
+  log evidence, explicit API shutdown, stop behavior, and temp cleanup
+- persistence: latest snapshots plus minor-line history artifacts under the
+  standard state root
+- config and state layout: documented standard paths with env overrides and
+  legacy fallback behavior
+- security posture: loopback-first local runtime, admin-token support for
+  protected remote API use, and certificate policy/state surfaces
+- workspace shape: `gewyvern` runtime crate, `gewyc` compiler CLI crate,
+  `apps/etragon`, and `apps/leserpent`
 - protocol registry shape: scanned gewy project packages under `protocols/`
 
 ## Current Release Line
@@ -75,41 +104,53 @@ as a visual report.
 
 - historical validation baseline: `v0.10.0`
 - current release line: `v0.18.x`
-- current focus: deepen protocol-family coverage, keep runtime/report/compiler
-  behavior predictable, and prove packaged/container paths on real Linux hosts
-- next likely work line: `v0.19.x`, unless a later architectural break
-  justifies a deliberately chosen `v2.0`
+- current focus: turn the broad protocol catalog into reliable debugger
+  behavior by proving startup, stop, logs, recovery, persistence, packaging,
+  and physical-host execution paths
+- next likely work line: `v0.19.x`, focused on reliability hardening and real
+  remote physical-machine validation before the `0.20.x` final pre-1.0 line
 
 The goal is still not “every protocol under the sun”. The `0.18.x` bar is that
 `gewyvern` is trustworthy enough to serve as infra for process-level network
 debugging: stable CLI/runtime behavior, stable DSL/compiler boundaries,
-reliable HTML/JSON reporting, and predictable operational performance.
+reliable HTML/JSON/API reporting, predictable operational performance, and
+clean lifecycle behavior with no mystery leftovers.
 
 Primary release-line shelves:
 
 - [ROADMAP.md](/Users/Shared/chroot/dev/gewyvern/ROADMAP.md)
 - [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
 - [docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md)
+- [docs/history/v0.18.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.18.x.md)
 - [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
 - [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
 - [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
+- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
+- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
+- [docs/book/reference-runtime-events.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-events.md)
 
 ## Supported Protocol Families
 
-- Web, secure transport, and modern proxying:
-  HTTP, HTTPS, TLS, QUIC, HTTP/3, Hysteria 2
-- Name resolution and discovery:
+- Web, secure transport, media, and proxying:
+  HTTP, HTTPS, TLS, QUIC, HTTP/3, Hysteria 2, RTSP, SIP, SOCKS5
+- Name resolution and local discovery:
   DNS, DNS-over-TCP, mDNS, SSDP
-- Datagram and control protocols:
-  STUN, CoAP, NTP, DHCP, WireGuard, SNMP, RADIUS, GTP-U, SIP
-- Data stores, brokers, and cache access:
-  Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP
-- Mail, directory, file-transfer, and remote access:
-  SMTP, IMAP, POP3, FTP, SSH, SOCKS5, LDAP, Kerberos, RTSP
+- L2/L3 discovery, routing, tunnels, and network control:
+  ARP, NDP, ICMP, ICMPv6, DHCP, NTP, BGP, OSPF, GRE, GTP-U, IPsec,
+  WireGuard, VXLAN, Geneve, L2TP, PPTP, STUN, CoAP, RADIUS, SNMP
+- Data stores, brokers, queues, and cache access:
+  Redis, Memcached, PostgreSQL, MySQL, MQTT, AMQP, Kafka, NATS
+- Mail, identity, directory, file-transfer, and remote desktop/access:
+  SMTP, IMAP, POP3, LDAP, Kerberos, FTP, SSH, SMB, RDP
 
 Most built-in entries model a concrete program-network path such as
 request/response, auth/query, relay setup, or publish/ack, rather than only
 matching a port number.
+
+For the full operator-facing protocol shelf, use
+[docs/book/reference-protocol-volume.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-volume.md)
+and
+[docs/book/reference-protocol-standard-library.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-standard-library.md).
 
 ## Repository Shape
 
@@ -168,6 +209,8 @@ If you only want the project's current core contract surfaces, start with:
 - [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
 - [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
+- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
 
 If you are orienting around architecture specifically, the shortest useful
 order is:
@@ -245,6 +288,7 @@ Validation and integration entrypoints:
 - `bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh`
 - `bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh`
 - `bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh`
+- `bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_lifecycle_validation.sh`
 - `bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh`
 
 Roundtrip demos:
@@ -264,8 +308,10 @@ The current line is already useful for:
 
 - bounded standalone debugging through CLI or `--serve`
 - scanned protocol-package resolution from `protocols/`
-- deterministic JSON and HTML reporting surfaces
+- deterministic JSON, HTML, and runtime API reporting surfaces
 - compiler-front-end and IR inspection through `gewyc`
+- explicit runtime lifecycle validation for startup, recovery, stop, logs, and
+  cleanup
 - packaged `deb` and `rpm` validation and release gating
 - nearby collaboration with `etragon` and `leserpent`
 
@@ -277,7 +323,9 @@ For the deeper durable shelves behind those capabilities, use:
 - [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
 - [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
 - [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+- [docs/book/reference-protocol-volume.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-volume.md)
 - [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
 - [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
 
 ## Core Model
@@ -306,7 +354,8 @@ Template
   -> Transport Flows
   -> Program Flows
   -> Reason Chains
-  -> Export JSON
+  -> Runtime API / Export JSON / HTML Report
+  -> Latest + History Snapshots
   -> Deterministic Replay
 ```
 
@@ -385,8 +434,9 @@ Then branch by topic:
 ## Near-Term Direction
 
 The next meaningful step is not only “more protocol branches”.
-It is continuing to make the DSL and IR more explicit, so protocol behavior is
-described as program-network-module structure rather than as a pile of
-protocol-specific special cases, while steadily closing the remaining gaps in
-the active `0.14.x` line and beyond. The concrete release path is tracked in
+It is making the broad protocol shelf feel like one integrated debugger:
+protocol packages should lower toward the same IR vocabulary, runtime exits
+should stay clean, logs and state should explain what happened, and the local
+operator loop should remain predictable before `0.19.x` physical-machine
+testing expands. The concrete release path is tracked in
 [ROADMAP.md](/Users/Shared/chroot/dev/gewyvern/ROADMAP.md).

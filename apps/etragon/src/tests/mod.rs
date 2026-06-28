@@ -79,6 +79,12 @@ fn post_json(url: &str, body: &str) -> Result<String, String> {
     let (host, port, path) = parse_http_url(url)?;
     let mut stream = TcpStream::connect((host.as_str(), port))
         .map_err(|err| format!("failed to connect to {}:{}: {err}", host, port))?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .map_err(|err| format!("failed to configure read timeout: {err}"))?;
+    stream
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .map_err(|err| format!("failed to configure write timeout: {err}"))?;
     let request = format!(
         "POST {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
         path,

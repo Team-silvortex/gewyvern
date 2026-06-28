@@ -26,7 +26,7 @@ pub fn default_python_worker_script() -> PathBuf {
 }
 
 pub struct PythonWorkerClient {
-    _child: Child,
+    child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
 }
@@ -65,7 +65,7 @@ impl PythonWorkerClient {
             .take()
             .ok_or_else(|| "python worker stdout is unavailable".to_string())?;
         Ok(Self {
-            _child: child,
+            child,
             stdin,
             stdout: BufReader::new(stdout),
         })
@@ -191,6 +191,16 @@ impl PythonWorkerClient {
             "ERR" => Err(format!("python worker error: {payload}")),
             _ => Err(format!("invalid python worker status '{status}'")),
         }
+    }
+}
+
+impl Drop for PythonWorkerClient {
+    fn drop(&mut self) {
+        if matches!(self.child.try_wait(), Ok(Some(_))) {
+            return;
+        }
+        let _ = self.child.kill();
+        let _ = self.child.wait();
     }
 }
 
