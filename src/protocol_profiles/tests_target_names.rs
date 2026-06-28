@@ -37,6 +37,7 @@ fn empty_or_unknown_template_id_has_no_protocol_target_name() {
 
 #[test]
 fn packaged_registry_root_target_name_uses_main_gewy_template() {
+    let _lock = super::tests_env::lock();
     let root = std::env::temp_dir().join(format!(
         "gewyvern-protocol-target-name-{}",
         std::time::SystemTime::now()

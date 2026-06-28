@@ -7,6 +7,27 @@ use gewyvern::gewyc::{
 };
 use std::time::Instant;
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|path| path.parent())
+        .expect("gewyc crate should live under crates/gewyc")
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|path| path.parent())
+        .expect("gewyc crate should live under crates/gewyc")
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn parse_cli_defaults_to_compile_command() {
     let cli = parse_cli(
@@ -259,9 +280,7 @@ fn parse_cli_accepts_lock_without_path() {
 
 #[test]
 fn binding_json_mentions_template_id() {
-    let report =
-        compile_binding_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let report = compile_binding_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let json = render_binding_report(&report, RenderFormat::Json);
     assert!(json.contains("\"surface_id\":\"gewyc.binding\""));
     assert!(json.contains(
@@ -273,9 +292,7 @@ fn binding_json_mentions_template_id() {
 
 #[test]
 fn cli_envelope_collects_binding_and_stages_from_shared_entrypoint() {
-    let envelope =
-        compile_envelope_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let envelope = compile_envelope_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     assert_eq!(
         envelope
             .binding
@@ -289,9 +306,7 @@ fn cli_envelope_collects_binding_and_stages_from_shared_entrypoint() {
 
 #[test]
 fn envelope_json_mentions_all_surfaces() {
-    let envelope =
-        compile_envelope_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let envelope = compile_envelope_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let json = render_envelope_report(&envelope, RenderFormat::Json);
     assert!(json.contains("\"surface_id\":\"gewyc.envelope\""));
     assert!(json.contains(
@@ -315,10 +330,7 @@ fn init_templates_include_manifest_and_main_entry() {
 
 #[test]
 fn frontend_command_renders_pipeline_graph_summary() {
-    let report = compile_frontend_report_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
-    )
-    .unwrap();
+    let report = compile_frontend_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let text = render_frontend_report(&report, RenderFormat::Text);
     let json = render_frontend_report(&report, RenderFormat::Json);
     assert!(text.contains("kind=pipeline"));
@@ -335,10 +347,7 @@ fn frontend_command_renders_pipeline_graph_summary() {
 
 #[test]
 fn frontend_command_focuses_graph_section() {
-    let report = compile_frontend_report_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
-    )
-    .unwrap();
+    let report = compile_frontend_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let text =
         render_frontend_report_with_focus(&report, RenderFormat::Text, Some(FrontendFocus::Graph));
     let json =
@@ -352,10 +361,7 @@ fn frontend_command_focuses_graph_section() {
 
 #[test]
 fn frontend_command_focuses_expansion_section() {
-    let report = compile_frontend_report_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
-    )
-    .unwrap();
+    let report = compile_frontend_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let text = render_frontend_report_with_focus(
         &report,
         RenderFormat::Text,
@@ -374,10 +380,7 @@ fn frontend_command_focuses_expansion_section() {
 
 #[test]
 fn frontend_command_compact_text_stays_short() {
-    let report = compile_frontend_report_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
-    )
-    .unwrap();
+    let report = compile_frontend_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let text = render_frontend_report_with_options(&report, RenderFormat::Text, None, true);
     assert!(text.contains("kind=pipeline"));
     assert!(text.contains("includes="));
@@ -387,9 +390,7 @@ fn frontend_command_compact_text_stays_short() {
 
 #[test]
 fn explain_command_renders_human_oriented_compiler_summary() {
-    let report =
-        compile_explain_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let report = compile_explain_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let text = render_explain_report(&report, RenderFormat::Text);
     let json = render_explain_report(&report, RenderFormat::Json);
     assert!(text.contains("surface=explain"));
@@ -405,9 +406,7 @@ fn explain_command_renders_human_oriented_compiler_summary() {
 
 #[test]
 fn explain_command_focuses_validation_section() {
-    let report =
-        compile_explain_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let report = compile_explain_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let text = render_explain_report_with_focus(
         &report,
         RenderFormat::Text,
@@ -426,9 +425,7 @@ fn explain_command_focuses_validation_section() {
 
 #[test]
 fn explain_command_focuses_binding_section() {
-    let report =
-        compile_explain_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let report = compile_explain_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let text =
         render_explain_report_with_focus(&report, RenderFormat::Text, Some(ExplainFocus::Binding));
     let json =
@@ -445,9 +442,7 @@ fn explain_command_focuses_binding_section() {
 
 #[test]
 fn explain_command_compact_text_stays_short() {
-    let report =
-        compile_explain_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let report = compile_explain_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let text = render_explain_report_with_options(&report, RenderFormat::Text, None, true);
     assert!(text.contains("surface=explain ok=true"));
     assert!(text.contains("template=udp_process_debug"));
@@ -482,11 +477,11 @@ fn lock_writes_resolved_dependency_and_source_entries() {
 #[test]
 #[ignore = "benchmark"]
 fn benchmark_gewyc_binding_report_udp_process_debug() {
-    let path = "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy";
+    let path = dsl_fixture_path("udp_process_debug.gewy");
     let start = Instant::now();
     let mut total_rules = 0usize;
     for _ in 0..200 {
-        let report = compile_binding_report_file(path).unwrap();
+        let report = compile_binding_report_file(&path).unwrap();
         total_rules += report
             .program_model
             .as_ref()
@@ -505,11 +500,11 @@ fn benchmark_gewyc_binding_report_udp_process_debug() {
 #[test]
 #[ignore = "benchmark"]
 fn benchmark_gewyc_frontend_report_udp_process_debug() {
-    let path = "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy";
+    let path = dsl_fixture_path("udp_process_debug.gewy");
     let start = Instant::now();
     let mut total_functions = 0usize;
     for _ in 0..200 {
-        let report = compile_frontend_report_file(path).unwrap();
+        let report = compile_frontend_report_file(&path).unwrap();
         total_functions += report.function_count;
     }
     let elapsed = start.elapsed();
@@ -524,11 +519,11 @@ fn benchmark_gewyc_frontend_report_udp_process_debug() {
 #[test]
 #[ignore = "benchmark"]
 fn benchmark_gewyc_explain_report_udp_process_debug() {
-    let path = "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy";
+    let path = dsl_fixture_path("udp_process_debug.gewy");
     let start = Instant::now();
     let mut total_findings = 0usize;
     for _ in 0..100 {
-        let report = compile_explain_report_file(path).unwrap();
+        let report = compile_explain_report_file(&path).unwrap();
         total_findings += report.findings.findings.len();
     }
     let elapsed = start.elapsed();
@@ -542,11 +537,11 @@ fn benchmark_gewyc_explain_report_udp_process_debug() {
 #[test]
 #[ignore = "benchmark"]
 fn benchmark_gewyc_envelope_report_udp_process_debug() {
-    let path = "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy";
+    let path = dsl_fixture_path("udp_process_debug.gewy");
     let start = Instant::now();
     let mut total_stage_count = 0usize;
     for _ in 0..100 {
-        let report = compile_envelope_file(path).unwrap();
+        let report = compile_envelope_file(&path).unwrap();
         total_stage_count += report.stages.parse.ok as usize;
         total_stage_count += report.stages.validation.ok as usize;
         total_stage_count += report.stages.diagnostics.ok as usize;
@@ -563,11 +558,11 @@ fn benchmark_gewyc_envelope_report_udp_process_debug() {
 #[test]
 #[ignore = "benchmark"]
 fn benchmark_gewyc_lockfile_protocol_publish_package() {
-    let root = "/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish";
+    let root = protocol_fixture_path("amqp/publish");
     let start = Instant::now();
     let mut total_len = 0usize;
     for _ in 0..100 {
-        let lock = gewyvern::dsl::build_lockfile(root).unwrap();
+        let lock = gewyvern::dsl::build_lockfile(&root).unwrap();
         total_len += lock.len();
     }
     let elapsed = start.elapsed();

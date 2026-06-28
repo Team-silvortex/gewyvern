@@ -176,9 +176,7 @@ fn ir_report_compare_models_summarizes_alignment_and_deltas() {
 
 #[test]
 fn explain_ir_focus_reports_builtin_reason_and_lowered_program_shape() {
-    let report =
-        compile_explain_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let report = compile_explain_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let text =
         render_explain_report_with_focus(&report, RenderFormat::Text, Some(ExplainFocus::Ir));
     let json =
@@ -200,15 +198,9 @@ fn explain_ir_focus_reports_builtin_reason_and_lowered_program_shape() {
 
 #[test]
 fn ir_json_surfaces_status_count_and_analysis_groups() {
-    let report = compile_ir_report_file(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy",
-    )
-    .unwrap();
+    let report = compile_ir_report_file(&protocol_fixture_path("amqp/publish/main.gewy")).unwrap();
     let json = render_explain_report_with_focus(
-        &compile_explain_report_file(
-            "/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy",
-        )
-        .unwrap(),
+        &compile_explain_report_file(&protocol_fixture_path("amqp/publish/main.gewy")).unwrap(),
         RenderFormat::Json,
         Some(ExplainFocus::Ir),
     );
@@ -223,10 +215,7 @@ fn ir_json_surfaces_status_count_and_analysis_groups() {
 
 #[test]
 fn compile_ir_report_file_materializes_ir_surface_directly() {
-    let report = compile_ir_report_file(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy",
-    )
-    .unwrap();
+    let report = compile_ir_report_file(&protocol_fixture_path("amqp/publish/main.gewy")).unwrap();
 
     assert_eq!(report.template_id, "amqp_basic_publish_path");
     assert_eq!(
@@ -241,10 +230,8 @@ fn compile_ir_report_file_materializes_ir_surface_directly() {
 
 #[test]
 fn render_ir_history_snapshot_exposes_archival_shape() {
-    let report = compile_explain_report_file(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy",
-    )
-    .unwrap();
+    let report =
+        compile_explain_report_file(&protocol_fixture_path("amqp/publish/main.gewy")).unwrap();
     let ir_report = report.ir_report.as_ref().expect("ir report should exist");
     let text = render_ir_history_snapshot(ir_report, RenderFormat::Text);
     let json = render_ir_history_snapshot(ir_report, RenderFormat::Json);
@@ -267,10 +254,8 @@ fn render_ir_history_snapshot_exposes_archival_shape() {
 
 #[test]
 fn explain_ir_focus_reports_protocol_phase_and_support_details() {
-    let report = compile_explain_report_file(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy",
-    )
-    .unwrap();
+    let report =
+        compile_explain_report_file(&protocol_fixture_path("amqp/publish/main.gewy")).unwrap();
     let text =
         render_explain_report_with_focus(&report, RenderFormat::Text, Some(ExplainFocus::Ir));
     let json =

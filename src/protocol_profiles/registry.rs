@@ -41,7 +41,9 @@ fn protocol_registry_roots() -> Vec<PathBuf> {
 }
 
 fn packaged_share_roots() -> Vec<PathBuf> {
-    discovered_share_roots(Path::new(PACKAGED_SHARE_ROOT))
+    let mut roots = discovered_share_roots(Path::new(PACKAGED_SHARE_ROOT));
+    roots.push(Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf());
+    roots
 }
 
 pub(super) fn resolve_built_in_dsl_path(raw: &str) -> String {

@@ -41,6 +41,22 @@ pub(super) fn env_test_lock() -> &'static Mutex<()> {
     LOCK.get_or_init(|| Mutex::new(()))
 }
 
+pub(super) fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+pub(super) fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
+
 #[path = "tests/ambiguity.rs"]
 mod ambiguity;
 #[cfg(target_family = "unix")]

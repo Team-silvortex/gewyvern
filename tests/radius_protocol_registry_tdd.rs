@@ -10,23 +10,38 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::time::{Duration, SystemTime};
 use support::{route_fact, sock_lineage_fact, udp_packet_fact_with_dir_and_ports_and_payload};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn radius_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("radius", Some("challenge")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/radius/challenge".to_string())
+        Some(protocol_fixture_path("radius/challenge").to_string())
     );
     assert_eq!(
         protocol_dsl_path("radius", Some("mfa")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/radius/challenge".to_string())
+        Some(protocol_fixture_path("radius/challenge").to_string())
     );
     assert_eq!(
         protocol_dsl_path("radius", Some("denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/radius/denied".to_string())
+        Some(protocol_fixture_path("radius/denied").to_string())
     );
     assert_eq!(
         protocol_dsl_path("radius", Some("reject")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/radius/denied".to_string())
+        Some(protocol_fixture_path("radius/denied").to_string())
     );
 }
 
@@ -55,16 +70,14 @@ fn radius_surface_uses_split_shelves_per_entry() {
 
 #[test]
 fn radius_dsl_files_compile_into_expected_operations() {
-    let challenge =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/radius_challenge_path.gewy").unwrap();
+    let challenge = compile_file(&dsl_fixture_path("radius_challenge_path.gewy")).unwrap();
     assert_eq!(challenge.template.id, "radius_challenge_path");
     assert_eq!(
         challenge.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("radius_challenge".into())
     );
 
-    let denied =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/radius_denied_path.gewy").unwrap();
+    let denied = compile_file(&dsl_fixture_path("radius_denied_path.gewy")).unwrap();
     assert_eq!(denied.template.id, "radius_denied_path");
     assert_eq!(
         denied.template.program_model.as_ref().unwrap().operation,
@@ -74,8 +87,7 @@ fn radius_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn radius_challenge_runtime_path_materializes_request_and_challenge() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/radius_challenge_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("radius_challenge_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 4825, 53000, "wpa_supplicant"));
@@ -117,8 +129,7 @@ fn radius_challenge_runtime_path_materializes_request_and_challenge() {
 
 #[test]
 fn radius_denied_runtime_path_materializes_request_and_reject() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/radius_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("radius_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 4826, 53001, "wpa_supplicant"));

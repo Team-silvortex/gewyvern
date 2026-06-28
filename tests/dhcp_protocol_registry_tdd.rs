@@ -13,6 +13,21 @@ use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime};
 use support::{route_fact, sock_lineage_fact};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 fn udp_packet_fact_with_payload_bytes(
     id: u64,
     cookie: u64,
@@ -75,19 +90,19 @@ fn udp_packet_fact_with_payload_bytes(
 fn dhcp_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("dhcp", Some("discover")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/dhcp/discover".to_string())
+        Some(protocol_fixture_path("dhcp/discover").to_string())
     );
     assert_eq!(
         protocol_dsl_path("dhcp", Some("offer-probe")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/dhcp/discover".to_string())
+        Some(protocol_fixture_path("dhcp/discover").to_string())
     );
     assert_eq!(
         protocol_dsl_path("dhcp", Some("request")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/dhcp/request".to_string())
+        Some(protocol_fixture_path("dhcp/request").to_string())
     );
     assert_eq!(
         protocol_dsl_path("dhcp", Some("renew")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/dhcp/request".to_string())
+        Some(protocol_fixture_path("dhcp/request").to_string())
     );
 }
 
@@ -117,16 +132,14 @@ fn dhcp_surface_keeps_generic_shelves_per_entry() {
 
 #[test]
 fn dhcp_dsl_files_compile_into_expected_operations() {
-    let discover =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_discover_path.gewy").unwrap();
+    let discover = compile_file(&dsl_fixture_path("dhcp_discover_path.gewy")).unwrap();
     assert_eq!(discover.template.id, "dhcp_discover_path");
     assert_eq!(
         discover.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("dhcp_discover".into())
     );
 
-    let request =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_request_path.gewy").unwrap();
+    let request = compile_file(&dsl_fixture_path("dhcp_request_path.gewy")).unwrap();
     assert_eq!(request.template.id, "dhcp_request_path");
     assert_eq!(
         request.template.program_model.as_ref().unwrap().operation,
@@ -136,8 +149,7 @@ fn dhcp_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn dhcp_discover_runtime_path_materializes_discover_and_offer() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_discover_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("dhcp_discover_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 4815, 68, "dhclient"));
@@ -183,8 +195,7 @@ fn dhcp_discover_runtime_path_materializes_discover_and_offer() {
 
 #[test]
 fn dhcp_request_runtime_path_rejects_offer_when_ack_is_expected() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_request_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("dhcp_request_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 4816, 68, "dhclient"));

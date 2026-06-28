@@ -2,9 +2,7 @@ use super::*;
 
 #[test]
 fn envelope_json_contains_all_frontend_surfaces() {
-    let input =
-        crate::dsl::read_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let input = crate::dsl::read_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let envelope = compile_envelope_str(&input);
     let json = render_envelope_report(&envelope, RenderFormat::Json);
     assert!(json.contains("\"surface_id\":\"gewyc.envelope\""));
@@ -25,10 +23,7 @@ fn envelope_json_contains_all_frontend_surfaces() {
 
 #[test]
 fn compile_frontend_report_file_materializes_pipeline_summary() {
-    let report = compile_frontend_report_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
-    )
-    .unwrap();
+    let report = compile_frontend_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     assert_eq!(report.kind, "pipeline");
     assert!(!report.function_nodes.is_empty());
     assert!(!report.graph_nodes.is_empty());
@@ -45,9 +40,7 @@ fn compile_frontend_report_file_materializes_pipeline_summary() {
 
 #[test]
 fn stages_json_includes_parse_and_diagnostics_sections() {
-    let report =
-        compile_stages_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let report = compile_stages_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let json = render_stages_report(&report, RenderFormat::Json);
     assert!(json.contains("\"surface_id\":\"gewyc.stages\""));
     assert!(json.contains(

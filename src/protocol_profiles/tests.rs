@@ -7,48 +7,24 @@ use std::fs;
 use std::os::unix::fs as unix_fs;
 use std::path::PathBuf;
 
-struct EnvGuard {
-    key: &'static str,
-    previous: Option<String>,
-}
-
-impl EnvGuard {
-    fn set(key: &'static str, value: String) -> Self {
-        let previous = std::env::var(key).ok();
-        unsafe {
-            std::env::set_var(key, value);
-        }
-        Self { key, previous }
-    }
-}
-
-impl Drop for EnvGuard {
-    fn drop(&mut self) {
-        match &self.previous {
-            Some(value) => unsafe {
-                std::env::set_var(self.key, value);
-            },
-            None => unsafe {
-                std::env::remove_var(self.key);
-            },
-        }
-    }
-}
+use super::tests_env::EnvGuard;
 
 #[test]
 fn http_entry_aliases_resolve_to_canonical_registry_targets() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("http", Some("client")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http/request".to_string())
+        Some(super::protocol_fixture_path("http/request"))
     );
     assert_eq!(
         protocol_dsl_path("http", Some("server")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http/response".to_string())
+        Some(super::protocol_fixture_path("http/response"))
     );
 }
 
 #[test]
 fn list_entries_prefers_canonical_http_entries() {
+    let _lock = super::tests_env::lock();
     let entries = protocol_entries("http").expect("http entries should resolve");
     assert!(entries.contains(&"request".to_string()));
     assert!(entries.contains(&"response".to_string()));
@@ -58,6 +34,7 @@ fn list_entries_prefers_canonical_http_entries() {
 
 #[test]
 fn built_in_protocol_summary_surfaces_entry_aliases() {
+    let _lock = super::tests_env::lock();
     let summary = protocol_summary("mysql").expect("mysql summary should exist");
     let session = summary
         .entries
@@ -71,6 +48,7 @@ fn built_in_protocol_summary_surfaces_entry_aliases() {
 
 #[test]
 fn protocol_surface_exposes_protocol_shelves_for_grouped_families() {
+    let _lock = super::tests_env::lock();
     let hy2 = protocol_surface("hy2", "tcp").expect("hy2 tcp surface should exist");
     let hy2_shelf = hy2.shelf.expect("hy2 tcp should have a shelf");
     assert_eq!(hy2_shelf.key, "relay");
@@ -213,6 +191,7 @@ fn protocol_surface_exposes_protocol_shelves_for_grouped_families() {
 
 #[test]
 fn protocol_surface_exposes_single_entry_shelves() {
+    let _lock = super::tests_env::lock();
     for (protocol, entry, key) in [
         ("tls", "client", "client"),
         ("stun", "binding", "binding"),
@@ -235,290 +214,300 @@ fn protocol_surface_exposes_single_entry_shelves() {
 
 #[test]
 fn mysql_query_entry_resolves_to_dedicated_query_package() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("mysql", Some("query")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/query".to_string())
+        Some(super::protocol_fixture_path("mysql/query"))
     );
 }
 
 #[test]
 fn rtsp_package_aliases_resolve_to_canonical_entries() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("rtsp-options", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/options".to_string())
+        Some(super::protocol_fixture_path("rtsp/options"))
     );
     assert_eq!(
         protocol_dsl_path("rtsp-describe", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/describe".to_string())
+        Some(super::protocol_fixture_path("rtsp/describe"))
     );
     assert_eq!(
         protocol_dsl_path("rtsp-setup", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/setup".to_string())
+        Some(super::protocol_fixture_path("rtsp/setup"))
     );
 }
 
 #[test]
 fn http_connect_family_aliases_resolve_to_canonical_entries() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("http-connect-auth-required", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http/auth-required".to_string())
+        Some(super::protocol_fixture_path("http/auth-required"))
     );
     assert_eq!(
         protocol_dsl_path("http-connect-auth-tunnel", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http/auth-tunnel".to_string())
+        Some(super::protocol_fixture_path("http/auth-tunnel"))
     );
     assert_eq!(
         protocol_dsl_path("http-connect-denied", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http/denied".to_string())
+        Some(super::protocol_fixture_path("http/denied"))
     );
 }
 
 #[test]
 fn memcached_entry_aliases_resolve_to_canonical_entries() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("memcached", Some("read")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/memcached/get".to_string())
+        Some(super::protocol_fixture_path("memcached/get"))
     );
     assert_eq!(
         protocol_dsl_path("memcached", Some("write")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/memcached/set".to_string())
+        Some(super::protocol_fixture_path("memcached/set"))
     );
 }
 
 #[test]
 fn mail_retrieval_entry_aliases_resolve_to_canonical_entries() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("imap", Some("login")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/imap/auth".to_string())
+        Some(super::protocol_fixture_path("imap/auth"))
     );
     assert_eq!(
         protocol_dsl_path("imap", Some("login-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/imap/auth-denied".to_string())
+        Some(super::protocol_fixture_path("imap/auth-denied"))
     );
     assert_eq!(
         protocol_dsl_path("imap", Some("mailbox")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/imap/select".to_string())
+        Some(super::protocol_fixture_path("imap/select"))
     );
     assert_eq!(
         protocol_dsl_path("pop3", Some("login")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/pop3/auth".to_string())
+        Some(super::protocol_fixture_path("pop3/auth"))
     );
     assert_eq!(
         protocol_dsl_path("pop3", Some("login-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/pop3/auth-denied".to_string())
+        Some(super::protocol_fixture_path("pop3/auth-denied"))
     );
     assert_eq!(
         protocol_dsl_path("pop3", Some("mailbox")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/pop3/list".to_string())
+        Some(super::protocol_fixture_path("pop3/list"))
     );
 }
 
 #[test]
 fn smtp_entry_aliases_resolve_to_canonical_entries() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("smtp", Some("login")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/auth".to_string())
+        Some(super::protocol_fixture_path("smtp/auth"))
     );
     assert_eq!(
         protocol_dsl_path("smtp", Some("login-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/auth-denied".to_string())
+        Some(super::protocol_fixture_path("smtp/auth-denied"))
     );
     assert_eq!(
         protocol_dsl_path("smtp", Some("sender")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/mail".to_string())
+        Some(super::protocol_fixture_path("smtp/mail"))
     );
     assert_eq!(
         protocol_dsl_path("smtp", Some("recipient")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/rcpt".to_string())
+        Some(super::protocol_fixture_path("smtp/rcpt"))
     );
     assert_eq!(
         protocol_dsl_path("smtp", Some("message")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/data".to_string())
+        Some(super::protocol_fixture_path("smtp/data"))
     );
     assert_eq!(
         protocol_dsl_path("smtp", Some("recipient-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/rcpt-denied".to_string())
+        Some(super::protocol_fixture_path("smtp/rcpt-denied"))
     );
     assert_eq!(
         protocol_dsl_path("smtp", Some("message-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/data-denied".to_string())
+        Some(super::protocol_fixture_path("smtp/data-denied"))
     );
 }
 
 #[test]
 fn ftp_entry_aliases_resolve_to_canonical_entries() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("ftp", Some("login")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/session".to_string())
+        Some(super::protocol_fixture_path("ftp/session"))
     );
     assert_eq!(
         protocol_dsl_path("ftp", Some("control")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/session".to_string())
+        Some(super::protocol_fixture_path("ftp/session"))
     );
     assert_eq!(
         protocol_dsl_path("ftp", Some("directory")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/list".to_string())
+        Some(super::protocol_fixture_path("ftp/list"))
     );
     assert_eq!(
         protocol_dsl_path("ftp", Some("download")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/retr".to_string())
+        Some(super::protocol_fixture_path("ftp/retr"))
     );
     assert_eq!(
         protocol_dsl_path("ftp", Some("upload")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/stor".to_string())
+        Some(super::protocol_fixture_path("ftp/stor"))
     );
     assert_eq!(
         protocol_dsl_path("ftp", Some("active-directory")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/active-list".to_string())
+        Some(super::protocol_fixture_path("ftp/active-list"))
     );
     assert_eq!(
         protocol_dsl_path("ftp", Some("active-download")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/active-retr".to_string())
+        Some(super::protocol_fixture_path("ftp/active-retr"))
     );
     assert_eq!(
         protocol_dsl_path("ftp", Some("active-upload")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/active-stor".to_string())
+        Some(super::protocol_fixture_path("ftp/active-stor"))
     );
     assert_eq!(
         protocol_dsl_path("ftp", Some("login-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ftp/denied".to_string())
+        Some(super::protocol_fixture_path("ftp/denied"))
     );
 }
 
 #[test]
 fn auth_family_entry_aliases_resolve_to_canonical_entries() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("kerberos", Some("login")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/as".to_string())
+        Some(super::protocol_fixture_path("kerberos/as"))
     );
     assert_eq!(
         protocol_dsl_path("kerberos", Some("initial-auth")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/as".to_string())
+        Some(super::protocol_fixture_path("kerberos/as"))
     );
     assert_eq!(
         protocol_dsl_path("kerberos", Some("ticket")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/tgs".to_string())
+        Some(super::protocol_fixture_path("kerberos/tgs"))
     );
     assert_eq!(
         protocol_dsl_path("kerberos", Some("service-ticket")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/tgs".to_string())
+        Some(super::protocol_fixture_path("kerberos/tgs"))
     );
     assert_eq!(
         protocol_dsl_path("kerberos", Some("login-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/as-error".to_string())
+        Some(super::protocol_fixture_path("kerberos/as-error"))
     );
     assert_eq!(
         protocol_dsl_path("kerberos", Some("initial-auth-error")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/as-error".to_string())
+        Some(super::protocol_fixture_path("kerberos/as-error"))
     );
     assert_eq!(
         protocol_dsl_path("radius", Some("login")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/radius/access".to_string())
+        Some(super::protocol_fixture_path("radius/access"))
     );
     assert_eq!(
         protocol_dsl_path("radius", Some("auth")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/radius/access".to_string())
+        Some(super::protocol_fixture_path("radius/access"))
     );
 }
 
 #[test]
 fn access_and_messaging_entry_aliases_resolve_to_canonical_entries() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("ssh", Some("connect")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ssh/session".to_string())
+        Some(super::protocol_fixture_path("ssh/session"))
     );
     assert_eq!(
         protocol_dsl_path("ssh", Some("login")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ssh/auth".to_string())
+        Some(super::protocol_fixture_path("ssh/auth"))
     );
     assert_eq!(
         protocol_dsl_path("ssh", Some("shell")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ssh/channel".to_string())
+        Some(super::protocol_fixture_path("ssh/channel"))
     );
     assert_eq!(
         protocol_dsl_path("socks5", Some("proxy")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/socks5/session".to_string())
+        Some(super::protocol_fixture_path("socks5/session"))
     );
     assert_eq!(
         protocol_dsl_path("socks5", Some("userpass")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/socks5/auth".to_string())
+        Some(super::protocol_fixture_path("socks5/auth"))
     );
     assert_eq!(
         protocol_dsl_path("socks5", Some("connect-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/socks5/denied".to_string())
+        Some(super::protocol_fixture_path("socks5/denied"))
     );
     assert_eq!(
         protocol_dsl_path("socks5", Some("login-connect-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/socks5/auth-connect-denied".to_string())
+        Some(super::protocol_fixture_path("socks5/auth-connect-denied"))
     );
     assert_eq!(
         protocol_dsl_path("ldap", Some("login")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ldap/bind".to_string())
+        Some(super::protocol_fixture_path("ldap/bind"))
     );
     assert_eq!(
         protocol_dsl_path("ldap", Some("directory")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ldap/search".to_string())
+        Some(super::protocol_fixture_path("ldap/search"))
     );
     assert_eq!(
         protocol_dsl_path("ldap", Some("directory-session")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ldap/session".to_string())
+        Some(super::protocol_fixture_path("ldap/session"))
     );
     assert_eq!(
         protocol_dsl_path("ldap", Some("replication")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ldap/sync".to_string())
+        Some(super::protocol_fixture_path("ldap/sync"))
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("query")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/get".to_string())
+        Some(super::protocol_fixture_path("snmp/get"))
     );
     assert_eq!(
         protocol_dsl_path("sip", Some("login")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/sip/register".to_string())
+        Some(super::protocol_fixture_path("sip/register"))
     );
     assert_eq!(
         protocol_dsl_path("rtsp", Some("probe")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/options".to_string())
+        Some(super::protocol_fixture_path("rtsp/options"))
     );
     assert_eq!(
         protocol_dsl_path("rtsp", Some("metadata")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/describe".to_string())
+        Some(super::protocol_fixture_path("rtsp/describe"))
     );
     assert_eq!(
         protocol_dsl_path("rtsp", Some("stream")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/setup".to_string())
+        Some(super::protocol_fixture_path("rtsp/setup"))
     );
     assert_eq!(
         protocol_dsl_path("amqp", Some("login")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/start".to_string())
+        Some(super::protocol_fixture_path("amqp/start"))
     );
     assert_eq!(
         protocol_dsl_path("amqp-auth-denied", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/auth-denied".to_string())
+        Some(super::protocol_fixture_path("amqp/auth-denied"))
     );
     assert_eq!(
         protocol_dsl_path("amqp", Some("login-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/auth-denied".to_string())
+        Some(super::protocol_fixture_path("amqp/auth-denied"))
     );
     assert_eq!(
         protocol_dsl_path("amqp", Some("connect")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/session".to_string())
+        Some(super::protocol_fixture_path("amqp/session"))
     );
     assert_eq!(
         protocol_dsl_path("amqp", Some("send")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish".to_string())
+        Some(super::protocol_fixture_path("amqp/publish"))
     );
     assert_eq!(
         protocol_dsl_path("mqtt", Some("session")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/connect".to_string())
+        Some(super::protocol_fixture_path("mqtt/connect"))
     );
     assert_eq!(
         protocol_dsl_path("redis", Some("health")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/redis/ping".to_string())
+        Some(super::protocol_fixture_path("redis/ping"))
     );
 }
 
 #[test]
 fn built_in_dsl_path_falls_back_to_packaged_share_root() {
+    let _lock = super::tests_env::lock();
     let root = std::env::temp_dir().join(format!(
         "gewyvern-packaged-dsl-{}",
         std::time::SystemTime::now()
@@ -531,7 +520,6 @@ fn built_in_dsl_path_falls_back_to_packaged_share_root() {
     let file = dsl_dir.join("http_request_path.gewy");
     fs::write(&file, "template(:http_request_path)\n").unwrap();
     let _guard = EnvGuard::set("GEWY_SHARE_ROOT", root.to_string_lossy().into_owned());
-
     let resolved = resolve_built_in_dsl_path("/definitely/missing/dsl/http_request_path.gewy");
     fs::remove_dir_all(&root).unwrap();
 
@@ -540,6 +528,7 @@ fn built_in_dsl_path_falls_back_to_packaged_share_root() {
 
 #[test]
 fn packaged_registry_root_is_used_when_explicitly_set() {
+    let _lock = super::tests_env::lock();
     let root = std::env::temp_dir().join(format!(
         "gewyvern-packaged-protocol-registry-{}",
         std::time::SystemTime::now()
@@ -551,7 +540,7 @@ fn packaged_registry_root_is_used_when_explicitly_set() {
     fs::create_dir_all(&package_dir).unwrap();
     fs::write(
         package_dir.join("gewy.pkg"),
-        "name=http_request\nversion=0.15.0\nentry=main.gewy\nregister.protocol=http\nregister.entry=request\nregister.default=true\n",
+        "name=http_request\nversion=0.18.2\nentry=main.gewy\nregister.protocol=http\nregister.entry=request\nregister.default=true\n",
     )
     .unwrap();
     fs::write(package_dir.join("main.gewy"), "template(:http_request)\n").unwrap();
@@ -584,7 +573,7 @@ fn registry_scan_ignores_symlinked_directories() {
     fs::create_dir_all(&package_dir).unwrap();
     fs::write(
         package_dir.join("gewy.pkg"),
-        "name=mysql_session\nversion=0.15.0\nentry=main.gewy\nregister.protocol=mysql\nregister.entry=session\nregister.default=true\n",
+        "name=mysql_session\nversion=0.18.2\nentry=main.gewy\nregister.protocol=mysql\nregister.entry=session\nregister.default=true\n",
     )
     .unwrap();
     fs::write(package_dir.join("main.gewy"), "template(:mysql_session)\n").unwrap();

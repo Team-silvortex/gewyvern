@@ -59,7 +59,7 @@ fn udp_packet_fact_with_payload_bytes_for_tests(
 
 #[test]
 fn snmp_v3_auth_response_keeps_security_surface_healthy() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_v3_auth_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("snmp_v3_auth_path.gewy"))
         .expect("snmp_v3_auth_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -120,7 +120,7 @@ fn snmp_v3_auth_response_keeps_security_surface_healthy() {
 
 #[test]
 fn snmp_v3_priv_response_keeps_security_surface_healthy() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_v3_priv_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("snmp_v3_priv_path.gewy"))
         .expect("snmp_v3_priv_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -181,7 +181,7 @@ fn snmp_v3_priv_response_keeps_security_surface_healthy() {
 
 #[test]
 fn snmp_trap_send_keeps_notify_surface_healthy() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_trap_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("snmp_trap_path.gewy"))
         .expect("snmp_trap_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -234,7 +234,7 @@ fn snmp_trap_send_keeps_notify_surface_healthy() {
 
 #[test]
 fn snmp_trap_recv_keeps_manage_surface_healthy() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_trap_recv_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("snmp_trap_recv_path.gewy"))
         .expect("snmp_trap_recv_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(

@@ -13,11 +13,26 @@ use support::{
     udp_quic_meta_fact,
 };
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn quic_retry_registry_entry_resolves_to_packaged_path() {
     assert_eq!(
         protocol_dsl_path("quic", Some("address-validation")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/quic/retry".to_string())
+        Some(protocol_fixture_path("quic/retry").to_string())
     );
 }
 
@@ -52,7 +67,7 @@ fn quic_surface_uses_split_shelves_per_entry() {
 
 #[test]
 fn quic_retry_dsl_file_compiles_into_expected_operation() {
-    let retry = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_retry_path.gewy").unwrap();
+    let retry = compile_file(&dsl_fixture_path("quic_retry_path.gewy")).unwrap();
     assert_eq!(retry.template.id, "quic_retry_path");
     assert_eq!(
         retry.template.program_model.as_ref().unwrap().operation,
@@ -62,7 +77,7 @@ fn quic_retry_dsl_file_compiles_into_expected_operation() {
 
 #[test]
 fn quic_close_dsl_file_compiles_into_expected_operation() {
-    let close = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_close_path.gewy").unwrap();
+    let close = compile_file(&dsl_fixture_path("quic_close_path.gewy")).unwrap();
     assert_eq!(close.template.id, "quic_close_path");
     assert_eq!(
         close.template.program_model.as_ref().unwrap().operation,
@@ -72,8 +87,7 @@ fn quic_close_dsl_file_compiles_into_expected_operation() {
 
 #[test]
 fn quic_local_close_dsl_file_compiles_into_expected_operation() {
-    let close =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_local_close_path.gewy").unwrap();
+    let close = compile_file(&dsl_fixture_path("quic_local_close_path.gewy")).unwrap();
     assert_eq!(close.template.id, "quic_local_close_path");
     assert_eq!(
         close.template.program_model.as_ref().unwrap().operation,
@@ -83,8 +97,7 @@ fn quic_local_close_dsl_file_compiles_into_expected_operation() {
 
 #[test]
 fn quic_retry_runtime_path_materializes_initial_and_retry_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_retry_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_retry_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 5901, 4433, "quic-client"));
@@ -126,8 +139,7 @@ fn quic_retry_runtime_path_materializes_initial_and_retry_datagrams() {
 
 #[test]
 fn quic_close_runtime_path_materializes_handshake_and_close_frames() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_close_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_close_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 5902, 4433, "quic-client"));
@@ -199,8 +211,7 @@ fn quic_close_runtime_path_materializes_handshake_and_close_frames() {
 
 #[test]
 fn quic_local_close_runtime_path_materializes_handshake_and_local_close_frames() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_local_close_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_local_close_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 5903, 8443, "quic-server"));

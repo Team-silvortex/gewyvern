@@ -62,20 +62,20 @@ fn daemon_training_route_invalidates_cache_and_emits_learned_route() {
     .expect("daemon should republish learned route after training");
     assert!(retrained.contains("\"learned_label\":\"network_observe_longer\""));
 
-    let summary = read_url(&format!(
-        "http://{}/v1/latest/recommendation-summary.json",
-        bind_addr
-    ))
+    let summary = wait_for_body(
+        &format!("http://{}/v1/latest/recommendation-summary.json", bind_addr),
+        |body| body.contains("\"train_count\":1"),
+    )
     .expect("daemon should expose enriched recommendation summary");
     assert!(summary.contains("\"support_score\":"));
     assert!(summary.contains("\"train_count\":1"));
     assert!(summary.contains("\"last_trained_unix_ms\":"));
     assert!(summary.contains("\"score_margin\":"));
 
-    let learning = read_url(&format!(
-        "http://{}/v1/latest/learning-summary.json",
-        bind_addr
-    ))
+    let learning = wait_for_body(
+        &format!("http://{}/v1/latest/learning-summary.json", bind_addr),
+        |body| body.contains("\"top_learned_label\":\"network_observe_longer\""),
+    )
     .expect("daemon should expose enriched learning summary");
     assert!(learning.contains("\"learning_active\":true"));
     assert!(learning.contains("\"learned_routes\":1"));
@@ -115,10 +115,13 @@ fn daemon_training_route_invalidates_cache_and_emits_learned_route() {
     assert!(learning.contains("\"label\":\"network_observe_longer\""));
     assert!(learning.contains("\"scope\":\"latest\""));
 
-    let enrichment = read_url(&format!(
-        "http://{}/v1/latest/evidence-chain-enrichment.json",
-        bind_addr
-    ))
+    let enrichment = wait_for_body(
+        &format!(
+            "http://{}/v1/latest/evidence-chain-enrichment.json",
+            bind_addr
+        ),
+        |body| body.contains("\"primary_label\":\"network_observe_longer\""),
+    )
     .expect("daemon should expose standalone evidence-chain enrichment");
     assert!(enrichment.contains("\"status\":\"emerging\""));
     assert!(enrichment.contains("\"enrichment_strength_band\":\"low\""));
@@ -150,10 +153,10 @@ fn daemon_training_route_invalidates_cache_and_emits_learned_route() {
     assert!(status.contains("\"learning_active\":true"));
     assert!(status.contains("\"learned_routes\":1"));
 
-    let handoff = read_url(&format!(
-        "http://{}/v1/latest/handoff-summary.json",
-        bind_addr
-    ))
+    let handoff = wait_for_body(
+        &format!("http://{}/v1/latest/handoff-summary.json", bind_addr),
+        |body| body.contains("\"has_evidence_chain_enrichment\":true"),
+    )
     .expect("daemon should expose latest handoff summary");
     assert!(handoff.contains("\"source_scope\":\"latest\""));
     assert!(handoff.contains("\"has_evidence_chain_enrichment\":true"));
@@ -246,10 +249,13 @@ fn daemon_diagnostic_opinion_route_emits_ready_direct_protocol_failure() {
     assert!(opinion.contains("\"handoff_readiness\":\"automation_worthy\""));
     assert!(opinion.contains("\"gewyvern_merge_hint\":\"operator_guidance_candidate\""));
 
-    let enrichment = read_url(&format!(
-        "http://{}/v1/latest/evidence-chain-enrichment.json",
-        bind_addr
-    ))
+    let enrichment = wait_for_body(
+        &format!(
+            "http://{}/v1/latest/evidence-chain-enrichment.json",
+            bind_addr
+        ),
+        |body| body.contains("\"status\":\"reinforced\""),
+    )
     .expect("daemon should expose reinforced evidence-chain enrichment");
     assert!(enrichment.contains("\"status\":\"reinforced\""));
     assert!(enrichment.contains("\"enrichment_strength_band\":\"high\""));
@@ -260,10 +266,10 @@ fn daemon_diagnostic_opinion_route_emits_ready_direct_protocol_failure() {
     );
     assert!(enrichment.contains("\"primary_label\":\"targeted_escalation\""));
 
-    let handoff = read_url(&format!(
-        "http://{}/v1/latest/handoff-summary.json",
-        bind_addr
-    ))
+    let handoff = wait_for_body(
+        &format!("http://{}/v1/latest/handoff-summary.json", bind_addr),
+        |body| body.contains("\"has_diagnostic_opinion\":true"),
+    )
     .expect("daemon should expose latest handoff summary");
     assert!(handoff.contains("\"source_scope\":\"latest\""));
     assert!(handoff.contains("\"has_evidence_chain_enrichment\":true"));
@@ -390,20 +396,26 @@ fn daemon_target_training_route_emits_learned_route_for_target() {
     .expect("daemon should republish learned route for target after training");
     assert!(retrained.contains("\"learned_label\":\"network_observe_longer\""));
 
-    let summary = read_url(&format!(
-        "http://{}/v1/latest/targets/scan:http:request/recommendation-summary.json",
-        bind_addr
-    ))
+    let summary = wait_for_body(
+        &format!(
+            "http://{}/v1/latest/targets/scan:http:request/recommendation-summary.json",
+            bind_addr
+        ),
+        |body| body.contains("\"train_count\":1"),
+    )
     .expect("daemon should expose enriched target recommendation summary");
     assert!(summary.contains("\"support_score\":"));
     assert!(summary.contains("\"train_count\":1"));
     assert!(summary.contains("\"last_trained_unix_ms\":"));
     assert!(summary.contains("\"score_margin\":"));
 
-    let learning = read_url(&format!(
-        "http://{}/v1/latest/targets/scan:http:request/learning-summary.json",
-        bind_addr
-    ))
+    let learning = wait_for_body(
+        &format!(
+            "http://{}/v1/latest/targets/scan:http:request/learning-summary.json",
+            bind_addr
+        ),
+        |body| body.contains("\"top_learned_label\":\"network_observe_longer\""),
+    )
     .expect("daemon should expose enriched target learning summary");
     assert!(learning.contains("\"learning_active\":true"));
     assert!(learning.contains("\"learned_routes\":1"));
@@ -443,10 +455,13 @@ fn daemon_target_training_route_emits_learned_route_for_target() {
     assert!(learning.contains("\"label\":\"network_observe_longer\""));
     assert!(learning.contains("\"scope\":\"target\""));
 
-    let target_enrichment = read_url(&format!(
-        "http://{}/v1/latest/targets/scan:http:request/evidence-chain-enrichment.json",
-        bind_addr
-    ))
+    let target_enrichment = wait_for_body(
+        &format!(
+            "http://{}/v1/latest/targets/scan:http:request/evidence-chain-enrichment.json",
+            bind_addr
+        ),
+        |body| body.contains("\"primary_label\":\"network_observe_longer\""),
+    )
     .expect("daemon should expose target evidence-chain enrichment");
     assert!(target_enrichment.contains("\"status\":\"emerging\""));
     assert!(target_enrichment.contains("\"enrichment_strength_band\":\"low\""));
@@ -461,10 +476,10 @@ fn daemon_target_training_route_emits_learned_route_for_target() {
     .expect("daemon should expose target diagnostic opinion");
     assert_eq!(target_opinion, "null");
 
-    let batch_learning = read_url(&format!(
-        "http://{}/v1/latest/learning-summary.json",
-        bind_addr
-    ))
+    let batch_learning = wait_for_body(
+        &format!("http://{}/v1/latest/learning-summary.json", bind_addr),
+        |body| body.contains("\"targets\":[\"scan:http:request\"]"),
+    )
     .expect("daemon should expose batch learning summary with queue aggregation");
     assert!(batch_learning.contains("\"queue_summary\":{\"total_actions\":1"));
     assert!(batch_learning.contains("\"top_action\":\"keep_observing\""));
@@ -496,10 +511,13 @@ fn daemon_target_training_route_emits_learned_route_for_target() {
     assert!(index.contains("\"handoff_summary\":{"));
     assert!(index.contains("\"has_evidence_chain_enrichment\":true"));
 
-    let target_handoff = read_url(&format!(
-        "http://{}/v1/latest/targets/scan:http:request/handoff-summary.json",
-        bind_addr
-    ))
+    let target_handoff = wait_for_body(
+        &format!(
+            "http://{}/v1/latest/targets/scan:http:request/handoff-summary.json",
+            bind_addr
+        ),
+        |body| body.contains("\"has_evidence_chain_enrichment\":true"),
+    )
     .expect("daemon should expose target handoff summary");
     assert!(target_handoff.contains("\"source_scope\":\"target\""));
     assert!(target_handoff.contains("\"has_evidence_chain_enrichment\":true"));

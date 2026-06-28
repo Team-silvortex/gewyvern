@@ -1,13 +1,9 @@
 #[cfg(target_os = "linux")]
 use gewyvern::loader::{LINUX_SMOKE_FRAGMENT_ID, linux_tracepoint_smoke_failures};
 #[cfg(target_os = "linux")]
-use gewyvern::reason::ReasonProfile;
-#[cfg(target_os = "linux")]
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 #[cfg(target_os = "linux")]
-use gewyvern::template::{
-    Template, default_5s_window, handshake_debug_template, udp_debug_template,
-};
+use gewyvern::template::{handshake_debug_template, udp_debug_template};
 
 #[cfg(target_os = "linux")]
 #[test]

@@ -10,23 +10,38 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::time::{Duration, SystemTime};
 use support::{route_fact, sock_lineage_fact, udp_packet_fact_with_dir_and_ports_and_payload};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn ntp_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("ntp", Some("query")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ntp/query".to_string())
+        Some(protocol_fixture_path("ntp/query").to_string())
     );
     assert_eq!(
         protocol_dsl_path("ntp", Some("probe")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ntp/query".to_string())
+        Some(protocol_fixture_path("ntp/query").to_string())
     );
     assert_eq!(
         protocol_dsl_path("ntp", Some("sync")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ntp/sync".to_string())
+        Some(protocol_fixture_path("ntp/sync").to_string())
     );
     assert_eq!(
         protocol_dsl_path("ntp", Some("clock-sync")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ntp/sync".to_string())
+        Some(protocol_fixture_path("ntp/sync").to_string())
     );
 }
 
@@ -51,14 +66,14 @@ fn ntp_surface_keeps_generic_shelves_per_entry() {
 
 #[test]
 fn ntp_dsl_files_compile_into_expected_operations() {
-    let query = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_query_path.gewy").unwrap();
+    let query = compile_file(&dsl_fixture_path("ntp_query_path.gewy")).unwrap();
     assert_eq!(query.template.id, "ntp_query_path");
     assert_eq!(
         query.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("ntp_query".into())
     );
 
-    let sync = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_sync_path.gewy").unwrap();
+    let sync = compile_file(&dsl_fixture_path("ntp_sync_path.gewy")).unwrap();
     assert_eq!(sync.template.id, "ntp_sync_path");
     assert_eq!(
         sync.template.program_model.as_ref().unwrap().operation,
@@ -68,8 +83,7 @@ fn ntp_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn ntp_query_runtime_path_materializes_query_and_response() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_query_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ntp_query_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 5813, 7000, "chrony-query"));
@@ -117,7 +131,7 @@ fn ntp_query_runtime_path_materializes_query_and_response() {
 
 #[test]
 fn ntp_sync_runtime_path_rejects_query_byte_as_sync_request() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_sync_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ntp_sync_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 5814, 7001, "chronyd"));

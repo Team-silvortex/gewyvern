@@ -10,6 +10,21 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 fn gre_packet_fact(id: u64, dir: PacketDir, prefix2: u16) -> FactEnvelope {
     let [byte0, byte1] = prefix2.to_be_bytes();
     FactEnvelope {
@@ -50,15 +65,15 @@ fn gre_packet_fact(id: u64, dir: PacketDir, prefix2: u16) -> FactEnvelope {
 fn gre_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("gre", Some("encap")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/gre/encap".to_string())
+        Some(protocol_fixture_path("gre/encap").to_string())
     );
     assert_eq!(
         protocol_dsl_path("gre-tunnel", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/gre/encap".to_string())
+        Some(protocol_fixture_path("gre/encap").to_string())
     );
     assert_eq!(
         protocol_dsl_path("gre", Some("keep-alive")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/gre/keepalive".to_string())
+        Some(protocol_fixture_path("gre/keepalive").to_string())
     );
 }
 
@@ -96,15 +111,14 @@ fn gre_surface_exposes_tunnel_semantics() {
 
 #[test]
 fn gre_dsl_files_compile_into_expected_operations() {
-    let encap = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gre_encap_path.gewy").unwrap();
+    let encap = compile_file(&dsl_fixture_path("gre_encap_path.gewy")).unwrap();
     assert_eq!(encap.template.id, "gre_encap_path");
     assert_eq!(
         encap.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("gre_encap".into())
     );
 
-    let keepalive =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gre_keepalive_path.gewy").unwrap();
+    let keepalive = compile_file(&dsl_fixture_path("gre_keepalive_path.gewy")).unwrap();
     assert_eq!(keepalive.template.id, "gre_keepalive_path");
     assert_eq!(
         keepalive.template.program_model.as_ref().unwrap().operation,
@@ -114,8 +128,7 @@ fn gre_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn gre_encap_runtime_path_materializes_tunnel_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gre_encap_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("gre_encap_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(gre_packet_fact(1, PacketDir::Egress, 0x2000));
@@ -143,8 +156,7 @@ fn gre_encap_runtime_path_materializes_tunnel_stages() {
 
 #[test]
 fn gre_keepalive_runtime_path_materializes_liveness_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gre_keepalive_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("gre_keepalive_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(gre_packet_fact(1, PacketDir::Egress, 0x0000));

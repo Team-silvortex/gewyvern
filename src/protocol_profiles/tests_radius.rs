@@ -38,15 +38,15 @@ fn radius_surfaces_split_access_challenge_and_denied_shelves() {
 fn radius_aliases_resolve_to_canonical_entries() {
     assert_eq!(
         protocol_dsl_path("radius", Some("radius-access")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/radius/access".to_string())
+        Some(super::protocol_fixture_path("radius/access"))
     );
     assert_eq!(
         protocol_dsl_path("radius", Some("otp")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/radius/challenge".to_string())
+        Some(super::protocol_fixture_path("radius/challenge"))
     );
     assert_eq!(
         protocol_dsl_path("radius", Some("reject")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/radius/denied".to_string())
+        Some(super::protocol_fixture_path("radius/denied"))
     );
 }
 

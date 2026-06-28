@@ -173,7 +173,6 @@ pub(super) fn filtered_surface_links(
 
 pub(super) fn markdown_book_links(content: &str) -> BTreeSet<String> {
     let mut links = BTreeSet::new();
-    let prefix = concat!(env!("CARGO_MANIFEST_DIR"), "/");
     let mut rest = content;
     while let Some(start) = rest.find("](") {
         let candidate = &rest[start + 2..];
@@ -181,12 +180,30 @@ pub(super) fn markdown_book_links(content: &str) -> BTreeSet<String> {
             break;
         };
         let link = &candidate[..end];
-        if let Some(relative) = link.strip_prefix(prefix) {
+        if let Some(relative) = normalize_repo_link(link) {
             links.insert(relative.to_string());
         }
         rest = &candidate[end + 1..];
     }
     links
+}
+
+pub(super) fn normalize_repo_link(link: &str) -> Option<&str> {
+    let manifest_prefix = concat!(env!("CARGO_MANIFEST_DIR"), "/");
+    if let Some(relative) = link.strip_prefix(manifest_prefix) {
+        return Some(relative);
+    }
+    if link.starts_with("docs/") || link.starts_with("scripts/") || link.starts_with("dsl/") {
+        return Some(link);
+    }
+    let marker = "/gewyvern/";
+    link.find(marker)
+        .map(|index| &link[index + marker.len()..])
+        .filter(|relative| {
+            relative.starts_with("docs/")
+                || relative.starts_with("scripts/")
+                || relative.starts_with("dsl/")
+        })
 }
 
 pub(super) fn markdown_backtick_tokens(content: &str) -> BTreeSet<String> {

@@ -373,7 +373,7 @@ fn failure_confidence_and_basis_distinguish_direct_and_inferred_failures() {
 
 #[test]
 fn process_profiles_lower_confidence_for_competing_missing_transition_hypotheses() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),

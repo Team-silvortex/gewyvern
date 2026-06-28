@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn summary_json_carries_http3_request_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http3_request_path.gewy"))
         .expect("http3_request_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -31,7 +31,7 @@ fn summary_json_carries_http3_request_timeout_detail() {
 
 #[test]
 fn summary_json_carries_smtp_auth_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_auth_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("smtp_auth_path.gewy"))
         .expect("smtp_auth_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -119,7 +119,7 @@ fn summary_json_carries_smtp_auth_timeout_detail() {
 
 #[test]
 fn summary_json_carries_imap_auth_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("imap_auth_path.gewy"))
         .expect("imap_auth_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -191,7 +191,7 @@ fn summary_json_carries_imap_auth_timeout_detail() {
 
 #[test]
 fn summary_json_carries_smtp_mail_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("smtp_mail_path.gewy"))
         .expect("smtp_mail_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(

@@ -10,23 +10,38 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::time::{Duration, SystemTime};
 use support::{packet_fact_with_dir_and_payload_bytes, route_fact, tcp_state_fact_with_ports};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn remote_access_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("smb", Some("smb2-session")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/smb/session".to_string())
+        Some(protocol_fixture_path("smb/session").to_string())
     );
     assert_eq!(
         protocol_dsl_path("smb", Some("tree-connect")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/smb/tree".to_string())
+        Some(protocol_fixture_path("smb/tree").to_string())
     );
     assert_eq!(
         protocol_dsl_path("rdp", Some("x224-connect")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/rdp/connect".to_string())
+        Some(protocol_fixture_path("rdp/connect").to_string())
     );
     assert_eq!(
         protocol_dsl_path("rdp", Some("rdp-data")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/rdp/channel".to_string())
+        Some(protocol_fixture_path("rdp/channel").to_string())
     );
 }
 
@@ -63,34 +78,34 @@ fn remote_access_defaults_shelves_and_semantics_are_stable() {
 fn remote_access_dsl_files_compile_into_expected_operations() {
     let cases = [
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/smb_negotiate_path.gewy",
+            dsl_fixture_path("smb_negotiate_path.gewy"),
             "smb_negotiate_path",
             ProgramOperation::Custom("smb_negotiate".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/smb_session_path.gewy",
+            dsl_fixture_path("smb_session_path.gewy"),
             "smb_session_path",
             ProgramOperation::Custom("smb_session".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/smb_tree_path.gewy",
+            dsl_fixture_path("smb_tree_path.gewy"),
             "smb_tree_path",
             ProgramOperation::Custom("smb_tree".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/rdp_connect_path.gewy",
+            dsl_fixture_path("rdp_connect_path.gewy"),
             "rdp_connect_path",
             ProgramOperation::Custom("rdp_connect".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/rdp_channel_path.gewy",
+            dsl_fixture_path("rdp_channel_path.gewy"),
             "rdp_channel_path",
             ProgramOperation::Custom("rdp_channel".into()),
         ),
     ];
 
     for (path, template_id, operation) in cases {
-        let binding = compile_file(path).unwrap();
+        let binding = compile_file(&path).unwrap();
         assert_eq!(binding.template.id, template_id);
         assert_eq!(
             binding.template.program_model.as_ref().unwrap().operation,
@@ -102,7 +117,7 @@ fn remote_access_dsl_files_compile_into_expected_operations() {
 #[test]
 fn smb_tree_runtime_path_materializes_share_stages() {
     let export = run_remote_access_path(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/smb_tree_path.gewy",
+        &dsl_fixture_path("smb_tree_path.gewy"),
         445,
         &[(4, 0xfe), (16, 0x03)],
         &[(4, 0xfe)],
@@ -128,7 +143,7 @@ fn smb_tree_runtime_path_materializes_share_stages() {
 #[test]
 fn rdp_channel_runtime_path_materializes_desktop_stages() {
     let export = run_remote_access_path(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/rdp_channel_path.gewy",
+        &dsl_fixture_path("rdp_channel_path.gewy"),
         3389,
         &[(0, 0x03), (5, 0xf0)],
         &[(0, 0x03), (5, 0xf0)],
@@ -157,7 +172,7 @@ fn run_remote_access_path(
     send_payload: &[(u16, u8)],
     receive_payload: &[(u16, u8)],
 ) -> gewyvern::export::ExportBundle {
-    let binding = compile_file(path).unwrap();
+    let binding = compile_file(&path).unwrap();
     let config = SessionConfig::for_template(binding.template).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     let cookie = 0x7171;

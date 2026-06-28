@@ -21,7 +21,7 @@ fn cli_rejects_debugger_console_with_other_output_modes() {
 
 #[test]
 fn local_debugger_console_renders_machine_and_human_views() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http request dsl should compile");
     let export = run_binding_demo(binding);
     let outputs = vec![("scan:http:request".to_string(), export)];

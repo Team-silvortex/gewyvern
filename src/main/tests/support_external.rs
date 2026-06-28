@@ -70,7 +70,7 @@ fn default_fake_capability_profile_json() -> &'static str {
 }
 
 pub(super) fn synthesize_large_protocol_flow_export() -> gewyvern::export::ExportBundle {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),

@@ -52,7 +52,7 @@ For those, use:
 - [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
   for the second-half closure checklist
 
-## Current `0.17.x` Gate
+## Current `0.18.x` Gate
 
 Treat the line as release-ready only when all of the following stay true:
 
@@ -62,8 +62,9 @@ Treat the line as release-ready only when all of the following stay true:
 4. packaged protocol validation both pass
 5. packaged operator-path validation both pass
 6. runtime validation still proves the training dataset/export roundtrip
-7. the default `deb+rpm` release wrapper passes as one routine
-8. the three-module Docker stack smoke still passes
+7. lifecycle validation proves startup, stop, log evidence, recovery, and cleanup
+8. the default `deb+rpm` release wrapper passes as one routine
+9. the three-module Docker stack smoke still passes
 
 This section is intentionally binary and operational. It should stay shorter
 and stricter than the broader validation note.
@@ -165,6 +166,19 @@ After the single-project packaged path is green, run:
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
 ```
 
+On physical validation hosts with an already-built stack image, this equivalent
+form avoids rebuilding the Docker toolchain while still refreshing leserpent's
+NuGet packages before using `--no-restore`:
+
+```bash
+IMAGE_TAG=gewyvern-stack-dev-physical \
+  SKIP_DOCKER_BUILD=true \
+  LESERPENT_DOTNET_RESTORE_FIRST=true \
+  LESERPENT_DOTNET_IGNORE_FAILED_SOURCES=true \
+  LESERPENT_DOTNET_NO_RESTORE=true \
+  bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
+```
+
 That smoke should confirm:
 
 - `etragon-status-ok`
@@ -187,14 +201,14 @@ exercises:
 Use this triage order:
 
 1. if package install smoke fails, inspect packaging/layout first
-2. if runtime validation fails, inspect `--serve`, socket ingest, or packaged assets
+2. if runtime validation fails, inspect `--serve`, socket ingest, API lifecycle, or packaged assets
 3. if protocol validation fails, compare current JSON semantics against the scripted expectation
 4. if operator-path validation fails, check whether the runtime drifted or the expected guidance drifted
 5. if three-module smoke fails, inspect cross-project API contracts before changing single-project diagnosis logic
 
 ## Ship Read
 
-For the active `0.17.x` line, a good practical ship read is:
+For the active `0.18.x` line, a good practical ship read is:
 
 - current artifacts rebuilt
 - `release_gate.sh` green, or the equivalent build + packaged release check +

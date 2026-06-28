@@ -24,19 +24,19 @@ fn tls_surfaces_split_client_and_server_shelves() {
 fn tls_aliases_resolve_to_canonical_entries() {
     assert_eq!(
         protocol_dsl_path("tls", Some("initiator")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/tls/client".to_string())
+        Some(super::protocol_fixture_path("tls/client"))
     );
     assert_eq!(
         protocol_dsl_path("tls", Some("tls_client")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/tls/client".to_string())
+        Some(super::protocol_fixture_path("tls/client"))
     );
     assert_eq!(
         protocol_dsl_path("tls", Some("acceptor")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/tls/server".to_string())
+        Some(super::protocol_fixture_path("tls/server"))
     );
     assert_eq!(
         protocol_dsl_path("tls", Some("tls_server")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/tls/server".to_string())
+        Some(super::protocol_fixture_path("tls/server"))
     );
 }
 

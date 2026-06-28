@@ -10,23 +10,38 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::time::{Duration, SystemTime};
 use support::{route_fact, sock_lineage_fact, udp_packet_fact_with_dir_and_ports_and_payload};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn stun_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("stun", Some("allocate")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/stun/allocate".to_string())
+        Some(protocol_fixture_path("stun/allocate").to_string())
     );
     assert_eq!(
         protocol_dsl_path("stun", Some("relay")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/stun/allocate".to_string())
+        Some(protocol_fixture_path("stun/allocate").to_string())
     );
     assert_eq!(
         protocol_dsl_path("stun", Some("refresh")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/stun/refresh".to_string())
+        Some(protocol_fixture_path("stun/refresh").to_string())
     );
     assert_eq!(
         protocol_dsl_path("stun", Some("keepalive")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/stun/refresh".to_string())
+        Some(protocol_fixture_path("stun/refresh").to_string())
     );
 }
 
@@ -55,16 +70,14 @@ fn stun_surface_keeps_generic_shelves_per_entry() {
 
 #[test]
 fn stun_dsl_files_compile_into_expected_operations() {
-    let allocate =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_allocate_path.gewy").unwrap();
+    let allocate = compile_file(&dsl_fixture_path("stun_allocate_path.gewy")).unwrap();
     assert_eq!(allocate.template.id, "stun_allocate_path");
     assert_eq!(
         allocate.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("stun_allocate".into())
     );
 
-    let refresh =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_refresh_path.gewy").unwrap();
+    let refresh = compile_file(&dsl_fixture_path("stun_refresh_path.gewy")).unwrap();
     assert_eq!(refresh.template.id, "stun_refresh_path");
     assert_eq!(
         refresh.template.program_model.as_ref().unwrap().operation,
@@ -74,8 +87,7 @@ fn stun_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn stun_allocate_runtime_path_materializes_request_and_response_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_allocate_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("stun_allocate_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 3809, 5001, "turn-client"));
@@ -123,8 +135,7 @@ fn stun_allocate_runtime_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn stun_refresh_runtime_path_rejects_wrong_response_type() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_refresh_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("stun_refresh_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 3810, 5002, "turn-client"));

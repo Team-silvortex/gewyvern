@@ -1,5 +1,5 @@
 name=radius_challenge
-version=0.15.0
+version=0.18.2
 entry=main.gewy
 register.protocol=radius
 register.entry=challenge

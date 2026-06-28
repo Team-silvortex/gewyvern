@@ -10,6 +10,21 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::time::{Duration, SystemTime};
 use support::{route_fact, sock_lineage_fact};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 fn snmp_v3_udp_packet_fact(
     id: u64,
     cookie: u64,
@@ -72,19 +87,19 @@ fn snmp_v3_udp_packet_fact(
 fn snmp_result_registry_aliases_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("snmp", Some("report")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/report".to_string())
+        Some(protocol_fixture_path("snmp/report").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("engine-report")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/report".to_string())
+        Some(protocol_fixture_path("snmp/report").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("unauthorized")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/unauthorized".to_string())
+        Some(protocol_fixture_path("snmp/unauthorized").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("auth-failed")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/unauthorized".to_string())
+        Some(protocol_fixture_path("snmp/unauthorized").to_string())
     );
 }
 
@@ -100,16 +115,14 @@ fn snmp_result_surface_uses_result_shelf() {
 
 #[test]
 fn snmp_result_dsl_files_compile_into_expected_operations() {
-    let report =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_report_path.gewy").unwrap();
+    let report = compile_file(&dsl_fixture_path("snmp_report_path.gewy")).unwrap();
     assert_eq!(report.template.id, "snmp_report_path");
     assert_eq!(
         report.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("snmp_report".into())
     );
 
-    let unauthorized =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_unauthorized_path.gewy").unwrap();
+    let unauthorized = compile_file(&dsl_fixture_path("snmp_unauthorized_path.gewy")).unwrap();
     assert_eq!(unauthorized.template.id, "snmp_unauthorized_path");
     assert_eq!(
         unauthorized
@@ -124,8 +137,7 @@ fn snmp_result_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn snmp_report_runtime_path_materializes_generic_report_response() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_report_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_report_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2850, 54020, "snmpget"));
@@ -164,8 +176,7 @@ fn snmp_report_runtime_path_materializes_generic_report_response() {
 
 #[test]
 fn snmp_unauthorized_runtime_path_materializes_auth_failure_report() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_unauthorized_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_unauthorized_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2851, 54021, "snmpget"));

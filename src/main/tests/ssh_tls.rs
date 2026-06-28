@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn summary_json_carries_modern_protocol_failure_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http3_request_path.gewy"))
         .expect("http3_request_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -40,7 +40,7 @@ fn summary_json_carries_modern_protocol_failure_detail() {
 
 #[test]
 fn summary_json_carries_tls_handshake_incomplete_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("tls_client_path.gewy"))
         .expect("tls_client_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -73,7 +73,7 @@ fn summary_json_carries_tls_handshake_incomplete_detail() {
 
 #[test]
 fn summary_json_carries_ssh_banner_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("ssh_session_path.gewy"))
         .expect("ssh_session_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -117,7 +117,7 @@ fn summary_json_carries_ssh_banner_timeout_detail() {
 
 #[test]
 fn summary_json_carries_ssh_kex_followup_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("ssh_session_path.gewy"))
         .expect("ssh_session_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -172,7 +172,7 @@ fn summary_json_carries_ssh_kex_followup_detail() {
 
 #[test]
 fn summary_json_carries_ssh_auth_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("ssh_auth_path.gewy"))
         .expect("ssh_auth_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -264,9 +264,8 @@ fn summary_json_carries_ssh_auth_timeout_detail() {
 
 #[test]
 fn summary_json_carries_ssh_channel_timeout_detail() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_channel_session_path.gewy")
-            .expect("ssh_channel_session_path DSL should compile");
+    let binding = compile_file(&dsl_fixture_path("ssh_channel_session_path.gewy"))
+        .expect("ssh_channel_session_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
             binding,

@@ -1,4 +1,4 @@
-# gewyvern v0.14.0
+# gewyvern v0.18.2
 
 Protocol-agnostic network debugging runtime driven by eBPF fragments.
 
@@ -51,10 +51,10 @@ as a visual report.
 
 ## Status
 
-- project version: `0.14.0`
-- stage: active `0.14.x` line focused on protocol depth, compiler ergonomics,
-  runtime/report stability, and cleaner collaboration surfaces across
-  `gewyvern`, `etragon`, and `leserpent`
+- project version: `0.18.2`
+- stage: active `0.18.x` line focused on protocol breadth, runtime confidence,
+  packaged validation, and clearer debugger behavior across local and
+  multi-instance runs
 - transport support: TCP + UDP
 - protocol path coverage in DSL: DNS, HTTP, TLS, QUIC, STUN, CoAP, NTP, DHCP,
   WireGuard, mDNS, SSDP, Redis, MQTT, PostgreSQL, MySQL, Memcached, AMQP,
@@ -74,14 +74,13 @@ as a visual report.
 `gewyvern` is no longer just a convergence story. The current line is:
 
 - historical validation baseline: `v0.10.0`
-- current release line: `v0.14.0`
-- current focus: deepen protocol quality, keep runtime/report/compiler behavior
-  predictable, and make cross-project collaboration (`gewyvern` + `etragon` +
-  `leserpent`) more deliberate without bloating the standalone debugger core
-- next likely work line: `v0.15.x`, unless a later architectural break justifies
-  a deliberately chosen `v2.0`
+- current release line: `v0.18.x`
+- current focus: deepen protocol-family coverage, keep runtime/report/compiler
+  behavior predictable, and prove packaged/container paths on real Linux hosts
+- next likely work line: `v0.19.x`, unless a later architectural break
+  justifies a deliberately chosen `v2.0`
 
-The goal is still not “every protocol under the sun”. The `0.14.x` bar is that
+The goal is still not “every protocol under the sun”. The `0.18.x` bar is that
 `gewyvern` is trustworthy enough to serve as infra for process-level network
 debugging: stable CLI/runtime behavior, stable DSL/compiler boundaries,
 reliable HTML/JSON reporting, and predictable operational performance.

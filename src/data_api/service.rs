@@ -1,8 +1,10 @@
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
+use std::thread::JoinHandle;
+use std::time::Duration;
 
 use super::{
     API_CLIENT_WRITE_TIMEOUT, API_MAX_CONCURRENT_CLIENTS, ApiSnapshot, ApiState,
@@ -10,7 +12,32 @@ use super::{
     EVENT_API_LISTENER_BIND_FAILED, handle_api_client, log_error_event, log_warn_event,
 };
 
-pub fn start_api_service(addr: &str) -> ApiState {
+pub struct ApiService {
+    state: ApiState,
+    shutdown: Arc<AtomicBool>,
+    handle: Option<JoinHandle<()>>,
+}
+
+impl ApiService {
+    pub fn state(&self) -> &ApiState {
+        &self.state
+    }
+
+    pub fn shutdown(&mut self) {
+        self.shutdown.store(true, Ordering::Release);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+impl Drop for ApiService {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}
+
+pub fn start_api_service(addr: &str) -> ApiService {
     let listener = TcpListener::bind(addr).unwrap_or_else(|err| {
         log_error_event(
             "api",
@@ -21,13 +48,26 @@ pub fn start_api_service(addr: &str) -> ApiState {
         eprintln!("failed to bind api socket {}: {}", addr, err);
         std::process::exit(1);
     });
+    listener.set_nonblocking(true).unwrap_or_else(|err| {
+        log_error_event(
+            "api",
+            EVENT_API_LISTENER_BIND_FAILED,
+            &[("socket", addr.to_string()), ("error", err.to_string())],
+            "failed to configure api listener",
+        );
+        eprintln!("failed to configure api socket {}: {}", addr, err);
+        std::process::exit(1);
+    });
     let state = Arc::new(std::sync::Mutex::new(Arc::new(ApiSnapshot::default())));
     let thread_state = Arc::clone(&state);
     let active_clients = Arc::new(AtomicUsize::new(0));
-    thread::spawn(move || {
-        for stream in listener.incoming() {
-            match stream {
+    let shutdown = Arc::new(AtomicBool::new(false));
+    let thread_shutdown = Arc::clone(&shutdown);
+    let handle = thread::spawn(move || {
+        while !thread_shutdown.load(Ordering::Acquire) {
+            match listener.accept() {
                 Ok(stream) => {
+                    let stream = stream.0;
                     let previous = active_clients.fetch_add(1, Ordering::AcqRel);
                     if previous >= API_MAX_CONCURRENT_CLIENTS {
                         active_clients.fetch_sub(1, Ordering::AcqRel);
@@ -51,6 +91,10 @@ pub fn start_api_service(addr: &str) -> ApiState {
                     });
                 }
                 Err(err) => {
+                    if err.kind() == std::io::ErrorKind::WouldBlock {
+                        thread::sleep(Duration::from_millis(50));
+                        continue;
+                    }
                     log_warn_event(
                         "api",
                         EVENT_API_CLIENT_ACCEPT_FAILED,
@@ -61,7 +105,11 @@ pub fn start_api_service(addr: &str) -> ApiState {
             }
         }
     });
-    state
+    ApiService {
+        state,
+        shutdown,
+        handle: Some(handle),
+    }
 }
 
 struct ActiveApiClientGuard(Arc<AtomicUsize>);

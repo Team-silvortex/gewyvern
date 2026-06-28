@@ -2,6 +2,7 @@ use super::{protocol_dsl_path, protocol_entries, protocol_summary};
 
 #[test]
 fn dhcp_protocol_summary_exposes_new_entries_and_aliases() {
+    let _lock = super::tests_env::lock();
     let summary = protocol_summary("dhcp").expect("dhcp summary should exist");
     assert_eq!(summary.default_entry, "client");
     assert!(summary.entries.iter().any(|entry| entry.mode == "discover"));
@@ -27,17 +28,18 @@ fn dhcp_protocol_summary_exposes_new_entries_and_aliases() {
 
 #[test]
 fn dhcp_protocol_aliases_resolve_to_canonical_packages() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("dhcp-discover", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/dhcp/discover".to_string())
+        Some(super::protocol_fixture_path("dhcp/discover"))
     );
     assert_eq!(
         protocol_dsl_path("dhcp-request", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/dhcp/request".to_string())
+        Some(super::protocol_fixture_path("dhcp/request"))
     );
     assert_eq!(
         protocol_dsl_path("dhcp-nak", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/dhcp/nak".to_string())
+        Some(super::protocol_fixture_path("dhcp/nak"))
     );
 
     let entries = protocol_entries("dhcp").expect("dhcp entries should resolve");

@@ -12,43 +12,58 @@ use support::{
     packet_fact_with_dir_and_payload_bytes, route_fact, udp_packet_fact_with_dir_and_ports_and_byte,
 };
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn overlay_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("vxlan", Some("encap")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/vxlan/encap".to_string())
+        Some(protocol_fixture_path("vxlan/encap").to_string())
     );
     assert_eq!(
         protocol_dsl_path("vxlan-tunnel", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/vxlan/encap".to_string())
+        Some(protocol_fixture_path("vxlan/encap").to_string())
     );
     assert_eq!(
         protocol_dsl_path("vxlan", Some("tenant-overlay")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/vxlan/vni".to_string())
+        Some(protocol_fixture_path("vxlan/vni").to_string())
     );
     assert_eq!(
         protocol_dsl_path("geneve", Some("encap")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/geneve/encap".to_string())
+        Some(protocol_fixture_path("geneve/encap").to_string())
     );
     assert_eq!(
         protocol_dsl_path("geneve", Some("geneve-tlv")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/geneve/options".to_string())
+        Some(protocol_fixture_path("geneve/options").to_string())
     );
     assert_eq!(
         protocol_dsl_path("l2tp", Some("control")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/l2tp/control".to_string())
+        Some(protocol_fixture_path("l2tp/control").to_string())
     );
     assert_eq!(
         protocol_dsl_path("l2tp", Some("l2tp-data")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/l2tp/session".to_string())
+        Some(protocol_fixture_path("l2tp/session").to_string())
     );
     assert_eq!(
         protocol_dsl_path("pptp", Some("control")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/pptp/control".to_string())
+        Some(protocol_fixture_path("pptp/control").to_string())
     );
     assert_eq!(
         protocol_dsl_path("pptp", Some("pptp-gre")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/pptp/data".to_string())
+        Some(protocol_fixture_path("pptp/data").to_string())
     );
 }
 
@@ -120,49 +135,49 @@ fn overlay_default_entries_and_shelves_stay_stable() {
 fn overlay_dsl_files_compile_into_expected_operations() {
     let cases = [
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/vxlan_encap_path.gewy",
+            dsl_fixture_path("vxlan_encap_path.gewy"),
             "vxlan_encap_path",
             ProgramOperation::Custom("vxlan_encap".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/vxlan_vni_path.gewy",
+            dsl_fixture_path("vxlan_vni_path.gewy"),
             "vxlan_vni_path",
             ProgramOperation::Custom("vxlan_vni".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/geneve_encap_path.gewy",
+            dsl_fixture_path("geneve_encap_path.gewy"),
             "geneve_encap_path",
             ProgramOperation::Custom("geneve_encap".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/geneve_options_path.gewy",
+            dsl_fixture_path("geneve_options_path.gewy"),
             "geneve_options_path",
             ProgramOperation::Custom("geneve_options".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/l2tp_control_path.gewy",
+            dsl_fixture_path("l2tp_control_path.gewy"),
             "l2tp_control_path",
             ProgramOperation::Custom("l2tp_control".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/l2tp_session_path.gewy",
+            dsl_fixture_path("l2tp_session_path.gewy"),
             "l2tp_session_path",
             ProgramOperation::Custom("l2tp_session".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/pptp_control_path.gewy",
+            dsl_fixture_path("pptp_control_path.gewy"),
             "pptp_control_path",
             ProgramOperation::Custom("pptp_control".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/pptp_data_path.gewy",
+            dsl_fixture_path("pptp_data_path.gewy"),
             "pptp_data_path",
             ProgramOperation::Custom("pptp_data".into()),
         ),
     ];
 
     for (path, template_id, operation) in cases {
-        let binding = compile_file(path).unwrap();
+        let binding = compile_file(&path).unwrap();
         assert_eq!(binding.template.id, template_id);
         assert_eq!(
             binding.template.program_model.as_ref().unwrap().operation,
@@ -173,11 +188,7 @@ fn overlay_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn vxlan_vni_runtime_path_materializes_overlay_stages() {
-    let export = run_overlay_path(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/vxlan_vni_path.gewy",
-        4789,
-        Some(0x08),
-    );
+    let export = run_overlay_path(&dsl_fixture_path("vxlan_vni_path.gewy"), 4789, Some(0x08));
     assert_eq!(
         export.program_flows[0].operation,
         ProgramOperation::Custom("vxlan_vni".into())
@@ -199,7 +210,7 @@ fn vxlan_vni_runtime_path_materializes_overlay_stages() {
 #[test]
 fn geneve_options_runtime_path_materializes_overlay_stages() {
     let export = run_overlay_path(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/geneve_options_path.gewy",
+        &dsl_fixture_path("geneve_options_path.gewy"),
         6081,
         Some(0x04),
     );
@@ -224,7 +235,7 @@ fn geneve_options_runtime_path_materializes_overlay_stages() {
 #[test]
 fn l2tp_control_runtime_path_materializes_tunnel_stages() {
     let export = run_overlay_path(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/l2tp_control_path.gewy",
+        &dsl_fixture_path("l2tp_control_path.gewy"),
         1701,
         Some(0xc8),
     );
@@ -248,8 +259,7 @@ fn l2tp_control_runtime_path_materializes_tunnel_stages() {
 
 #[test]
 fn pptp_control_runtime_path_materializes_control_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/pptp_control_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("pptp_control_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(route_fact(1, 7801, 2));
@@ -281,7 +291,7 @@ fn run_overlay_path(
     overlay_port: u16,
     payload_byte0: Option<u8>,
 ) -> gewyvern::export::ExportBundle {
-    let binding = compile_file(dsl_path).unwrap();
+    let binding = compile_file(&dsl_path).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(route_fact(1, 7701, 2));

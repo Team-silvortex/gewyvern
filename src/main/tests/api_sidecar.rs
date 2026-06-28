@@ -6,9 +6,8 @@ fn api_meta_marks_external_sidecar_context_presence() {
     with_fake_etragon_hook(
         "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_targeted_escalation\",\"summary\":\"external engine suggests targeted escalation\",\"confidence\":\"candidate\",\"producer_stage\":\"candidate\",\"producer_pass\":\"fake_etragon\",\"data\":{\"module\":\"http_request_response\"}}],\"evidence_chain_enrichment\":{\"status\":\"reinforced\",\"primary_label\":\"targeted_escalation\",\"summary\":\"reinforced evidence chain\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"augmentations_with_operator_guidance_support\"},\"diagnostic_opinion\":{\"status\":\"ready\",\"diagnosis_kind\":\"direct_protocol_failure\",\"label\":\"targeted_escalation\",\"summary\":\"direct protocol failure is now the most direct opinion\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"operator_guidance_candidate\"}}",
         || {
-            let binding =
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
-                    .expect("http_request_path DSL should compile");
+            let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
+                .expect("http_request_path DSL should compile");
             let export = annotate_export_trust(
                 run_binding_demo(binding),
                 &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
@@ -80,9 +79,8 @@ fn api_meta_marks_unverified_sidecar_trust_when_capability_profile_is_missing() 
         "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_targeted_escalation\",\"summary\":\"external engine suggests targeted escalation\",\"confidence\":\"candidate\",\"producer_stage\":\"candidate\",\"producer_pass\":\"fake_etragon\",\"data\":{\"module\":\"http_request_response\"}}],\"evidence_chain_enrichment\":{\"status\":\"reinforced\",\"primary_label\":\"targeted_escalation\",\"summary\":\"reinforced evidence chain\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"augmentations_with_operator_guidance_support\"}}",
         None,
         || {
-            let binding =
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
-                    .expect("http_request_path DSL should compile");
+            let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
+                .expect("http_request_path DSL should compile");
             let export = annotate_export_trust(
                 run_binding_demo(binding),
                 &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),

@@ -12,6 +12,21 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 fn arp_packet_fact(id: u64, dir: PacketDir, opcode: u8) -> FactEnvelope {
     FactEnvelope {
         id: FactId(id),
@@ -51,15 +66,15 @@ fn arp_packet_fact(id: u64, dir: PacketDir, opcode: u8) -> FactEnvelope {
 fn arp_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("arp", Some("request")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/arp/request".to_string())
+        Some(protocol_fixture_path("arp/request").to_string())
     );
     assert_eq!(
         protocol_dsl_path("arp-request", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/arp/request".to_string())
+        Some(protocol_fixture_path("arp/request").to_string())
     );
     assert_eq!(
         protocol_dsl_path("arp", Some("is-at")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/arp/reply".to_string())
+        Some(protocol_fixture_path("arp/reply").to_string())
     );
 }
 
@@ -100,15 +115,14 @@ fn arp_surface_exposes_neighbor_resolution_semantics() {
 
 #[test]
 fn arp_dsl_files_compile_into_expected_operations() {
-    let request =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/arp_request_path.gewy").unwrap();
+    let request = compile_file(&dsl_fixture_path("arp_request_path.gewy")).unwrap();
     assert_eq!(request.template.id, "arp_request_path");
     assert_eq!(
         request.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("arp_request".into())
     );
 
-    let reply = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/arp_reply_path.gewy").unwrap();
+    let reply = compile_file(&dsl_fixture_path("arp_reply_path.gewy")).unwrap();
     assert_eq!(reply.template.id, "arp_reply_path");
     assert_eq!(
         reply.template.program_model.as_ref().unwrap().operation,
@@ -118,8 +132,7 @@ fn arp_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn arp_request_runtime_path_materializes_who_has_stage() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/arp_request_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("arp_request_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(arp_packet_fact(1, PacketDir::Egress, 0x01));
@@ -140,8 +153,7 @@ fn arp_request_runtime_path_materializes_who_has_stage() {
 
 #[test]
 fn arp_reply_runtime_path_materializes_is_at_stage() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/arp_reply_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("arp_reply_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(arp_packet_fact(1, PacketDir::Ingress, 0x02));

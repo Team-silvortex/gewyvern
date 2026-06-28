@@ -4,27 +4,42 @@ use gewyvern::protocol_profiles::{
     protocol_default_entry, protocol_dsl_path, protocol_entries, protocol_surface,
 };
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn mdns_registry_entries_resolve_to_discovery_cluster_packages() {
     assert_eq!(
         protocol_dsl_path("mdns", Some("query")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mdns/query".to_string())
+        Some(protocol_fixture_path("mdns/query").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mdns", Some("response")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mdns/response".to_string())
+        Some(protocol_fixture_path("mdns/response").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mdns", Some("announcement")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mdns/response".to_string())
+        Some(protocol_fixture_path("mdns/response").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mdns", Some("probe")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mdns/probe".to_string())
+        Some(protocol_fixture_path("mdns/probe").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mdns", Some("conflict-check")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mdns/probe".to_string())
+        Some(protocol_fixture_path("mdns/probe").to_string())
     );
 }
 
@@ -32,15 +47,15 @@ fn mdns_registry_entries_resolve_to_discovery_cluster_packages() {
 fn ssdp_registry_entries_resolve_to_discovery_cluster_packages() {
     assert_eq!(
         protocol_dsl_path("ssdp", Some("discovery")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ssdp/discovery".to_string())
+        Some(protocol_fixture_path("ssdp/discovery").to_string())
     );
     assert_eq!(
         protocol_dsl_path("ssdp", Some("notify")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ssdp/notify".to_string())
+        Some(protocol_fixture_path("ssdp/notify").to_string())
     );
     assert_eq!(
         protocol_dsl_path("ssdp", Some("advertise")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ssdp/notify".to_string())
+        Some(protocol_fixture_path("ssdp/notify").to_string())
     );
 }
 
@@ -92,22 +107,22 @@ fn discovery_surfaces_expose_cluster_shelves_and_semantics() {
 fn discovery_dsl_files_compile_into_expected_operations() {
     for (path, template, operation) in [
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/mdns_response_path.gewy",
+            dsl_fixture_path("mdns_response_path.gewy"),
             "mdns_response_path",
             "mdns_response",
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/mdns_probe_path.gewy",
+            dsl_fixture_path("mdns_probe_path.gewy"),
             "mdns_probe_path",
             "mdns_probe",
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_notify_path.gewy",
+            dsl_fixture_path("ssdp_notify_path.gewy"),
             "ssdp_notify_path",
             "ssdp_notify",
         ),
     ] {
-        let binding = compile_file(path).expect("discovery dsl should compile");
+        let binding = compile_file(&path).expect("discovery dsl should compile");
         assert_eq!(binding.template.id, template);
         assert_eq!(
             binding.template.program_model.as_ref().unwrap().operation,

@@ -261,7 +261,7 @@ impl UiLocale {
                 format!("不支持的 socket 信任模式 '{a}'，期望 trusted-local 或 unsafe-remote")
             }
             (Self::Zh, "unsupported_ingest_mode") => {
-                format!("不支持的 ingest 运行模式 '{a}'，期望 local-advisory 或 remote-advisory")
+                format!("不支持的采集模式 '{a}'，期望 local-advisory 或 remote-advisory")
             }
             (_, "unsupported_demo") => {
                 format!("unsupported demo mode '{a}', expected tcp, udp, or both")

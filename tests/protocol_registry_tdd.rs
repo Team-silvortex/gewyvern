@@ -1,19 +1,34 @@
 use gewyvern::dsl::compile_file;
 use gewyvern::protocol_profiles::{protocol_default_entry, protocol_dsl_path, protocol_entries};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn postgres_session_registry_entry_resolves_to_packaged_session_path() {
     assert_eq!(
         protocol_dsl_path("postgres", Some("session")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/postgres/session".to_string())
+        Some(protocol_fixture_path("postgres/session").to_string())
     );
     assert_eq!(
         protocol_dsl_path("postgres", Some("query-session")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/postgres/session".to_string())
+        Some(protocol_fixture_path("postgres/session").to_string())
     );
     assert_eq!(
         protocol_dsl_path("postgres", Some("auth-query")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/postgres/session".to_string())
+        Some(protocol_fixture_path("postgres/session").to_string())
     );
 }
 
@@ -31,8 +46,7 @@ fn postgres_default_entry_stays_query_after_session_addition() {
 
 #[test]
 fn postgres_query_session_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_session.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_query_session.gewy")).unwrap();
     assert_eq!(binding.template.id, "postgres_query_session");
     assert_eq!(binding.template.fragment_set.len(), 4);
 }
@@ -41,15 +55,15 @@ fn postgres_query_session_dsl_compiles_into_template_binding() {
 fn mqtt_publish_registry_entry_resolves_to_packaged_publish_path() {
     assert_eq!(
         protocol_dsl_path("mqtt", Some("publish")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/publish".to_string())
+        Some(protocol_fixture_path("mqtt/publish").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mqtt", Some("send")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/publish".to_string())
+        Some(protocol_fixture_path("mqtt/publish").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mqtt", Some("message")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/publish".to_string())
+        Some(protocol_fixture_path("mqtt/publish").to_string())
     );
 }
 
@@ -57,15 +71,15 @@ fn mqtt_publish_registry_entry_resolves_to_packaged_publish_path() {
 fn mqtt_subscribe_registry_entry_resolves_to_packaged_subscribe_path() {
     assert_eq!(
         protocol_dsl_path("mqtt", Some("subscribe")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/subscribe".to_string())
+        Some(protocol_fixture_path("mqtt/subscribe").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mqtt", Some("read")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/subscribe".to_string())
+        Some(protocol_fixture_path("mqtt/subscribe").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mqtt", Some("listen")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/subscribe".to_string())
+        Some(protocol_fixture_path("mqtt/subscribe").to_string())
     );
 }
 
@@ -73,15 +87,15 @@ fn mqtt_subscribe_registry_entry_resolves_to_packaged_subscribe_path() {
 fn mqtt_disconnect_registry_entry_resolves_to_packaged_disconnect_path() {
     assert_eq!(
         protocol_dsl_path("mqtt", Some("disconnect")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/disconnect".to_string())
+        Some(protocol_fixture_path("mqtt/disconnect").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mqtt", Some("close")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/disconnect".to_string())
+        Some(protocol_fixture_path("mqtt/disconnect").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mqtt", Some("teardown")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/disconnect".to_string())
+        Some(protocol_fixture_path("mqtt/disconnect").to_string())
     );
 }
 
@@ -89,15 +103,15 @@ fn mqtt_disconnect_registry_entry_resolves_to_packaged_disconnect_path() {
 fn mqtt_pubrel_registry_entry_resolves_to_packaged_pubrel_path() {
     assert_eq!(
         protocol_dsl_path("mqtt", Some("pubrel")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/pubrel".to_string())
+        Some(protocol_fixture_path("mqtt/pubrel").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mqtt", Some("qos2-release")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/pubrel".to_string())
+        Some(protocol_fixture_path("mqtt/pubrel").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mqtt", Some("resume")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/pubrel".to_string())
+        Some(protocol_fixture_path("mqtt/pubrel").to_string())
     );
 }
 
@@ -105,15 +119,15 @@ fn mqtt_pubrel_registry_entry_resolves_to_packaged_pubrel_path() {
 fn mqtt_pubrec_registry_entry_resolves_to_packaged_pubrec_path() {
     assert_eq!(
         protocol_dsl_path("mqtt", Some("pubrec")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/pubrec".to_string())
+        Some(protocol_fixture_path("mqtt/pubrec").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mqtt", Some("qos2-receipt")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/pubrec".to_string())
+        Some(protocol_fixture_path("mqtt/pubrec").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mqtt", Some("stage-2")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/pubrec".to_string())
+        Some(protocol_fixture_path("mqtt/pubrec").to_string())
     );
 }
 
@@ -121,15 +135,15 @@ fn mqtt_pubrec_registry_entry_resolves_to_packaged_pubrec_path() {
 fn mqtt_pubcomp_registry_entry_resolves_to_packaged_pubcomp_path() {
     assert_eq!(
         protocol_dsl_path("mqtt", Some("pubcomp")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/pubcomp".to_string())
+        Some(protocol_fixture_path("mqtt/pubcomp").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mqtt", Some("qos2-complete")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/pubcomp".to_string())
+        Some(protocol_fixture_path("mqtt/pubcomp").to_string())
     );
     assert_eq!(
         protocol_dsl_path("mqtt", Some("complete")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mqtt/pubcomp".to_string())
+        Some(protocol_fixture_path("mqtt/pubcomp").to_string())
     );
 }
 
@@ -149,48 +163,42 @@ fn mqtt_default_entry_stays_connect_after_surface_additions() {
 
 #[test]
 fn mqtt_publish_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_publish_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mqtt_publish_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "mqtt_publish_path");
     assert_eq!(binding.template.fragment_set.len(), 4);
 }
 
 #[test]
 fn mqtt_subscribe_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_subscribe_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mqtt_subscribe_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "mqtt_subscribe_path");
     assert_eq!(binding.template.fragment_set.len(), 4);
 }
 
 #[test]
 fn mqtt_disconnect_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_disconnect_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mqtt_disconnect_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "mqtt_disconnect_path");
     assert_eq!(binding.template.fragment_set.len(), 4);
 }
 
 #[test]
 fn mqtt_pubrel_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_pubrel_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mqtt_pubrel_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "mqtt_pubrel_path");
     assert_eq!(binding.template.fragment_set.len(), 4);
 }
 
 #[test]
 fn mqtt_pubrec_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_pubrec_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mqtt_pubrec_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "mqtt_pubrec_path");
     assert_eq!(binding.template.fragment_set.len(), 4);
 }
 
 #[test]
 fn mqtt_pubcomp_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_pubcomp_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mqtt_pubcomp_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "mqtt_pubcomp_path");
     assert_eq!(binding.template.fragment_set.len(), 4);
 }
@@ -199,15 +207,15 @@ fn mqtt_pubcomp_dsl_compiles_into_template_binding() {
 fn sip_invite_registry_entry_resolves_to_packaged_invite_path() {
     assert_eq!(
         protocol_dsl_path("sip", Some("invite")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/sip/invite".to_string())
+        Some(protocol_fixture_path("sip/invite").to_string())
     );
     assert_eq!(
         protocol_dsl_path("sip", Some("call")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/sip/invite".to_string())
+        Some(protocol_fixture_path("sip/invite").to_string())
     );
     assert_eq!(
         protocol_dsl_path("sip", Some("session")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/sip/invite".to_string())
+        Some(protocol_fixture_path("sip/invite").to_string())
     );
 }
 
@@ -215,15 +223,15 @@ fn sip_invite_registry_entry_resolves_to_packaged_invite_path() {
 fn sip_bye_registry_entry_resolves_to_packaged_bye_path() {
     assert_eq!(
         protocol_dsl_path("sip", Some("bye")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/sip/bye".to_string())
+        Some(protocol_fixture_path("sip/bye").to_string())
     );
     assert_eq!(
         protocol_dsl_path("sip", Some("hangup")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/sip/bye".to_string())
+        Some(protocol_fixture_path("sip/bye").to_string())
     );
     assert_eq!(
         protocol_dsl_path("sip", Some("terminate")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/sip/bye".to_string())
+        Some(protocol_fixture_path("sip/bye").to_string())
     );
 }
 
@@ -239,15 +247,14 @@ fn sip_default_entry_stays_register_after_invite_addition() {
 
 #[test]
 fn sip_invite_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/sip_invite_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("sip_invite_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "sip_invite_path");
     assert_eq!(binding.template.fragment_set.len(), 3);
 }
 
 #[test]
 fn sip_bye_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/sip_bye_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("sip_bye_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "sip_bye_path");
     assert_eq!(binding.template.fragment_set.len(), 3);
 }
@@ -256,15 +263,15 @@ fn sip_bye_dsl_compiles_into_template_binding() {
 fn rtsp_play_registry_entry_resolves_to_packaged_play_path() {
     assert_eq!(
         protocol_dsl_path("rtsp", Some("play")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/play".to_string())
+        Some(protocol_fixture_path("rtsp/play").to_string())
     );
     assert_eq!(
         protocol_dsl_path("rtsp", Some("start")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/play".to_string())
+        Some(protocol_fixture_path("rtsp/play").to_string())
     );
     assert_eq!(
         protocol_dsl_path("rtsp", Some("stream")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/rtsp/setup".to_string())
+        Some(protocol_fixture_path("rtsp/setup").to_string())
     );
 }
 
@@ -281,8 +288,7 @@ fn rtsp_default_entry_stays_options_after_play_addition() {
 
 #[test]
 fn rtsp_play_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_play_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("rtsp_play_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "rtsp_play_path");
     assert_eq!(binding.template.fragment_set.len(), 4);
 }
@@ -291,15 +297,15 @@ fn rtsp_play_dsl_compiles_into_template_binding() {
 fn amqp_consume_registry_entry_resolves_to_packaged_consume_path() {
     assert_eq!(
         protocol_dsl_path("amqp", Some("consume")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/consume".to_string())
+        Some(protocol_fixture_path("amqp/consume").to_string())
     );
     assert_eq!(
         protocol_dsl_path("amqp", Some("receive")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/consume".to_string())
+        Some(protocol_fixture_path("amqp/consume").to_string())
     );
     assert_eq!(
         protocol_dsl_path("amqp", Some("deliver")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/consume".to_string())
+        Some(protocol_fixture_path("amqp/consume").to_string())
     );
 }
 
@@ -316,8 +322,7 @@ fn amqp_default_entry_stays_session_after_consume_addition() {
 
 #[test]
 fn amqp_consume_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_consume_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("amqp_basic_consume_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "amqp_basic_consume_path");
     assert_eq!(binding.template.fragment_set.len(), 4);
 }

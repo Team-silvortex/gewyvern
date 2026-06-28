@@ -96,7 +96,7 @@ fn list_history_json_renders_empty_index_when_history_is_missing() {
     let rendered = render_history_index(true).unwrap();
 
     assert!(rendered.contains("\"schema_version\":2"));
-    assert!(rendered.contains("\"minor_line\":\"v0.15.x\""));
+    assert!(rendered.contains("\"minor_line\":\"v0.18.x\""));
     assert!(rendered.contains("\"history_retention\":7"));
     assert!(rendered.contains("\"catalog_artifacts\":["));
     assert!(rendered.contains("\"protocol-clusters.json\""));
@@ -118,14 +118,14 @@ fn list_history_text_reports_existing_snapshots() {
     let rendered = render_history_index(false).unwrap();
 
     assert!(rendered.contains("History Shelf"));
-    assert!(rendered.contains("minor line: v0.15.x"));
+    assert!(rendered.contains("minor line: v0.18.x"));
     assert!(rendered.contains("retention: 32"));
     assert!(rendered.contains("entries: 2"));
     assert!(rendered.contains("latest: 1003"));
     assert!(rendered.contains("oldest: 1001"));
-    assert!(rendered.contains("- 1003 line=v0.15.x"));
+    assert!(rendered.contains("- 1003 line=v0.18.x"));
     assert!(rendered.contains("protocol_catalog="));
-    assert!(rendered.contains("- 1001 line=v0.15.x"));
+    assert!(rendered.contains("- 1001 line=v0.18.x"));
 
     fs::remove_dir_all(&root).unwrap();
 }

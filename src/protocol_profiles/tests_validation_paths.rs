@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 use std::fs;
 
+use super::tests_docs_support::normalize_repo_link;
+
 const VALIDATION_PATHS_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/docs/book/reference-protocol-validation-paths.md"
@@ -28,7 +30,6 @@ const VOLUME_GUIDE_PATH: &str = concat!(
 
 fn markdown_links(content: &str) -> BTreeSet<String> {
     let mut links = BTreeSet::new();
-    let prefix = concat!(env!("CARGO_MANIFEST_DIR"), "/");
     let mut rest = content;
     while let Some(start) = rest.find("](") {
         let candidate = &rest[start + 2..];
@@ -36,7 +37,7 @@ fn markdown_links(content: &str) -> BTreeSet<String> {
             break;
         };
         let link = &candidate[..end];
-        if let Some(relative) = link.strip_prefix(prefix) {
+        if let Some(relative) = normalize_repo_link(link) {
             links.insert(relative.to_string());
         }
         rest = &candidate[end + 1..];

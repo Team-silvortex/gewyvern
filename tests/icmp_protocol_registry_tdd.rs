@@ -13,6 +13,21 @@ use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime};
 use support::{route_fact, sock_lineage_fact};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 fn icmp_packet_fact(id: u64, cookie: u64, dir: PacketDir, type_byte: u8) -> FactEnvelope {
     FactEnvelope {
         id: FactId(id),
@@ -52,15 +67,15 @@ fn icmp_packet_fact(id: u64, cookie: u64, dir: PacketDir, type_byte: u8) -> Fact
 fn icmp_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("icmp", Some("echo")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/icmp/echo".to_string())
+        Some(protocol_fixture_path("icmp/echo").to_string())
     );
     assert_eq!(
         protocol_dsl_path("ping", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/icmp/echo".to_string())
+        Some(protocol_fixture_path("icmp/echo").to_string())
     );
     assert_eq!(
         protocol_dsl_path("icmp", Some("port-unreachable")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/icmp/unreachable".to_string())
+        Some(protocol_fixture_path("icmp/unreachable").to_string())
     );
 }
 
@@ -104,15 +119,14 @@ fn icmp_surface_exposes_reachability_and_failure_shelves() {
 
 #[test]
 fn icmp_dsl_files_compile_into_expected_operations() {
-    let echo = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/icmp_echo_path.gewy").unwrap();
+    let echo = compile_file(&dsl_fixture_path("icmp_echo_path.gewy")).unwrap();
     assert_eq!(echo.template.id, "icmp_echo_path");
     assert_eq!(
         echo.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("icmp_echo".into())
     );
 
-    let unreachable =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/icmp_unreachable_path.gewy").unwrap();
+    let unreachable = compile_file(&dsl_fixture_path("icmp_unreachable_path.gewy")).unwrap();
     assert_eq!(unreachable.template.id, "icmp_unreachable_path");
     assert_eq!(
         unreachable
@@ -127,8 +141,7 @@ fn icmp_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn icmp_echo_runtime_path_materializes_request_and_reply() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/icmp_echo_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("icmp_echo_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 9810, 0, "ping"));
@@ -158,8 +171,7 @@ fn icmp_echo_runtime_path_materializes_request_and_reply() {
 
 #[test]
 fn icmp_unreachable_runtime_path_materializes_failure_signal() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/icmp_unreachable_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("icmp_unreachable_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 9811, 0, "probe"));

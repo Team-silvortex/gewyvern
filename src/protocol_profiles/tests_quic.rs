@@ -43,19 +43,19 @@ fn quic_surfaces_split_initial_retry_crypto_close_and_stream_shelves() {
 fn quic_retry_aliases_resolve_to_canonical_entry() {
     assert_eq!(
         protocol_dsl_path("quic", Some("address-validation")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/quic/retry".to_string())
+        Some(super::protocol_fixture_path("quic/retry"))
     );
     assert_eq!(
         protocol_dsl_path("quic", Some("quic-retry")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/quic/retry".to_string())
+        Some(super::protocol_fixture_path("quic/retry"))
     );
     assert_eq!(
         protocol_dsl_path("quic", Some("connection-close")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/quic/close".to_string())
+        Some(super::protocol_fixture_path("quic/close"))
     );
     assert_eq!(
         protocol_dsl_path("quic", Some("active-close")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/quic/local-close".to_string())
+        Some(super::protocol_fixture_path("quic/local-close"))
     );
 }
 

@@ -10,31 +10,46 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::time::{Duration, SystemTime};
 use support::{route_fact, sock_lineage_fact, udp_packet_fact_with_dir_and_ports_and_payload};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn coap_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("coap", Some("post")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/coap/post".to_string())
+        Some(protocol_fixture_path("coap/post").to_string())
     );
     assert_eq!(
         protocol_dsl_path("coap", Some("write")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/coap/post".to_string())
+        Some(protocol_fixture_path("coap/post").to_string())
     );
     assert_eq!(
         protocol_dsl_path("coap", Some("put")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/coap/put".to_string())
+        Some(protocol_fixture_path("coap/put").to_string())
     );
     assert_eq!(
         protocol_dsl_path("coap", Some("update")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/coap/put".to_string())
+        Some(protocol_fixture_path("coap/put").to_string())
     );
     assert_eq!(
         protocol_dsl_path("coap", Some("delete")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/coap/delete".to_string())
+        Some(protocol_fixture_path("coap/delete").to_string())
     );
     assert_eq!(
         protocol_dsl_path("coap", Some("remove")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/coap/delete".to_string())
+        Some(protocol_fixture_path("coap/delete").to_string())
     );
 }
 
@@ -65,22 +80,21 @@ fn coap_surface_keeps_generic_shelves_per_entry() {
 
 #[test]
 fn coap_dsl_files_compile_into_expected_operations() {
-    let post = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_post_path.gewy").unwrap();
+    let post = compile_file(&dsl_fixture_path("coap_post_path.gewy")).unwrap();
     assert_eq!(post.template.id, "coap_post_path");
     assert_eq!(
         post.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("coap_post".into())
     );
 
-    let put = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_put_path.gewy").unwrap();
+    let put = compile_file(&dsl_fixture_path("coap_put_path.gewy")).unwrap();
     assert_eq!(put.template.id, "coap_put_path");
     assert_eq!(
         put.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("coap_put".into())
     );
 
-    let delete =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_delete_path.gewy").unwrap();
+    let delete = compile_file(&dsl_fixture_path("coap_delete_path.gewy")).unwrap();
     assert_eq!(delete.template.id, "coap_delete_path");
     assert_eq!(
         delete.template.program_model.as_ref().unwrap().operation,
@@ -90,8 +104,7 @@ fn coap_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn coap_post_runtime_path_materializes_send_and_created_response() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_post_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("coap_post_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 1811, 6100, "coap-client"));
@@ -139,8 +152,7 @@ fn coap_post_runtime_path_materializes_send_and_created_response() {
 
 #[test]
 fn coap_delete_runtime_path_rejects_wrong_response_code() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_delete_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("coap_delete_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 1812, 6101, "coap-client"));

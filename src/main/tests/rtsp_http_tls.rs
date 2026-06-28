@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn summary_json_carries_rtsp_describe_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_describe_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("rtsp_describe_path.gewy"))
         .expect("rtsp_describe_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -86,9 +86,8 @@ fn summary_json_carries_rtsp_describe_timeout_detail() {
 
 #[test]
 fn summary_json_carries_http_connect_timeout_detail() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy")
-            .expect("http_connect_tunnel_path DSL should compile");
+    let binding = compile_file(&dsl_fixture_path("http_connect_tunnel_path.gewy"))
+        .expect("http_connect_tunnel_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
             binding,
@@ -150,9 +149,8 @@ fn summary_json_carries_http_connect_timeout_detail() {
 
 #[test]
 fn summary_json_carries_http_connect_auth_required_detail() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_auth_required_path.gewy")
-            .expect("http_connect_auth_required_path DSL should compile");
+    let binding = compile_file(&dsl_fixture_path("http_connect_auth_required_path.gewy"))
+        .expect("http_connect_auth_required_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
             binding,
@@ -202,9 +200,9 @@ fn summary_json_carries_http_connect_auth_required_detail() {
 
 #[test]
 fn summary_json_carries_http_connect_authenticated_tunnel_pending_auth_detail() {
-    let binding = compile_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy",
-    )
+    let binding = compile_file(&dsl_fixture_path(
+        "http_connect_authenticated_tunnel_path.gewy",
+    ))
     .expect("http_connect_authenticated_tunnel_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -287,9 +285,8 @@ fn summary_json_carries_http_connect_authenticated_tunnel_pending_auth_detail() 
 
 #[test]
 fn summary_json_carries_http3_server_timeout_detail() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
-            .expect("http3_server_response_path DSL should compile");
+    let binding = compile_file(&dsl_fixture_path("http3_server_response_path.gewy"))
+        .expect("http3_server_response_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
@@ -317,7 +314,7 @@ fn summary_json_carries_http3_server_timeout_detail() {
 
 #[test]
 fn summary_json_carries_tls_route_blocked_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("tls_client_path.gewy"))
         .expect("tls_client_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -346,7 +343,7 @@ fn summary_json_carries_tls_route_blocked_detail() {
 
 #[test]
 fn findings_json_carries_network_module_classification() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),

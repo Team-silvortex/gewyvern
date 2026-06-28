@@ -90,6 +90,7 @@ Run:
 
 ```bash
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh
+bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_lifecycle_validation.sh
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_fault_injection.sh --help
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_roundtrip.sh
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_log_evidence.sh /path/to/runtime.log
@@ -99,6 +100,7 @@ bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_val
 Use this when you care about:
 
 - socket ingest surviving bad input
+- startup, explicit stop, log evidence, and temporary run-dir cleanup
 - read-only API behavior
 - latest snapshot, analysis, export, and training surfaces
 - operator-facing deployment posture
@@ -115,6 +117,19 @@ Run:
 
 ```bash
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
+```
+
+When validating on a reused physical or CI host that already has a suitable
+Linux development image, skip the Docker rebuild and refresh the leserpent
+NuGet graph explicitly:
+
+```bash
+IMAGE_TAG=gewyvern-stack-dev-physical \
+  SKIP_DOCKER_BUILD=true \
+  LESERPENT_DOTNET_RESTORE_FIRST=true \
+  LESERPENT_DOTNET_IGNORE_FAILED_SOURCES=true \
+  LESERPENT_DOTNET_NO_RESTORE=true \
+  bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
 ```
 
 This is the current collaboration smoke across:

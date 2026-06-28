@@ -1,5 +1,5 @@
 name=ntp_sync
-version=0.15.0
+version=0.18.2
 entry=main.gewy
 register.protocol=ntp
 register.entry=sync

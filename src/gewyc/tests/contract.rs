@@ -1,16 +1,16 @@
 use super::*;
 
-fn udp_debug_path() -> &'static str {
-    "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy"
+fn udp_debug_path() -> String {
+    dsl_fixture_path("udp_process_debug.gewy")
 }
 
-fn amqp_publish_path() -> &'static str {
-    "/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy"
+fn amqp_publish_path() -> String {
+    protocol_fixture_path("amqp/publish/main.gewy")
 }
 
 #[test]
 fn blessed_wrapper_fields_exist_for_binding_surface() {
-    let binding = compile_binding_file(udp_debug_path()).unwrap();
+    let binding = compile_binding_file(&udp_debug_path()).unwrap();
     let json = render_binding(&binding, RenderFormat::Json);
 
     assert_valid_json_document(&json);
@@ -30,7 +30,7 @@ fn blessed_wrapper_fields_exist_for_binding_surface() {
 
 #[test]
 fn blessed_grouped_fields_exist_for_explain_surface() {
-    let report = compile_explain_report_file(udp_debug_path()).unwrap();
+    let report = compile_explain_report_file(&udp_debug_path()).unwrap();
     let json = render_explain_report(&report, RenderFormat::Json);
 
     assert_valid_json_document(&json);
@@ -48,7 +48,7 @@ fn blessed_grouped_fields_exist_for_explain_surface() {
 
 #[test]
 fn blessed_grouped_fields_exist_for_ir_history_surface() {
-    let report = compile_explain_report_file(amqp_publish_path()).unwrap();
+    let report = compile_explain_report_file(&amqp_publish_path()).unwrap();
     let ir_report = report.ir_report.as_ref().expect("ir report should exist");
     let json = render_ir_history_snapshot(ir_report, RenderFormat::Json);
 
@@ -64,7 +64,7 @@ fn blessed_grouped_fields_exist_for_ir_history_surface() {
 
 #[test]
 fn compat_binding_fields_remain_available_inside_payload() {
-    let binding = compile_binding_file(udp_debug_path()).unwrap();
+    let binding = compile_binding_file(&udp_debug_path()).unwrap();
     let json = render_binding(&binding, RenderFormat::Json);
 
     assert!(json.contains("\"template_id\":\"udp_process_debug\""));
@@ -79,7 +79,7 @@ fn compat_binding_fields_remain_available_inside_payload() {
 
 #[test]
 fn compat_explain_fields_remain_available_inside_payload() {
-    let report = compile_explain_report_file(udp_debug_path()).unwrap();
+    let report = compile_explain_report_file(&udp_debug_path()).unwrap();
     let json = render_explain_report(&report, RenderFormat::Json);
 
     assert!(json.contains("\"summary\":{"));
@@ -100,7 +100,7 @@ fn compat_explain_fields_remain_available_inside_payload() {
 
 #[test]
 fn compat_ir_history_fields_remain_available_inside_payload() {
-    let report = compile_explain_report_file(amqp_publish_path()).unwrap();
+    let report = compile_explain_report_file(&amqp_publish_path()).unwrap();
     let ir_report = report.ir_report.as_ref().expect("ir report should exist");
     let json = render_ir_history_snapshot(ir_report, RenderFormat::Json);
 

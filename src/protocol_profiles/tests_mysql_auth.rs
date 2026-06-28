@@ -17,15 +17,15 @@ fn mysql_auth_surfaces_share_connect_auth_shelf() {
 fn mysql_auth_denied_aliases_resolve_to_canonical_entry() {
     assert_eq!(
         protocol_dsl_path("mysql-auth-denied", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/auth-denied".to_string())
+        Some(super::protocol_fixture_path("mysql/auth-denied"))
     );
     assert_eq!(
         protocol_dsl_path("mysql", Some("login-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/auth-denied".to_string())
+        Some(super::protocol_fixture_path("mysql/auth-denied"))
     );
     assert_eq!(
         protocol_dsl_path("mysql", Some("handshake-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/auth-denied".to_string())
+        Some(super::protocol_fixture_path("mysql/auth-denied"))
     );
 }
 

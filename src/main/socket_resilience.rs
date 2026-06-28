@@ -229,6 +229,7 @@ fn socket_failure_backoff_cap_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{SocketLoopHealth, socket_failure_backoff};
+    use crate::external_analysis::test_guard;
     use std::time::Duration;
 
     #[test]
@@ -246,6 +247,8 @@ mod tests {
 
     #[test]
     fn loop_health_resets_after_success() {
+        let _guard = test_guard();
+        super::reset_socket_resilience_status();
         let mut health = SocketLoopHealth::default();
         let first = health.record_failure();
         let second = health.record_failure();
@@ -258,6 +261,7 @@ mod tests {
 
     #[test]
     fn idle_timeouts_publish_non_degraded_idle_state() {
+        let _guard = test_guard();
         super::reset_socket_resilience_status();
         let mut health = SocketLoopHealth::default();
         assert_eq!(health.record_idle_timeout(), 1);

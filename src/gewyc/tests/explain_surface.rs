@@ -2,9 +2,7 @@ use super::*;
 
 #[test]
 fn compile_explain_report_file_materializes_human_summary_surface() {
-    let report =
-        compile_explain_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let report = compile_explain_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     assert!(report.ok);
     assert!(report.binding.is_some());
     assert!(report.frontend.is_some());
@@ -206,9 +204,7 @@ template(:focus_json_demo)
 
 #[test]
 fn binding_and_diagnostics_json_surface_status_and_counts() {
-    let report =
-        compile_explain_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let report = compile_explain_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let binding = report
         .binding
         .as_ref()

@@ -1,51 +1,11 @@
 use crate::runtime_layout::{protocol_registry_roots, runtime_layout};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
 
-fn env_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-}
-
-struct EnvGuard {
-    key: &'static str,
-    previous: Option<String>,
-}
-
-impl EnvGuard {
-    fn set(key: &'static str, value: impl Into<String>) -> Self {
-        let previous = std::env::var(key).ok();
-        unsafe {
-            std::env::set_var(key, value.into());
-        }
-        Self { key, previous }
-    }
-
-    fn remove(key: &'static str) -> Self {
-        let previous = std::env::var(key).ok();
-        unsafe {
-            std::env::remove_var(key);
-        }
-        Self { key, previous }
-    }
-}
-
-impl Drop for EnvGuard {
-    fn drop(&mut self) {
-        match &self.previous {
-            Some(value) => unsafe {
-                std::env::set_var(self.key, value);
-            },
-            None => unsafe {
-                std::env::remove_var(self.key);
-            },
-        }
-    }
-}
+use super::tests_env::EnvGuard;
 
 #[test]
 fn runtime_layout_prefers_explicit_standard_root_overrides() {
-    let _lock = env_lock().lock().unwrap();
+    let _lock = super::tests_env::lock();
     let _config = EnvGuard::set("GEWY_CONFIG_HOME", "/tmp/gewy-config");
     let _data = EnvGuard::set("GEWY_DATA_HOME", "/tmp/gewy-data");
     let _state = EnvGuard::set("GEWY_STATE_HOME", "/tmp/gewy-state");
@@ -81,7 +41,7 @@ fn runtime_layout_prefers_explicit_standard_root_overrides() {
 
 #[test]
 fn protocol_registry_roots_keep_legacy_home_as_fallback() {
-    let _lock = env_lock().lock().unwrap();
+    let _lock = super::tests_env::lock();
     let _registry = EnvGuard::remove("GEWY_PROTOCOL_REGISTRY_ROOT");
     let _share = EnvGuard::remove("GEWY_SHARE_ROOT");
     let _config = EnvGuard::remove("GEWY_CONFIG_HOME");
@@ -102,7 +62,7 @@ fn protocol_registry_roots_keep_legacy_home_as_fallback() {
 
 #[test]
 fn explicit_protocol_registry_root_stays_highest_priority() {
-    let _lock = env_lock().lock().unwrap();
+    let _lock = super::tests_env::lock();
     let _registry = EnvGuard::set("GEWY_PROTOCOL_REGISTRY_ROOT", "/tmp/custom-registry");
     let _data = EnvGuard::set("GEWY_DATA_HOME", "/tmp/gewy-data");
     let _home = EnvGuard::set("HOME", "/tmp/gewy-home");

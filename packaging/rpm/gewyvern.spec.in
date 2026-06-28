@@ -52,6 +52,7 @@ upgrade_policy = "copy-forward-without-overwrite"
 EOF
 
 %files
+%defattr(-,root,root,-)
 /usr/bin/gewyvern
 /usr/bin/gewyvern_socket_send
 /usr/bin/gewyc

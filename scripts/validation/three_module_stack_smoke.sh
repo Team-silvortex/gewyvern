@@ -6,7 +6,20 @@ GEWY_ROOT="${ROOT}"
 ETRAGON_ROOT="${ROOT}/apps/etragon"
 LESERPENT_ROOT="${ROOT}/apps/leserpent"
 
+if [ -x "${HOME}/.dotnet/dotnet" ]; then
+  export DOTNET_ROOT="${DOTNET_ROOT:-${HOME}/.dotnet}"
+  export PATH="${HOME}/.dotnet:${PATH}"
+fi
+
 IMAGE_TAG="${IMAGE_TAG:-gewyvern-stack-dev}"
+SKIP_DOCKER_BUILD="${SKIP_DOCKER_BUILD:-false}"
+DOCKER_BASE_IMAGE="${DOCKER_BASE_IMAGE:-ubuntu:24.04}"
+DOCKER_APT_MIRROR="${DOCKER_APT_MIRROR:-}"
+DOCKER_RUSTUP_INIT_URL="${DOCKER_RUSTUP_INIT_URL:-https://sh.rustup.rs}"
+DOCKER_RUSTUP_INIT_FALLBACK_URL="${DOCKER_RUSTUP_INIT_FALLBACK_URL:-https://sh.rustup.rs}"
+DOCKER_RUSTUP_DIST_SERVER="${DOCKER_RUSTUP_DIST_SERVER:-https://static.rust-lang.org}"
+DOCKER_RUSTUP_UPDATE_ROOT="${DOCKER_RUSTUP_UPDATE_ROOT:-https://static.rust-lang.org/rustup}"
+DOCKER_RUSTUP_INSTALL_TIMEOUT_SECONDS="${DOCKER_RUSTUP_INSTALL_TIMEOUT_SECONDS:-600}"
 NETWORK_NAME="${NETWORK_NAME:-gewyvern-stack-net}"
 GW_A_NAME="${GW_A_NAME:-gewyvern-stack-a}"
 GW_B_NAME="${GW_B_NAME:-gewyvern-stack-b}"
@@ -18,13 +31,19 @@ GW_B_SOCKET_PORT="${GW_B_SOCKET_PORT:-19002}"
 GW_B_API_PORT="${GW_B_API_PORT:-19102}"
 ET_A_API_PORT="${ET_A_API_PORT:-19431}"
 ET_A_ADMIN_TOKEN="${ET_A_ADMIN_TOKEN:-stack-smoke-admin-token}"
+LESERPENT_DOTNET_RESTORE_FIRST="${LESERPENT_DOTNET_RESTORE_FIRST:-false}"
+LESERPENT_DOTNET_IGNORE_FAILED_SOURCES="${LESERPENT_DOTNET_IGNORE_FAILED_SOURCES:-false}"
+LESERPENT_DOTNET_NO_RESTORE="${LESERPENT_DOTNET_NO_RESTORE:-false}"
 
-WORK_DIR="$(mktemp -d /private/tmp/three-module-stack.XXXXXX)"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/three-module-stack.XXXXXX")"
 TARGET_CACHE_DIR="${WORK_DIR}/target-cache"
+CARGO_CACHE_DIR="${CARGO_CACHE_DIR:-${CARGO_HOME:-${HOME}/.cargo}}"
+CARGO_NET_OFFLINE="${CARGO_NET_OFFLINE:-false}"
 STATE_PATH="${WORK_DIR}/leserpent-state.json"
 LESP_LOG="${WORK_DIR}/leserpent.log"
 RESILIENCE_SUMMARY_PATH="${RESILIENCE_SUMMARY_PATH:-${WORK_DIR}/resilience-summary.txt}"
 mkdir -p "${TARGET_CACHE_DIR}"
+mkdir -p "${CARGO_CACHE_DIR}"
 
 LESP_PID=""
 
@@ -67,7 +86,22 @@ if [ ! -d "${LESERPENT_ROOT}" ]; then
   exit 1
 fi
 
-docker build -t "${IMAGE_TAG}" -f "${GEWY_ROOT}/docker/linux-dev/Dockerfile" "${GEWY_ROOT}" >/dev/null
+if [ "${SKIP_DOCKER_BUILD}" != "true" ]; then
+  docker build \
+    --build-arg "BASE_IMAGE=${DOCKER_BASE_IMAGE}" \
+    --build-arg "APT_MIRROR=${DOCKER_APT_MIRROR}" \
+    --build-arg "RUSTUP_INIT_URL=${DOCKER_RUSTUP_INIT_URL}" \
+    --build-arg "RUSTUP_INIT_FALLBACK_URL=${DOCKER_RUSTUP_INIT_FALLBACK_URL}" \
+    --build-arg "RUSTUP_DIST_SERVER=${DOCKER_RUSTUP_DIST_SERVER}" \
+    --build-arg "RUSTUP_UPDATE_ROOT=${DOCKER_RUSTUP_UPDATE_ROOT}" \
+    --build-arg "RUSTUP_INSTALL_TIMEOUT_SECONDS=${DOCKER_RUSTUP_INSTALL_TIMEOUT_SECONDS}" \
+    -t "${IMAGE_TAG}" \
+    -f "${GEWY_ROOT}/docker/linux-dev/Dockerfile" \
+    "${GEWY_ROOT}" >/dev/null
+elif ! docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
+  echo "SKIP_DOCKER_BUILD=true but image is missing: ${IMAGE_TAG}" >&2
+  exit 1
+fi
 
 docker network rm "${NETWORK_NAME}" >/dev/null 2>&1 || true
 docker network create "${NETWORK_NAME}" >/dev/null
@@ -75,6 +109,9 @@ docker network create "${NETWORK_NAME}" >/dev/null
 docker run --rm \
   -v "${ROOT}:/workspace/dev/gewyvern" \
   -v "${TARGET_CACHE_DIR}:/stack-target" \
+  -v "${CARGO_CACHE_DIR}:/cargo-cache" \
+  -e CARGO_HOME=/cargo-cache \
+  -e "CARGO_NET_OFFLINE=${CARGO_NET_OFFLINE}" \
   "${IMAGE_TAG}" \
   bash -lc '
     set -euo pipefail
@@ -378,8 +415,21 @@ payload = json.load(sys.stdin)
 assert "output" in payload and isinstance(payload["output"], dict), payload
 assert "augmentations" in payload["output"], payload
 print("etragon-output-ok")'
+LESERPENT_DOTNET_RESTORE_ARGS=()
+if [ "${LESERPENT_DOTNET_IGNORE_FAILED_SOURCES}" = "true" ]; then
+  LESERPENT_DOTNET_RESTORE_ARGS+=(--ignore-failed-sources)
+fi
+if [ "${LESERPENT_DOTNET_RESTORE_FIRST}" = "true" ]; then
+  DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+    dotnet restore "${LESERPENT_ROOT}/src/Leserpent/Leserpent.csproj" "${LESERPENT_DOTNET_RESTORE_ARGS[@]}"
+fi
+LESERPENT_DOTNET_RUN_ARGS=()
+if [ "${LESERPENT_DOTNET_NO_RESTORE}" = "true" ]; then
+  LESERPENT_DOTNET_RUN_ARGS+=(--no-restore)
+fi
 LESERPENT_STATE_PATH="${STATE_PATH}" \
-  dotnet run --project "${LESERPENT_ROOT}/src/Leserpent/Leserpent.csproj" --no-launch-profile --urls "http://127.0.0.1:${LESP_PORT}" \
+  DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+  dotnet run --project "${LESERPENT_ROOT}/src/Leserpent/Leserpent.csproj" "${LESERPENT_DOTNET_RUN_ARGS[@]}" --no-launch-profile --urls "http://127.0.0.1:${LESP_PORT}" \
   >"${LESP_LOG}" 2>&1 &
 LESP_PID=$!
 wait_http "http://127.0.0.1:${LESP_PORT}/health" || {

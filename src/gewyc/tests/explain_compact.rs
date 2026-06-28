@@ -2,10 +2,8 @@ use super::*;
 
 #[test]
 fn explain_report_compact_ir_focus_includes_model_compare_summary() {
-    let report = compile_explain_report_file(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy",
-    )
-    .unwrap();
+    let report =
+        compile_explain_report_file(&protocol_fixture_path("amqp/publish/main.gewy")).unwrap();
     let text = render_explain_report_with_options(
         &report,
         RenderFormat::Text,

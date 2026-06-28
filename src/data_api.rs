@@ -27,7 +27,7 @@ mod service;
 mod training_manifest;
 
 use self::routing::handle_api_client;
-pub use self::service::start_api_service;
+pub use self::service::{ApiService, start_api_service};
 pub(crate) use self::training_manifest::training_sample_id;
 
 pub type ApiState = Arc<Mutex<Arc<ApiSnapshot>>>;

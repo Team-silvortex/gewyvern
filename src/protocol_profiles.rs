@@ -12,7 +12,8 @@ use aliases::{protocol_entry_aliases, resolve_protocol_entry_alias, split_protoc
 use overlays::selected_overlay_for_alias;
 use profiles::{PROTOCOL_PROFILES, find_protocol_profile};
 use registry::{
-    default_protocol_scan_set_from_registry, resolve_built_in_dsl_path, resolve_registry_alias,
+    default_protocol_scan_set_from_registry,
+    resolve_built_in_dsl_path as resolve_built_in_dsl_path_inner, resolve_registry_alias,
     resolve_registry_entry_alias, scan_protocol_registry, scan_protocol_registry_in,
 };
 use std::fs;
@@ -113,6 +114,10 @@ pub fn protocol_dsl_path(protocol: &str, entry: Option<&str>) -> Option<String> 
     resolve_protocol_profile(protocol, entry).map(|profile| profile.dsl_path)
 }
 
+pub fn resolve_built_in_dsl_path(raw: &str) -> String {
+    resolve_built_in_dsl_path_inner(raw)
+}
+
 pub fn protocol_summaries() -> Vec<ProtocolSummary> {
     if let Some(registry) = scan_protocol_registry() {
         return protocol_summaries_from_registry(registry);
@@ -154,6 +159,19 @@ pub fn protocol_surface(protocol: &str, entry: &str) -> Option<ProtocolSurfaceSu
         selected_entry,
         selected_overlay,
     ))
+}
+
+pub fn protocol_surface_from_summary(
+    summary: ProtocolSummary,
+    entry: &str,
+) -> Option<ProtocolSurfaceSummary> {
+    let selected_entry = summary
+        .entries
+        .iter()
+        .find(|item| item.mode == entry || item.aliases.iter().any(|alias| alias == entry))?
+        .mode
+        .clone();
+    Some(built_in_protocol_surface(summary, selected_entry, None))
 }
 
 pub fn protocol_names() -> Vec<String> {
@@ -235,7 +253,7 @@ pub fn resolve_protocol_profile(
         .map(|item| ResolvedProtocolProfile {
             protocol: profile.name.to_string(),
             entry: item.mode.to_string(),
-            dsl_path: resolve_built_in_dsl_path(item.dsl_path),
+            dsl_path: resolve_built_in_dsl_path_inner(item.dsl_path),
         })
 }
 
@@ -332,6 +350,60 @@ fn extract_template_id(input: &str) -> Option<String> {
     })
 }
 
+#[cfg(test)]
+mod tests_env {
+    use std::sync::{Mutex, MutexGuard, OnceLock};
+
+    pub(crate) struct EnvGuard {
+        key: &'static str,
+        previous: Option<String>,
+    }
+
+    impl EnvGuard {
+        pub(crate) fn set(key: &'static str, value: impl Into<String>) -> Self {
+            let previous = std::env::var(key).ok();
+            unsafe {
+                std::env::set_var(key, value.into());
+            }
+            Self { key, previous }
+        }
+
+        pub(crate) fn remove(key: &'static str) -> Self {
+            let previous = std::env::var(key).ok();
+            unsafe {
+                std::env::remove_var(key);
+            }
+            Self { key, previous }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            match &self.previous {
+                Some(value) => unsafe {
+                    std::env::set_var(self.key, value);
+                },
+                None => unsafe {
+                    std::env::remove_var(self.key);
+                },
+            }
+        }
+    }
+
+    pub(crate) fn lock() -> MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+    }
+}
+
+#[cfg(test)]
+fn protocol_fixture_path(relative: &str) -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

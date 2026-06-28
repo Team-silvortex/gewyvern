@@ -52,7 +52,7 @@ extract_events() {
   : >"${output_log}"
   local file
   for file in "$@"; do
-    rg -h "event=($(printf '%s|' "${EVENTS[@]}" | sed 's/|$//'))|backoff_ms=" "${file}" >>"${output_log}" || true
+    rg --no-filename "event=($(printf '%s|' "${EVENTS[@]}" | sed 's/|$//'))|backoff_ms=" "${file}" >>"${output_log}" || true
   done
 }
 
@@ -67,11 +67,11 @@ write_summary() {
     local event
     for event in "${EVENTS[@]}"; do
       local count
-      count="$(rg -c "event=${event}\\b" "${event_log}" | awk -F: '{sum += $2} END {print sum + 0}')"
+      count="$(awk -v event="event=${event}" 'index($0, event) { count++ } END { print count + 0 }' "${event_log}")"
       printf -- "- %s: %s\n" "${event}" "${count}"
     done
     local backoff_count
-    backoff_count="$(rg -c "backoff_ms=" "${event_log}" | awk -F: '{sum += $2} END {print sum + 0}')"
+    backoff_count="$(awk 'index($0, "backoff_ms=") { count++ } END { print count + 0 }' "${event_log}")"
     printf -- "- backoff_ms fields: %s\n" "${backoff_count}"
   } >"${output_summary}"
 }
@@ -93,7 +93,10 @@ main() {
   fi
   mkdir -p "${output_dir}"
 
-  mapfile -t files < <(resolve_input_files "${input_path}")
+  files=()
+  while IFS= read -r file; do
+    files+=("${file}")
+  done < <(resolve_input_files "${input_path}")
   if [[ "${#files[@]}" -eq 0 ]]; then
     echo "no log files found under: ${input_path}" >&2
     exit 1

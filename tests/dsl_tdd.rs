@@ -24,10 +24,16 @@ use support::{
     udp_quic_meta_fact_with_payload_bytes,
 };
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn built_in_udp_process_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "udp_process_debug");
     assert_eq!(
@@ -68,9 +74,7 @@ fn built_in_udp_process_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_structured_udp_process_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/structured_udp_process_debug.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("structured_udp_process_debug.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "structured_udp_process_debug");
     assert_eq!(
@@ -85,9 +89,7 @@ fn built_in_structured_udp_process_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_pipeline_udp_process_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/pipeline_udp_process_debug.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("pipeline_udp_process_debug.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "pipeline_udp_process_debug");
     assert_eq!(
@@ -171,8 +173,7 @@ template(:frontend_doc)
 
 #[test]
 fn built_in_dns_udp_process_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("dns_udp_process.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "dns_udp_process");
     assert_eq!(
@@ -195,8 +196,7 @@ fn built_in_dns_udp_process_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_https_connect_process_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("https_connect_process.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "https_connect_process");
     assert_eq!(
@@ -211,9 +211,7 @@ fn built_in_https_connect_process_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_postgres_connect_process_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_connect_process.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "postgres_connect_process");
     assert_eq!(
@@ -224,9 +222,7 @@ fn built_in_postgres_connect_process_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_postgres_simple_query_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_simple_query_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_simple_query_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "postgres_simple_query_path");
     assert_eq!(
@@ -241,8 +237,7 @@ fn built_in_postgres_simple_query_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_postgres_auth_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_auth_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "postgres_auth_path");
     assert_eq!(
@@ -257,9 +252,7 @@ fn built_in_postgres_auth_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_postgres_query_error_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_error_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_query_error_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "postgres_query_error_path");
     assert_eq!(
@@ -274,8 +267,7 @@ fn built_in_postgres_query_error_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_mysql_connect_process_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_connect_process.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mysql_connect_process.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "mysql_connect_process");
     assert_eq!(
@@ -286,8 +278,7 @@ fn built_in_mysql_connect_process_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_mysql_simple_query_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mysql_simple_query_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "mysql_simple_query_path");
     assert_eq!(
@@ -298,8 +289,7 @@ fn built_in_mysql_simple_query_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_mysql_query_session_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mysql_query_session.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "mysql_query_session");
     assert_eq!(
@@ -310,8 +300,7 @@ fn built_in_mysql_query_session_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_mysql_query_error_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mysql_query_error_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "mysql_query_error_path");
     assert_eq!(
@@ -322,8 +311,7 @@ fn built_in_mysql_query_error_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_memcached_get_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("memcached_get_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "memcached_get_path");
     assert_eq!(
@@ -334,8 +322,7 @@ fn built_in_memcached_get_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_memcached_set_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("memcached_set_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "memcached_set_path");
     assert_eq!(
@@ -346,9 +333,7 @@ fn built_in_memcached_set_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_amqp_connection_start_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("amqp_connection_start_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "amqp_connection_start_path");
     assert_eq!(
@@ -359,8 +344,7 @@ fn built_in_amqp_connection_start_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_amqp_basic_publish_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("amqp_basic_publish_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "amqp_basic_publish_path");
     assert_eq!(
@@ -371,8 +355,7 @@ fn built_in_amqp_basic_publish_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_amqp_publish_session_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_publish_session.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("amqp_publish_session.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "amqp_publish_session");
     assert_eq!(
@@ -383,8 +366,7 @@ fn built_in_amqp_publish_session_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_gtpu_echo_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("gtpu_echo_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "gtpu_echo_path");
     assert_eq!(
@@ -399,8 +381,7 @@ fn built_in_gtpu_echo_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_http_request_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "http_request_path");
     assert_eq!(
@@ -411,9 +392,7 @@ fn built_in_http_request_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_http_server_response_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_server_response_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "http_server_response_path");
     assert_eq!(
@@ -424,8 +403,7 @@ fn built_in_http_server_response_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_http3_request_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("http3_request_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "http3_request_path");
     assert_eq!(
@@ -436,9 +414,7 @@ fn built_in_http3_request_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_http3_server_response_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http3_server_response_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "http3_server_response_path");
     assert_eq!(
@@ -449,7 +425,7 @@ fn built_in_http3_server_response_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_hy2_auth_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("hy2_auth_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "hy2_auth_path");
     assert_eq!(
@@ -460,8 +436,7 @@ fn built_in_hy2_auth_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_hy2_udp_relay_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_relay_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("hy2_udp_relay_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "hy2_udp_relay_path");
     assert_eq!(
@@ -472,8 +447,7 @@ fn built_in_hy2_udp_relay_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_hy2_tcp_relay_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("hy2_tcp_relay_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "hy2_tcp_relay_path");
     assert_eq!(
@@ -1050,8 +1024,7 @@ template(:directional_narrative_templates)
 
 #[test]
 fn built_in_tls_client_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("tls_client_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "tls_client_path");
     assert_eq!(
@@ -1062,9 +1035,7 @@ fn built_in_tls_client_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_quic_client_initial_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_client_initial_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "quic_client_initial_path");
     assert_eq!(
@@ -1075,9 +1046,7 @@ fn built_in_quic_client_initial_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_quic_crypto_handshake_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_crypto_handshake_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_crypto_handshake_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "quic_crypto_handshake_path");
     assert_eq!(
@@ -1088,9 +1057,7 @@ fn built_in_quic_crypto_handshake_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_quic_stream_session_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_stream_session_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_stream_session_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "quic_stream_session_path");
     assert_eq!(
@@ -1101,8 +1068,7 @@ fn built_in_quic_stream_session_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_quic_bidi_stream_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_bidi_stream_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_bidi_stream_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "quic_bidi_stream_path");
     assert_eq!(
@@ -1113,8 +1079,7 @@ fn built_in_quic_bidi_stream_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_stun_binding_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("stun_binding_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "stun_binding_path");
     assert_eq!(
@@ -1125,7 +1090,7 @@ fn built_in_stun_binding_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_coap_get_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("coap_get_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "coap_get_path");
     assert_eq!(
@@ -1136,8 +1101,7 @@ fn built_in_coap_get_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ntp_client_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ntp_client_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ntp_client_path");
     assert_eq!(
@@ -1148,8 +1112,7 @@ fn built_in_ntp_client_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_dhcp_client_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("dhcp_client_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "dhcp_client_path");
     assert_eq!(
@@ -1160,9 +1123,7 @@ fn built_in_dhcp_client_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_wireguard_handshake_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("wireguard_handshake_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "wireguard_handshake_path");
     assert_eq!(
@@ -1173,8 +1134,7 @@ fn built_in_wireguard_handshake_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_mdns_query_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mdns_query_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "mdns_query_path");
     assert_eq!(
@@ -1185,8 +1145,7 @@ fn built_in_mdns_query_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ssdp_discovery_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssdp_discovery_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ssdp_discovery_path");
     assert_eq!(
@@ -1197,8 +1156,7 @@ fn built_in_ssdp_discovery_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_redis_ping_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("redis_ping_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "redis_ping_path");
     assert_eq!(
@@ -1209,8 +1167,7 @@ fn built_in_redis_ping_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_mqtt_connect_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mqtt_connect_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "mqtt_connect_path");
     assert_eq!(
@@ -1225,8 +1182,7 @@ fn built_in_mqtt_connect_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_radius_access_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("radius_access_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "radius_access_path");
     assert_eq!(
@@ -1241,8 +1197,7 @@ fn built_in_radius_access_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_smtp_session_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_session_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "smtp_session_path");
     assert_eq!(
@@ -1257,8 +1212,7 @@ fn built_in_smtp_session_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_smtp_auth_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_auth_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "smtp_auth_path");
     assert_eq!(
@@ -1273,8 +1227,7 @@ fn built_in_smtp_auth_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_imap_auth_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("imap_auth_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "imap_auth_path");
     assert_eq!(
@@ -1289,8 +1242,7 @@ fn built_in_imap_auth_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_imap_auth_denied_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("imap_auth_denied_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "imap_auth_denied_path");
     assert_eq!(
@@ -1305,8 +1257,7 @@ fn built_in_imap_auth_denied_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_imap_select_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_select_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("imap_select_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "imap_select_path");
     assert_eq!(
@@ -1321,8 +1272,7 @@ fn built_in_imap_select_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_pop3_auth_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/pop3_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("pop3_auth_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "pop3_auth_path");
     assert_eq!(
@@ -1337,8 +1287,7 @@ fn built_in_pop3_auth_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_pop3_auth_denied_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/pop3_auth_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("pop3_auth_denied_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "pop3_auth_denied_path");
     assert_eq!(
@@ -1353,8 +1302,7 @@ fn built_in_pop3_auth_denied_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_pop3_list_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/pop3_list_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("pop3_list_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "pop3_list_path");
     assert_eq!(
@@ -1369,8 +1317,7 @@ fn built_in_pop3_list_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_kerberos_as_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/kerberos_as_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("kerberos_as_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "kerberos_as_path");
     assert_eq!(
@@ -1385,8 +1332,7 @@ fn built_in_kerberos_as_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_kerberos_as_error_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/kerberos_as_error_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("kerberos_as_error_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "kerberos_as_error_path");
     assert_eq!(
@@ -1401,8 +1347,7 @@ fn built_in_kerberos_as_error_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_kerberos_tgs_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/kerberos_tgs_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("kerberos_tgs_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "kerberos_tgs_path");
     assert_eq!(
@@ -1417,8 +1362,7 @@ fn built_in_kerberos_tgs_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_rtsp_options_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_options_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("rtsp_options_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "rtsp_options_path");
     assert_eq!(
@@ -1433,8 +1377,7 @@ fn built_in_rtsp_options_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_rtsp_describe_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_describe_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("rtsp_describe_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "rtsp_describe_path");
     assert_eq!(
@@ -1449,8 +1392,7 @@ fn built_in_rtsp_describe_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_rtsp_setup_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_setup_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("rtsp_setup_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "rtsp_setup_path");
     assert_eq!(
@@ -1465,8 +1407,7 @@ fn built_in_rtsp_setup_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_smtp_mail_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_mail_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "smtp_mail_path");
     assert_eq!(
@@ -1481,8 +1422,7 @@ fn built_in_smtp_mail_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_smtp_rcpt_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_rcpt_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "smtp_rcpt_path");
     assert_eq!(
@@ -1497,8 +1437,7 @@ fn built_in_smtp_rcpt_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_smtp_data_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_data_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "smtp_data_path");
     assert_eq!(
@@ -1513,8 +1452,7 @@ fn built_in_smtp_data_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_smtp_data_denied_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_data_denied_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "smtp_data_denied_path");
     assert_eq!(
@@ -1529,8 +1467,7 @@ fn built_in_smtp_data_denied_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_smtp_rcpt_denied_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_rcpt_denied_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "smtp_rcpt_denied_path");
     assert_eq!(
@@ -1545,8 +1482,7 @@ fn built_in_smtp_rcpt_denied_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ftp_session_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_session_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "ftp_session_path");
     assert_eq!(
         binding.template.program_model.unwrap().operation,
@@ -1556,8 +1492,7 @@ fn built_in_ftp_session_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ftp_denied_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_denied_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "ftp_denied_path");
     assert_eq!(
         binding.template.program_model.unwrap().operation,
@@ -1567,8 +1502,7 @@ fn built_in_ftp_denied_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ftp_passive_list_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_passive_list_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_passive_list_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "ftp_passive_list_path");
     assert_eq!(
         binding.template.program_model.unwrap().operation,
@@ -1578,7 +1512,7 @@ fn built_in_ftp_passive_list_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ftp_retr_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_retr_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_retr_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "ftp_retr_path");
     assert_eq!(
         binding.template.program_model.unwrap().operation,
@@ -1588,7 +1522,7 @@ fn built_in_ftp_retr_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ftp_stor_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_stor_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_stor_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "ftp_stor_path");
     assert_eq!(
         binding.template.program_model.unwrap().operation,
@@ -1598,8 +1532,7 @@ fn built_in_ftp_stor_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ftp_active_list_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_list_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_active_list_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "ftp_active_list_path");
     assert_eq!(
         binding.template.program_model.unwrap().operation,
@@ -1609,8 +1542,7 @@ fn built_in_ftp_active_list_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ftp_active_retr_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_retr_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_active_retr_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "ftp_active_retr_path");
     assert_eq!(
         binding.template.program_model.unwrap().operation,
@@ -1620,8 +1552,7 @@ fn built_in_ftp_active_retr_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ftp_active_stor_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_stor_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_active_stor_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "ftp_active_stor_path");
     assert_eq!(
         binding.template.program_model.unwrap().operation,
@@ -1631,8 +1562,7 @@ fn built_in_ftp_active_stor_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ssh_session_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssh_session_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ssh_session_path");
     assert_eq!(
@@ -1647,7 +1577,7 @@ fn built_in_ssh_session_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ssh_auth_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssh_auth_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ssh_auth_path");
     assert_eq!(
@@ -1662,8 +1592,7 @@ fn built_in_ssh_auth_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ssh_auth_denied_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssh_auth_denied_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ssh_auth_denied_path");
     assert_eq!(
@@ -1678,9 +1607,7 @@ fn built_in_ssh_auth_denied_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ssh_channel_session_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_channel_session_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssh_channel_session_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ssh_channel_session_path");
     assert_eq!(
@@ -1695,8 +1622,7 @@ fn built_in_ssh_channel_session_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_socks5_session_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_session_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "socks5_session_path");
     assert_eq!(
@@ -1711,8 +1637,7 @@ fn built_in_socks5_session_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_socks5_auth_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_auth_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "socks5_auth_path");
     assert_eq!(
@@ -1727,8 +1652,7 @@ fn built_in_socks5_auth_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_socks5_auth_denied_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_auth_denied_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "socks5_auth_denied_path");
     assert_eq!(
@@ -1743,9 +1667,7 @@ fn built_in_socks5_auth_denied_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_socks5_auth_connect_denied_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_connect_denied_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_auth_connect_denied_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "socks5_auth_connect_denied_path");
     assert_eq!(
@@ -1760,8 +1682,7 @@ fn built_in_socks5_auth_connect_denied_path_dsl_compiles_into_template_binding()
 
 #[test]
 fn built_in_socks5_denied_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_denied_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "socks5_denied_path");
     assert_eq!(
@@ -1776,9 +1697,7 @@ fn built_in_socks5_denied_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_http_connect_tunnel_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_connect_tunnel_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "http_connect_tunnel_path");
     assert_eq!(
@@ -1793,9 +1712,7 @@ fn built_in_http_connect_tunnel_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_http_connect_denied_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_denied_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_connect_denied_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "http_connect_denied_path");
     assert_eq!(
@@ -1810,9 +1727,7 @@ fn built_in_http_connect_denied_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_http_connect_auth_required_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_auth_required_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_connect_auth_required_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "http_connect_auth_required_path");
     assert_eq!(
@@ -1827,9 +1742,9 @@ fn built_in_http_connect_auth_required_path_dsl_compiles_into_template_binding()
 
 #[test]
 fn built_in_http_connect_authenticated_tunnel_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy",
-    )
+    let binding = compile_file(&dsl_fixture_path(
+        "http_connect_authenticated_tunnel_path.gewy",
+    ))
     .unwrap();
 
     assert_eq!(
@@ -1848,8 +1763,7 @@ fn built_in_http_connect_authenticated_tunnel_path_dsl_compiles_into_template_bi
 
 #[test]
 fn built_in_sip_register_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("sip_register_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "sip_register_path");
     assert_eq!(
@@ -1864,8 +1778,7 @@ fn built_in_sip_register_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ldap_bind_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_bind_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ldap_bind_path");
     assert_eq!(
@@ -1880,8 +1793,7 @@ fn built_in_ldap_bind_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ldap_search_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_search_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_search_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ldap_search_path");
     assert_eq!(
@@ -1896,8 +1808,7 @@ fn built_in_ldap_search_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ldap_modify_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_modify_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ldap_modify_path");
     assert_eq!(
@@ -1912,8 +1823,7 @@ fn built_in_ldap_modify_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ldap_bind_denied_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_bind_denied_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ldap_bind_denied_path");
     assert_eq!(
@@ -1928,8 +1838,7 @@ fn built_in_ldap_bind_denied_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ldap_modify_denied_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_modify_denied_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ldap_modify_denied_path");
     assert_eq!(
@@ -1944,9 +1853,7 @@ fn built_in_ldap_modify_denied_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ldap_modify_constraint_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_constraint_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_modify_constraint_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ldap_modify_constraint_path");
     assert_eq!(
@@ -1961,8 +1868,7 @@ fn built_in_ldap_modify_constraint_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ldap_directory_session_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_session.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_directory_session.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ldap_directory_session");
     assert_eq!(
@@ -1977,9 +1883,7 @@ fn built_in_ldap_directory_session_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ldap_directory_write_session_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_write_session.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_directory_write_session.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ldap_directory_write_session");
     assert_eq!(
@@ -1994,9 +1898,7 @@ fn built_in_ldap_directory_write_session_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_ldap_directory_sync_session_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_directory_sync_session.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "ldap_directory_sync_session");
     assert_eq!(
@@ -2011,7 +1913,7 @@ fn built_in_ldap_directory_sync_session_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_snmp_get_path_dsl_compiles_into_template_binding() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_get_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "snmp_get_path");
     assert_eq!(
@@ -2026,8 +1928,7 @@ fn built_in_snmp_get_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn built_in_dns_tcp_query_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("dns_tcp_query_path.gewy")).unwrap();
 
     assert_eq!(binding.template.id, "dns_tcp_query_path");
     assert_eq!(
@@ -2038,8 +1939,7 @@ fn built_in_dns_tcp_query_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn udp_process_dsl_binding_drives_runtime_session() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 201, 4242, "curl"));
@@ -2095,8 +1995,7 @@ template(:udp_dns_debug)
 
 #[test]
 fn dns_dsl_uses_egress_direction_to_model_lookup_requests() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("dns_udp_process.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 303, 5353, "dig"));
@@ -2142,8 +2041,7 @@ fn dns_dsl_uses_egress_direction_to_model_lookup_requests() {
 
 #[test]
 fn dns_dsl_does_not_treat_ingress_udp_as_lookup_request() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("dns_udp_process.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 304, 5353, "dig"));
@@ -2178,8 +2076,7 @@ fn dns_dsl_does_not_treat_ingress_udp_as_lookup_request() {
 
 #[test]
 fn dns_dsl_missing_reply_produces_send_request_to_receive_reply_transition() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("dns_udp_process.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 305, 5353, "dig"));
@@ -2201,8 +2098,7 @@ fn dns_dsl_missing_reply_produces_send_request_to_receive_reply_transition() {
 
 #[test]
 fn http_request_path_can_span_connect_and_request_response_phases_in_one_module() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 601, 4242, "curl"));
@@ -2244,8 +2140,7 @@ fn http_request_path_can_span_connect_and_request_response_phases_in_one_module(
 
 #[test]
 fn http_request_path_missing_establish_produces_connect_to_establish_transition() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 602, 4242, "curl"));
@@ -2263,8 +2158,7 @@ fn http_request_path_missing_establish_produces_connect_to_establish_transition(
 
 #[test]
 fn http_request_path_missing_response_produces_request_to_response_transition() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 603, 4242, "curl"));
@@ -2285,9 +2179,7 @@ fn http_request_path_missing_response_produces_request_to_response_transition() 
 
 #[test]
 fn http_server_response_path_can_span_accept_request_and_response_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_server_response_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 604, 8080, "nginx"));
@@ -2312,9 +2204,7 @@ fn http_server_response_path_can_span_accept_request_and_response_phases() {
 
 #[test]
 fn http_server_response_path_missing_response_produces_request_to_response_transition() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_server_response_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 605, 8080, "nginx"));
@@ -2333,8 +2223,7 @@ fn http_server_response_path_missing_response_produces_request_to_response_trans
 
 #[test]
 fn tls_client_path_materializes_transport_packet_phase() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("tls_client_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 801, 4242, "curl"));
@@ -2366,8 +2255,7 @@ fn tls_client_path_materializes_transport_packet_phase() {
 
 #[test]
 fn tls_client_path_missing_packet_phase_produces_establish_transition() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("tls_client_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 802, 4242, "curl"));
@@ -2385,8 +2273,7 @@ fn tls_client_path_missing_packet_phase_produces_establish_transition() {
 
 #[test]
 fn built_in_tls_server_path_dsl_compiles_into_template_binding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_server_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("tls_server_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "tls_server_path");
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
@@ -2396,8 +2283,7 @@ fn built_in_tls_server_path_dsl_compiles_into_template_binding() {
 
 #[test]
 fn tls_server_path_materializes_accept_and_server_hello_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_server_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("tls_server_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 811, 8443, "nginx"));
@@ -2426,8 +2312,7 @@ fn tls_server_path_materializes_accept_and_server_hello_phases() {
 
 #[test]
 fn tls_server_path_missing_server_hello_produces_receive_to_send_transition() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_server_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("tls_server_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 812, 8443, "nginx"));
@@ -2446,9 +2331,7 @@ fn tls_server_path_missing_server_hello_produces_receive_to_send_transition() {
 
 #[test]
 fn quic_client_initial_path_materializes_initial_and_handshake_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_client_initial_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 803, 4242, "curl"));
@@ -2516,9 +2399,7 @@ fn quic_client_initial_path_materializes_initial_and_handshake_datagrams() {
 
 #[test]
 fn quic_crypto_handshake_path_materializes_quic_crypto_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_crypto_handshake_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_crypto_handshake_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 804, 4242, "curl"));
@@ -2594,9 +2475,7 @@ fn quic_crypto_handshake_path_materializes_quic_crypto_stages() {
 
 #[test]
 fn quic_crypto_handshake_path_does_not_treat_non_crypto_frames_as_crypto() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_crypto_handshake_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_crypto_handshake_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 805, 4242, "curl"));
@@ -2654,9 +2533,7 @@ fn quic_crypto_handshake_path_does_not_treat_non_crypto_frames_as_crypto() {
 
 #[test]
 fn quic_stream_session_path_materializes_stream_and_close_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_stream_session_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_stream_session_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 806, 4242, "curl"));
@@ -2752,9 +2629,7 @@ fn quic_stream_session_path_materializes_stream_and_close_stages() {
 
 #[test]
 fn quic_stream_session_path_does_not_treat_ack_as_stream() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_stream_session_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_stream_session_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 807, 4242, "curl"));
@@ -2822,8 +2697,7 @@ fn quic_stream_session_path_does_not_treat_ack_as_stream() {
 
 #[test]
 fn quic_bidi_stream_path_materializes_request_response_and_close_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_bidi_stream_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_bidi_stream_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 808, 4242, "curl"));
@@ -2928,8 +2802,7 @@ fn quic_bidi_stream_path_materializes_request_response_and_close_stages() {
 
 #[test]
 fn quic_bidi_stream_path_does_not_treat_close_as_response_stream() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_bidi_stream_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_bidi_stream_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 809, 4242, "curl"));
@@ -3007,8 +2880,7 @@ fn quic_bidi_stream_path_does_not_treat_close_as_response_stream() {
 
 #[test]
 fn http3_request_path_materializes_request_response_and_close_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("http3_request_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 810, 4242, "curl"));
@@ -3113,8 +2985,7 @@ fn http3_request_path_materializes_request_response_and_close_stages() {
 
 #[test]
 fn http3_request_path_does_not_treat_close_as_response_stream() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("http3_request_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 811, 4242, "curl"));
@@ -3192,9 +3063,7 @@ fn http3_request_path_does_not_treat_close_as_response_stream() {
 
 #[test]
 fn http3_server_response_path_materializes_request_response_and_close_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http3_server_response_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 812, 8080, "nginx"));
@@ -3298,9 +3167,7 @@ fn http3_server_response_path_materializes_request_response_and_close_stages() {
 
 #[test]
 fn http3_server_response_path_does_not_treat_close_as_request_stream() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http3_server_response_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 813, 8080, "nginx"));
@@ -3367,7 +3234,7 @@ fn http3_server_response_path_does_not_treat_close_as_request_stream() {
 
 #[test]
 fn hy2_auth_path_materializes_auth_request_and_ok_stages() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("hy2_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 814, 4242, "hysteria"));
@@ -3456,7 +3323,7 @@ fn hy2_auth_path_materializes_auth_request_and_ok_stages() {
 
 #[test]
 fn hy2_auth_path_does_not_treat_close_as_auth_ok_stream() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("hy2_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 815, 4242, "hysteria"));
@@ -3898,8 +3765,7 @@ fn http_connect_authenticated_tunnel_operation_maps_to_proxy_authentication_modu
 
 #[test]
 fn hy2_udp_relay_path_materializes_auth_and_datagram_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_relay_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("hy2_udp_relay_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 816, 4242, "hysteria"));
@@ -4015,8 +3881,7 @@ fn hy2_udp_relay_path_materializes_auth_and_datagram_stages() {
 
 #[test]
 fn hy2_udp_relay_path_does_not_treat_stream_as_udp_datagram() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_relay_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("hy2_udp_relay_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 817, 4242, "hysteria"));
@@ -4104,8 +3969,7 @@ fn hy2_udp_relay_path_does_not_treat_stream_as_udp_datagram() {
 
 #[test]
 fn hy2_tcp_relay_path_materializes_auth_and_tcp_stream_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("hy2_tcp_relay_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 818, 4242, "hysteria"));
@@ -4216,8 +4080,7 @@ fn hy2_tcp_relay_path_materializes_auth_and_tcp_stream_stages() {
 
 #[test]
 fn hy2_tcp_relay_path_does_not_treat_auth_stream_as_tcp_request_stream() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("hy2_tcp_relay_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 819, 4242, "hysteria"));
@@ -4295,9 +4158,7 @@ fn hy2_tcp_relay_path_does_not_treat_auth_stream_as_tcp_request_stream() {
 
 #[test]
 fn quic_client_initial_path_missing_handshake_produces_datagram_transition() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_client_initial_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 804, 4242, "curl"));
@@ -4324,9 +4185,7 @@ fn quic_client_initial_path_missing_handshake_produces_datagram_transition() {
 
 #[test]
 fn quic_client_initial_path_does_not_match_non_quic_udp_ports() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_client_initial_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 805, 4242, "curl"));
@@ -4370,9 +4229,7 @@ fn quic_client_initial_path_does_not_match_non_quic_udp_ports() {
 
 #[test]
 fn quic_client_initial_path_does_not_treat_small_quic_port_datagrams_as_initial() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_client_initial_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 806, 4242, "curl"));
@@ -4416,9 +4273,7 @@ fn quic_client_initial_path_does_not_treat_small_quic_port_datagrams_as_initial(
 
 #[test]
 fn quic_client_initial_path_does_not_treat_wrong_first_byte_as_initial() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_client_initial_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 807, 4242, "curl"));
@@ -4456,9 +4311,7 @@ fn quic_client_initial_path_does_not_treat_wrong_first_byte_as_initial() {
 
 #[test]
 fn quic_client_initial_path_does_not_treat_wrong_quic_packet_type_as_initial() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_client_initial_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("quic_client_initial_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 808, 4242, "curl"));
@@ -4496,8 +4349,7 @@ fn quic_client_initial_path_does_not_treat_wrong_quic_packet_type_as_initial() {
 
 #[test]
 fn stun_binding_path_materializes_request_and_response_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("stun_binding_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 809, 5000, "webrtc-app"));
@@ -4553,8 +4405,7 @@ fn stun_binding_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn stun_binding_path_does_not_match_wrong_message_type() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("stun_binding_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 810, 5000, "webrtc-app"));
@@ -4592,7 +4443,7 @@ fn stun_binding_path_does_not_match_wrong_message_type() {
 
 #[test]
 fn coap_get_path_materializes_request_and_response_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("coap_get_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 811, 6000, "coap-client"));
@@ -4648,7 +4499,7 @@ fn coap_get_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn coap_get_path_does_not_match_wrong_response_code() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/coap_get_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("coap_get_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 812, 6000, "coap-client"));
@@ -4686,8 +4537,7 @@ fn coap_get_path_does_not_match_wrong_response_code() {
 
 #[test]
 fn ntp_client_path_materializes_request_and_response_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ntp_client_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 813, 7000, "chrony-client"));
@@ -4743,8 +4593,7 @@ fn ntp_client_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn ntp_client_path_does_not_match_wrong_response_mode() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ntp_client_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 814, 7000, "chrony-client"));
@@ -4782,8 +4631,7 @@ fn ntp_client_path_does_not_match_wrong_response_mode() {
 
 #[test]
 fn gtpu_echo_path_materializes_request_and_response_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("gtpu_echo_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 813, 6001, "upf-agent"));
@@ -4839,8 +4687,7 @@ fn gtpu_echo_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn gtpu_echo_path_does_not_match_wrong_response_type() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("gtpu_echo_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 814, 6002, "upf-agent"));
@@ -4878,8 +4725,7 @@ fn gtpu_echo_path_does_not_match_wrong_response_type() {
 
 #[test]
 fn dhcp_client_path_materializes_request_and_response_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("dhcp_client_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 815, 68, "dhclient"));
@@ -4935,8 +4781,7 @@ fn dhcp_client_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn dhcp_client_path_does_not_match_wrong_reply_opcode() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("dhcp_client_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 816, 68, "dhclient"));
@@ -4974,9 +4819,7 @@ fn dhcp_client_path_does_not_match_wrong_reply_opcode() {
 
 #[test]
 fn wireguard_handshake_path_materializes_initiation_and_response_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("wireguard_handshake_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 817, 53000, "wg-quick"));
@@ -5032,9 +4875,7 @@ fn wireguard_handshake_path_materializes_initiation_and_response_datagrams() {
 
 #[test]
 fn wireguard_handshake_path_does_not_match_wrong_response_type() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_handshake_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("wireguard_handshake_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 818, 53000, "wg-quick"));
@@ -5072,8 +4913,7 @@ fn wireguard_handshake_path_does_not_match_wrong_response_type() {
 
 #[test]
 fn mdns_query_path_materializes_query_and_response_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mdns_query_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 819, 5353, "avahi-daemon"));
@@ -5131,8 +4971,7 @@ fn mdns_query_path_materializes_query_and_response_datagrams() {
 
 #[test]
 fn mdns_query_path_does_not_match_wrong_response_flags() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mdns_query_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mdns_query_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 820, 5353, "avahi-daemon"));
@@ -5172,8 +5011,7 @@ fn mdns_query_path_does_not_match_wrong_response_flags() {
 
 #[test]
 fn ssdp_discovery_path_materializes_search_and_response_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssdp_discovery_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 821, 1900, "ssdp-client"));
@@ -5231,8 +5069,7 @@ fn ssdp_discovery_path_materializes_search_and_response_datagrams() {
 
 #[test]
 fn ssdp_discovery_path_does_not_match_wrong_response_prefix() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssdp_discovery_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssdp_discovery_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 822, 1900, "ssdp-client"));
@@ -5272,8 +5109,7 @@ fn ssdp_discovery_path_does_not_match_wrong_response_prefix() {
 
 #[test]
 fn redis_ping_path_materializes_request_and_response_payload_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("redis_ping_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 823, 53001, "redis-cli"));
@@ -5331,8 +5167,7 @@ fn redis_ping_path_materializes_request_and_response_payload_phases() {
 
 #[test]
 fn redis_ping_path_does_not_match_wrong_response_prefix() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("redis_ping_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 824, 53001, "redis-cli"));
@@ -5372,8 +5207,7 @@ fn redis_ping_path_does_not_match_wrong_response_prefix() {
 
 #[test]
 fn mqtt_connect_path_materializes_connect_and_connack_payload_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mqtt_connect_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 824, 53002, "mosquitto-pub"));
@@ -5431,8 +5265,7 @@ fn mqtt_connect_path_materializes_connect_and_connack_payload_phases() {
 
 #[test]
 fn radius_access_path_materializes_request_and_accept_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("radius_access_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 825, 53000, "wpa_supplicant"));
@@ -5488,8 +5321,7 @@ fn radius_access_path_materializes_request_and_accept_datagrams() {
 
 #[test]
 fn radius_access_path_does_not_match_wrong_response_code() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("radius_access_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 826, 53000, "wpa_supplicant"));
@@ -5527,8 +5359,7 @@ fn radius_access_path_does_not_match_wrong_response_code() {
 
 #[test]
 fn smtp_session_path_materializes_connect_banner_and_ehlo_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_session_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 827, 53010, "postfix-client"));
@@ -5594,8 +5425,7 @@ fn smtp_session_path_materializes_connect_banner_and_ehlo_phases() {
 
 #[test]
 fn smtp_auth_path_materializes_banner_ehlo_and_auth_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8298, 53011, "postfix-client"));
@@ -5682,8 +5512,7 @@ fn smtp_auth_path_materializes_banner_ehlo_and_auth_phases() {
 
 #[test]
 fn imap_auth_path_materializes_banner_and_login_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("imap_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8401, 53031, "imap-client"));
@@ -5755,8 +5584,7 @@ fn imap_auth_path_materializes_banner_and_login_phases() {
 
 #[test]
 fn imap_select_path_materializes_login_and_select_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_select_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("imap_select_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8402, 53032, "imap-client"));
@@ -5870,8 +5698,7 @@ fn imap_select_path_materializes_login_and_select_phases() {
 
 #[test]
 fn pop3_auth_path_materializes_banner_and_auth_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/pop3_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("pop3_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8405, 53035, "pop3-client"));
@@ -5975,8 +5802,7 @@ fn pop3_auth_path_materializes_banner_and_auth_phases() {
 
 #[test]
 fn pop3_list_path_materializes_auth_and_list_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/pop3_list_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("pop3_list_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8406, 53036, "pop3-client"));
@@ -6109,8 +5935,7 @@ fn pop3_list_path_materializes_auth_and_list_phases() {
 
 #[test]
 fn pop3_auth_path_does_not_treat_denied_response_as_auth_ok() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/pop3_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("pop3_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8407, 53037, "pop3-client"));
@@ -6201,8 +6026,7 @@ fn pop3_auth_path_does_not_treat_denied_response_as_auth_ok() {
 
 #[test]
 fn pop3_list_path_does_not_treat_auth_ok_as_list_ready() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/pop3_list_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("pop3_list_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8408, 53038, "pop3-client"));
@@ -6293,8 +6117,7 @@ fn pop3_list_path_does_not_treat_auth_ok_as_list_ready() {
 
 #[test]
 fn kerberos_as_path_materializes_request_and_reply_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/kerberos_as_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("kerberos_as_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8409, 53039, "kinit"));
@@ -6339,8 +6162,7 @@ fn kerberos_as_path_materializes_request_and_reply_datagrams() {
 
 #[test]
 fn kerberos_tgs_path_materializes_request_and_reply_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/kerberos_tgs_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("kerberos_tgs_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8410, 53040, "kvno"));
@@ -6385,8 +6207,7 @@ fn kerberos_tgs_path_materializes_request_and_reply_datagrams() {
 
 #[test]
 fn kerberos_as_path_does_not_treat_error_as_as_reply() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/kerberos_as_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("kerberos_as_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8411, 53041, "kinit"));
@@ -6424,8 +6245,7 @@ fn kerberos_as_path_does_not_treat_error_as_as_reply() {
 
 #[test]
 fn rtsp_setup_path_materializes_options_describe_and_setup_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_setup_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("rtsp_setup_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8412, 53047, "vlc"));
@@ -6548,8 +6368,7 @@ fn rtsp_setup_path_materializes_options_describe_and_setup_phases() {
 
 #[test]
 fn rtsp_setup_path_does_not_treat_describe_ok_as_setup_ok() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_setup_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("rtsp_setup_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8413, 53048, "vlc"));
@@ -6628,8 +6447,7 @@ fn rtsp_setup_path_does_not_treat_describe_ok_as_setup_ok() {
 
 #[test]
 fn smtp_mail_path_materializes_auth_and_mail_from_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_mail_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8300, 53014, "postfix-client"));
@@ -6739,8 +6557,7 @@ fn smtp_mail_path_materializes_auth_and_mail_from_phases() {
 
 #[test]
 fn smtp_rcpt_path_materializes_mail_and_rcpt_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_rcpt_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8302, 53016, "postfix-client"));
@@ -6880,8 +6697,7 @@ fn smtp_rcpt_path_materializes_mail_and_rcpt_phases() {
 
 #[test]
 fn smtp_data_path_materializes_data_and_queue_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_data_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8304, 53018, "postfix-client"));
@@ -7077,8 +6893,7 @@ fn smtp_data_path_materializes_data_and_queue_phases() {
 
 #[test]
 fn smtp_data_denied_path_materializes_denied_queue_phase() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_data_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8306, 53020, "postfix-client"));
@@ -7257,8 +7072,7 @@ fn smtp_data_denied_path_materializes_denied_queue_phase() {
 
 #[test]
 fn smtp_data_denied_path_does_not_match_success_queue_response() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_data_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8307, 53021, "postfix-client"));
@@ -7433,8 +7247,7 @@ fn smtp_data_denied_path_does_not_match_success_queue_response() {
 
 #[test]
 fn smtp_rcpt_denied_path_materializes_recipient_denied_phase() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_rcpt_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8308, 53022, "postfix-client"));
@@ -7563,8 +7376,7 @@ fn smtp_rcpt_denied_path_materializes_recipient_denied_phase() {
 
 #[test]
 fn smtp_rcpt_denied_path_does_not_match_success_rcpt_response() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_rcpt_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8309, 53023, "postfix-client"));
@@ -7697,7 +7509,7 @@ fn smtp_rcpt_denied_path_does_not_match_success_rcpt_response() {
 
 #[test]
 fn ssh_auth_path_materializes_auth_request_and_success_phases() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssh_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8283, 53024, "ssh-client"));
@@ -7787,8 +7599,7 @@ fn ssh_auth_path_materializes_auth_request_and_success_phases() {
 
 #[test]
 fn ssh_auth_denied_path_materializes_auth_denied_phase() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssh_auth_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8284, 53025, "ssh-client"));
@@ -7872,9 +7683,7 @@ fn ssh_auth_denied_path_materializes_auth_denied_phase() {
 
 #[test]
 fn ssh_channel_session_path_materializes_auth_and_channel_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_channel_session_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssh_channel_session_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8286, 53027, "ssh-client"));
@@ -7992,8 +7801,7 @@ fn ssh_channel_session_path_materializes_auth_and_channel_phases() {
 
 #[test]
 fn smtp_session_path_does_not_match_wrong_banner_prefix() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_session_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_session_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 828, 53010, "postfix-client"));
@@ -8034,8 +7842,7 @@ fn smtp_session_path_does_not_match_wrong_banner_prefix() {
 
 #[test]
 fn smtp_auth_path_does_not_treat_failed_auth_response_as_auth_ok() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8299, 53012, "postfix-client"));
@@ -8109,8 +7916,7 @@ fn smtp_auth_path_does_not_treat_failed_auth_response_as_auth_ok() {
 
 #[test]
 fn imap_auth_path_does_not_treat_denied_response_as_auth_ok() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("imap_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8403, 53033, "imap-client"));
@@ -8175,8 +7981,7 @@ fn imap_auth_path_does_not_treat_denied_response_as_auth_ok() {
 
 #[test]
 fn imap_select_path_does_not_treat_login_ok_as_mailbox_selected() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_select_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("imap_select_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8404, 53034, "imap-client"));
@@ -8277,8 +8082,7 @@ fn imap_select_path_does_not_treat_login_ok_as_mailbox_selected() {
 
 #[test]
 fn smtp_mail_path_does_not_treat_failed_mail_response_as_mail_ok() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_mail_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_mail_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8301, 53015, "postfix-client"));
@@ -8381,8 +8185,7 @@ fn smtp_mail_path_does_not_treat_failed_mail_response_as_mail_ok() {
 
 #[test]
 fn smtp_rcpt_path_does_not_treat_failed_rcpt_response_as_rcpt_ok() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_rcpt_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8303, 53017, "postfix-client"));
@@ -8514,8 +8317,7 @@ fn smtp_rcpt_path_does_not_treat_failed_rcpt_response_as_rcpt_ok() {
 
 #[test]
 fn smtp_data_path_does_not_treat_failed_queue_response_as_message_queued() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("smtp_data_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8305, 53019, "postfix-client"));
@@ -8789,8 +8591,7 @@ fn ftp_active_stor_operation_maps_to_file_transfer_session_module_kind() {
 
 #[test]
 fn ssh_session_path_materializes_banner_and_key_exchange_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssh_session_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8281, 53022, "ssh-client"));
@@ -8875,8 +8676,7 @@ fn ssh_session_path_materializes_banner_and_key_exchange_phases() {
 
 #[test]
 fn ftp_session_path_materializes_banner_and_auth_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_session_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8289, 53030, "ftp-client"));
@@ -8979,8 +8779,7 @@ fn ftp_session_path_materializes_banner_and_auth_phases() {
 
 #[test]
 fn ftp_session_path_does_not_match_wrong_login_success_code() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_session_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8290, 53031, "ftp-client"));
@@ -9054,8 +8853,7 @@ fn ftp_session_path_does_not_match_wrong_login_success_code() {
 
 #[test]
 fn ftp_denied_path_materializes_auth_denied_phase() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8291, 53032, "ftp-client"));
@@ -9142,8 +8940,7 @@ fn ftp_denied_path_materializes_auth_denied_phase() {
 
 #[test]
 fn ftp_denied_path_does_not_match_success_code() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8292, 53033, "ftp-client"));
@@ -9217,8 +9014,7 @@ fn ftp_denied_path_does_not_match_success_code() {
 
 #[test]
 fn ftp_passive_list_path_materializes_pasv_and_list_transfer_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_passive_list_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_passive_list_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8293, 53034, "ftp-client"));
@@ -9361,8 +9157,7 @@ fn ftp_passive_list_path_materializes_pasv_and_list_transfer_phases() {
 
 #[test]
 fn ftp_passive_list_path_does_not_match_wrong_pasv_reply_code() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_passive_list_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_passive_list_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8294, 53035, "ftp-client"));
@@ -9458,7 +9253,7 @@ fn ftp_passive_list_path_does_not_match_wrong_pasv_reply_code() {
 
 #[test]
 fn ftp_retr_path_materializes_pasv_and_retr_transfer_phases() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_retr_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_retr_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8295, 53036, "ftp-client"));
@@ -9601,7 +9396,7 @@ fn ftp_retr_path_materializes_pasv_and_retr_transfer_phases() {
 
 #[test]
 fn ftp_retr_path_does_not_match_wrong_transfer_open_code() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_retr_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_retr_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8296, 53037, "ftp-client"));
@@ -9719,7 +9514,7 @@ fn ftp_retr_path_does_not_match_wrong_transfer_open_code() {
 
 #[test]
 fn ftp_stor_path_materializes_pasv_and_stor_transfer_phases() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_stor_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_stor_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8297, 53038, "ftp-client"));
@@ -9862,7 +9657,7 @@ fn ftp_stor_path_materializes_pasv_and_stor_transfer_phases() {
 
 #[test]
 fn ftp_stor_path_does_not_match_wrong_transfer_open_code() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_stor_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_stor_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8298, 53039, "ftp-client"));
@@ -9980,8 +9775,7 @@ fn ftp_stor_path_does_not_match_wrong_transfer_open_code() {
 
 #[test]
 fn ftp_active_list_path_materializes_port_and_list_transfer_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_list_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_active_list_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8299, 53040, "ftp-client"));
@@ -10124,8 +9918,7 @@ fn ftp_active_list_path_materializes_port_and_list_transfer_phases() {
 
 #[test]
 fn ftp_active_list_path_does_not_match_wrong_port_ready_code() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_list_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_active_list_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8300, 53041, "ftp-client"));
@@ -10221,8 +10014,7 @@ fn ftp_active_list_path_does_not_match_wrong_port_ready_code() {
 
 #[test]
 fn ftp_active_retr_path_materializes_port_and_retr_transfer_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_retr_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_active_retr_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8301, 53042, "ftp-client"));
@@ -10365,8 +10157,7 @@ fn ftp_active_retr_path_materializes_port_and_retr_transfer_phases() {
 
 #[test]
 fn ftp_active_retr_path_does_not_match_wrong_port_ready_code() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_retr_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_active_retr_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8302, 53043, "ftp-client"));
@@ -10462,8 +10253,7 @@ fn ftp_active_retr_path_does_not_match_wrong_port_ready_code() {
 
 #[test]
 fn ftp_active_stor_path_materializes_port_and_stor_transfer_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_stor_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_active_stor_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8303, 53044, "ftp-client"));
@@ -10606,8 +10396,7 @@ fn ftp_active_stor_path_materializes_port_and_stor_transfer_phases() {
 
 #[test]
 fn ftp_active_stor_path_does_not_match_wrong_port_ready_code() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_stor_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ftp_active_stor_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8304, 53045, "ftp-client"));
@@ -10703,8 +10492,7 @@ fn ftp_active_stor_path_does_not_match_wrong_port_ready_code() {
 
 #[test]
 fn ssh_session_path_does_not_treat_wrong_message_code_as_key_exchange_init() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssh_session_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8282, 53022, "ssh-client"));
@@ -10758,7 +10546,7 @@ fn ssh_session_path_does_not_treat_wrong_message_code_as_key_exchange_init() {
 
 #[test]
 fn ssh_auth_path_does_not_treat_auth_failure_as_success() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssh_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8285, 53026, "ssh-client"));
@@ -10838,9 +10626,7 @@ fn ssh_auth_path_does_not_treat_auth_failure_as_success() {
 
 #[test]
 fn ssh_channel_session_path_does_not_treat_auth_success_as_channel_open_confirmation() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ssh_channel_session_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("ssh_channel_session_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8287, 53028, "ssh-client"));
@@ -10920,8 +10706,7 @@ fn ssh_channel_session_path_does_not_treat_auth_success_as_channel_open_confirma
 
 #[test]
 fn socks5_session_path_materializes_method_and_connect_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_session_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8283, 53180, "proxy-client"));
@@ -11017,8 +10802,7 @@ fn socks5_session_path_materializes_method_and_connect_phases() {
 
 #[test]
 fn socks5_session_path_does_not_treat_failed_reply_as_connect_success() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_session_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8284, 53180, "proxy-client"));
@@ -11077,8 +10861,7 @@ fn socks5_session_path_does_not_treat_failed_reply_as_connect_success() {
 
 #[test]
 fn socks5_auth_path_materializes_auth_and_connect_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8295, 53134, "proxy-client"));
@@ -11166,8 +10949,7 @@ fn socks5_auth_path_materializes_auth_and_connect_phases() {
 
 #[test]
 fn socks5_auth_path_does_not_treat_failed_auth_reply_as_auth_ok() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8296, 53135, "proxy-client"));
@@ -11222,8 +11004,7 @@ fn socks5_auth_path_does_not_treat_failed_auth_reply_as_auth_ok() {
 
 #[test]
 fn socks5_auth_denied_path_materializes_auth_denied_phase() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_auth_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8297, 53136, "proxy-client"));
@@ -11279,9 +11060,7 @@ fn socks5_auth_denied_path_materializes_auth_denied_phase() {
 
 #[test]
 fn socks5_auth_connect_denied_path_materializes_denied_connect_after_auth() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_connect_denied_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_auth_connect_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 82975, 53137, "proxy-client"));
@@ -11366,9 +11145,7 @@ fn socks5_auth_connect_denied_path_materializes_denied_connect_after_auth() {
 
 #[test]
 fn socks5_auth_connect_denied_path_does_not_treat_auth_failure_as_connect_denied() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_connect_denied_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_auth_connect_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 82976, 53138, "proxy-client"));
@@ -11423,8 +11200,7 @@ fn socks5_auth_connect_denied_path_does_not_treat_auth_failure_as_connect_denied
 
 #[test]
 fn socks5_denied_path_materializes_denied_connect_phase() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8287, 53182, "proxy-client"));
@@ -11494,8 +11270,7 @@ fn socks5_denied_path_materializes_denied_connect_phase() {
 
 #[test]
 fn socks5_denied_path_does_not_match_success_reply() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("socks5_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8288, 53182, "proxy-client"));
@@ -11554,9 +11329,7 @@ fn socks5_denied_path_does_not_match_success_reply() {
 
 #[test]
 fn http_connect_tunnel_path_materializes_connect_request_and_established_response() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_connect_tunnel_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8285, 53181, "proxy-client"));
@@ -11622,9 +11395,7 @@ fn http_connect_tunnel_path_materializes_connect_request_and_established_respons
 
 #[test]
 fn http_connect_tunnel_path_does_not_treat_non_200_response_as_established() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_tunnel_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_connect_tunnel_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8286, 53181, "proxy-client"));
@@ -11665,9 +11436,7 @@ fn http_connect_tunnel_path_does_not_treat_non_200_response_as_established() {
 
 #[test]
 fn http_connect_denied_path_materializes_denied_tunnel_phase() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_denied_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_connect_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8289, 53183, "proxy-client"));
@@ -11719,9 +11488,7 @@ fn http_connect_denied_path_materializes_denied_tunnel_phase() {
 
 #[test]
 fn http_connect_denied_path_does_not_match_200_response() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_denied_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_connect_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8290, 53183, "proxy-client"));
@@ -11762,9 +11529,7 @@ fn http_connect_denied_path_does_not_match_200_response() {
 
 #[test]
 fn http_connect_auth_required_path_materializes_proxy_auth_phase() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_auth_required_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_connect_auth_required_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8291, 53184, "proxy-client"));
@@ -11810,9 +11575,7 @@ fn http_connect_auth_required_path_materializes_proxy_auth_phase() {
 
 #[test]
 fn http_connect_auth_required_path_does_not_match_403_response() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_auth_required_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_connect_auth_required_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8292, 53184, "proxy-client"));
@@ -11853,9 +11616,9 @@ fn http_connect_auth_required_path_does_not_match_403_response() {
 
 #[test]
 fn http_connect_authenticated_tunnel_path_materializes_auth_and_established_phases() {
-    let binding = compile_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy",
-    )
+    let binding = compile_file(&dsl_fixture_path(
+        "http_connect_authenticated_tunnel_path.gewy",
+    ))
     .unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
@@ -11931,9 +11694,9 @@ fn http_connect_authenticated_tunnel_path_materializes_auth_and_established_phas
 #[test]
 fn http_connect_authenticated_tunnel_path_does_not_treat_407_as_established_without_auth_followup()
 {
-    let binding = compile_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy",
-    )
+    let binding = compile_file(&dsl_fixture_path(
+        "http_connect_authenticated_tunnel_path.gewy",
+    ))
     .unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
@@ -11975,8 +11738,7 @@ fn http_connect_authenticated_tunnel_path_does_not_treat_407_as_established_with
 
 #[test]
 fn sip_register_path_materializes_register_and_ok_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("sip_register_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 829, 54010, "sip-client"));
@@ -12034,8 +11796,7 @@ fn sip_register_path_materializes_register_and_ok_datagrams() {
 
 #[test]
 fn sip_register_path_does_not_match_wrong_response_prefix() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("sip_register_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 830, 54010, "sip-client"));
@@ -12075,8 +11836,7 @@ fn sip_register_path_does_not_match_wrong_response_prefix() {
 
 #[test]
 fn ldap_bind_path_materializes_connect_bind_and_response_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_bind_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 831, 54020, "ldap-client"));
@@ -12154,8 +11914,7 @@ fn ldap_bind_path_materializes_connect_bind_and_response_phases() {
 
 #[test]
 fn ldap_bind_path_does_not_match_wrong_response_op_tag() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_bind_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 832, 54020, "ldap-client"));
@@ -12201,8 +11960,7 @@ fn ldap_bind_path_does_not_match_wrong_response_op_tag() {
 
 #[test]
 fn ldap_search_path_materializes_connect_search_and_result_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_search_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_search_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 833, 54021, "ldapsearch"));
@@ -12280,8 +12038,7 @@ fn ldap_search_path_materializes_connect_search_and_result_phases() {
 
 #[test]
 fn ldap_search_path_does_not_match_wrong_response_op_tag() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_search_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_search_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 834, 54021, "ldapsearch"));
@@ -12327,8 +12084,7 @@ fn ldap_search_path_does_not_match_wrong_response_op_tag() {
 
 #[test]
 fn ldap_modify_path_materializes_connect_modify_and_response_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_modify_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 836, 54023, "ldapmodify"));
@@ -12408,8 +12164,7 @@ fn ldap_modify_path_materializes_connect_modify_and_response_phases() {
 
 #[test]
 fn ldap_modify_path_does_not_match_wrong_response_op_tag() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_modify_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 837, 54023, "ldapmodify"));
@@ -12457,8 +12212,7 @@ fn ldap_modify_path_does_not_match_wrong_response_op_tag() {
 
 #[test]
 fn ldap_bind_denied_path_materializes_denied_bind_phase() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_bind_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 841, 54027, "ldapbind"));
@@ -12524,8 +12278,7 @@ fn ldap_bind_denied_path_materializes_denied_bind_phase() {
 
 #[test]
 fn ldap_bind_denied_path_does_not_match_success_result_code() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_bind_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 8411, 54027, "ldapbind"));
@@ -12573,8 +12326,7 @@ fn ldap_bind_denied_path_does_not_match_success_result_code() {
 
 #[test]
 fn ldap_modify_denied_path_materializes_denied_modify_phase() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_modify_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 842, 54028, "ldapmodify"));
@@ -12640,8 +12392,7 @@ fn ldap_modify_denied_path_materializes_denied_modify_phase() {
 
 #[test]
 fn ldap_modify_denied_path_does_not_match_success_result_code() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_modify_denied_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 843, 54028, "ldapmodify"));
@@ -12689,9 +12440,7 @@ fn ldap_modify_denied_path_does_not_match_success_result_code() {
 
 #[test]
 fn ldap_modify_constraint_path_materializes_constraint_violation_phase() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_constraint_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_modify_constraint_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 844, 54029, "ldapmodify"));
@@ -12757,9 +12506,7 @@ fn ldap_modify_constraint_path_materializes_constraint_violation_phase() {
 
 #[test]
 fn ldap_modify_constraint_path_does_not_match_access_denied_result_code() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_constraint_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_modify_constraint_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 845, 54029, "ldapmodify"));
@@ -12807,8 +12554,7 @@ fn ldap_modify_constraint_path_does_not_match_access_denied_result_code() {
 
 #[test]
 fn ldap_directory_session_can_span_bind_and_search_in_one_module() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_session.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_directory_session.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 835, 54022, "ldap-directory-client"));
@@ -12899,9 +12645,7 @@ fn ldap_directory_session_can_span_bind_and_search_in_one_module() {
 
 #[test]
 fn ldap_directory_write_session_can_span_bind_and_modify_in_one_module() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_write_session.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_directory_write_session.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 838, 54024, "ldap-directory-writer"));
@@ -12993,9 +12737,7 @@ fn ldap_directory_write_session_can_span_bind_and_modify_in_one_module() {
 
 #[test]
 fn ldap_directory_sync_session_can_span_bind_search_and_modify_in_one_module() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_directory_sync_session.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 839, 54025, "ldap-directory-sync"));
@@ -13116,9 +12858,7 @@ fn ldap_directory_sync_session_can_span_bind_search_and_modify_in_one_module() {
 
 #[test]
 fn ldap_directory_sync_session_missing_modify_produces_search_to_modify_transition() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_directory_sync_session.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 840, 54026, "ldap-directory-sync"));
@@ -13194,9 +12934,7 @@ fn ldap_directory_sync_session_missing_modify_produces_search_to_modify_transiti
 
 #[test]
 fn ldap_directory_sync_session_failed_modify_response_produces_modify_transition() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("ldap_directory_sync_session.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 841, 54027, "ldap-directory-sync"));
@@ -13306,7 +13044,7 @@ fn ldap_directory_sync_session_failed_modify_response_produces_modify_transition
 
 #[test]
 fn snmp_get_path_materializes_request_and_response_datagrams() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_get_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 829, 54000, "snmpwalk"));
@@ -13370,7 +13108,7 @@ fn snmp_get_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn snmp_get_path_does_not_match_wrong_response_pdu_type() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_get_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 830, 54000, "snmpwalk"));
@@ -13416,8 +13154,7 @@ fn snmp_get_path_does_not_match_wrong_response_pdu_type() {
 
 #[test]
 fn mqtt_connect_path_does_not_match_wrong_connack_prefix() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mqtt_connect_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 825, 53002, "mosquitto-pub"));
@@ -13457,8 +13194,7 @@ fn mqtt_connect_path_does_not_match_wrong_connack_prefix() {
 
 #[test]
 fn dns_tcp_query_path_materializes_request_and_response_payload_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("dns_tcp_query_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 825, 53053, "dig"));
@@ -13518,8 +13254,7 @@ fn dns_tcp_query_path_materializes_request_and_response_payload_phases() {
 
 #[test]
 fn dns_tcp_query_path_does_not_match_wrong_response_qr_bit() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("dns_tcp_query_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 826, 53053, "dig"));
@@ -13561,8 +13296,7 @@ fn dns_tcp_query_path_does_not_match_wrong_response_qr_bit() {
 
 #[test]
 fn https_connect_dsl_uses_destination_port_to_model_connect_path() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("https_connect_process.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 401, 9001, "curl"));
@@ -13592,8 +13326,7 @@ fn https_connect_dsl_uses_destination_port_to_model_connect_path() {
 
 #[test]
 fn https_connect_dsl_does_not_treat_other_ports_as_https_connect() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/https_connect_process.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("https_connect_process.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 402, 9002, "curl"));
@@ -13619,9 +13352,7 @@ fn https_connect_dsl_does_not_treat_other_ports_as_https_connect() {
 
 #[test]
 fn postgres_connect_dsl_uses_named_port_alias() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_connect_process.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 501, 7777, "psql"));
@@ -13664,9 +13395,7 @@ fn postgres_connect_dsl_uses_named_port_alias() {
 
 #[test]
 fn postgres_simple_query_path_materializes_connect_query_and_ready_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_simple_query_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_simple_query_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 506, 7781, "psql"));
@@ -13740,9 +13469,7 @@ fn postgres_simple_query_path_materializes_connect_query_and_ready_phases() {
 
 #[test]
 fn postgres_simple_query_path_does_not_match_wrong_server_message_type() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_simple_query_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_simple_query_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 507, 7782, "psql"));
@@ -13784,8 +13511,7 @@ fn postgres_simple_query_path_does_not_match_wrong_server_message_type() {
 
 #[test]
 fn postgres_auth_path_materializes_auth_password_and_ready_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 508, 7783, "psql"));
@@ -13862,8 +13588,7 @@ fn postgres_auth_path_materializes_auth_password_and_ready_phases() {
 
 #[test]
 fn postgres_auth_path_does_not_match_wrong_auth_message_type() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 509, 7784, "psql"));
@@ -13916,9 +13641,7 @@ fn postgres_auth_path_does_not_match_wrong_auth_message_type() {
 
 #[test]
 fn postgres_query_error_path_materializes_query_and_error_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_error_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_query_error_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 510, 7785, "psql"));
@@ -13978,9 +13701,7 @@ fn postgres_query_error_path_materializes_query_and_error_phases() {
 
 #[test]
 fn postgres_query_error_path_does_not_match_ready_message() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_error_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_query_error_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 511, 7786, "psql"));
@@ -14022,8 +13743,7 @@ fn postgres_query_error_path_does_not_match_ready_message() {
 
 #[test]
 fn mysql_simple_query_path_materializes_connect_query_and_ok_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mysql_simple_query_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 512, 7787, "mysql"));
@@ -14099,8 +13819,7 @@ fn mysql_simple_query_path_materializes_connect_query_and_ok_phases() {
 
 #[test]
 fn mysql_simple_query_path_does_not_match_error_packet_as_ok() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mysql_simple_query_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 513, 7788, "mysql"));
@@ -14144,8 +13863,7 @@ fn mysql_simple_query_path_does_not_match_error_packet_as_ok() {
 
 #[test]
 fn mysql_query_session_can_span_connect_query_and_ok_in_one_module() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mysql_query_session.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 514, 7789, "mysql-session"));
@@ -14206,8 +13924,7 @@ fn mysql_query_session_can_span_connect_query_and_ok_in_one_module() {
 
 #[test]
 fn mysql_query_session_missing_response_produces_query_to_ok_transition() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mysql_query_session.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 515, 7790, "mysql-session"));
@@ -14244,8 +13961,7 @@ fn mysql_query_session_missing_response_produces_query_to_ok_transition() {
 
 #[test]
 fn mysql_query_error_path_materializes_query_and_error_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mysql_query_error_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 514, 7789, "mysql"));
@@ -14307,8 +14023,7 @@ fn mysql_query_error_path_materializes_query_and_error_phases() {
 
 #[test]
 fn mysql_query_error_path_does_not_match_ok_packet() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("mysql_query_error_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 515, 7790, "mysql"));
@@ -14352,8 +14067,7 @@ fn mysql_query_error_path_does_not_match_ok_packet() {
 
 #[test]
 fn memcached_get_path_materializes_connect_get_and_value_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("memcached_get_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 516, 7791, "memcached-client"));
@@ -14415,8 +14129,7 @@ fn memcached_get_path_materializes_connect_get_and_value_phases() {
 
 #[test]
 fn memcached_get_path_does_not_match_set_opcode() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("memcached_get_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 517, 7792, "memcached-client"));
@@ -14460,8 +14173,7 @@ fn memcached_get_path_does_not_match_set_opcode() {
 
 #[test]
 fn memcached_set_path_materializes_connect_set_and_stored_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("memcached_set_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 518, 7793, "memcached-client"));
@@ -14523,8 +14235,7 @@ fn memcached_set_path_materializes_connect_set_and_stored_phases() {
 
 #[test]
 fn memcached_set_path_does_not_match_get_opcode() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("memcached_set_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 519, 7794, "memcached-client"));
@@ -14568,9 +14279,7 @@ fn memcached_set_path_does_not_match_get_opcode() {
 
 #[test]
 fn amqp_connection_start_path_materializes_header_start_and_start_ok_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("amqp_connection_start_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 520, 7795, "amqp-client"));
@@ -14649,9 +14358,7 @@ fn amqp_connection_start_path_materializes_header_start_and_start_ok_phases() {
 
 #[test]
 fn amqp_connection_start_path_does_not_match_wrong_server_method_id() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("amqp_connection_start_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 521, 7796, "amqp-client"));
@@ -14706,8 +14413,7 @@ fn amqp_connection_start_path_does_not_match_wrong_server_method_id() {
 
 #[test]
 fn amqp_basic_publish_path_materializes_publish_and_ack_phases() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("amqp_basic_publish_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 522, 7797, "amqp-publisher"));
@@ -14769,8 +14475,7 @@ fn amqp_basic_publish_path_materializes_publish_and_ack_phases() {
 
 #[test]
 fn amqp_basic_publish_path_does_not_match_wrong_ack_method_id() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("amqp_basic_publish_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 523, 7798, "amqp-publisher"));
@@ -14814,8 +14519,7 @@ fn amqp_basic_publish_path_does_not_match_wrong_ack_method_id() {
 
 #[test]
 fn amqp_publish_session_can_span_startup_and_publish_in_one_module() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_publish_session.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("amqp_publish_session.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 524, 7799, "amqp-publisher"));
@@ -14914,8 +14618,7 @@ fn amqp_publish_session_can_span_startup_and_publish_in_one_module() {
 
 #[test]
 fn amqp_publish_session_missing_publish_produces_start_ok_to_publish_transition() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/amqp_publish_session.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("amqp_publish_session.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 525, 7800, "amqp-publisher"));
@@ -14974,9 +14677,7 @@ fn amqp_publish_session_missing_publish_produces_start_ok_to_publish_transition(
 
 #[test]
 fn declarative_module_phases_are_preserved_in_export_and_replay() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_connect_process.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 503, 7778, "psql"));
@@ -15003,9 +14704,7 @@ fn declarative_module_phases_are_preserved_in_export_and_replay() {
 
 #[test]
 fn missing_connect_phase_produces_bind_to_connect_transition_finding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_connect_process.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 504, 7779, "psql"));
@@ -15039,9 +14738,7 @@ fn missing_connect_phase_produces_bind_to_connect_transition_finding() {
 
 #[test]
 fn missing_establish_phase_produces_connect_to_establish_transition_finding() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("postgres_connect_process.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 505, 7780, "psql"));
@@ -15063,8 +14760,7 @@ fn missing_establish_phase_produces_connect_to_establish_transition_finding() {
 
 #[test]
 fn handshake_dsl_compiles_and_preserves_tcp_shape() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("handshake_debug.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(tcp_state_fact(1, 203, 1, 2));
@@ -16232,8 +15928,7 @@ template(:route_only_invalid)
 
 #[test]
 fn binding_diagnostics_report_rule_support_and_supporting_fragments() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let session = RuntimeSession::start(config).unwrap();
     let export = session.export_bundle();

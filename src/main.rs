@@ -45,7 +45,8 @@ use gewyvern::ledger::{
 };
 use gewyvern::protocol_profiles::{
     ResolvedProtocolProfile, default_protocol_scan_set, default_protocol_scan_set_from_dir,
-    protocol_dsl_path, protocol_summaries, protocol_summary, resolve_protocol_profile,
+    protocol_dsl_path, protocol_summaries, protocol_summary, resolve_built_in_dsl_path,
+    resolve_protocol_profile,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::socket_input::{
@@ -404,26 +405,28 @@ fn main() {
                 .iter()
                 .any(|(_, export)| export_has_operation(export, "http_request"))
             {
+                let dns_path = resolve_built_in_dsl_path(
+                    "/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy",
+                );
                 composed_exports.push(run_binding_demo(
-                    compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
-                        .expect("dns dsl should compile"),
+                    compile_file(&dns_path).expect("dns dsl should compile"),
                 ));
+                let http_response_path = resolve_built_in_dsl_path(
+                    "/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy",
+                );
                 composed_exports.push(run_binding_demo(
-                    compile_file(
-                        "/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy",
-                    )
-                    .expect("http server dsl should compile"),
+                    compile_file(&http_response_path).expect("http server dsl should compile"),
                 ));
             }
             if outputs
                 .iter()
                 .any(|(_, export)| export_has_operation(export, "http3_request"))
             {
+                let http3_response_path = resolve_built_in_dsl_path(
+                    "/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy",
+                );
                 composed_exports.push(run_binding_demo(
-                    compile_file(
-                        "/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy",
-                    )
-                    .expect("http3 server dsl should compile"),
+                    compile_file(&http3_response_path).expect("http3 server dsl should compile"),
                 ));
             }
             compose_http_transactions(&composed_exports)

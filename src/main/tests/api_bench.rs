@@ -1,9 +1,10 @@
 use super::*;
+
 #[test]
 fn api_snapshot_meta_and_routes_cover_single_export() {
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let export = annotate_export_trust(
         run_binding_demo(binding),
@@ -97,7 +98,7 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
 fn api_snapshot_routes_cover_scan_export() {
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let export = annotate_export_trust(
         run_binding_demo(binding),
@@ -247,7 +248,7 @@ fn api_snapshot_routes_cover_scan_export() {
 fn api_target_list_exposes_url_safe_path_segments() {
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let export = annotate_export_trust(
         run_binding_demo(binding),
@@ -525,7 +526,7 @@ fn pid_filter_keeps_only_target_process_view() {
     let target_export = coerce_export_process(
         annotate_export_trust(
             run_binding_demo(
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                compile_file(&dsl_fixture_path("http_request_path.gewy"))
                     .expect("http_request_path DSL should compile"),
             ),
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
@@ -535,7 +536,7 @@ fn pid_filter_keeps_only_target_process_view() {
     let other_export = coerce_export_process(
         annotate_export_trust(
             run_binding_demo(
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
+                compile_file(&dsl_fixture_path("dns_udp_process.gewy"))
                     .expect("dns_udp_process DSL should compile"),
             ),
             &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),

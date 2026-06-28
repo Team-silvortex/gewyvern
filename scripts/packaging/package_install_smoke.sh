@@ -6,7 +6,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PACKAGES_DIR="${ROOT}/target/packages"
 DEB_IMAGE="${GEWY_DEB_SMOKE_IMAGE:-ubuntu:24.04}"
 RPM_IMAGE="${GEWY_RPM_SMOKE_IMAGE:-fedora:41}"
-RELEASE_LINE="${GEWY_RELEASE_LINE:-v0.17.x}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v0.18.x}"
+DEB_APT_MIRROR="${GEWY_DEB_APT_MIRROR:-}"
+RPM_DNF_MIRROR="${GEWY_RPM_DNF_MIRROR:-}"
 
 usage() {
   cat <<'EOF'
@@ -69,6 +71,22 @@ find_latest_rpm() {
   find "${PACKAGES_DIR}/rpm" -maxdepth 1 -type f -name '*.rpm' | sort | tail -n 1
 }
 
+deb_preamble() {
+  cat <<EOF
+if [ -n "${DEB_APT_MIRROR}" ]; then
+  sed -i "s|http://archive.ubuntu.com/ubuntu|${DEB_APT_MIRROR}|g; s|http://security.ubuntu.com/ubuntu|${DEB_APT_MIRROR}|g" /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+fi
+EOF
+}
+
+rpm_preamble() {
+  cat <<EOF
+if [ -n "${RPM_DNF_MIRROR}" ]; then
+  sed -i "s|^metalink=|#metalink=|g; s|^mirrorlist=|#mirrorlist=|g; s|^#baseurl=http://download.example/pub/fedora/linux|baseurl=${RPM_DNF_MIRROR}|g; s|^#baseurl=https://download.example/pub/fedora/linux|baseurl=${RPM_DNF_MIRROR}|g" /etc/yum.repos.d/*.repo 2>/dev/null || true
+fi
+EOF
+}
+
 run_deb_smoke() {
   local deb_path
   deb_path="$(find_latest_deb)"
@@ -82,6 +100,9 @@ run_deb_smoke() {
     "${DEB_IMAGE}" \
     bash -lc "
       set -euo pipefail
+      $(deb_preamble)
+      dpkg-deb -c /packages/$(basename "${deb_path}") >/tmp/gewyvern-package-contents.txt
+      grep -q './usr/share/doc/gewyvern/LICENSE' /tmp/gewyvern-package-contents.txt
       apt-get update >/dev/null
       apt-get install -y /packages/$(basename "${deb_path}") >/dev/null
       command -v gewyvern >/dev/null
@@ -95,7 +116,6 @@ run_deb_smoke() {
       grep -q '^schema_version = 1$' /usr/share/gewyvern/package-compat.toml
       grep -q '^release_line = \"${RELEASE_LINE}\"$' /usr/share/gewyvern/package-compat.toml
       test -f /usr/share/gewyvern/examples/gewyvern.toml.example
-      test -f /usr/share/doc/gewyvern/LICENSE
     "
 
   echo "deb install smoke: ok (${deb_path})"
@@ -114,6 +134,9 @@ run_rpm_smoke() {
     "${RPM_IMAGE}" \
     bash -lc "
       set -euo pipefail
+      $(rpm_preamble)
+      rpm -qpl /packages/$(basename "${rpm_path}") >/tmp/gewyvern-package-contents.txt
+      grep -q '/usr/share/doc/gewyvern/LICENSE' /tmp/gewyvern-package-contents.txt
       dnf install -y /packages/$(basename "${rpm_path}") >/dev/null
       command -v gewyvern >/dev/null
       command -v gewyc >/dev/null
@@ -126,7 +149,6 @@ run_rpm_smoke() {
       grep -q '^schema_version = 1$' /usr/share/gewyvern/package-compat.toml
       grep -q '^release_line = \"${RELEASE_LINE}\"$' /usr/share/gewyvern/package-compat.toml
       test -f /usr/share/gewyvern/examples/gewyvern.toml.example
-      test -f /usr/share/doc/gewyvern/LICENSE
     "
 
   echo "rpm install smoke: ok (${rpm_path})"

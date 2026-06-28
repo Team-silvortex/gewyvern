@@ -10,9 +10,16 @@ use support::{
     udp_quic_meta_fact, udp_quic_meta_fact_with_payload_bytes,
 };
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn http3_close_dsl_file_compiles_into_expected_operation() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_close_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http3_close_path.gewy"))
         .expect("http3 close DSL should compile");
     assert_eq!(binding.template.id, "http3_close_path");
     assert_eq!(
@@ -23,9 +30,8 @@ fn http3_close_dsl_file_compiles_into_expected_operation() {
 
 #[test]
 fn http3_server_close_dsl_file_compiles_into_expected_operation() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_close_path.gewy")
-            .expect("http3 server-close DSL should compile");
+    let binding = compile_file(&dsl_fixture_path("http3_server_close_path.gewy"))
+        .expect("http3 server-close DSL should compile");
     assert_eq!(binding.template.id, "http3_server_close_path");
     assert_eq!(
         binding.template.program_model.as_ref().unwrap().operation,
@@ -35,9 +41,8 @@ fn http3_server_close_dsl_file_compiles_into_expected_operation() {
 
 #[test]
 fn http3_server_close_runtime_path_materializes_response_and_close_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_close_path.gewy")
-            .expect("http3 server-close DSL should compile");
+    let binding = compile_file(&dsl_fixture_path("http3_server_close_path.gewy"))
+        .expect("http3 server-close DSL should compile");
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 6912, 8443, "nginx"));
@@ -134,7 +139,7 @@ fn http3_server_close_runtime_path_materializes_response_and_close_stages() {
 
 #[test]
 fn http3_close_runtime_path_materializes_request_and_close_stages() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_close_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http3_close_path.gewy"))
         .expect("http3 close DSL should compile");
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
@@ -223,7 +228,7 @@ fn http3_close_runtime_path_materializes_request_and_close_stages() {
 
 #[test]
 fn hy2_close_dsl_file_compiles_into_expected_operation() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_close_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("hy2_close_path.gewy"))
         .expect("hy2 close DSL should compile");
     assert_eq!(binding.template.id, "hy2_close_path");
     assert_eq!(
@@ -234,7 +239,7 @@ fn hy2_close_dsl_file_compiles_into_expected_operation() {
 
 #[test]
 fn hy2_tcp_close_dsl_file_compiles_into_expected_operation() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_close_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("hy2_tcp_close_path.gewy"))
         .expect("hy2 tcp-close DSL should compile");
     assert_eq!(binding.template.id, "hy2_tcp_close_path");
     assert_eq!(
@@ -245,7 +250,7 @@ fn hy2_tcp_close_dsl_file_compiles_into_expected_operation() {
 
 #[test]
 fn hy2_tcp_close_runtime_path_materializes_tcp_relay_and_close_stages() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_close_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("hy2_tcp_close_path.gewy"))
         .expect("hy2 tcp-close DSL should compile");
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
@@ -394,7 +399,7 @@ fn hy2_tcp_close_runtime_path_materializes_tcp_relay_and_close_stages() {
 
 #[test]
 fn hy2_udp_close_dsl_file_compiles_into_expected_operation() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_close_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("hy2_udp_close_path.gewy"))
         .expect("hy2 udp-close DSL should compile");
     assert_eq!(binding.template.id, "hy2_udp_close_path");
     assert_eq!(
@@ -405,7 +410,7 @@ fn hy2_udp_close_dsl_file_compiles_into_expected_operation() {
 
 #[test]
 fn hy2_udp_close_runtime_path_materializes_udp_relay_and_close_stages() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_close_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("hy2_udp_close_path.gewy"))
         .expect("hy2 udp-close DSL should compile");
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
@@ -530,7 +535,7 @@ fn hy2_udp_close_runtime_path_materializes_udp_relay_and_close_stages() {
 
 #[test]
 fn hy2_close_runtime_path_materializes_auth_ok_and_close_stages() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_close_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("hy2_close_path.gewy"))
         .expect("hy2 close DSL should compile");
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();

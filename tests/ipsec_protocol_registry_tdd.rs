@@ -10,6 +10,21 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 fn ipsec_packet_fact(id: u64, dir: PacketDir, l4_proto: u8) -> FactEnvelope {
     FactEnvelope {
         id: FactId(id),
@@ -49,15 +64,15 @@ fn ipsec_packet_fact(id: u64, dir: PacketDir, l4_proto: u8) -> FactEnvelope {
 fn ipsec_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("ipsec", Some("esp")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ipsec/esp".to_string())
+        Some(protocol_fixture_path("ipsec/esp").to_string())
     );
     assert_eq!(
         protocol_dsl_path("ipsec-esp", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ipsec/esp".to_string())
+        Some(protocol_fixture_path("ipsec/esp").to_string())
     );
     assert_eq!(
         protocol_dsl_path("ipsec", Some("auth-header")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ipsec/ah".to_string())
+        Some(protocol_fixture_path("ipsec/ah").to_string())
     );
 }
 
@@ -92,14 +107,14 @@ fn ipsec_surface_exposes_security_semantics() {
 
 #[test]
 fn ipsec_dsl_files_compile_into_expected_operations() {
-    let esp = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ipsec_esp_path.gewy").unwrap();
+    let esp = compile_file(&dsl_fixture_path("ipsec_esp_path.gewy")).unwrap();
     assert_eq!(esp.template.id, "ipsec_esp_path");
     assert_eq!(
         esp.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("ipsec_esp".into())
     );
 
-    let ah = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ipsec_ah_path.gewy").unwrap();
+    let ah = compile_file(&dsl_fixture_path("ipsec_ah_path.gewy")).unwrap();
     assert_eq!(ah.template.id, "ipsec_ah_path");
     assert_eq!(
         ah.template.program_model.as_ref().unwrap().operation,
@@ -109,8 +124,7 @@ fn ipsec_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn ipsec_esp_runtime_path_materializes_secure_path_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ipsec_esp_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ipsec_esp_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(ipsec_packet_fact(1, PacketDir::Egress, 50));
@@ -138,7 +152,7 @@ fn ipsec_esp_runtime_path_materializes_secure_path_stages() {
 
 #[test]
 fn ipsec_ah_runtime_path_materializes_authenticated_path_stages() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ipsec_ah_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ipsec_ah_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(ipsec_packet_fact(1, PacketDir::Egress, 51));

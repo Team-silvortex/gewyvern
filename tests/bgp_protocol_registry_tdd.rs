@@ -10,6 +10,21 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::time::{Duration, SystemTime};
 use support::{packet_fact_with_dir_and_payload_bytes, route_fact, sock_lineage_fact};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 fn bgp_packet_fact(id: u64, cookie: u64, dir: PacketDir, msg_type: u8) -> FactEnvelope {
     packet_fact_with_dir_and_payload_bytes(
         id,
@@ -34,15 +49,15 @@ fn bgp_packet_fact(id: u64, cookie: u64, dir: PacketDir, msg_type: u8) -> FactEn
 fn bgp_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("bgp", Some("open")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/bgp/open".to_string())
+        Some(protocol_fixture_path("bgp/open").to_string())
     );
     assert_eq!(
         protocol_dsl_path("bgp-open", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/bgp/open".to_string())
+        Some(protocol_fixture_path("bgp/open").to_string())
     );
     assert_eq!(
         protocol_dsl_path("bgp", Some("keep-alive")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/bgp/keepalive".to_string())
+        Some(protocol_fixture_path("bgp/keepalive").to_string())
     );
 }
 
@@ -79,15 +94,14 @@ fn bgp_surface_exposes_routing_control_session_semantics() {
 
 #[test]
 fn bgp_dsl_files_compile_into_expected_operations() {
-    let open = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/bgp_open_path.gewy").unwrap();
+    let open = compile_file(&dsl_fixture_path("bgp_open_path.gewy")).unwrap();
     assert_eq!(open.template.id, "bgp_open_path");
     assert_eq!(
         open.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("bgp_open".into())
     );
 
-    let keepalive =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/bgp_keepalive_path.gewy").unwrap();
+    let keepalive = compile_file(&dsl_fixture_path("bgp_keepalive_path.gewy")).unwrap();
     assert_eq!(keepalive.template.id, "bgp_keepalive_path");
     assert_eq!(
         keepalive.template.program_model.as_ref().unwrap().operation,
@@ -97,7 +111,7 @@ fn bgp_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn bgp_open_runtime_path_materializes_peer_open_stages() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/bgp_open_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("bgp_open_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 9179, 179, "bgpd"));
@@ -127,8 +141,7 @@ fn bgp_open_runtime_path_materializes_peer_open_stages() {
 
 #[test]
 fn bgp_keepalive_runtime_path_materializes_liveness_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/bgp_keepalive_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("bgp_keepalive_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 9180, 179, "bgpd"));

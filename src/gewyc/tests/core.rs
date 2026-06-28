@@ -2,9 +2,7 @@ use super::*;
 
 #[test]
 fn binding_json_mentions_template_id() {
-    let binding =
-        compile_binding_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let binding = compile_binding_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let json = render_binding(&binding, RenderFormat::Json);
     assert!(json.contains("\"surface_id\":\"gewyc.binding\""));
     assert!(json.contains(
@@ -17,9 +15,7 @@ fn binding_json_mentions_template_id() {
 
 #[test]
 fn diagnostics_text_mentions_program_rule() {
-    let binding =
-        compile_binding_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let binding = compile_binding_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let diagnostics = collect_binding_diagnostics(&binding).unwrap();
     let text = render_diagnostics(&binding, &diagnostics, RenderFormat::Text);
     assert!(text.contains("program_model="));
@@ -28,9 +24,7 @@ fn diagnostics_text_mentions_program_rule() {
 
 #[test]
 fn binding_report_is_owned_and_stable() {
-    let binding =
-        compile_binding_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let binding = compile_binding_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let report = binding_report(&binding);
     assert_eq!(report.template_id, "udp_process_debug");
     assert!(
@@ -48,10 +42,8 @@ fn binding_report_is_owned_and_stable() {
 
 #[test]
 fn compile_diagnostics_report_file_materializes_reason_and_program_models() {
-    let report = compile_diagnostics_report_file(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy",
-    )
-    .unwrap();
+    let report =
+        compile_diagnostics_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     assert_eq!(report.template_id, "udp_process_debug");
     assert!(
         report
@@ -63,9 +55,7 @@ fn compile_diagnostics_report_file_materializes_reason_and_program_models() {
 
 #[test]
 fn compile_envelope_str_collects_all_frontend_surfaces() {
-    let input =
-        crate::dsl::read_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let input = crate::dsl::read_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let envelope = compile_envelope_str(&input);
     assert_eq!(
         envelope
@@ -110,9 +100,7 @@ template(:broken)
 
 #[test]
 fn compile_stages_report_file_separates_binding_and_diagnostics_reports() {
-    let report =
-        compile_stages_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let report = compile_stages_report_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     assert!(report.parse.ok);
     assert!(report.parse.finding.is_none());
     assert_eq!(

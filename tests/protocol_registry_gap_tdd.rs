@@ -2,55 +2,62 @@ use gewyvern::protocol_profiles::{
     protocol_default_entry, protocol_dsl_path, protocol_entries, protocol_surface,
 };
 
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn http3_hy2_and_transport_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("http3", Some("server")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http3/server".to_string())
+        Some(protocol_fixture_path("http3/server").to_string())
     );
     assert_eq!(
         protocol_dsl_path("http3", Some("h3-server")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http3/server".to_string())
+        Some(protocol_fixture_path("http3/server").to_string())
     );
     assert_eq!(
         protocol_dsl_path("http3", Some("h3-close")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http3/close".to_string())
+        Some(protocol_fixture_path("http3/close").to_string())
     );
     assert_eq!(
         protocol_dsl_path("http3", Some("h3-server-close")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http3/server-close".to_string())
+        Some(protocol_fixture_path("http3/server-close").to_string())
     );
     assert_eq!(
         protocol_dsl_path("hy2", Some("hy2-stream")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/tcp".to_string())
+        Some(protocol_fixture_path("hy2/tcp").to_string())
     );
     assert_eq!(
         protocol_dsl_path("hy2", Some("hy2-relay")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/udp".to_string())
+        Some(protocol_fixture_path("hy2/udp").to_string())
     );
     assert_eq!(
         protocol_dsl_path("hy2", Some("session-close")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/close".to_string())
+        Some(protocol_fixture_path("hy2/close").to_string())
     );
     assert_eq!(
         protocol_dsl_path("hy2", Some("hy2-tcp-close")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/tcp-close".to_string())
+        Some(protocol_fixture_path("hy2/tcp-close").to_string())
     );
     assert_eq!(
         protocol_dsl_path("hy2", Some("hy2-udp-close")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/udp-close".to_string())
+        Some(protocol_fixture_path("hy2/udp-close").to_string())
     );
     assert_eq!(
         protocol_dsl_path("tls", Some("client")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/tls/client".to_string())
+        Some(protocol_fixture_path("tls/client").to_string())
     );
     assert_eq!(
         protocol_dsl_path("tls", Some("tls-server")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/tls/server".to_string())
+        Some(protocol_fixture_path("tls/server").to_string())
     );
     assert_eq!(
         protocol_dsl_path("wireguard", Some("handshake")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/wireguard/handshake".to_string())
+        Some(protocol_fixture_path("wireguard/handshake").to_string())
     );
 }
 
@@ -58,27 +65,27 @@ fn http3_hy2_and_transport_registry_entries_resolve_to_packaged_paths() {
 fn socks5_smtp_kerberos_and_control_plane_aliases_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("socks5", Some("proxy")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/socks5/session".to_string())
+        Some(protocol_fixture_path("socks5/session").to_string())
     );
     assert_eq!(
         protocol_dsl_path("socks5", Some("userpass-connect-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/socks5/auth-connect-denied".to_string())
+        Some(protocol_fixture_path("socks5/auth-connect-denied").to_string())
     );
     assert_eq!(
         protocol_dsl_path("smtp", Some("message-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/smtp/data-denied".to_string())
+        Some(protocol_fixture_path("smtp/data-denied").to_string())
     );
     assert_eq!(
         protocol_dsl_path("kerberos", Some("service-ticket")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kerberos/tgs".to_string())
+        Some(protocol_fixture_path("kerberos/tgs").to_string())
     );
     assert_eq!(
         protocol_dsl_path("radius", Some("auth")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/radius/access".to_string())
+        Some(protocol_fixture_path("radius/access").to_string())
     );
     assert_eq!(
         protocol_dsl_path("gtp-u", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/gtpu/echo".to_string())
+        Some(protocol_fixture_path("gtpu/echo").to_string())
     );
 }
 

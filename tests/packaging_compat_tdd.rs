@@ -12,7 +12,7 @@ fn read_repo_file(relative: &str) -> String {
 fn package_layout_writes_compat_manifest() {
     let build_script = read_repo_file("scripts/packaging/build_packages.sh");
 
-    assert!(build_script.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v0.17.x}\""));
+    assert!(build_script.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v0.18.x}\""));
     assert!(build_script.contains("LAYOUT_VERSION=\"${GEWY_LAYOUT_VERSION:-1}\""));
     assert!(build_script.contains("CONFIG_SCHEMA_VERSION=\"${GEWY_CONFIG_SCHEMA_VERSION:-1}\""));
     assert!(build_script.contains("/usr/share/gewyvern/package-compat.toml"));
@@ -44,7 +44,7 @@ fn rpm_template_matches_deb_staged_compat_contract() {
 fn install_smoke_validates_packaged_compat_artifacts() {
     let smoke = read_repo_file("scripts/packaging/package_install_smoke.sh");
 
-    assert!(smoke.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v0.17.x}\""));
+    assert!(smoke.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v0.18.x}\""));
     assert_eq!(
         smoke
             .matches("test -f /usr/share/gewyvern/package-compat.toml")
@@ -64,12 +64,9 @@ fn install_smoke_validates_packaged_compat_artifacts() {
             .count(),
         2
     );
-    assert_eq!(
-        smoke
-            .matches("test -f /usr/share/doc/gewyvern/LICENSE")
-            .count(),
-        2
-    );
+    assert_eq!(smoke.matches("/usr/share/doc/gewyvern/LICENSE").count(), 2);
+    assert!(smoke.contains("dpkg-deb -c"));
+    assert!(smoke.contains("rpm -qpl"));
 }
 
 #[test]

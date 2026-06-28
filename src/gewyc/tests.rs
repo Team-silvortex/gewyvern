@@ -24,6 +24,22 @@ pub(super) fn assert_valid_json_document(json: &str) {
     );
 }
 
+pub(super) fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+pub(super) fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
+
 mod contract;
 mod core;
 mod explain_compact;

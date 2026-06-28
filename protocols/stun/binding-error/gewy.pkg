@@ -1,5 +1,5 @@
 name=stun_binding_error
-version=0.15.0
+version=0.18.2
 entry=main.gewy
 register.protocol=stun
 register.entry=binding-error

@@ -10,6 +10,21 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::time::{Duration, SystemTime};
 use support::{route_fact, sock_lineage_fact};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 fn snmp_v3_udp_packet_fact(
     id: u64,
     cookie: u64,
@@ -72,19 +87,19 @@ fn snmp_v3_udp_packet_fact(
 fn snmp_manage_registry_aliases_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("snmp", Some("engine-sync")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/engine-sync".to_string())
+        Some(protocol_fixture_path("snmp/engine-sync").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("engine-discovery")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/engine-sync".to_string())
+        Some(protocol_fixture_path("snmp/engine-sync").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("trap-recv")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/trap-recv".to_string())
+        Some(protocol_fixture_path("snmp/trap-recv").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("trap-listener")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/trap-recv".to_string())
+        Some(protocol_fixture_path("snmp/trap-recv").to_string())
     );
 }
 
@@ -100,8 +115,7 @@ fn snmp_manage_surface_uses_manage_shelf() {
 
 #[test]
 fn snmp_manage_dsl_files_compile_into_expected_operations() {
-    let engine_sync =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_engine_sync_path.gewy").unwrap();
+    let engine_sync = compile_file(&dsl_fixture_path("snmp_engine_sync_path.gewy")).unwrap();
     assert_eq!(engine_sync.template.id, "snmp_engine_sync_path");
     assert_eq!(
         engine_sync
@@ -113,8 +127,7 @@ fn snmp_manage_dsl_files_compile_into_expected_operations() {
         ProgramOperation::Custom("snmp_engine_sync".into())
     );
 
-    let trap_recv =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_trap_recv_path.gewy").unwrap();
+    let trap_recv = compile_file(&dsl_fixture_path("snmp_trap_recv_path.gewy")).unwrap();
     assert_eq!(trap_recv.template.id, "snmp_trap_recv_path");
     assert_eq!(
         trap_recv.template.program_model.as_ref().unwrap().operation,
@@ -124,8 +137,7 @@ fn snmp_manage_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn snmp_engine_sync_runtime_path_materializes_probe_and_report() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_engine_sync_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_engine_sync_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2840, 54010, "snmpget"));
@@ -187,8 +199,7 @@ fn snmp_engine_sync_runtime_path_materializes_probe_and_report() {
 
 #[test]
 fn snmp_trap_recv_runtime_path_materializes_receive_only_notification() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_trap_recv_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_trap_recv_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2841, 162, "snmptrapd"));

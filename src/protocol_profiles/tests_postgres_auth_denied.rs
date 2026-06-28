@@ -23,15 +23,15 @@ fn postgres_auth_denied_surface_shares_connect_auth_shelf() {
 fn postgres_auth_denied_aliases_resolve_to_canonical_entries() {
     assert_eq!(
         protocol_dsl_path("postgres-auth-denied", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/postgres/auth-denied".to_string())
+        Some(super::protocol_fixture_path("postgres/auth-denied"))
     );
     assert_eq!(
         protocol_dsl_path("postgres", Some("login-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/postgres/auth-denied".to_string())
+        Some(super::protocol_fixture_path("postgres/auth-denied"))
     );
     assert_eq!(
         protocol_dsl_path("postgres", Some("password-denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/postgres/auth-denied".to_string())
+        Some(super::protocol_fixture_path("postgres/auth-denied"))
     );
 }
 

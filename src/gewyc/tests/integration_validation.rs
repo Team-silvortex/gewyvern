@@ -65,9 +65,7 @@ template(:frontend_defaults)
 
 #[test]
 fn stages_report_summarizes_payload_offset_support() {
-    let report =
-        compile_stages_report_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")
-            .unwrap();
+    let report = compile_stages_report_file(&dsl_fixture_path("snmp_get_path.gewy")).unwrap();
     assert_eq!(
         report.validation.sampled_payload_offsets,
         vec![0, 1, 4, 5, 9, 10, 13]
@@ -81,18 +79,14 @@ fn stages_report_summarizes_payload_offset_support() {
 
 #[test]
 fn envelope_json_is_valid_for_stable_subset_entry() {
-    let report =
-        compile_envelope_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
-            .unwrap();
+    let report = compile_envelope_file(&dsl_fixture_path("http_request_path.gewy")).unwrap();
     let json = render_envelope_report(&report, RenderFormat::Json);
     assert_valid_json_document(&json);
 }
 
 #[test]
 fn envelope_json_is_valid_for_registry_amqp_publish_entry() {
-    let report =
-        compile_envelope_file("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/publish/main.gewy")
-            .unwrap();
+    let report = compile_envelope_file(&protocol_fixture_path("amqp/publish/main.gewy")).unwrap();
     let json = render_envelope_report(&report, RenderFormat::Json);
     assert_valid_json_document(&json);
 }

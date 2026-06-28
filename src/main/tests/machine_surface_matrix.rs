@@ -2,7 +2,7 @@ use super::*;
 use crate::render_utils::extract_json_string_field;
 
 fn demo_matrix_export() -> ExportBundle {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     annotate_export_trust(
         run_binding_demo(binding),

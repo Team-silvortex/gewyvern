@@ -10,15 +10,30 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::time::{Duration, SystemTime};
 use support::{route_fact, sock_lineage_fact, udp_packet_fact_with_dir_and_ports_and_payload};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn wireguard_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("wireguard", Some("cookie-reply")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/wireguard/cookie".to_string())
+        Some(protocol_fixture_path("wireguard/cookie").to_string())
     );
     assert_eq!(
         protocol_dsl_path("wireguard", Some("data")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/wireguard/transport".to_string())
+        Some(protocol_fixture_path("wireguard/transport").to_string())
     );
 }
 
@@ -50,17 +65,14 @@ fn wireguard_surface_uses_split_shelves_per_entry() {
 
 #[test]
 fn wireguard_dsl_files_compile_into_expected_operations() {
-    let cookie =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_cookie_path.gewy").unwrap();
+    let cookie = compile_file(&dsl_fixture_path("wireguard_cookie_path.gewy")).unwrap();
     assert_eq!(cookie.template.id, "wireguard_cookie_path");
     assert_eq!(
         cookie.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("wireguard_cookie".into())
     );
 
-    let transport =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_transport_path.gewy")
-            .unwrap();
+    let transport = compile_file(&dsl_fixture_path("wireguard_transport_path.gewy")).unwrap();
     assert_eq!(transport.template.id, "wireguard_transport_path");
     assert_eq!(
         transport.template.program_model.as_ref().unwrap().operation,
@@ -70,8 +82,7 @@ fn wireguard_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn wireguard_cookie_runtime_path_materializes_initiation_and_cookie_reply() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_cookie_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("wireguard_cookie_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 5801, 51820, "wg"));
@@ -113,9 +124,7 @@ fn wireguard_cookie_runtime_path_materializes_initiation_and_cookie_reply() {
 
 #[test]
 fn wireguard_transport_runtime_path_materializes_bidirectional_data() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/wireguard_transport_path.gewy")
-            .unwrap();
+    let binding = compile_file(&dsl_fixture_path("wireguard_transport_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 5802, 51820, "wg"));

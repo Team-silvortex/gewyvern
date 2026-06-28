@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn summary_json_carries_ldap_bind_denied_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_bind_denied_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("ldap_bind_denied_path.gewy"))
         .expect("ldap_bind_denied_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -66,9 +66,8 @@ fn summary_json_carries_ldap_bind_denied_detail() {
 
 #[test]
 fn summary_json_carries_ldap_modify_denied_detail() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_denied_path.gewy")
-            .expect("ldap_modify_denied_path DSL should compile");
+    let binding = compile_file(&dsl_fixture_path("ldap_modify_denied_path.gewy"))
+        .expect("ldap_modify_denied_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
             binding,
@@ -115,9 +114,8 @@ fn summary_json_carries_ldap_modify_denied_detail() {
 
 #[test]
 fn summary_json_carries_ldap_modify_constraint_detail() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ldap_modify_constraint_path.gewy")
-            .expect("ldap_modify_constraint_path DSL should compile");
+    let binding = compile_file(&dsl_fixture_path("ldap_modify_constraint_path.gewy"))
+        .expect("ldap_modify_constraint_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
             binding,

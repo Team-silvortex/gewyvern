@@ -11,7 +11,7 @@ LAYOUT_ONLY=0
 MAINTAINER="${GEWY_PACKAGE_MAINTAINER:-OpenAI Codex <codex@example.invalid>}"
 PACKAGE_NAME="${GEWY_PACKAGE_NAME:-gewyvern}"
 PACKAGE_RELEASE="${GEWY_PACKAGE_RELEASE:-1}"
-RELEASE_LINE="${GEWY_RELEASE_LINE:-v0.17.x}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v0.18.x}"
 LAYOUT_VERSION="${GEWY_LAYOUT_VERSION:-1}"
 CONFIG_SCHEMA_VERSION="${GEWY_CONFIG_SCHEMA_VERSION:-1}"
 RPM_DIST="${GEWY_RPM_DIST:-}"
@@ -157,7 +157,7 @@ build_deb() {
     exit 1
   fi
 
-  dpkg-deb --build "${deb_root}" "${deb_path}"
+  dpkg-deb --root-owner-group --build "${deb_root}" "${deb_path}"
   echo "built ${deb_path}"
 }
 
@@ -265,6 +265,7 @@ build_release_binaries
 
 echo "staging install tree..."
 stage_layout "${STAGE_ROOT}"
+chown -R 0:0 "${STAGE_ROOT}" 2>/dev/null || true
 
 case "${FORMAT}" in
   deb)

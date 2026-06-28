@@ -10,8 +10,9 @@ use super::certificate_policy::api_runtime_certificate_policy_json;
 use super::certificate_state::api_runtime_certificate_state_json;
 use super::json::{api_snapshot_meta_json, api_target_list_json, api_target_path_segment};
 use super::protocol_catalog::{
-    api_protocol_catalog_json, api_protocol_cluster_json, api_protocol_clusters_json,
-    api_protocol_summary_json, api_protocol_surface_by_name_json,
+    api_protocol_catalog_json_from_summaries, api_protocol_cluster_json_from_summaries,
+    api_protocol_clusters_json_from_summaries, api_protocol_summary_json_from_summary,
+    api_protocol_surface_from_summary_json,
 };
 use super::runtime_capability_digest::api_runtime_capability_digest_json;
 use super::runtime_cluster_attention::{
@@ -197,10 +198,14 @@ fn persist_snapshot_tree(
 }
 
 fn persist_protocol_catalog(root: &Path) -> Result<(), String> {
-    write_text_file(&root.join("protocols.json"), &api_protocol_catalog_json())?;
+    let summaries = protocol_summaries();
+    write_text_file(
+        &root.join("protocols.json"),
+        &api_protocol_catalog_json_from_summaries(&summaries),
+    )?;
     write_text_file(
         &root.join("protocol-clusters.json"),
-        &api_protocol_clusters_json(),
+        &api_protocol_clusters_json_from_summaries(&summaries),
     )?;
     let protocols_root = root.join("protocols");
     fs::create_dir_all(&protocols_root).map_err(|err| {
@@ -209,7 +214,7 @@ fn persist_protocol_catalog(root: &Path) -> Result<(), String> {
             protocols_root.display()
         )
     })?;
-    for summary in protocol_summaries() {
+    for summary in &summaries {
         let protocol_root = protocols_root.join(&summary.protocol);
         fs::create_dir_all(protocol_root.join("entries")).map_err(|err| {
             format!(
@@ -217,11 +222,12 @@ fn persist_protocol_catalog(root: &Path) -> Result<(), String> {
                 protocol_root.display()
             )
         })?;
-        if let Some(body) = api_protocol_summary_json(&summary.protocol) {
-            write_text_file(&protocol_root.join("summary.json"), &body)?;
-        }
-        for entry in summary.entries {
-            if let Some(body) = api_protocol_surface_by_name_json(&summary.protocol, &entry.mode) {
+        write_text_file(
+            &protocol_root.join("summary.json"),
+            &api_protocol_summary_json_from_summary(summary),
+        )?;
+        for entry in &summary.entries {
+            if let Some(body) = api_protocol_surface_from_summary_json(summary, &entry.mode) {
                 write_text_file(
                     &protocol_root
                         .join("entries")
@@ -240,14 +246,14 @@ fn persist_protocol_catalog(root: &Path) -> Result<(), String> {
         )
     })?;
     let mut written_clusters = std::collections::BTreeSet::new();
-    for summary in protocol_summaries() {
-        let Some(hint) = summary.cluster_hint else {
+    for summary in &summaries {
+        let Some(hint) = summary.cluster_hint.as_ref() else {
             continue;
         };
         if !written_clusters.insert(hint.key.clone()) {
             continue;
         }
-        if let Some(body) = api_protocol_cluster_json(&hint.key) {
+        if let Some(body) = api_protocol_cluster_json_from_summaries(&summaries, &hint.key) {
             write_text_file(&clusters_root.join(format!("{}.json", hint.key)), &body)?;
         }
     }

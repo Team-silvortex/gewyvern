@@ -4,23 +4,38 @@ use gewyvern::protocol_profiles::{
     protocol_default_entry, protocol_dsl_path, protocol_entries, protocol_surface,
 };
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn sip_response_and_denied_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("sip", Some("response")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/sip/response".to_string())
+        Some(protocol_fixture_path("sip/response").to_string())
     );
     assert_eq!(
         protocol_dsl_path("sip", Some("reply")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/sip/response".to_string())
+        Some(protocol_fixture_path("sip/response").to_string())
     );
     assert_eq!(
         protocol_dsl_path("sip", Some("denied")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/sip/denied".to_string())
+        Some(protocol_fixture_path("sip/denied").to_string())
     );
     assert_eq!(
         protocol_dsl_path("sip", Some("4xx")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/sip/denied".to_string())
+        Some(protocol_fixture_path("sip/denied").to_string())
     );
 }
 
@@ -60,8 +75,7 @@ fn sip_response_and_denied_surfaces_expose_shelves_and_semantics() {
 
 #[test]
 fn sip_response_and_denied_dsl_files_compile_into_expected_operations() {
-    let response =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/sip_response_path.gewy").unwrap();
+    let response = compile_file(&dsl_fixture_path("sip_response_path.gewy")).unwrap();
     assert_eq!(response.template.id, "sip_response_path");
     assert_eq!(
         response
@@ -72,8 +86,7 @@ fn sip_response_and_denied_dsl_files_compile_into_expected_operations() {
         Some(&ProgramOperation::Custom("sip_response".into()))
     );
 
-    let denied =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/sip_denied_path.gewy").unwrap();
+    let denied = compile_file(&dsl_fixture_path("sip_denied_path.gewy")).unwrap();
     assert_eq!(denied.template.id, "sip_denied_path");
     assert_eq!(
         denied

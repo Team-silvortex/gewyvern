@@ -1,7 +1,7 @@
 use super::*;
 
 fn demo_reports_export() -> ExportBundle {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     annotate_export_trust(
         run_binding_demo(binding),
@@ -28,7 +28,7 @@ fn summary_json_carries_ingest_trust_mode() {
 #[test]
 fn summary_json_marks_socket_ingest_as_unverified_local() {
     let cli = Cli::from_args(["--tcp-socket".to_string(), "127.0.0.1:9000".to_string()]).unwrap();
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let export = annotate_export_trust(run_binding_demo(binding), &cli);
     let json = summary_json("socket_session", &export);
@@ -107,7 +107,7 @@ fn summary_json_contract_keeps_guidance_and_ambiguity_surface() {
 
 #[test]
 fn scan_report_json_summarizes_all_targets() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let healthy_export = annotate_export_trust(
         run_binding_demo(binding.clone()),
@@ -162,7 +162,7 @@ fn scan_report_json_summarizes_all_targets() {
 
 #[test]
 fn scan_report_html_renders_visual_summary() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let export = annotate_export_trust(
         run_binding_demo(binding),
@@ -199,7 +199,7 @@ fn scan_report_html_renders_visual_summary() {
 
 #[test]
 fn single_target_html_report_renders_visual_summary() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+    let binding = compile_file(&dsl_fixture_path("mysql_query_session.gewy"))
         .expect("mysql_query_session DSL should compile");
     let export = annotate_export_trust(
         run_binding_demo(binding),
@@ -221,7 +221,7 @@ fn single_target_html_report_renders_visual_summary() {
 
 #[test]
 fn scan_report_html_expands_attention_targets_by_default() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let mut attention_export = annotate_export_trust(
         run_binding_demo(binding),
@@ -251,7 +251,7 @@ fn scan_report_html_expands_attention_targets_by_default() {
 
 #[test]
 fn scan_report_text_includes_protocol_surface_summary() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+    let binding = compile_file(&dsl_fixture_path("mysql_query_session.gewy"))
         .expect("mysql_query_session DSL should compile");
     let export = annotate_export_trust(
         run_binding_demo(binding),
@@ -273,7 +273,7 @@ fn scan_report_text_includes_protocol_surface_summary() {
 
 #[test]
 fn scan_report_text_and_html_include_protocol_reading_companions() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("tls_client_path.gewy"))
         .expect("tls_client_path DSL should compile");
     let export = annotate_export_trust(
         run_binding_demo(binding),
@@ -296,9 +296,8 @@ fn scan_report_html_rolls_up_sidecar_collaboration_counts() {
     with_fake_etragon_hook(
         "{\"augmentations\":[{\"kind\":\"ml-candidate\",\"name\":\"ml_candidate_targeted_escalation\",\"summary\":\"external engine suggests targeted escalation\",\"confidence\":\"candidate\",\"producer_stage\":\"candidate\",\"producer_pass\":\"fake_etragon\",\"data\":{\"module\":\"http_request_response\"}}],\"evidence_chain_enrichment\":{\"status\":\"reinforced\",\"primary_label\":\"targeted_escalation\",\"summary\":\"reinforced evidence chain\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"augmentations_with_operator_guidance_support\"},\"diagnostic_opinion\":{\"status\":\"ready\",\"diagnosis_kind\":\"direct_protocol_failure\",\"label\":\"targeted_escalation\",\"summary\":\"direct protocol failure is now the most direct opinion\",\"handoff_readiness\":\"automation_worthy\",\"gewyvern_merge_hint\":\"operator_guidance_candidate\"}}",
         || {
-            let binding =
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
-                    .expect("http_request_path DSL should compile");
+            let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
+                .expect("http_request_path DSL should compile");
             let export = annotate_export_trust(
                 run_binding_demo(binding),
                 &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
@@ -314,7 +313,7 @@ fn scan_report_html_rolls_up_sidecar_collaboration_counts() {
 
 #[test]
 fn export_primary_conclusion_prefers_attention_process_profile() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -370,7 +369,7 @@ fn export_primary_conclusion_prefers_attention_process_profile() {
 
 #[test]
 fn single_target_json_report_wraps_protocol_result() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy")
+    let binding = compile_file(&dsl_fixture_path("mysql_query_session.gewy"))
         .expect("mysql_query_session DSL should compile");
     let export = annotate_export_trust(
         run_binding_demo(binding),
@@ -392,7 +391,7 @@ fn single_target_json_report_wraps_protocol_result() {
 
 #[test]
 fn summary_json_marks_protocol_flow_attention_and_missing_transition() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -448,7 +447,7 @@ fn summary_json_marks_protocol_flow_attention_and_missing_transition() {
 
 #[test]
 fn scan_report_json_promotes_top_level_diagnosis_aggregates() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),

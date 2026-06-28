@@ -4,7 +4,7 @@ use super::*;
 fn anomaly_flow_route_highlights_missing_transition_breakpoint() {
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -116,7 +116,7 @@ fn anomaly_flow_route_returns_404_without_analysis_snapshot() {
 fn anomaly_flow_route_uses_tls_specific_phase_hint() {
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("tls_client_path.gewy"))
         .expect("tls_client_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -183,7 +183,7 @@ fn anomaly_flow_route_uses_tls_specific_phase_hint() {
 fn anomaly_flow_route_uses_dns_tcp_specific_phase_hint() {
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("dns_tcp_query_path.gewy"))
         .expect("dns_tcp_query_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -252,7 +252,7 @@ fn anomaly_flow_route_uses_dot_and_doh_specific_phase_hints() {
     let _guard = test_guard();
     set_external_analysis_config(None);
 
-    let dns_binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy")
+    let dns_binding = compile_file(&dsl_fixture_path("dns_tcp_query_path.gewy"))
         .expect("dns_tcp_query_path DSL should compile");
     let mut dns_export = annotate_export_trust(
         run_binding_demo(dns_binding),
@@ -318,7 +318,7 @@ fn anomaly_flow_route_uses_dot_and_doh_specific_phase_hints() {
         dot_body
     );
 
-    let http_binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let http_binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let mut http_export = annotate_export_trust(
         run_binding_demo(http_binding),

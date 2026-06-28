@@ -12,6 +12,21 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 fn ospf_packet_fact(id: u64, dir: PacketDir, packet_type: u8) -> FactEnvelope {
     FactEnvelope {
         id: FactId(id),
@@ -51,15 +66,15 @@ fn ospf_packet_fact(id: u64, dir: PacketDir, packet_type: u8) -> FactEnvelope {
 fn ospf_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("ospf", Some("hello")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ospf/hello".to_string())
+        Some(protocol_fixture_path("ospf/hello").to_string())
     );
     assert_eq!(
         protocol_dsl_path("ospf-hello", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ospf/hello".to_string())
+        Some(protocol_fixture_path("ospf/hello").to_string())
     );
     assert_eq!(
         protocol_dsl_path("ospf", Some("database-description")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ospf/dbdesc".to_string())
+        Some(protocol_fixture_path("ospf/dbdesc").to_string())
     );
 }
 
@@ -103,15 +118,14 @@ fn ospf_surface_exposes_neighbor_and_database_semantics() {
 
 #[test]
 fn ospf_dsl_files_compile_into_expected_operations() {
-    let hello = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ospf_hello_path.gewy").unwrap();
+    let hello = compile_file(&dsl_fixture_path("ospf_hello_path.gewy")).unwrap();
     assert_eq!(hello.template.id, "ospf_hello_path");
     assert_eq!(
         hello.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("ospf_hello".into())
     );
 
-    let dbdesc =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ospf_dbdesc_path.gewy").unwrap();
+    let dbdesc = compile_file(&dsl_fixture_path("ospf_dbdesc_path.gewy")).unwrap();
     assert_eq!(dbdesc.template.id, "ospf_dbdesc_path");
     assert_eq!(
         dbdesc.template.program_model.as_ref().unwrap().operation,
@@ -121,8 +135,7 @@ fn ospf_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn ospf_hello_runtime_path_materializes_neighbor_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ospf_hello_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ospf_hello_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(ospf_packet_fact(1, PacketDir::Egress, 1));
@@ -150,8 +163,7 @@ fn ospf_hello_runtime_path_materializes_neighbor_stages() {
 
 #[test]
 fn ospf_dbdesc_runtime_path_materializes_database_sync_stages() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ospf_dbdesc_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("ospf_dbdesc_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(ospf_packet_fact(1, PacketDir::Egress, 2));

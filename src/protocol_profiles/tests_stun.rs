@@ -2,6 +2,7 @@ use super::{protocol_dsl_path, protocol_entries, protocol_summary};
 
 #[test]
 fn stun_protocol_summary_exposes_new_entries_and_aliases() {
+    let _lock = super::tests_env::lock();
     let summary = protocol_summary("stun").expect("stun summary should exist");
     assert_eq!(summary.default_entry, "binding");
     assert!(summary.entries.iter().any(|entry| entry.mode == "allocate"));
@@ -36,17 +37,18 @@ fn stun_protocol_summary_exposes_new_entries_and_aliases() {
 
 #[test]
 fn stun_protocol_aliases_resolve_to_canonical_packages() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("stun-allocate", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/stun/allocate".to_string())
+        Some(super::protocol_fixture_path("stun/allocate"))
     );
     assert_eq!(
         protocol_dsl_path("stun-refresh", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/stun/refresh".to_string())
+        Some(super::protocol_fixture_path("stun/refresh"))
     );
     assert_eq!(
         protocol_dsl_path("stun-binding-error", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/stun/binding-error".to_string())
+        Some(super::protocol_fixture_path("stun/binding-error"))
     );
 
     let entries = protocol_entries("stun").expect("stun entries should resolve");

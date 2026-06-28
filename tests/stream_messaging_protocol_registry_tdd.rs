@@ -11,31 +11,46 @@ use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::time::SystemTime;
 use support::{packet_fact_with_dir_and_payload_bytes, route_fact, tcp_state_fact_with_ports};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn stream_messaging_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("kafka", Some("metadata")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kafka/metadata".to_string())
+        Some(protocol_fixture_path("kafka/metadata").to_string())
     );
     assert_eq!(
         protocol_dsl_path("kafka", Some("topic-write")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kafka/produce".to_string())
+        Some(protocol_fixture_path("kafka/produce").to_string())
     );
     assert_eq!(
         protocol_dsl_path("kafka", Some("consume")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/kafka/fetch".to_string())
+        Some(protocol_fixture_path("kafka/fetch").to_string())
     );
     assert_eq!(
         protocol_dsl_path("nats", Some("nats-session")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/nats/connect".to_string())
+        Some(protocol_fixture_path("nats/connect").to_string())
     );
     assert_eq!(
         protocol_dsl_path("nats", Some("subject-write")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/nats/pub".to_string())
+        Some(protocol_fixture_path("nats/pub").to_string())
     );
     assert_eq!(
         protocol_dsl_path("nats", Some("subject-read")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/nats/sub".to_string())
+        Some(protocol_fixture_path("nats/sub").to_string())
     );
 }
 
@@ -81,39 +96,39 @@ fn stream_messaging_defaults_shelves_and_semantics_are_stable() {
 fn stream_messaging_dsl_files_compile_into_expected_operations() {
     let cases = [
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/kafka_metadata_path.gewy",
+            dsl_fixture_path("kafka_metadata_path.gewy"),
             "kafka_metadata_path",
             ProgramOperation::Custom("kafka_metadata".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/kafka_produce_path.gewy",
+            dsl_fixture_path("kafka_produce_path.gewy"),
             "kafka_produce_path",
             ProgramOperation::Custom("kafka_produce".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/kafka_fetch_path.gewy",
+            dsl_fixture_path("kafka_fetch_path.gewy"),
             "kafka_fetch_path",
             ProgramOperation::Custom("kafka_fetch".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/nats_connect_path.gewy",
+            dsl_fixture_path("nats_connect_path.gewy"),
             "nats_connect_path",
             ProgramOperation::Custom("nats_connect".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/nats_pub_path.gewy",
+            dsl_fixture_path("nats_pub_path.gewy"),
             "nats_pub_path",
             ProgramOperation::Custom("nats_pub".into()),
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/nats_sub_path.gewy",
+            dsl_fixture_path("nats_sub_path.gewy"),
             "nats_sub_path",
             ProgramOperation::Custom("nats_sub".into()),
         ),
     ];
 
     for (path, template_id, operation) in cases {
-        let binding = compile_file(path).unwrap();
+        let binding = compile_file(&path).unwrap();
         assert_eq!(binding.template.id, template_id);
         assert_eq!(
             binding.template.program_model.as_ref().unwrap().operation,
@@ -125,7 +140,7 @@ fn stream_messaging_dsl_files_compile_into_expected_operations() {
 #[test]
 fn kafka_produce_runtime_path_materializes_broker_stages() {
     let export = run_stream_path(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/kafka_produce_path.gewy",
+        &dsl_fixture_path("kafka_produce_path.gewy"),
         9092,
         &[(5, 0x00)],
         &[(0, 0x00)],
@@ -167,7 +182,7 @@ fn kafka_produce_runtime_path_materializes_broker_stages() {
 #[test]
 fn nats_sub_runtime_path_materializes_pubsub_stages() {
     let export = run_stream_path(
-        "/Users/Shared/chroot/dev/gewyvern/dsl/nats_sub_path.gewy",
+        &dsl_fixture_path("nats_sub_path.gewy"),
         4222,
         &[(0, 0x53), (1, 0x55), (2, 0x42), (3, 0x20)],
         &[(0, 0x4d), (1, 0x53), (2, 0x47), (3, 0x20)],
@@ -196,7 +211,7 @@ fn run_stream_path(
     send_payload: &[(u16, u8)],
     receive_payload: &[(u16, u8)],
 ) -> gewyvern::export::ExportBundle {
-    let binding = compile_file(path).unwrap();
+    let binding = compile_file(&path).unwrap();
     let config = SessionConfig::for_template(binding.template).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     let cookie = 0x5151;

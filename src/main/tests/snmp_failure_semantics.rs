@@ -59,7 +59,7 @@ fn snmp_udp_packet_fact(
 
 #[test]
 fn summary_json_carries_snmp_get_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("snmp_get_path.gewy"))
         .expect("snmp_get_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -130,7 +130,7 @@ fn summary_json_carries_snmp_get_timeout_detail() {
 
 #[test]
 fn summary_json_carries_snmp_get_next_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_next_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("snmp_get_next_path.gewy"))
         .expect("snmp_get_next_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -203,7 +203,7 @@ fn summary_json_carries_snmp_get_next_timeout_detail() {
 
 #[test]
 fn summary_json_carries_snmp_bulk_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_bulk_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("snmp_bulk_path.gewy"))
         .expect("snmp_bulk_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -274,7 +274,7 @@ fn summary_json_carries_snmp_bulk_timeout_detail() {
 
 #[test]
 fn summary_json_carries_snmp_unauthorized_denied_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_unauthorized_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("snmp_unauthorized_path.gewy"))
         .expect("snmp_unauthorized_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -325,7 +325,7 @@ fn summary_json_carries_snmp_unauthorized_denied_detail() {
 
 #[test]
 fn summary_json_carries_snmp_report_semantic_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_report_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("snmp_report_path.gewy"))
         .expect("snmp_report_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -376,7 +376,7 @@ fn summary_json_carries_snmp_report_semantic_detail() {
 
 #[test]
 fn summary_json_carries_snmp_set_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_set_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("snmp_set_path.gewy"))
         .expect("snmp_set_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -437,7 +437,7 @@ fn summary_json_carries_snmp_set_timeout_detail() {
 
 #[test]
 fn summary_json_carries_snmp_inform_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_inform_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("snmp_inform_path.gewy"))
         .expect("snmp_inform_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -500,7 +500,7 @@ fn summary_json_carries_snmp_inform_timeout_detail() {
 
 #[test]
 fn summary_json_carries_snmp_engine_sync_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_engine_sync_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("snmp_engine_sync_path.gewy"))
         .expect("snmp_engine_sync_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(

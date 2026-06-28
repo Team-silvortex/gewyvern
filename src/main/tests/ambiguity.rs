@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn process_profiles_lower_confidence_for_competing_missing_transition_hypotheses() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -82,7 +82,7 @@ fn process_profiles_lower_confidence_for_competing_missing_transition_hypotheses
 
 #[test]
 fn process_profiles_lower_direct_signal_confidence_for_competing_module_hypotheses() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -127,7 +127,7 @@ fn process_profiles_lower_direct_signal_confidence_for_competing_module_hypothes
 
 #[test]
 fn summary_json_exposes_ambiguous_competing_hypotheses() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -182,7 +182,7 @@ fn mixed_dns_tls_http_profile_stays_ambiguous_and_low_confidence() {
     let dns_export = coerce_export_process(
         annotate_export_trust(
             run_binding_demo(
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy")
+                compile_file(&dsl_fixture_path("dns_udp_process.gewy"))
                     .expect("dns_udp_process DSL should compile"),
             ),
             &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
@@ -192,7 +192,7 @@ fn mixed_dns_tls_http_profile_stays_ambiguous_and_low_confidence() {
     let tls_export = coerce_export_process(
         annotate_export_trust(
             run_binding_demo(
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+                compile_file(&dsl_fixture_path("tls_client_path.gewy"))
                     .expect("tls_client_path DSL should compile"),
             ),
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
@@ -202,7 +202,7 @@ fn mixed_dns_tls_http_profile_stays_ambiguous_and_low_confidence() {
     let mut http_export = coerce_export_process(
         annotate_export_trust(
             run_binding_demo(
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                compile_file(&dsl_fixture_path("http_request_path.gewy"))
                     .expect("http_request_path DSL should compile"),
             ),
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
@@ -252,21 +252,21 @@ fn mixed_dns_tls_http_profile_stays_ambiguous_and_low_confidence() {
 fn mixed_proxy_tunnel_and_upstream_request_exposes_competing_hypotheses() {
     let process = synthetic_process_view(7002, "apt");
     let proxy_export = coerce_export_process(
-            annotate_export_trust(
-                run_binding_demo(
-                    compile_file(
-                        "/Users/Shared/chroot/dev/gewyvern/dsl/http_connect_authenticated_tunnel_path.gewy",
-                    )
-                    .expect("http_connect_authenticated_tunnel_path DSL should compile"),
-                ),
-                &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        annotate_export_trust(
+            run_binding_demo(
+                compile_file(&dsl_fixture_path(
+                    "http_connect_authenticated_tunnel_path.gewy",
+                ))
+                .expect("http_connect_authenticated_tunnel_path DSL should compile"),
             ),
-            &process,
-        );
+            &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+        ),
+        &process,
+    );
     let mut http_export = coerce_export_process(
         annotate_export_trust(
             run_binding_demo(
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+                compile_file(&dsl_fixture_path("http_request_path.gewy"))
                     .expect("http_request_path DSL should compile"),
             ),
             &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
@@ -325,7 +325,7 @@ fn mixed_quic_http3_hy2_profile_stays_conservative() {
     let quic_export = coerce_export_process(
         annotate_export_trust(
             run_binding_demo(
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/quic_stream_session_path.gewy")
+                compile_file(&dsl_fixture_path("quic_stream_session_path.gewy"))
                     .expect("quic_stream_session_path DSL should compile"),
             ),
             &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
@@ -335,7 +335,7 @@ fn mixed_quic_http3_hy2_profile_stays_conservative() {
     let mut http3_export = coerce_export_process(
         annotate_export_trust(
             run_binding_demo(
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy")
+                compile_file(&dsl_fixture_path("http3_request_path.gewy"))
                     .expect("http3_request_path DSL should compile"),
             ),
             &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
@@ -360,7 +360,7 @@ fn mixed_quic_http3_hy2_profile_stays_conservative() {
     let hy2_export = coerce_export_process(
         annotate_export_trust(
             run_binding_demo(
-                compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy")
+                compile_file(&dsl_fixture_path("hy2_auth_path.gewy"))
                     .expect("hy2_auth_path DSL should compile"),
             ),
             &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),

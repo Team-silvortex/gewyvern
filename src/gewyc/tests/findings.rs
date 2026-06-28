@@ -77,9 +77,7 @@ template(:broken_offset_validation)
 
 #[test]
 fn compile_findings_report_str_is_empty_when_pipeline_succeeds() {
-    let input =
-        crate::dsl::read_file("/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy")
-            .unwrap();
+    let input = crate::dsl::read_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let report = compile_findings_report_str(&input);
     assert!(report.findings.is_empty());
 }

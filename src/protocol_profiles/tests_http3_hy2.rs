@@ -52,23 +52,23 @@ fn http3_and_hy2_close_surfaces_expose_failure_shelves() {
 fn http3_and_hy2_close_aliases_resolve_to_canonical_entries() {
     assert_eq!(
         protocol_dsl_path("http3", Some("h3-close")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http3/close".to_string())
+        Some(super::protocol_fixture_path("http3/close"))
     );
     assert_eq!(
         protocol_dsl_path("http3", Some("h3-server-close")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/http3/server-close".to_string())
+        Some(super::protocol_fixture_path("http3/server-close"))
     );
     assert_eq!(
         protocol_dsl_path("hy2", Some("session-close")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/close".to_string())
+        Some(super::protocol_fixture_path("hy2/close"))
     );
     assert_eq!(
         protocol_dsl_path("hy2", Some("hy2-tcp-close")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/tcp-close".to_string())
+        Some(super::protocol_fixture_path("hy2/tcp-close"))
     );
     assert_eq!(
         protocol_dsl_path("hy2", Some("hy2-udp-close")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/hy2/udp-close".to_string())
+        Some(super::protocol_fixture_path("hy2/udp-close"))
     );
 }
 

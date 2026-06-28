@@ -13,6 +13,21 @@ use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime};
 use support::{route_fact, sock_lineage_fact};
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 fn icmpv6_packet_fact(id: u64, cookie: u64, dir: PacketDir, type_byte: u8) -> FactEnvelope {
     packet_fact(id, Some(cookie), dir, type_byte)
 }
@@ -60,23 +75,23 @@ fn packet_fact(id: u64, cookie: Option<u64>, dir: PacketDir, type_byte: u8) -> F
 fn icmpv6_and_ndp_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("icmpv6", Some("echo")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/icmpv6/echo".to_string())
+        Some(protocol_fixture_path("icmpv6/echo").to_string())
     );
     assert_eq!(
         protocol_dsl_path("ping6", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/icmpv6/echo".to_string())
+        Some(protocol_fixture_path("icmpv6/echo").to_string())
     );
     assert_eq!(
         protocol_dsl_path("icmpv6", Some("no-route")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/icmpv6/unreachable".to_string())
+        Some(protocol_fixture_path("icmpv6/unreachable").to_string())
     );
     assert_eq!(
         protocol_dsl_path("ndp", Some("solicit")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ndp/solicit".to_string())
+        Some(protocol_fixture_path("ndp/solicit").to_string())
     );
     assert_eq!(
         protocol_dsl_path("ndp", Some("na")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ndp/advertise".to_string())
+        Some(protocol_fixture_path("ndp/advertise").to_string())
     );
 }
 
@@ -140,15 +155,14 @@ fn icmpv6_and_ndp_surfaces_expose_reachability_and_neighbor_semantics() {
 
 #[test]
 fn icmpv6_and_ndp_dsl_files_compile_into_expected_operations() {
-    let echo = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/icmpv6_echo_path.gewy").unwrap();
+    let echo = compile_file(&dsl_fixture_path("icmpv6_echo_path.gewy")).unwrap();
     assert_eq!(echo.template.id, "icmpv6_echo_path");
     assert_eq!(
         echo.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("icmpv6_echo".into())
     );
 
-    let unreachable =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/icmpv6_unreachable_path.gewy").unwrap();
+    let unreachable = compile_file(&dsl_fixture_path("icmpv6_unreachable_path.gewy")).unwrap();
     assert_eq!(unreachable.template.id, "icmpv6_unreachable_path");
     assert_eq!(
         unreachable
@@ -160,16 +174,14 @@ fn icmpv6_and_ndp_dsl_files_compile_into_expected_operations() {
         ProgramOperation::Custom("icmpv6_unreachable".into())
     );
 
-    let solicit =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ndp_solicit_path.gewy").unwrap();
+    let solicit = compile_file(&dsl_fixture_path("ndp_solicit_path.gewy")).unwrap();
     assert_eq!(solicit.template.id, "ndp_solicit_path");
     assert_eq!(
         solicit.template.program_model.as_ref().unwrap().operation,
         ProgramOperation::Custom("ndp_solicit".into())
     );
 
-    let advertise =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ndp_advertise_path.gewy").unwrap();
+    let advertise = compile_file(&dsl_fixture_path("ndp_advertise_path.gewy")).unwrap();
     assert_eq!(advertise.template.id, "ndp_advertise_path");
     assert_eq!(
         advertise.template.program_model.as_ref().unwrap().operation,
@@ -179,7 +191,7 @@ fn icmpv6_and_ndp_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn icmpv6_runtime_paths_materialize_echo_and_unreachable_stages() {
-    let echo = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/icmpv6_echo_path.gewy").unwrap();
+    let echo = compile_file(&dsl_fixture_path("icmpv6_echo_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(echo).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 9812, 0, "ping6"));
@@ -206,8 +218,7 @@ fn icmpv6_runtime_paths_materialize_echo_and_unreachable_stages() {
             .any(|stage| stage.phase.as_deref() == Some("receive_echo_reply"))
     );
 
-    let unreachable =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/icmpv6_unreachable_path.gewy").unwrap();
+    let unreachable = compile_file(&dsl_fixture_path("icmpv6_unreachable_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(unreachable).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 9813, 0, "probe6"));
@@ -230,8 +241,7 @@ fn icmpv6_runtime_paths_materialize_echo_and_unreachable_stages() {
 
 #[test]
 fn ndp_runtime_paths_materialize_solicit_and_advertise_stages() {
-    let solicit =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ndp_solicit_path.gewy").unwrap();
+    let solicit = compile_file(&dsl_fixture_path("ndp_solicit_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(solicit).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(ndp_packet_fact(1, PacketDir::Egress, 135));
@@ -249,8 +259,7 @@ fn ndp_runtime_paths_materialize_solicit_and_advertise_stages() {
             .any(|stage| stage.phase.as_deref() == Some("send_neighbor_solicitation"))
     );
 
-    let advertise =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ndp_advertise_path.gewy").unwrap();
+    let advertise = compile_file(&dsl_fixture_path("ndp_advertise_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(advertise).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(ndp_packet_fact(1, PacketDir::Ingress, 136));

@@ -2,6 +2,7 @@ use super::{protocol_dsl_path, protocol_entries, protocol_summary};
 
 #[test]
 fn ntp_protocol_summary_exposes_new_entries_and_aliases() {
+    let _lock = super::tests_env::lock();
     let summary = protocol_summary("ntp").expect("ntp summary should exist");
     assert_eq!(summary.default_entry, "client");
     assert!(summary.entries.iter().any(|entry| entry.mode == "query"));
@@ -18,13 +19,14 @@ fn ntp_protocol_summary_exposes_new_entries_and_aliases() {
 
 #[test]
 fn ntp_protocol_aliases_resolve_to_canonical_packages() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("ntp-query", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ntp/query".to_string())
+        Some(super::protocol_fixture_path("ntp/query"))
     );
     assert_eq!(
         protocol_dsl_path("ntp-sync", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/ntp/sync".to_string())
+        Some(super::protocol_fixture_path("ntp/sync"))
     );
 
     let entries = protocol_entries("ntp").expect("ntp entries should resolve");

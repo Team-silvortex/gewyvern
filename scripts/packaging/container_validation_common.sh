@@ -56,6 +56,24 @@ container_validation_find_latest_rpm() {
   find "${packages_dir}/rpm" -maxdepth 1 -type f -name '*.rpm' | sort | tail -n 1
 }
 
+container_validation_deb_preamble() {
+  local mirror="${GEWY_DEB_APT_MIRROR:-}"
+  cat <<EOF
+if [ -n "${mirror}" ]; then
+  sed -i "s|http://archive.ubuntu.com/ubuntu|${mirror}|g; s|http://security.ubuntu.com/ubuntu|${mirror}|g" /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+fi
+EOF
+}
+
+container_validation_rpm_preamble() {
+  local mirror="${GEWY_RPM_DNF_MIRROR:-}"
+  cat <<EOF
+if [ -n "${mirror}" ]; then
+  sed -i "s|^metalink=|#metalink=|g; s|^mirrorlist=|#mirrorlist=|g; s|^#baseurl=http://download.example/pub/fedora/linux|baseurl=${mirror}|g; s|^#baseurl=https://download.example/pub/fedora/linux|baseurl=${mirror}|g" /etc/yum.repos.d/*.repo 2>/dev/null || true
+fi
+EOF
+}
+
 container_validation_run_deb() {
   local packages_dir="$1"
   local image="$2"
@@ -66,6 +84,7 @@ container_validation_run_deb() {
     "${image}" \
     bash -lc "
       set -euo pipefail
+      $(container_validation_deb_preamble)
       apt-get update >/dev/null
       apt-get install -y /packages/$(basename "${package_path}") >/dev/null
       ${body}
@@ -82,6 +101,7 @@ container_validation_run_deb_with_curl() {
     "${image}" \
     bash -lc "
       set -euo pipefail
+      $(container_validation_deb_preamble)
       apt-get update >/dev/null
       apt-get install -y curl /packages/$(basename "${package_path}") >/dev/null
       ${body}
@@ -98,6 +118,7 @@ container_validation_run_rpm() {
     "${image}" \
     bash -lc "
       set -euo pipefail
+      $(container_validation_rpm_preamble)
       dnf install -y /packages/$(basename "${package_path}") >/dev/null
       ${body}
     "
@@ -113,6 +134,7 @@ container_validation_run_rpm_with_curl() {
     "${image}" \
     bash -lc "
       set -euo pipefail
+      $(container_validation_rpm_preamble)
       dnf install -y curl /packages/$(basename "${package_path}") >/dev/null
       ${body}
     "

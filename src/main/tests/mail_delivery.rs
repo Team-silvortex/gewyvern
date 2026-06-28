@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn summary_json_carries_smtp_rcpt_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("smtp_rcpt_path.gewy"))
         .expect("smtp_rcpt_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -141,7 +141,7 @@ fn summary_json_carries_smtp_rcpt_timeout_detail() {
 
 #[test]
 fn summary_json_carries_smtp_rcpt_denied_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_rcpt_denied_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("smtp_rcpt_denied_path.gewy"))
         .expect("smtp_rcpt_denied_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -276,7 +276,7 @@ fn summary_json_carries_smtp_rcpt_denied_detail() {
 
 #[test]
 fn summary_json_carries_smtp_data_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("smtp_data_path.gewy"))
         .expect("smtp_data_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(

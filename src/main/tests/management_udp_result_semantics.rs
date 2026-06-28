@@ -59,7 +59,7 @@ fn udp_packet_fact_with_payload_bytes_for_tests(
 
 #[test]
 fn ntp_query_response_keeps_management_query_healthy() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_query_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("ntp_query_path.gewy"))
         .expect("ntp_query_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -116,7 +116,7 @@ fn ntp_query_response_keeps_management_query_healthy() {
 
 #[test]
 fn dhcp_offer_result_keeps_discover_surface_healthy() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_discover_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("dhcp_discover_path.gewy"))
         .expect("dhcp_discover_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -172,7 +172,7 @@ fn dhcp_offer_result_keeps_discover_surface_healthy() {
 
 #[test]
 fn dhcp_offer_result_keeps_client_surface_healthy() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_client_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("dhcp_client_path.gewy"))
         .expect("dhcp_client_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -228,7 +228,7 @@ fn dhcp_offer_result_keeps_client_surface_healthy() {
 
 #[test]
 fn dhcp_ack_result_keeps_request_surface_healthy() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("dhcp_request_path.gewy"))
         .expect("dhcp_request_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -284,7 +284,7 @@ fn dhcp_ack_result_keeps_request_surface_healthy() {
 
 #[test]
 fn ntp_response_keeps_client_surface_healthy() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ntp_client_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("ntp_client_path.gewy"))
         .expect("ntp_client_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -340,7 +340,7 @@ fn ntp_response_keeps_client_surface_healthy() {
 
 #[test]
 fn stun_binding_response_keeps_surface_healthy() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("stun_binding_path.gewy"))
         .expect("stun_binding_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -396,7 +396,7 @@ fn stun_binding_response_keeps_surface_healthy() {
 
 #[test]
 fn stun_allocate_response_keeps_relay_surface_healthy() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_allocate_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("stun_allocate_path.gewy"))
         .expect("stun_allocate_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(

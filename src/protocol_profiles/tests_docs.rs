@@ -74,6 +74,7 @@ const HIGH_FREQUENCY_RUNTIME_HUBS: &[&str] = &[
 
 #[test]
 fn protocol_surface_front_door_links_core_protocol_navigation_pages() {
+    let _lock = super::tests_env::lock();
     let actual =
         fs::read_to_string(PROTOCOL_SURFACE_PAGE).expect("protocol surface doc should exist");
     let links = markdown_book_links(&actual);
@@ -96,6 +97,7 @@ fn protocol_surface_front_door_links_core_protocol_navigation_pages() {
 
 #[test]
 fn protocol_surface_front_door_mentions_each_current_family_default_pair() {
+    let _lock = super::tests_env::lock();
     let actual =
         fs::read_to_string(PROTOCOL_SURFACE_PAGE).expect("protocol surface doc should exist");
     for summary in protocol_summaries() {
@@ -112,6 +114,7 @@ fn protocol_surface_front_door_mentions_each_current_family_default_pair() {
 
 #[test]
 fn protocol_alias_index_doc_matches_current_registry_surface() {
+    let _lock = super::tests_env::lock();
     let expected = render_protocol_alias_index();
     let actual = fs::read_to_string(PROTOCOL_ALIAS_INDEX_PATH)
         .expect("protocol alias index doc should exist");
@@ -134,6 +137,7 @@ fn protocol_alias_index_doc_matches_current_registry_surface() {
 
 #[test]
 fn protocol_family_shelf_directory_lists_current_custom_hubs_and_subpages() {
+    let _lock = super::tests_env::lock();
     let actual = fs::read_to_string(PROTOCOL_FAMILY_SHELVES_PATH)
         .expect("protocol family shelves doc should exist");
     let actual_links = filtered_surface_links(&actual, &allowed_directory_links());
@@ -143,6 +147,7 @@ fn protocol_family_shelf_directory_lists_current_custom_hubs_and_subpages() {
 
 #[test]
 fn protocol_groups_page_only_links_current_family_hubs_or_explicit_fallbacks() {
+    let _lock = super::tests_env::lock();
     let actual =
         fs::read_to_string(PROTOCOL_GROUPS_PATH).expect("protocol groups doc should exist");
     let allowed = allowed_group_links();
@@ -152,6 +157,7 @@ fn protocol_groups_page_only_links_current_family_hubs_or_explicit_fallbacks() {
 
 #[test]
 fn protocol_groups_expected_family_hubs_match_current_curated_set() {
+    let _lock = super::tests_env::lock();
     let expected = EXPECTED_GROUP_FAMILY_HUBS
         .iter()
         .map(|protocol| family_hub_page(protocol))
@@ -167,6 +173,7 @@ fn protocol_groups_expected_family_hubs_match_current_curated_set() {
 
 #[test]
 fn protocol_reading_paths_page_links_expected_reference_and_guidance_spine() {
+    let _lock = super::tests_env::lock();
     let actual = fs::read_to_string(PROTOCOL_READING_PATHS_PATH)
         .expect("protocol reading paths doc should exist");
     let links = markdown_book_links(&actual);
@@ -198,6 +205,7 @@ fn protocol_reading_paths_page_links_expected_reference_and_guidance_spine() {
 
 #[test]
 fn protocol_surface_and_family_directory_link_protocol_reading_paths() {
+    let _lock = super::tests_env::lock();
     let surface =
         fs::read_to_string(PROTOCOL_SURFACE_PAGE).expect("protocol surface doc should exist");
     let shelves = fs::read_to_string(PROTOCOL_FAMILY_SHELVES_PATH)
@@ -216,6 +224,7 @@ fn protocol_surface_and_family_directory_link_protocol_reading_paths() {
 
 #[test]
 fn every_family_hub_page_links_its_current_custom_subpages() {
+    let _lock = super::tests_env::lock();
     for (protocol, subpages) in expected_hub_subpages() {
         let hub_page = family_hub_page(&protocol);
         let absolute_hub = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), hub_page);
@@ -235,6 +244,7 @@ fn every_family_hub_page_links_its_current_custom_subpages() {
 
 #[test]
 fn every_custom_subpage_links_back_to_its_family_hub() {
+    let _lock = super::tests_env::lock();
     for (page, shelf) in current_custom_subpages() {
         let absolute_page = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), page);
         let actual = fs::read_to_string(&absolute_page)
@@ -250,6 +260,7 @@ fn every_custom_subpage_links_back_to_its_family_hub() {
 
 #[test]
 fn every_custom_subpage_mentions_each_current_shelf_entry() {
+    let _lock = super::tests_env::lock();
     for (page, shelf) in current_custom_subpages() {
         let absolute_page = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), page);
         let actual = fs::read_to_string(&absolute_page)
@@ -266,6 +277,7 @@ fn every_custom_subpage_mentions_each_current_shelf_entry() {
 
 #[test]
 fn every_custom_subpage_mentions_each_current_entry_alias() {
+    let _lock = super::tests_env::lock();
     for (page, shelf) in current_custom_subpages() {
         let absolute_page = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), page);
         let actual = fs::read_to_string(&absolute_page)
@@ -281,6 +293,7 @@ fn every_custom_subpage_mentions_each_current_entry_alias() {
 
 #[test]
 fn every_family_hub_page_mentions_each_current_protocol_alias() {
+    let _lock = super::tests_env::lock();
     for summary in protocol_summaries() {
         if summary.aliases.is_empty() {
             continue;
@@ -301,6 +314,7 @@ fn every_family_hub_page_mentions_each_current_protocol_alias() {
 
 #[test]
 fn every_family_hub_page_links_protocol_surface_and_ir_lowering() {
+    let _lock = super::tests_env::lock();
     for summary in protocol_summaries() {
         let hub_page = family_hub_page(&summary.protocol);
         let absolute_hub = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), hub_page);
@@ -321,6 +335,7 @@ fn every_family_hub_page_links_protocol_surface_and_ir_lowering() {
 
 #[test]
 fn every_family_hub_page_mentions_the_current_default_entry() {
+    let _lock = super::tests_env::lock();
     for summary in protocol_summaries() {
         let hub_page = family_hub_page(&summary.protocol);
         let absolute_hub = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), hub_page);
@@ -338,6 +353,7 @@ fn every_family_hub_page_mentions_the_current_default_entry() {
 
 #[test]
 fn high_frequency_family_hubs_link_runtime_validation_and_diagnosis_spine() {
+    let _lock = super::tests_env::lock();
     for protocol in HIGH_FREQUENCY_RUNTIME_HUBS {
         let hub_page = family_hub_page(protocol);
         let absolute_hub = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), hub_page);
@@ -357,6 +373,7 @@ fn high_frequency_family_hubs_link_runtime_validation_and_diagnosis_spine() {
 
 #[test]
 fn dot_and_doh_overlay_pages_exist_and_link_back_into_current_spines() {
+    let _lock = super::tests_env::lock();
     let overlay_pairs = [
         (
             "docs/book/reference-dot-overlay.md",

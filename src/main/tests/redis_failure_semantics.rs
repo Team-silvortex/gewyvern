@@ -126,7 +126,7 @@ fn redis_write_error_request_fact(id: u64, cookie: u64) -> FactEnvelope {
     redis_set_request_fact(id, cookie)
 }
 fn redis_error_export(path: &str, facts: Vec<FactEnvelope>) -> gewyvern::export::ExportBundle {
-    let binding = compile_file(path).expect("redis failure DSL should compile");
+    let binding = compile_file(&path).expect("redis failure DSL should compile");
     annotate_export_trust(
         export_from_test_facts(binding, facts),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
@@ -136,7 +136,7 @@ fn redis_error_export(path: &str, facts: Vec<FactEnvelope>) -> gewyvern::export:
 #[test]
 fn summary_json_carries_redis_auth_required_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/auth-required/main.gewy",
+        &protocol_fixture_path("redis/auth-required/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94001, 46001, "redis-cli"),
             route_fact(
@@ -178,7 +178,7 @@ fn summary_json_carries_redis_auth_required_detail() {
 #[test]
 fn summary_json_carries_redis_auth_denied_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/auth-denied/main.gewy",
+        &protocol_fixture_path("redis/auth-denied/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94002, 46002, "redis-cli"),
             route_fact(
@@ -224,7 +224,7 @@ fn summary_json_carries_redis_auth_denied_detail() {
 #[test]
 fn summary_json_carries_redis_error_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/error/main.gewy",
+        &protocol_fixture_path("redis/error/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94003, 46003, "redis-cli"),
             route_fact(
@@ -266,7 +266,7 @@ fn summary_json_carries_redis_error_detail() {
 #[test]
 fn summary_json_carries_redis_wrongtype_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/wrongtype/main.gewy",
+        &protocol_fixture_path("redis/wrongtype/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94004, 46004, "redis-cli"),
             route_fact(
@@ -312,7 +312,7 @@ fn summary_json_carries_redis_wrongtype_detail() {
 #[test]
 fn summary_json_carries_redis_busygroup_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/busygroup/main.gewy",
+        &protocol_fixture_path("redis/busygroup/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94005, 46005, "redis-cli"),
             route_fact(
@@ -349,7 +349,7 @@ fn summary_json_carries_redis_busygroup_detail() {
 #[test]
 fn summary_json_carries_redis_readonly_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/readonly/main.gewy",
+        &protocol_fixture_path("redis/readonly/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94006, 46006, "redis-cli"),
             route_fact(
@@ -386,7 +386,7 @@ fn summary_json_carries_redis_readonly_detail() {
 #[test]
 fn summary_json_carries_redis_noscript_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/noscript/main.gewy",
+        &protocol_fixture_path("redis/noscript/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94007, 46007, "redis-cli"),
             route_fact(
@@ -423,7 +423,7 @@ fn summary_json_carries_redis_noscript_detail() {
 #[test]
 fn summary_json_carries_redis_moved_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/moved/main.gewy",
+        &protocol_fixture_path("redis/moved/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94008, 46008, "redis-cli"),
             route_fact(
@@ -460,7 +460,7 @@ fn summary_json_carries_redis_moved_detail() {
 #[test]
 fn summary_json_carries_redis_ask_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/ask/main.gewy",
+        &protocol_fixture_path("redis/ask/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94009, 46009, "redis-cli"),
             route_fact(
@@ -497,7 +497,7 @@ fn summary_json_carries_redis_ask_detail() {
 #[test]
 fn summary_json_carries_redis_tryagain_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/tryagain/main.gewy",
+        &protocol_fixture_path("redis/tryagain/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94010, 46010, "redis-cli"),
             route_fact(
@@ -534,7 +534,7 @@ fn summary_json_carries_redis_tryagain_detail() {
 #[test]
 fn summary_json_carries_redis_loading_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/loading/main.gewy",
+        &protocol_fixture_path("redis/loading/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94011, 46011, "redis-cli"),
             route_fact(
@@ -571,7 +571,7 @@ fn summary_json_carries_redis_loading_detail() {
 #[test]
 fn summary_json_carries_redis_crossslot_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/crossslot/main.gewy",
+        &protocol_fixture_path("redis/crossslot/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94012, 46012, "redis-cli"),
             route_fact(
@@ -608,7 +608,7 @@ fn summary_json_carries_redis_crossslot_detail() {
 #[test]
 fn summary_json_carries_redis_clusterdown_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/clusterdown/main.gewy",
+        &protocol_fixture_path("redis/clusterdown/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94013, 46013, "redis-cli"),
             route_fact(
@@ -645,7 +645,7 @@ fn summary_json_carries_redis_clusterdown_detail() {
 #[test]
 fn summary_json_carries_redis_masterdown_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/masterdown/main.gewy",
+        &protocol_fixture_path("redis/masterdown/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94014, 46014, "redis-cli"),
             route_fact(
@@ -682,7 +682,7 @@ fn summary_json_carries_redis_masterdown_detail() {
 #[test]
 fn summary_json_carries_redis_oom_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/oom/main.gewy",
+        &protocol_fixture_path("redis/oom/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94015, 46015, "redis-cli"),
             route_fact(
@@ -719,7 +719,7 @@ fn summary_json_carries_redis_oom_detail() {
 #[test]
 fn summary_json_carries_redis_busy_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/busy/main.gewy",
+        &protocol_fixture_path("redis/busy/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94016, 46016, "redis-cli"),
             route_fact(
@@ -756,7 +756,7 @@ fn summary_json_carries_redis_busy_detail() {
 #[test]
 fn summary_json_carries_redis_execabort_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/execabort/main.gewy",
+        &protocol_fixture_path("redis/execabort/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94017, 46017, "redis-cli"),
             route_fact(
@@ -793,7 +793,7 @@ fn summary_json_carries_redis_execabort_detail() {
 #[test]
 fn summary_json_carries_redis_misconf_detail() {
     let export = redis_error_export(
-        "/Users/Shared/chroot/dev/gewyvern/protocols/redis/misconf/main.gewy",
+        &protocol_fixture_path("redis/misconf/main.gewy"),
         vec![
             sock_lineage_fact_for_tests(1, 94018, 46018, "redis-cli"),
             route_fact(

@@ -8,6 +8,7 @@ For `gewyvern`, the middle numeric component is treated as the **minor** line:
 - `v0.14.x`
 - `v0.15.x`
 - `v0.17.x`
+- `v0.18.x`
 
 The rule from here forward is simple:
 
@@ -42,11 +43,14 @@ background cleanup.
   Historical line focused on carrying earlier maturity into runtime layout,
   upgrade handling, and clearer operational contracts.
 - [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
-  Current active line focused on family-first protocol deepening plus stronger
+  Historical line focused on family-first protocol deepening plus stronger
   compiler/IR maturity without losing runtime evidence discipline.
 - [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
-  Active second-half checklist for closing the `0.17.x` line cleanly before
-  the `0.18.x` validation and runtime-confidence line.
+  Second-half checklist used to close the `0.17.x` line cleanly before the
+  `0.18.x` validation and runtime-confidence line.
+- [docs/history/v0.18.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.18.x.md)
+  Current active line focused on protocol breadth, packaged/runtime confidence,
+  and physical-host validation.
 - [docs/history/v0.15-to-v1-roadmap.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15-to-v1-roadmap.md)
   Forward-looking minor-line plan from `0.15.x` through `0.20.x`, intended to
   make `v1.0.0` the direct next step after the final pre-`1.0` seal.
@@ -65,7 +69,8 @@ background cleanup.
 | `v0.13.x` | First deliberate convergence line for documentation, boundaries, and release judgment | recorded | [docs/history/v0.13.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.13.x.md) |
 | `v0.14.x` | Earlier maturity line before the `0.15.x` operationalization pass | historical snapshot | [docs/history/v0.14.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.14.x.md) |
 | `v0.15.x` | Runtime layout, upgrade shape, and operationalization baseline before later deepening lines | recorded baseline | [docs/history/v0.15.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15.x.md) |
-| `v0.17.x` | Current active line for protocol-cluster deepening plus compiler/IR maturity with runtime-evidence discipline | active | [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md) |
+| `v0.17.x` | Protocol-cluster deepening plus compiler/IR maturity with runtime-evidence discipline | historical snapshot | [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md) |
+| `v0.18.x` | Protocol breadth, packaged/runtime confidence, and physical-host validation | active | [docs/history/v0.18.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.18.x.md) |
 | `v0.15.x -> v1.0.0` | Forward roadmap through `v0.20.x` with `v1.0.0` as the intended direct successor | active roadmap | [docs/history/v0.15-to-v1-roadmap.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15-to-v1-roadmap.md) |
 
 This table is the shortest answer to:
@@ -113,7 +118,5 @@ Use other pages when you want something else:
 - for the current structured reading paths, use
   [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
 - for the current active release posture, use
-  [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
-  and
-  [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
+  [docs/history/v0.18.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.18.x.md)
 - for the shortest ledger of historical release lines, use this page

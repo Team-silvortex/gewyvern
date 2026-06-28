@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn summary_json_carries_pop3_auth_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/pop3_auth_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("pop3_auth_path.gewy"))
         .expect("pop3_auth_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -100,7 +100,7 @@ fn summary_json_carries_pop3_auth_timeout_detail() {
 
 #[test]
 fn summary_json_carries_pop3_auth_denied_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/pop3_auth_denied_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("pop3_auth_denied_path.gewy"))
         .expect("pop3_auth_denied_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -201,7 +201,7 @@ fn summary_json_carries_pop3_auth_denied_detail() {
 
 #[test]
 fn summary_json_carries_pop3_list_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/pop3_list_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("pop3_list_path.gewy"))
         .expect("pop3_list_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -326,7 +326,7 @@ fn summary_json_carries_pop3_list_timeout_detail() {
 
 #[test]
 fn summary_json_carries_kerberos_as_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/kerberos_as_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("kerberos_as_path.gewy"))
         .expect("kerberos_as_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -377,7 +377,7 @@ fn summary_json_carries_kerberos_as_timeout_detail() {
 
 #[test]
 fn summary_json_carries_kerberos_as_error_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/kerberos_as_error_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("kerberos_as_error_path.gewy"))
         .expect("kerberos_as_error_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -425,7 +425,7 @@ fn summary_json_carries_kerberos_as_error_detail() {
 
 #[test]
 fn summary_json_carries_rtsp_setup_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_setup_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("rtsp_setup_path.gewy"))
         .expect("rtsp_setup_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(

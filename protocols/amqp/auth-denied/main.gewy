@@ -1,9 +1,8 @@
 fn amqp_auth_denied_rules() = {
-  path()
-  |> transport(:tcp)
-  |> port(:amqp)
-  |> bind(:process)
-  |> remote(:amqp)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
   |> operation(:amqp_auth_denied)
   |> reason_model(:amqp_auth_denied_path_reason)
   |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :amqp_auth_denied_path, phase: :bind)
@@ -25,5 +24,6 @@ fn amqp_auth_denied_rules() = {
 }
 
 template(:amqp_auth_denied_path)
-
+|> window(duration_ms: 5000, lateness_ms: 200)
 |> use(:amqp_auth_denied_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

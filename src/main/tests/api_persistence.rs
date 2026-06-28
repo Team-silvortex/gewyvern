@@ -64,7 +64,7 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
 
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let export = annotate_export_trust(
         run_binding_demo(binding),
@@ -223,7 +223,7 @@ fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward()
 
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let export = annotate_export_trust(
         run_binding_demo(binding),
@@ -429,7 +429,7 @@ fn persisted_snapshot_history_prunes_older_entries_beyond_retention_limit() {
 
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let export = annotate_export_trust(
         run_binding_demo(binding),
@@ -469,9 +469,9 @@ fn persisted_snapshot_history_prunes_older_entries_beyond_retention_limit() {
 
     assert_eq!(entry_count, 32);
     assert!(history_index.contains("\"schema_version\":2"));
-    assert!(history_index.contains("\"minor_line\":\"v0.15.x\""));
+    assert!(history_index.contains("\"minor_line\":\"v0.18.x\""));
     assert!(history_index.contains("\"history_retention\":32"));
-    assert!(history_index.contains("\"lines\":[{\"line\":\"v0.15.x\""));
+    assert!(history_index.contains("\"lines\":[{\"line\":\"v0.18.x\""));
     assert!(!history_root.join("1").exists());
     assert!(!history_root.join("9").exists());
     assert!(history_root.join("10").exists());
@@ -505,7 +505,7 @@ fn persisted_snapshot_history_respects_configured_retention_override() {
 
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let export = annotate_export_trust(
         run_binding_demo(binding),
@@ -546,9 +546,9 @@ fn persisted_snapshot_history_respects_configured_retention_override() {
 
     assert_eq!(entry_count, 4);
     assert!(history_index.contains("\"schema_version\":2"));
-    assert!(history_index.contains("\"minor_line\":\"v0.15.x\""));
+    assert!(history_index.contains("\"minor_line\":\"v0.18.x\""));
     assert!(history_index.contains("\"history_retention\":4"));
-    assert!(history_index.contains("\"line\":\"v0.15.x\""));
+    assert!(history_index.contains("\"line\":\"v0.18.x\""));
     assert!(!history_root.join("1").exists());
     assert!(!history_root.join("3").exists());
     assert!(history_root.join("4").exists());

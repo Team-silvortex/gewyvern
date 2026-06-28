@@ -114,7 +114,7 @@ artifact. It records:
 
 The default current values are intentionally conservative:
 
-- `release_line = "v0.17.x"`
+- `release_line = "v0.18.x"`
 - `layout_version = 1`
 - `config_schema_version = 1`
 - `upgrade_policy = "copy-forward-without-overwrite"`
@@ -124,6 +124,11 @@ Package builders can override the minor line and schema markers with:
 - `GEWY_RELEASE_LINE`
 - `GEWY_LAYOUT_VERSION`
 - `GEWY_CONFIG_SCHEMA_VERSION`
+
+Container install validators can also override package-manager mirrors:
+
+- `GEWY_DEB_APT_MIRROR`
+- `GEWY_RPM_DNF_MIRROR`
 
 The install smoke checks this manifest for both DEB and RPM packages so the two
 native package paths cannot silently drift.

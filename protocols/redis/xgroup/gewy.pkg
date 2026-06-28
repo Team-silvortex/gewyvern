@@ -1,5 +1,5 @@
 name=redis_xgroup
-version=0.15.0
+version=0.18.2
 entry=main.gewy
 register.protocol=redis
 register.entry=xgroup

@@ -15,6 +15,21 @@ use support::{
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13,
 };
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn protocol_fixture_path(relative: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("protocols")
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
 fn snmp_v3_udp_packet_fact(
     id: u64,
     cookie: u64,
@@ -77,59 +92,59 @@ fn snmp_v3_udp_packet_fact(
 fn snmp_registry_entries_resolve_to_packaged_paths() {
     assert_eq!(
         protocol_dsl_path("snmp", Some("bulk")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/bulk".to_string())
+        Some(protocol_fixture_path("snmp/bulk").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("bulk-walk")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/bulk".to_string())
+        Some(protocol_fixture_path("snmp/bulk").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("get-next")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/get-next".to_string())
+        Some(protocol_fixture_path("snmp/get-next").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("walk")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/get-next".to_string())
+        Some(protocol_fixture_path("snmp/get-next").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("set")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/set".to_string())
+        Some(protocol_fixture_path("snmp/set").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("write")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/set".to_string())
+        Some(protocol_fixture_path("snmp/set").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("trap")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/trap".to_string())
+        Some(protocol_fixture_path("snmp/trap").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("notify")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/trap".to_string())
+        Some(protocol_fixture_path("snmp/trap").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("inform")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/inform".to_string())
+        Some(protocol_fixture_path("snmp/inform").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("ack-notify")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/inform".to_string())
+        Some(protocol_fixture_path("snmp/inform").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("v3-auth")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/v3-auth".to_string())
+        Some(protocol_fixture_path("snmp/v3-auth").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("auth-user")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/v3-auth".to_string())
+        Some(protocol_fixture_path("snmp/v3-auth").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("v3-priv")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/v3-priv".to_string())
+        Some(protocol_fixture_path("snmp/v3-priv").to_string())
     );
     assert_eq!(
         protocol_dsl_path("snmp", Some("encrypted-session")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/v3-priv".to_string())
+        Some(protocol_fixture_path("snmp/v3-priv").to_string())
     );
 }
 
@@ -170,42 +185,42 @@ fn snmp_surface_keeps_generic_shelves_per_entry() {
 fn snmp_dsl_files_compile_into_expected_operations() {
     for (path, template_id, operation) in [
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_bulk_path.gewy",
+            dsl_fixture_path("snmp_bulk_path.gewy"),
             "snmp_bulk_path",
             "snmp_bulk",
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_next_path.gewy",
+            dsl_fixture_path("snmp_get_next_path.gewy"),
             "snmp_get_next_path",
             "snmp_get_next",
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_set_path.gewy",
+            dsl_fixture_path("snmp_set_path.gewy"),
             "snmp_set_path",
             "snmp_set",
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_trap_path.gewy",
+            dsl_fixture_path("snmp_trap_path.gewy"),
             "snmp_trap_path",
             "snmp_trap",
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_inform_path.gewy",
+            dsl_fixture_path("snmp_inform_path.gewy"),
             "snmp_inform_path",
             "snmp_inform",
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_v3_auth_path.gewy",
+            dsl_fixture_path("snmp_v3_auth_path.gewy"),
             "snmp_v3_auth_path",
             "snmp_v3_auth",
         ),
         (
-            "/Users/Shared/chroot/dev/gewyvern/dsl/snmp_v3_priv_path.gewy",
+            dsl_fixture_path("snmp_v3_priv_path.gewy"),
             "snmp_v3_priv_path",
             "snmp_v3_priv",
         ),
     ] {
-        let compiled = compile_file(path).unwrap();
+        let compiled = compile_file(&path).unwrap();
         assert_eq!(compiled.template.id, template_id);
         assert_eq!(
             compiled.template.program_model.as_ref().unwrap().operation,
@@ -216,8 +231,7 @@ fn snmp_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn snmp_bulk_runtime_path_materializes_request_and_response_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_bulk_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_bulk_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2828, 54000, "snmpbulkget"));
@@ -273,8 +287,7 @@ fn snmp_bulk_runtime_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn snmp_get_next_runtime_path_materializes_request_and_response_datagrams() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_get_next_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_get_next_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2829, 54001, "snmpwalk"));
@@ -330,7 +343,7 @@ fn snmp_get_next_runtime_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn snmp_set_runtime_path_rejects_wrong_response_pdu_type() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_set_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_set_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2830, 54002, "snmpset"));
@@ -376,8 +389,7 @@ fn snmp_set_runtime_path_rejects_wrong_response_pdu_type() {
 
 #[test]
 fn snmp_trap_runtime_path_materializes_one_way_notification_datagram() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_trap_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_trap_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2831, 54003, "snmptrap"));
@@ -413,8 +425,7 @@ fn snmp_trap_runtime_path_materializes_one_way_notification_datagram() {
 
 #[test]
 fn snmp_inform_runtime_path_materializes_notification_and_acknowledgement() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_inform_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_inform_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2832, 54004, "snmpinform"));
@@ -470,8 +481,7 @@ fn snmp_inform_runtime_path_materializes_notification_and_acknowledgement() {
 
 #[test]
 fn snmp_v3_auth_runtime_path_materializes_authenticated_exchange() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_v3_auth_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_v3_auth_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2833, 54005, "snmpget"));
@@ -531,8 +541,7 @@ fn snmp_v3_auth_runtime_path_materializes_authenticated_exchange() {
 
 #[test]
 fn snmp_v3_priv_runtime_path_materializes_privacy_protected_exchange() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/snmp_v3_priv_path.gewy").unwrap();
+    let binding = compile_file(&dsl_fixture_path("snmp_v3_priv_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 2834, 54006, "snmpget"));

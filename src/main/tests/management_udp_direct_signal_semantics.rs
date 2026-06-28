@@ -59,7 +59,7 @@ fn udp_packet_fact_with_payload_bytes_for_tests(
 
 #[test]
 fn summary_json_carries_dhcp_nak_denied_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dhcp_nak_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("dhcp_nak_path.gewy"))
         .expect("dhcp_nak_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -118,9 +118,8 @@ fn summary_json_carries_dhcp_nak_denied_detail() {
 
 #[test]
 fn summary_json_carries_stun_binding_error_semantic_detail() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/stun_binding_error_path.gewy")
-            .expect("stun_binding_error_path DSL should compile");
+    let binding = compile_file(&dsl_fixture_path("stun_binding_error_path.gewy"))
+        .expect("stun_binding_error_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
             binding,

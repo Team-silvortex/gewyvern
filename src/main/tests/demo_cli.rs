@@ -3,7 +3,7 @@ use crate::helpers::scan_targets_from_set_file;
 
 #[test]
 fn http_request_demo_produces_healthy_cross_transport_path() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let bundle = run_binding_demo(binding);
     assert_eq!(bundle.debug_summary.accepted_facts, 6);
@@ -30,7 +30,7 @@ fn http_request_demo_produces_healthy_cross_transport_path() {
 
 #[test]
 fn tls_client_demo_produces_healthy_packet_phase() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("tls_client_path.gewy"))
         .expect("tls_client_path DSL should compile");
     let bundle = run_binding_demo(binding);
     assert_eq!(bundle.program_findings.len(), 0);
@@ -49,9 +49,8 @@ fn tls_client_demo_produces_healthy_packet_phase() {
 
 #[test]
 fn http_server_response_demo_produces_healthy_server_path() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy")
-            .expect("http_server_response_path DSL should compile");
+    let binding = compile_file(&dsl_fixture_path("http_server_response_path.gewy"))
+        .expect("http_server_response_path DSL should compile");
     let bundle = run_binding_demo(binding);
     assert_eq!(bundle.program_findings.len(), 0);
     assert_eq!(bundle.module_findings.len(), 0);
@@ -75,7 +74,7 @@ fn http_server_response_demo_produces_healthy_server_path() {
 
 #[test]
 fn http3_request_demo_produces_healthy_quic_path() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http3_request_path.gewy"))
         .expect("http3_request_path DSL should compile");
     let bundle = run_binding_demo(binding);
     assert_eq!(bundle.program_findings.len(), 0);
@@ -100,9 +99,8 @@ fn http3_request_demo_produces_healthy_quic_path() {
 
 #[test]
 fn http3_server_response_demo_produces_healthy_quic_server_path() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
-            .expect("http3_server_response_path DSL should compile");
+    let binding = compile_file(&dsl_fixture_path("http3_server_response_path.gewy"))
+        .expect("http3_server_response_path DSL should compile");
     let bundle = run_binding_demo(binding);
     assert_eq!(bundle.program_findings.len(), 0);
     assert_eq!(bundle.module_findings.len(), 0);
@@ -126,7 +124,7 @@ fn http3_server_response_demo_produces_healthy_quic_server_path() {
 
 #[test]
 fn hy2_auth_demo_produces_healthy_quic_auth_path() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("hy2_auth_path.gewy"))
         .expect("hy2_auth_path DSL should compile");
     let bundle = run_binding_demo(binding);
     assert_eq!(bundle.program_findings.len(), 0);
@@ -151,7 +149,7 @@ fn hy2_auth_demo_produces_healthy_quic_auth_path() {
 
 #[test]
 fn hy2_udp_relay_demo_produces_healthy_quic_datagram_path() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_udp_relay_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("hy2_udp_relay_path.gewy"))
         .expect("hy2_udp_relay_path DSL should compile");
     let bundle = run_binding_demo(binding);
     assert_eq!(bundle.program_findings.len(), 0);
@@ -176,7 +174,7 @@ fn hy2_udp_relay_demo_produces_healthy_quic_datagram_path() {
 
 #[test]
 fn hy2_tcp_relay_demo_produces_healthy_quic_tcp_path() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("hy2_tcp_relay_path.gewy"))
         .expect("hy2_tcp_relay_path DSL should compile");
     let bundle = run_binding_demo(binding);
     assert_eq!(bundle.program_findings.len(), 0);
@@ -213,10 +211,7 @@ fn cli_accepts_protocol_and_pid_and_resolves_built_in_dsl() {
     .unwrap();
     assert_eq!(cli.protocol.as_deref(), Some("mysql"));
     assert_eq!(cli.entry.as_deref(), Some("session"));
-    assert_eq!(
-        cli.dsl_path.as_deref(),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session")
-    );
+    assert_eq!(cli.dsl_path, Some(protocol_fixture_path("mysql/session")));
     assert_eq!(cli.pid, Some(4242));
 }
 
@@ -237,7 +232,7 @@ fn cli_rejects_combined_dsl_and_protocol() {
 fn protocol_lookup_covers_mysql_session() {
     assert_eq!(
         protocol_dsl_path("mysql", Some("session")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session".to_string())
+        Some(protocol_fixture_path("mysql/session").to_string())
     );
 }
 
@@ -245,11 +240,11 @@ fn protocol_lookup_covers_mysql_session() {
 fn protocol_lookup_uses_default_entry_when_none_is_provided() {
     assert_eq!(
         protocol_dsl_path("mysql", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session".to_string())
+        Some(protocol_fixture_path("mysql/session").to_string())
     );
     assert_eq!(
         protocol_dsl_path("amqp", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/amqp/session".to_string())
+        Some(protocol_fixture_path("amqp/session").to_string())
     );
 }
 
@@ -264,7 +259,7 @@ fn cli_rejects_entry_without_protocol() {
 fn legacy_protocol_alias_still_resolves() {
     assert_eq!(
         protocol_dsl_path("mysql-session", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/mysql/session".to_string())
+        Some(protocol_fixture_path("mysql/session").to_string())
     );
 }
 

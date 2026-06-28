@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn summary_json_carries_smtp_data_denied_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/smtp_data_denied_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("smtp_data_denied_path.gewy"))
         .expect("smtp_data_denied_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -207,7 +207,7 @@ fn summary_json_carries_smtp_data_denied_detail() {
 
 #[test]
 fn summary_json_carries_hy2_auth_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_auth_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("hy2_auth_path.gewy"))
         .expect("hy2_auth_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -244,7 +244,7 @@ fn summary_json_carries_hy2_auth_timeout_detail() {
 
 #[test]
 fn summary_json_carries_hy2_tcp_relay_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("hy2_tcp_relay_path.gewy"))
         .expect("hy2_tcp_relay_path DSL should compile");
     let mut export = annotate_export_trust(
         run_binding_demo(binding),
@@ -275,7 +275,7 @@ fn summary_json_carries_hy2_tcp_relay_timeout_detail() {
 
 #[test]
 fn summary_json_carries_socks5_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("socks5_session_path.gewy"))
         .expect("socks5_session_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -356,9 +356,8 @@ fn summary_json_carries_socks5_timeout_detail() {
 
 #[test]
 fn summary_json_carries_socks5_auth_connect_denied_detail() {
-    let binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_connect_denied_path.gewy")
-            .expect("socks5_auth_connect_denied_path DSL should compile");
+    let binding = compile_file(&dsl_fixture_path("socks5_auth_connect_denied_path.gewy"))
+        .expect("socks5_auth_connect_denied_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
             binding,
@@ -440,7 +439,7 @@ fn summary_json_carries_socks5_auth_connect_denied_detail() {
 
 #[test]
 fn summary_json_carries_imap_auth_denied_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_auth_denied_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("imap_auth_denied_path.gewy"))
         .expect("imap_auth_denied_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(
@@ -515,7 +514,7 @@ fn summary_json_carries_imap_auth_denied_detail() {
 
 #[test]
 fn summary_json_carries_imap_select_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/imap_select_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("imap_select_path.gewy"))
         .expect("imap_select_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(

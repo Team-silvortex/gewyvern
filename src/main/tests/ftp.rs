@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn summary_json_carries_ftp_banner_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("ftp_session_path.gewy"))
         .expect("ftp_session_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -54,7 +54,7 @@ fn summary_json_carries_ftp_banner_timeout_detail() {
 
 #[test]
 fn summary_json_carries_ftp_auth_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("ftp_session_path.gewy"))
         .expect("ftp_session_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -150,7 +150,7 @@ fn summary_json_carries_ftp_auth_timeout_detail() {
 
 #[test]
 fn summary_json_carries_ftp_auth_followup_missing_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("ftp_session_path.gewy"))
         .expect("ftp_session_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -235,7 +235,7 @@ fn summary_json_carries_ftp_auth_followup_missing_detail() {
 
 #[test]
 fn summary_json_carries_ftp_list_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_passive_list_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("ftp_passive_list_path.gewy"))
         .expect("ftp_passive_list_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -375,7 +375,7 @@ fn summary_json_carries_ftp_list_timeout_detail() {
 
 #[test]
 fn summary_json_carries_ftp_active_port_timeout_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_list_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("ftp_active_list_path.gewy"))
         .expect("ftp_active_list_path DSL should compile");
     let mut export = annotate_export_trust(
         export_from_test_facts(
@@ -493,7 +493,7 @@ fn summary_json_carries_ftp_active_port_timeout_detail() {
 
 #[test]
 fn summary_json_carries_ftp_denied_detail() {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/ftp_denied_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("ftp_denied_path.gewy"))
         .expect("ftp_denied_path DSL should compile");
     let export = annotate_export_trust(
         export_from_test_facts(

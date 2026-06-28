@@ -14,12 +14,17 @@ use support::{
     udp_packet_fact_with_dir, udp_packet_fact_with_dir_and_ports_and_payload, udp_quic_meta_fact,
 };
 
+fn dsl_fixture_path(name: &str) -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dsl")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
 #[test]
 fn http_transaction_composes_dns_and_client_request_for_same_process() {
-    let dns_binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy").unwrap();
-    let http_binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
+    let dns_binding = compile_file(&dsl_fixture_path("dns_udp_process.gewy")).unwrap();
+    let http_binding = compile_file(&dsl_fixture_path("http_request_path.gewy")).unwrap();
 
     let mut dns_session =
         RuntimeSession::start(SessionConfig::for_binding(dns_binding).unwrap()).unwrap();
@@ -87,11 +92,8 @@ fn http_transaction_composes_dns_and_client_request_for_same_process() {
 
 #[test]
 fn http_transaction_can_attach_overlapping_server_response_component() {
-    let http_binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
-    let server_binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy")
-            .unwrap();
+    let http_binding = compile_file(&dsl_fixture_path("http_request_path.gewy")).unwrap();
+    let server_binding = compile_file(&dsl_fixture_path("http_server_response_path.gewy")).unwrap();
 
     let mut http_session =
         RuntimeSession::start(SessionConfig::for_binding(http_binding).unwrap()).unwrap();
@@ -149,8 +151,7 @@ fn http_transaction_can_attach_overlapping_server_response_component() {
 
 #[test]
 fn http_transaction_lifts_client_findings_into_transaction_summary() {
-    let http_binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
+    let http_binding = compile_file(&dsl_fixture_path("http_request_path.gewy")).unwrap();
 
     let mut http_session =
         RuntimeSession::start(SessionConfig::for_binding(http_binding).unwrap()).unwrap();
@@ -186,11 +187,8 @@ fn http_transaction_lifts_client_findings_into_transaction_summary() {
 
 #[test]
 fn http_transaction_lifts_server_findings_into_transaction_summary() {
-    let http_binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
-    let server_binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_server_response_path.gewy")
-            .unwrap();
+    let http_binding = compile_file(&dsl_fixture_path("http_request_path.gewy")).unwrap();
+    let server_binding = compile_file(&dsl_fixture_path("http_server_response_path.gewy")).unwrap();
 
     let mut http_session =
         RuntimeSession::start(SessionConfig::for_binding(http_binding).unwrap()).unwrap();
@@ -232,10 +230,8 @@ fn http_transaction_lifts_server_findings_into_transaction_summary() {
 
 #[test]
 fn http_transaction_lifts_dns_findings_into_transaction_verdict() {
-    let dns_binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/dns_udp_process.gewy").unwrap();
-    let http_binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy").unwrap();
+    let dns_binding = compile_file(&dsl_fixture_path("dns_udp_process.gewy")).unwrap();
+    let http_binding = compile_file(&dsl_fixture_path("http_request_path.gewy")).unwrap();
 
     let mut dns_session =
         RuntimeSession::start(SessionConfig::for_binding(dns_binding).unwrap()).unwrap();
@@ -276,11 +272,9 @@ fn http_transaction_lifts_dns_findings_into_transaction_verdict() {
 
 #[test]
 fn http3_transaction_composes_client_and_server_components() {
-    let client_binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy").unwrap();
+    let client_binding = compile_file(&dsl_fixture_path("http3_request_path.gewy")).unwrap();
     let server_binding =
-        compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http3_server_response_path.gewy")
-            .unwrap();
+        compile_file(&dsl_fixture_path("http3_server_response_path.gewy")).unwrap();
 
     let mut client_session =
         RuntimeSession::start(SessionConfig::for_binding(client_binding).unwrap()).unwrap();

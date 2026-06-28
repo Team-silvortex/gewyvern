@@ -43,7 +43,7 @@ fn temp_dir(label: &str) -> PathBuf {
 }
 
 fn demo_persisted_export() -> ExportBundle {
-    let binding = compile_file("/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy")
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     annotate_export_trust(
         run_binding_demo(binding),

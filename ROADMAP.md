@@ -1,18 +1,18 @@
 # gewyvern Roadmap
 
-This roadmap now treats `v0.17.x` as the active midline checkpoint, and
+This roadmap now treats `v0.18.x` as the active protocol/runtime checkpoint, and
 `v0.20.x` as the deliberate final pre-`1.0` seal.
 
 `gewyvern` is no longer trying to justify itself through a vague distant
-milestone. The current question is how to move through `0.17.x` to `0.20.x`
+milestone. The current question is how to move through `0.18.x` to `0.20.x`
 with enough discipline that `v1.0.0` can come directly after a healthy
 `0.20.x` close.
 
 ## Current Line
 
 - last fully documented historical validation baseline: `v0.10.0`
-- current release line: `v0.17.x`
-- current documented checkpoint: `v0.17.x` midline
+- current release line: `v0.18.x`
+- current documented checkpoint: `v0.18.x` protocol/runtime confidence
 - planned final pre-`1.0` line: `v0.20.x`
 - target next major: `v1.0.0`
 - later decision point: consider `v2.0` only if the DSL/runtime/report
@@ -23,9 +23,9 @@ For the durable minor-line record, see
 For the explicit `0.15.x -> 0.20.x -> 1.0.0` spine, see
 [docs/history/v0.15-to-v1-roadmap.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15-to-v1-roadmap.md).
 
-## What `v0.17.x` Means Right Now
+## What `v0.18.x` Means Right Now
 
-At the current `v0.17.x` midline checkpoint, the active line should be
+At the current `v0.18.x` protocol/runtime checkpoint, the active line should be
 interpreted as:
 
 - a usable standalone debugger/runtime
@@ -48,19 +48,7 @@ It should not be interpreted as:
 
 ## Current Priorities
 
-### 1. `v0.17.x`: Active Midline Closure
-
-- close the current protocol-cluster proof set
-- make `gewylang` and IR reviewability feel deliberate
-- keep debugger and publication surfaces contract-aware
-- keep `etragon` federation bounded as learning aggregation
-- preserve multi-instance and degraded-runtime evidence
-
-Execution shelf:
-
-- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
-
-### 2. `v0.18.x`: Protocol Depth And Runtime Confidence
+### 1. `v0.18.x`: Protocol Depth And Runtime Confidence
 
 - deepen priority protocol families
 - strengthen grouped validation and runtime confidence
@@ -68,14 +56,18 @@ Execution shelf:
 - keep pushing from "protocol matched" toward "which module failed, where, and
   why"
 
-### 3. `v0.19.x`: Integration And Freeze Preparation
+Execution shelf:
+
+- [docs/history/v0.15-to-v1-roadmap.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15-to-v1-roadmap.md)
+
+### 2. `v0.19.x`: Integration And Freeze Preparation
 
 - align docs, CLI, reports, and API wording
 - settle compatibility aliases and stale shims
 - reduce naming drift
 - confirm cross-project boundaries with `etragon` and `leserpent`
 
-### 4. `v0.20.x`: Final Pre-`1.0` Seal
+### 3. `v0.20.x`: Final Pre-`1.0` Seal
 
 - final security and boundary review
 - final surface freeze judgment

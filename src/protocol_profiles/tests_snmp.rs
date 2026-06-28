@@ -2,6 +2,7 @@ use super::{protocol_dsl_path, protocol_entries, protocol_summary};
 
 #[test]
 fn snmp_protocol_summary_exposes_new_entries_and_aliases() {
+    let _lock = super::tests_env::lock();
     let summary = protocol_summary("snmp").expect("snmp summary should exist");
     assert_eq!(summary.default_entry, "get");
     assert!(summary.entries.iter().any(|entry| entry.mode == "bulk"));
@@ -118,45 +119,46 @@ fn snmp_protocol_summary_exposes_new_entries_and_aliases() {
 
 #[test]
 fn snmp_protocol_aliases_resolve_to_canonical_packages() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("snmp-bulk", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/bulk".to_string())
+        Some(super::protocol_fixture_path("snmp/bulk"))
     );
     assert_eq!(
         protocol_dsl_path("snmp-get-next", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/get-next".to_string())
+        Some(super::protocol_fixture_path("snmp/get-next"))
     );
     assert_eq!(
         protocol_dsl_path("snmp-set", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/set".to_string())
+        Some(super::protocol_fixture_path("snmp/set"))
     );
     assert_eq!(
         protocol_dsl_path("snmp-trap", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/trap".to_string())
+        Some(super::protocol_fixture_path("snmp/trap"))
     );
     assert_eq!(
         protocol_dsl_path("snmp-engine-sync", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/engine-sync".to_string())
+        Some(super::protocol_fixture_path("snmp/engine-sync"))
     );
     assert_eq!(
         protocol_dsl_path("snmp-report", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/report".to_string())
+        Some(super::protocol_fixture_path("snmp/report"))
     );
     assert_eq!(
         protocol_dsl_path("snmp-trap-recv", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/trap-recv".to_string())
+        Some(super::protocol_fixture_path("snmp/trap-recv"))
     );
     assert_eq!(
         protocol_dsl_path("snmp-unauthorized", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/unauthorized".to_string())
+        Some(super::protocol_fixture_path("snmp/unauthorized"))
     );
     assert_eq!(
         protocol_dsl_path("snmp-v3-auth", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/v3-auth".to_string())
+        Some(super::protocol_fixture_path("snmp/v3-auth"))
     );
     assert_eq!(
         protocol_dsl_path("snmp-v3-priv", None),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/snmp/v3-priv".to_string())
+        Some(super::protocol_fixture_path("snmp/v3-priv"))
     );
 
     let entries = protocol_entries("snmp").expect("snmp entries should resolve");

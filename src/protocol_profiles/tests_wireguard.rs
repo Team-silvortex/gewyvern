@@ -38,11 +38,11 @@ fn wireguard_surfaces_split_handshake_cookie_and_transport_shelves() {
 fn wireguard_aliases_resolve_to_canonical_entries() {
     assert_eq!(
         protocol_dsl_path("wireguard", Some("cookie-reply")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/wireguard/cookie".to_string())
+        Some(super::protocol_fixture_path("wireguard/cookie"))
     );
     assert_eq!(
         protocol_dsl_path("wireguard", Some("data")),
-        Some("/Users/Shared/chroot/dev/gewyvern/protocols/wireguard/transport".to_string())
+        Some(super::protocol_fixture_path("wireguard/transport"))
     );
 }
 
