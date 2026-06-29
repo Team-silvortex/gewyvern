@@ -9,11 +9,19 @@ pub(super) fn handle_daemon_client(
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,
 ) -> Result<(), String> {
-    let mut request = [0u8; 2048];
-    let size = stream
-        .read(&mut request)
-        .map_err(|err| format!("failed to read daemon request: {err}"))?;
-    let request_text = String::from_utf8_lossy(&request[..size]);
+    let request_text = match read_daemon_request(&mut stream)? {
+        DaemonRequestRead::Complete(request_text) => request_text,
+        DaemonRequestRead::TooLarge => {
+            let response = daemon_http_response(
+                "HTTP/1.1 413 Payload Too Large",
+                "{\"error\":\"daemon_request_too_large\"}",
+            );
+            stream
+                .write_all(response.as_bytes())
+                .map_err(|err| format!("failed to write daemon request limit response: {err}"))?;
+            return Ok(());
+        }
+    };
     let (method, path) = request_text
         .lines()
         .next()

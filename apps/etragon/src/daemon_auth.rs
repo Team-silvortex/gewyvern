@@ -12,8 +12,21 @@ pub(super) fn daemon_request_is_authorized(
         return false;
     };
     request_header_value(request_text, ETRAGON_ADMIN_TOKEN_HEADER)
-        .map(|value| value == expected_token)
+        .map(|value| token_equals(value, expected_token))
         .unwrap_or(false)
+}
+
+fn token_equals(supplied: &str, expected: &str) -> bool {
+    let supplied = supplied.as_bytes();
+    let expected = expected.as_bytes();
+    let max_len = supplied.len().max(expected.len());
+    let mut diff = supplied.len() ^ expected.len();
+    for index in 0..max_len {
+        let left = supplied.get(index).copied().unwrap_or(0);
+        let right = expected.get(index).copied().unwrap_or(0);
+        diff |= (left ^ right) as usize;
+    }
+    diff == 0
 }
 
 fn request_header_value<'a>(request_text: &'a str, header_name: &str) -> Option<&'a str> {

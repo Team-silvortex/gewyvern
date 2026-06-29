@@ -147,20 +147,20 @@ When another service needs a narrow machine-facing surface, prefer:
 Socket roundtrip:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/socket_roundtrip_demo.sh /tmp/gewyvern.sock udp /tmp/gewyvern-out.json unix
-bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/socket_roundtrip_demo.sh 127.0.0.1:9000 udp /tmp/gewyvern-out.json tcp
+cargo run --quiet --bin gewyvern_validate -- socket-roundtrip --socket-target /tmp/gewyvern.sock --template udp --output /tmp/gewyvern-out.json --socket-kind unix
+cargo run --quiet --bin gewyvern_validate -- socket-roundtrip --socket-target 127.0.0.1:9000 --template udp --output /tmp/gewyvern-out.json --socket-kind tcp
 ```
 
 External-engine bridge:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json
+cargo run --quiet --bin gewyvern_validate -- external-engine-roundtrip --ingest-addr 127.0.0.1:9900 --api-addr 127.0.0.1:9910 --template udp --analysis-out /tmp/gewyvern-analysis.json --engine-out /tmp/external-engine-augmentations.json
 ```
 
 Training dataset roundtrip:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/training_dataset_roundtrip_demo.sh 127.0.0.1:9910 /tmp/gewyvern-training-roundtrip
+cargo run --quiet --bin gewyvern_validate -- training-roundtrip --api-addr 127.0.0.1:9910 --out-dir /tmp/gewyvern-training-roundtrip
 ```
 
 These are the thinnest end-to-end consumer checks when you do not want a full

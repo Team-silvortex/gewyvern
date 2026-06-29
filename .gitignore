@@ -35,3 +35,8 @@ node_modules/
 !src/bin/*.rs
 **/obj/
 apps/etragon/scripts/__pycache__/
+
+# Local Leserpent runtime state
+apps/leserpent/src/Leserpent/data/control-plane-state.json
+apps/leserpent/src/Leserpent/data/control-plane-state.json.bak
+apps/leserpent/src/Leserpent/.leserpent-state/

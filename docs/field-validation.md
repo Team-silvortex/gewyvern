@@ -236,8 +236,10 @@ Purpose:
 
 Current commands to keep exercising:
 
-- [scripts/demos/socket_roundtrip_demo.sh](/Users/Shared/chroot/dev/gewyvern/scripts/demos/socket_roundtrip_demo.sh)
-  Socket session roundtrip through the standalone ingest path.
+- `cargo run --quiet --bin gewyvern_validate -- socket-roundtrip`
+  Socket session roundtrip through the standalone ingest path. The legacy
+  [scripts/demos/socket_roundtrip_demo.sh](/Users/Shared/chroot/dev/gewyvern/scripts/demos/socket_roundtrip_demo.sh)
+  wrapper remains for older automation.
 - [scripts/validation/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh)
   Broader serve/API/runtime operator validation path.
 - local `--serve` plus read-only API usage

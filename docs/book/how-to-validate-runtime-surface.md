@@ -314,14 +314,32 @@ local tools safely consume it?", validate the serve/API chain directly.
 For controlled lifecycle coverage:
 
 ```bash
+cargo run --quiet --bin gewyvern_validate -- field-smoke --socket --scan-all
+cargo run --quiet --bin gewyvern_validate -- socket-roundtrip
+cargo run --quiet --bin gewyvern_validate -- runtime-operator
 cargo run --quiet --bin gewyvern_validate -- runtime-lifecycle
+cargo run --quiet --bin gewyvern_validate -- resilience-roundtrip
+cargo run --quiet --bin gewyvern_validate -- resilience-log-evidence --log-source /path/to/runtime.log
+cargo run --quiet --bin gewyvern_validate -- resilience-bundle --api-addr 127.0.0.1:9910 --log-source /path/to/runtime.log
+cargo run --quiet --bin gewyvern_validate -- resilience-emit-helper --mode fail --output /tmp/gewyvern-external-fail.sh
+cargo run --quiet --bin gewyvern_validate -- resilience-drive-bad-json --host 127.0.0.1 --port 9909 --count 6
 ```
 
-This native lifecycle check starts local runtime processes, verifies bounded
-shutdown, confirms malformed socket input degrades and then recovers, checks log
-evidence, and proves API/socket reachability is gone after explicit stop. The
-legacy `scripts/validation/runtime_lifecycle_validation.sh` entrypoint remains
-available for older automation.
+The native field smoke checks demo summary, DSL summary, `gewyc explain`, Unix
+socket roundtrip, and `--scan-all`. The native runtime operator check exercises
+TCP and UDP serve sessions, latest summary/export/analysis API readability,
+malformed ingest recovery, and training dataset sample roundtrip. The native
+lifecycle check starts local runtime processes, verifies bounded shutdown,
+confirms malformed socket input degrades and then recovers, checks log evidence,
+and proves API/socket reachability is gone after explicit stop. The native
+resilience commands prepare the recovery runbook and extract log evidence
+without requiring `rg`, `grep`, `curl`, or `python3`. The native fault-injection
+helpers generate external-engine probes and drive malformed socket payloads
+without requiring `nc`. The legacy
+`scripts/validation/field_validation_smoke.sh` and
+`scripts/validation/runtime_operator_validation.sh` and
+`scripts/validation/runtime_lifecycle_validation.sh` entrypoints remain available
+for older automation.
 
 For a local socket ingest plus API surface:
 
@@ -337,14 +355,14 @@ curl http://127.0.0.1:9100/v1/latest/training-dataset.json
 If you also want to smoke the external-engine bridge roundtrip end to end:
 
 ```bash
-bash scripts/demos/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json
+cargo run --quiet --bin gewyvern_validate -- external-engine-roundtrip --ingest-addr 127.0.0.1:9900 --api-addr 127.0.0.1:9910 --template udp --analysis-out /tmp/gewyvern-analysis.json --engine-out /tmp/external-engine-augmentations.json
 ```
 
 If you want to confirm the training-dataset consumer roundtrip the way a
 sibling engine would actually use it, run:
 
 ```bash
-bash scripts/demos/training_dataset_roundtrip_demo.sh 127.0.0.1:9100 /tmp/gewyvern-training-roundtrip
+cargo run --quiet --bin gewyvern_validate -- training-roundtrip --api-addr 127.0.0.1:9100 --out-dir /tmp/gewyvern-training-roundtrip
 ```
 
 That consumer roundtrip checks three things that are easy to miss in narrower
@@ -357,7 +375,7 @@ API smoke:
 To target one specific route, pass a path segment as the sixth argument:
 
 ```bash
-bash scripts/demos/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json socket_session
+cargo run --quiet --bin gewyvern_validate -- external-engine-roundtrip --ingest-addr 127.0.0.1:9900 --api-addr 127.0.0.1:9910 --template udp --analysis-out /tmp/gewyvern-analysis.json --engine-out /tmp/external-engine-augmentations.json --target-path-segment socket_session
 ```
 
 Use this when you need confidence in:

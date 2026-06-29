@@ -258,11 +258,12 @@ runtime：
 当前 `leserpent` 会把 control-plane 状态持久化到本地 JSON 文件：
 
 - 默认路径：
-  - `src/Leserpent/data/control-plane-state.json`
+  - OS local application data 下的 `leserpent/control-plane-state.json`
 - very-light backup:
-  - `src/Leserpent/data/control-plane-state.json.bak`
+  - 同目录的 `control-plane-state.json.bak`
 - 可用环境变量覆盖：
   - `LESERPENT_STATE_PATH=/path/to/control-plane-state.json`
+- 仓库只保留 `src/Leserpent/data/control-plane-state.sample.json`，真实运行态 state 不应该提交。
 
 当前会恢复和保存：
 

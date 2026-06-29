@@ -1,0 +1,37 @@
+{
+        vec![
+            FactEnvelope {
+                id: FactId(1),
+                ts: base,
+                cpu: CpuId(0),
+                ifindex: Some(3),
+                session: SessionId(2),
+                fragment_id: "udp_packet_meta_fragment".into(),
+                kind: FactKind::PacketMeta(PacketMetaFact {
+                    netns: 1,
+                    sk_cookie: Some(99),
+                    dir: PacketDir::Egress,
+                    local_port: None,
+                    remote_port: None,
+                    payload_byte0: None,
+                    payload_byte1: None,
+                    payload_prefix2: None,
+                    payload_prefix4: None,
+                    payload_byte4: None,
+                    payload_byte5: None,
+                    payload_byte9: None,
+                    payload_byte10: None,
+                    payload_byte13: None,
+                    payload_bytes: std::collections::BTreeMap::new(),
+                    l3_proto: 0x0800,
+                    l4_proto: 17,
+                    tot_len: 72,
+                    tcp_flags: 0,
+                    seq: None,
+                    ack: None,
+                    window: None,
+                }),
+            },
+            route_fact(2, base + Duration::from_millis(10), 99, 3, SessionId(2)),
+        ]
+}

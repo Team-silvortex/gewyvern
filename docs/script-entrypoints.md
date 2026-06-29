@@ -100,8 +100,14 @@ Relevant docs:
 Run:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh
+cargo run --quiet --bin gewyvern_validate -- runtime-operator
+cargo run --quiet --bin gewyvern_validate -- field-smoke --socket --scan-all
 cargo run --quiet --bin gewyvern_validate -- runtime-lifecycle
+cargo run --quiet --bin gewyvern_validate -- resilience-roundtrip
+cargo run --quiet --bin gewyvern_validate -- resilience-log-evidence --log-source /path/to/runtime.log
+cargo run --quiet --bin gewyvern_validate -- resilience-bundle --api-addr 127.0.0.1:9910 --log-source /path/to/runtime.log
+cargo run --quiet --bin gewyvern_validate -- resilience-emit-helper --mode fail --output /tmp/gewyvern-external-fail.sh
+cargo run --quiet --bin gewyvern_validate -- resilience-drive-bad-json --host 127.0.0.1 --port 9909 --count 6
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_fault_injection.sh --help
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_roundtrip.sh
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_log_evidence.sh /path/to/runtime.log
@@ -112,6 +118,7 @@ Use this when you care about:
 
 - socket ingest surviving bad input
 - startup, explicit stop, log evidence, and temporary run-dir cleanup
+- latest-summary, export, analysis, and training dataset API readability
 - read-only API behavior
 - latest snapshot, analysis, export, and training surfaces
 
@@ -160,7 +167,9 @@ contracts, sidecar visibility, and control-plane registration semantics.
 The script now expects each runtime to publish a healthy
 `/v1/runtime/resilience.json` surface before the stack is considered ready, so
 the control-plane handoff is validated at the contract level instead of only at
-the process-health level.
+the process-health level. Its JSON readiness checks are now delegated to
+`gewyvern_validate stack-probe` and `stack-check-json`, while the shell layer
+keeps only the Docker, `dotnet`, and HTTP mutation orchestration.
 
 It also injects repeated bad socket input into one runtime and verifies that:
 
@@ -181,12 +190,14 @@ before running the script.
 Run one of:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/socket_roundtrip_demo.sh /tmp/gewyvern.sock udp /tmp/gewyvern-out.json unix
-bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json
-bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/training_dataset_roundtrip_demo.sh 127.0.0.1:9910 /tmp/gewyvern-training-roundtrip
+cargo run --quiet --bin gewyvern_validate -- socket-roundtrip --socket-target /tmp/gewyvern.sock --template udp --output /tmp/gewyvern-out.json --socket-kind unix
+cargo run --quiet --bin gewyvern_validate -- external-engine-roundtrip --ingest-addr 127.0.0.1:9900 --api-addr 127.0.0.1:9910 --template udp --analysis-out /tmp/gewyvern-analysis.json --engine-out /tmp/external-engine-augmentations.json
+cargo run --quiet --bin gewyvern_validate -- training-roundtrip --api-addr 127.0.0.1:9910 --out-dir /tmp/gewyvern-training-roundtrip
 ```
 
 Use these when you want one thin path instead of a grouped validation shelf.
+The socket, external-engine, and training dataset shell demos remain legacy
+wrappers around the native `gewyvern_validate` commands.
 
 ### I want Linux-only probe smoke
 

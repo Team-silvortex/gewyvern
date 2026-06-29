@@ -1,5 +1,8 @@
+mod authoring;
+
 use super::super::explain_support::*;
 use super::super::*;
+use authoring::*;
 
 pub(super) fn explain_text(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
     // The full surface optimizes for "what failed and what to inspect next"
@@ -420,20 +423,6 @@ pub(super) fn explain_text_compact(report: &ExplainReport, focus: Option<Explain
     lines.join("\n")
 }
 
-trait ExplainStringExt {
-    fn if_empty_then(self, fallback: &str) -> String;
-}
-
-impl ExplainStringExt for String {
-    fn if_empty_then(self, fallback: &str) -> String {
-        if self.is_empty() {
-            fallback.to_string()
-        } else {
-            self
-        }
-    }
-}
-
 pub(super) fn explain_json(report: &ExplainReport, focus: Option<ExplainFocus>) -> String {
     let next_step = explain_next_step_hint(report);
     let template_id = report
@@ -551,52 +540,6 @@ pub(super) fn explain_json(report: &ExplainReport, focus: Option<ExplainFocus>) 
             .map_or_else(|| "null".to_string(), diagnostics_json),
         findings_json(&report.findings),
     )
-}
-
-fn explain_authoring_context(frontend: &FrontendReport) -> String {
-    let module_doc = explain_doc_text(frontend.module_doc.as_deref(), "no module doc");
-    let template_doc = explain_doc_text(frontend.template_doc.as_deref(), "no template doc");
-    let functions = explain_documented_functions(frontend, "none");
-    format!(
-        "module_doc={} ; template_doc={} ; documented_functions={}",
-        module_doc, template_doc, functions
-    )
-}
-
-fn explain_authoring_context_json(frontend: &FrontendReport) -> String {
-    format!(
-        "{{\"module_doc\":{},\"template_doc\":{},\"documented_functions\":[{}]}}",
-        frontend
-            .module_doc
-            .as_deref()
-            .map(json_string)
-            .unwrap_or_else(|| "null".into()),
-        frontend
-            .template_doc
-            .as_deref()
-            .map(json_string)
-            .unwrap_or_else(|| "null".into()),
-        frontend
-            .function_nodes
-            .iter()
-            .filter_map(|node| node.doc.as_ref().map(|_| json_string(&node.name)))
-            .collect::<Vec<_>>()
-            .join(",")
-    )
-}
-
-fn explain_doc_text(doc: Option<&str>, fallback: &str) -> String {
-    doc.unwrap_or(fallback).replace('\n', " / ")
-}
-
-fn explain_documented_functions(frontend: &FrontendReport, fallback: &str) -> String {
-    frontend
-        .function_nodes
-        .iter()
-        .filter_map(|node| node.doc.as_ref().map(|_| node.name.as_str()))
-        .collect::<Vec<_>>()
-        .join(",")
-        .if_empty_then(fallback)
 }
 
 pub(super) fn stages_validation_json(report: &ValidationReport) -> String {

@@ -1,0 +1,242 @@
+use super::*;
+
+pub fn udp_packet_fact_with_dir_and_ports_and_byte(
+    id: u64,
+    cookie: u64,
+    tot_len: u32,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+    payload_byte0: Option<u8>,
+) -> FactEnvelope {
+    udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
+        id,
+        cookie,
+        tot_len,
+        dir,
+        local_port,
+        remote_port,
+        payload_byte0,
+        None,
+        None,
+    )
+}
+
+pub fn udp_packet_fact_with_dir_and_ports_and_payload(
+    id: u64,
+    cookie: u64,
+    tot_len: u32,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+    payload_byte0: Option<u8>,
+    payload_prefix2: Option<u16>,
+) -> FactEnvelope {
+    udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
+        id,
+        cookie,
+        tot_len,
+        dir,
+        local_port,
+        remote_port,
+        payload_byte0,
+        payload_prefix2,
+        None,
+    )
+}
+
+pub fn udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
+    id: u64,
+    cookie: u64,
+    tot_len: u32,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+    payload_byte0: Option<u8>,
+    payload_prefix2: Option<u16>,
+    payload_prefix4: Option<u32>,
+) -> FactEnvelope {
+    FactEnvelope {
+        id: FactId(id),
+        ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+        cpu: CpuId(0),
+        ifindex: Some(2),
+        session: SessionId(1),
+        fragment_id: "udp_packet_meta_fragment".into(),
+        kind: FactKind::PacketMeta(PacketMetaFact {
+            netns: 1,
+            sk_cookie: Some(cookie),
+            dir,
+            local_port,
+            remote_port,
+            payload_byte0,
+            payload_byte1: None,
+            payload_prefix2,
+            payload_prefix4,
+            payload_byte4: None,
+            payload_byte5: None,
+            payload_byte9: None,
+            payload_byte10: None,
+            payload_byte13: None,
+            payload_bytes: std::collections::BTreeMap::new(),
+            l3_proto: 0x0800,
+            l4_proto: 17,
+            tot_len,
+            tcp_flags: 0,
+            seq: None,
+            ack: None,
+            window: None,
+        }),
+    }
+}
+
+pub fn udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
+    id: u64,
+    cookie: u64,
+    tot_len: u32,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+    payload_byte0: Option<u8>,
+    payload_prefix2: Option<u16>,
+    payload_prefix4: Option<u32>,
+    payload_byte13: Option<u8>,
+) -> FactEnvelope {
+    FactEnvelope {
+        id: FactId(id),
+        ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+        cpu: CpuId(0),
+        ifindex: Some(2),
+        session: SessionId(1),
+        fragment_id: "udp_packet_meta_fragment".into(),
+        kind: FactKind::PacketMeta(PacketMetaFact {
+            netns: 1,
+            sk_cookie: Some(cookie),
+            dir,
+            local_port,
+            remote_port,
+            payload_byte0,
+            payload_byte1: None,
+            payload_prefix2,
+            payload_prefix4,
+            payload_byte4: None,
+            payload_byte5: None,
+            payload_byte9: None,
+            payload_byte10: None,
+            payload_byte13,
+            payload_bytes: std::collections::BTreeMap::new(),
+            l3_proto: 0x0800,
+            l4_proto: 17,
+            tot_len,
+            tcp_flags: 0,
+            seq: None,
+            ack: None,
+            window: None,
+        }),
+    }
+}
+
+pub fn udp_quic_meta_fact(
+    id: u64,
+    cookie: u64,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+    long_header: bool,
+    packet_type: Option<QuicPacketType>,
+    frame_types: Vec<QuicFrameType>,
+) -> FactEnvelope {
+    FactEnvelope {
+        id: FactId(id),
+        ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+        cpu: CpuId(0),
+        ifindex: Some(2),
+        session: SessionId(1),
+        fragment_id: "udp_packet_meta_fragment".into(),
+        kind: FactKind::QuicMeta(QuicMetaFact {
+            netns: 1,
+            sk_cookie: Some(cookie),
+            dir,
+            local_port,
+            remote_port,
+            long_header,
+            packet_type,
+            frame_types,
+            payload_bytes: std::collections::BTreeMap::new(),
+        }),
+    }
+}
+
+pub fn udp_quic_meta_fact_with_payload_bytes(
+    id: u64,
+    cookie: u64,
+    dir: PacketDir,
+    local_port: Option<u16>,
+    remote_port: Option<u16>,
+    long_header: bool,
+    packet_type: Option<QuicPacketType>,
+    frame_types: Vec<QuicFrameType>,
+    payload_bytes: &[(u16, u8)],
+) -> FactEnvelope {
+    FactEnvelope {
+        id: FactId(id),
+        ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+        cpu: CpuId(0),
+        ifindex: Some(2),
+        session: SessionId(1),
+        fragment_id: "udp_packet_meta_fragment".into(),
+        kind: FactKind::QuicMeta(QuicMetaFact {
+            netns: 1,
+            sk_cookie: Some(cookie),
+            dir,
+            local_port,
+            remote_port,
+            long_header,
+            packet_type,
+            frame_types,
+            payload_bytes: payload_bytes.iter().copied().collect(),
+        }),
+    }
+}
+
+pub fn route_fact(id: u64, cookie: u64, oif: u32) -> FactEnvelope {
+    FactEnvelope {
+        id: FactId(id),
+        ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+        cpu: CpuId(0),
+        ifindex: Some(oif),
+        session: SessionId(1),
+        fragment_id: "route_meta_fragment".into(),
+        kind: FactKind::RouteDecision(RouteDecisionFact {
+            netns: 1,
+            sk_cookie: Some(cookie),
+            fib_table: Some(254),
+            oif,
+            gw: None,
+        }),
+    }
+}
+
+pub fn sock_lineage_fact(id: u64, cookie: u64, pid: u32, comm: &str) -> FactEnvelope {
+    let mut comm_bytes = [0u8; 16];
+    let bytes = comm.as_bytes();
+    let len = bytes.len().min(comm_bytes.len());
+    comm_bytes[..len].copy_from_slice(&bytes[..len]);
+
+    FactEnvelope {
+        id: FactId(id),
+        ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+        cpu: CpuId(0),
+        ifindex: Some(2),
+        session: SessionId(1),
+        fragment_id: "sock_lineage_fragment".into(),
+        kind: FactKind::SockLineage(SockLineageFact {
+            netns: 1,
+            sk_cookie: cookie,
+            pid,
+            tid: pid,
+            cgroup_id: 4242,
+            comm: comm_bytes,
+        }),
+    }
+}

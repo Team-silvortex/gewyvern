@@ -18,6 +18,15 @@ fn cli_parses_serve_python_targets_with_filter_and_bind() {
 }
 
 #[test]
+fn python_online_memory_persists_state_atomically() {
+    let worker = include_str!("../../../scripts/python_online_memory.py");
+
+    assert!(worker.contains("tmp_path.write_text(payload, encoding=\"utf-8\")"));
+    assert!(worker.contains("tmp_path.replace(self.state_file)"));
+    assert!(!worker.contains("self.state_file.write_text("));
+}
+
+#[test]
 fn cli_analyzes_snapshot_file() {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)

@@ -230,13 +230,13 @@ surface as a consumer would see it.
 Example:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/training_dataset_roundtrip_demo.sh 127.0.0.1:9910 /tmp/gewyvern-training-demo
+cargo run --quiet --bin gewyvern_validate -- training-roundtrip --api-addr 127.0.0.1:9910 --out-dir /tmp/gewyvern-training-demo
 ```
 
 Single-target example:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/training_dataset_roundtrip_demo.sh 127.0.0.1:9910 /tmp/gewyvern-training-demo dsl_demo 1
+cargo run --quiet --bin gewyvern_validate -- training-roundtrip --api-addr 127.0.0.1:9910 --out-dir /tmp/gewyvern-training-demo --target-path-segment dsl_demo --limit 1
 ```
 
 ## Consumption Rules

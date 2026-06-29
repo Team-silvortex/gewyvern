@@ -168,18 +168,19 @@ When you want one direct end-to-end bridge proof that:
 run:
 
 ```bash
-bash scripts/demos/external_engine_roundtrip_demo.sh \
-  127.0.0.1:9900 \
-  127.0.0.1:9910 \
-  udp \
-  /tmp/gewyvern-analysis.json \
-  /tmp/external-engine-augmentations.json
+cargo run --quiet --bin gewyvern_validate -- external-engine-roundtrip \
+  --ingest-addr 127.0.0.1:9900 \
+  --api-addr 127.0.0.1:9910 \
+  --template udp \
+  --analysis-out /tmp/gewyvern-analysis.json \
+  --engine-out /tmp/external-engine-augmentations.json
 ```
 
-By default this now looks for the monorepo app shelf at `apps/etragon` and runs:
+The legacy shell demo calls the same native command. By default the harness now
+looks for the monorepo app shelf at `apps/etragon` and runs:
 
 ```bash
-cargo run -- analyze-url
+cargo run --quiet -- analyze-url
 ```
 
 inside that engine root.
@@ -188,8 +189,13 @@ If you need to point at a different engine checkout or command:
 
 ```bash
 ENGINE_ROOT=/path/to/external-engine
-EXTERNAL_ENGINE_CMD='cargo run -- analyze-url'
+EXTERNAL_ENGINE_CMD=/path/to/analyze-url-wrapper
 ```
+
+`EXTERNAL_ENGINE_CMD` is intentionally limited to a single executable path. The
+validation harness passes the analysis URL as `argv[1]` instead of routing the
+command through a shell, so wrapper scripts should do any additional argument
+assembly internally.
 
 ## What Success Looks Like
 

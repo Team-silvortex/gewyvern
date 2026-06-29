@@ -17,7 +17,7 @@ public sealed class ControlPlaneStateStore
     public ControlPlaneStateStore(IConfiguration configuration, IHostEnvironment environment, ILogger<ControlPlaneStateStore> logger)
     {
         statePath = configuration["LESERPENT_STATE_PATH"]
-            ?? Path.Combine(environment.ContentRootPath, "data", "control-plane-state.json");
+            ?? DefaultStatePath(environment);
         backupStatePath = $"{statePath}.bak";
         this.logger = logger;
     }
@@ -155,5 +155,16 @@ public sealed class ControlPlaneStateStore
             logger.LogWarning(ex, "Failed to load backup control-plane state from {BackupStatePath}; starting from an empty registry.", backupStatePath);
             return null;
         }
+    }
+
+    private static string DefaultStatePath(IHostEnvironment environment)
+    {
+        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrWhiteSpace(localData))
+        {
+            return Path.Combine(localData, "leserpent", "control-plane-state.json");
+        }
+
+        return Path.Combine(environment.ContentRootPath, ".leserpent-state", "control-plane-state.json");
     }
 }

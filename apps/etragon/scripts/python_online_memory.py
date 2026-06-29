@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -221,19 +222,19 @@ class OnlineModel:
         if self.state_file is None:
             return
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
-        self.state_file.write_text(
-            json.dumps(
-                {
-                    "schema_version": MEMORY_STATE_SCHEMA_VERSION,
-                    "model_version": MEMORY_MODEL_VERSION,
-                    "pattern_labels": self.pattern_labels,
-                    "snapshot_slots": self.snapshot_slots,
-                    "snapshot_history": self.snapshot_history,
-                },
-                separators=(",", ":"),
-            ),
-            encoding="utf-8",
+        payload = json.dumps(
+            {
+                "schema_version": MEMORY_STATE_SCHEMA_VERSION,
+                "model_version": MEMORY_MODEL_VERSION,
+                "pattern_labels": self.pattern_labels,
+                "snapshot_slots": self.snapshot_slots,
+                "snapshot_history": self.snapshot_history,
+            },
+            separators=(",", ":"),
         )
+        tmp_path = self.state_file.with_name(f"{self.state_file.name}.{os.getpid()}.tmp")
+        tmp_path.write_text(payload, encoding="utf-8")
+        tmp_path.replace(self.state_file)
 
     def _now_unix_ms(self) -> int:
         return int(time.time() * 1000)

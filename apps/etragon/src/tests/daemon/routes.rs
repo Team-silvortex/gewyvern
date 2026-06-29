@@ -34,6 +34,16 @@ fn daemon_remote_requests_require_matching_admin_token() {
         "GET /health HTTP/1.1\r\nHost: remote\r\nX-Etragon-Admin-Token: secret-token\r\n\r\n",
         &policy,
     ));
+    assert!(!daemon_request_is_authorized(
+        IpAddr::from([10, 0, 0, 8]),
+        "GET /health HTTP/1.1\r\nHost: remote\r\nX-Etragon-Admin-Token: secret-tokeo\r\n\r\n",
+        &policy,
+    ));
+    assert!(!daemon_request_is_authorized(
+        IpAddr::from([10, 0, 0, 8]),
+        "GET /health HTTP/1.1\r\nHost: remote\r\nX-Etragon-Admin-Token: secret-token-extra\r\n\r\n",
+        &policy,
+    ));
 }
 
 #[test]

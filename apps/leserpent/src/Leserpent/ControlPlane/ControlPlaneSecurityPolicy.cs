@@ -1,6 +1,9 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 
 namespace Leserpent.ControlPlane;
 
@@ -10,6 +13,7 @@ public sealed class ControlPlaneSecurityPolicy
     public const string IntentHeader = "X-Leserpent-Intent";
     public const string MutateIntent = "mutate";
     public const string ExportIntent = "export";
+    public const long PersistenceImportBodyLimitBytes = 1_048_576;
 
     private readonly string? adminToken;
 
@@ -38,6 +42,21 @@ public sealed class ControlPlaneSecurityPolicy
         if (!path.StartsWithSegments("/v1") && !path.StartsWithSegments("/health"))
         {
             return true;
+        }
+
+        if (IsPersistenceImport(path))
+        {
+            ApplyPersistenceImportLimit(context);
+            if (context.Request.ContentLength > PersistenceImportBodyLimitBytes)
+            {
+                statusCode = StatusCodes.Status413PayloadTooLarge;
+                payload = new
+                {
+                    error = "persistence_import_too_large",
+                    maxBytes = PersistenceImportBodyLimitBytes,
+                };
+                return false;
+            }
         }
 
         var isLoopback = IsLoopbackRequest(context);
@@ -196,12 +215,36 @@ public sealed class ControlPlaneSecurityPolicy
         }
 
         var supplied = request.Headers[AdminTokenHeader].ToString().Trim();
-        return !string.IsNullOrWhiteSpace(supplied)
-            && string.Equals(supplied, adminToken, StringComparison.Ordinal);
+        return TokenEquals(supplied, adminToken);
+    }
+
+    private static bool TokenEquals(string supplied, string? expected)
+    {
+        if (string.IsNullOrWhiteSpace(supplied) || string.IsNullOrWhiteSpace(expected))
+        {
+            return false;
+        }
+
+        var suppliedBytes = Encoding.UTF8.GetBytes(supplied);
+        var expectedBytes = Encoding.UTF8.GetBytes(expected);
+        return suppliedBytes.Length == expectedBytes.Length
+            && CryptographicOperations.FixedTimeEquals(suppliedBytes, expectedBytes);
     }
 
     private static bool HasIntent(HttpRequest request, string expectedIntent) =>
         string.Equals(request.Headers[IntentHeader].ToString().Trim(), expectedIntent, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPersistenceImport(PathString path) =>
+        string.Equals(path, "/v1/persistence/import", StringComparison.OrdinalIgnoreCase);
+
+    private static void ApplyPersistenceImportLimit(HttpContext context)
+    {
+        var maxBodySizeFeature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (maxBodySizeFeature is { IsReadOnly: false })
+        {
+            maxBodySizeFeature.MaxRequestBodySize = PersistenceImportBodyLimitBytes;
+        }
+    }
 
     private static bool IsLoopbackRequest(HttpContext context)
     {
