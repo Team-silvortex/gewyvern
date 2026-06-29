@@ -50,9 +50,15 @@ extract_events() {
   local output_log="$1"
   shift
   : >"${output_log}"
+  local pattern
+  pattern="event=($(printf '%s|' "${EVENTS[@]}" | sed 's/|$//'))|backoff_ms="
   local file
   for file in "$@"; do
-    rg --no-filename "event=($(printf '%s|' "${EVENTS[@]}" | sed 's/|$//'))|backoff_ms=" "${file}" >>"${output_log}" || true
+    if command -v rg >/dev/null 2>&1; then
+      rg --no-filename "${pattern}" "${file}" >>"${output_log}" || true
+    else
+      grep -E "${pattern}" "${file}" >>"${output_log}" || true
+    fi
   done
 }
 

@@ -74,12 +74,37 @@ fi
 EOF
 }
 
+container_validation_docker_run() {
+  local validation_name
+  local timeout_seconds
+  local container_name
+  local status
+
+  validation_name="$(basename "$0" .sh)"
+  timeout_seconds="${GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS:-900}"
+  container_name="gewyvern-${validation_name}-$$-${RANDOM}"
+
+  if command -v timeout >/dev/null 2>&1; then
+    set +e
+    timeout "${timeout_seconds}" docker run --name "${container_name}" --rm "$@"
+    status=$?
+    set -e
+    if [[ "${status}" -eq 124 ]]; then
+      echo "container validation timed out after ${timeout_seconds}s: ${validation_name}" >&2
+      docker rm -f "${container_name}" >/dev/null 2>&1 || true
+    fi
+    return "${status}"
+  fi
+
+  docker run --name "${container_name}" --rm "$@"
+}
+
 container_validation_run_deb() {
   local packages_dir="$1"
   local image="$2"
   local package_path="$3"
   local body="$4"
-  docker run --rm \
+  container_validation_docker_run \
     -v "${packages_dir}:/packages:ro" \
     "${image}" \
     bash -lc "
@@ -96,7 +121,7 @@ container_validation_run_deb_with_curl() {
   local image="$2"
   local package_path="$3"
   local body="$4"
-  docker run --rm \
+  container_validation_docker_run \
     -v "${packages_dir}:/packages:ro" \
     "${image}" \
     bash -lc "
@@ -113,13 +138,13 @@ container_validation_run_rpm() {
   local image="$2"
   local package_path="$3"
   local body="$4"
-  docker run --rm \
+  container_validation_docker_run \
     -v "${packages_dir}/rpm:/packages:ro" \
     "${image}" \
     bash -lc "
       set -euo pipefail
       $(container_validation_rpm_preamble)
-      dnf install -y /packages/$(basename "${package_path}") >/dev/null
+      rpm -Uvh /packages/$(basename "${package_path}") >/dev/null || dnf install -y /packages/$(basename "${package_path}") >/dev/null
       ${body}
     "
 }
@@ -129,13 +154,16 @@ container_validation_run_rpm_with_curl() {
   local image="$2"
   local package_path="$3"
   local body="$4"
-  docker run --rm \
+  container_validation_docker_run \
     -v "${packages_dir}/rpm:/packages:ro" \
     "${image}" \
     bash -lc "
       set -euo pipefail
       $(container_validation_rpm_preamble)
-      dnf install -y curl /packages/$(basename "${package_path}") >/dev/null
+      if ! command -v curl >/dev/null 2>&1; then
+        dnf install -y curl >/dev/null
+      fi
+      rpm -Uvh /packages/$(basename "${package_path}") >/dev/null || dnf install -y /packages/$(basename "${package_path}") >/dev/null
       ${body}
     "
 }

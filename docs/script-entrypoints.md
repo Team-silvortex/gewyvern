@@ -72,12 +72,23 @@ than source-tree behavior.
 Run:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh
+cargo run --quiet --bin gewyvern_validate -- registry
+cargo run --quiet --bin gewyvern_validate -- high-frequency
+cargo run --quiet --bin gewyvern_validate -- debugger-cross
 ```
 
-Use `registry_validation.sh` for per-package drift, and
-`high_frequency_validation.sh` for the practical high-traffic protocol shelf.
+Use `gewyvern_validate registry` for per-package drift, and
+`gewyvern_validate high-frequency` for the practical high-traffic protocol
+shelf.
+Use `gewyvern_validate debugger-cross` when you want debugger confidence rather
+than only package confidence: the Rust-native harness cross-checks summary
+JSON, debugger-console JSON, and `gewyc` envelope output, then runs negative
+cases that must stay in collect-more-evidence posture instead of pretending to
+be actionable. The legacy
+`scripts/validation/registry_validation.sh` and
+`scripts/validation/high_frequency_validation.sh` and
+`scripts/validation/debugger_cross_validation.sh` entrypoints are now thin
+compatibility wrappers around the native commands.
 
 Relevant docs:
 
@@ -90,7 +101,7 @@ Run:
 
 ```bash
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_lifecycle_validation.sh
+cargo run --quiet --bin gewyvern_validate -- runtime-lifecycle
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_fault_injection.sh --help
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_roundtrip.sh
 bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_log_evidence.sh /path/to/runtime.log
@@ -103,6 +114,10 @@ Use this when you care about:
 - startup, explicit stop, log evidence, and temporary run-dir cleanup
 - read-only API behavior
 - latest snapshot, analysis, export, and training surfaces
+
+The legacy `scripts/validation/runtime_lifecycle_validation.sh` entrypoint
+remains as a compatibility wrapper around
+`gewyvern_validate runtime-lifecycle`.
 - operator-facing deployment posture
 
 Relevant docs:
@@ -178,12 +193,15 @@ Use these when you want one thin path instead of a grouped validation shelf.
 Run one of:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/linux/linux_attach_smoke.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/linux/linux_kprobe_smoke.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/linux/linux_tc_smoke.sh
+sudo bash /Users/Shared/chroot/dev/gewyvern/scripts/linux/linux_attach_smoke.sh
+sudo bash /Users/Shared/chroot/dev/gewyvern/scripts/linux/linux_kprobe_smoke.sh
+sudo bash /Users/Shared/chroot/dev/gewyvern/scripts/linux/linux_tc_smoke.sh <default-route-device>
 ```
 
-Use these only on Linux-capable environments with the required kernel support.
+Use these only on Linux-capable environments with the required kernel support
+and BPF attach privileges. Without root, `CAP_BPF`/`CAP_NET_ADMIN`, or an
+equivalent lab setup, the loader can fail with `Operation not permitted` before
+it reaches gewyvern-specific behavior.
 
 ### I want a local benchmark or history snapshot
 

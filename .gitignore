@@ -31,5 +31,7 @@ target
 *.orig
 node_modules/
 **/bin/
+!src/bin/
+!src/bin/*.rs
 **/obj/
 apps/etragon/scripts/__pycache__/

@@ -46,9 +46,10 @@ Run the checks in this order:
 1. workspace tests
 2. compiler-facing `gewyc` surface
 3. focused runtime smoke
-4. registry/package sweep
-5. high-frequency protocol validation
-6. packaged/container validation when release confidence matters
+4. debugger cross/negative validation
+5. registry/package sweep
+6. high-frequency protocol validation
+7. packaged/container validation when release confidence matters
 
 That order matters because it helps you isolate where drift entered.
 
@@ -124,22 +125,51 @@ If you want a human-oriented surface as well:
 cargo run -- --protocol http3 --entry request --report-format html --out /tmp/http3-request.html
 ```
 
-## Step 4: Run The Registry Shelf, Not Just One Target
+## Step 4: Cross-Validate Debugger Surfaces
+
+Before broad protocol sweeps, prove that the same scenario reads consistently
+through multiple debugger surfaces:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- debugger-cross
+```
+
+This check compares:
+
+- runtime summary JSON
+- local debugger-console JSON
+- `gewyc` envelope JSON
+
+It also runs negative cases. The protocol negatives are valid inputs with
+missing evidence, so they must stay in `attention` /
+`collect_more_runtime_evidence` posture. The toolchain negative is invalid
+Gewylang input, so parse must fail before validation or diagnostics can claim
+success.
+
+The legacy
+`/Users/Shared/chroot/dev/gewyvern/scripts/validation/debugger_cross_validation.sh`
+script remains available for older automation, but it delegates to the native
+Rust harness instead of owning the assertions itself.
+
+Use this when the question is not just "does it run?" but "can it actually
+debug without overclaiming?"
+
+## Step 5: Run The Registry Shelf, Not Just One Target
 
 Now ask whether the scanned built-in package shelf still holds together:
 
 ```bash
 cargo run -- --list-protocols
 cargo run -- --scan-all --json --summary-only
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh
+cargo run --quiet --bin gewyvern_validate -- registry
 ```
 
 Why all three matter:
 
 - `--list-protocols` confirms the registry is still discoverable
 - `--scan-all` confirms broad runtime target enumeration still works
-- `registry_validation.sh` tells you which exact package drifted and whether it
-  is a parse, validation, diagnostics, or JSON-shape failure
+- `gewyvern_validate registry` tells you which exact package drifted and
+  whether it is a parse, validation, diagnostics, or JSON-shape failure
 
 This is usually the fastest way to answer:
 
@@ -147,7 +177,7 @@ This is usually the fastest way to answer:
 - did a DSL/package boundary drift?
 - did the registry scanner break?
 
-## Step 5: Exercise The High-Frequency Shelf
+## Step 6: Exercise The High-Frequency Shelf
 
 For the active `0.17.x` line, the most valuable operator surface is the
 high-frequency protocol shelf.
@@ -155,7 +185,7 @@ high-frequency protocol shelf.
 Run:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh
+cargo run --quiet --bin gewyvern_validate -- high-frequency
 ```
 
 This is where we keep pressure on:
@@ -174,7 +204,7 @@ probably not "the whole runtime is broken". It is more likely:
 - a mixed-flow expectation changed
 - a built-in guidance expectation moved
 
-## Step 6: Use Container Checks When Confidence Really Matters
+## Step 7: Use Container Checks When Confidence Really Matters
 
 When you are judging release confidence or cross-environment behavior, use the
 container line as well:
@@ -234,6 +264,11 @@ Look first at:
   - diagnostics
   - JSON shape
 
+The legacy
+`/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh`
+script remains available for older automation, but it delegates to
+`gewyvern_validate registry`.
+
 Treat this as protocol shelf drift until proven otherwise.
 
 ### If `high_frequency_validation.sh` fails
@@ -244,6 +279,21 @@ Look first at:
 - mixed-flow expectations
 - `operator_guidance_action`
 - any recent diagnosis/report policy change
+
+The legacy
+`/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh`
+script remains available for older automation, but it delegates to
+`gewyvern_validate high-frequency`.
+
+### If `debugger_cross_validation.sh` fails
+
+Look first at:
+
+- whether summary JSON and debugger-console JSON disagree
+- whether `gewyc envelope` no longer reports parse, validation, and diagnostics
+  consistently
+- whether a negative protocol case stopped producing `missing_transition`
+- whether a negative case started recommending action instead of more evidence
 
 ### If container checks fail but local checks pass
 
@@ -256,10 +306,22 @@ Look first at:
 Treat this as environment or packaging drift, not necessarily a core diagnosis
 failure.
 
-## Step 7: Validate The Serve/API And External-Engine Bridge
+## Step 8: Validate The Serve/API And External-Engine Bridge
 
 When the question is not only "does the runtime compile?" but also "can other
 local tools safely consume it?", validate the serve/API chain directly.
+
+For controlled lifecycle coverage:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- runtime-lifecycle
+```
+
+This native lifecycle check starts local runtime processes, verifies bounded
+shutdown, confirms malformed socket input degrades and then recovers, checks log
+evidence, and proves API/socket reachability is gone after explicit stop. The
+legacy `scripts/validation/runtime_lifecycle_validation.sh` entrypoint remains
+available for older automation.
 
 For a local socket ingest plus API surface:
 
@@ -314,6 +376,7 @@ For the current line, the runtime surface is in a good state when:
 - focused runtime JSON still exposes the diagnosis spine coherently
 - registry validation still passes
 - the high-frequency shelf still passes
+- runtime lifecycle validation still proves start, stop, recovery, and cleanup
 - release/container checks still pass when you need stronger confidence
 
 That is enough to say:

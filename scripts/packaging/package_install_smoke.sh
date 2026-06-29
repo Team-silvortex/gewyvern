@@ -3,6 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "${ROOT}/scripts/packaging/container_validation_common.sh"
 PACKAGES_DIR="${ROOT}/target/packages"
 DEB_IMAGE="${GEWY_DEB_SMOKE_IMAGE:-ubuntu:24.04}"
 RPM_IMAGE="${GEWY_RPM_SMOKE_IMAGE:-fedora:41}"
@@ -53,15 +54,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "docker is required for package install smoke" >&2
-  exit 1
-fi
-
-if ! docker info >/dev/null 2>&1; then
-  echo "docker daemon is not reachable; start Docker Desktop or another local daemon and retry" >&2
-  exit 1
-fi
+container_validation_require_docker "package install smoke"
 
 find_latest_deb() {
   find "${PACKAGES_DIR}" -maxdepth 1 -type f -name '*.deb' | sort | tail -n 1
@@ -95,7 +88,7 @@ run_deb_smoke() {
     exit 1
   fi
 
-  docker run --rm \
+  container_validation_docker_run \
     -v "${PACKAGES_DIR}:/packages:ro" \
     "${DEB_IMAGE}" \
     bash -lc "
@@ -129,7 +122,7 @@ run_rpm_smoke() {
     exit 1
   fi
 
-  docker run --rm \
+  container_validation_docker_run \
     -v "${PACKAGES_DIR}/rpm:/packages:ro" \
     "${RPM_IMAGE}" \
     bash -lc "
@@ -137,7 +130,7 @@ run_rpm_smoke() {
       $(rpm_preamble)
       rpm -qpl /packages/$(basename "${rpm_path}") >/tmp/gewyvern-package-contents.txt
       grep -q '/usr/share/doc/gewyvern/LICENSE' /tmp/gewyvern-package-contents.txt
-      dnf install -y /packages/$(basename "${rpm_path}") >/dev/null
+      rpm -Uvh /packages/$(basename "${rpm_path}") >/dev/null || dnf install -y /packages/$(basename "${rpm_path}") >/dev/null
       command -v gewyvern >/dev/null
       command -v gewyc >/dev/null
       command -v gewyvern_socket_send >/dev/null

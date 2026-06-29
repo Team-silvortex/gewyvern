@@ -189,3 +189,8 @@ If the change touches real eBPF attach/runtime behavior, use:
 - [scripts/linux/linux_attach_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/linux/linux_attach_smoke.sh)
 - [scripts/linux/linux_kprobe_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/linux/linux_kprobe_smoke.sh)
 - [scripts/linux/linux_tc_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/linux/linux_tc_smoke.sh)
+
+Run these with root/BPF attach privileges, for example through `sudo`, and pass
+the default-route interface to the TC smoke. An unprivileged run may fail during
+libbpf loading with `Operation not permitted`, which is an environment
+permission failure rather than a protocol diagnosis failure.

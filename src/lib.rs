@@ -18,3 +18,4 @@ pub mod runtime;
 pub mod runtime_layout;
 pub mod socket_input;
 pub mod template;
+pub mod validation_harness;

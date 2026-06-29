@@ -133,6 +133,26 @@ Container install validators can also override package-manager mirrors:
 The install smoke checks this manifest for both DEB and RPM packages so the two
 native package paths cannot silently drift.
 
+## Container Runner Reliability
+
+The packaged container validators use one shared Docker runner from:
+
+- `/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_validation_common.sh`
+
+That runner gives each validation container a deterministic gewyvern-prefixed
+name, applies a per-container timeout, and best-effort removes the container if
+the command times out. Override the timeout with:
+
+- `GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS`
+
+The default is intentionally conservative at 900 seconds so a slow package
+mirror has room to recover without leaving a hidden `docker run` behind.
+
+RPM validation also installs the local package with local `rpm -Uvh` first and
+only falls back to `dnf install` when the container needs dependency
+resolution. This keeps Fedora repository metadata slowness from turning a local
+package smoke into a long network-bound release gate.
+
 ## Build Entry Point
 
 If you already know the outcome you want and only need the shortest route to
