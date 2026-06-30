@@ -9,6 +9,10 @@ pub(super) const KAFKA_PROFILE: ProtocolProfile = ProtocolProfile {
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/kafka_metadata_path.gewy",
         },
         ProtocolEntryProfile {
+            mode: "api-versions",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/kafka_api_versions_path.gewy",
+        },
+        ProtocolEntryProfile {
             mode: "produce",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/kafka_produce_path.gewy",
         },

@@ -49,8 +49,16 @@ pub(super) fn scan_report_json_with_analyses(
     self::scan::scan_report_json_with_analyses(outputs, analyses)
 }
 
+#[cfg(test)]
 pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
     self::scan::scan_report_html(outputs)
+}
+
+pub(super) fn scan_report_html_with_analyses(
+    outputs: &[(String, ExportBundle)],
+    analyses: &[AnalysisSnapshot],
+) -> String {
+    self::scan::scan_report_html_with_analyses(outputs, analyses)
 }
 
 #[cfg(test)]

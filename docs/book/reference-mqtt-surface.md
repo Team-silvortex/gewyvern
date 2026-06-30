@@ -15,6 +15,7 @@ surfaces:
 The current built-in MQTT family models a compact broker conversation:
 
 - establish a broker session with `CONNECT` and `CONNACK`
+- inspect broker `CONNACK` acknowledgement or refusal as its own signal
 - publish or subscribe over the established session
 - optionally follow the QoS2 handshake
 - terminate with `DISCONNECT`
@@ -39,6 +40,7 @@ Default entry: `connect`
 Typical entries:
 
 - `connect`
+- `connack`
 
 ### Publish And Subscribe
 

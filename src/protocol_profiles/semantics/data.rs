@@ -38,6 +38,15 @@ pub(super) fn postgres_entry_semantics(entry: &str) -> Option<ProtocolEntrySeman
 }
 
 pub(super) fn mongodb_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    if entry == "query-failure" {
+        return failure(
+            "legacy MongoDB OP_REPLY QueryFailure response returned by the server",
+            Some("OP_REPLY QueryFailure"),
+            Some("semantic_error"),
+            Some("protocol_error"),
+        );
+    }
+
     let (category, operator_focus, typical_signal) = match entry {
         "command" => (
             "mongodb-command-path",
@@ -80,6 +89,11 @@ pub(super) fn cassandra_entry_semantics(entry: &str) -> Option<ProtocolEntrySema
                     "cassandra-startup-path",
                     "Cassandra native protocol STARTUP frame for cluster session setup",
                     Some("STARTUP opcode 0x01"),
+                ),
+                "authenticate" => (
+                    "cassandra-authenticate-path",
+                    "Cassandra native protocol AUTHENTICATE frame requiring client authentication",
+                    Some("AUTHENTICATE opcode 0x03"),
                 ),
                 "query" => (
                     "cassandra-query-path",
@@ -291,6 +305,11 @@ pub(super) fn kafka_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantic
             "Kafka broker metadata lookup on TCP port 9092",
             Some("Metadata API key"),
         ),
+        "api-versions" => (
+            "broker-capability-path",
+            "Kafka ApiVersions compatibility negotiation between client and broker",
+            Some("ApiVersions API key"),
+        ),
         "produce" => (
             "stream-produce-path",
             "Kafka produce request/response against broker topic partitions",
@@ -338,6 +357,84 @@ pub(super) fn nats_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
                 Some("protocol_error"),
             );
         }
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("protocol_entry_signal"),
+    )
+}
+
+pub(super) fn mqtt_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "connect" => (
+            "broker-session-path",
+            "MQTT CONNECT request and successful CONNACK response",
+            Some("CONNECT / CONNACK"),
+        ),
+        "connack" => (
+            "broker-acknowledgement-path",
+            "MQTT broker CONNACK response, including refused connection codes",
+            Some("CONNACK"),
+        ),
+        "publish" => (
+            "message-publish-path",
+            "MQTT PUBLISH and PUBACK message flow",
+            Some("PUBLISH / PUBACK"),
+        ),
+        "subscribe" => (
+            "message-subscribe-path",
+            "MQTT SUBSCRIBE and SUBACK message flow",
+            Some("SUBSCRIBE / SUBACK"),
+        ),
+        "disconnect" => (
+            "broker-teardown-path",
+            "MQTT explicit DISCONNECT teardown",
+            Some("DISCONNECT"),
+        ),
+        "pubrec" | "pubrel" | "pubcomp" => (
+            "qos2-continuation-path",
+            "MQTT QoS2 publish continuation stage",
+            Some("PUBREC / PUBREL / PUBCOMP"),
+        ),
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("protocol_entry_signal"),
+    )
+}
+
+pub(super) fn memcached_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "get" => (
+            "cache-read-path",
+            "Memcached binary GET request and value response",
+            Some("GET / VALUE"),
+        ),
+        "miss" => (
+            "cache-miss-path",
+            "Memcached binary GET response with NOT_FOUND status",
+            Some("NOT_FOUND"),
+        ),
+        "set" => (
+            "cache-write-path",
+            "Memcached binary SET request and stored response",
+            Some("SET / STORED"),
+        ),
+        "not-stored" => (
+            "cache-not-stored-path",
+            "Memcached binary SET response with NOT_STORED status",
+            Some("NOT_STORED"),
+        ),
         _ => return None,
     };
     summary(

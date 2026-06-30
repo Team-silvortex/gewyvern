@@ -12,6 +12,36 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES_CONTINUATION: &[ProtocolAlias] = &[
         entry: Some("connect"),
     },
     ProtocolAlias {
+        alias: "mqtt-connack",
+        protocol: "mqtt",
+        entry: Some("connack"),
+    },
+    ProtocolAlias {
+        alias: "mqtt_connack",
+        protocol: "mqtt",
+        entry: Some("connack"),
+    },
+    ProtocolAlias {
+        alias: "connect-ack",
+        protocol: "mqtt",
+        entry: Some("connack"),
+    },
+    ProtocolAlias {
+        alias: "connect_ack",
+        protocol: "mqtt",
+        entry: Some("connack"),
+    },
+    ProtocolAlias {
+        alias: "broker-ack",
+        protocol: "mqtt",
+        entry: Some("connack"),
+    },
+    ProtocolAlias {
+        alias: "broker_ack",
+        protocol: "mqtt",
+        entry: Some("connack"),
+    },
+    ProtocolAlias {
         alias: "send",
         protocol: "mqtt",
         entry: Some("publish"),

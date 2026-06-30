@@ -10,10 +10,9 @@ mod render;
 mod status;
 
 pub(crate) use self::labels::{
-    best_scored_value, bump_score, failure_basis_label, failure_confidence_label,
-    failure_detail_family_label, failure_detail_label, failure_mode_family_label,
-    failure_mode_label, first_non_none, first_or_none, module_family_label,
-    reduce_confidence_level, stage_family_label,
+    failure_basis_label, failure_confidence_label, failure_detail_family_label,
+    failure_detail_label, failure_mode_family_label, failure_mode_label, first_non_none,
+    first_or_none, module_family_label, reduce_confidence_level, stage_family_label,
 };
 use self::profiles::{
     primary_process_profile_from_profiles, process_network_profile_summaries_from_flow_summaries,
@@ -26,10 +25,9 @@ pub(crate) use self::render::{
     append_external_sidecar_context_json, append_external_sidecar_contract_json,
     append_process_network_profiles_json_from_snapshot,
     append_process_network_profiles_text_from_snapshot,
-    append_protocol_flow_summaries_json_from_snapshot,
-    append_protocol_flow_summaries_text_from_snapshot, process_network_profiles_json_from_snapshot,
-    process_network_profiles_text_from_snapshot, protocol_flow_summaries_json_from_snapshot,
-    protocol_flow_summaries_text_from_snapshot,
+    append_protocol_flow_summaries_json_limited, append_protocol_flow_summaries_text_limited,
+    process_network_profiles_json_from_snapshot, process_network_profiles_text_from_snapshot,
+    protocol_flow_summaries_json_from_snapshot, protocol_flow_summaries_text_from_snapshot,
 };
 pub(crate) use self::status::{
     ScanTargetStatus, analysis_augmentation_names_text, analysis_automation_outcome,
@@ -107,6 +105,9 @@ struct ProcessNetworkProfileAccumulator {
     seen_missing_transitions: HashSet<String>,
     seen_suspect_areas: HashSet<String>,
     seen_suspect_modules: HashSet<String>,
+    module_scores: std::collections::HashMap<String, u32>,
+    stage_scores: std::collections::HashMap<String, u32>,
+    suspect_module_scores: std::collections::HashMap<String, u32>,
 }
 
 #[derive(Clone, Default)]

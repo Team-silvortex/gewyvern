@@ -1,0 +1,20 @@
+# gewyvern stable-subset protocol path
+
+fn kafka_api_versions_rules() =
+  let module_name = :kafka_api_versions_path
+  let api_versions_narrative = "static:observed a Kafka ApiVersions request or response on TCP port 9092"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:kafka_api_versions)
+  |> reason_model(:kafka_api_versions_path_reason)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_broker)
+  |> program_rule(predicate: "packet_observed:tcp:remote:kafka:local_to_remote:byte_at:5:0xff:0x12", stage: :packet_observed, narrative: ${api_versions_narrative}, dedupe: true, module: ${module_name}, phase: :send_api_versions_request)
+  |> program_rule(predicate: "packet_observed:tcp:remote:kafka:remote_to_local", stage: :packet_observed, narrative: ${api_versions_narrative}, dedupe: true, module: ${module_name}, phase: :receive_api_versions_response)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_broker)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:kafka:local_to_remote:byte_at:5:0xff:0x12", key_event: :packet_observed, narrative: ${api_versions_narrative}, dedupe: true, module: ${module_name}, phase: :send_api_versions_request)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:kafka:remote_to_local", key_event: :packet_observed, narrative: ${api_versions_narrative}, dedupe: true, module: ${module_name}, phase: :receive_api_versions_response)
+
+template(:kafka_api_versions_path)
+|> window(:default_5s)
+|> use(:kafka_api_versions_rules)

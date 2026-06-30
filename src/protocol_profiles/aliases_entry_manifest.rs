@@ -322,6 +322,26 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES_MANIFEST: &[ProtocolAlias] = &[
         entry: Some("get"),
     },
     ProtocolAlias {
+        alias: "cache-miss",
+        protocol: "memcached",
+        entry: Some("miss"),
+    },
+    ProtocolAlias {
+        alias: "cache_miss",
+        protocol: "memcached",
+        entry: Some("miss"),
+    },
+    ProtocolAlias {
+        alias: "not-found",
+        protocol: "memcached",
+        entry: Some("miss"),
+    },
+    ProtocolAlias {
+        alias: "not_found",
+        protocol: "memcached",
+        entry: Some("miss"),
+    },
+    ProtocolAlias {
         alias: "memcached-write",
         protocol: "memcached",
         entry: Some("set"),
@@ -335,6 +355,31 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES_MANIFEST: &[ProtocolAlias] = &[
         alias: "write",
         protocol: "memcached",
         entry: Some("set"),
+    },
+    ProtocolAlias {
+        alias: "not_stored",
+        protocol: "memcached",
+        entry: Some("not-stored"),
+    },
+    ProtocolAlias {
+        alias: "store-miss",
+        protocol: "memcached",
+        entry: Some("not-stored"),
+    },
+    ProtocolAlias {
+        alias: "store_miss",
+        protocol: "memcached",
+        entry: Some("not-stored"),
+    },
+    ProtocolAlias {
+        alias: "write-miss",
+        protocol: "memcached",
+        entry: Some("not-stored"),
+    },
+    ProtocolAlias {
+        alias: "write_miss",
+        protocol: "memcached",
+        entry: Some("not-stored"),
     },
     ProtocolAlias {
         alias: "postgres-session",

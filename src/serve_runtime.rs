@@ -24,9 +24,9 @@ use crate::socket_resilience::{
 };
 
 use super::{
-    Cli, SocketTarget, UiLocale, analysis_snapshot, analysis_snapshot_json, annotate_export_trust,
-    findings_json_with_analysis, findings_text, render_report_outputs, render_scan_outputs,
-    run_binding_session, scan_report_html, scan_report_json_with_analyses,
+    Cli, ReportFormat, SocketTarget, UiLocale, analysis_snapshot, analysis_snapshot_json,
+    annotate_export_trust, findings_json_with_analysis, findings_text, render_scan_outputs,
+    run_binding_session, scan_report_html_with_analyses, scan_report_json_with_analyses,
     scan_report_text_with_analyses, scan_targets_for_cli, summary_json_with_analysis,
     summary_line_with_analysis, training_example_json_array, training_example_json_with_analysis,
 };
@@ -380,7 +380,7 @@ fn emit_rendered(
     let training_example_json_body = training_example_json_with_analysis(name, export, &analysis);
     let export_json_body = export.to_json();
     let report_json_body = scan_report_json_with_analyses(&single, std::slice::from_ref(&analysis));
-    let report_html_body = scan_report_html(&single);
+    let report_html_body = scan_report_html_with_analyses(&single, std::slice::from_ref(&analysis));
     let (
         has_external_sidecar_context,
         has_external_evidence_chain_enrichment,
@@ -430,8 +430,11 @@ fn emit_rendered(
             );
         }
     }
-    let rendered = if cli.report_format.is_some() {
-        render_report_outputs(cli, &single)
+    let rendered = if let Some(report_format) = cli.report_format {
+        match report_format {
+            ReportFormat::Json => report_json_body,
+            ReportFormat::Html => report_html_body,
+        }
     } else if cli.findings {
         if cli.json {
             findings_json_body
@@ -477,7 +480,7 @@ fn emit_scan_outputs(
             .join(",")
     );
     let scan_training_example_json = training_example_json_array(outputs, &analyses);
-    let scan_report_html_body = scan_report_html(outputs);
+    let scan_report_html_body = scan_report_html_with_analyses(outputs, &analyses);
     if let Some(state) = api_state {
         let targets = outputs
             .iter()
@@ -522,7 +525,10 @@ fn emit_scan_outputs(
                         &[(name.clone(), export.clone())],
                         std::slice::from_ref(analysis),
                     ),
-                    report_html: scan_report_html(&[(name.clone(), export.clone())]),
+                    report_html: scan_report_html_with_analyses(
+                        &[(name.clone(), export.clone())],
+                        std::slice::from_ref(analysis),
+                    ),
                 }
             })
             .collect::<Vec<_>>();

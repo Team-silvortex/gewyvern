@@ -21,7 +21,15 @@ pub(crate) fn append_protocol_flow_summaries_json_from_snapshot(
     json: &mut String,
     snapshot: &AnalysisSnapshot,
 ) {
-    for (index, flow) in snapshot.protocol_flows.iter().enumerate() {
+    append_protocol_flow_summaries_json_limited(json, snapshot, snapshot.protocol_flows.len());
+}
+
+pub(crate) fn append_protocol_flow_summaries_json_limited(
+    json: &mut String,
+    snapshot: &AnalysisSnapshot,
+    limit: usize,
+) {
+    for (index, flow) in snapshot.protocol_flows.iter().take(limit).enumerate() {
         if index > 0 {
             json.push(',');
         }
@@ -43,8 +51,16 @@ pub(crate) fn append_protocol_flow_summaries_text_from_snapshot(
     text: &mut String,
     snapshot: &AnalysisSnapshot,
 ) {
+    append_protocol_flow_summaries_text_limited(text, snapshot, snapshot.protocol_flows.len());
+}
+
+pub(crate) fn append_protocol_flow_summaries_text_limited(
+    text: &mut String,
+    snapshot: &AnalysisSnapshot,
+    limit: usize,
+) {
     let locale = UiLocale::detect();
-    for (index, flow) in snapshot.protocol_flows.iter().enumerate() {
+    for (index, flow) in snapshot.protocol_flows.iter().take(limit).enumerate() {
         if index > 0 {
             text.push(',');
         }

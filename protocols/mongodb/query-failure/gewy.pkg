@@ -1,0 +1,8 @@
+name=mongodb_query_failure
+version=0.18.2
+entry=main.gewy
+register.protocol=mongodb
+register.entry=query-failure
+register.default=false
+register.aliases=mongo-query-failure,mongo_query_failure,mongodb-query-failure,mongodb_query_failure
+register.entry_aliases=failure,query-error,query_error,legacy-failure

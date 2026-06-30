@@ -1,0 +1,7 @@
+name=mqtt_connack
+version=0.18.2
+entry=main.gewy
+register.protocol=mqtt
+register.entry=connack
+register.default=false
+register.entry_aliases=mqtt-connack,mqtt_connack,connect-ack,connect_ack,broker-ack,broker_ack

@@ -1,5 +1,7 @@
 use gewyvern::dsl::compile_file;
-use gewyvern::protocol_profiles::{protocol_default_entry, protocol_dsl_path, protocol_entries};
+use gewyvern::protocol_profiles::{
+    protocol_default_entry, protocol_dsl_path, protocol_entries, protocol_surface,
+};
 
 fn dsl_fixture_path(name: &str) -> String {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -52,6 +54,88 @@ fn postgres_query_session_dsl_compiles_into_template_binding() {
 }
 
 #[test]
+fn memcached_miss_registry_entry_resolves_to_packaged_miss_path() {
+    assert_eq!(
+        protocol_dsl_path("memcached", Some("miss")),
+        Some(protocol_fixture_path("memcached/miss").to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("memcached", Some("cache-miss")),
+        Some(protocol_fixture_path("memcached/miss").to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("memcached-miss", None),
+        Some(protocol_fixture_path("memcached/miss").to_string())
+    );
+}
+
+#[test]
+fn memcached_miss_surface_stays_in_get_shelf() {
+    let surface =
+        protocol_surface("memcached", "miss").expect("memcached miss surface should exist");
+    let shelf = surface.shelf.expect("memcached miss shelf should exist");
+    assert_eq!(shelf.key, "get");
+    assert!(shelf.entries.contains(&"get".to_string()));
+    assert!(shelf.entries.contains(&"miss".to_string()));
+    assert_eq!(
+        surface
+            .entry_semantics
+            .expect("memcached miss semantics should exist")
+            .category,
+        "cache-miss-path"
+    );
+}
+
+#[test]
+fn memcached_miss_dsl_compiles_into_template_binding() {
+    let binding = compile_file(&dsl_fixture_path("memcached_miss_path.gewy")).unwrap();
+    assert_eq!(binding.template.id, "memcached_miss_path");
+    assert_eq!(binding.template.fragment_set.len(), 4);
+}
+
+#[test]
+fn memcached_not_stored_registry_entry_resolves_to_packaged_path() {
+    assert_eq!(
+        protocol_dsl_path("memcached", Some("not-stored")),
+        Some(protocol_fixture_path("memcached/not-stored").to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("memcached", Some("store-miss")),
+        Some(protocol_fixture_path("memcached/not-stored").to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("memcached-not-stored", None),
+        Some(protocol_fixture_path("memcached/not-stored").to_string())
+    );
+}
+
+#[test]
+fn memcached_not_stored_surface_stays_in_set_shelf() {
+    let surface = protocol_surface("memcached", "not-stored")
+        .expect("memcached not-stored surface should exist");
+    let shelf = surface
+        .shelf
+        .expect("memcached not-stored shelf should exist");
+    assert_eq!(shelf.key, "set");
+    assert!(shelf.entries.contains(&"set".to_string()));
+    assert!(shelf.entries.contains(&"not-stored".to_string()));
+    assert_eq!(
+        surface
+            .entry_semantics
+            .expect("memcached not-stored semantics should exist")
+            .category,
+        "cache-not-stored-path"
+    );
+}
+
+#[test]
+fn memcached_not_stored_dsl_compiles_into_template_binding() {
+    let binding = compile_file(&dsl_fixture_path("memcached_not_stored_path.gewy")).unwrap();
+    assert_eq!(binding.template.id, "memcached_not_stored_path");
+    assert_eq!(binding.template.fragment_set.len(), 4);
+}
+
+#[test]
 fn mqtt_publish_registry_entry_resolves_to_packaged_publish_path() {
     assert_eq!(
         protocol_dsl_path("mqtt", Some("publish")),
@@ -80,6 +164,22 @@ fn mqtt_subscribe_registry_entry_resolves_to_packaged_subscribe_path() {
     assert_eq!(
         protocol_dsl_path("mqtt", Some("listen")),
         Some(protocol_fixture_path("mqtt/subscribe").to_string())
+    );
+}
+
+#[test]
+fn mqtt_connack_registry_entry_resolves_to_packaged_connack_path() {
+    assert_eq!(
+        protocol_dsl_path("mqtt", Some("connack")),
+        Some(protocol_fixture_path("mqtt/connack").to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("mqtt", Some("connect-ack")),
+        Some(protocol_fixture_path("mqtt/connack").to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("mqtt", Some("broker-ack")),
+        Some(protocol_fixture_path("mqtt/connack").to_string())
     );
 }
 
@@ -153,6 +253,7 @@ fn mqtt_default_entry_stays_connect_after_surface_additions() {
 
     let entries = protocol_entries("mqtt").expect("mqtt entries should resolve");
     assert!(entries.contains(&"connect".to_string()));
+    assert!(entries.contains(&"connack".to_string()));
     assert!(entries.contains(&"publish".to_string()));
     assert!(entries.contains(&"subscribe".to_string()));
     assert!(entries.contains(&"disconnect".to_string()));
@@ -162,9 +263,32 @@ fn mqtt_default_entry_stays_connect_after_surface_additions() {
 }
 
 #[test]
+fn mqtt_connack_surface_stays_in_session_shelf() {
+    let surface = protocol_surface("mqtt", "connack").expect("mqtt connack surface should exist");
+    assert_eq!(
+        surface.shelf.expect("mqtt connack shelf should exist").key,
+        "session"
+    );
+    assert_eq!(
+        surface
+            .entry_semantics
+            .expect("mqtt connack semantics should exist")
+            .category,
+        "broker-acknowledgement-path"
+    );
+}
+
+#[test]
 fn mqtt_publish_dsl_compiles_into_template_binding() {
     let binding = compile_file(&dsl_fixture_path("mqtt_publish_path.gewy")).unwrap();
     assert_eq!(binding.template.id, "mqtt_publish_path");
+    assert_eq!(binding.template.fragment_set.len(), 4);
+}
+
+#[test]
+fn mqtt_connack_dsl_compiles_into_template_binding() {
+    let binding = compile_file(&dsl_fixture_path("mqtt_connack_path.gewy")).unwrap();
+    assert_eq!(binding.template.id, "mqtt_connack_path");
     assert_eq!(binding.template.fragment_set.len(), 4);
 }
 

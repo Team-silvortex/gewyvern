@@ -33,6 +33,14 @@ fn stream_messaging_registry_entries_resolve_to_packaged_paths() {
         Some(protocol_fixture_path("kafka/metadata").to_string())
     );
     assert_eq!(
+        protocol_dsl_path("kafka", Some("broker-capabilities")),
+        Some(protocol_fixture_path("kafka/api-versions").to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("kafka-api-versions", None),
+        Some(protocol_fixture_path("kafka/api-versions").to_string())
+    );
+    assert_eq!(
         protocol_dsl_path("kafka", Some("topic-write")),
         Some(protocol_fixture_path("kafka/produce").to_string())
     );
@@ -68,6 +76,7 @@ fn stream_messaging_defaults_shelves_and_semantics_are_stable() {
 
     let kafka_entries = protocol_entries("kafka").expect("kafka entries should resolve");
     assert!(kafka_entries.contains(&"metadata".to_string()));
+    assert!(kafka_entries.contains(&"api-versions".to_string()));
     assert!(kafka_entries.contains(&"produce".to_string()));
     assert!(kafka_entries.contains(&"fetch".to_string()));
 
@@ -85,6 +94,23 @@ fn stream_messaging_defaults_shelves_and_semantics_are_stable() {
             .expect("kafka semantics should exist")
             .category,
         "stream-produce-path"
+    );
+
+    let kafka_capabilities =
+        protocol_surface("kafka", "api-versions").expect("kafka api versions surface should exist");
+    assert_eq!(
+        kafka_capabilities
+            .shelf
+            .expect("kafka capability shelf should exist")
+            .key,
+        "metadata"
+    );
+    assert_eq!(
+        kafka_capabilities
+            .entry_semantics
+            .expect("kafka capability semantics should exist")
+            .category,
+        "broker-capability-path"
     );
 
     let nats = protocol_surface("nats", "sub").expect("nats sub surface should exist");
@@ -117,6 +143,11 @@ fn stream_messaging_dsl_files_compile_into_expected_operations() {
             dsl_fixture_path("kafka_metadata_path.gewy"),
             "kafka_metadata_path",
             ProgramOperation::Custom("kafka_metadata".into()),
+        ),
+        (
+            dsl_fixture_path("kafka_api_versions_path.gewy"),
+            "kafka_api_versions_path",
+            ProgramOperation::Custom("kafka_api_versions".into()),
         ),
         (
             dsl_fixture_path("kafka_produce_path.gewy"),
@@ -158,6 +189,45 @@ fn stream_messaging_dsl_files_compile_into_expected_operations() {
             operation
         );
     }
+}
+
+#[test]
+fn kafka_api_versions_runtime_path_materializes_capability_stages() {
+    let export = run_stream_path(
+        &dsl_fixture_path("kafka_api_versions_path.gewy"),
+        9092,
+        &[(5, 0x12)],
+        &[(0, 0x00)],
+    );
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("kafka_api_versions".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("send_api_versions_request"))
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_api_versions_response"))
+    );
+
+    let protocol_ir = export
+        .protocol_ir
+        .iter()
+        .find(|item| item.operation == "kafka_api_versions")
+        .expect("kafka api versions should materialize protocol IR");
+    assert_eq!(protocol_ir.protocol, "kafka");
+    assert_eq!(protocol_ir.entry, "api-versions");
+    assert_eq!(protocol_ir.shelf_key.as_deref(), Some("metadata"));
+    assert_eq!(
+        protocol_ir.semantics_category.as_deref(),
+        Some("broker-capability-path")
+    );
 }
 
 #[test]

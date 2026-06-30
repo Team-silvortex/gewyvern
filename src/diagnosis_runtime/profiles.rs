@@ -5,11 +5,29 @@ use gewyvern::flow::ProgramFlowId;
 
 use super::{
     ProcessNetworkProfileAccumulator, ProcessNetworkProfileSummary, ProtocolFlowAnalysisSummary,
-    ProtocolFlowFindingAccumulator, ProtocolFlowFindingSummary, best_scored_value, bump_score,
-    failure_basis_label, failure_confidence_label, failure_detail_label, failure_mode_label,
-    first_non_none, module_family_label, protocol_flow_has_terminal_failure,
-    protocol_flow_last_phase, protocol_flow_phases, reduce_confidence_level, stage_family_label,
+    ProtocolFlowFindingAccumulator, ProtocolFlowFindingSummary, failure_basis_label,
+    failure_confidence_label, failure_detail_label, failure_mode_label, first_non_none,
+    module_family_label, protocol_flow_has_terminal_failure, protocol_flow_last_phase,
+    protocol_flow_phases, reduce_confidence_level, stage_family_label,
 };
+
+fn bump_profile_score(scores: &mut HashMap<String, u32>, value: &str, weight: u32) {
+    if value == "none" {
+        return;
+    }
+    *scores.entry(value.to_string()).or_default() += weight;
+}
+
+fn best_profile_score(scores: &HashMap<String, u32>) -> Option<String> {
+    scores
+        .iter()
+        .max_by(|(left_value, left_score), (right_value, right_score)| {
+            left_score
+                .cmp(right_score)
+                .then_with(|| right_value.cmp(left_value))
+        })
+        .map(|(value, _)| value.clone())
+}
 
 pub(super) fn protocol_flow_finding_summaries(
     export: &ExportBundle,
@@ -129,9 +147,6 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
     protocol_flows: &[ProtocolFlowAnalysisSummary],
 ) -> Vec<ProcessNetworkProfileSummary> {
     let mut profiles = HashMap::<(u32, String), ProcessNetworkProfileAccumulator>::new();
-    let mut module_scores = HashMap::<(u32, String), HashMap<String, u32>>::new();
-    let mut stage_scores = HashMap::<(u32, String), HashMap<String, u32>>::new();
-    let mut suspect_module_scores = HashMap::<(u32, String), HashMap<String, u32>>::new();
 
     for flow in protocol_flows {
         let Some(process) = flow.process.as_ref() else {
@@ -169,8 +184,8 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
         if entry.seen_module_kinds.insert(inferred_kind.clone()) {
             summary.module_kinds.push(inferred_kind.clone());
         }
-        bump_score(&mut module_scores, &key, &inferred_kind, 1);
-        bump_score(&mut stage_scores, &key, &last_phase, 1);
+        bump_profile_score(&mut entry.module_scores, &inferred_kind, 1);
+        bump_profile_score(&mut entry.stage_scores, &last_phase, 1);
 
         for phase in &flow.phases {
             if entry.seen_phases.insert(phase.clone()) {
@@ -182,20 +197,20 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
             summary.attention_flows += 1;
             summary.status = "attention".into();
             if flow.network_module_kinds.is_empty() {
-                bump_score(&mut module_scores, &key, &inferred_kind, 10);
+                bump_profile_score(&mut entry.module_scores, &inferred_kind, 10);
             } else {
                 for module_kind in &flow.network_module_kinds {
-                    bump_score(&mut module_scores, &key, module_kind, 10);
+                    bump_profile_score(&mut entry.module_scores, module_kind, 10);
                     if entry.seen_module_kinds.insert(module_kind.clone()) {
                         summary.module_kinds.push(module_kind.clone());
                     }
                 }
             }
             if flow.missing_transitions.is_empty() {
-                bump_score(&mut stage_scores, &key, &last_phase, 10);
+                bump_profile_score(&mut entry.stage_scores, &last_phase, 10);
             } else {
                 for transition in &flow.missing_transitions {
-                    bump_score(&mut stage_scores, &key, transition, 10);
+                    bump_profile_score(&mut entry.stage_scores, transition, 10);
                     if entry.seen_missing_transitions.insert(transition.clone()) {
                         summary.missing_transitions.push(transition.clone());
                     }
@@ -261,41 +276,47 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
         {
             summary.suspect_modules.push(finding.module_label.clone());
         }
-        bump_score(&mut module_scores, &key, &finding.network_module_kind, 20);
+        bump_profile_score(&mut entry.module_scores, &finding.network_module_kind, 20);
         if let Some(phase) = &finding.phase {
-            bump_score(&mut stage_scores, &key, phase, 20);
+            bump_profile_score(&mut entry.stage_scores, phase, 20);
         }
         if let Some(transition) = &finding.phase_transition {
-            bump_score(&mut stage_scores, &key, transition, 25);
+            bump_profile_score(&mut entry.stage_scores, transition, 25);
         }
-        bump_score(&mut suspect_module_scores, &key, &finding.module_label, 20);
+        bump_profile_score(&mut entry.suspect_module_scores, &finding.module_label, 20);
     }
 
     let mut profiles = profiles
         .into_values()
-        .map(|accumulator| accumulator.summary)
+        .map(|accumulator| {
+            (
+                accumulator.summary,
+                accumulator.module_scores,
+                accumulator.stage_scores,
+                accumulator.suspect_module_scores,
+            )
+        })
         .collect::<Vec<_>>();
-    for profile in &mut profiles {
-        let key = (profile.pid, profile.comm.clone());
+    for (profile, module_scores, stage_scores, suspect_module_scores) in &mut profiles {
         profile.operations.sort();
         profile.module_kinds.sort();
         profile.phases.sort();
         profile.missing_transitions.sort();
         profile.suspect_areas.sort();
         profile.suspect_modules.sort();
-        profile.primary_module_kind = best_scored_value(&module_scores, &key)
+        profile.primary_module_kind = best_profile_score(module_scores)
             .or_else(|| first_non_none(&profile.module_kinds))
             .unwrap_or_else(|| "none".into());
         profile.primary_module_family =
             module_family_label(&profile.primary_module_kind).to_string();
         profile.primary_failure_stage =
             if profile.status == "attention" && !profile.missing_transitions.is_empty() {
-                best_scored_value(&stage_scores, &key)
+                best_profile_score(stage_scores)
                     .filter(|stage| profile.missing_transitions.contains(stage))
                     .or_else(|| first_non_none(&profile.missing_transitions))
                     .unwrap_or_else(|| "none".into())
             } else {
-                best_scored_value(&stage_scores, &key)
+                best_profile_score(stage_scores)
                     .or_else(|| first_non_none(&profile.missing_transitions))
                     .or_else(|| first_non_none(&profile.phases))
                     .unwrap_or_else(|| "none".into())
@@ -364,7 +385,7 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
         profile.competing_hypotheses = competing_hypotheses;
         profile.primary_failure_confidence = confidence.to_string();
         profile.primary_failure_basis = basis.to_string();
-        if let Some(primary_suspect_module) = best_scored_value(&suspect_module_scores, &key) {
+        if let Some(primary_suspect_module) = best_profile_score(suspect_module_scores) {
             if let Some(index) = profile
                 .suspect_modules
                 .iter()
@@ -375,8 +396,12 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
             }
         }
     }
-    profiles.sort_by(|a, b| a.pid.cmp(&b.pid).then_with(|| a.comm.cmp(&b.comm)));
-    profiles
+    profiles.sort_by(|(left, ..), (right, ..)| {
+        left.pid
+            .cmp(&right.pid)
+            .then_with(|| left.comm.cmp(&right.comm))
+    });
+    profiles.into_iter().map(|(profile, ..)| profile).collect()
 }
 
 fn compare_process_profile_priority(

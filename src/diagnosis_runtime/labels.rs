@@ -1,43 +1,9 @@
-use std::collections::HashMap;
-
 pub(crate) fn first_or_none(items: &[String]) -> String {
     items.first().cloned().unwrap_or_else(|| "none".into())
 }
 
 pub(crate) fn first_non_none(items: &[String]) -> Option<String> {
     items.iter().find(|item| item.as_str() != "none").cloned()
-}
-
-pub(crate) fn bump_score(
-    score_map: &mut HashMap<(u32, String), HashMap<String, u32>>,
-    key: &(u32, String),
-    value: &str,
-    weight: u32,
-) {
-    if value == "none" {
-        return;
-    }
-    *score_map
-        .entry(key.clone())
-        .or_default()
-        .entry(value.to_string())
-        .or_default() += weight;
-}
-
-pub(crate) fn best_scored_value(
-    score_map: &HashMap<(u32, String), HashMap<String, u32>>,
-    key: &(u32, String),
-) -> Option<String> {
-    score_map.get(key).and_then(|scores| {
-        scores
-            .iter()
-            .max_by(|(left_value, left_score), (right_value, right_score)| {
-                left_score
-                    .cmp(right_score)
-                    .then_with(|| right_value.cmp(left_value))
-            })
-            .map(|(value, _)| value.clone())
-    })
 }
 
 pub(crate) fn module_family_label(module_kind: &str) -> &'static str {

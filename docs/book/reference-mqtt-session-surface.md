@@ -25,6 +25,24 @@ Coarse response shape:
 - outbound MQTT session request
 - broker acknowledgement
 
+### `connack`
+
+Aliases:
+
+- `mqtt-connack`
+- `mqtt_connack`
+- `connect-ack`
+- `connect_ack`
+- `broker-ack`
+- `broker_ack`
+
+Intent:
+
+- bind the process and route context
+- receive a broker `CONNACK`
+- keep successful acknowledgements and refused connection codes visible as
+  broker-side session signals
+
 ## Operator Reading Order
 
 Read the current MQTT session family in this order:
@@ -51,7 +69,13 @@ When you need the broader family map, return to
 
 This generated block tracks the aliases that currently resolve into this custom surface.
 
+- `broker-ack`
+- `broker_ack`
+- `connect-ack`
+- `connect_ack`
 - `login`
+- `mqtt-connack`
+- `mqtt_connack`
 - `session`
 
 <!-- gewyvern:entry-aliases:end -->

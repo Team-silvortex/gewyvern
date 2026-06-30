@@ -40,9 +40,10 @@ Entry aliases:
 ## `cassandra`
 
 Default entry: `query`
-Protocol aliases: `cassandra-error`, `cassandra-query`, `cassandra-result`, `cassandra-startup`, `cassandra_error`, `cassandra_query`, `cassandra_result`, `cassandra_startup`, `cql`, `cql-error`, `cql-query`, `cql-result`, `cql-startup`, `cql_error`, `cql_query`, `cql_result`, `cql_startup`
+Protocol aliases: `cassandra-authenticate`, `cassandra-error`, `cassandra-query`, `cassandra-result`, `cassandra-startup`, `cassandra_authenticate`, `cassandra_error`, `cassandra_query`, `cassandra_result`, `cassandra_startup`, `cql`, `cql-authenticate`, `cql-error`, `cql-query`, `cql-result`, `cql-startup`, `cql_authenticate`, `cql_error`, `cql_query`, `cql_result`, `cql_startup`
 Entry aliases:
 - `query` (default): `cassandra-query`, `cassandra_query`, `cql`, `cql-query`, `cql_query`, `request`, `select`, `statement`
+- `authenticate`: `auth-required`, `auth_required`, `authenticate-required`, `authenticate_required`, `cassandra-authenticate`, `cassandra_authenticate`, `cql-authenticate`, `cql_authenticate`
 - `error`: `cassandra-error`, `cassandra_error`, `cql-error`, `cql_error`, `denied`, `failure`, `server-error`
 - `result`: `cassandra-result`, `cassandra_result`, `cql-result`, `cql_result`, `response`, `rows`, `success`
 - `startup`: `cassandra-startup`, `cassandra_startup`, `connect`, `cql-startup`, `cql_startup`, `handshake`, `hello`
@@ -209,9 +210,10 @@ Entry aliases:
 ## `kafka`
 
 Default entry: `metadata`
-Protocol aliases: `broker-metadata`, `broker-read`, `broker-write`, `consume`, `kafka-fetch`, `kafka-metadata`, `kafka-produce`, `kafka_fetch`, `kafka_metadata`, `kafka_produce`, `produce`, `topic-metadata`, `topic-read`, `topic-write`
+Protocol aliases: `api-versions`, `api_versions`, `broker-api-versions`, `broker-metadata`, `broker-read`, `broker-write`, `broker_api_versions`, `consume`, `kafka-api-versions`, `kafka-fetch`, `kafka-metadata`, `kafka-produce`, `kafka_api_versions`, `kafka_fetch`, `kafka_metadata`, `kafka_produce`, `produce`, `topic-metadata`, `topic-read`, `topic-write`
 Entry aliases:
 - `metadata` (default): `broker-metadata`, `kafka-metadata`, `kafka_metadata`, `topic-metadata`
+- `api-versions`: `api-versions`, `api_versions`, `broker-api-versions`, `broker-capabilities`, `broker_api_versions`, `capabilities`, `kafka-api-versions`, `kafka_api_versions`, `version-negotiation`, `version_negotiation`
 - `fetch`: `broker-read`, `consume`, `kafka-fetch`, `kafka_fetch`, `topic-read`
 - `produce`: `broker-write`, `kafka-produce`, `kafka_produce`, `produce`, `topic-write`
 
@@ -259,18 +261,21 @@ Entry aliases:
 ## `memcached`
 
 Default entry: `get`
-Protocol aliases: `memcached-get`, `memcached-set`, `memcached_get`, `memcached_set`
+Protocol aliases: `memcached-get`, `memcached-miss`, `memcached-not-stored`, `memcached-set`, `memcached_get`, `memcached_miss`, `memcached_not_stored`, `memcached_set`
 Entry aliases:
 - `get` (default): `memcached-get`, `memcached-read`, `memcached_get`, `memcached_read`, `read`
+- `miss`: `cache-miss`, `cache_miss`, `memcached-miss`, `memcached_miss`, `not-found`, `not_found`
+- `not-stored`: `memcached-not-stored`, `memcached_not_stored`, `not_stored`, `store-miss`, `store_miss`, `write-miss`, `write_miss`
 - `set`: `memcached-set`, `memcached-write`, `memcached_set`, `memcached_write`, `write`
 
 ## `mongodb`
 
 Default entry: `command`
-Protocol aliases: `mongo`, `mongo-command`, `mongo-legacy`, `mongo-opmsg`, `mongo-query`, `mongo-reply`, `mongo-response`, `mongo_command`, `mongo_legacy`, `mongo_reply`, `mongodb-command`, `mongodb-legacy`, `mongodb-opmsg`, `mongodb-query`, `mongodb-reply`, `mongodb-response`, `mongodb_command`, `mongodb_legacy`, `mongodb_reply`
+Protocol aliases: `mongo`, `mongo-command`, `mongo-legacy`, `mongo-opmsg`, `mongo-query`, `mongo-query-failure`, `mongo-reply`, `mongo-response`, `mongo_command`, `mongo_legacy`, `mongo_query_failure`, `mongo_reply`, `mongodb-command`, `mongodb-legacy`, `mongodb-opmsg`, `mongodb-query`, `mongodb-query-failure`, `mongodb-reply`, `mongodb-response`, `mongodb_command`, `mongodb_legacy`, `mongodb_query_failure`, `mongodb_reply`
 Entry aliases:
 - `command` (default): `cmd`, `mongo`, `mongo-command`, `mongo-opmsg`, `mongo_command`, `mongodb-command`, `mongodb-opmsg`, `mongodb_command`, `op-msg`, `opmsg`, `request`
 - `legacy-query`: `legacy`, `mongo-legacy`, `mongo-query`, `mongo_legacy`, `mongodb-legacy`, `mongodb-query`, `mongodb_legacy`, `op-query`, `opquery`, `query`
+- `query-failure`: `failure`, `legacy-failure`, `mongo-query-failure`, `mongo_query_failure`, `mongodb-query-failure`, `mongodb_query_failure`, `query-error`, `query_error`
 - `reply`: `mongo-reply`, `mongo-response`, `mongo_reply`, `mongodb-reply`, `mongodb-response`, `mongodb_reply`, `op-reply`, `opreply`, `response`
 
 ## `mqtt`
@@ -279,6 +284,7 @@ Default entry: `connect`
 Protocol aliases: none
 Entry aliases:
 - `connect` (default): `login`, `session`
+- `connack`: `broker-ack`, `broker_ack`, `connect-ack`, `connect_ack`, `mqtt-connack`, `mqtt_connack`
 - `disconnect`: `close`, `teardown`
 - `pubcomp`: `complete`, `qos2-complete`
 - `publish`: `message`, `send`

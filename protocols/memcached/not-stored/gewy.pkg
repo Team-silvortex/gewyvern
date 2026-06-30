@@ -1,0 +1,8 @@
+name=memcached_not_stored
+version=0.18.2
+entry=main.gewy
+register.protocol=memcached
+register.entry=not-stored
+register.default=false
+register.aliases=memcached-not-stored,memcached_not_stored
+register.entry_aliases=not_stored,store-miss,store_miss,write-miss,write_miss

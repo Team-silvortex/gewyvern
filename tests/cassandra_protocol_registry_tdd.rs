@@ -39,6 +39,14 @@ fn cassandra_registry_entries_resolve_to_packaged_paths() {
         Some(protocol_fixture_path("cassandra/startup"))
     );
     assert_eq!(
+        protocol_dsl_path("cassandra", Some("auth-required")),
+        Some(protocol_fixture_path("cassandra/authenticate"))
+    );
+    assert_eq!(
+        protocol_dsl_path("cassandra-authenticate", None),
+        Some(protocol_fixture_path("cassandra/authenticate"))
+    );
+    assert_eq!(
         protocol_dsl_path("cassandra", Some("rows")),
         Some(protocol_fixture_path("cassandra/result"))
     );
@@ -56,7 +64,7 @@ fn cassandra_surface_exposes_database_cluster_shelves_and_semantics() {
         .collect::<BTreeSet<_>>();
     assert_eq!(
         entries,
-        ["startup", "query", "result", "error"]
+        ["startup", "authenticate", "query", "result", "error"]
             .into_iter()
             .map(String::from)
             .collect()
@@ -64,6 +72,7 @@ fn cassandra_surface_exposes_database_cluster_shelves_and_semantics() {
 
     for (entry, shelf_key) in [
         ("startup", "session-query"),
+        ("authenticate", "session-query"),
         ("query", "session-query"),
         ("result", "session-query"),
         ("error", "error"),
@@ -92,6 +101,7 @@ fn cassandra_surface_exposes_database_cluster_shelves_and_semantics() {
 fn cassandra_stable_subset_dsl_files_compile() {
     for file in [
         "cassandra_startup_path.gewy",
+        "cassandra_authenticate_path.gewy",
         "cassandra_query_path.gewy",
         "cassandra_result_path.gewy",
         "cassandra_error_path.gewy",

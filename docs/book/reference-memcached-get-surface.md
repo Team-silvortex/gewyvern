@@ -16,6 +16,17 @@ read-side behavior.
 - Default entry:
   yes
 
+### `miss`
+
+- Protocol:
+  `memcached`
+- Aliases:
+  `not-found`, `not_found`, `cache-miss`, `cache_miss`
+- Family aliases:
+  `memcached-miss`, `memcached_miss`
+- Default entry:
+  no
+
 ## Operational Shape
 
 The current `get` flow models:
@@ -24,6 +35,7 @@ The current `get` flow models:
 2. observe the Memcached socket transition and established state
 3. send a binary `get`
 4. receive a binary value response
+5. optionally observe a binary `NOT_FOUND` miss response
 
 This is the narrowest Memcached page to use when you want the default
 read-oriented lookup posture.
@@ -34,12 +46,14 @@ Read this page after the generic protocol surface when:
 
 - you are checking whether `memcached` resolves to its default entry
 - you want the `read` alias behavior
+- you need to distinguish a normal cache miss from transport silence
 - you only care about lookup or fetch posture
 
 ## Stability Notes
 
 The current entry is intentionally compact. It models the coarse binary `get`
-exchange, not broader caching policy or multi-key nuances.
+exchange and the common `NOT_FOUND` response, not broader caching policy or
+multi-key nuances.
 
 For the broader family map, see
 [docs/book/reference-memcached-surface.md](docs/book/reference-memcached-surface.md).
@@ -49,10 +63,16 @@ For the broader family map, see
 
 This generated block tracks the aliases that currently resolve into this custom surface.
 
+- `cache-miss`
+- `cache_miss`
 - `memcached-get`
+- `memcached-miss`
 - `memcached-read`
 - `memcached_get`
+- `memcached_miss`
 - `memcached_read`
+- `not-found`
+- `not_found`
 - `read`
 
 <!-- gewyvern:entry-aliases:end -->

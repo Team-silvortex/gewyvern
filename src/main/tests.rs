@@ -11,9 +11,10 @@ use super::{
     http_transactions_text, list_entries_json, list_entries_text, list_protocols_json,
     list_protocols_text, protocol_dsl_path, push_analysis_augmentation,
     render_debug_session_outputs, render_debugger_console_outputs, render_report_outputs,
-    route_fact, run_binding_demo, scan_report_html, scan_report_json, scan_report_text,
-    scan_targets_for_cli, summary_json, summary_line, training_example_json,
-    training_example_json_array, training_example_json_with_analysis,
+    route_fact, run_binding_demo, scan_report_html, scan_report_html_with_analyses,
+    scan_report_json, scan_report_json_with_analyses, scan_report_text,
+    scan_report_text_with_analyses, scan_targets_for_cli, summary_json, summary_line,
+    training_example_json, training_example_json_array, training_example_json_with_analysis,
 };
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
@@ -142,6 +143,8 @@ mod rtsp_http_tls;
 mod runtime_config;
 #[path = "tests/runtime_migration.rs"]
 mod runtime_migration;
+#[path = "tests/scan_precomputed_bench.rs"]
+mod scan_precomputed_bench;
 #[path = "tests/serve_runtime_target_naming.rs"]
 mod serve_runtime_target_naming;
 #[path = "tests/snmp_failure_semantics.rs"]

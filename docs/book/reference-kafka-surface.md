@@ -5,16 +5,18 @@ streaming surface instead of a generic TCP exchange.
 
 Default entry: `metadata`
 
-Protocol aliases: `broker-metadata`, `broker-read`, `broker-write`, `consume`,
-`kafka-fetch`, `kafka-metadata`, `kafka-produce`, `kafka_fetch`,
-`kafka_metadata`, `kafka_produce`, `produce`, `topic-metadata`, `topic-read`,
-`topic-write`
+Protocol aliases: `api-versions`, `api_versions`, `broker-api-versions`,
+`broker_api_versions`, `broker-metadata`, `broker-read`, `broker-write`,
+`consume`, `kafka-api-versions`, `kafka-fetch`, `kafka-metadata`,
+`kafka-produce`, `kafka_api_versions`, `kafka_fetch`, `kafka_metadata`,
+`kafka_produce`, `produce`, `topic-metadata`, `topic-read`, `topic-write`
 
 ## What This Shelf Covers
 
-The current Kafka family models three lightweight broker paths:
+The current Kafka family models four lightweight broker paths:
 
 - metadata discovery against TCP port `9092`
+- ApiVersions compatibility negotiation against TCP port `9092`
 - produce requests that write records to broker topic partitions
 - fetch requests that read records from broker topic partitions
 
@@ -32,6 +34,7 @@ giving the debugger useful protocol intent.
 Typical entries:
 
 - `metadata`
+- `api-versions`
 
 ### Stream
 

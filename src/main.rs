@@ -73,12 +73,15 @@ use crate::history_view::render_history_index;
 use crate::report_runtime::{
     findings_json, findings_json_with_analysis, findings_text, http_transactions_json,
     http_transactions_text, render_debug_session_outputs, render_debugger_console_outputs,
-    render_report_outputs, render_scan_outputs, scan_report_html, scan_report_json_with_analyses,
-    scan_report_text_with_analyses, summary_json, summary_json_with_analysis, summary_line,
-    summary_line_with_analysis, training_example_json_array, training_example_json_with_analysis,
+    render_report_outputs, render_scan_outputs, scan_report_html_with_analyses,
+    scan_report_json_with_analyses, scan_report_text_with_analyses, summary_json,
+    summary_json_with_analysis, summary_line, summary_line_with_analysis,
+    training_example_json_array, training_example_json_with_analysis,
 };
 #[cfg(test)]
-use crate::report_runtime::{scan_report_json, scan_report_text, training_example_json};
+use crate::report_runtime::{
+    scan_report_html, scan_report_json, scan_report_text, training_example_json,
+};
 use crate::runtime_events::{
     EVENT_DIAGNOSTICS_COMPILE_FAILED, EVENT_DIAGNOSTICS_REQUIRES_DSL, EVENT_HISTORY_RENDER_FAILED,
     EVENT_SCAN_TARGET_RESOLVE_FAILED, EVENT_SOCKET_SESSION_COLLECT_FAILED,

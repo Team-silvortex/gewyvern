@@ -8,6 +8,8 @@ use super::sidecar::{
 };
 use super::*;
 
+const SCAN_ALL_PROTOCOL_FLOW_DETAIL_LIMIT: usize = 32;
+
 pub(super) fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
     let analyses = outputs
         .iter()
@@ -22,12 +24,13 @@ pub(super) fn scan_report_json_with_analyses(
 ) -> String {
     let total_targets = outputs.len();
     let (healthy_targets, attention_targets, idle_targets) = scan_target_status_counts(analyses);
+    let flow_limit = scan_report_flow_limit(outputs);
     let estimated_capacity = 160
         + outputs
             .iter()
             .zip(analyses.iter())
             .map(|((name, export), analysis)| {
-                estimate_scan_target_json_capacity(name, export, analysis)
+                estimate_scan_target_json_capacity(name, export, analysis, flow_limit)
             })
             .sum::<usize>();
     let mut json = String::with_capacity(estimated_capacity);
@@ -40,7 +43,7 @@ pub(super) fn scan_report_json_with_analyses(
         if index > 0 {
             json.push(',');
         }
-        append_scan_target_json(&mut json, name, export, analysis);
+        append_scan_target_json(&mut json, name, export, analysis, flow_limit);
     }
     json.push_str("]}");
     json
@@ -51,10 +54,17 @@ pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
         .iter()
         .map(|(_, export)| analysis_snapshot(export))
         .collect::<Vec<_>>();
+    scan_report_html_with_analyses(outputs, &analyses)
+}
+
+pub(super) fn scan_report_html_with_analyses(
+    outputs: &[(String, ExportBundle)],
+    analyses: &[AnalysisSnapshot],
+) -> String {
     let total_targets = outputs.len();
-    let (healthy_targets, attention_targets, idle_targets) = scan_target_status_counts(&analyses);
+    let (healthy_targets, attention_targets, idle_targets) = scan_target_status_counts(analyses);
     let mut family_counts = std::collections::BTreeMap::<String, usize>::new();
-    for analysis in &analyses {
+    for analysis in analyses {
         let family = module_family_label(&analysis.primary_module_kind).to_string();
         *family_counts.entry(family).or_default() += 1;
     }
@@ -67,7 +77,7 @@ pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
         );
     }
     let (mergeable_sidecar_targets, automation_worthy_sidecar_targets, advisory_sidecar_targets) =
-        external_sidecar_rollup_counts(&analyses);
+        external_sidecar_rollup_counts(analyses);
     if mergeable_sidecar_targets > 0 {
         let _ = write!(
             family_summary,
@@ -116,11 +126,12 @@ pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
                 .then_with(|| left_name.cmp(right_name))
         },
     );
+    let flow_limit = scan_report_flow_limit(outputs);
     let mut cards = String::with_capacity(
         sorted_outputs
             .iter()
             .map(|(name, export, analysis)| {
-                estimate_scan_target_html_capacity(name, export, analysis)
+                estimate_scan_target_html_capacity(name, export, analysis, flow_limit)
             })
             .sum::<usize>(),
     );
@@ -128,7 +139,7 @@ pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
         if index > 0 {
             cards.push('\n');
         }
-        append_scan_target_html_card(&mut cards, name, export, analysis);
+        append_scan_target_html_card(&mut cards, name, export, analysis, flow_limit);
     }
     format!(
         "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>gewyvern scan report</title><style>body{{font-family:ui-sans-serif,system-ui,sans-serif;background:#f6f7fb;color:#18202a;margin:0;padding:24px}}h1,h2,h3{{margin:0 0 12px}}.summary{{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 24px}}.summary-note{{margin:-10px 0 24px;color:#475569;font-size:14px}}.pill{{background:#fff;border:1px solid #d8dee9;border-radius:999px;padding:10px 14px;font-size:14px}}.tag{{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}}.family-dns{{background:#dbeafe;color:#1d4ed8}}.family-route{{background:#e0f2fe;color:#0369a1}}.family-connect{{background:#ede9fe;color:#6d28d9}}.family-handshake{{background:#fae8ff;color:#a21caf}}.family-request-response{{background:#dcfce7;color:#166534}}.family-database{{background:#fef3c7;color:#92400e}}.family-auth{{background:#fee2e2;color:#b91c1c}}.family-directory{{background:#ecfccb;color:#3f6212}}.family-messaging{{background:#ffedd5;color:#c2410c}}.family-relay{{background:#d1fae5;color:#047857}}.family-service{{background:#e2e8f0;color:#334155}}.family-general{{background:#f3f4f6;color:#374151}}.stage-dns{{background:#dbeafe;color:#1d4ed8}}.stage-connect{{background:#ede9fe;color:#6d28d9}}.stage-handshake{{background:#fae8ff;color:#a21caf}}.stage-request-response{{background:#dcfce7;color:#166534}}.stage-auth{{background:#fee2e2;color:#b91c1c}}.stage-general{{background:#f3f4f6;color:#374151}}.stage-none{{background:#e5e7eb;color:#6b7280}}.failure-blocked{{background:#fef3c7;color:#92400e}}.failure-timeout{{background:#fee2e2;color:#b91c1c}}.failure-setup{{background:#e0e7ff;color:#4338ca}}.failure-semantic{{background:#ffedd5;color:#c2410c}}.failure-denied{{background:#fce7f3;color:#be185d}}.failure-peer{{background:#d1fae5;color:#047857}}.failure-none{{background:#e5e7eb;color:#6b7280}}.failure-general{{background:#f3f4f6;color:#374151}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}}.card{{background:#fff;border:1px solid #d8dee9;border-radius:16px;padding:0;box-shadow:0 6px 24px rgba(15,23,42,0.06);overflow:hidden}}.card summary{{list-style:none;cursor:pointer;padding:18px}}.card summary::-webkit-details-marker{{display:none}}.card-title p{{margin:0}}.card-body{{padding:0 18px 18px}}.conclusion{{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 0}}.status-attention{{border-color:#f0b429}}.status-healthy{{border-color:#68b984}}.status-idle{{border-color:#cbd5e1}}ul{{padding-left:18px}}li{{margin:6px 0}}</style></head><body><h1>gewyvern Scan Report</h1><div class=\"summary\"><div class=\"pill\">total targets: {}</div><div class=\"pill\">healthy: {}</div><div class=\"pill\">attention: {}</div><div class=\"pill\">idle: {}</div></div><p class=\"summary-note\">attention targets are shown first and expanded by default so the highest-risk paths are easier to inspect.</p><div class=\"summary\">{}</div><div class=\"grid\">{}</div></body></html>",
@@ -150,12 +161,13 @@ pub(super) fn scan_report_text_with_analyses(
 ) -> String {
     let total_targets = outputs.len();
     let (healthy_targets, attention_targets, idle_targets) = scan_target_status_counts(analyses);
+    let flow_limit = scan_report_flow_limit(outputs);
     let estimated_capacity = 96
         + outputs
             .iter()
             .zip(analyses.iter())
             .map(|((name, export), analysis)| {
-                estimate_scan_target_text_capacity(name, export, analysis)
+                estimate_scan_target_text_capacity(name, export, analysis, flow_limit)
             })
             .sum::<usize>();
     let mut text = String::with_capacity(estimated_capacity);
@@ -166,9 +178,17 @@ pub(super) fn scan_report_text_with_analyses(
     );
     for ((name, export), analysis) in outputs.iter().zip(analyses.iter()) {
         text.push('\n');
-        append_scan_target_text(&mut text, name, export, analysis);
+        append_scan_target_text(&mut text, name, export, analysis, flow_limit);
     }
     text
+}
+
+fn scan_report_flow_limit(outputs: &[(String, ExportBundle)]) -> usize {
+    if outputs.len() > 1 {
+        SCAN_ALL_PROTOCOL_FLOW_DETAIL_LIMIT
+    } else {
+        usize::MAX
+    }
 }
 
 pub(super) fn render_scan_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]) -> String {
@@ -192,7 +212,9 @@ pub(super) fn estimate_scan_target_json_capacity(
     name: &str,
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
+    flow_limit: usize,
 ) -> usize {
+    let flow_count = analysis.protocol_flows.len().min(flow_limit);
     256 + name.len()
         + export.template_id.len()
         + analysis.primary_module_kind.len()
@@ -212,7 +234,7 @@ pub(super) fn estimate_scan_target_json_capacity(
             .map(String::len)
             .sum::<usize>()
         + analysis.process_profiles.len() * 320
-        + analysis.protocol_flows.len() * 220
+        + flow_count * 220
         + analysis.augmentations.len() * 180
 }
 
@@ -221,8 +243,11 @@ pub(super) fn append_scan_target_json(
     name: &str,
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
+    flow_limit: usize,
 ) {
     let protocol_surface = protocol_surface_for_target(name);
+    let emitted_protocol_flows = analysis.protocol_flows.len().min(flow_limit);
+    let omitted_protocol_flows = analysis.protocol_flows.len() - emitted_protocol_flows;
     json.push_str("{\"target\":\"");
     json.push_str(name);
     json.push_str("\",\"status\":\"");
@@ -235,9 +260,13 @@ pub(super) fn append_scan_target_json(
     json.push('[');
     append_process_network_profiles_json_from_snapshot(json, analysis);
     json.push(']');
+    json.push_str(",\"protocol_flow_count\":");
+    json.push_str(&analysis.protocol_flows.len().to_string());
+    json.push_str(",\"protocol_flows_omitted\":");
+    json.push_str(&omitted_protocol_flows.to_string());
     json.push_str(",\"protocol_flows\":");
     json.push('[');
-    append_protocol_flow_summaries_json_from_snapshot(json, analysis);
+    append_protocol_flow_summaries_json_limited(json, analysis, emitted_protocol_flows);
     json.push(']');
     append_protocol_surface_json(json, protocol_surface.as_ref());
     json.push('}');
@@ -247,13 +276,15 @@ pub(super) fn estimate_scan_target_text_capacity(
     name: &str,
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
+    flow_limit: usize,
 ) -> usize {
+    let flow_count = analysis.protocol_flows.len().min(flow_limit);
     96 + name.len()
         + export.program_flows.len() * 4
         + export.program_findings.len() * 4
         + export.module_findings.len() * 4
         + analysis.process_profiles.len() * 220
-        + analysis.protocol_flows.len() * 160
+        + flow_count * 160
 }
 
 pub(super) fn append_scan_target_text(
@@ -261,8 +292,11 @@ pub(super) fn append_scan_target_text(
     name: &str,
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
+    flow_limit: usize,
 ) {
     let protocol_surface = protocol_surface_for_target(name);
+    let emitted_protocol_flows = analysis.protocol_flows.len().min(flow_limit);
+    let omitted_protocol_flows = analysis.protocol_flows.len() - emitted_protocol_flows;
     let diagnosis_spine = diagnosis_spine_text(analysis);
     text.push_str(name);
     text.push_str(" status=");
@@ -278,7 +312,11 @@ pub(super) fn append_scan_target_text(
     text.push_str(" profiles=");
     append_process_network_profiles_text_from_snapshot(text, analysis);
     text.push_str(" protocol_flows=");
-    append_protocol_flow_summaries_text_from_snapshot(text, analysis);
+    append_protocol_flow_summaries_text_limited(text, analysis, emitted_protocol_flows);
+    text.push_str(" protocol_flow_count=");
+    text.push_str(&analysis.protocol_flows.len().to_string());
+    text.push_str(" protocol_flows_omitted=");
+    text.push_str(&omitted_protocol_flows.to_string());
     text.push(' ');
     text.push_str(&protocol_surface_text(protocol_surface.as_ref()));
 }
@@ -287,7 +325,9 @@ pub(super) fn estimate_scan_target_html_capacity(
     name: &str,
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
+    flow_limit: usize,
 ) -> usize {
+    let flow_count = analysis.protocol_flows.len().min(flow_limit);
     1400 + name.len()
         + export.ingest_trust_mode.len()
         + export.template_id.len()
@@ -308,7 +348,7 @@ pub(super) fn estimate_scan_target_html_capacity(
             .map(String::len)
             .sum::<usize>()
         + analysis.process_profiles.len() * 360
-        + analysis.protocol_flows.len() * 220
+        + flow_count * 220
         + analysis.augmentations.len() * 140
 }
 
@@ -317,6 +357,7 @@ pub(super) fn append_scan_target_html_card(
     name: &str,
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
+    flow_limit: usize,
 ) {
     let protocol_surface = protocol_surface_for_target(name);
     let status = analysis.target_status.label();
@@ -426,7 +467,9 @@ pub(super) fn append_scan_target_html_card(
         }
     }
     let mut flow_lines = String::new();
-    for flow in &analysis.protocol_flows {
+    let emitted_protocol_flows = analysis.protocol_flows.len().min(flow_limit);
+    let omitted_protocol_flows = analysis.protocol_flows.len() - emitted_protocol_flows;
+    for flow in analysis.protocol_flows.iter().take(emitted_protocol_flows) {
         let phase_text = if flow.phases.is_empty() {
             "none".to_string()
         } else {
@@ -444,6 +487,13 @@ pub(super) fn append_scan_target_html_card(
             html_escape(&flow.failure_confidence),
             html_escape(&flow.failure_basis),
             html_escape(&phase_text),
+        );
+    }
+    if omitted_protocol_flows > 0 {
+        let _ = write!(
+            flow_lines,
+            "<li>{} additional protocol flow summaries omitted from this scan-all report; open the single-target report for full detail.</li>",
+            omitted_protocol_flows
         );
     }
     let _ = write!(

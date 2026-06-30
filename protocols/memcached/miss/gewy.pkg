@@ -1,0 +1,8 @@
+name=memcached_miss
+version=0.18.2
+entry=main.gewy
+register.protocol=memcached
+register.entry=miss
+register.default=false
+register.aliases=memcached-miss,memcached_miss
+register.entry_aliases=not-found,not_found,cache-miss,cache_miss

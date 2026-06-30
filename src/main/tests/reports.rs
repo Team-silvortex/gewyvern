@@ -145,6 +145,8 @@ fn scan_report_json_summarizes_all_targets() {
     assert!(report.contains("\"total_targets\":2"));
     assert!(report.contains("\"healthy_targets\":1"));
     assert!(report.contains("\"attention_targets\":1"));
+    assert!(report.contains("\"protocol_flow_count\":1"));
+    assert!(report.contains("\"protocol_flows_omitted\":0"));
     assert!(report.contains("\"target\":\"scan:http:request\""));
     assert!(report.contains("\"target\":\"scan:http:response\""));
     assert!(report.contains("\"protocol_surface\":{\"protocol\":\"http\""));
@@ -158,6 +160,21 @@ fn scan_report_json_summarizes_all_targets() {
     assert!(report.contains("\"ingest_mode_note\":\"synthetic demo mode: useful for exercising flows and reports, not for real process attribution\""));
     assert!(report.contains("\"ingest_trust_mode\":\"synthetic-demo\""));
     assert!(report.contains("\"pid_attribution_status\":\"synthetic\""));
+}
+
+#[test]
+fn scan_all_reports_compact_large_protocol_flow_details() {
+    let outputs = synthesize_large_scan_outputs(2);
+    let json = scan_report_json(&outputs);
+    assert!(json.contains("\"protocol_flow_count\":256"));
+    assert!(json.contains("\"protocol_flows_omitted\":224"));
+
+    let text = scan_report_text(&outputs);
+    assert!(text.contains("protocol_flow_count=256"));
+    assert!(text.contains("protocol_flows_omitted=224"));
+
+    let html = scan_report_html(&outputs);
+    assert!(html.contains("224 additional protocol flow summaries omitted"));
 }
 
 #[test]

@@ -267,6 +267,26 @@ pub(crate) const PROTOCOL_ALIASES: &[ProtocolAlias] = &[
         entry: Some("get"),
     },
     ProtocolAlias {
+        alias: "memcached-miss",
+        protocol: "memcached",
+        entry: Some("miss"),
+    },
+    ProtocolAlias {
+        alias: "memcached_miss",
+        protocol: "memcached",
+        entry: Some("miss"),
+    },
+    ProtocolAlias {
+        alias: "memcached-not-stored",
+        protocol: "memcached",
+        entry: Some("not-stored"),
+    },
+    ProtocolAlias {
+        alias: "memcached_not_stored",
+        protocol: "memcached",
+        entry: Some("not-stored"),
+    },
+    ProtocolAlias {
         alias: "memcached-set",
         protocol: "memcached",
         entry: Some("set"),

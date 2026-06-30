@@ -1,0 +1,8 @@
+name=cassandra_authenticate
+version=0.18.2
+entry=main.gewy
+register.protocol=cassandra
+register.entry=authenticate
+register.default=false
+register.aliases=cql-authenticate,cql_authenticate,cassandra-authenticate,cassandra_authenticate
+register.entry_aliases=auth-required,auth_required,authenticate-required,authenticate_required

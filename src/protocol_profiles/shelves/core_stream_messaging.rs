@@ -1,7 +1,7 @@
 use super::super::ShelfMatch;
 
 pub(crate) fn kafka_shelf(entry: &str) -> Option<ShelfMatch> {
-    const METADATA: &[&str] = &["metadata"];
+    const METADATA: &[&str] = &["metadata", "api-versions"];
     const STREAM: &[&str] = &["produce", "fetch"];
     if METADATA.contains(&entry) {
         Some((

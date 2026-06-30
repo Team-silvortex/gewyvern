@@ -4,7 +4,7 @@ These are lightweight local baselines for the current ignored benchmark tests.
 They now serve two purposes:
 
 - a practical comparison point for day-to-day optimization work
-- the current release-candidate acceptance baseline for `0.17.x` runtime and
+- the current release-candidate acceptance baseline for `0.18.x` runtime and
   report performance
 
 They are still not a promise that every machine will produce identical
@@ -22,7 +22,7 @@ Measurement notes:
 
 ## Release-Candidate Interpretation
 
-For the active `0.17.x` line, the intended acceptance rule is:
+For the active `0.18.x` line, the intended acceptance rule is:
 
 - compare against the `median`
 - judge regressions on the same developer-class machine, not across unrelated
@@ -68,6 +68,30 @@ Current baselines:
 | `benchmark_scan_report_html_large_protocol_flow_export` | `1049.030` | 10 iterations, 12 targets, 256 flows each |
 | `benchmark_http_transactions_json_large_view` | `155.222` | 200 iterations, 256 synthetic HTTP transactions |
 | `benchmark_http_transactions_text_large_view` | `78.767` | 200 iterations, 256 synthetic HTTP transactions |
+
+## Ubuntu Physical Host Scan-Report Check
+
+Measurement notes:
+
+- date: `2026-06-30`
+- host: `kyuubiki-lab`, Ubuntu 24.04, Linux `6.17.0-35-generic`
+- Rust/Cargo: `1.95.0`
+- method: `bash scripts/perf/benchmark_summary.sh 3 <benchmark-filter>`
+- value to compare first: `median`
+
+These numbers are not interchangeable with the local developer-machine
+baseline above. Use them as the current physical-host reference for scan-report
+hot paths and for checking whether precomputed analysis is being reused.
+
+| Benchmark | Median (ms) | Notes |
+| --- | ---: | --- |
+| `benchmark_analysis_snapshot_large_protocol_flow_export` | `1186.634` | 200 iterations, 256 flows, accumulator-local profile scoring |
+| `benchmark_scan_report_html_large_protocol_flow_export` | `3790.273` | 10 iterations, 12 targets, recomputes analysis, compact scan-all flow details |
+| `benchmark_scan_report_html_precomputed_analysis_large_protocol_flow_export` | `2999.616` | 10 iterations, 12 targets, reuses analysis, compact scan-all flow details |
+| `benchmark_scan_report_json_large_protocol_flow_export` | `29426.387` | 40 iterations, 24 targets, recomputes analysis, compact scan-all flow details |
+| `benchmark_scan_report_json_precomputed_analysis_large_protocol_flow_export` | `23378.290` | 40 iterations, 24 targets, reuses analysis, compact scan-all flow details |
+| `benchmark_scan_report_text_large_protocol_flow_export` | `29153.123` | 40 iterations, 24 targets, recomputes analysis, compact scan-all flow details |
+| `benchmark_scan_report_text_precomputed_analysis_large_protocol_flow_export` | `23219.876` | 40 iterations, 24 targets, reuses analysis, compact scan-all flow details |
 
 Recommended workflow:
 

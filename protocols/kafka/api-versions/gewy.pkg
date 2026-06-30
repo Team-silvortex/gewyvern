@@ -1,0 +1,8 @@
+name=kafka_api_versions
+version=0.18.2
+entry=main.gewy
+register.protocol=kafka
+register.entry=api-versions
+register.default=false
+register.aliases=kafka-api-versions,kafka_api_versions,broker-api-versions,broker_api_versions,api-versions,api_versions
+register.entry_aliases=capabilities,broker-capabilities,version-negotiation,version_negotiation

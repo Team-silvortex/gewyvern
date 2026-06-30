@@ -1,0 +1,27 @@
+# gewyvern stable-subset protocol path
+
+fn memcached_miss_rules() =
+  let module_name = :memcached_miss_path
+  let route_narrative = "static:program resolved an upstream route for this Memcached miss path"
+  let miss_narrative = "static:observed a Memcached binary GET NOT_FOUND response"
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:memcached_miss)
+  |> reason_model(:memcached_miss_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "socket_state_observed:remote:memcached", stage: :socket_state_transition, narrative: "static:program initiated or advanced a Memcached socket state transition", dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "socket_state_observed:remote:memcached:established", stage: :socket_state_transition, narrative: "static:program reached an established Memcached socket state", dedupe: true, module: ${module_name}, phase: :establish)
+  |> program_rule(predicate: "packet_observed:tcp:remote:memcached:remote_to_local:byte0_mask:0xff:0x81:byte_at:1:0xff:0x00:byte_at:6:0xff:0x00:byte_at:7:0xff:0x01", stage: :packet_observed, narrative: ${miss_narrative}, dedupe: true, module: ${module_name}, phase: :receive_not_found)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "socket_state_observed:remote:memcached", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "socket_state_observed:remote:memcached:established", key_event: :state_change, narrative: :tcp_state_transition, dedupe: true, module: ${module_name}, phase: :establish)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:memcached:remote_to_local:byte0_mask:0xff:0x81:byte_at:1:0xff:0x00:byte_at:6:0xff:0x00:byte_at:7:0xff:0x01", key_event: :packet_observed, narrative: ${miss_narrative}, dedupe: true, module: ${module_name}, phase: :receive_not_found)
+
+template(:memcached_miss_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:memcached_miss_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

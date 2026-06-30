@@ -106,7 +106,7 @@ machine-facing protocol surface can also include:
 ## Current Surface Snapshot
 
 - Built-in families: `55`
-- Built-in canonical entries: `293`
+- Built-in canonical entries: `299`
 - Family/default map:
   - `amqp` -> default `session` in cluster `cache-queue-stream` via [docs/book/reference-amqp-surface.md](docs/book/reference-amqp-surface.md)
   - `arp` -> default `request` in cluster `network-control-discovery` via [docs/book/reference-arp-surface.md](docs/book/reference-arp-surface.md)

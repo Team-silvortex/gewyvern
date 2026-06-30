@@ -1,0 +1,22 @@
+# gewyvern stable-subset protocol path
+
+fn mongodb_query_failure_rules() =
+  let module_name = :mongodb_query_failure_path
+  let failure_narrative = "static:observed a legacy MongoDB OP_REPLY QueryFailure response"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:mongodb_query_failure)
+  |> reason_model(:mongodb_query_failure_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_server)
+  |> program_rule(predicate: "packet_observed:tcp:remote:27017:remote_to_local:bytes_at:12:0x01,0x00,0x00,0x00:byte_at:16:0x02:0x02", stage: :packet_observed, narrative: ${failure_narrative}, dedupe: true, module: ${module_name}, phase: :receive_query_failure)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_server)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:27017:remote_to_local:bytes_at:12:0x01,0x00,0x00,0x00:byte_at:16:0x02:0x02", key_event: :packet_observed, narrative: ${failure_narrative}, dedupe: true, module: ${module_name}, phase: :receive_query_failure)
+
+template(:mongodb_query_failure_path)
+|> window(:default_5s)
+|> use(:mongodb_query_failure_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

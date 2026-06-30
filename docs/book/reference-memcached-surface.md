@@ -6,8 +6,8 @@ shelf as stable lookup material instead of a tutorial.
 This shelf groups the current Memcached coverage into two narrower
 operator-facing surfaces:
 
-- key read flow
-- key write flow
+- key read flow, including explicit cache misses
+- key write flow, including explicit not-stored responses
 
 ## What This Shelf Covers
 
@@ -16,7 +16,9 @@ over an established TCP session:
 
 - connect and establish the Memcached socket
 - send `get` and receive a value response
+- observe a binary `get` response with `NOT_FOUND`
 - send `set` and receive a stored response
+- observe a binary `set` response with `NOT_STORED`
 
 Across the subpages, the lookup contract focuses on:
 
@@ -32,8 +34,12 @@ The current registry also accepts these family-level spellings for Memcached
 entry selection:
 
 - `memcached-get`
+- `memcached-miss`
+- `memcached-not-stored`
 - `memcached-set`
 - `memcached_get`
+- `memcached_miss`
+- `memcached_not_stored`
 - `memcached_set`
 
 Default entry: `get`
@@ -48,6 +54,7 @@ Default entry: `get`
 Typical entries:
 
 - `get`
+- `miss`
 
 ### Set
 
@@ -57,6 +64,7 @@ Typical entries:
 Typical entries:
 
 - `set`
+- `not-stored`
 
 ## Reading Order
 

@@ -78,6 +78,10 @@ pub(super) const MONGODB_PROFILE: ProtocolProfile = ProtocolProfile {
             mode: "legacy-query",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mongodb_legacy_query_path.gewy",
         },
+        ProtocolEntryProfile {
+            mode: "query-failure",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mongodb_query_failure_path.gewy",
+        },
     ],
 };
 
@@ -88,6 +92,10 @@ pub(super) const CASSANDRA_PROFILE: ProtocolProfile = ProtocolProfile {
         ProtocolEntryProfile {
             mode: "startup",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/cassandra_startup_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "authenticate",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/cassandra_authenticate_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "query",
@@ -113,8 +121,16 @@ pub(super) const MEMCACHED_PROFILE: ProtocolProfile = ProtocolProfile {
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy",
         },
         ProtocolEntryProfile {
+            mode: "miss",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/memcached_miss_path.gewy",
+        },
+        ProtocolEntryProfile {
             mode: "set",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "not-stored",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/memcached_not_stored_path.gewy",
         },
     ],
 };
@@ -488,6 +504,10 @@ pub(super) const MQTT_PROFILE: ProtocolProfile = ProtocolProfile {
         ProtocolEntryProfile {
             mode: "connect",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "connack",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connack_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "publish",

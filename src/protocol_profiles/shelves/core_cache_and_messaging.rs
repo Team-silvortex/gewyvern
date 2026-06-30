@@ -62,7 +62,7 @@ pub(crate) fn postgres_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn mongodb_shelf(entry: &str) -> Option<ShelfMatch> {
     const COMMAND_REPLY: &[&str] = &["command", "reply"];
-    const LEGACY: &[&str] = &["legacy-query"];
+    const LEGACY: &[&str] = &["legacy-query", "query-failure"];
     if COMMAND_REPLY.contains(&entry) {
         Some((
             "command-reply",
@@ -83,7 +83,7 @@ pub(crate) fn mongodb_shelf(entry: &str) -> Option<ShelfMatch> {
 }
 
 pub(crate) fn cassandra_shelf(entry: &str) -> Option<ShelfMatch> {
-    const SESSION_QUERY: &[&str] = &["startup", "query", "result"];
+    const SESSION_QUERY: &[&str] = &["startup", "authenticate", "query", "result"];
     const ERROR: &[&str] = &["error"];
     if SESSION_QUERY.contains(&entry) {
         Some((
@@ -135,7 +135,7 @@ pub(crate) fn mssql_shelf(entry: &str) -> Option<ShelfMatch> {
 }
 
 pub(crate) fn mqtt_shelf(entry: &str) -> Option<ShelfMatch> {
-    const SESSION: &[&str] = &["session"];
+    const SESSION: &[&str] = &["session", "connack"];
     const PUBSUB: &[&str] = &["publish", "subscribe"];
     const QOS2: &[&str] = &["pubrec", "pubrel", "pubcomp", "disconnect"];
     const CONNECT_ONLY: &[&str] = &["connect"];
@@ -170,8 +170,8 @@ pub(crate) fn mqtt_shelf(entry: &str) -> Option<ShelfMatch> {
 }
 
 pub(crate) fn memcached_shelf(entry: &str) -> Option<ShelfMatch> {
-    const GET: &[&str] = &["get"];
-    const SET: &[&str] = &["set"];
+    const GET: &[&str] = &["get", "miss"];
+    const SET: &[&str] = &["set", "not-stored"];
     if GET.contains(&entry) {
         Some((
             "get",
