@@ -358,6 +358,23 @@ fn cli_reports_python_memory_info_and_can_clear_state() {
     assert!(imported.contains(r#""imported_label_count":1"#));
     assert!(imported.contains(r#""strategy":"merge""#));
 
+    let mut transfer_plan_args = vec![
+        "python-memory-transfer-plan".to_string(),
+        snapshot_path.to_string_lossy().to_string(),
+    ];
+    transfer_plan_args.push("--merge".to_string());
+    transfer_plan_args.extend(default_worker_args());
+    transfer_plan_args.push("--python-state".to_string());
+    transfer_plan_args.push(state_path.to_string_lossy().to_string());
+    let transfer_plan = run_cli(&transfer_plan_args).expect("transfer plan should succeed");
+    assert!(transfer_plan.contains(r#""kind":"etragon_memory_transfer_plan""#));
+    assert!(transfer_plan.contains(r#""dry_run":true"#));
+    assert!(transfer_plan.contains(r#""will_import":false"#));
+    assert!(transfer_plan.contains(r#""strategy":"merge""#));
+    assert!(transfer_plan.contains(r#""compatible":true"#));
+    assert!(transfer_plan.contains(r#""incoming":{"schema_version":1"#));
+    assert!(transfer_plan.contains(r#""overlap_pattern_count":1"#));
+
     let mut analyze_args = vec![
         "analyze-python-json".to_string(),
         path.to_string_lossy().to_string(),

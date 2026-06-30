@@ -43,6 +43,14 @@ fn remote_access_registry_entries_resolve_to_packaged_paths() {
         protocol_dsl_path("rdp", Some("rdp-data")),
         Some(protocol_fixture_path("rdp/channel").to_string())
     );
+    assert_eq!(
+        protocol_dsl_path("rdp", Some("x224-disconnect")),
+        Some(protocol_fixture_path("rdp/denied").to_string())
+    );
+    assert_eq!(
+        protocol_dsl_path("rdp", Some("negotiation-failed")),
+        Some(protocol_fixture_path("rdp/denied").to_string())
+    );
 }
 
 #[test]
@@ -58,6 +66,7 @@ fn remote_access_defaults_shelves_and_semantics_are_stable() {
     let rdp_entries = protocol_entries("rdp").expect("rdp entries should resolve");
     assert!(rdp_entries.contains(&"connect".to_string()));
     assert!(rdp_entries.contains(&"channel".to_string()));
+    assert!(rdp_entries.contains(&"denied".to_string()));
 
     let smb = protocol_surface("smb", "tree").expect("smb tree surface should exist");
     assert_eq!(smb.shelf.expect("smb shelf should exist").key, "share");
@@ -71,6 +80,19 @@ fn remote_access_defaults_shelves_and_semantics_are_stable() {
     assert_eq!(
         rdp.entry_semantics.expect("rdp semantics").category,
         "remote-desktop-channel-path"
+    );
+
+    let denied = protocol_surface("rdp", "denied").expect("rdp denied surface should exist");
+    assert_eq!(
+        denied.shelf.expect("rdp denied shelf should exist").key,
+        "denied"
+    );
+    assert_eq!(
+        denied
+            .entry_semantics
+            .expect("rdp denied semantics")
+            .category,
+        "remote-desktop-denied-path"
     );
 }
 
@@ -101,6 +123,11 @@ fn remote_access_dsl_files_compile_into_expected_operations() {
             dsl_fixture_path("rdp_channel_path.gewy"),
             "rdp_channel_path",
             ProgramOperation::Custom("rdp_channel".into()),
+        ),
+        (
+            dsl_fixture_path("rdp_denied_path.gewy"),
+            "rdp_denied_path",
+            ProgramOperation::Custom("rdp_denied".into()),
         ),
     ];
 
@@ -163,6 +190,26 @@ fn rdp_channel_runtime_path_materializes_desktop_stages() {
             .stages
             .iter()
             .any(|stage| stage.phase.as_deref() == Some("receive_channel_data"))
+    );
+}
+
+#[test]
+fn rdp_denied_runtime_path_materializes_failure_stages() {
+    let export = run_remote_access_path(
+        &dsl_fixture_path("rdp_denied_path.gewy"),
+        3389,
+        &[(0, 0x03), (5, 0xe0)],
+        &[(0, 0x03), (5, 0x80)],
+    );
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("rdp_denied".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_x224_disconnect"))
     );
 }
 

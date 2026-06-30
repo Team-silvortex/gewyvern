@@ -86,4 +86,34 @@ pub(super) const PROTOCOL_ENTRY_ALIASES_REMOTE_ACCESS: &[ProtocolAlias] = &[
         protocol: "rdp",
         entry: Some("channel"),
     },
+    ProtocolAlias {
+        alias: "rdp-denied",
+        protocol: "rdp",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "desktop-denied",
+        protocol: "rdp",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "x224-disconnect",
+        protocol: "rdp",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "negotiation-failed",
+        protocol: "rdp",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "negotiation_failure",
+        protocol: "rdp",
+        entry: Some("denied"),
+    },
+    ProtocolAlias {
+        alias: "rdp-failed",
+        protocol: "rdp",
+        entry: Some("denied"),
+    },
 ];

@@ -38,6 +38,14 @@ pub(super) fn import_python_memory(
     worker.import_memory_with_strategy_json(memory_snapshot_json, strategy)
 }
 
+pub(super) fn plan_python_memory_transfer(
+    memory_snapshot_json: &str,
+    strategy: &str,
+    config: &PythonWorkerConfig,
+) -> Result<String, String> {
+    python_memory_transfer_plan(memory_snapshot_json, strategy, config)
+}
+
 pub(super) fn save_python_memory_slot(
     slot: &str,
     label: Option<&str>,

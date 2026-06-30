@@ -215,6 +215,44 @@ worker declaration. `clear-python-memory` clears the learned pattern memory
 without changing the Rust CLI contract around `analyze-*`, `train-*`, `watch-*`,
 or `serve-*`.
 
+## Memory transfer and rollback
+
+The online learner supports portable, auditable memory transfer. This is
+experience transfer for pattern memory, not a neural checkpoint transfer.
+
+Export the current memory:
+
+```bash
+cargo run -p etragon -- python-memory-snapshot --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json > /tmp/etragon-memory-export.json
+```
+
+Plan a transfer before importing it:
+
+```bash
+cargo run -p etragon -- python-memory-transfer-plan /tmp/etragon-memory-export.json --merge --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+```
+
+The transfer plan is a dry run. It checks schema/model compatibility, the
+selected `replace` or `merge` strategy, current and incoming pattern counts,
+overlapping patterns, new patterns, and conflicting labels. It never changes
+the destination state.
+
+When the plan looks safe, import the snapshot:
+
+```bash
+cargo run -p etragon -- import-python-memory /tmp/etragon-memory-export.json --merge --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+```
+
+Use slots for rollback checkpoints:
+
+```bash
+cargo run -p etragon -- save-python-memory-slot baseline --label baseline-v1 --note "known-good lab state" --source operator --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+
+cargo run -p etragon -- load-python-memory-slot baseline --merge --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+
+cargo run -p etragon -- delete-python-memory-slot baseline --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+```
+
 That dictionary now also exposes a very-light transition policy:
 
 - `compatible_with`

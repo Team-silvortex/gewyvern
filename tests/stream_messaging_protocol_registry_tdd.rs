@@ -52,6 +52,10 @@ fn stream_messaging_registry_entries_resolve_to_packaged_paths() {
         protocol_dsl_path("nats", Some("subject-read")),
         Some(protocol_fixture_path("nats/sub").to_string())
     );
+    assert_eq!(
+        protocol_dsl_path("nats", Some("nats-server-error")),
+        Some(protocol_fixture_path("nats/error").to_string())
+    );
 }
 
 #[test]
@@ -71,6 +75,7 @@ fn stream_messaging_defaults_shelves_and_semantics_are_stable() {
     assert!(nats_entries.contains(&"connect".to_string()));
     assert!(nats_entries.contains(&"pub".to_string()));
     assert!(nats_entries.contains(&"sub".to_string()));
+    assert!(nats_entries.contains(&"error".to_string()));
 
     let kafka = protocol_surface("kafka", "produce").expect("kafka produce surface should exist");
     assert_eq!(kafka.shelf.expect("kafka shelf should exist").key, "stream");
@@ -89,6 +94,19 @@ fn stream_messaging_defaults_shelves_and_semantics_are_stable() {
             .expect("nats semantics should exist")
             .category,
         "message-subscribe-path"
+    );
+
+    let nats_error = protocol_surface("nats", "error").expect("nats error surface should exist");
+    assert_eq!(
+        nats_error.shelf.expect("nats error shelf should exist").key,
+        "error"
+    );
+    assert_eq!(
+        nats_error
+            .entry_semantics
+            .expect("nats error semantics should exist")
+            .category,
+        "failure-path"
     );
 }
 
@@ -124,6 +142,11 @@ fn stream_messaging_dsl_files_compile_into_expected_operations() {
             dsl_fixture_path("nats_sub_path.gewy"),
             "nats_sub_path",
             ProgramOperation::Custom("nats_sub".into()),
+        ),
+        (
+            dsl_fixture_path("nats_error_path.gewy"),
+            "nats_error_path",
+            ProgramOperation::Custom("nats_error".into()),
         ),
     ];
 
@@ -202,6 +225,39 @@ fn nats_sub_runtime_path_materializes_pubsub_stages() {
             .stages
             .iter()
             .any(|stage| stage.phase.as_deref() == Some("receive_message"))
+    );
+}
+
+#[test]
+fn nats_error_runtime_path_materializes_server_error_stage() {
+    let export = run_stream_path(
+        &dsl_fixture_path("nats_error_path.gewy"),
+        4222,
+        &[],
+        &[(0, 0x2d), (1, 0x45), (2, 0x52), (3, 0x52)],
+    );
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("nats_error".into())
+    );
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some("receive_error"))
+    );
+
+    let protocol_ir = export
+        .protocol_ir
+        .iter()
+        .find(|item| item.operation == "nats_error")
+        .expect("nats error should materialize protocol IR");
+    assert_eq!(protocol_ir.protocol, "nats");
+    assert_eq!(protocol_ir.entry, "error");
+    assert_eq!(protocol_ir.shelf_key.as_deref(), Some("error"));
+    assert_eq!(
+        protocol_ir.semantics_category.as_deref(),
+        Some("failure-path")
     );
 }
 

@@ -5,18 +5,21 @@ surface instead of a plain TCP stream.
 
 Default entry: `connect`
 
-Protocol aliases: `nats-connect`, `nats-pub`, `nats-publish`, `nats-session`,
-`nats-sub`, `nats-subscribe`, `nats_connect`, `nats_pub`, `nats_publish`,
-`nats_session`, `nats_sub`, `nats_subscribe`, `subject-read`,
-`subject-write`
+Protocol aliases: `nats-connect`, `nats-error`, `nats-pub`, `nats-publish`,
+`nats-server-error`, `nats-session`, `nats-sub`, `nats-subscribe`,
+`nats_connect`, `nats_error`, `nats_pub`, `nats_publish`,
+`nats_server_error`, `nats_session`, `nats_sub`, `nats_subscribe`,
+`protocol-error`, `protocol_error`, `server-error`, `server_error`,
+`subject-read`, `subject-write`
 
 ## What This Shelf Covers
 
-The current NATS family models three text-command paths on TCP port `4222`:
+The current NATS family models four text-command paths on TCP port `4222`:
 
 - server `INFO` and client `CONNECT`
 - subject publish through `PUB`
 - subject subscription and delivery through `SUB` and `MSG`
+- server-side protocol or authorization errors through `-ERR`
 
 ## NATS Surface Map
 
@@ -38,6 +41,15 @@ Typical entries:
 
 - `pub`
 - `sub`
+
+### Error
+
+- [docs/book/reference-nats-error-surface.md](docs/book/reference-nats-error-surface.md)
+  Server-side protocol, authorization, or parser rejection.
+
+Typical entries:
+
+- `error`
 
 ## Reading Order
 

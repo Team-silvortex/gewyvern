@@ -93,6 +93,7 @@ pub(crate) fn smb_shelf(entry: &str) -> Option<ShelfMatch> {
 pub(crate) fn rdp_shelf(entry: &str) -> Option<ShelfMatch> {
     const CONNECT: &[&str] = &["connect"];
     const CHANNEL: &[&str] = &["channel"];
+    const DENIED: &[&str] = &["denied"];
     if CONNECT.contains(&entry) {
         Some((
             "connect",
@@ -106,6 +107,13 @@ pub(crate) fn rdp_shelf(entry: &str) -> Option<ShelfMatch> {
             "Channel",
             "docs/book/reference-rdp-channel-surface.md",
             CHANNEL,
+        ))
+    } else if DENIED.contains(&entry) {
+        Some((
+            "denied",
+            "Denied",
+            "docs/book/reference-rdp-denied-surface.md",
+            DENIED,
         ))
     } else {
         None

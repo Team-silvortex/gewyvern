@@ -1,0 +1,7 @@
+name=tls_certificate
+version=0.18.2
+entry=main.gewy
+register.protocol=tls
+register.entry=certificate
+register.default=false
+register.entry_aliases=cert,cert-chain,certificate-chain,x509,x509-chain,tls-certificate,tls_certificate,ssl-certificate,ssl_certificate

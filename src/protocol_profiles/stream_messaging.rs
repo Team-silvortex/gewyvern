@@ -35,5 +35,9 @@ pub(super) const NATS_PROFILE: ProtocolProfile = ProtocolProfile {
             mode: "sub",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/nats_sub_path.gewy",
         },
+        ProtocolEntryProfile {
+            mode: "error",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/nats_error_path.gewy",
+        },
     ],
 };

@@ -89,6 +89,42 @@ pub(super) fn websocket_entry_semantics(entry: &str) -> Option<ProtocolEntrySema
     }
 }
 
+pub(super) fn tls_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    match entry {
+        "client" => summary(
+            "tls-client-path",
+            "client-side TLS handshake posture and outbound secure transport setup",
+            Some("ClientHello-oriented TCP stream"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "server" => summary(
+            "tls-server-path",
+            "server-side TLS accept path and inbound secure transport setup",
+            Some("ServerHello-oriented TCP stream"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "alert" => failure(
+            "TLS alert record observed during secure transport negotiation or shutdown",
+            Some("TLS record content type 0x15"),
+            Some("peer_or_local_alert"),
+            Some("tls_alert"),
+        ),
+        "certificate" => summary(
+            "tls-certificate-path",
+            "plaintext TLS certificate handshake message carrying peer identity material",
+            Some("TLS handshake message type 0x0b"),
+            Some("certificate_not_visible"),
+            Some("encrypted_tls13_or_fragmented_record"),
+            Some("protocol_entry_signal"),
+        ),
+        _ => None,
+    }
+}
+
 pub(super) fn graphql_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     match entry {
         "query" => summary(
@@ -155,8 +191,23 @@ pub(super) fn rdp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsS
             "RDP data TPDU channel traffic after desktop session setup",
             Some("X.224 data TPDU"),
         ),
+        "denied" => (
+            "remote-desktop-denied-path",
+            "RDP connection attempt ended by X.224 disconnect or negotiation failure",
+            Some("X.224 disconnect or negotiation failure"),
+        ),
         _ => return None,
     };
+    if entry == "denied" {
+        return summary(
+            category,
+            operator_focus,
+            typical_signal,
+            Some("server_denied"),
+            Some("rdp_negotiation_failed"),
+            Some("direct_protocol_signal"),
+        );
+    }
     summary(category, operator_focus, typical_signal, None, None, None)
 }
 

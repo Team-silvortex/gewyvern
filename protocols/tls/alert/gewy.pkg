@@ -1,0 +1,7 @@
+name=tls_alert
+version=0.18.2
+entry=main.gewy
+register.protocol=tls
+register.entry=alert
+register.default=false
+register.entry_aliases=failure,close-notify,handshake-alert,alert-record,tls-alert,tls_alert,ssl-alert,ssl_alert

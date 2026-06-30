@@ -1,0 +1,22 @@
+# gewyvern stable-subset protocol path
+
+fn rdp_denied_rules() =
+  let module_name = :rdp_denied_path
+  let narrative = "static:observed RDP X.224 disconnect or negotiation failure on TCP port 3389"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:rdp_denied)
+  |> reason_model(:rdp_denied_path_reason)
+  |> program_model(:rdp_denied_path_model)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_desktop_host)
+  |> program_rule(predicate: "packet_observed:tcp:remote:rdp:local_to_remote:byte_at:0:0xff:0x03:byte_at:5:0xff:0xe0", stage: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :send_x224_connect)
+  |> program_rule(predicate: "packet_observed:tcp:remote:rdp:remote_to_local:byte_at:0:0xff:0x03:byte_at:5:0xff:0x80", stage: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :receive_x224_disconnect)
+  |> program_rule(predicate: "packet_observed:tcp:remote:rdp:remote_to_local:byte_at:0:0xff:0x03:byte_at:11:0xff:0x03", stage: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :receive_negotiation_failure)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_desktop_host)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:rdp:remote_to_local:byte_at:0:0xff:0x03:byte_at:5:0xff:0x80", key_event: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :receive_x224_disconnect)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:rdp:remote_to_local:byte_at:0:0xff:0x03:byte_at:11:0xff:0x03", key_event: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :receive_negotiation_failure)
+
+template(:rdp_denied_path)
+|> window(:default_5s)
+|> use(:rdp_denied_rules)

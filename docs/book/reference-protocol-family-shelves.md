@@ -280,6 +280,7 @@ Then continue with:
 - Hub:
   [docs/book/reference-nats-surface.md](docs/book/reference-nats-surface.md)
 - Subpages:
+  - [docs/book/reference-nats-error-surface.md](docs/book/reference-nats-error-surface.md)
   - [docs/book/reference-nats-pubsub-surface.md](docs/book/reference-nats-pubsub-surface.md)
   - [docs/book/reference-nats-session-surface.md](docs/book/reference-nats-session-surface.md)
 
@@ -386,6 +387,7 @@ Then continue with:
 - Subpages:
   - [docs/book/reference-rdp-channel-surface.md](docs/book/reference-rdp-channel-surface.md)
   - [docs/book/reference-rdp-connect-surface.md](docs/book/reference-rdp-connect-surface.md)
+  - [docs/book/reference-rdp-denied-surface.md](docs/book/reference-rdp-denied-surface.md)
 
 ### RTSP
 
@@ -415,6 +417,7 @@ Then continue with:
 - Hub:
   [docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md)
 - Subpages:
+  - [docs/book/reference-dns-error-surface.md](docs/book/reference-dns-error-surface.md)
   - [docs/book/reference-dns-tcp-surface.md](docs/book/reference-dns-tcp-surface.md)
   - [docs/book/reference-dns-udp-surface.md](docs/book/reference-dns-udp-surface.md)
 
@@ -451,6 +454,7 @@ Then continue with:
 - Subpages:
   - [docs/book/reference-tls-client-surface.md](docs/book/reference-tls-client-surface.md)
   - [docs/book/reference-tls-server-surface.md](docs/book/reference-tls-server-surface.md)
+  - [docs/book/reference-tls-signal-surface.md](docs/book/reference-tls-signal-surface.md)
 
 ### WireGuard
 
@@ -520,7 +524,6 @@ When adding a new family shelf, prefer this shape:
 
 This keeps the protocol-family reference shelves uniform without forcing the
 top-level book pages to grow every time a new family is added.
-
 ## Current Coverage
 
 The first high-yield family shelves are now in place for:
@@ -593,6 +596,5 @@ now, unless their entry count or operator ambiguity grows:
 - three-entry families such as `kerberos` and `hy2`,
   unless a user-facing workflow starts depending on them heavily
 
-Those smaller families are still covered by
-[docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md);
-they just do not yet justify their own mini-shelf in the book.
+Those smaller families remain covered by
+[docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md).

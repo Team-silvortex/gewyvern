@@ -4,3 +4,4 @@ entry=main.gewy
 register.protocol=dns
 register.entry=tcp
 register.default=false
+register.entry_aliases=dns-tcp,dns_tcp,dot,dns-over-tls,dns_over_tls

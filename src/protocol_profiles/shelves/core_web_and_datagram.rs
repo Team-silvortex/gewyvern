@@ -2,6 +2,7 @@ use super::super::ShelfMatch;
 pub(crate) fn dns_shelf(entry: &str) -> Option<ShelfMatch> {
     const UDP: &[&str] = &["udp"];
     const TCP: &[&str] = &["tcp"];
+    const ERROR: &[&str] = &["error", "tcp-error"];
     if UDP.contains(&entry) {
         Some((
             "udp",
@@ -15,6 +16,13 @@ pub(crate) fn dns_shelf(entry: &str) -> Option<ShelfMatch> {
             "TCP Query",
             "docs/book/reference-dns-tcp-surface.md",
             TCP,
+        ))
+    } else if ERROR.contains(&entry) {
+        Some((
+            "error",
+            "Error Response",
+            "docs/book/reference-dns-error-surface.md",
+            ERROR,
         ))
     } else {
         None
@@ -114,6 +122,7 @@ pub(crate) fn hy2_shelf(entry: &str) -> Option<ShelfMatch> {
 pub(crate) fn tls_shelf(entry: &str) -> Option<ShelfMatch> {
     const CLIENT: &[&str] = &["client"];
     const SERVER: &[&str] = &["server"];
+    const SIGNALS: &[&str] = &["alert", "certificate"];
     if CLIENT.contains(&entry) {
         Some((
             "client",
@@ -127,6 +136,13 @@ pub(crate) fn tls_shelf(entry: &str) -> Option<ShelfMatch> {
             "Server",
             "docs/book/reference-tls-server-surface.md",
             SERVER,
+        ))
+    } else if SIGNALS.contains(&entry) {
+        Some((
+            "handshake-signal",
+            "Handshake Signals",
+            "docs/book/reference-tls-signal-surface.md",
+            SIGNALS,
         ))
     } else {
         None

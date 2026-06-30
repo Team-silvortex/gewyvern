@@ -25,6 +25,7 @@ pub(crate) fn kafka_shelf(entry: &str) -> Option<ShelfMatch> {
 pub(crate) fn nats_shelf(entry: &str) -> Option<ShelfMatch> {
     const SESSION: &[&str] = &["connect"];
     const PUBSUB: &[&str] = &["pub", "sub"];
+    const ERROR: &[&str] = &["error"];
     if SESSION.contains(&entry) {
         Some((
             "session",
@@ -38,6 +39,13 @@ pub(crate) fn nats_shelf(entry: &str) -> Option<ShelfMatch> {
             "Publish And Subscribe",
             "docs/book/reference-nats-pubsub-surface.md",
             PUBSUB,
+        ))
+    } else if ERROR.contains(&entry) {
+        Some((
+            "error",
+            "Error",
+            "docs/book/reference-nats-error-surface.md",
+            ERROR,
         ))
     } else {
         None

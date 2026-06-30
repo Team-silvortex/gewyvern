@@ -43,6 +43,14 @@ pub(super) const TLS_PROFILE: ProtocolProfile = ProtocolProfile {
             mode: "server",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/tls_server_path.gewy",
         },
+        ProtocolEntryProfile {
+            mode: "alert",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/tls_alert_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "certificate",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/tls_certificate_path.gewy",
+        },
     ],
 };
 

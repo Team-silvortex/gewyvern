@@ -1,0 +1,6 @@
+name=nats_error
+version=0.17.0
+entry=main.gewy
+register.protocol=nats
+register.entry=error
+register.aliases=nats-error,nats_error,nats-server-error,nats_server_error,server-error,server_error,protocol-error,protocol_error

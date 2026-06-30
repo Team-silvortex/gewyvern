@@ -30,6 +30,7 @@ mod federation;
 mod json_support;
 mod learning_hints;
 mod learning_output;
+mod memory_transfer;
 mod recommendation;
 
 use cli_commands::*;
@@ -47,6 +48,7 @@ use federation::*;
 use json_support::*;
 use learning_hints::*;
 use learning_output::*;
+use memory_transfer::*;
 use recommendation::*;
 
 fn main() {

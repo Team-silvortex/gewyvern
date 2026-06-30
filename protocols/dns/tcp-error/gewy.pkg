@@ -1,0 +1,7 @@
+name=dns_tcp_error
+version=0.18.2
+entry=main.gewy
+register.protocol=dns
+register.entry=tcp-error
+register.default=false
+register.entry_aliases=dns-tcp-error,dns_tcp_error,tcp-nxdomain,tcp-servfail,tcp-refused,tcp-formerr

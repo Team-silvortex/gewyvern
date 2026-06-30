@@ -17,6 +17,76 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES_MANIFEST: &[ProtocolAlias] = &[
         entry: Some("tcp"),
     },
     ProtocolAlias {
+        alias: "dns-error",
+        protocol: "dns",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "dns_error",
+        protocol: "dns",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "nxdomain",
+        protocol: "dns",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "servfail",
+        protocol: "dns",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "refused",
+        protocol: "dns",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "formerr",
+        protocol: "dns",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "resolution-failed",
+        protocol: "dns",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "resolution_failed",
+        protocol: "dns",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "dns-tcp-error",
+        protocol: "dns",
+        entry: Some("tcp-error"),
+    },
+    ProtocolAlias {
+        alias: "dns_tcp_error",
+        protocol: "dns",
+        entry: Some("tcp-error"),
+    },
+    ProtocolAlias {
+        alias: "tcp-nxdomain",
+        protocol: "dns",
+        entry: Some("tcp-error"),
+    },
+    ProtocolAlias {
+        alias: "tcp-servfail",
+        protocol: "dns",
+        entry: Some("tcp-error"),
+    },
+    ProtocolAlias {
+        alias: "tcp-refused",
+        protocol: "dns",
+        entry: Some("tcp-error"),
+    },
+    ProtocolAlias {
+        alias: "tcp-formerr",
+        protocol: "dns",
+        entry: Some("tcp-error"),
+    },
+    ProtocolAlias {
         alias: "doh",
         protocol: "http",
         entry: Some("request"),

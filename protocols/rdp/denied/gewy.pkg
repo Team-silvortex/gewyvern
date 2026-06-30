@@ -1,0 +1,7 @@
+name=rdp_denied
+version=0.18.2
+entry=main.gewy
+register.protocol=rdp
+register.entry=denied
+register.default=false
+register.entry_aliases=rdp-denied,desktop-denied,x224-disconnect,negotiation-failed,negotiation_failure,rdp-failed

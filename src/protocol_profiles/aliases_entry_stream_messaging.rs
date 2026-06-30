@@ -141,4 +141,44 @@ pub(super) const PROTOCOL_ENTRY_ALIASES_STREAM_MESSAGING: &[ProtocolAlias] = &[
         protocol: "nats",
         entry: Some("sub"),
     },
+    ProtocolAlias {
+        alias: "nats-error",
+        protocol: "nats",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "nats_error",
+        protocol: "nats",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "nats-server-error",
+        protocol: "nats",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "nats_server_error",
+        protocol: "nats",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "server-error",
+        protocol: "nats",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "server_error",
+        protocol: "nats",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "protocol-error",
+        protocol: "nats",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "protocol_error",
+        protocol: "nats",
+        entry: Some("error"),
+    },
 ];

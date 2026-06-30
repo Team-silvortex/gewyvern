@@ -23,6 +23,44 @@ pub(super) fn arp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsS
     )
 }
 
+pub(super) fn dns_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    match entry {
+        "udp" => summary(
+            "name-resolution-path",
+            "UDP DNS lookup request and response posture on the resolver path",
+            Some("UDP DNS query and response"),
+            None,
+            None,
+            None,
+        ),
+        "tcp" => summary(
+            "name-resolution-path",
+            "TCP-carried DNS query and response posture for stream-based resolver paths",
+            Some("TCP DNS query with two-byte length prefix"),
+            None,
+            None,
+            None,
+        ),
+        "error" => summary(
+            "name-resolution-error",
+            "UDP DNS resolver response carrying FORMERR, SERVFAIL, NXDOMAIN, or REFUSED",
+            Some("DNS QR response with non-zero rcode"),
+            Some("name_resolution_failed"),
+            Some("dns_error_rcode"),
+            Some("direct_protocol_signal"),
+        ),
+        "tcp-error" => summary(
+            "name-resolution-error",
+            "TCP-carried DNS resolver response carrying FORMERR, SERVFAIL, NXDOMAIN, or REFUSED",
+            Some("TCP DNS QR response with non-zero rcode"),
+            Some("name_resolution_failed"),
+            Some("dns_tcp_error_rcode"),
+            Some("direct_protocol_signal"),
+        ),
+        _ => None,
+    }
+}
+
 pub(super) fn ndp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     let (operator_focus, typical_signal) = match entry {
         "solicit" => (

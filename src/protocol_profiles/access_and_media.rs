@@ -116,6 +116,10 @@ pub(super) const RDP_PROFILE: ProtocolProfile = ProtocolProfile {
             mode: "channel",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rdp_channel_path.gewy",
         },
+        ProtocolEntryProfile {
+            mode: "denied",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rdp_denied_path.gewy",
+        },
     ],
 };
 

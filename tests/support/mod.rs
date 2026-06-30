@@ -14,5 +14,6 @@ use std::time::{Duration, SystemTime};
 mod part_001;
 #[path = "facts/part_002.rs"]
 mod part_002;
+#[allow(unused_imports)]
 pub use part_001::*;
 pub use part_002::*;

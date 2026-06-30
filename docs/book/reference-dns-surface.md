@@ -8,6 +8,7 @@ surfaces:
 
 - UDP lookup flow
 - TCP query flow
+- DNS error response flows
 
 ## What This Shelf Covers
 
@@ -17,12 +18,14 @@ coarse lookup conversation:
 - bind the process and resolve the upstream route
 - send a DNS query
 - receive a DNS response
+- recognize common DNS failure response codes
 
 Across the subpages, the lookup contract focuses on:
 
 - canonical entry names
 - accepted aliases
 - transport-specific lookup posture
+- resolver error response posture
 - operator reading order
 - validation and lowering posture
 
@@ -57,13 +60,24 @@ Typical entries:
 
 - `tcp`
 
+### Error
+
+- [docs/book/reference-dns-error-surface.md](docs/book/reference-dns-error-surface.md)
+  UDP and TCP resolver failure responses such as `NXDOMAIN`, `SERVFAIL`,
+  `REFUSED`, and `FORMERR`.
+
+Typical entries:
+
+- `error`
+- `tcp-error`
+
 ## Reading Order
 
 If you are validating current DNS support, the shortest useful order is:
 
 1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
 2. [docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md)
-3. the UDP or TCP subpage
+3. the UDP, TCP, or error subpage
 4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Next Useful Checks

@@ -1,0 +1,7 @@
+name=dns_error
+version=0.18.2
+entry=main.gewy
+register.protocol=dns
+register.entry=error
+register.default=false
+register.entry_aliases=dns-error,dns_error,nxdomain,servfail,refused,formerr,resolution-failed,resolution_failed

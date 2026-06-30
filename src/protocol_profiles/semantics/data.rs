@@ -330,6 +330,14 @@ pub(super) fn nats_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
             "NATS SUB command and MSG delivery",
             Some("SUB / MSG"),
         ),
+        "error" => {
+            return failure(
+                "NATS server-side protocol or authorization error",
+                Some("-ERR"),
+                Some("semantic_error"),
+                Some("protocol_error"),
+            );
+        }
         _ => return None,
     };
     summary(

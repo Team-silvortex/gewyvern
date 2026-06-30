@@ -12,6 +12,14 @@ pub(super) const DNS_PROFILE: ProtocolProfile = ProtocolProfile {
             mode: "tcp",
             dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_query_path.gewy",
         },
+        ProtocolEntryProfile {
+            mode: "error",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/dns_error_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "tcp-error",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/dns_tcp_error_path.gewy",
+        },
     ],
 };
 

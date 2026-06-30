@@ -73,7 +73,9 @@ Default entry: `udp`
 Protocol aliases: none
 Entry aliases:
 - `udp` (default): none
+- `error`: `dns-error`, `dns_error`, `formerr`, `nxdomain`, `refused`, `resolution-failed`, `resolution_failed`, `servfail`
 - `tcp`: `dns-over-tls`, `dns-tcp`, `dns_over_tls`, `dns_tcp`, `dot`
+- `tcp-error`: `dns-tcp-error`, `dns_tcp_error`, `tcp-formerr`, `tcp-nxdomain`, `tcp-refused`, `tcp-servfail`
 
 ## `ftp`
 
@@ -314,9 +316,10 @@ Entry aliases:
 ## `nats`
 
 Default entry: `connect`
-Protocol aliases: `nats-connect`, `nats-pub`, `nats-publish`, `nats-session`, `nats-sub`, `nats-subscribe`, `nats_connect`, `nats_pub`, `nats_publish`, `nats_session`, `nats_sub`, `nats_subscribe`, `subject-read`, `subject-write`
+Protocol aliases: `nats-connect`, `nats-error`, `nats-pub`, `nats-publish`, `nats-server-error`, `nats-session`, `nats-sub`, `nats-subscribe`, `nats_connect`, `nats_error`, `nats_pub`, `nats_publish`, `nats_server_error`, `nats_session`, `nats_sub`, `nats_subscribe`, `protocol-error`, `protocol_error`, `server-error`, `server_error`, `subject-read`, `subject-write`
 Entry aliases:
 - `connect` (default): `nats-connect`, `nats-session`, `nats_connect`, `nats_session`
+- `error`: `nats-error`, `nats-server-error`, `nats_error`, `nats_server_error`, `protocol-error`, `protocol_error`, `server-error`, `server_error`
 - `pub`: `nats-pub`, `nats-publish`, `nats_pub`, `nats_publish`, `subject-write`
 - `sub`: `nats-sub`, `nats-subscribe`, `nats_sub`, `nats_subscribe`, `subject-read`
 
@@ -403,6 +406,7 @@ Protocol aliases: `desktop-channel`, `desktop-connect`, `rdp-channel`, `rdp-conn
 Entry aliases:
 - `connect` (default): `desktop-connect`, `rdp-connect`, `x224-connect`
 - `channel`: `desktop-channel`, `rdp-channel`, `rdp-data`
+- `denied`: `desktop-denied`, `negotiation-failed`, `negotiation_failure`, `rdp-denied`, `rdp-failed`, `x224-disconnect`
 
 ## `redis`
 
@@ -599,6 +603,8 @@ Default entry: `client`
 Protocol aliases: none
 Entry aliases:
 - `client` (default): `initiator`, `tls-client`, `tls_client`
+- `alert`: `alert-record`, `close-notify`, `failure`, `handshake-alert`, `ssl-alert`, `ssl_alert`, `tls-alert`, `tls_alert`
+- `certificate`: `cert`, `cert-chain`, `certificate-chain`, `ssl-certificate`, `ssl_certificate`, `tls-certificate`, `tls_certificate`, `x509`, `x509-chain`
 - `server`: `acceptor`, `tls-server`, `tls_server`
 
 ## `vxlan`

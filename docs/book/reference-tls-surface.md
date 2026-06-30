@@ -7,7 +7,7 @@ Use it for:
 
 - `tls` family lookup
 - default entry selection for `client`
-- choosing between client and server handshake posture
+- choosing between client, server, alert, and certificate handshake posture
 - keeping generic handshake/client posture separate from HTTPS, IMAP, or other
   application overlays
 - using `reading_companions` to decide whether the next shelf is `https
@@ -17,24 +17,40 @@ Current canonical entries:
 
 - `client` as the default entry
 - `server`
+- `alert`
+- `certificate`
 
 Default entry: `client`
 
-The current line now splits TLS into two narrower handshake-facing shelves:
+The current line now splits TLS into role shelves plus a signal shelf:
 
 - [docs/book/reference-tls-client-surface.md](docs/book/reference-tls-client-surface.md)
   for outbound/client-initiated setup
 - [docs/book/reference-tls-server-surface.md](docs/book/reference-tls-server-surface.md)
   for inbound/server-side accept-and-reply posture
+- [docs/book/reference-tls-signal-surface.md](docs/book/reference-tls-signal-surface.md)
+  for alert records and plaintext certificate handshake signals
 
 Protocol aliases: none.
 
 Entry aliases now include:
 
+- `alert`:
+  `alert-record`, `close-notify`, `failure`, `handshake-alert`, `ssl-alert`,
+  `ssl_alert`, `tls-alert`, `tls_alert`
+- `certificate`:
+  `cert`, `cert-chain`, `certificate-chain`, `ssl-certificate`,
+  `ssl_certificate`, `tls-certificate`, `tls_certificate`, `x509`, `x509-chain`
 - `client`:
   `initiator`, `tls-client`, `tls_client`
 - `server`:
   `acceptor`, `tls-server`, `tls_server`
+
+TLS signal entries intentionally stay byte-stable. `alert` follows TLS record
+content type `0x15`; `certificate` follows plaintext handshake message type
+`0x0b` behind a TLS handshake record. Modern TLS can encrypt or fragment
+certificate material, so a missing certificate signal is not proof that no
+certificate was exchanged.
 
 Read in this order:
 
