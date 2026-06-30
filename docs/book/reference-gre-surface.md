@@ -6,9 +6,9 @@ normal TCP or UDP application session.
 
 Read this alongside:
 
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-gre-tunnel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gre-tunnel-surface.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-gre-tunnel-surface.md](docs/book/reference-gre-tunnel-surface.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Entries
 

@@ -39,7 +39,7 @@ The current entry records the coarse teardown exchange shape. It does not try
 to model every dialog-state nuance around the final response.
 
 For the broader family map, see
-[docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md).
+[docs/book/reference-sip-surface.md](docs/book/reference-sip-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

@@ -7,9 +7,9 @@ It explains how the book itself should stay organized as the project grows.
 
 Read this alongside:
 
-- [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
-- [docs/book/conventions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/conventions.md)
-- [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
+- [docs/book/index.md](docs/book/index.md)
+- [docs/book/conventions.md](docs/book/conventions.md)
+- [docs/documentation-system.md](docs/documentation-system.md)
 
 ## Why This Page Exists
 

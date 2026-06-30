@@ -1,0 +1,8 @@
+name=grpc_stream
+version=0.18.2
+entry=main.gewy
+register.protocol=grpc
+register.entry=stream
+register.default=false
+register.aliases=grpc-stream,grpc-bidi,grpc_stream,grpc_bidi
+register.entry_aliases=streaming,bidi,server-stream,client-stream

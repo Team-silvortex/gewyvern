@@ -47,7 +47,7 @@ Default entry: `ping`
 
 ### Key-Value And Session
 
-- [docs/book/reference-redis-kv-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-kv-surface.md)
+- [docs/book/reference-redis-kv-surface.md](docs/book/reference-redis-kv-surface.md)
   Session, ping, single-key read/write, counters, multi-key reads/writes,
   existence checks, delete, and TTL control.
 
@@ -69,7 +69,7 @@ Typical entries:
 
 ### Hash
 
-- [docs/book/reference-redis-hash-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-hash-surface.md)
+- [docs/book/reference-redis-hash-surface.md](docs/book/reference-redis-hash-surface.md)
   Single-field and multi-field hash operations.
 
 Typical entries:
@@ -81,7 +81,7 @@ Typical entries:
 
 ### Publish And Subscribe
 
-- [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md)
+- [docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md)
   Channel publish and subscribe flow, kept on the family hub until a narrower
   pub/sub subpage is warranted.
 
@@ -92,7 +92,7 @@ Typical entries:
 
 ### Set
 
-- [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md)
+- [docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md)
   Set member addition and full member listing, kept on the family hub until a
   narrower set subpage is warranted.
 
@@ -103,7 +103,7 @@ Typical entries:
 
 ### List
 
-- [docs/book/reference-redis-list-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-list-surface.md)
+- [docs/book/reference-redis-list-surface.md](docs/book/reference-redis-list-surface.md)
   Left/right push-pop flows, blocking variants, move flows, and multi-pop.
 
 Typical entries:
@@ -123,7 +123,7 @@ Typical entries:
 
 ### Sorted Set
 
-- [docs/book/reference-redis-sorted-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-sorted-set-surface.md)
+- [docs/book/reference-redis-sorted-set-surface.md](docs/book/reference-redis-sorted-set-surface.md)
   Score mutation, score lookup, ranked reads, and pop/multi-pop flows.
 
 Typical entries:
@@ -148,7 +148,7 @@ Typical entries:
 
 ### Stream
 
-- [docs/book/reference-redis-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-stream-surface.md)
+- [docs/book/reference-redis-stream-surface.md](docs/book/reference-redis-stream-surface.md)
   Append/read flow, group management, pending inspection, consumer reads,
   claim/takeover, and stream metadata inspection.
 
@@ -167,7 +167,7 @@ Typical entries:
 
 ### Failure And Control Signals
 
-- [docs/book/reference-redis-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-failure-semantics.md)
+- [docs/book/reference-redis-failure-semantics.md](docs/book/reference-redis-failure-semantics.md)
   Explicit auth, denial, command-error, and wrong-type paths for operator
   diagnosis.
 
@@ -183,10 +183,10 @@ Typical entries:
 If you are checking current Redis capability coverage, the shortest useful
 order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md)
 3. one narrower Redis subpage for the command family you care about
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Stability Note
 

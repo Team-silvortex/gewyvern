@@ -1,6 +1,6 @@
 use super::data_api::{
-    ApiRenderedTarget, ApiSnapshot, api_response_for_request, api_snapshot_meta_json,
-    update_api_snapshot_for_scan, update_api_snapshot_for_single,
+    ApiRenderedTarget, ApiSnapshot, ApiTargetSnapshot, api_response_for_request,
+    api_snapshot_meta_json, update_api_snapshot_for_scan, update_api_snapshot_for_single,
 };
 use super::external_analysis::{ExternalAnalysisConfig, set_external_analysis_config, test_guard};
 use super::helpers::process_matches_pid;
@@ -10,10 +10,10 @@ use super::{
     filter_export_by_pid, findings_json, findings_json_with_analysis, http_transactions_json,
     http_transactions_text, list_entries_json, list_entries_text, list_protocols_json,
     list_protocols_text, protocol_dsl_path, push_analysis_augmentation,
-    render_debugger_console_outputs, render_report_outputs, route_fact, run_binding_demo,
-    scan_report_html, scan_report_json, scan_report_text, scan_targets_for_cli, summary_json,
-    summary_line, training_example_json, training_example_json_array,
-    training_example_json_with_analysis,
+    render_debug_session_outputs, render_debugger_console_outputs, render_report_outputs,
+    route_fact, run_binding_demo, scan_report_html, scan_report_json, scan_report_text,
+    scan_targets_for_cli, summary_json, summary_line, training_example_json,
+    training_example_json_array, training_example_json_with_analysis,
 };
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;

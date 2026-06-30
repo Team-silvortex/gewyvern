@@ -1,0 +1,29 @@
+# gewyvern stable-subset protocol path
+
+fn graphql_subscription_rules() =
+  let module_name = :graphql_subscription_path
+  let upgrade_narrative = "static:observed a GraphQL subscription upgrade or streaming setup path"
+  let frame_narrative = "static:observed a GraphQL subscription payload frame after setup"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:graphql_subscription)
+  |> reason_model(:graphql_subscription_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_endpoint)
+  |> program_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", stage: :packet_observed, narrative: ${upgrade_narrative}, dedupe: true, module: ${module_name}, phase: :send_subscription_upgrade)
+  |> program_rule(predicate: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450:byte_at:9:0xff:0x31:byte_at:10:0xff:0x30:byte_at:11:0xff:0x31", stage: :packet_observed, narrative: ${upgrade_narrative}, dedupe: true, module: ${module_name}, phase: :receive_subscription_upgrade)
+  |> program_rule(predicate: "packet_observed:tcp:local_to_remote:byte_at:0:0x0f:0x01", stage: :packet_observed, narrative: ${frame_narrative}, dedupe: true, module: ${module_name}, phase: :send_subscription_frame)
+  |> program_rule(predicate: "packet_observed:tcp:remote_to_local:byte_at:0:0x0f:0x01", stage: :packet_observed, narrative: ${frame_narrative}, dedupe: true, module: ${module_name}, phase: :receive_subscription_frame)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_endpoint)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", key_event: :packet_observed, narrative: ${upgrade_narrative}, dedupe: true, module: ${module_name}, phase: :send_subscription_upgrade)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450:byte_at:9:0xff:0x31:byte_at:10:0xff:0x30:byte_at:11:0xff:0x31", key_event: :packet_observed, narrative: ${upgrade_narrative}, dedupe: true, module: ${module_name}, phase: :receive_subscription_upgrade)
+  |> reason_rule(predicate: "packet_observed:tcp:local_to_remote:byte_at:0:0x0f:0x01", key_event: :packet_observed, narrative: ${frame_narrative}, dedupe: true, module: ${module_name}, phase: :send_subscription_frame)
+  |> reason_rule(predicate: "packet_observed:tcp:remote_to_local:byte_at:0:0x0f:0x01", key_event: :packet_observed, narrative: ${frame_narrative}, dedupe: true, module: ${module_name}, phase: :receive_subscription_frame)
+
+template(:graphql_subscription_path)
+|> window(:default_5s)
+|> use(:graphql_subscription_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

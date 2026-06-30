@@ -13,8 +13,8 @@ Use it for:
 
 Primary subpages:
 
-- [docs/book/reference-icmp-echo-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmp-echo-surface.md)
-- [docs/book/reference-icmp-failure-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmp-failure-surface.md)
+- [docs/book/reference-icmp-echo-surface.md](docs/book/reference-icmp-echo-surface.md)
+- [docs/book/reference-icmp-failure-surface.md](docs/book/reference-icmp-failure-surface.md)
 
 Current canonical entries:
 
@@ -32,7 +32,7 @@ Operator rule:
 
 Read in this order:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-icmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmp-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-icmp-surface.md](docs/book/reference-icmp-surface.md)
 3. one exact ICMP subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

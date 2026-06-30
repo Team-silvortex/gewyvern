@@ -11,8 +11,8 @@ This is the maintenance table for the current `0.15.x` management-UDP shelf.
 
 Read alongside:
 
-- [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- [docs/book/reference-management-udp-failure-semantics.md](docs/book/reference-management-udp-failure-semantics.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 ## Timeout Matrix
 

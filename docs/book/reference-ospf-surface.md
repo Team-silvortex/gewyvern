@@ -14,8 +14,8 @@ earliest practical signals when an adjacency is unhealthy.
 
 ## Entries
 
-- [docs/book/reference-ospf-neighbor-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ospf-neighbor-surface.md)
-- [docs/book/reference-ospf-database-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ospf-database-surface.md)
+- [docs/book/reference-ospf-neighbor-surface.md](docs/book/reference-ospf-neighbor-surface.md)
+- [docs/book/reference-ospf-database-surface.md](docs/book/reference-ospf-database-surface.md)
 
 ## Operator Model
 
@@ -26,10 +26,10 @@ neighbors or may not have synchronized link-state database descriptions.
 
 Read this after:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
 
 Then continue with:
 
-1. [docs/book/reference-ospf-neighbor-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ospf-neighbor-surface.md)
-2. [docs/book/reference-ospf-database-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ospf-database-surface.md)
-3. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+1. [docs/book/reference-ospf-neighbor-surface.md](docs/book/reference-ospf-neighbor-surface.md)
+2. [docs/book/reference-ospf-database-surface.md](docs/book/reference-ospf-database-surface.md)
+3. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

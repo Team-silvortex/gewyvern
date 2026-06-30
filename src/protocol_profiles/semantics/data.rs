@@ -37,6 +37,138 @@ pub(super) fn postgres_entry_semantics(entry: &str) -> Option<ProtocolEntrySeman
     }
 }
 
+pub(super) fn mongodb_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "command" => (
+            "mongodb-command-path",
+            "MongoDB OP_MSG command sent to a server on the wire protocol",
+            Some("OP_MSG opcode 2013"),
+        ),
+        "reply" => (
+            "mongodb-reply-path",
+            "MongoDB OP_MSG or legacy OP_REPLY response from the server",
+            Some("OP_MSG / OP_REPLY"),
+        ),
+        "legacy-query" => (
+            "mongodb-legacy-query-path",
+            "legacy MongoDB OP_QUERY request used by older clients or compatibility paths",
+            Some("OP_QUERY opcode 2004"),
+        ),
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("protocol_entry_signal"),
+    )
+}
+
+pub(super) fn cassandra_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    match entry {
+        "error" => failure(
+            "Cassandra native protocol ERROR frame returned by the server",
+            Some("ERROR opcode 0x00"),
+            Some("semantic_error"),
+            Some("protocol_error"),
+        ),
+        _ => {
+            let (category, operator_focus, typical_signal) = match entry {
+                "startup" => (
+                    "cassandra-startup-path",
+                    "Cassandra native protocol STARTUP frame for cluster session setup",
+                    Some("STARTUP opcode 0x01"),
+                ),
+                "query" => (
+                    "cassandra-query-path",
+                    "Cassandra native protocol QUERY frame carrying a CQL request",
+                    Some("QUERY opcode 0x07"),
+                ),
+                "result" => (
+                    "cassandra-result-path",
+                    "Cassandra native protocol RESULT frame returned by the server",
+                    Some("RESULT opcode 0x08"),
+                ),
+                _ => return None,
+            };
+            summary(
+                category,
+                operator_focus,
+                typical_signal,
+                None,
+                None,
+                Some("protocol_entry_signal"),
+            )
+        }
+    }
+}
+
+pub(super) fn mssql_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    match entry {
+        "error" => failure(
+            "SQL Server TDS error token returned in a tabular response",
+            Some("ERROR token 0xaa"),
+            Some("semantic_error"),
+            Some("protocol_error"),
+        ),
+        _ => {
+            let (category, operator_focus, typical_signal) = match entry {
+                "prelogin" => (
+                    "mssql-prelogin-path",
+                    "TDS PRELOGIN packet for SQL Server session setup",
+                    Some("packet type 0x12"),
+                ),
+                "login" => (
+                    "mssql-login-path",
+                    "TDS LOGIN packet for SQL Server authentication",
+                    Some("packet type 0x10"),
+                ),
+                "query" => (
+                    "mssql-query-path",
+                    "TDS SQL batch packet sent to SQL Server",
+                    Some("packet type 0x01"),
+                ),
+                "response" => (
+                    "mssql-response-path",
+                    "TDS tabular response packet returned by SQL Server",
+                    Some("packet type 0x04"),
+                ),
+                "colmetadata" => (
+                    "mssql-colmetadata-path",
+                    "TDS COLMETADATA token describing the shape of a SQL Server result set",
+                    Some("COLMETADATA token 0x81"),
+                ),
+                "row" => (
+                    "mssql-row-path",
+                    "TDS row token carrying SQL Server result-row data",
+                    Some("ROW/NBCROW token 0xd1/0xd2"),
+                ),
+                "done" => (
+                    "mssql-done-path",
+                    "TDS DONE-family token marking response completion or sub-batch completion",
+                    Some("DONE/DONEPROC/DONEINPROC token 0xfd/0xfe/0xff"),
+                ),
+                "envchange" => (
+                    "mssql-envchange-path",
+                    "TDS ENVCHANGE token marking session environment changes",
+                    Some("ENVCHANGE token 0xe3"),
+                ),
+                _ => return None,
+            };
+            summary(
+                category,
+                operator_focus,
+                typical_signal,
+                None,
+                None,
+                Some("protocol_entry_signal"),
+            )
+        }
+    }
+}
+
 pub(super) fn redis_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     let (operator_focus, typical_signal, failure_mode, failure_detail) = match entry {
         "auth-required" => (

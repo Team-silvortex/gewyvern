@@ -1,0 +1,8 @@
+name=websocket_upgrade
+version=0.18.2
+entry=main.gewy
+register.protocol=websocket
+register.entry=upgrade
+register.default=true
+register.aliases=ws,websocket-upgrade,websocket_upgrade,ws-upgrade,ws_upgrade
+register.entry_aliases=handshake,http-upgrade,switching-protocols

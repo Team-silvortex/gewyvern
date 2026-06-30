@@ -84,7 +84,7 @@ The current family is outcome-based and intentionally minimal. It models the
 classic `USER`/`PASS` path rather than richer auth extensions.
 
 For the broader family map, see
-[docs/book/reference-pop3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-surface.md).
+[docs/book/reference-pop3-surface.md](docs/book/reference-pop3-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

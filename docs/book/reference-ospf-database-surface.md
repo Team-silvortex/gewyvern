@@ -8,7 +8,7 @@ routers form or repair adjacency.
 - family: `ospf`
 - entry: `dbdesc`
 - shelf key: `database`
-- DSL: [dsl/ospf_dbdesc_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ospf_dbdesc_path.gewy)
+- DSL: [dsl/ospf_dbdesc_path.gewy](dsl/ospf_dbdesc_path.gewy)
 
 ## Aliases
 
@@ -26,8 +26,8 @@ routers form or repair adjacency.
 
 ## Related Pages
 
-- [docs/book/reference-ospf-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ospf-surface.md)
-- [docs/book/reference-ospf-neighbor-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ospf-neighbor-surface.md)
+- [docs/book/reference-ospf-surface.md](docs/book/reference-ospf-surface.md)
+- [docs/book/reference-ospf-neighbor-surface.md](docs/book/reference-ospf-neighbor-surface.md)
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

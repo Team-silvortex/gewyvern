@@ -18,22 +18,22 @@ This page is not the best first stop for:
 
 For those, use:
 
-- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
-- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
-- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+- [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
+- [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
+- [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 
 If you already understand the architecture and only need the exact contract
 companions for the protocol shelf or compiler IR surface, jump to:
 
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 If you want the project-level design sheets before reading the prose below,
 start with:
 
-- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-- [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+- [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
 
 ## Role In The Shelf
 
@@ -49,17 +49,17 @@ Use it when you want:
 Then branch like this:
 
 - blueprint / design sheet first:
-  [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+  [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
 - runtime-pipeline deep dive:
-  [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+  [docs/architecture.md](docs/architecture.md)
 - module ownership and source layering:
-  [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+  [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
   and
-  [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+  [docs/module-boundaries.md](docs/module-boundaries.md)
 - cross-line evolution and coordination:
-  [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
+  [docs/architecture-evolution.md](docs/architecture-evolution.md)
   and
-  [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+  [docs/architecture-coordination.md](docs/architecture-coordination.md)
 
 ## One-Sentence Model
 
@@ -72,15 +72,15 @@ deterministic reasons from that evidence.
 
 Read this page alongside:
 
-- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
   for the fastest project-level design sheet
-- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+- [docs/architecture.md](docs/architecture.md)
   for the runtime-pipeline and IR-bearing deep dive
-- [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+- [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
   for the source-cluster dependency picture
-- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+- [docs/module-boundaries.md](docs/module-boundaries.md)
   for file-level ownership and layering rules
-- [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+- [docs/architecture-coordination.md](docs/architecture-coordination.md)
   for protocol / IR / runtime / collaboration sequencing
 
 ## Layer Stack
@@ -99,10 +99,10 @@ The current system is easiest to understand as seven layers:
 
 Source files:
 
-- [src/dsl.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl.rs)
-- [src/gewyc.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc.rs)
-- [src/template.rs](/Users/Shared/chroot/dev/gewyvern/src/template.rs)
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+- [src/dsl.rs](src/dsl.rs)
+- [src/gewyc.rs](src/gewyc.rs)
+- [src/template.rs](src/template.rs)
+- [docs/dsl.md](docs/dsl.md)
 
 `.gewy` files compile into `TemplateBinding`.
 
@@ -189,8 +189,8 @@ grounded in prebuilt fragment templates.
 
 Source files:
 
-- [src/fragment.rs](/Users/Shared/chroot/dev/gewyvern/src/fragment.rs)
-- [docs/fragments.md](/Users/Shared/chroot/dev/gewyvern/docs/fragments.md)
+- [src/fragment.rs](src/fragment.rs)
+- [docs/fragments.md](docs/fragments.md)
 
 Fragments are the smallest attachable capability units.
 
@@ -211,8 +211,8 @@ exist, but not the final semantic interpretation of that evidence.
 
 Source files:
 
-- [src/fragment.rs](/Users/Shared/chroot/dev/gewyvern/src/fragment.rs)
-- [src/loader.rs](/Users/Shared/chroot/dev/gewyvern/src/loader.rs)
+- [src/fragment.rs](src/fragment.rs)
+- [src/loader.rs](src/loader.rs)
 
 The planner turns a fragment set into an `AttachPlan`.
 
@@ -242,7 +242,7 @@ Important boundary:
 
 Source file:
 
-- [src/runtime.rs](/Users/Shared/chroot/dev/gewyvern/src/runtime.rs)
+- [src/runtime.rs](src/runtime.rs)
 
 `RuntimeSession` is the session orchestrator.
 
@@ -266,10 +266,10 @@ Current gating behavior includes:
 
 Source files:
 
-- [src/flow.rs](/Users/Shared/chroot/dev/gewyvern/src/flow.rs)
-- [src/program.rs](/Users/Shared/chroot/dev/gewyvern/src/program.rs)
-- [src/reason.rs](/Users/Shared/chroot/dev/gewyvern/src/reason.rs)
-- [src/ir.rs](/Users/Shared/chroot/dev/gewyvern/src/ir.rs)
+- [src/flow.rs](src/flow.rs)
+- [src/program.rs](src/program.rs)
+- [src/reason.rs](src/reason.rs)
+- [src/ir.rs](src/ir.rs)
 
 The current runtime materializes three main IR surfaces:
 
@@ -313,7 +313,7 @@ That is the current path toward a protocol-agnostic engine.
 
 Source file:
 
-- [src/export.rs](/Users/Shared/chroot/dev/gewyvern/src/export.rs)
+- [src/export.rs](src/export.rs)
 
 `ExportBundle` is the replay boundary.
 
@@ -337,9 +337,9 @@ fact stream.
 
 Source files:
 
-- [src/main.rs](/Users/Shared/chroot/dev/gewyvern/src/main.rs)
-- [crates/gewyc/src/main.rs](/Users/Shared/chroot/dev/gewyvern/crates/gewyc/src/main.rs)
-- [src/socket_input.rs](/Users/Shared/chroot/dev/gewyvern/src/socket_input.rs)
+- [src/main.rs](src/main.rs)
+- [crates/gewyc/src/main.rs](crates/gewyc/src/main.rs)
+- [src/socket_input.rs](src/socket_input.rs)
 
 Current entry surfaces:
 
@@ -391,15 +391,15 @@ These are explicitly not part of the current core:
 
 ## Companion Guides
 
-- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+- [docs/module-boundaries.md](docs/module-boundaries.md)
   Source-layering note for the current repository layout.
-- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+- [docs/architecture.md](docs/architecture.md)
   Broader project architecture and major component relationships.
-- [docs/fragments.md](/Users/Shared/chroot/dev/gewyvern/docs/fragments.md)
+- [docs/fragments.md](docs/fragments.md)
   Fragment capabilities, attach semantics, and evidence surfaces.
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+- [docs/dsl.md](docs/dsl.md)
   Stable `gewylang` language surface and current preferred subset.
-- [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
+- [docs/export-format.md](docs/export-format.md)
   Replay/export contract and top-level bundle shape.
-- [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+- [docs/development.md](docs/development.md)
   Contributor-oriented development workflow and local project practice.

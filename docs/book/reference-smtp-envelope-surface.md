@@ -98,7 +98,7 @@ registry path:
 - lowering into program and reason rules
 
 For the broader family map, see
-[docs/book/reference-smtp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-surface.md).
+[docs/book/reference-smtp-surface.md](docs/book/reference-smtp-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

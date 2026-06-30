@@ -39,7 +39,7 @@ publishes:
   `Cookie Reply`
 
 For the broader family map, see
-[docs/book/reference-wireguard-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-surface.md).
+[docs/book/reference-wireguard-surface.md](docs/book/reference-wireguard-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

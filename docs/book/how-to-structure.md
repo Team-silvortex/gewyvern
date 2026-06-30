@@ -7,9 +7,9 @@ organized inside the book.
 
 Read this alongside:
 
-- [docs/book/how-to.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to.md)
-- [docs/book/structure.md](/Users/Shared/chroot/dev/gewyvern/docs/book/structure.md)
-- [docs/book/conventions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/conventions.md)
+- [docs/book/how-to.md](docs/book/how-to.md)
+- [docs/book/structure.md](docs/book/structure.md)
+- [docs/book/conventions.md](docs/book/conventions.md)
 
 ## Why This Page Exists
 
@@ -53,7 +53,7 @@ Use this band when the question is:
 
 Typical pages:
 
-- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+- [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 
 ### 2. Extend
 
@@ -65,7 +65,7 @@ Use this band when the question is:
 
 Typical pages:
 
-- [docs/book/how-to-add-or-debug-protocol-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-add-or-debug-protocol-package.md)
+- [docs/book/how-to-add-or-debug-protocol-package.md](docs/book/how-to-add-or-debug-protocol-package.md)
 
 ### 3. Operate
 
@@ -77,8 +77,8 @@ Use this band when the question is:
 
 Right now this band is still partly covered by top-level durable docs such as:
 
-- [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
-- [docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md)
+- [docs/service-behavior.md](docs/service-behavior.md)
+- [docs/ingest-modes.md](docs/ingest-modes.md)
 
 Future `how-to` pages should likely land here.
 
@@ -92,15 +92,15 @@ Use this band when the question is:
 
 Right now this band is still distributed across:
 
-- [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)
-- [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
-- [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
+- [docs/headless-linux.md](docs/headless-linux.md)
+- [docs/packaging.md](docs/packaging.md)
+- [docs/external-engine-contract.md](docs/external-engine-contract.md)
 
 Future `how-to` pages should make this band more explicit.
 
 Current concrete page:
 
-- [docs/book/how-to-wire-etragon-sidecar.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-wire-etragon-sidecar.md)
+- [docs/book/how-to-wire-etragon-sidecar.md](docs/book/how-to-wire-etragon-sidecar.md)
 
 ## Good How-To Shape
 

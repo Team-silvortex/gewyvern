@@ -11,9 +11,9 @@ This page answers:
 
 Use these nearby pages with it:
 
-- [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
-- [docs/machine-surface-freeze.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-surface-freeze.md)
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- [docs/export-format.md](docs/export-format.md)
+- [docs/machine-surface-freeze.md](docs/machine-surface-freeze.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 ## Preferred Contract
 

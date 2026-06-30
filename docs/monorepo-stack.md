@@ -15,19 +15,19 @@ Use this page when the question is:
 
 The repository now has one top-level root:
 
-- `/Users/Shared/chroot/dev/gewyvern`
+- this repository checkout
 
 Within that root:
 
-- [Cargo.toml](/Users/Shared/chroot/dev/gewyvern/Cargo.toml)
+- [Cargo.toml](Cargo.toml)
   Root Rust workspace manifest.
-- [src](/Users/Shared/chroot/dev/gewyvern/src)
+- [src](src)
   Core `gewyvern` runtime, protocol work, IR, APIs, and CLI.
-- [crates/gewyc](/Users/Shared/chroot/dev/gewyvern/crates/gewyc)
+- [crates/gewyc](crates/gewyc)
   Dedicated compiler CLI crate.
-- [apps/etragon](/Users/Shared/chroot/dev/gewyvern/apps/etragon)
+- [apps/etragon](apps/etragon)
   Nearby diagnosis-partner sidecar application.
-- [apps/leserpent](/Users/Shared/chroot/dev/gewyvern/apps/leserpent)
+- [apps/leserpent](apps/leserpent)
   Cross-platform control plane application.
 
 ## Project Roles
@@ -52,14 +52,15 @@ What changed is only the repository boundary:
 
 ## Version Posture
 
-Current versions:
+Current version line:
 
-- `gewyvern`: `0.15.0`
-- `etragon`: `0.1.0`
-- `leserpent`: `0.1.9`
+- `gewyvern`: root version
+- `etragon`: follows the root `gewyvern` version
+- `leserpent`: follows the root `gewyvern` version
 
-These versions are intentionally not forced into one shared number line yet.
-One repository does not imply one release version.
+The stack now uses one shared mainline version. `etragon` and `leserpent` no
+longer carry independent release numbers; app-specific compatibility is tracked
+through schema, API, and persistence contracts instead.
 
 ## Toolchain Boundaries
 
@@ -100,7 +101,7 @@ cargo test --workspace
 For `leserpent`:
 
 ```bash
-cd /Users/Shared/chroot/dev/gewyvern/apps/leserpent
+cd apps/leserpent
 npm run check:frontend
 dotnet build src/Leserpent/Leserpent.csproj
 ```
@@ -112,10 +113,10 @@ When you want confidence after a stack-wide change, use this order:
 1. `cargo test --workspace`
 2. `cd apps/leserpent && npm run check:frontend`
 3. `dotnet build apps/leserpent/src/Leserpent/Leserpent.csproj`
-4. stack scripts under [scripts](/Users/Shared/chroot/dev/gewyvern/scripts), especially:
-   [scripts/demos/external_engine_roundtrip_demo.sh](/Users/Shared/chroot/dev/gewyvern/scripts/demos/external_engine_roundtrip_demo.sh)
+4. stack scripts under [scripts](scripts), especially:
+   [scripts/demos/external_engine_roundtrip_demo.sh](scripts/demos/external_engine_roundtrip_demo.sh)
    and
-   [scripts/validation/three_module_stack_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh)
+   [scripts/validation/three_module_stack_smoke.sh](scripts/validation/three_module_stack_smoke.sh)
 
 Use the thin demos first when the question is “did the path still connect?”.
 Use the fuller stack validation when the question is “does the topology still
@@ -135,8 +136,8 @@ Now that the stack lives in one repository, keep these rules:
 
 The migration should be considered healthy when:
 
-- there are no live references to old standalone paths like
-  `/Users/Shared/chroot/dev/etragon` or `/Users/Shared/chroot/dev/leserpent`
+- there are no live references to old standalone sibling checkouts for
+  `etragon` or `leserpent`
 - stack scripts default to in-repo `apps/` paths
 - `etragon` participates in the root Rust workspace
 - `leserpent` still builds cleanly from its new location
@@ -144,8 +145,8 @@ The migration should be considered healthy when:
 
 ## Related Pages
 
-- [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
-- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
-- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
-- [docs/book/how-to-wire-etragon-sidecar.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-wire-etragon-sidecar.md)
-- [apps/README.md](/Users/Shared/chroot/dev/gewyvern/apps/README.md)
+- [README.md](README.md)
+- [docs/index.md](docs/index.md)
+- [docs/cli-recipes.md](docs/cli-recipes.md)
+- [docs/book/how-to-wire-etragon-sidecar.md](docs/book/how-to-wire-etragon-sidecar.md)
+- [apps/README.md](apps/README.md)

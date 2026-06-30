@@ -14,10 +14,10 @@ Use it for:
 
 Primary subpages:
 
-- [docs/book/reference-dhcp-client-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-client-surface.md)
-- [docs/book/reference-dhcp-lease-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-lease-surface.md)
-- [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
-- [docs/book/reference-dhcp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-failure-semantics.md)
+- [docs/book/reference-dhcp-client-surface.md](docs/book/reference-dhcp-client-surface.md)
+- [docs/book/reference-dhcp-lease-surface.md](docs/book/reference-dhcp-lease-surface.md)
+- [docs/book/reference-management-udp-failure-semantics.md](docs/book/reference-management-udp-failure-semantics.md)
+- [docs/book/reference-dhcp-failure-semantics.md](docs/book/reference-dhcp-failure-semantics.md)
 
 Current canonical entries:
 
@@ -30,7 +30,7 @@ Default entry: `client`
 
 Read in this order:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-dhcp-surface.md](docs/book/reference-dhcp-surface.md)
 3. one exact DHCP subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

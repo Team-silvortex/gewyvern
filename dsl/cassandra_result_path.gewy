@@ -1,0 +1,22 @@
+# gewyvern stable-subset protocol path
+
+fn cassandra_result_rules() =
+  let module_name = :cassandra_result_path
+  let result_narrative = "static:observed a Cassandra native protocol RESULT frame"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:cassandra_result)
+  |> reason_model(:cassandra_result_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_cluster)
+  |> program_rule(predicate: "packet_observed:tcp:remote:9042:remote_to_local:byte_at:4:0xff:0x08", stage: :packet_observed, narrative: ${result_narrative}, dedupe: true, module: ${module_name}, phase: :receive_result)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_cluster)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:9042:remote_to_local:byte_at:4:0xff:0x08", key_event: :packet_observed, narrative: ${result_narrative}, dedupe: true, module: ${module_name}, phase: :receive_result)
+
+template(:cassandra_result_path)
+|> window(:default_5s)
+|> use(:cassandra_result_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

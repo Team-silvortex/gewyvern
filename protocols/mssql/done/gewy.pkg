@@ -1,0 +1,7 @@
+name=mssql_done
+version=0.18.2
+entry=main.gewy
+register.protocol=mssql
+register.entry=done
+register.aliases=mssql-done,mssql_done,sqlserver-done,sqlserver_done,tds-done,tds_done
+register.entry_aliases=complete,completion,done-token,doneproc,doneinproc

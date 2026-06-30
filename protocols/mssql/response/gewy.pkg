@@ -1,0 +1,7 @@
+name=mssql_response
+version=0.18.2
+entry=main.gewy
+register.protocol=mssql
+register.entry=response
+register.aliases=mssql-response,mssql_response,sqlserver-response,sqlserver_response,tds-response,tds_response
+register.entry_aliases=reply,result,tabular

@@ -7,10 +7,10 @@ It is intentionally short.
 
 It is not a replacement for:
 
-- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
-- [docs/v0.15-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.15-posture.md)
-- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
-- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
+- [docs/field-validation.md](docs/field-validation.md)
+- [docs/v0.15-posture.md](docs/v0.15-posture.md)
+- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
 
 Instead, it answers a narrower question:
 
@@ -36,9 +36,9 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
-- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
-- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
+- [docs/field-validation.md](docs/field-validation.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
+- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
 
 ## Historical Stable Findings From `0.15.x`
 
@@ -60,8 +60,8 @@ The packaged container path is no longer relying on stale historical artifacts.
 Fresh `0.15.0` native packages were rebuilt from the current source tree and
 then used as the input for the packaged validation chain:
 
-- `/Users/Shared/chroot/dev/gewyvern/target/packages/gewyvern_0.15.0-1_arm64.deb`
-- `/Users/Shared/chroot/dev/gewyvern/target/packages/rpm/gewyvern-0.15.0-1.aarch64.rpm`
+- `target/packages/gewyvern_0.15.0-1_arm64.deb`
+- `target/packages/rpm/gewyvern-0.15.0-1.aarch64.rpm`
 
 This matters because an earlier validation pass could still succeed while
 quietly exercising an older `0.10.0` package set.

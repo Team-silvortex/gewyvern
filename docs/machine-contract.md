@@ -9,22 +9,22 @@ It exists to separate:
 - the wider report/presentation payloads that may still evolve
 
 For the broader release posture, see
-[docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md).
+[docs/v0.14-posture.md](docs/v0.14-posture.md).
 
 For the operator-facing surface overview, see
-[docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md).
+[docs/surface-stability.md](docs/surface-stability.md).
 
 For the shared tightening ritual across compiler, runtime-config, certificate,
 and export surfaces, see
-[docs/machine-surface-freeze.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-surface-freeze.md).
+[docs/machine-surface-freeze.md](docs/machine-surface-freeze.md).
 
 If you want the nearby companion shelves around this page, use:
 
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
   Exact lookup for the diagnosis fields most consumers read first.
-- [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
+- [docs/service-behavior.md](docs/service-behavior.md)
   Durable runtime-service note for `--serve`, API refresh, and degraded mode.
-- [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
+- [docs/security-posture.md](docs/security-posture.md)
   Practical trust and exposure boundary for using these machine-facing routes.
 
 ## Scope
@@ -482,6 +482,7 @@ These fields are intended as cheap routing hints:
 
 `/v1/capabilities` also declares:
 
+- `debug_session`
 - `external_sidecar_context`
 - `external_capability_profile`
 - `external_context_status`
@@ -490,6 +491,15 @@ These fields are intended as cheap routing hints:
 
 to indicate that the running API surface knows how to publish these additive
 presence signals.
+
+When `debug_session` is true, consumers can use:
+
+- `/v1/latest/debug-session.json`
+- `/v1/latest/targets/<path-segment>/debug-session.json`
+
+These compact surfaces do not replace `analysis.json`, `debugger-console.json`,
+or `protocol-reading.json`; they point at them in one ordered investigation view
+with recommended focus, failure spine, operator guidance, and next-step links.
 
 ## Additive Contract: Augmentations
 

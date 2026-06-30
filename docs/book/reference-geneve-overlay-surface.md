@@ -5,8 +5,8 @@ metadata.
 
 Read this alongside:
 
-- [docs/book/reference-geneve-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-geneve-surface.md)
-- [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
+- [docs/book/reference-geneve-surface.md](docs/book/reference-geneve-surface.md)
+- [docs/book/reference-protocol-family-shelves.md](docs/book/reference-protocol-family-shelves.md)
 
 ## Shelf
 

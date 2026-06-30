@@ -7,7 +7,7 @@ ICMPv6 echo models IPv6 ping-style reachability checks.
 - family: `icmpv6`
 - entry: `echo`
 - shelf key: `echo`
-- DSL: [dsl/icmpv6_echo_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/icmpv6_echo_path.gewy)
+- DSL: [dsl/icmpv6_echo_path.gewy](dsl/icmpv6_echo_path.gewy)
 
 ## Aliases
 
@@ -28,9 +28,9 @@ ICMPv6 echo models IPv6 ping-style reachability checks.
 
 ## Related Pages
 
-- [docs/book/reference-icmpv6-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-surface.md)
-- [docs/book/reference-icmpv6-failure-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-failure-surface.md)
-- [docs/book/reference-ndp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-surface.md)
+- [docs/book/reference-icmpv6-surface.md](docs/book/reference-icmpv6-surface.md)
+- [docs/book/reference-icmpv6-failure-surface.md](docs/book/reference-icmpv6-failure-surface.md)
+- [docs/book/reference-ndp-surface.md](docs/book/reference-ndp-surface.md)
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

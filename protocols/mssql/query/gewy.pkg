@@ -1,0 +1,8 @@
+name=mssql_query
+version=0.18.2
+entry=main.gewy
+register.protocol=mssql
+register.entry=query
+register.default=true
+register.aliases=mssql-query,mssql_query,sqlserver,sql-server,sqlserver-query,sqlserver_query,tds-query,tds_query
+register.entry_aliases=sql-batch,batch,request

@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli_validation::{CliValidationInput, validate_cli_options};
 use crate::runtime_events::EVENT_DSL_COMPILE_FAILED;
 use crate::runtime_logging::{LogLevel, LoggingConfig, log_error_event};
 
@@ -25,6 +26,7 @@ pub(crate) struct Cli {
     pub(crate) findings: bool,
     pub(crate) http_transactions: bool,
     pub(crate) debugger_console: bool,
+    pub(crate) debug_session: bool,
     pub(crate) serve: bool,
     pub(crate) api_socket: Option<String>,
     #[cfg_attr(not(test), allow(dead_code))]
@@ -243,6 +245,7 @@ impl Cli {
         let mut findings = false;
         let mut http_transactions = false;
         let mut debugger_console = false;
+        let mut debug_session = false;
         let mut serve = defaults.serve.unwrap_or(false);
         let mut api_socket = defaults.api_socket;
         let mut allow_remote_api = defaults.allow_remote_api.unwrap_or(false);
@@ -289,6 +292,7 @@ impl Cli {
                 "--findings" => findings = true,
                 "--http-transactions" => http_transactions = true,
                 "--debugger-console" => debugger_console = true,
+                "--debug-session" => debug_session = true,
                 "--max-sessions" => {
                     let value = args
                         .next()
@@ -423,107 +427,35 @@ impl Cli {
             }
         }
 
-        if summary_only && !json && report_format.is_none() {
-            return Err(locale.msg("summary_only_requires_json").into());
-        }
-        if diagnostics && dsl_path.is_none() {
-            return Err(locale.msg("diagnostics_requires_dsl").into());
-        }
-        if diagnostics && socket_target.is_some() {
-            return Err(locale.msg("diagnostics_socket_conflict").into());
-        }
-        if diagnostics && serve {
-            return Err(locale.msg("diagnostics_serve_conflict").into());
-        }
-        if diagnostics && findings {
-            return Err(locale.msg("findings_diagnostics_conflict").into());
-        }
-        if diagnostics && http_transactions {
-            return Err(locale.msg("findings_diagnostics_conflict").into());
-        }
-        if debugger_console && diagnostics {
-            return Err("--debugger-console cannot be combined with --diagnostics".into());
-        }
-        if debugger_console && findings {
-            return Err("--debugger-console cannot be combined with --findings".into());
-        }
-        if debugger_console && http_transactions {
-            return Err("--debugger-console cannot be combined with --http-transactions".into());
-        }
-        if report_format.is_some() && diagnostics {
-            return Err("--report-format cannot be combined with --diagnostics".into());
-        }
-        if report_format.is_some() && http_transactions {
-            return Err("--report-format cannot be combined with --http-transactions".into());
-        }
-        if report_format.is_some() && debugger_console {
-            return Err("--report-format cannot be combined with --debugger-console".into());
-        }
-        if scan_all && dsl_path.is_some() {
-            return Err("--scan-all cannot be combined with --dsl".into());
-        }
-        if scan_all && protocol.is_some() {
-            return Err("--scan-all cannot be combined with --protocol".into());
-        }
-        if scan_all && entry.is_some() {
-            return Err("--scan-all cannot be combined with --entry".into());
-        }
-        if protocol_set_path.is_some() && !scan_all {
-            return Err("--protocol-set requires --scan-all".into());
-        }
-        if dsl_path.is_some() && protocol.is_some() {
-            return Err(locale.msg("dsl_protocol_conflict").into());
-        }
-        if dsl_path.is_some() && entry.is_some() {
-            return Err(locale.msg("dsl_entry_conflict").into());
-        }
-        if list_protocols && list_entries.is_some() {
-            return Err(locale.msg("list_conflict").into());
-        }
-        if list_history && list_protocols {
-            return Err("--list-history cannot be combined with --list-protocols".into());
-        }
-        if list_history && list_entries.is_some() {
-            return Err("--list-history cannot be combined with --list-entries".into());
-        }
-        if socket_target.is_some() && pid.is_some() {
-            return Err(locale.msg("pid_socket_conflict").into());
-        }
-        if entry.is_some() && protocol.is_none() {
-            return Err(locale.msg("entry_requires_protocol").into());
-        }
-        if dsl_path.is_some() && demo_mode != DemoMode::Both {
-            return Err(locale.msg("dsl_demo_conflict").into());
-        }
-        if socket_target.is_some() && demo_mode != DemoMode::Both {
-            return Err(locale.msg("demo_socket_conflict").into());
-        }
-        if serve && socket_target.is_none() {
-            return Err(locale.msg("serve_requires_socket").into());
-        }
-        if api_socket.is_some() && !serve {
-            return Err(locale.msg("api_requires_serve").into());
-        }
-        if api_socket
-            .as_deref()
-            .is_some_and(|addr| !allow_remote_api && !api_socket_addr_is_local(addr))
-        {
-            return Err(locale.msg("remote_api_requires_flag").into());
-        }
-        if matches!(socket_target, Some(SocketTarget::Tcp(_)))
-            && ingest_mode != IngestMode::RemoteAdvisory
-            && socket_target
-                .as_ref()
-                .is_some_and(|target| !socket_target_is_local(target))
-        {
-            return Err(locale.msg("remote_socket_requires_flag").into());
-        }
-        if external_engine_worker.is_some() && external_engine_bin.is_none() {
-            return Err("--external-engine-worker requires --external-engine-bin".into());
-        }
-        if external_engine_python_bin.is_some() && external_engine_worker.is_none() {
-            return Err("--external-engine-python-bin requires --external-engine-worker".into());
-        }
+        validate_cli_options(CliValidationInput {
+            summary_only,
+            json,
+            report_format,
+            diagnostics,
+            dsl_path: dsl_path.is_some(),
+            socket_target: socket_target.as_ref(),
+            serve,
+            findings,
+            http_transactions,
+            debugger_console,
+            debug_session,
+            scan_all,
+            protocol: protocol.is_some(),
+            entry: entry.is_some(),
+            protocol_set_path: protocol_set_path.is_some(),
+            list_protocols,
+            list_history,
+            list_entries: list_entries.is_some(),
+            pid: pid.is_some(),
+            demo_mode,
+            api_socket: api_socket.as_deref(),
+            allow_remote_api,
+            ingest_mode,
+            external_engine_bin: external_engine_bin.is_some(),
+            external_engine_worker: external_engine_worker.is_some(),
+            external_engine_python_bin: external_engine_python_bin.is_some(),
+            locale,
+        })?;
 
         if let Some(protocol_name) = protocol.as_deref() {
             let built_in_path = protocol_dsl_path(protocol_name, entry.as_deref())
@@ -548,6 +480,7 @@ impl Cli {
             findings,
             http_transactions,
             debugger_console,
+            debug_session,
             serve,
             api_socket,
             allow_remote_api,

@@ -12,8 +12,8 @@ surface while keeping type numbers and aliases explicit.
 
 ## Entries
 
-- [docs/book/reference-icmpv6-echo-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-echo-surface.md)
-- [docs/book/reference-icmpv6-failure-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-failure-surface.md)
+- [docs/book/reference-icmpv6-echo-surface.md](docs/book/reference-icmpv6-echo-surface.md)
+- [docs/book/reference-icmpv6-failure-surface.md](docs/book/reference-icmpv6-failure-surface.md)
 
 ## Operator Model
 
@@ -24,11 +24,11 @@ signal is reachability rather than application payload.
 
 Read this after:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-protocol-groups.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-groups.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-protocol-groups.md](docs/book/reference-protocol-groups.md)
 
 Then continue with:
 
-1. [docs/book/reference-icmpv6-echo-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-echo-surface.md)
-2. [docs/book/reference-icmpv6-failure-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-failure-surface.md)
-3. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+1. [docs/book/reference-icmpv6-echo-surface.md](docs/book/reference-icmpv6-echo-surface.md)
+2. [docs/book/reference-icmpv6-failure-surface.md](docs/book/reference-icmpv6-failure-surface.md)
+3. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

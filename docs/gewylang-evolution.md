@@ -14,13 +14,13 @@ Its job is to answer:
 
 Read this alongside:
 
-- [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-- [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-- [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
-- [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
+- [docs/gewylang-system.md](docs/gewylang-system.md)
+- [docs/dsl.md](docs/dsl.md)
+- [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+- [docs/book/explanation-protocol-package-spine.md](docs/book/explanation-protocol-package-spine.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
+- [docs/architecture-evolution.md](docs/architecture-evolution.md)
 
 ## Why This Page Exists
 
@@ -278,13 +278,13 @@ If the answer breaks at any stage, the feature is not fully integrated yet.
 
 When reviewing language evolution as a system, use this order:
 
-1. [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
-2. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-3. [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
-4. [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-5. [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
-6. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-7. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+1. [docs/gewylang-system.md](docs/gewylang-system.md)
+2. [docs/dsl.md](docs/dsl.md)
+3. [docs/gewylang-evolution.md](docs/gewylang-evolution.md)
+4. [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+5. [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
+6. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+7. [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 
 ## Current Thesis
 

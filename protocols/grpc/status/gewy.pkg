@@ -1,0 +1,8 @@
+name=grpc_status
+version=0.18.2
+entry=main.gewy
+register.protocol=grpc
+register.entry=status
+register.default=false
+register.aliases=grpc-status,grpc-trailer,grpc_status,grpc_trailer
+register.entry_aliases=trailer,trailers,result

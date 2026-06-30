@@ -7,7 +7,7 @@ NDP advertisement models an IPv6 Neighbor Advertisement response.
 - family: `ndp`
 - entry: `advertise`
 - shelf key: `advertise`
-- DSL: [dsl/ndp_advertise_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ndp_advertise_path.gewy)
+- DSL: [dsl/ndp_advertise_path.gewy](dsl/ndp_advertise_path.gewy)
 
 ## Aliases
 
@@ -25,8 +25,8 @@ NDP advertisement models an IPv6 Neighbor Advertisement response.
 
 ## Related Pages
 
-- [docs/book/reference-ndp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-surface.md)
-- [docs/book/reference-ndp-solicit-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-solicit-surface.md)
+- [docs/book/reference-ndp-surface.md](docs/book/reference-ndp-surface.md)
+- [docs/book/reference-ndp-solicit-surface.md](docs/book/reference-ndp-solicit-surface.md)
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

@@ -13,10 +13,10 @@ It is intentionally narrower than orchestration. The goal is:
   letting it overwrite the built-in diagnosis spine
 
 For the base process-hook payload shape, see
-[docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md).
+[docs/external-engine-contract.md](docs/external-engine-contract.md).
 
 For the narrow machine-facing fields that automation should consume, see
-[docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md).
+[docs/machine-contract.md](docs/machine-contract.md).
 
 ## Role Split
 

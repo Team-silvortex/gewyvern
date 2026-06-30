@@ -39,4 +39,4 @@ The current entry is transport-oriented and intentionally small. It models the
 coarse UDP request/reply path, not detailed resolver semantics.
 
 For the broader family map, see
-[docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md).
+[docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md).

@@ -18,9 +18,9 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
-- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
-- [docs/book/reference-runtime-certificate-state.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-state.md)
+- [docs/book/reference-runtime-layout.md](docs/book/reference-runtime-layout.md)
+- [docs/book/reference-runtime-config.md](docs/book/reference-runtime-config.md)
+- [docs/book/reference-runtime-certificate-state.md](docs/book/reference-runtime-certificate-state.md)
 
 ## Policy Surface
 
@@ -49,7 +49,7 @@ authoritative source for full reason records and recommended actions.
 
 The runtime-managed certificate-state shelf is documented separately at:
 
-- [docs/book/reference-runtime-certificate-state.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-state.md)
+- [docs/book/reference-runtime-certificate-state.md](docs/book/reference-runtime-certificate-state.md)
 
 ## Current Status Contract
 

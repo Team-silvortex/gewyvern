@@ -1,0 +1,7 @@
+name=mongodb_reply
+version=0.18.2
+entry=main.gewy
+register.protocol=mongodb
+register.entry=reply
+register.aliases=mongo-reply,mongo_reply,mongodb-reply,mongodb_reply,mongo-response,mongodb-response
+register.entry_aliases=response,op-reply,opreply

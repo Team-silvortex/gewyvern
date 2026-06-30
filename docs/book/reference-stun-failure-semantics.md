@@ -5,7 +5,7 @@ control traffic and the operator needs to classify the failure shape.
 
 Read it alongside:
 
-- [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
+- [docs/book/reference-management-udp-failure-semantics.md](docs/book/reference-management-udp-failure-semantics.md)
 
 Use this page for:
 
@@ -63,6 +63,6 @@ Keep those distinct from:
 
 Return paths:
 
-- [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)
-- [docs/book/reference-stun-binding-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-binding-surface.md)
-- [docs/book/reference-stun-relay-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-relay-surface.md)
+- [docs/book/reference-stun-surface.md](docs/book/reference-stun-surface.md)
+- [docs/book/reference-stun-binding-surface.md](docs/book/reference-stun-binding-surface.md)
+- [docs/book/reference-stun-relay-surface.md](docs/book/reference-stun-relay-surface.md)

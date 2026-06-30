@@ -41,7 +41,7 @@ Default entry: `udp`
 
 ### UDP
 
-- [docs/book/reference-dns-udp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-udp-surface.md)
+- [docs/book/reference-dns-udp-surface.md](docs/book/reference-dns-udp-surface.md)
   Datagram-style DNS lookup path.
 
 Typical entries:
@@ -50,7 +50,7 @@ Typical entries:
 
 ### TCP
 
-- [docs/book/reference-dns-tcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-tcp-surface.md)
+- [docs/book/reference-dns-tcp-surface.md](docs/book/reference-dns-tcp-surface.md)
   TCP-carried DNS query and response path.
 
 Typical entries:
@@ -61,21 +61,21 @@ Typical entries:
 
 If you are validating current DNS support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md)
 3. the UDP or TCP subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Next Useful Checks
 
 - For runtime-confidence checks:
-  [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+  [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 - For exact diagnosis-field meanings:
-  [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+  [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 - For encrypted resolver intent layered on the TCP branch:
   treat `dot` as the DNS `tcp` shelf plus the TLS client handshake reading path
 - For the compact DoT reading spine itself:
-  [docs/book/reference-dot-overlay.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dot-overlay.md)
+  [docs/book/reference-dot-overlay.md](docs/book/reference-dot-overlay.md)
 
 ## Stability Note
 

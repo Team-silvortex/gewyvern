@@ -7,8 +7,8 @@ catch-all module.
 
 For the runtime resolution contract, see:
 
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-protocol-family-shelves.md](docs/book/reference-protocol-family-shelves.md)
 
 ## Standard Library Shape
 

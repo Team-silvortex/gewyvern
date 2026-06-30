@@ -30,7 +30,7 @@ individually.
 If you are validating the current database and directory failure spine, the
 shortest useful reading order is:
 
-1. [docs/book/reference-mysql-error-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-error-surface.md)
-2. [docs/book/reference-postgres-error-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-error-surface.md)
-3. [docs/book/reference-ldap-write-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-write-surface.md)
-4. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+1. [docs/book/reference-mysql-error-surface.md](docs/book/reference-mysql-error-surface.md)
+2. [docs/book/reference-postgres-error-surface.md](docs/book/reference-postgres-error-surface.md)
+3. [docs/book/reference-ldap-write-surface.md](docs/book/reference-ldap-write-surface.md)
+4. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)

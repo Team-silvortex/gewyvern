@@ -18,12 +18,12 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
-- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
-- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
-- [docs/book/reference-runtime-certificate-state.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-state.md)
+- [docs/packaging.md](docs/packaging.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-runtime-config.md](docs/book/reference-runtime-config.md)
+- [docs/book/reference-runtime-certificate-policy.md](docs/book/reference-runtime-certificate-policy.md)
+- [docs/book/reference-runtime-certificate-state.md](docs/book/reference-runtime-certificate-state.md)
 
 ## Layout Policy
 
@@ -88,7 +88,7 @@ The standard config file name for the active `0.17.x` line is:
 
 For the exact search order, fallback names, and supported sections, use:
 
-- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
+- [docs/book/reference-runtime-config.md](docs/book/reference-runtime-config.md)
 
 ## Current Asset Expectations
 
@@ -107,7 +107,7 @@ The current `0.17.x` expectation is:
 
 For the operator-facing interpretation of these shelves, use:
 
-- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
+- [docs/book/reference-runtime-certificate-policy.md](docs/book/reference-runtime-certificate-policy.md)
 
 During standard-root preparation, `gewyvern` also creates these certificate
 roots up front and copy-forwards missing legacy assets from `~/.gewyvern/`

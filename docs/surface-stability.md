@@ -25,9 +25,9 @@ This page is not the best first stop for:
 
 For those, use:
 
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
-- [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
-- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
+- [docs/export-format.md](docs/export-format.md)
+- [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
 
 ## Primary CLI Contract
 

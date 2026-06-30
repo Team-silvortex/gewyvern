@@ -11,9 +11,9 @@ This page answers:
 
 Use these nearby pages with it:
 
-- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
-- [docs/machine-surface-freeze.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-surface-freeze.md)
-- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
+- [docs/book/reference-runtime-config.md](docs/book/reference-runtime-config.md)
+- [docs/machine-surface-freeze.md](docs/machine-surface-freeze.md)
+- [docs/book/reference-runtime-layout.md](docs/book/reference-runtime-layout.md)
 
 ## Preferred Contract
 

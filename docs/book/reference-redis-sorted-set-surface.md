@@ -115,7 +115,7 @@ That means this reference is meant for resolution and operator lookup, not for
 full Redis command-option documentation.
 
 For the broader family map, see
-[docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).
+[docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

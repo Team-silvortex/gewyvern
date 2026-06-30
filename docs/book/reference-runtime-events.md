@@ -18,9 +18,9 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
-- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
-- [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
+- [docs/book/reference-runtime-config.md](docs/book/reference-runtime-config.md)
+- [docs/machine-contract.md](docs/machine-contract.md)
+- [docs/service-behavior.md](docs/service-behavior.md)
 
 ## Contract Posture
 

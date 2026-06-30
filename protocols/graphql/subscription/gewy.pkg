@@ -1,0 +1,7 @@
+name=graphql_subscription
+version=0.18.2
+entry=main.gewy
+register.protocol=graphql
+register.entry=subscription
+register.aliases=graphql-subscription,graphql_subscription,gql-subscription,gql_subscription
+register.entry_aliases=subscribe,stream,live

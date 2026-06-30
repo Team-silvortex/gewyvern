@@ -24,19 +24,19 @@ The current line keeps HTTPS as a compact single-slice family:
 
 Read in this order:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-https-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-https-surface.md)
-3. [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-https-surface.md](docs/book/reference-https-surface.md)
+3. [docs/book/reference-tls-surface.md](docs/book/reference-tls-surface.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 The machine-facing API now records that same jump through
 `reading_companions`; see:
 
-- [docs/book/reference-protocol-reading-companions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-companions.md)
+- [docs/book/reference-protocol-reading-companions.md](docs/book/reference-protocol-reading-companions.md)
 
 ## Next Useful Checks
 
 - For runtime-confidence checks:
-  [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+  [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 - For exact diagnosis-field meanings:
-  [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+  [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)

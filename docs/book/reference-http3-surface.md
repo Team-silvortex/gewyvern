@@ -47,7 +47,7 @@ Default entry: `request`
 
 ### Request
 
-- [docs/book/reference-http3-request-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-request-surface.md)
+- [docs/book/reference-http3-request-surface.md](docs/book/reference-http3-request-surface.md)
   Client-side request progression over QUIC.
 
 Typical entries:
@@ -56,7 +56,7 @@ Typical entries:
 
 ### Server
 
-- [docs/book/reference-http3-server-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-server-surface.md)
+- [docs/book/reference-http3-server-surface.md](docs/book/reference-http3-server-surface.md)
   Server-side response progression over QUIC.
 
 Typical entries:
@@ -65,7 +65,7 @@ Typical entries:
 
 ### Connection Close
 
-- [docs/book/reference-http3-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-close-surface.md)
+- [docs/book/reference-http3-close-surface.md](docs/book/reference-http3-close-surface.md)
   Client-side request path that terminates through peer connection close.
 
 Typical entries:
@@ -74,7 +74,7 @@ Typical entries:
 
 ### Server Close
 
-- [docs/book/reference-http3-server-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-server-close-surface.md)
+- [docs/book/reference-http3-server-close-surface.md](docs/book/reference-http3-server-close-surface.md)
   Server-side response path that ends with a locally emitted close.
 
 Typical entries:
@@ -85,23 +85,23 @@ Typical entries:
 
 If you are validating current HTTP/3 support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-http3-surface.md](docs/book/reference-http3-surface.md)
 3. the request or server subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 The machine-facing `reading_companions` field uses the same jump contract; see:
 
-- [docs/book/reference-protocol-reading-companions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-companions.md)
+- [docs/book/reference-protocol-reading-companions.md](docs/book/reference-protocol-reading-companions.md)
 
 ## Next Useful Checks
 
 - For one concrete runtime-facing walkthrough:
-  [docs/architecture-walkthrough-http-request.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-walkthrough-http-request.md)
+  [docs/architecture-walkthrough-http-request.md](docs/architecture-walkthrough-http-request.md)
 - For runtime-confidence checks:
-  [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+  [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 - For exact diagnosis-field meanings:
-  [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+  [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 ## Stability Note
 

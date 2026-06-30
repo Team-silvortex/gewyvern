@@ -13,10 +13,10 @@ freeze ritual for:
 
 Use these nearby pages with it:
 
-- [docs/gewyc-field-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-field-contract.md)
-- [docs/gewyc-contract-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-contract-matrix.md)
-- [docs/gewyc-sample-index.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-sample-index.md)
-- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
+- [docs/gewyc-field-contract.md](docs/gewyc-field-contract.md)
+- [docs/gewyc-contract-matrix.md](docs/gewyc-contract-matrix.md)
+- [docs/gewyc-sample-index.md](docs/gewyc-sample-index.md)
+- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
 
 ## What A Freeze Means
 
@@ -96,11 +96,11 @@ Instead:
 
 The current minimum fixture spine should stay green:
 
-- [docs/fixtures/gewyc_frontend_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_frontend_udp_process_debug.json)
-- [docs/fixtures/gewyc_stages_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_stages_udp_process_debug.json)
-- [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_udp_process_debug.json)
-- [docs/fixtures/gewyc_explain_parse_failure.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_parse_failure.json)
-- [docs/fixtures/gewyc_explain_validation_failure.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_failure.json)
+- [docs/fixtures/gewyc_frontend_udp_process_debug.json](docs/fixtures/gewyc_frontend_udp_process_debug.json)
+- [docs/fixtures/gewyc_stages_udp_process_debug.json](docs/fixtures/gewyc_stages_udp_process_debug.json)
+- [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](docs/fixtures/gewyc_explain_validation_udp_process_debug.json)
+- [docs/fixtures/gewyc_explain_parse_failure.json](docs/fixtures/gewyc_explain_parse_failure.json)
+- [docs/fixtures/gewyc_explain_validation_failure.json](docs/fixtures/gewyc_explain_validation_failure.json)
 
 These are the minimum because together they cover:
 
@@ -127,9 +127,9 @@ two are the smallest contract-preserving gate.
 
 When a freeze step changes what consumers should read first:
 
-1. update [docs/gewyc-field-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-field-contract.md)
-2. update [docs/gewyc-contract-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-contract-matrix.md)
-3. update [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md) if it changes the meaning of the line
+1. update [docs/gewyc-field-contract.md](docs/gewyc-field-contract.md)
+2. update [docs/gewyc-contract-matrix.md](docs/gewyc-contract-matrix.md)
+3. update [docs/history/v0.17.x.md](docs/history/v0.17.x.md) if it changes the meaning of the line
 
 That keeps the contract, the examples, and the release narrative aligned.
 

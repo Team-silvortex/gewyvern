@@ -15,12 +15,12 @@ by memory every time.
 
 Read this alongside:
 
-- [docs/book/reference-protocol-reading-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-paths.md)
-- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
-- [docs/book/reference-protocol-example-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-example-paths.md)
-- [docs/book/reference-protocol-command-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-command-paths.md)
-- [docs/book/reference-protocol-operator-playbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-operator-playbook.md)
+- [docs/book/reference-protocol-reading-paths.md](docs/book/reference-protocol-reading-paths.md)
+- [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
+- [docs/book/reference-protocol-example-paths.md](docs/book/reference-protocol-example-paths.md)
+- [docs/book/reference-protocol-command-paths.md](docs/book/reference-protocol-command-paths.md)
+- [docs/book/reference-protocol-operator-playbook.md](docs/book/reference-protocol-operator-playbook.md)
 
 ## Core Rule
 
@@ -37,14 +37,14 @@ Use these layers in order:
 
 Families:
 
-- [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md)
-- [docs/book/reference-https-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-https-surface.md)
-- [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
+- [docs/book/reference-http-surface.md](docs/book/reference-http-surface.md)
+- [docs/book/reference-https-surface.md](docs/book/reference-https-surface.md)
+- [docs/book/reference-tls-surface.md](docs/book/reference-tls-surface.md)
 
 Fastest grouped validation:
 
-- [scripts/validation/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh)
-- [scripts/validation/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh)
+- [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
+- [scripts/validation/registry_validation.sh](scripts/validation/registry_validation.sh)
 
 Useful direct commands:
 
@@ -58,12 +58,12 @@ cargo run -- --protocol tls --entry client --json --summary-only
 
 Family:
 
-- [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md)
+- [docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md)
 
 Fastest grouped validation:
 
-- [scripts/validation/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh)
-- [scripts/validation/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh)
+- [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
+- [scripts/validation/registry_validation.sh](scripts/validation/registry_validation.sh)
 
 Useful direct command:
 
@@ -75,13 +75,13 @@ cargo run -- --protocol dns --entry udp --json --summary-only
 
 Families:
 
-- [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md)
-- [docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md)
+- [docs/book/reference-ssh-surface.md](docs/book/reference-ssh-surface.md)
+- [docs/book/reference-socks5-surface.md](docs/book/reference-socks5-surface.md)
 
 Fastest grouped validation:
 
-- [scripts/validation/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh)
-- [scripts/validation/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh)
+- [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
+- [scripts/validation/registry_validation.sh](scripts/validation/registry_validation.sh)
 
 Useful direct commands:
 
@@ -94,13 +94,13 @@ cargo run -- --protocol socks5 --entry session --json --summary-only
 
 Families:
 
-- [docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md)
-- [docs/book/reference-mysql-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-surface.md)
+- [docs/book/reference-postgres-surface.md](docs/book/reference-postgres-surface.md)
+- [docs/book/reference-mysql-surface.md](docs/book/reference-mysql-surface.md)
 
 Fastest grouped validation:
 
-- [scripts/validation/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh)
-- [scripts/validation/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh)
+- [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
+- [scripts/validation/registry_validation.sh](scripts/validation/registry_validation.sh)
 
 Useful direct commands:
 
@@ -113,13 +113,13 @@ cargo run -- --protocol mysql --entry session --json --summary-only
 
 Families:
 
-- [docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md)
-- [docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md)
+- [docs/book/reference-quic-surface.md](docs/book/reference-quic-surface.md)
+- [docs/book/reference-http3-surface.md](docs/book/reference-http3-surface.md)
 
 Fastest grouped validation:
 
-- [scripts/validation/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh)
-- [scripts/validation/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh)
+- [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
+- [scripts/validation/registry_validation.sh](scripts/validation/registry_validation.sh)
 
 Useful direct commands:
 
@@ -132,20 +132,20 @@ cargo run -- --protocol http3 --entry request --json --summary-only
 
 Use this when the question is broader than one family:
 
-- [scripts/validation/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh)
-- [scripts/validation/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh)
+- [scripts/validation/registry_validation.sh](scripts/validation/registry_validation.sh)
+- [scripts/validation/runtime_operator_validation.sh](scripts/validation/runtime_operator_validation.sh)
 
 Use this when the question is “do the important families still behave?”:
 
-- [scripts/validation/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh)
+- [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
 
 ### Release And Cross-Project Confidence
 
 Use these when source-tree checks are not enough:
 
-- [scripts/packaging/release_container_check.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh)
-- [scripts/validation/three_module_stack_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh)
-- [scripts/packaging/container_validation_summary.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_validation_summary.sh)
+- [scripts/packaging/release_container_check.sh](scripts/packaging/release_container_check.sh)
+- [scripts/validation/three_module_stack_smoke.sh](scripts/validation/three_module_stack_smoke.sh)
+- [scripts/packaging/container_validation_summary.sh](scripts/packaging/container_validation_summary.sh)
 
 This is the right layer when the real question is:
 
@@ -156,12 +156,12 @@ This is the right layer when the real question is:
 ## Shortest Practical Routes
 
 - Family contract -> runtime confidence:
-  family hub -> [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+  family hub -> [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
   -> relevant script above
 - Family contract -> package drift review:
-  family hub -> [scripts/validation/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh)
+  family hub -> [scripts/validation/registry_validation.sh](scripts/validation/registry_validation.sh)
 - High-frequency confidence:
-  family hub -> [scripts/validation/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh)
+  family hub -> [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
 - Release confidence:
-  family hub -> [scripts/packaging/release_container_check.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh)
-  -> [scripts/validation/three_module_stack_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh)
+  family hub -> [scripts/packaging/release_container_check.sh](scripts/packaging/release_container_check.sh)
+  -> [scripts/validation/three_module_stack_smoke.sh](scripts/validation/three_module_stack_smoke.sh)

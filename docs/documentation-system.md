@@ -14,25 +14,25 @@ Its goal is to answer:
 
 Read this alongside:
 
-- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
-- [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
-- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
-- [docs/book/conventions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/conventions.md)
-- [docs/book/structure.md](/Users/Shared/chroot/dev/gewyvern/docs/book/structure.md)
-- [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+- [docs/index.md](docs/index.md)
+- [docs/book/index.md](docs/book/index.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
+- [docs/cli-recipes.md](docs/cli-recipes.md)
+- [docs/book/conventions.md](docs/book/conventions.md)
+- [docs/book/structure.md](docs/book/structure.md)
+- [docs/development.md](docs/development.md)
 
 Use:
 
-- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
+- [docs/index.md](docs/index.md)
   when you want the global doc map
-- [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
+- [docs/book/index.md](docs/book/index.md)
   when you want the reading-order spine
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
   when you want a goal-based operator script map
-- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+- [docs/cli-recipes.md](docs/cli-recipes.md)
   when you want practical CLI/API/demo commands without the full storyline
-- [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
+- [docs/documentation-system.md](docs/documentation-system.md)
   when you want the design rules for the docs themselves
 
 ## Why This Page Exists
@@ -115,10 +115,10 @@ These pages should answer:
 Two special top-level durable pages now intentionally sit between "subject
 shelf" and "operator helper":
 
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
   Goal-based script routing for validation, packaging, demos, Linux smoke,
   perf, and history helpers.
-- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+- [docs/cli-recipes.md](docs/cli-recipes.md)
   Compact command shelf for runtime CLI, `gewyc`, socket ingest, API routes,
   and narrow roundtrip demos.
 
@@ -176,7 +176,7 @@ This shelf keeps the project from pretending each new line is a total reset.
 When one line's validation posture depends on a small durable artifact bundle,
 the compact companion rule sheet now lives at:
 
-- [docs/history/minor-line-evidence-bundle.md](/Users/Shared/chroot/dev/gewyvern/docs/history/minor-line-evidence-bundle.md)
+- [docs/history/minor-line-evidence-bundle.md](docs/history/minor-line-evidence-bundle.md)
 
 ## Reading Paths By Reader Type
 
@@ -193,8 +193,8 @@ Needs:
 Start with:
 
 - `README.md`
-- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+- [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+- [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 
 ### Contributor
 
@@ -206,9 +206,9 @@ Needs:
 
 Start with:
 
-- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
-- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-- [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+- [docs/index.md](docs/index.md)
+- [docs/system.md](docs/system.md)
+- [docs/development.md](docs/development.md)
 
 ### Reviewer
 
@@ -220,9 +220,9 @@ Needs:
 
 Start with:
 
-- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-- [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
-- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
+- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+- [docs/architecture-evolution.md](docs/architecture-evolution.md)
+- [docs/field-validation.md](docs/field-validation.md)
 
 ### DSL Or Protocol Author
 
@@ -234,10 +234,10 @@ Needs:
 
 Start with:
 
-- [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
-- [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/gewylang-system.md](docs/gewylang-system.md)
+- [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Page Placement Rules
 

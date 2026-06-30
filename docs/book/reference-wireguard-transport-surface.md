@@ -27,7 +27,7 @@ payload traffic and you need the encrypted transport stage rather than the
 setup handshake.
 
 For the broader family map, see
-[docs/book/reference-wireguard-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-surface.md).
+[docs/book/reference-wireguard-surface.md](docs/book/reference-wireguard-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

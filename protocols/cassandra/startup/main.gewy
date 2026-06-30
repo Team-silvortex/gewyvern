@@ -1,0 +1,24 @@
+# gewyvern stable-subset protocol path
+
+fn cassandra_startup_rules() =
+  let module_name = :cassandra_startup_path
+  let startup_narrative = "static:observed a Cassandra native protocol STARTUP frame"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:cassandra_startup)
+  |> reason_model(:cassandra_startup_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_cluster)
+  |> program_rule(predicate: "socket_state_observed:remote:9042", stage: :socket_state_transition, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "packet_observed:tcp:remote:9042:local_to_remote:byte_at:4:0xff:0x01", stage: :packet_observed, narrative: ${startup_narrative}, dedupe: true, module: ${module_name}, phase: :send_startup)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_cluster)
+  |> reason_rule(predicate: "socket_state_observed:remote:9042", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:9042:local_to_remote:byte_at:4:0xff:0x01", key_event: :packet_observed, narrative: ${startup_narrative}, dedupe: true, module: ${module_name}, phase: :send_startup)
+
+template(:cassandra_startup_path)
+|> window(:default_5s)
+|> use(:cassandra_startup_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

@@ -104,7 +104,7 @@ Covered commands stay grouped by push/pop, move, and multi-pop behavior so the
 lookup path remains easy to scan.
 
 For the broader family map, see
-[docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).
+[docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

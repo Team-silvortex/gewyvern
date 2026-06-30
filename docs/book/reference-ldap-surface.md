@@ -59,7 +59,7 @@ Default entry: `sync`
 
 ### Bind
 
-- [docs/book/reference-ldap-bind-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-bind-surface.md)
+- [docs/book/reference-ldap-bind-surface.md](docs/book/reference-ldap-bind-surface.md)
   Bind success, bind denial, and bind-oriented login/auth aliases.
 
 Typical entries:
@@ -69,7 +69,7 @@ Typical entries:
 
 ### Search And Session
 
-- [docs/book/reference-ldap-search-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-search-surface.md)
+- [docs/book/reference-ldap-search-surface.md](docs/book/reference-ldap-search-surface.md)
   Search requests, directory session flow, and read-oriented directory aliases.
 
 Typical entries:
@@ -79,7 +79,7 @@ Typical entries:
 
 ### Write And Sync
 
-- [docs/book/reference-ldap-write-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-write-surface.md)
+- [docs/book/reference-ldap-write-surface.md](docs/book/reference-ldap-write-surface.md)
   Modify success, denial, constraint failure, explicit write sessions, and
   sync/replication sessions.
 
@@ -95,10 +95,10 @@ Typical entries:
 
 If you are validating current LDAP support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-ldap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-ldap-surface.md](docs/book/reference-ldap-surface.md)
 3. one narrower LDAP subpage for the flow you care about
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Stability Note
 

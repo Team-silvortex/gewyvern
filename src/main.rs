@@ -4,6 +4,8 @@ mod binding_demo;
 mod certificate_state_cli;
 #[path = "main/cli.rs"]
 mod cli;
+#[path = "main/cli_validation.rs"]
+mod cli_validation;
 mod data_api;
 mod diagnosis_runtime;
 mod external_analysis;
@@ -70,8 +72,8 @@ use crate::external_analysis::ExternalAnalysisConfig;
 use crate::history_view::render_history_index;
 use crate::report_runtime::{
     findings_json, findings_json_with_analysis, findings_text, http_transactions_json,
-    http_transactions_text, render_debugger_console_outputs, render_report_outputs,
-    render_scan_outputs, scan_report_html, scan_report_json_with_analyses,
+    http_transactions_text, render_debug_session_outputs, render_debugger_console_outputs,
+    render_report_outputs, render_scan_outputs, scan_report_html, scan_report_json_with_analyses,
     scan_report_text_with_analyses, summary_json, summary_json_with_analysis, summary_line,
     summary_line_with_analysis, training_example_json_array, training_example_json_with_analysis,
 };
@@ -446,6 +448,8 @@ fn main() {
         }
     } else if cli.debugger_console {
         render_debugger_console_outputs(&cli, &outputs)
+    } else if cli.debug_session {
+        render_debug_session_outputs(&cli, &outputs)
     } else if cli.findings {
         if cli.scan_all {
             render_scan_outputs(&cli, &outputs)

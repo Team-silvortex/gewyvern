@@ -6,9 +6,9 @@ ids, fragment parameter schema, and safety boundaries.
 
 This page pairs with:
 
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
-- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+- [docs/dsl.md](docs/dsl.md)
+- [docs/dsl-syntax.md](docs/dsl-syntax.md)
+- [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
 
 ## Legacy Key Surface
 
@@ -334,17 +334,17 @@ param=udp_packet_meta_fragment.min_len=false
 
 When this page feels too exact, step back to:
 
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+- [docs/dsl.md](docs/dsl.md)
 
 When you need authoring structure instead of field-by-field lookup, move to:
 
-- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
+- [docs/dsl-syntax.md](docs/dsl-syntax.md)
 
 When you need exact package/module semantics, move to:
 
-- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+- [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
 
 When you need compiler/lowering truth, move to:
 
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-- [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+- [docs/gewyc-json.md](docs/gewyc-json.md)

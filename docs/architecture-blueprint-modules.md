@@ -4,9 +4,9 @@ Use this page when you need the source-level architecture sheet for `gewyvern`.
 
 This page complements:
 
-- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+- [docs/system.md](docs/system.md)
+- [docs/module-boundaries.md](docs/module-boundaries.md)
 
 Its job is to show:
 
@@ -26,9 +26,9 @@ Use it when you want:
 
 Then continue with:
 
-- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+- [docs/module-boundaries.md](docs/module-boundaries.md)
   for concrete file ownership rules
-- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+- [docs/architecture.md](docs/architecture.md)
   for runtime-pipeline internals
 
 ## Module Blueprint

@@ -13,8 +13,8 @@ usually debug it as address ownership and link-layer reachability.
 
 ## Entries
 
-- [docs/book/reference-ndp-solicit-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-solicit-surface.md)
-- [docs/book/reference-ndp-advertise-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-advertise-surface.md)
+- [docs/book/reference-ndp-solicit-surface.md](docs/book/reference-ndp-solicit-surface.md)
+- [docs/book/reference-ndp-advertise-surface.md](docs/book/reference-ndp-advertise-surface.md)
 
 ## Operator Model
 
@@ -25,13 +25,13 @@ this link?" rather than "can this endpoint answer an application request?"
 
 Read this after:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
 
 ICMPv6 is the adjacent reachability family; NDP stays on its own neighbor
 resolution shelf.
 
 Then continue with:
 
-1. [docs/book/reference-ndp-solicit-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-solicit-surface.md)
-2. [docs/book/reference-ndp-advertise-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-advertise-surface.md)
-3. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+1. [docs/book/reference-ndp-solicit-surface.md](docs/book/reference-ndp-solicit-surface.md)
+2. [docs/book/reference-ndp-advertise-surface.md](docs/book/reference-ndp-advertise-surface.md)
+3. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

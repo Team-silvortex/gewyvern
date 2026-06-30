@@ -231,3 +231,23 @@ fn protocol_surface_json_emits_http3_and_quic_companion_overlay_metadata() {
         "\"reading_companions\":[{\"protocol\":\"http3\",\"entry\":\"request\",\"via_overlay\":\"http3\""
     ));
 }
+
+#[test]
+fn protocol_reading_for_target_lists_primary_and_companion_steps() {
+    let body = api_protocol_reading_for_target_json("scan:http3:request")
+        .expect("http3 target reading plan should exist");
+    assert!(body.contains("\"surface\":\"target_protocol_reading\""));
+    assert!(body.contains("\"target\":\"scan:http3:request\""));
+    assert!(body.contains("\"protocol\":\"http3\""));
+    assert!(body.contains("\"entry\":\"request\""));
+    assert!(
+        body.contains(
+            "\"catalog_surface_path\":\"/v1/protocols/http3/entries/request/surface.json\""
+        )
+    );
+    assert!(body.contains("\"kind\":\"primary\""));
+    assert!(body.contains("\"kind\":\"companion\""));
+    assert!(body.contains("\"protocol\":\"quic\""));
+    assert!(body.contains("\"entry\":\"initial\""));
+    assert!(body.contains("/v1/protocols/quic/entries/initial/surface.json"));
+}

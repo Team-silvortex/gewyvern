@@ -35,7 +35,7 @@ Current denial semantics:
 
 Return to the family hub:
 
-- [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)
+- [docs/book/reference-stun-surface.md](docs/book/reference-stun-surface.md)
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

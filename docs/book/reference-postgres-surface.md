@@ -51,7 +51,7 @@ Default entry: `query`
 
 ### Connect And Auth
 
-- [docs/book/reference-postgres-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-connect-surface.md)
+- [docs/book/reference-postgres-connect-surface.md](docs/book/reference-postgres-connect-surface.md)
   Socket establishment and authentication-ready flow.
 
 Typical entries:
@@ -62,7 +62,7 @@ Typical entries:
 
 ### Query And Session
 
-- [docs/book/reference-postgres-query-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-query-surface.md)
+- [docs/book/reference-postgres-query-surface.md](docs/book/reference-postgres-query-surface.md)
   Simple query flow and broader query-session path.
 
 Typical entries:
@@ -72,7 +72,7 @@ Typical entries:
 
 ### Error
 
-- [docs/book/reference-postgres-error-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-error-surface.md)
+- [docs/book/reference-postgres-error-surface.md](docs/book/reference-postgres-error-surface.md)
   Query-error flow after PostgreSQL session establishment.
 
 Typical entries:
@@ -83,17 +83,17 @@ Typical entries:
 
 If you are validating current PostgreSQL support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-postgres-surface.md](docs/book/reference-postgres-surface.md)
 3. one narrower PostgreSQL subpage for the flow you care about
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Next Useful Checks
 
 - For runtime-confidence checks:
-  [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+  [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 - For exact diagnosis-field meanings:
-  [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+  [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 ## Stability Note
 

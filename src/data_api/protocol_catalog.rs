@@ -111,6 +111,11 @@ pub(super) fn api_protocol_surface_for_target(name: &str) -> Option<ProtocolSurf
     protocol_surface(protocol_name, entry)
 }
 
+pub(super) fn api_protocol_reading_for_target_json(name: &str) -> Option<String> {
+    let surface = api_protocol_surface_for_target(name)?;
+    Some(api_protocol_reading_json(name, &surface))
+}
+
 pub(super) fn api_protocol_surface_json(surface: &ProtocolSurfaceSummary) -> String {
     let mut json = String::from("{\"protocol\":");
     append_json_string(&mut json, &surface.protocol);
@@ -146,6 +151,38 @@ pub(super) fn api_protocol_surface_json(surface: &ProtocolSurfaceSummary) -> Str
     append_protocol_overlays_json(&mut json, &surface.overlays);
     json.push_str(",\"reading_companions\":");
     append_protocol_companions_json(&mut json, &surface.overlays);
+    json.push('}');
+    json
+}
+
+fn api_protocol_reading_json(target_name: &str, surface: &ProtocolSurfaceSummary) -> String {
+    let mut json = String::from("{\"surface\":\"target_protocol_reading\",\"target\":");
+    append_json_string(&mut json, target_name);
+    json.push_str(",\"protocol\":");
+    append_json_string(&mut json, &surface.protocol);
+    json.push_str(",\"entry\":");
+    append_json_string(&mut json, &surface.entry);
+    json.push_str(",\"selected_overlay\":");
+    if let Some(overlay) = surface.selected_overlay.as_ref() {
+        append_json_string(&mut json, overlay);
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\"primary_surface_path\":");
+    append_json_string(&mut json, &target_protocol_surface_path(target_name));
+    json.push_str(",\"catalog_surface_path\":");
+    append_json_string(
+        &mut json,
+        &protocol_entry_surface_path(&surface.protocol, &surface.entry),
+    );
+    json.push_str(",\"cluster_hint\":");
+    append_protocol_cluster_hint_json(&mut json, surface.cluster_hint.as_ref());
+    json.push_str(",\"shelf\":");
+    append_protocol_shelf_json(&mut json, surface.shelf.as_ref());
+    json.push_str(",\"sibling_entries\":");
+    append_string_list_json(&mut json, &surface.sibling_entries);
+    json.push_str(",\"read_next\":");
+    append_protocol_read_next_json(&mut json, surface);
     json.push('}');
     json
 }
@@ -246,6 +283,66 @@ fn append_protocol_overlays_json(target: &mut String, overlays: &[ProtocolOverla
 }
 
 fn append_protocol_companions_json(target: &mut String, overlays: &[ProtocolOverlaySummary]) {
+    let companions = protocol_companion_rows(overlays);
+    target.push('[');
+    for (index, companion) in companions.iter().enumerate() {
+        if index > 0 {
+            target.push(',');
+        }
+        target.push('{');
+        target.push_str("\"protocol\":");
+        append_json_string(target, &companion.protocol);
+        target.push_str(",\"entry\":");
+        append_json_string(target, &companion.entry);
+        target.push_str(",\"via_overlay\":");
+        append_json_string(target, &companion.overlay_key);
+        target.push_str(",\"via_label\":");
+        append_json_string(target, &companion.overlay_label);
+        target.push('}');
+    }
+    target.push(']');
+}
+
+fn append_protocol_read_next_json(target: &mut String, surface: &ProtocolSurfaceSummary) {
+    target.push('[');
+    target.push_str("{\"kind\":\"primary\",\"protocol\":");
+    append_json_string(target, &surface.protocol);
+    target.push_str(",\"entry\":");
+    append_json_string(target, &surface.entry);
+    target.push_str(",\"path\":");
+    append_json_string(
+        target,
+        &protocol_entry_surface_path(&surface.protocol, &surface.entry),
+    );
+    target.push_str(",\"reason\":\"target surface\"}");
+    for companion in protocol_companion_rows(&surface.overlays) {
+        target.push_str(",{\"kind\":\"companion\",\"protocol\":");
+        append_json_string(target, &companion.protocol);
+        target.push_str(",\"entry\":");
+        append_json_string(target, &companion.entry);
+        target.push_str(",\"path\":");
+        append_json_string(
+            target,
+            &protocol_entry_surface_path(&companion.protocol, &companion.entry),
+        );
+        target.push_str(",\"via_overlay\":");
+        append_json_string(target, &companion.overlay_key);
+        target.push_str(",\"via_label\":");
+        append_json_string(target, &companion.overlay_label);
+        target.push('}');
+    }
+    target.push(']');
+}
+
+fn protocol_entry_surface_path(protocol: &str, entry: &str) -> String {
+    format!("/v1/protocols/{protocol}/entries/{entry}/surface.json")
+}
+
+fn target_protocol_surface_path(target_name: &str) -> String {
+    format!("/v1/latest/targets/{target_name}/protocol-surface.json")
+}
+
+fn protocol_companion_rows(overlays: &[ProtocolOverlaySummary]) -> Vec<ProtocolCompanionRow> {
     let mut emitted = BTreeMap::<(String, String), (String, String)>::new();
     for overlay in overlays {
         let Some(protocol) = overlay.companion_protocol.clone() else {
@@ -258,25 +355,24 @@ fn append_protocol_companions_json(target: &mut String, overlays: &[ProtocolOver
             .entry((protocol, entry))
             .or_insert_with(|| (overlay.key.clone(), overlay.label.clone()));
     }
-    target.push('[');
-    for (index, ((protocol, entry), (overlay_key, overlay_label))) in
-        emitted.into_iter().enumerate()
-    {
-        if index > 0 {
-            target.push(',');
-        }
-        target.push('{');
-        target.push_str("\"protocol\":");
-        append_json_string(target, &protocol);
-        target.push_str(",\"entry\":");
-        append_json_string(target, &entry);
-        target.push_str(",\"via_overlay\":");
-        append_json_string(target, &overlay_key);
-        target.push_str(",\"via_label\":");
-        append_json_string(target, &overlay_label);
-        target.push('}');
-    }
-    target.push(']');
+    emitted
+        .into_iter()
+        .map(
+            |((protocol, entry), (overlay_key, overlay_label))| ProtocolCompanionRow {
+                protocol,
+                entry,
+                overlay_key,
+                overlay_label,
+            },
+        )
+        .collect()
+}
+
+struct ProtocolCompanionRow {
+    protocol: String,
+    entry: String,
+    overlay_key: String,
+    overlay_label: String,
 }
 
 #[derive(Clone)]

@@ -50,7 +50,7 @@ Default entry: `session`
 
 ### Start And Negotiation
 
-- [docs/book/reference-amqp-start-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-start-surface.md)
+- [docs/book/reference-amqp-start-surface.md](docs/book/reference-amqp-start-surface.md)
   Protocol header, `start`, and `start-ok` negotiation flow.
 
 Typical entries:
@@ -61,7 +61,7 @@ Typical entries:
 
 ### Session And Publish
 
-- [docs/book/reference-amqp-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-session-surface.md)
+- [docs/book/reference-amqp-session-surface.md](docs/book/reference-amqp-session-surface.md)
   Broader session framing and publish acknowledgement flow.
 
 Typical entries:
@@ -71,7 +71,7 @@ Typical entries:
 
 ### Consume
 
-- [docs/book/reference-amqp-consume-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-consume-surface.md)
+- [docs/book/reference-amqp-consume-surface.md](docs/book/reference-amqp-consume-surface.md)
   Consumer registration and delivery flow.
 
 Typical entries:
@@ -82,10 +82,10 @@ Typical entries:
 
 If you are validating current AMQP support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-amqp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-amqp-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-amqp-surface.md](docs/book/reference-amqp-surface.md)
 3. one narrower AMQP subpage for the flow you care about
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Stability Note
 

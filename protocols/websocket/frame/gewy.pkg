@@ -1,0 +1,7 @@
+name=websocket_frame
+version=0.18.2
+entry=main.gewy
+register.protocol=websocket
+register.entry=frame
+register.aliases=websocket-frame,websocket_frame,ws-frame,ws_frame
+register.entry_aliases=data,message,text,binary

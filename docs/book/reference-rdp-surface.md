@@ -10,9 +10,9 @@ Protocol aliases: `desktop-channel`, `desktop-connect`, `rdp-channel`,
 
 Read this alongside:
 
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
 - one narrower RDP subpage
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## What This Shelf Covers
 
@@ -28,7 +28,7 @@ classification before a full RDP decoder exists.
 
 ### Connect
 
-- [docs/book/reference-rdp-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rdp-connect-surface.md)
+- [docs/book/reference-rdp-connect-surface.md](docs/book/reference-rdp-connect-surface.md)
   X.224 connection request and confirmation.
 
 Typical entries:
@@ -37,7 +37,7 @@ Typical entries:
 
 ### Channel
 
-- [docs/book/reference-rdp-channel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rdp-channel-surface.md)
+- [docs/book/reference-rdp-channel-surface.md](docs/book/reference-rdp-channel-surface.md)
   Data TPDU channel traffic.
 
 Typical entries:

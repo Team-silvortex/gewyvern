@@ -8,6 +8,7 @@ The current API and persisted protocol-surface artifacts now expose:
 - `selected_overlay`
 - `overlays`
 - `reading_companions`
+- `target_protocol_reading`
 
 Treat them as three different layers:
 
@@ -19,6 +20,9 @@ Treat them as three different layers:
 - `reading_companions`
   - lists the next canonical protocol/entry pairs an operator or UI should jump
     to when the current surface depends on a second shelf
+- `target_protocol_reading`
+  - wraps the current target's primary surface and companion jumps into one
+    ordered "read this next" plan for debugger UIs and native test harnesses
 
 ## Current Companion Patterns
 
@@ -48,6 +52,16 @@ Machine-facing paths that now carry `reading_companions` include:
 - `/v1/latest/targets/<path-segment>/protocol-surface.json`
 - scan report JSON `protocol_surface`
 
+The target-level shortcut is:
+
+- `/v1/latest/targets/<path-segment>/protocol-reading.json`
+
+It emits `surface:"target_protocol_reading"` and a `read_next` list. The first
+row is always the target's primary protocol surface; later rows are companion
+protocol entries derived from overlays. This is the preferred endpoint when a
+UI wants to show "what should I open next?" without re-implementing catalog
+logic.
+
 Each companion row currently carries:
 
 - `protocol`
@@ -70,6 +84,6 @@ When a surface exposes `reading_companions`, use this order:
 
 For the broader routing spine that surrounds these companion jumps, keep nearby:
 
-- [docs/book/reference-protocol-reading-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-paths.md)
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
+- [docs/book/reference-protocol-reading-paths.md](docs/book/reference-protocol-reading-paths.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-runtime-layout.md](docs/book/reference-runtime-layout.md)

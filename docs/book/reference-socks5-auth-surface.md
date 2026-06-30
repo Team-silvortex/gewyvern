@@ -78,7 +78,7 @@ the rest of the built-in protocol shelf:
 - lowering into program and reason rules
 
 When you need the broader family map, return to
-[docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md).
+[docs/book/reference-socks5-surface.md](docs/book/reference-socks5-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

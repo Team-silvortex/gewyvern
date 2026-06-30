@@ -12,8 +12,8 @@ Use it for:
 
 Primary subpages:
 
-- [docs/book/reference-kerberos-as-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-as-surface.md)
-- [docs/book/reference-kerberos-tgs-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-tgs-surface.md)
+- [docs/book/reference-kerberos-as-surface.md](docs/book/reference-kerberos-as-surface.md)
+- [docs/book/reference-kerberos-tgs-surface.md](docs/book/reference-kerberos-tgs-surface.md)
 
 Current canonical entries:
 
@@ -25,7 +25,7 @@ Default entry: `as`
 
 Read in this order:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-kerberos-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kerberos-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-kerberos-surface.md](docs/book/reference-kerberos-surface.md)
 3. one exact Kerberos subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

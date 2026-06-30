@@ -5,11 +5,11 @@ Use this page when you need the design-evolution sheet for `gewyvern`.
 This page is the bridge between:
 
 - the static blueprints in
-  [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
+  [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
 - the current release posture in
-  [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
+  [docs/v0.14-posture.md](docs/v0.14-posture.md)
 - the historical minor-line notes in
-  [docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md)
+  [docs/history/index.md](docs/history/index.md)
 
 Its job is not to promise exact version contents.
 
@@ -218,12 +218,12 @@ Defer work that:
 
 If you want to review the architecture as a moving system, use this order:
 
-1. [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-2. [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
-3. [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
-4. [docs/history/v0.13.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.13.x.md)
-5. [docs/history/v0.15.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15.x.md)
-6. [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
+1. [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+2. [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
+3. [docs/architecture-evolution.md](docs/architecture-evolution.md)
+4. [docs/history/v0.13.x.md](docs/history/v0.13.x.md)
+5. [docs/history/v0.15.x.md](docs/history/v0.15.x.md)
+6. [docs/field-validation.md](docs/field-validation.md)
 
 ## Current Thesis
 

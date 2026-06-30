@@ -11,11 +11,12 @@ pub(super) type ShelfMatch = (
 );
 
 pub(super) use core::{
-    arp_shelf, bgp_shelf, coap_shelf, dhcp_shelf, dns_shelf, ftp_shelf, geneve_shelf, gre_shelf,
-    gtpu_shelf, http_shelf, http3_shelf, https_shelf, hy2_shelf, icmp_shelf, icmpv6_shelf,
-    ipsec_shelf, kafka_shelf, l2tp_shelf, mdns_shelf, memcached_shelf, mqtt_shelf, mysql_shelf,
-    nats_shelf, ndp_shelf, ntp_shelf, ospf_shelf, postgres_shelf, pptp_shelf, quic_shelf,
-    radius_shelf, redis_shelf, snmp_shelf, ssdp_shelf, stun_shelf, tls_shelf, vxlan_shelf,
+    arp_shelf, bgp_shelf, cassandra_shelf, coap_shelf, dhcp_shelf, dns_shelf, ftp_shelf,
+    geneve_shelf, graphql_shelf, gre_shelf, grpc_shelf, gtpu_shelf, http_shelf, http3_shelf,
+    https_shelf, hy2_shelf, icmp_shelf, icmpv6_shelf, ipsec_shelf, kafka_shelf, l2tp_shelf,
+    mdns_shelf, memcached_shelf, mongodb_shelf, mqtt_shelf, mssql_shelf, mysql_shelf, nats_shelf,
+    ndp_shelf, ntp_shelf, ospf_shelf, postgres_shelf, pptp_shelf, quic_shelf, radius_shelf,
+    redis_shelf, snmp_shelf, ssdp_shelf, stun_shelf, tls_shelf, vxlan_shelf, websocket_shelf,
     wireguard_shelf,
 };
 pub(super) use extended::{
@@ -28,6 +29,9 @@ pub(super) fn built_in_protocol_shelf(protocol: &str, entry: &str) -> Option<Pro
         "dns" => dns_shelf(entry)?,
         "https" => https_shelf(entry)?,
         "http" => http_shelf(entry)?,
+        "grpc" => grpc_shelf(entry)?,
+        "websocket" => websocket_shelf(entry)?,
+        "graphql" => graphql_shelf(entry)?,
         "hy2" => hy2_shelf(entry)?,
         "tls" => tls_shelf(entry)?,
         "quic" => quic_shelf(entry)?,
@@ -52,6 +56,9 @@ pub(super) fn built_in_protocol_shelf(protocol: &str, entry: &str) -> Option<Pro
         "ssdp" => ssdp_shelf(entry)?,
         "mysql" => mysql_shelf(entry)?,
         "postgres" => postgres_shelf(entry)?,
+        "mongodb" => mongodb_shelf(entry)?,
+        "cassandra" => cassandra_shelf(entry)?,
+        "mssql" => mssql_shelf(entry)?,
         "mqtt" => mqtt_shelf(entry)?,
         "kafka" => kafka_shelf(entry)?,
         "nats" => nats_shelf(entry)?,

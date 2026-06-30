@@ -22,7 +22,7 @@ Default entry: `handshake`
 
 ### Handshake
 
-- [docs/book/reference-wireguard-handshake-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-handshake-surface.md)
+- [docs/book/reference-wireguard-handshake-surface.md](docs/book/reference-wireguard-handshake-surface.md)
   Peer initiation and response exchange.
 
 Typical entries:
@@ -31,7 +31,7 @@ Typical entries:
 
 ### Cookie Reply
 
-- [docs/book/reference-wireguard-cookie-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-cookie-surface.md)
+- [docs/book/reference-wireguard-cookie-surface.md](docs/book/reference-wireguard-cookie-surface.md)
   Peer anti-abuse continuation branch.
 
 Typical entries:
@@ -40,7 +40,7 @@ Typical entries:
 
 ### Transport
 
-- [docs/book/reference-wireguard-transport-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-transport-surface.md)
+- [docs/book/reference-wireguard-transport-surface.md](docs/book/reference-wireguard-transport-surface.md)
   Encrypted payload datagrams after setup.
 
 Typical entries:
@@ -49,7 +49,7 @@ Typical entries:
 
 Read in this order:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-wireguard-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-wireguard-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-wireguard-surface.md](docs/book/reference-wireguard-surface.md)
 3. one exact WireGuard subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

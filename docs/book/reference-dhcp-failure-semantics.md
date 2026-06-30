@@ -5,7 +5,7 @@ why lease negotiation did not converge.
 
 Read it alongside:
 
-- [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
+- [docs/book/reference-management-udp-failure-semantics.md](docs/book/reference-management-udp-failure-semantics.md)
 
 Use this page for:
 
@@ -63,5 +63,5 @@ Do not confuse it with:
 
 Return paths:
 
-- [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
-- [docs/book/reference-dhcp-lease-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-lease-surface.md)
+- [docs/book/reference-dhcp-surface.md](docs/book/reference-dhcp-surface.md)
+- [docs/book/reference-dhcp-lease-surface.md](docs/book/reference-dhcp-lease-surface.md)

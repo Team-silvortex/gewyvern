@@ -16,9 +16,9 @@ This page is not the best first stop for:
 
 For those, use:
 
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
-- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
-- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
+- [docs/machine-contract.md](docs/machine-contract.md)
+- [docs/system.md](docs/system.md)
 
 The export format is designed for deterministic replay, not for generic
 analytics ingestion.
@@ -430,12 +430,12 @@ For now, when the export format changes:
 
 ## Companion References
 
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
   Exact meanings for the runtime diagnosis spine that sits above exported
   facts and flow state.
-- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
+- [docs/machine-contract.md](docs/machine-contract.md)
   Machine-facing latest API and additive sidecar context contract candidate.
-- [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
+- [docs/surface-stability.md](docs/surface-stability.md)
   Stable versus intentionally evolving surfaces across CLI, API, and export.
-- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+- [docs/system.md](docs/system.md)
   Broader compiler/runtime/export layering.

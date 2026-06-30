@@ -13,10 +13,10 @@ not only as additive sidecar hints or one concrete runtime path.
 
 Read this alongside:
 
-- [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
-- [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
-- [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
-- [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
+- [docs/sidecar-collaboration.md](docs/sidecar-collaboration.md)
+- [docs/external-engine-contract.md](docs/external-engine-contract.md)
+- [docs/architecture-coordination.md](docs/architecture-coordination.md)
+- [docs/book/explanation-protocol-package-spine.md](docs/book/explanation-protocol-package-spine.md)
 
 ## Book Path
 
@@ -24,13 +24,13 @@ This chapter lives in Part V: The Broader Stack.
 
 Read it after:
 
-- [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
-- [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
+- [docs/book/explanation-protocol-package-spine.md](docs/book/explanation-protocol-package-spine.md)
+- [docs/sidecar-collaboration.md](docs/sidecar-collaboration.md)
 
 Then continue with:
 
-- [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
-- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+- [docs/architecture-coordination.md](docs/architecture-coordination.md)
+- [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 
 ## The Short Version
 
@@ -255,11 +255,11 @@ That preserves the correct order of dependency in the reader's head too.
 
 If you want the stack as one coherent story, use:
 
-1. [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-2. [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-3. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
-4. [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
-5. [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
+1. [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+2. [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+3. [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
+4. [docs/book/explanation-protocol-package-spine.md](docs/book/explanation-protocol-package-spine.md)
+5. [docs/book/explanation-stack-topology.md](docs/book/explanation-stack-topology.md)
 
 ## Current Thesis
 
@@ -278,9 +278,9 @@ confused.
 If you want the formal coordination view across protocol, IR, runtime, and
 collaboration lines, go to:
 
-- [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+- [docs/architecture-coordination.md](docs/architecture-coordination.md)
 
 If you want to return to operational stewardship after the stack overview, go
 to:
 
-- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+- [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)

@@ -12,18 +12,18 @@ This chapter follows one concrete path through `gewyvern`:
 
 It uses the built-in UDP process-aware example:
 
-- [dsl/udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy)
+- [dsl/udp_process_debug.gewy](dsl/udp_process_debug.gewy)
 
 This page is best read after:
 
-- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-- [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
+- [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+- [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
 
 and alongside:
 
-- [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
-- [docs/book/explanation-gewylang-lightweight-types.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-lightweight-types.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/explanation-conservative-diagnosis.md](docs/book/explanation-conservative-diagnosis.md)
+- [docs/book/explanation-gewylang-lightweight-types.md](docs/book/explanation-gewylang-lightweight-types.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Book Path
 
@@ -31,13 +31,13 @@ This chapter lives in Part III: The Runtime Spine.
 
 Read it after:
 
-- [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 Then continue with:
 
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
-- [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
+- [docs/book/explanation-conservative-diagnosis.md](docs/book/explanation-conservative-diagnosis.md)
 
 ## Best Used For
 
@@ -52,8 +52,8 @@ Do not use this page as the fastest operational checklist.
 
 For that, use:
 
-- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+- [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+- [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 
 ## Step 1: Start With A `.gewy` File
 
@@ -114,8 +114,8 @@ That binding contains:
 
 In code, this boundary lives in:
 
-- [src/dsl.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl.rs)
-- [src/template.rs](/Users/Shared/chroot/dev/gewyvern/src/template.rs)
+- [src/dsl.rs](src/dsl.rs)
+- [src/template.rs](src/template.rs)
 
 ## Step 3: Inspect Planner Diagnostics
 
@@ -123,7 +123,7 @@ Before starting a runtime session, you can inspect whether the selected
 fragment set actually supports the declared rules:
 
 ```bash
-cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --diagnostics --json
+cargo run -- --dsl dsl/udp_process_debug.gewy --diagnostics --json
 ```
 
 Current output:
@@ -156,11 +156,11 @@ Once the binding is accepted, the runtime does five important things:
 
 This path lives across:
 
-- [src/fragment.rs](/Users/Shared/chroot/dev/gewyvern/src/fragment.rs)
-- [src/loader.rs](/Users/Shared/chroot/dev/gewyvern/src/loader.rs)
-- [src/runtime.rs](/Users/Shared/chroot/dev/gewyvern/src/runtime.rs)
-- [src/program.rs](/Users/Shared/chroot/dev/gewyvern/src/program.rs)
-- [src/reason.rs](/Users/Shared/chroot/dev/gewyvern/src/reason.rs)
+- [src/fragment.rs](src/fragment.rs)
+- [src/loader.rs](src/loader.rs)
+- [src/runtime.rs](src/runtime.rs)
+- [src/program.rs](src/program.rs)
+- [src/reason.rs](src/reason.rs)
 
 For the built-in CLI demo path, the runtime feeds a small deterministic fact
 set through this binding and then exports the session.
@@ -170,7 +170,7 @@ set through this binding and then exports the session.
 You can ask the CLI for the lightweight session summary:
 
 ```bash
-cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --summary-only
+cargo run -- --dsl dsl/udp_process_debug.gewy --json --summary-only
 ```
 
 Current output:
@@ -200,7 +200,7 @@ For more operator-facing runs, modern `summary_json` output also carries:
 
 Those fields are more useful when the session is diagnosing a real failure than
 this tiny healthy UDP baseline. See
-[docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
+[docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
 for practical report-reading examples.
 
 ## Step 6: Understand What Was Materialized
@@ -239,7 +239,7 @@ Deterministic explanatory view:
 The session can also be exported as full JSON:
 
 ```bash
-cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -- --dsl dsl/udp_process_debug.gewy --json
 ```
 
 That full export preserves:
@@ -275,12 +275,12 @@ rule combinations, not as a DSL that directly emits new kernel bytecode.
 ## Where To Go Next
 
 - If you want to author or debug packages directly:
-  [docs/book/how-to-add-or-debug-protocol-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-add-or-debug-protocol-package.md)
+  [docs/book/how-to-add-or-debug-protocol-package.md](docs/book/how-to-add-or-debug-protocol-package.md)
 - If you want exact package/module rules:
-  [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+  [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
 - If you want the internal source ownership map:
-  [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+  [docs/module-boundaries.md](docs/module-boundaries.md)
 - If you want the exact runtime-facing diagnosis contract:
-  [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+  [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 - If you want the rationale for why runtime output stays conservative:
-  [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
+  [docs/book/explanation-conservative-diagnosis.md](docs/book/explanation-conservative-diagnosis.md)

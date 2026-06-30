@@ -44,4 +44,4 @@ stream observation, not a specific higher-level application protocol carried on
 top of QUIC.
 
 For the broader family map, see
-[docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md).
+[docs/book/reference-quic-surface.md](docs/book/reference-quic-surface.md).

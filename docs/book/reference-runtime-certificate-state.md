@@ -18,9 +18,9 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
-- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
-- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
+- [docs/book/reference-runtime-layout.md](docs/book/reference-runtime-layout.md)
+- [docs/book/reference-runtime-config.md](docs/book/reference-runtime-config.md)
+- [docs/book/reference-runtime-certificate-policy.md](docs/book/reference-runtime-certificate-policy.md)
 
 ## State Shelf
 

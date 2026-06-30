@@ -18,13 +18,13 @@ This means the current runtime and protocol shelf treat DoH as:
 
 Read in this order when the question is “is encrypted DNS over HTTP healthy?”:
 
-1. [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md)
-2. [docs/book/reference-http-message-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-message-surface.md)
-3. [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md)
-4. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+1. [docs/book/reference-http-surface.md](docs/book/reference-http-surface.md)
+2. [docs/book/reference-http-message-surface.md](docs/book/reference-http-message-surface.md)
+3. [docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md)
+4. [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 For the broader protocol reading spine, also keep
-[docs/book/reference-protocol-reading-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-paths.md)
+[docs/book/reference-protocol-reading-paths.md](docs/book/reference-protocol-reading-paths.md)
 open beside this page.
 
 ## What To Look For

@@ -13,8 +13,8 @@ Use it for:
 
 Primary subpages:
 
-- [docs/book/reference-arp-request-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-arp-request-surface.md)
-- [docs/book/reference-arp-reply-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-arp-reply-surface.md)
+- [docs/book/reference-arp-request-surface.md](docs/book/reference-arp-request-surface.md)
+- [docs/book/reference-arp-reply-surface.md](docs/book/reference-arp-reply-surface.md)
 
 Current canonical entries:
 
@@ -32,7 +32,7 @@ Operator rule:
 
 Read in this order:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-arp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-arp-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-arp-surface.md](docs/book/reference-arp-surface.md)
 3. one exact ARP subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

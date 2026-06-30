@@ -16,11 +16,11 @@ the best high-level entrypoint.
 
 If you want the global documentation map instead of the reading order, use:
 
-- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
+- [docs/index.md](docs/index.md)
 
 If you want the repository-wide stack layout before reading by chapter, use:
 
-- [docs/monorepo-stack.md](/Users/Shared/chroot/dev/gewyvern/docs/monorepo-stack.md)
+- [docs/monorepo-stack.md](docs/monorepo-stack.md)
 
 ## Book Shape
 
@@ -36,17 +36,17 @@ The storyline helps you read the project as one coherent system.
 
 The book is organized around four reading modes:
 
-- [Tutorials](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorials.md)
+- [Tutorials](docs/book/tutorials.md)
   Learn by following a concrete path.
-- [How-To Guides](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to.md)
+- [How-To Guides](docs/book/how-to.md)
   Solve one practical task at a time.
-- [Reference](/Users/Shared/chroot/dev/gewyvern/docs/book/reference.md)
+- [Reference](docs/book/reference.md)
   Look up exact syntax, schema, or contract details.
-- [Explanation](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation.md)
+- [Explanation](docs/book/explanation.md)
   Understand the architecture and design rationale.
-- [Documentation Conventions](/Users/Shared/chroot/dev/gewyvern/docs/book/conventions.md)
+- [Documentation Conventions](docs/book/conventions.md)
   For the house rules that keep this book coherent.
-- [Book Structure](/Users/Shared/chroot/dev/gewyvern/docs/book/structure.md)
+- [Book Structure](docs/book/structure.md)
   For the part/chapter discipline that keeps the book readable as one system.
 
 ## Suggested Storyline
@@ -56,54 +56,54 @@ use this order:
 
 ### Part I: First Contact
 
-1. [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-2. [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
+1. [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+2. [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
 
 ### Part II: The Language And Compiler Spine
 
-3. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-4. [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
-5. [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
-6. [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-7. [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
-8. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+3. [docs/dsl.md](docs/dsl.md)
+4. [docs/gewylang-system.md](docs/gewylang-system.md)
+5. [docs/gewylang-evolution.md](docs/gewylang-evolution.md)
+6. [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+7. [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
+8. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ### Part III: The Runtime Spine
 
-9. [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-10. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-11. [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
-12. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
-13. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
-14. [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
+9. [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+10. [docs/system.md](docs/system.md)
+11. [docs/architecture.md](docs/architecture.md)
+12. [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
+13. [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
+14. [docs/book/explanation-conservative-diagnosis.md](docs/book/explanation-conservative-diagnosis.md)
 
 ### Part IV: Protocol Packages As A System
 
-15. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-16. [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
-17. [docs/architecture-walkthrough-http-request.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-walkthrough-http-request.md)
+15. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+16. [docs/book/explanation-protocol-package-spine.md](docs/book/explanation-protocol-package-spine.md)
+17. [docs/architecture-walkthrough-http-request.md](docs/architecture-walkthrough-http-request.md)
 
 ### Part V: The Broader Stack
 
-18. [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
-19. [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
-20. [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
-21. [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
-22. [docs/monorepo-stack.md](/Users/Shared/chroot/dev/gewyvern/docs/monorepo-stack.md)
+18. [docs/sidecar-collaboration.md](docs/sidecar-collaboration.md)
+19. [docs/book/explanation-dataflow-topology.md](docs/book/explanation-dataflow-topology.md)
+20. [docs/book/explanation-stack-topology.md](docs/book/explanation-stack-topology.md)
+21. [docs/architecture-coordination.md](docs/architecture-coordination.md)
+22. [docs/monorepo-stack.md](docs/monorepo-stack.md)
 
 ### Part VI: Operating, Validating, And Extending
 
-23. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-24. [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
-25. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
-26. [docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md)
+23. [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
+24. [docs/book/how-to-fault-inject-runtime-resilience.md](docs/book/how-to-fault-inject-runtime-resilience.md)
+25. [docs/development.md](docs/development.md)
+26. [docs/documentation-system.md](docs/documentation-system.md)
 
 ## Current Release Line
 
 For the current `0.17.x` midline posture, see:
 
-- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
-- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
+- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
 
 ## Role-Based Reading Paths
 
@@ -119,15 +119,15 @@ Start here if your question is:
 
 Recommended order:
 
-1. [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-2. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-3. [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
-4. [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-5. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-6. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
-7. [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
-8. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
-9. [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
+1. [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+2. [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
+3. [docs/book/how-to-fault-inject-runtime-resilience.md](docs/book/how-to-fault-inject-runtime-resilience.md)
+4. [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+5. [docs/system.md](docs/system.md)
+6. [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
+7. [docs/book/explanation-conservative-diagnosis.md](docs/book/explanation-conservative-diagnosis.md)
+8. [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
+9. [docs/book/explanation-dataflow-topology.md](docs/book/explanation-dataflow-topology.md)
 
 ### DSL Author
 
@@ -139,17 +139,17 @@ Start here if your question is:
 
 Recommended order:
 
-1. [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
-2. [docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md)
-3. [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
-4. [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
-5. [docs/book/how-to-add-or-debug-protocol-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-add-or-debug-protocol-package.md)
-6. [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
-7. [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-8. [docs/book/explanation-gewylang-lightweight-types.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-lightweight-types.md)
-9. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-10. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-11. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+1. [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
+2. [docs/gewylang-system.md](docs/gewylang-system.md)
+3. [docs/dsl-syntax.md](docs/dsl-syntax.md)
+4. [docs/dsl-reference.md](docs/dsl-reference.md)
+5. [docs/book/how-to-add-or-debug-protocol-package.md](docs/book/how-to-add-or-debug-protocol-package.md)
+6. [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
+7. [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+8. [docs/book/explanation-gewylang-lightweight-types.md](docs/book/explanation-gewylang-lightweight-types.md)
+9. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+10. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+11. [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 
 ### Contributor
 
@@ -161,12 +161,12 @@ Start here if your question is:
 
 Recommended order:
 
-1. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
-2. [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
-3. [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
-4. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-5. [docs/book/reference.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference.md)
-6. [docs/book/explanation.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation.md)
+1. [docs/development.md](docs/development.md)
+2. [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
+3. [docs/module-boundaries.md](docs/module-boundaries.md)
+4. [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
+5. [docs/book/reference.md](docs/book/reference.md)
+6. [docs/book/explanation.md](docs/book/explanation.md)
 
 ### Reviewer
 
@@ -178,36 +178,36 @@ Start here if your question is:
 
 Recommended order:
 
-1. [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
-2. [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
-3. [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
-4. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-5. [docs/book/how-to-fault-inject-runtime-resilience.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-fault-inject-runtime-resilience.md)
-6. [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-7. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
-8. [docs/book/explanation-conservative-diagnosis.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-conservative-diagnosis.md)
-9. [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
-10. [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
+1. [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+2. [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
+3. [docs/field-findings.md](docs/field-findings.md)
+4. [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
+5. [docs/book/how-to-fault-inject-runtime-resilience.md](docs/book/how-to-fault-inject-runtime-resilience.md)
+6. [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+7. [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
+8. [docs/book/explanation-conservative-diagnosis.md](docs/book/explanation-conservative-diagnosis.md)
+9. [docs/book/explanation-dataflow-topology.md](docs/book/explanation-dataflow-topology.md)
+10. [docs/book/explanation-stack-topology.md](docs/book/explanation-stack-topology.md)
 
 ## If You Do Not Know Where To Start
 
 Use this fallback:
 
-1. [docs/book/tutorials.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorials.md)
-2. [docs/book/how-to.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to.md)
-3. [docs/book/reference.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference.md)
-4. [docs/book/explanation.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation.md)
+1. [docs/book/tutorials.md](docs/book/tutorials.md)
+2. [docs/book/how-to.md](docs/book/how-to.md)
+3. [docs/book/reference.md](docs/book/reference.md)
+4. [docs/book/explanation.md](docs/book/explanation.md)
 
 ## Protocol-Family Quick Paths
 
 When you already know which protocol family you are working on, use the family
 directory page instead of scanning the whole book:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-protocol-family-shelves.md](docs/book/reference-protocol-family-shelves.md)
 3. one family hub page such as Redis, FTP, SMTP, MQTT, LDAP, or PostgreSQL
 4. one narrower family subpage
-5. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+5. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Scope
 
@@ -225,7 +225,7 @@ clear reading mode.
 
 Use:
 
-- [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
+- [docs/book/index.md](docs/book/index.md)
   for storyline and chapter order
-- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
+- [docs/index.md](docs/index.md)
   for the global documentation shelves

@@ -35,7 +35,7 @@ Default entry: `session`
 
 ### Session
 
-- [docs/book/reference-ssh-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-session-surface.md)
+- [docs/book/reference-ssh-session-surface.md](docs/book/reference-ssh-session-surface.md)
   Session establishment, banner exchange, and key exchange init flow.
 
 Typical entries:
@@ -44,7 +44,7 @@ Typical entries:
 
 ### Authentication
 
-- [docs/book/reference-ssh-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-auth-surface.md)
+- [docs/book/reference-ssh-auth-surface.md](docs/book/reference-ssh-auth-surface.md)
   Authentication request flow, including both success and denial branches.
 
 Typical entries:
@@ -54,7 +54,7 @@ Typical entries:
 
 ### Channel
 
-- [docs/book/reference-ssh-channel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-channel-surface.md)
+- [docs/book/reference-ssh-channel-surface.md](docs/book/reference-ssh-channel-surface.md)
   Authenticated channel open and confirmation flow.
 
 Typical entries:
@@ -65,17 +65,17 @@ Typical entries:
 
 If you are validating current SSH support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-ssh-surface.md](docs/book/reference-ssh-surface.md)
 3. one narrower SSH subpage for the branch you care about
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Next Useful Checks
 
 - For runtime-confidence checks:
-  [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+  [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 - For exact diagnosis-field meanings:
-  [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+  [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 ## Stability Note
 

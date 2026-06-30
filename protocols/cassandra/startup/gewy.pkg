@@ -1,0 +1,7 @@
+name=cassandra_startup
+version=0.18.2
+entry=main.gewy
+register.protocol=cassandra
+register.entry=startup
+register.aliases=cql-startup,cql_startup,cassandra-startup,cassandra_startup
+register.entry_aliases=connect,hello,handshake

@@ -42,7 +42,7 @@ The current entry is intentionally compact. It models the coarse binary `get`
 exchange, not broader caching policy or multi-key nuances.
 
 For the broader family map, see
-[docs/book/reference-memcached-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-surface.md).
+[docs/book/reference-memcached-surface.md](docs/book/reference-memcached-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

@@ -44,7 +44,7 @@ Default entry: `session`
 
 ### Session
 
-- [docs/book/reference-socks5-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-session-surface.md)
+- [docs/book/reference-socks5-session-surface.md](docs/book/reference-socks5-session-surface.md)
   Unauthenticated session establishment and successful proxy connect.
 
 Typical entries:
@@ -53,7 +53,7 @@ Typical entries:
 
 ### Authentication
 
-- [docs/book/reference-socks5-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-auth-surface.md)
+- [docs/book/reference-socks5-auth-surface.md](docs/book/reference-socks5-auth-surface.md)
   Username/password method negotiation, auth success, and authenticated connect
   success.
 
@@ -63,7 +63,7 @@ Typical entries:
 
 ### Denial Branches
 
-- [docs/book/reference-socks5-denied-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-denied-surface.md)
+- [docs/book/reference-socks5-denied-surface.md](docs/book/reference-socks5-denied-surface.md)
   Connect denial, auth denial, and authenticated-connect denial.
 
 Typical entries:
@@ -76,17 +76,17 @@ Typical entries:
 
 If you are validating current SOCKS5 support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-socks5-surface.md](docs/book/reference-socks5-surface.md)
 3. one narrower SOCKS5 subpage for the flow you care about
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Next Useful Checks
 
 - For runtime-confidence checks:
-  [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+  [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 - For exact diagnosis-field meanings:
-  [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+  [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 ## Stability Note
 

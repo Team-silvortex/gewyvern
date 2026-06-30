@@ -28,9 +28,9 @@ Operational posture:
 If the operator question is about trap reception on the local side rather than
 trap emission, switch to:
 
-- [docs/book/reference-snmp-manage-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-manage-surface.md)
+- [docs/book/reference-snmp-manage-surface.md](docs/book/reference-snmp-manage-surface.md)
 - specifically the `trap-recv` entry on that page
 
 Return to the family hub:
 
-- [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
+- [docs/book/reference-snmp-surface.md](docs/book/reference-snmp-surface.md)

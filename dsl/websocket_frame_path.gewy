@@ -1,0 +1,29 @@
+# gewyvern stable-subset protocol path
+
+fn websocket_frame_rules() =
+  let module_name = :websocket_frame_path
+  let text_narrative = "static:observed a WebSocket text frame opcode on an established TCP stream"
+  let binary_narrative = "static:observed a WebSocket binary frame opcode on an established TCP stream"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:websocket_frame)
+  |> reason_model(:websocket_frame_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_endpoint)
+  |> program_rule(predicate: "packet_observed:tcp:local_to_remote:byte_at:0:0x0f:0x01", stage: :packet_observed, narrative: ${text_narrative}, dedupe: true, module: ${module_name}, phase: :send_text_frame)
+  |> program_rule(predicate: "packet_observed:tcp:remote_to_local:byte_at:0:0x0f:0x01", stage: :packet_observed, narrative: ${text_narrative}, dedupe: true, module: ${module_name}, phase: :receive_text_frame)
+  |> program_rule(predicate: "packet_observed:tcp:local_to_remote:byte_at:0:0x0f:0x02", stage: :packet_observed, narrative: ${binary_narrative}, dedupe: true, module: ${module_name}, phase: :send_binary_frame)
+  |> program_rule(predicate: "packet_observed:tcp:remote_to_local:byte_at:0:0x0f:0x02", stage: :packet_observed, narrative: ${binary_narrative}, dedupe: true, module: ${module_name}, phase: :receive_binary_frame)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_endpoint)
+  |> reason_rule(predicate: "packet_observed:tcp:local_to_remote:byte_at:0:0x0f:0x01", key_event: :packet_observed, narrative: ${text_narrative}, dedupe: true, module: ${module_name}, phase: :send_text_frame)
+  |> reason_rule(predicate: "packet_observed:tcp:remote_to_local:byte_at:0:0x0f:0x01", key_event: :packet_observed, narrative: ${text_narrative}, dedupe: true, module: ${module_name}, phase: :receive_text_frame)
+  |> reason_rule(predicate: "packet_observed:tcp:local_to_remote:byte_at:0:0x0f:0x02", key_event: :packet_observed, narrative: ${binary_narrative}, dedupe: true, module: ${module_name}, phase: :send_binary_frame)
+  |> reason_rule(predicate: "packet_observed:tcp:remote_to_local:byte_at:0:0x0f:0x02", key_event: :packet_observed, narrative: ${binary_narrative}, dedupe: true, module: ${module_name}, phase: :receive_binary_frame)
+
+template(:websocket_frame_path)
+|> window(:default_5s)
+|> use(:websocket_frame_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

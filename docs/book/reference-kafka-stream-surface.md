@@ -4,7 +4,7 @@ Use this page for Kafka request paths that read or write records through a
 broker.
 
 For the broader family map, see
-[docs/book/reference-kafka-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kafka-surface.md).
+[docs/book/reference-kafka-surface.md](docs/book/reference-kafka-surface.md).
 
 ## Canonical Entries
 

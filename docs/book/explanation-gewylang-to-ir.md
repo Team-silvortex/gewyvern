@@ -13,13 +13,13 @@ This chapter explains the middle of the `gewyvern` language pipeline:
 It sits between:
 
 - the source-language guide in
-  [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+  [docs/dsl.md](docs/dsl.md)
 - the source-shape companion in
-  [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
+  [docs/dsl-syntax.md](docs/dsl-syntax.md)
 - the exact lowering contract in
-  [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+  [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 - the runtime walkthrough in
-  [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+  [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 
 Use this page when you want to understand how one authored package becomes a
 reviewable compiler story before the runtime ever starts.
@@ -30,14 +30,14 @@ This chapter lives in Part II: The Language And Compiler Spine.
 
 Read it after:
 
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
-- [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
+- [docs/dsl.md](docs/dsl.md)
+- [docs/dsl-syntax.md](docs/dsl-syntax.md)
+- [docs/gewylang-evolution.md](docs/gewylang-evolution.md)
 
 Then continue with:
 
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 
 ## Best Used For
 
@@ -52,8 +52,8 @@ Do not use this page as exact schema reference.
 
 For that, use:
 
-- [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/gewyc-json.md](docs/gewyc-json.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Step 1: Start With Author Intent
 
@@ -310,17 +310,17 @@ That is why this middle layer is the handoff point between:
 
 The runtime walkthrough begins where this page ends:
 
-- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 
 ## Review Order
 
 If you want the full language pipeline in a stable reading order, use:
 
-1. [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
-2. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-3. [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-5. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+1. [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
+2. [docs/dsl.md](docs/dsl.md)
+3. [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+5. [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 
 ## Current Thesis
 
@@ -338,8 +338,8 @@ trustworthy subsystem.
 
 If you want the exact lowering contract next, go to:
 
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 If you want to follow the same path into runtime materialization, go to:
 
-- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)

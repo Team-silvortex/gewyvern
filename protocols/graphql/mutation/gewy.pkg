@@ -1,0 +1,7 @@
+name=graphql_mutation
+version=0.18.2
+entry=main.gewy
+register.protocol=graphql
+register.entry=mutation
+register.aliases=graphql-mutation,graphql_mutation,gql-mutation,gql_mutation
+register.entry_aliases=write,change,command

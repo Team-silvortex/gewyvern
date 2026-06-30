@@ -4,8 +4,8 @@ This shelf groups GRE entries that describe tunnel posture and tunnel liveness.
 
 Read this alongside:
 
-- [docs/book/reference-gre-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gre-surface.md)
-- [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
+- [docs/book/reference-gre-surface.md](docs/book/reference-gre-surface.md)
+- [docs/book/reference-protocol-family-shelves.md](docs/book/reference-protocol-family-shelves.md)
 
 ## Shelf
 

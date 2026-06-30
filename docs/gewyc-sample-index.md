@@ -8,7 +8,7 @@ semantics are fully explained.
 
 For the actual surface contract, use:
 
-- [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+- [docs/gewyc-json.md](docs/gewyc-json.md)
 
 ## Why This Page Exists
 
@@ -36,11 +36,11 @@ Choose samples in this order:
 ### Frontend Success
 
 - file:
-  [docs/fixtures/gewyc_frontend_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_frontend_udp_process_debug.json)
+  [docs/fixtures/gewyc_frontend_udp_process_debug.json](docs/fixtures/gewyc_frontend_udp_process_debug.json)
 - command:
-  `cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json`
+  `cargo run -p gewyc -- frontend dsl/udp_process_debug.gewy --json`
 - input:
-  [dsl/udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy)
+  [dsl/udp_process_debug.gewy](dsl/udp_process_debug.gewy)
 - meaning:
   Healthy pipeline/frontend summary with graph, `use(...)` edge, expansion
   preview, and grouped `authoring` / `counts`.
@@ -51,11 +51,11 @@ Choose samples in this order:
 ### Stages Success
 
 - file:
-  [docs/fixtures/gewyc_stages_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_stages_udp_process_debug.json)
+  [docs/fixtures/gewyc_stages_udp_process_debug.json](docs/fixtures/gewyc_stages_udp_process_debug.json)
 - command:
-  `cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json`
+  `cargo run -p gewyc -- stages dsl/udp_process_debug.gewy --json`
 - input:
-  [dsl/udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy)
+  [dsl/udp_process_debug.gewy](dsl/udp_process_debug.gewy)
 - meaning:
   Healthy phase spine with grouped `status` / `counts` plus full `parse`,
   `validation`, and `diagnostics` sections.
@@ -65,11 +65,11 @@ Choose samples in this order:
 ### Explain Validation Focus Success
 
 - file:
-  [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_udp_process_debug.json)
+  [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](docs/fixtures/gewyc_explain_validation_udp_process_debug.json)
 - command:
-  `cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --focus validation`
+  `cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --json --focus validation`
 - input:
-  [dsl/udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy)
+  [dsl/udp_process_debug.gewy](dsl/udp_process_debug.gewy)
 - meaning:
   Healthy umbrella explain output plus a focused validation view.
 - use this when:
@@ -81,7 +81,7 @@ Choose samples in this order:
 ### Explain Parse Failure
 
 - file:
-  [docs/fixtures/gewyc_explain_parse_failure.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_parse_failure.json)
+  [docs/fixtures/gewyc_explain_parse_failure.json](docs/fixtures/gewyc_explain_parse_failure.json)
 - source shape:
   Temporary malformed input with `fn broken( =`
 - command family:
@@ -96,7 +96,7 @@ Choose samples in this order:
 ### Explain Validation Failure
 
 - file:
-  [docs/fixtures/gewyc_explain_validation_failure.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_failure.json)
+  [docs/fixtures/gewyc_explain_validation_failure.json](docs/fixtures/gewyc_explain_validation_failure.json)
 - source shape:
   Minimal `snmp_query` example that asks for unsupported payload offset `42`
 - command family:
@@ -156,7 +156,7 @@ When adding a new `gewyc` fixture:
 1. prefer one sample per distinct consumer need
 2. prefer naming by surface plus scenario
 3. add it here in the same patch
-4. link it from [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+4. link it from [docs/gewyc-json.md](docs/gewyc-json.md)
    if it helps explain a contract branch
 
 Do not add near-duplicate success samples unless they introduce a genuinely new

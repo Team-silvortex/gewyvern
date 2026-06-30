@@ -26,11 +26,11 @@ Family aliases currently accepted by the registry:
 
 Primary subpages:
 
-- [docs/book/reference-hy2-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-auth-surface.md)
-- [docs/book/reference-hy2-relay-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-relay-surface.md)
-- [docs/book/reference-hy2-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-close-surface.md)
-- [docs/book/reference-hy2-tcp-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-tcp-close-surface.md)
-- [docs/book/reference-hy2-udp-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-udp-close-surface.md)
+- [docs/book/reference-hy2-auth-surface.md](docs/book/reference-hy2-auth-surface.md)
+- [docs/book/reference-hy2-relay-surface.md](docs/book/reference-hy2-relay-surface.md)
+- [docs/book/reference-hy2-close-surface.md](docs/book/reference-hy2-close-surface.md)
+- [docs/book/reference-hy2-tcp-close-surface.md](docs/book/reference-hy2-tcp-close-surface.md)
+- [docs/book/reference-hy2-udp-close-surface.md](docs/book/reference-hy2-udp-close-surface.md)
 
 Current canonical entries:
 
@@ -45,7 +45,7 @@ Default entry: `auth`
 
 Read in this order:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-hy2-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-hy2-surface.md](docs/book/reference-hy2-surface.md)
 3. one exact HY2 subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

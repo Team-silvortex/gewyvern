@@ -13,9 +13,9 @@ This page is not a tutorial. It is the exact lookup shelf for:
 
 Read this alongside:
 
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-- [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
-- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+- [docs/dsl.md](docs/dsl.md)
+- [docs/gewyc-json.md](docs/gewyc-json.md)
+- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 
 ## What Lowering Means Here
 

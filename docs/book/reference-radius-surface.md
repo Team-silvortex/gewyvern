@@ -33,7 +33,7 @@ Default entry: `access`
 
 ### Access
 
-- [docs/book/reference-radius-access-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-radius-access-surface.md)
+- [docs/book/reference-radius-access-surface.md](docs/book/reference-radius-access-surface.md)
   Successful `Access-Request` to `Access-Accept` path.
 
 Typical entries:
@@ -42,7 +42,7 @@ Typical entries:
 
 ### Challenge
 
-- [docs/book/reference-radius-challenge-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-radius-challenge-surface.md)
+- [docs/book/reference-radius-challenge-surface.md](docs/book/reference-radius-challenge-surface.md)
   Continuation branch for `Access-Challenge` responses.
 
 Typical entries:
@@ -51,7 +51,7 @@ Typical entries:
 
 ### Denied
 
-- [docs/book/reference-radius-denied-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-radius-denied-surface.md)
+- [docs/book/reference-radius-denied-surface.md](docs/book/reference-radius-denied-surface.md)
   Explicit refusal branch for `Access-Reject` responses.
 
 Typical entries:
@@ -60,7 +60,7 @@ Typical entries:
 
 Read in this order:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-radius-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-radius-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-radius-surface.md](docs/book/reference-radius-surface.md)
 3. one exact RADIUS subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

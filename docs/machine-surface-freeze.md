@@ -12,15 +12,15 @@ This page is the shared freeze ritual above the narrower shelves such as:
 
 Use these nearby pages with it:
 
-- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
-- [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
-- [docs/gewyc-freeze-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-freeze-checklist.md)
-- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
-- [docs/runtime-config-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/runtime-config-contract.md)
-- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
-- [docs/runtime-certificate-policy-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/runtime-certificate-policy-contract.md)
-- [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
-- [docs/export-format-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format-contract.md)
+- [docs/machine-contract.md](docs/machine-contract.md)
+- [docs/surface-stability.md](docs/surface-stability.md)
+- [docs/gewyc-freeze-checklist.md](docs/gewyc-freeze-checklist.md)
+- [docs/book/reference-runtime-config.md](docs/book/reference-runtime-config.md)
+- [docs/runtime-config-contract.md](docs/runtime-config-contract.md)
+- [docs/book/reference-runtime-certificate-policy.md](docs/book/reference-runtime-certificate-policy.md)
+- [docs/runtime-certificate-policy-contract.md](docs/runtime-certificate-policy-contract.md)
+- [docs/export-format.md](docs/export-format.md)
+- [docs/export-format-contract.md](docs/export-format-contract.md)
 
 ## What Freeze Means Here
 
@@ -51,7 +51,7 @@ If one of those answers is still fuzzy, the surface is not ready to freeze.
 
 Primary shelf:
 
-- [docs/gewyc-freeze-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-freeze-checklist.md)
+- [docs/gewyc-freeze-checklist.md](docs/gewyc-freeze-checklist.md)
 
 Use when the concern is:
 
@@ -63,8 +63,8 @@ Use when the concern is:
 
 Primary shelf:
 
-- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
-- [docs/runtime-config-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/runtime-config-contract.md)
+- [docs/book/reference-runtime-config.md](docs/book/reference-runtime-config.md)
+- [docs/runtime-config-contract.md](docs/runtime-config-contract.md)
 
 Freeze focus:
 
@@ -84,8 +84,8 @@ Treat this surface as frozen enough for the next minor step only when:
 
 Primary shelf:
 
-- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
-- [docs/runtime-certificate-policy-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/runtime-certificate-policy-contract.md)
+- [docs/book/reference-runtime-certificate-policy.md](docs/book/reference-runtime-certificate-policy.md)
+- [docs/runtime-certificate-policy-contract.md](docs/runtime-certificate-policy-contract.md)
 
 Freeze focus:
 
@@ -104,8 +104,8 @@ Treat this surface as frozen enough for the next minor step only when:
 
 Primary shelf:
 
-- [docs/export-format.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format.md)
-- [docs/export-format-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/export-format-contract.md)
+- [docs/export-format.md](docs/export-format.md)
+- [docs/export-format-contract.md](docs/export-format-contract.md)
 
 Freeze focus:
 

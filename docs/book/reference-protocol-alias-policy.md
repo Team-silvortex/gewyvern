@@ -27,6 +27,6 @@ resolution are expected to follow together.
 
 ## Enforcement
 
-- [src/protocol_profiles/tests_alias_policy.rs](/Users/Shared/chroot/dev/gewyvern/src/protocol_profiles/tests_alias_policy.rs)
-- [src/protocol_profiles/tests_fallback.rs](/Users/Shared/chroot/dev/gewyvern/src/protocol_profiles/tests_fallback.rs)
-- [src/protocol_profiles/tests_manifest_parity.rs](/Users/Shared/chroot/dev/gewyvern/src/protocol_profiles/tests_manifest_parity.rs)
+- [src/protocol_profiles/tests_alias_policy.rs](src/protocol_profiles/tests_alias_policy.rs)
+- [src/protocol_profiles/tests_fallback.rs](src/protocol_profiles/tests_fallback.rs)
+- [src/protocol_profiles/tests_manifest_parity.rs](src/protocol_profiles/tests_manifest_parity.rs)

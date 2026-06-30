@@ -11,8 +11,8 @@ It assumes you already understand the broad stack shape.
 
 For the collaboration boundary itself, see:
 
-- [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
-- [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
+- [docs/sidecar-collaboration.md](docs/sidecar-collaboration.md)
+- [docs/external-engine-contract.md](docs/external-engine-contract.md)
 
 ## Book Path
 
@@ -26,9 +26,9 @@ Read it when the task is no longer “what is a sidecar?” but:
 
 Then continue with:
 
-- [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
-- [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
-- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+- [docs/sidecar-collaboration.md](docs/sidecar-collaboration.md)
+- [docs/book/explanation-stack-topology.md](docs/book/explanation-stack-topology.md)
+- [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 
 ## What “Nearby Sidecar” Means Here
 
@@ -92,7 +92,7 @@ cargo run -- \
   --api-socket 127.0.0.1:9100 \
   --json \
   --summary-only \
-  --external-engine-bin /Users/Shared/chroot/dev/gewyvern/target/debug/etragon
+  --external-engine-bin target/debug/etragon
 ```
 
 If you want the Python-backed worker path instead of the engine's default Rust
@@ -107,8 +107,8 @@ cargo run -- \
   --api-socket 127.0.0.1:9100 \
   --json \
   --summary-only \
-  --external-engine-bin /Users/Shared/chroot/dev/gewyvern/target/debug/etragon \
-  --external-engine-worker /Users/Shared/chroot/dev/gewyvern/apps/etragon/scripts/python_baseline_worker.py
+  --external-engine-bin target/debug/etragon \
+  --external-engine-worker apps/etragon/scripts/python_baseline_worker.py
 ```
 
 ## Step 1: Confirm The API Is Alive First
@@ -237,7 +237,7 @@ When you want stronger evidence that the whole collaboration topology still
 works, run:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
+bash scripts/validation/three_module_stack_smoke.sh
 ```
 
 This is the high-signal check for:
@@ -342,8 +342,8 @@ Before calling the nearby sidecar path healthy, confirm:
 ## Where To Go Next
 
 - For the exact process-boundary and payload contract:
-  [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
+  [docs/external-engine-contract.md](docs/external-engine-contract.md)
 - For the additive-only merge posture:
-  [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
+  [docs/sidecar-collaboration.md](docs/sidecar-collaboration.md)
 - For the broader three-layer system view:
-  [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
+  [docs/book/explanation-stack-topology.md](docs/book/explanation-stack-topology.md)

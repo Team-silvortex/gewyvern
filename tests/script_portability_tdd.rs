@@ -87,6 +87,7 @@ fn documented_shell_entrypoints_are_executable() {
         "scripts/validation/debugger_cross_validation.sh",
         "scripts/validation/field_validation_smoke.sh",
         "scripts/validation/high_frequency_validation.sh",
+        "scripts/validation/pathological_container_validation.sh",
         "scripts/validation/registry_validation.sh",
         "scripts/validation/runtime_lifecycle_validation.sh",
         "scripts/validation/runtime_operator_validation.sh",
@@ -104,5 +105,57 @@ fn documented_shell_entrypoints_are_executable() {
             .permissions()
             .mode();
         assert_ne!(mode & 0o111, 0, "{} should be executable", relative);
+    }
+}
+
+#[test]
+fn markdown_docs_do_not_embed_local_checkout_paths() {
+    let roots = [
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("README.md"),
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("docs"),
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("apps/leserpent/README.md"),
+    ];
+    let forbidden = [
+        "/Users/Shared/chroot/dev/gewyvern",
+        "/Users/Shared/chroot/dev/etragon",
+        "/Users/Shared/chroot/dev/leserpent",
+        "/Users/seis",
+        "/home/chiharukiryu/work/gewyvern-server-test",
+        "/home/gewyvern-lab/work/gewyvern",
+    ];
+    let mut failures = Vec::new();
+
+    for root in roots {
+        collect_markdown_path_failures(&root, &forbidden, &mut failures);
+    }
+
+    assert!(
+        failures.is_empty(),
+        "markdown docs should not embed local checkout paths:\n{}",
+        failures.join("\n")
+    );
+}
+
+fn collect_markdown_path_failures(path: &Path, forbidden: &[&str], failures: &mut Vec<String>) {
+    if path.is_dir() {
+        for entry in fs::read_dir(path)
+            .unwrap_or_else(|err| panic!("failed to read directory {}: {}", path.display(), err))
+        {
+            let entry = entry.unwrap_or_else(|err| panic!("failed to read dir entry: {err}"));
+            collect_markdown_path_failures(&entry.path(), forbidden, failures);
+        }
+        return;
+    }
+
+    if path.extension().and_then(|ext| ext.to_str()) != Some("md") {
+        return;
+    }
+
+    let body = fs::read_to_string(path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {}", path.display(), err));
+    for needle in forbidden {
+        if body.contains(needle) {
+            failures.push(format!("{} contains {}", path.display(), needle));
+        }
     }
 }

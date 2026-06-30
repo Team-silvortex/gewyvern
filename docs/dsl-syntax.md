@@ -6,9 +6,9 @@ CLI-facing inspection flow.
 
 This page is the syntax companion to:
 
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-- [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
-- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+- [docs/dsl.md](docs/dsl.md)
+- [docs/dsl-reference.md](docs/dsl-reference.md)
+- [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
 
 ## Pipeline Shape
 
@@ -299,7 +299,7 @@ template(:demo_app)
 ## Pipeline EBNF
 
 The canonical draft grammar also lives in
-[docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf).
+[docs/gewylang.ebnf](docs/gewylang.ebnf).
 
 ```ebnf
 pipeline_file        = { blank_line | comment | function_decl }, template_head,
@@ -414,7 +414,7 @@ gewyc lock .
 ```
 
 For exact package/module lookup rules, use
-[docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md).
+[docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md).
 
 ## CLI Usage
 
@@ -428,18 +428,18 @@ The most common command families are:
 Typical examples:
 
 ```bash
-cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --summary-only
-cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
-cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus graph
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation
-cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
-cargo run -p gewyc -- findings /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
-cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
-cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --unix-socket /tmp/gewyvern.sock --json
+cargo run -- --dsl dsl/udp_process_debug.gewy --json --summary-only
+cargo run -p gewyc -- dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- frontend dsl/udp_process_debug.gewy --focus graph
+cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --focus validation
+cargo run -p gewyc -- diagnostics dsl/udp_process_debug.gewy
+cargo run -p gewyc -- findings dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- stages dsl/udp_process_debug.gewy --json
+cargo run -- --dsl dsl/udp_process_debug.gewy --unix-socket /tmp/gewyvern.sock --json
 ```
 
 For task-oriented validation flows, prefer:
 
-- [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
-- [docs/book/how-to-add-or-debug-protocol-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-add-or-debug-protocol-package.md)
-- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+- [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
+- [docs/book/how-to-add-or-debug-protocol-package.md](docs/book/how-to-add-or-debug-protocol-package.md)
+- [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)

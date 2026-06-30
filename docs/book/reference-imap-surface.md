@@ -33,7 +33,7 @@ Default entry: `auth`
 
 ### Authentication
 
-- [docs/book/reference-imap-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-auth-surface.md)
+- [docs/book/reference-imap-auth-surface.md](docs/book/reference-imap-auth-surface.md)
   Banner plus `LOGIN` success or denial flow.
 
 Typical entries:
@@ -43,7 +43,7 @@ Typical entries:
 
 ### Mailbox Select
 
-- [docs/book/reference-imap-select-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-select-surface.md)
+- [docs/book/reference-imap-select-surface.md](docs/book/reference-imap-select-surface.md)
   Successful login followed by `SELECT` mailbox flow.
 
 Typical entries:
@@ -54,10 +54,10 @@ Typical entries:
 
 If you are validating current IMAP support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-imap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-imap-surface.md](docs/book/reference-imap-surface.md)
 3. the auth or select subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Stability Note
 

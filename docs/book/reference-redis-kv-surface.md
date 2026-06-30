@@ -118,7 +118,7 @@ The current shelf keeps:
   catalog
 
 For the broader family map, see
-[docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).
+[docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

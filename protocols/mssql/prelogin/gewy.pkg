@@ -1,0 +1,7 @@
+name=mssql_prelogin
+version=0.18.2
+entry=main.gewy
+register.protocol=mssql
+register.entry=prelogin
+register.aliases=tds,mssql-prelogin,mssql_prelogin,sqlserver-prelogin,sqlserver_prelogin,tds-prelogin,tds_prelogin
+register.entry_aliases=connect,handshake,pre-login

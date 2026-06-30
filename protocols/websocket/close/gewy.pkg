@@ -1,0 +1,7 @@
+name=websocket_close
+version=0.18.2
+entry=main.gewy
+register.protocol=websocket
+register.entry=close
+register.aliases=websocket-close,websocket_close,ws-close,ws_close
+register.entry_aliases=shutdown,teardown,close-frame

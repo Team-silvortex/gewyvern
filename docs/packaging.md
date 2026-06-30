@@ -12,7 +12,7 @@ The packaging path is intentionally narrow:
 
 The packaging scripts now live together under:
 
-- [`scripts/packaging/`](/Users/Shared/chroot/dev/gewyvern/scripts/packaging)
+- [`scripts/packaging/`](scripts/packaging)
 
 That shelf intentionally groups:
 
@@ -39,17 +39,17 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
-- [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
+- [docs/development.md](docs/development.md)
 
 ## Companion Shelves
 
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
   for the shortest goal-based script routing
-- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+- [docs/cli-recipes.md](docs/cli-recipes.md)
   for the broader command shelf outside packaging-specific flows
-- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
   for the shorter ship/no-ship gate
 
 ## What Gets Installed
@@ -80,7 +80,7 @@ That is enough for:
 For the broader `0.15.x` runtime layout policy beyond the packaged Linux tree,
 also see:
 
-- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
+- [docs/book/reference-runtime-layout.md](docs/book/reference-runtime-layout.md)
 
 That page explains:
 
@@ -137,7 +137,7 @@ native package paths cannot silently drift.
 
 The packaged container validators use one shared Docker runner from:
 
-- `/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_validation_common.sh`
+- `scripts/packaging/container_validation_common.sh`
 
 That runner gives each validation container a deterministic gewyvern-prefixed
 name, applies a per-container timeout, and best-effort removes the container if
@@ -157,12 +157,12 @@ package smoke into a long network-bound release gate.
 
 If you already know the outcome you want and only need the shortest route to
 the right packaging script, start with
-[docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md).
+[docs/script-entrypoints.md](docs/script-entrypoints.md).
 
 Use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/build_packages.sh --layout-only
+bash scripts/packaging/build_packages.sh --layout-only
 ```
 
 That command:
@@ -176,48 +176,48 @@ It does not require `dpkg-deb` or `rpmbuild`.
 
 When `--layout-only` is used, the staged tree is kept under:
 
-- `/Users/Shared/chroot/dev/gewyvern/target/packages/layout.*`
+- `target/packages/layout.*`
 
 ## Building A DEB
 
 If the host has `dpkg-deb`:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/build_packages.sh --format deb
+bash scripts/packaging/build_packages.sh --format deb
 ```
 
 Artifacts are written under:
 
-- `/Users/Shared/chroot/dev/gewyvern/target/packages`
+- `target/packages`
 
 ## Building An RPM
 
 If the host has `rpmbuild`:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/build_packages.sh --format rpm
+bash scripts/packaging/build_packages.sh --format rpm
 ```
 
 RPM artifacts are written under:
 
-- `/Users/Shared/chroot/dev/gewyvern/target/packages/rpm`
+- `target/packages/rpm`
 
 ## Building Inside The Bundled Linux Container
 
 If the host itself does not provide `dpkg-deb` or `rpmbuild`, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/build_packages_in_container.sh --format all
+bash scripts/packaging/build_packages_in_container.sh --format all
 ```
 
 That path uses:
 
-- `/Users/Shared/chroot/dev/gewyvern/docker/linux-dev/Dockerfile`
-- `/Users/Shared/chroot/dev/gewyvern/scripts/packaging/build_packages.sh`
+- `docker/linux-dev/Dockerfile`
+- `scripts/packaging/build_packages.sh`
 
 and writes artifacts back into:
 
-- `/Users/Shared/chroot/dev/gewyvern/target/packages`
+- `target/packages`
 
 ## Container Install Smoke
 
@@ -225,7 +225,7 @@ After building native artifacts, verify that they install cleanly in fresh
 Linux containers:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/package_install_smoke.sh
+bash scripts/packaging/package_install_smoke.sh
 ```
 
 That smoke path:
@@ -246,8 +246,8 @@ That smoke path:
 If you only want one package family, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/package_install_smoke.sh --deb
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/package_install_smoke.sh --rpm
+bash scripts/packaging/package_install_smoke.sh --deb
+bash scripts/packaging/package_install_smoke.sh --rpm
 ```
 
 ## Container Runtime Validation
@@ -256,7 +256,7 @@ To go beyond install smoke and validate the packaged standalone runtime itself,
 use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_runtime_validation.sh
+bash scripts/packaging/container_runtime_validation.sh
 ```
 
 That path installs the latest package into a clean Linux container and then:
@@ -270,8 +270,8 @@ That path installs the latest package into a clean Linux container and then:
 If you only want one package family, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_runtime_validation.sh --deb
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_runtime_validation.sh --rpm
+bash scripts/packaging/container_runtime_validation.sh --deb
+bash scripts/packaging/container_runtime_validation.sh --rpm
 ```
 
 ## Container Protocol Validation
@@ -279,7 +279,7 @@ bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_runtime_valid
 To validate packaged protocol support on a clean Linux install, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_protocol_validation.sh
+bash scripts/packaging/container_protocol_validation.sh
 ```
 
 That path installs the latest package and then verifies:
@@ -300,8 +300,8 @@ That path installs the latest package and then verifies:
 If you only want one package family, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_protocol_validation.sh --deb
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_protocol_validation.sh --rpm
+bash scripts/packaging/container_protocol_validation.sh --deb
+bash scripts/packaging/container_protocol_validation.sh --rpm
 ```
 
 ## Container Validation Summary
@@ -310,13 +310,13 @@ To run the packaged Linux container validation suite through one summary
 entrypoint, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_validation_summary.sh
+bash scripts/packaging/container_validation_summary.sh
 ```
 
 That wrapper runs, in order:
 
-- [container_protocol_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_protocol_validation.sh)
-- [container_operator_path_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_operator_path_validation.sh)
+- [container_protocol_validation.sh](scripts/packaging/container_protocol_validation.sh)
+- [container_operator_path_validation.sh](scripts/packaging/container_operator_path_validation.sh)
 
 Naming note for the packaging scripts:
 
@@ -327,8 +327,8 @@ Naming note for the packaging scripts:
 If you only want one package family, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_validation_summary.sh --deb
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_validation_summary.sh --rpm
+bash scripts/packaging/container_validation_summary.sh --deb
+bash scripts/packaging/container_validation_summary.sh --rpm
 ```
 
 ## Release Container Check
@@ -337,36 +337,36 @@ To run the current release-oriented packaged Linux validation suite through one
 entrypoint, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh
+bash scripts/packaging/release_container_check.sh
 ```
 
 That wrapper runs, in order:
 
-- [package_install_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/package_install_smoke.sh)
-- [container_runtime_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_runtime_validation.sh)
-- [container_validation_summary.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_validation_summary.sh)
+- [package_install_smoke.sh](scripts/packaging/package_install_smoke.sh)
+- [container_runtime_validation.sh](scripts/packaging/container_runtime_validation.sh)
+- [container_validation_summary.sh](scripts/packaging/container_validation_summary.sh)
 
 If you only want one package family, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh --deb
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh --rpm
+bash scripts/packaging/release_container_check.sh --deb
+bash scripts/packaging/release_container_check.sh --rpm
 ```
 
 For the shorter release-minded decision shelf that also includes the
 three-module integration gate, see:
 
-- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
 
 If you want one orchestration command that rebuilds artifacts, runs the
 packaged release check, and then runs the three-module stack smoke, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh
+bash scripts/packaging/release_gate.sh
 ```
 
 That ship gate belongs conceptually to
-[docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md).
+[docs/release-checklist.md](docs/release-checklist.md).
 This page stays focused on the packaging and packaged-runtime mechanics behind
 that gate.
 
@@ -375,7 +375,7 @@ that gate.
 To validate more realistic packaged operator-path chains after install, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_operator_path_validation.sh
+bash scripts/packaging/container_operator_path_validation.sh
 ```
 
 That path installs the latest package and then verifies these chained protocol
@@ -417,8 +417,8 @@ grouped into the same buckets:
 If you only want one package family, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_operator_path_validation.sh --deb
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_operator_path_validation.sh --rpm
+bash scripts/packaging/container_operator_path_validation.sh --deb
+bash scripts/packaging/container_operator_path_validation.sh --rpm
 ```
 
 ## Notes

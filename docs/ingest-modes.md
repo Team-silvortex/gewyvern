@@ -19,13 +19,13 @@ These are related, but they are not the same thing.
 
 Read this page alongside:
 
-- [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
+- [docs/process-profiles.md](docs/process-profiles.md)
   when you want to see how ingest trust changes the meaning of process-level
   summaries
-- [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
+- [docs/failure-semantics.md](docs/failure-semantics.md)
   when you need the exact failure-language vocabulary that shows up in those
   summaries
-- [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
+- [docs/security-posture.md](docs/security-posture.md)
   when the question shifts from operator interpretation to exposure/trust
   boundaries
 
@@ -204,6 +204,6 @@ failure of the tool. It is the runtime deliberately refusing to overclaim.
 
 For companion reading:
 
-- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-- [process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
-- [failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
+- [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+- [process-profiles.md](docs/process-profiles.md)
+- [failure-semantics.md](docs/failure-semantics.md)

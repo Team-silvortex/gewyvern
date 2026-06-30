@@ -20,10 +20,10 @@ protocol family + entry
 
 Read this alongside:
 
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
-- [docs/architecture-walkthrough-http-request.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-walkthrough-http-request.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
+- [docs/architecture-walkthrough-http-request.md](docs/architecture-walkthrough-http-request.md)
 
 ## Book Path
 
@@ -31,13 +31,13 @@ This chapter lives in Part IV: Protocol Packages As A System.
 
 Read it after:
 
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 
 Then continue with:
 
-- [docs/architecture-walkthrough-http-request.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-walkthrough-http-request.md)
-- [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
+- [docs/architecture-walkthrough-http-request.md](docs/architecture-walkthrough-http-request.md)
+- [docs/book/explanation-stack-topology.md](docs/book/explanation-stack-topology.md)
 
 ## Why This Page Exists
 
@@ -263,16 +263,16 @@ When reviewing a protocol package as a system, a strong order is:
 
 In page form, that means:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-3. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-4. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+3. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+4. [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 
 ## Relationship To The HTTP Walkthrough
 
 The HTTP request walkthrough is still the best single concrete example:
 
-- [docs/architecture-walkthrough-http-request.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-walkthrough-http-request.md)
+- [docs/architecture-walkthrough-http-request.md](docs/architecture-walkthrough-http-request.md)
 
 This page does something different.
 
@@ -303,8 +303,8 @@ That is the core integration rule for protocol depth in `gewyvern`.
 
 If you want one concrete packaged example next, go to:
 
-- [docs/architecture-walkthrough-http-request.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-walkthrough-http-request.md)
+- [docs/architecture-walkthrough-http-request.md](docs/architecture-walkthrough-http-request.md)
 
 If you want to zoom out from one protocol package to the broader stack, go to:
 
-- [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
+- [docs/book/explanation-stack-topology.md](docs/book/explanation-stack-topology.md)

@@ -44,7 +44,7 @@ The current entry is intentionally narrow. It models successful mailbox
 selection, not later fetch, search, or message-state operations.
 
 For the broader family map, see
-[docs/book/reference-imap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-imap-surface.md).
+[docs/book/reference-imap-surface.md](docs/book/reference-imap-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

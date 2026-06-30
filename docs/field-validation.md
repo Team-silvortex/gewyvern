@@ -16,20 +16,20 @@ This is the bridge between:
 - current release judgment for the active `0.17.x` line
 
 For the current release posture, see
-[docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
+[docs/history/v0.17.x.md](docs/history/v0.17.x.md)
 and
-[docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md).
+[docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md).
 
 For the short running record of what this validation has already shown in
-practice, see [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md).
+practice, see [docs/field-findings.md](docs/field-findings.md).
 
 For the shorter goal-based script map that now sits above the individual
 validation shelves, see
-[docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md).
+[docs/script-entrypoints.md](docs/script-entrypoints.md).
 
 For the concrete release gate, packaged artifact checklist, and ship/no-ship
 decision shelf, use
-[docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md).
+[docs/release-checklist.md](docs/release-checklist.md).
 
 ## Role In The Shelf
 
@@ -49,19 +49,19 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
-- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
-- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
+- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+- [docs/field-findings.md](docs/field-findings.md)
 
 ## Companion Shelves
 
-- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
+- [docs/field-findings.md](docs/field-findings.md)
   for the short evidence log of what this validation line has already shown
-- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
   for the shortest current release gate
-- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
+- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
   for the current line's intended claim and scope
-- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
+- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
   for the current second-half closure priorities
 
 ## Current Prelaunch Scope
@@ -181,9 +181,9 @@ Purpose:
 Current commands to keep exercising:
 
 - `cargo run -- --demo udp --json --summary-only`
-- `cargo run -- --dsl /Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy --json --summary-only`
-- `cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy --json`
-- [scripts/validation/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh)
+- `cargo run -- --dsl dsl/http_request_path.gewy --json --summary-only`
+- `cargo run -p gewyc -- explain dsl/http_request_path.gewy --json`
+- [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
 
 Expected qualities:
 
@@ -206,7 +206,7 @@ Current commands to keep exercising:
 
 - `cargo run -- --list-protocols`
 - `cargo run -- --scan-all --json --summary-only`
-- [scripts/validation/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh)
+- [scripts/validation/registry_validation.sh](scripts/validation/registry_validation.sh)
 
 Expected qualities:
 
@@ -238,14 +238,14 @@ Current commands to keep exercising:
 
 - `cargo run --quiet --bin gewyvern_validate -- socket-roundtrip`
   Socket session roundtrip through the standalone ingest path. The legacy
-  [scripts/demos/socket_roundtrip_demo.sh](/Users/Shared/chroot/dev/gewyvern/scripts/demos/socket_roundtrip_demo.sh)
+  [scripts/demos/socket_roundtrip_demo.sh](scripts/demos/socket_roundtrip_demo.sh)
   wrapper remains for older automation.
-- [scripts/validation/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh)
+- [scripts/validation/runtime_operator_validation.sh](scripts/validation/runtime_operator_validation.sh)
   Broader serve/API/runtime operator validation path.
 - local `--serve` plus read-only API usage
 
 Pair this validation track with the operator-facing preflight at
-[docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md)
+[docs/book/how-to-security-checklist.md](docs/book/how-to-security-checklist.md)
 so deployment intent and runtime behavior are checked together.
 
 Expected qualities:
@@ -332,16 +332,16 @@ For this phase, treat the following as pass conditions:
 
 The current local smoke entry point is:
 
-- [scripts/validation/field_validation_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/field_validation_smoke.sh)
-- [scripts/validation/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh)
-- [scripts/packaging/release_container_check.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh)
-- [scripts/packaging/container_validation_summary.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_validation_summary.sh)
-- [scripts/packaging/container_protocol_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_protocol_validation.sh)
-- [scripts/packaging/container_operator_path_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_operator_path_validation.sh)
-- [scripts/validation/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh)
-- [scripts/validation/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh)
-- [scripts/packaging/container_runtime_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_runtime_validation.sh)
-- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+- [scripts/validation/field_validation_smoke.sh](scripts/validation/field_validation_smoke.sh)
+- [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
+- [scripts/packaging/release_container_check.sh](scripts/packaging/release_container_check.sh)
+- [scripts/packaging/container_validation_summary.sh](scripts/packaging/container_validation_summary.sh)
+- [scripts/packaging/container_protocol_validation.sh](scripts/packaging/container_protocol_validation.sh)
+- [scripts/packaging/container_operator_path_validation.sh](scripts/packaging/container_operator_path_validation.sh)
+- [scripts/validation/registry_validation.sh](scripts/validation/registry_validation.sh)
+- [scripts/validation/runtime_operator_validation.sh](scripts/validation/runtime_operator_validation.sh)
+- [scripts/packaging/container_runtime_validation.sh](scripts/packaging/container_runtime_validation.sh)
+- [docs/release-checklist.md](docs/release-checklist.md)
   Release-facing packaged and multi-project gate.
 
 It is intentionally small.
@@ -378,7 +378,7 @@ The release container check is the shortest repeatable check that:
 
 The exact packaged release gate, rebuild order, and three-module collaboration
 gate are intentionally described in
-[docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+[docs/release-checklist.md](docs/release-checklist.md)
 rather than duplicated here. This page treats them as one validation track
 inside the wider field-validation program.
 

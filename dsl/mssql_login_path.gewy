@@ -1,0 +1,24 @@
+# gewyvern stable-subset protocol path
+
+fn mssql_login_rules() =
+  let module_name = :mssql_login_path
+  let login_narrative = "static:observed a TDS LOGIN packet for SQL Server authentication"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:mssql_login)
+  |> reason_model(:mssql_login_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_server)
+  |> program_rule(predicate: "socket_state_observed:remote:1433", stage: :socket_state_transition, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> program_rule(predicate: "packet_observed:tcp:remote:1433:local_to_remote:byte0_mask:0xff:0x10", stage: :packet_observed, narrative: ${login_narrative}, dedupe: true, module: ${module_name}, phase: :send_login)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_server)
+  |> reason_rule(predicate: "socket_state_observed:remote:1433", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:1433:local_to_remote:byte0_mask:0xff:0x10", key_event: :packet_observed, narrative: ${login_narrative}, dedupe: true, module: ${module_name}, phase: :send_login)
+
+template(:mssql_login_path)
+|> window(:default_5s)
+|> use(:mssql_login_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

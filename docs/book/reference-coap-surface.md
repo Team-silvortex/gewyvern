@@ -12,8 +12,8 @@ Use it for:
 
 Primary subpages:
 
-- [docs/book/reference-coap-get-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-get-surface.md)
-- [docs/book/reference-coap-write-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-write-surface.md)
+- [docs/book/reference-coap-get-surface.md](docs/book/reference-coap-get-surface.md)
+- [docs/book/reference-coap-write-surface.md](docs/book/reference-coap-write-surface.md)
 
 Current canonical entries:
 
@@ -26,7 +26,7 @@ Default entry: `get`
 
 Read in this order:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-coap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-coap-surface.md](docs/book/reference-coap-surface.md)
 3. one exact CoAP subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

@@ -11,10 +11,10 @@ It is intentionally narrow:
 - how to use the built-in split hints conservatively
 
 For the broader contract candidate, see
-[docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md).
+[docs/machine-contract.md](docs/machine-contract.md).
 
 For the external-engine boundary, see
-[docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md).
+[docs/external-engine-contract.md](docs/external-engine-contract.md).
 
 ## Preferred Fetch Order
 
@@ -213,7 +213,7 @@ GET /v1/latest/targets/<path-segment>/training-example.json
 
 There is also a minimal executable consumer-roundtrip reference:
 
-- [scripts/demos/training_dataset_roundtrip_demo.sh](/Users/Shared/chroot/dev/gewyvern/scripts/demos/training_dataset_roundtrip_demo.sh)
+- [scripts/demos/training_dataset_roundtrip_demo.sh](scripts/demos/training_dataset_roundtrip_demo.sh)
 
 It will:
 

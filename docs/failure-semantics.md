@@ -5,8 +5,8 @@ across protocol clusters.
 
 If you want the operator onboarding path first, use:
 
-- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 The goal is not only to know that a result is `attention`, but to read:
 
@@ -23,13 +23,13 @@ as a compact operator diagnosis.
 
 Read this page alongside:
 
-- [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
+- [docs/process-profiles.md](docs/process-profiles.md)
   when you want to see how these failure terms collapse into one per-process
   story
-- [docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md)
+- [docs/ingest-modes.md](docs/ingest-modes.md)
   when you need to calibrate how strongly a failure result should be trusted
   for socket-fed evidence
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
   when you want the structured contract instead of the operator-facing reading
   guide
 

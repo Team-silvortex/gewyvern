@@ -11,11 +11,11 @@ This page answers:
 
 Use these nearby pages with it:
 
-- [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
-- [docs/gewyc-contract-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-contract-matrix.md)
-- [docs/gewyc-sample-index.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-sample-index.md)
-- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
-- [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
+- [docs/gewyc-json.md](docs/gewyc-json.md)
+- [docs/gewyc-contract-matrix.md](docs/gewyc-contract-matrix.md)
+- [docs/gewyc-sample-index.md](docs/gewyc-sample-index.md)
+- [docs/machine-contract.md](docs/machine-contract.md)
+- [docs/surface-stability.md](docs/surface-stability.md)
 
 ## Status Words
 

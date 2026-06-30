@@ -1,0 +1,7 @@
+name=mssql_login
+version=0.18.2
+entry=main.gewy
+register.protocol=mssql
+register.entry=login
+register.aliases=mssql-login,mssql_login,sqlserver-login,sqlserver_login,tds-login,tds_login
+register.entry_aliases=auth,login7,authenticate

@@ -15,13 +15,13 @@ This page answers:
 
 Read this alongside:
 
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
-- [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
-- [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
-- [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
-- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/dsl.md](docs/dsl.md)
+- [docs/dsl-syntax.md](docs/dsl-syntax.md)
+- [docs/dsl-reference.md](docs/dsl-reference.md)
+- [docs/gewylang-evolution.md](docs/gewylang-evolution.md)
+- [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
+- [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Why This Page Exists
 
@@ -60,7 +60,7 @@ language first.
 
 Primary page:
 
-- [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
+- [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
 
 Its job is to teach:
 
@@ -77,12 +77,12 @@ This is now a small stable language shelf rather than one giant page.
 
 Primary entry page:
 
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+- [docs/dsl.md](docs/dsl.md)
 
 Companion pages:
 
-- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
-- [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
+- [docs/dsl-syntax.md](docs/dsl-syntax.md)
+- [docs/dsl-reference.md](docs/dsl-reference.md)
 
 Together their jobs are:
 
@@ -101,7 +101,7 @@ This is the package/reference lookup shelf.
 
 Primary page:
 
-- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+- [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
 
 Its job is to answer exact questions such as:
 
@@ -118,9 +118,9 @@ These pages explain what the language lowers into and what the compiler emits.
 
 Primary pages:
 
-- [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-- [docs/gewylang.ebnf](/Users/Shared/chroot/dev/gewyvern/docs/gewylang.ebnf)
+- [docs/gewyc-json.md](docs/gewyc-json.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+- [docs/gewylang.ebnf](docs/gewylang.ebnf)
 
 Their job is to answer:
 
@@ -136,9 +136,9 @@ These pages explain why the language is shaped the way it is.
 
 Primary pages:
 
-- [docs/book/explanation-gewylang-lightweight-types.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-lightweight-types.md)
-- [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+- [docs/book/explanation-gewylang-lightweight-types.md](docs/book/explanation-gewylang-lightweight-types.md)
+- [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 
 Their job is to answer:
 
@@ -155,31 +155,31 @@ design philosophy inline.
 
 Read in this order:
 
-1. [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
-2. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-3. [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
-3. [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+1. [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
+2. [docs/dsl.md](docs/dsl.md)
+3. [docs/dsl-syntax.md](docs/dsl-syntax.md)
+3. [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
 
 ### Compiler-Oriented Contributor
 
 Read in this order:
 
-1. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-2. [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
-3. [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
-4. [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-5. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-6. [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
-7. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+1. [docs/dsl.md](docs/dsl.md)
+2. [docs/dsl-reference.md](docs/dsl-reference.md)
+3. [docs/gewylang-evolution.md](docs/gewylang-evolution.md)
+4. [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+5. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+6. [docs/gewyc-json.md](docs/gewyc-json.md)
+7. [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 
 ### Safety-Oriented Reviewer
 
 Read in this order:
 
-1. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-2. [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
-3. [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
-4. [docs/book/explanation-gewylang-lightweight-types.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-lightweight-types.md)
+1. [docs/dsl.md](docs/dsl.md)
+2. [docs/dsl-reference.md](docs/dsl-reference.md)
+3. [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
+4. [docs/book/explanation-gewylang-lightweight-types.md](docs/book/explanation-gewylang-lightweight-types.md)
 
 ## Placement Rules For Future gewylang Docs
 

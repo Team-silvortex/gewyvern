@@ -43,7 +43,7 @@ The current entry is stage-based. It tells you that the peer responded to
 `DESCRIBE`, not that every later media transport step succeeded.
 
 For the broader family map, see
-[docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md).
+[docs/book/reference-rtsp-surface.md](docs/book/reference-rtsp-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

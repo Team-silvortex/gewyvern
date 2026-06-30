@@ -42,7 +42,7 @@ Default entry: `get`
 
 ### Get
 
-- [docs/book/reference-memcached-get-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-get-surface.md)
+- [docs/book/reference-memcached-get-surface.md](docs/book/reference-memcached-get-surface.md)
   Read-side key lookup path.
 
 Typical entries:
@@ -51,7 +51,7 @@ Typical entries:
 
 ### Set
 
-- [docs/book/reference-memcached-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-set-surface.md)
+- [docs/book/reference-memcached-set-surface.md](docs/book/reference-memcached-set-surface.md)
   Write-side key storage path.
 
 Typical entries:
@@ -62,10 +62,10 @@ Typical entries:
 
 If you are validating current Memcached support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-memcached-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-memcached-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-memcached-surface.md](docs/book/reference-memcached-surface.md)
 3. the get or set subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Stability Note
 

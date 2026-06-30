@@ -1,0 +1,26 @@
+# gewyvern stable-subset protocol path
+
+fn grpc_stream_rules() =
+  let module_name = :grpc_stream_path
+  let stream_narrative = "static:observed repeated gRPC stream messages over HTTP/2 DATA frames"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:grpc_stream)
+  |> reason_model(:grpc_stream_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_service)
+  |> program_rule(predicate: "packet_observed:tcp:remote:https:local_to_remote:byte_at:3:0xff:0x01", stage: :packet_observed, narrative: ${stream_narrative}, dedupe: true, module: ${module_name}, phase: :open_stream)
+  |> program_rule(predicate: "packet_observed:tcp:remote:https:local_to_remote:byte_at:3:0xff:0x00", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: false, module: ${module_name}, phase: :send_stream_message)
+  |> program_rule(predicate: "packet_observed:tcp:remote:https:remote_to_local:byte_at:3:0xff:0x00", stage: :packet_observed, narrative: :transport_payload_received, dedupe: false, module: ${module_name}, phase: :receive_stream_message)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_service)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:https:local_to_remote:byte_at:3:0xff:0x01", key_event: :packet_observed, narrative: ${stream_narrative}, dedupe: true, module: ${module_name}, phase: :open_stream)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:https:local_to_remote:byte_at:3:0xff:0x00", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: false, module: ${module_name}, phase: :send_stream_message)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:https:remote_to_local:byte_at:3:0xff:0x00", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: false, module: ${module_name}, phase: :receive_stream_message)
+
+template(:grpc_stream_path)
+|> window(duration_ms: 10000, lateness_ms: 300)
+|> use(:grpc_stream_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

@@ -66,7 +66,7 @@ registry path:
 - lowering into program and reason rules
 
 For the broader family map, see
-[docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md).
+[docs/book/reference-http-surface.md](docs/book/reference-http-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

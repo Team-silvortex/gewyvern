@@ -14,9 +14,9 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
-- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
-- [docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
+- [docs/field-validation.md](docs/field-validation.md)
+- [docs/history/index.md](docs/history/index.md)
 
 ## Goal
 
@@ -46,8 +46,8 @@ It requires a stable, reviewable summary of what the line proved.
 
 The current tree already has helpers for two of these:
 
-- [scripts/history/render_minor_line_ir_snapshot.sh](/Users/Shared/chroot/dev/gewyvern/scripts/history/render_minor_line_ir_snapshot.sh)
-- [scripts/validation/three_module_stack_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh)
+- [scripts/history/render_minor_line_ir_snapshot.sh](scripts/history/render_minor_line_ir_snapshot.sh)
+- [scripts/validation/three_module_stack_smoke.sh](scripts/validation/three_module_stack_smoke.sh)
 
 The three-module script now emits a small `resilience-summary.txt` artifact.
 
@@ -55,7 +55,7 @@ If you want to keep it outside the temporary working directory, run with:
 
 ```bash
 RESILIENCE_SUMMARY_PATH=/absolute/path/to/resilience-summary.txt \
-  bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
+  bash scripts/validation/three_module_stack_smoke.sh
 ```
 
 ## Suggested Layout

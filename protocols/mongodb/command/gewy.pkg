@@ -1,0 +1,8 @@
+name=mongodb_command
+version=0.18.2
+entry=main.gewy
+register.protocol=mongodb
+register.entry=command
+register.default=true
+register.aliases=mongo,mongo-command,mongo_command,mongodb-command,mongodb_command,mongo-opmsg,mongodb-opmsg
+register.entry_aliases=opmsg,op-msg,cmd,request

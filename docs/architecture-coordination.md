@@ -16,11 +16,11 @@ This page is meant to answer:
 
 Read this alongside:
 
-- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-- [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-- [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
+- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+- [docs/architecture-evolution.md](docs/architecture-evolution.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+- [docs/sidecar-collaboration.md](docs/sidecar-collaboration.md)
 
 ## Role In The Shelf
 
@@ -34,8 +34,8 @@ Use it after you already understand the basic stack and now want to answer:
 
 If you still need the broad architecture picture first, step back to:
 
-- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+- [docs/system.md](docs/system.md)
 
 ## The Four-Line Model
 

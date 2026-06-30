@@ -26,7 +26,7 @@ giving the debugger useful protocol intent.
 
 ### Metadata
 
-- [docs/book/reference-kafka-metadata-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kafka-metadata-surface.md)
+- [docs/book/reference-kafka-metadata-surface.md](docs/book/reference-kafka-metadata-surface.md)
   Broker and topic metadata lookup.
 
 Typical entries:
@@ -35,7 +35,7 @@ Typical entries:
 
 ### Stream
 
-- [docs/book/reference-kafka-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kafka-stream-surface.md)
+- [docs/book/reference-kafka-stream-surface.md](docs/book/reference-kafka-stream-surface.md)
   Produce and fetch request/response paths.
 
 Typical entries:
@@ -45,7 +45,7 @@ Typical entries:
 
 ## Reading Order
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-kafka-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-kafka-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-kafka-surface.md](docs/book/reference-kafka-surface.md)
 3. one narrower Kafka subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

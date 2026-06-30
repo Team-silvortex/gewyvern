@@ -8,12 +8,12 @@ for the active `0.17.x` line.
 
 Read this alongside:
 
-- [docs/book/reference-protocol-command-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-command-paths.md)
-- [docs/book/reference-protocol-validation-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-validation-paths.md)
-- [docs/book/reference-protocol-release-handbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-release-handbook.md)
-- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
-- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+- [docs/book/reference-protocol-command-paths.md](docs/book/reference-protocol-command-paths.md)
+- [docs/book/reference-protocol-validation-paths.md](docs/book/reference-protocol-validation-paths.md)
+- [docs/book/reference-protocol-release-handbook.md](docs/book/reference-protocol-release-handbook.md)
+- [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
 
 ## When To Use This Page
 
@@ -47,11 +47,11 @@ That order is deliberate:
 
 Families:
 
-- [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md)
-- [docs/book/reference-https-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-https-surface.md)
-- [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
-- [docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md)
-- [docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md)
+- [docs/book/reference-http-surface.md](docs/book/reference-http-surface.md)
+- [docs/book/reference-https-surface.md](docs/book/reference-https-surface.md)
+- [docs/book/reference-tls-surface.md](docs/book/reference-tls-surface.md)
+- [docs/book/reference-http3-surface.md](docs/book/reference-http3-surface.md)
+- [docs/book/reference-quic-surface.md](docs/book/reference-quic-surface.md)
 
 First commands:
 
@@ -73,9 +73,9 @@ Use this branch when the symptom looks like:
 
 Families:
 
-- [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md)
-- [docs/book/reference-ssh-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ssh-surface.md)
-- [docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md)
+- [docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md)
+- [docs/book/reference-ssh-surface.md](docs/book/reference-ssh-surface.md)
+- [docs/book/reference-socks5-surface.md](docs/book/reference-socks5-surface.md)
 
 First commands:
 
@@ -95,13 +95,13 @@ Use this branch when the symptom looks like:
 
 Families:
 
-- [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
-- [docs/book/reference-management-udp-role-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-role-matrix.md)
-- [docs/book/reference-management-udp-diagnosis-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-diagnosis-matrix.md)
-- [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
-- [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
-- [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
-- [docs/book/reference-stun-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-stun-surface.md)
+- [docs/book/reference-management-udp-failure-semantics.md](docs/book/reference-management-udp-failure-semantics.md)
+- [docs/book/reference-management-udp-role-matrix.md](docs/book/reference-management-udp-role-matrix.md)
+- [docs/book/reference-management-udp-diagnosis-matrix.md](docs/book/reference-management-udp-diagnosis-matrix.md)
+- [docs/book/reference-snmp-surface.md](docs/book/reference-snmp-surface.md)
+- [docs/book/reference-ntp-surface.md](docs/book/reference-ntp-surface.md)
+- [docs/book/reference-dhcp-surface.md](docs/book/reference-dhcp-surface.md)
+- [docs/book/reference-stun-surface.md](docs/book/reference-stun-surface.md)
 
 First commands:
 
@@ -122,9 +122,9 @@ Use this branch when the symptom looks like:
 
 Families:
 
-- [docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md)
-- [docs/book/reference-mysql-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-mysql-surface.md)
-- [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md)
+- [docs/book/reference-postgres-surface.md](docs/book/reference-postgres-surface.md)
+- [docs/book/reference-mysql-surface.md](docs/book/reference-mysql-surface.md)
+- [docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md)
 
 First commands:
 
@@ -147,14 +147,14 @@ Once one family command gives you a signal, step outward:
 ```bash
 cargo run -- --list-protocols
 cargo run -- --scan-all --json --summary-only
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh
+bash scripts/validation/registry_validation.sh
+bash scripts/validation/high_frequency_validation.sh
 ```
 
 Key grouped checks:
 
-- [scripts/validation/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh)
-- [scripts/validation/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh)
+- [scripts/validation/registry_validation.sh](scripts/validation/registry_validation.sh)
+- [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
 
 Use this layer to answer:
 
@@ -189,23 +189,23 @@ structured jumps before inventing your own detour:
 
 For the exact machine-facing contract, keep nearby:
 
-- [docs/book/reference-protocol-reading-companions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-companions.md)
+- [docs/book/reference-protocol-reading-companions.md](docs/book/reference-protocol-reading-companions.md)
 
 ## Release Confidence
 
 Use this when you are deciding whether to ship:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
+bash scripts/packaging/release_gate.sh
+bash scripts/packaging/release_container_check.sh
+bash scripts/validation/three_module_stack_smoke.sh
 ```
 
 Key scripts:
 
-- [scripts/packaging/release_gate.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh)
-- [scripts/packaging/release_container_check.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh)
-- [scripts/validation/three_module_stack_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh)
+- [scripts/packaging/release_gate.sh](scripts/packaging/release_gate.sh)
+- [scripts/packaging/release_container_check.sh](scripts/packaging/release_container_check.sh)
+- [scripts/validation/three_module_stack_smoke.sh](scripts/validation/three_module_stack_smoke.sh)
 
 Use this layer when the real question is:
 

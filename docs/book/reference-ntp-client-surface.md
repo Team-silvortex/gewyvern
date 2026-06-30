@@ -14,4 +14,4 @@ Operational split:
 
 Return to the family hub:
 
-- [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
+- [docs/book/reference-ntp-surface.md](docs/book/reference-ntp-surface.md)

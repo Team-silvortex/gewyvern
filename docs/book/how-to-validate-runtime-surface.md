@@ -9,9 +9,9 @@ Use this guide when the question is:
 This page is task-first. It is not trying to explain every subsystem.
 
 For the broader validation philosophy, see
-[docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md).
+[docs/field-validation.md](docs/field-validation.md).
 For the current running record of what has already passed, see
-[docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md).
+[docs/field-findings.md](docs/field-findings.md).
 
 ## Book Path
 
@@ -26,9 +26,9 @@ to answering:
 
 Then continue with:
 
-- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
-- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- [docs/field-validation.md](docs/field-validation.md)
+- [docs/field-findings.md](docs/field-findings.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 ## When To Use This Guide
 
@@ -85,8 +85,8 @@ protocol drift as the first suspect when the main test suite is already red.
 Use `gewyc` directly on one built-in DSL file:
 
 ```bash
-cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus graph
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy --json
+cargo run -p gewyc -- frontend dsl/udp_process_debug.gewy --focus graph
+cargo run -p gewyc -- explain dsl/http_request_path.gewy --json
 ```
 
 What this confirms:
@@ -147,12 +147,18 @@ Gewylang input, so parse must fail before validation or diagnostics can claim
 success.
 
 The legacy
-`/Users/Shared/chroot/dev/gewyvern/scripts/validation/debugger_cross_validation.sh`
+`scripts/validation/debugger_cross_validation.sh`
 script remains available for older automation, but it delegates to the native
 Rust harness instead of owning the assertions itself.
 
 Use this when the question is not just "does it run?" but "can it actually
 debug without overclaiming?"
+
+When the runtime API is serving, prefer `/v1/latest/debug-session.json` as the
+operator-facing starting point. It preserves the recommended focus from the
+debugger console, then adds the target links, failure spine, protocol-reading
+path, and next-step hints needed to continue the investigation without hunting
+through several endpoints first.
 
 ## Step 5: Run The Registry Shelf, Not Just One Target
 
@@ -210,8 +216,8 @@ When you are judging release confidence or cross-environment behavior, use the
 container line as well:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh --deb
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
+bash scripts/packaging/release_container_check.sh --deb
+bash scripts/validation/three_module_stack_smoke.sh
 ```
 
 These answer different questions:
@@ -265,7 +271,7 @@ Look first at:
   - JSON shape
 
 The legacy
-`/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh`
+`scripts/validation/registry_validation.sh`
 script remains available for older automation, but it delegates to
 `gewyvern_validate registry`.
 
@@ -281,7 +287,7 @@ Look first at:
 - any recent diagnosis/report policy change
 
 The legacy
-`/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh`
+`scripts/validation/high_frequency_validation.sh`
 script remains available for older automation, but it delegates to
 `gewyvern_validate high-frequency`.
 
@@ -403,4 +409,4 @@ That is enough to say:
 - but it is already usable on purpose
 
 For the release posture around that judgment, see
-[docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md).
+[docs/v0.14-posture.md](docs/v0.14-posture.md).

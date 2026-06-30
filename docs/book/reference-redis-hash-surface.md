@@ -55,7 +55,7 @@ The current shelf keeps:
 - covered commands grouped by single-field and multi-field operator tasks
 
 For the broader family map, see
-[docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).
+[docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

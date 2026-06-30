@@ -184,8 +184,8 @@ before they drift deeper into the runtime.
 ## Where To Go Next
 
 - For the full language guide:
-  [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
+  [docs/dsl.md](docs/dsl.md)
 - For JSON output details:
-  [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+  [docs/gewyc-json.md](docs/gewyc-json.md)
 - For the broader runtime story:
-  [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+  [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)

@@ -11,23 +11,23 @@ to a narrower question:
 - which boundaries matter in the active `0.17.x` line
 
 For long-lived runtime behavior, see
-[docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md).
+[docs/service-behavior.md](docs/service-behavior.md).
 
 For ingest trust semantics, see
-[docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md).
+[docs/ingest-modes.md](docs/ingest-modes.md).
 
 For external-engine collaboration shape, see
-[docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md).
+[docs/external-engine-contract.md](docs/external-engine-contract.md).
 
 If you want the nearby companion shelves around this page, use:
 
-- [docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md)
+- [docs/book/how-to-security-checklist.md](docs/book/how-to-security-checklist.md)
   Task-first preflight before turning on `--serve`, exposing the API, or
   wiring a sidecar/external engine.
-- [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
+- [docs/service-behavior.md](docs/service-behavior.md)
   Durable note for restart, degraded mode, ingest failure, and latest-snapshot
   service behavior.
-- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
+- [docs/machine-contract.md](docs/machine-contract.md)
   Narrow downstream contract for automation and sidecar consumers.
 
 ## Intended Deployment Shape

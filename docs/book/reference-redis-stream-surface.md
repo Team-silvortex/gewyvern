@@ -119,7 +119,7 @@ Likewise, `xinfo` remains one canonical entry even when aliases point at
 stream, groups, or consumers.
 
 For the broader family map, see
-[docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md).
+[docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

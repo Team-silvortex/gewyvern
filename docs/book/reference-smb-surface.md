@@ -11,9 +11,9 @@ Protocol aliases: `session-setup`, `share-connect`, `share-negotiate`,
 
 Read this alongside:
 
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
 - one narrower SMB subpage
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## What This Shelf Covers
 
@@ -30,7 +30,7 @@ SMB decoder yet, but it gives the debugger a stable file-share lifecycle.
 
 ### Session
 
-- [docs/book/reference-smb-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smb-session-surface.md)
+- [docs/book/reference-smb-session-surface.md](docs/book/reference-smb-session-surface.md)
   Negotiate and session setup.
 
 Typical entries:
@@ -40,7 +40,7 @@ Typical entries:
 
 ### Share
 
-- [docs/book/reference-smb-share-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smb-share-surface.md)
+- [docs/book/reference-smb-share-surface.md](docs/book/reference-smb-share-surface.md)
   Tree connect into a share.
 
 Typical entries:

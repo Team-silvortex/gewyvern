@@ -131,7 +131,7 @@ registry path:
 - lowering into program and reason rules
 
 For the broader family map, see
-[docs/book/reference-ldap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ldap-surface.md).
+[docs/book/reference-ldap-surface.md](docs/book/reference-ldap-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

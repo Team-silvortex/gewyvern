@@ -48,7 +48,7 @@ Read this page after the QUIC family hub when:
 - you need a stable retry-stage surface before IR lowering
 
 For the broader family map, see
-[docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md).
+[docs/book/reference-quic-surface.md](docs/book/reference-quic-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

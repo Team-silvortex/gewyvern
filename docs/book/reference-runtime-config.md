@@ -18,11 +18,11 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
-- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
-- [docs/book/reference-runtime-certificate-state.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-state.md)
-- [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+- [docs/book/reference-runtime-layout.md](docs/book/reference-runtime-layout.md)
+- [docs/book/reference-runtime-certificate-policy.md](docs/book/reference-runtime-certificate-policy.md)
+- [docs/book/reference-runtime-certificate-state.md](docs/book/reference-runtime-certificate-state.md)
+- [docs/packaging.md](docs/packaging.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
 
 ## Role In The Shelf
 
@@ -207,7 +207,7 @@ line it highlights:
 
 For the stable reason-code contract and status meanings, use:
 
-- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
+- [docs/book/reference-runtime-certificate-policy.md](docs/book/reference-runtime-certificate-policy.md)
 
 ### `[resilience]`
 
@@ -314,7 +314,7 @@ socket_failure_backoff_cap_ms = 2000
 
 A copyable sample file also lives at:
 
-- [docs/fixtures/gewyvern.toml.example](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyvern.toml.example)
+- [docs/fixtures/gewyvern.toml.example](docs/fixtures/gewyvern.toml.example)
 
 ## Precedence Rules
 

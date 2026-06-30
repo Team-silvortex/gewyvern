@@ -14,14 +14,14 @@ flat pile of hub pages.
 
 Read this alongside:
 
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-- [docs/book/reference-protocol-validation-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-validation-paths.md)
-- [docs/book/reference-protocol-example-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-example-paths.md)
-- [docs/book/reference-protocol-command-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-command-paths.md)
-- [docs/book/reference-protocol-operator-playbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-operator-playbook.md)
-- [docs/book/reference-protocol-release-handbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-release-handbook.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-protocol-family-shelves.md](docs/book/reference-protocol-family-shelves.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+- [docs/book/reference-protocol-validation-paths.md](docs/book/reference-protocol-validation-paths.md)
+- [docs/book/reference-protocol-example-paths.md](docs/book/reference-protocol-example-paths.md)
+- [docs/book/reference-protocol-command-paths.md](docs/book/reference-protocol-command-paths.md)
+- [docs/book/reference-protocol-operator-playbook.md](docs/book/reference-protocol-operator-playbook.md)
+- [docs/book/reference-protocol-release-handbook.md](docs/book/reference-protocol-release-handbook.md)
 
 ## When To Use This Page
 
@@ -42,12 +42,12 @@ Use this path when you need the strictest answer to:
 
 Read in this order:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-protocol-groups.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-groups.md)
-3. [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-protocol-groups.md](docs/book/reference-protocol-groups.md)
+3. [docs/book/reference-protocol-family-shelves.md](docs/book/reference-protocol-family-shelves.md)
 4. one exact family hub page
 5. one exact family subpage if the family has narrower shelves
-6. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+6. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 This is the right path for:
 
@@ -62,13 +62,13 @@ runtime-facing diagnostic story.
 
 Read in this order:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
 2. one exact family hub page
-3. [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
-4. [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-5. [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
-6. [docs/architecture-walkthrough-http-request.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-walkthrough-http-request.md)
-7. [docs/book/reference-protocol-example-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-example-paths.md)
+3. [docs/book/explanation-protocol-package-spine.md](docs/book/explanation-protocol-package-spine.md)
+4. [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+5. [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
+6. [docs/architecture-walkthrough-http-request.md](docs/architecture-walkthrough-http-request.md)
+7. [docs/book/reference-protocol-example-paths.md](docs/book/reference-protocol-example-paths.md)
 
 This is the right path for:
 
@@ -85,10 +85,10 @@ Read in this order:
 
 1. one exact family hub page
 2. one nearby family subpage or sibling entry
-3. [docs/book/how-to-add-or-debug-protocol-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-add-or-debug-protocol-package.md)
-4. [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
-5. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-6. [docs/book/reference-protocol-example-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-example-paths.md)
+3. [docs/book/how-to-add-or-debug-protocol-package.md](docs/book/how-to-add-or-debug-protocol-package.md)
+4. [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
+5. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+6. [docs/book/reference-protocol-example-paths.md](docs/book/reference-protocol-example-paths.md)
 
 This is the right path for:
 
@@ -104,12 +104,12 @@ registry shape.
 Read in this order:
 
 1. one exact family hub page
-2. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
-3. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-4. [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
-5. [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
-6. [docs/book/reference-protocol-validation-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-validation-paths.md)
-7. [docs/book/reference-protocol-command-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-command-paths.md)
+2. [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
+3. [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
+4. [docs/book/reference-runtime-config.md](docs/book/reference-runtime-config.md)
+5. [docs/book/reference-runtime-layout.md](docs/book/reference-runtime-layout.md)
+6. [docs/book/reference-protocol-validation-paths.md](docs/book/reference-protocol-validation-paths.md)
+7. [docs/book/reference-protocol-command-paths.md](docs/book/reference-protocol-command-paths.md)
 
 This is the right path for:
 
@@ -122,14 +122,14 @@ This is the right path for:
 If you only need the shortest useful route, use one of these:
 
 - “What is the exact contract?”:
-  [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-  -> family hub -> subpage -> [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+  [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+  -> family hub -> subpage -> [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 - “How does one package become runtime behavior?”:
-  family hub -> [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
-  -> [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+  family hub -> [docs/book/explanation-protocol-package-spine.md](docs/book/explanation-protocol-package-spine.md)
+  -> [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 - “How do I prove this path still works?”:
-  family hub -> [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
-  -> [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+  family hub -> [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
+  -> [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 ## Alias-Led Reading Recipes
 
@@ -137,16 +137,16 @@ Some operator-facing names intentionally land on an existing canonical family
 instead of introducing a brand new protocol shelf.
 
 - `dot`:
-  start at [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md),
+  start at [docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md),
   then read the TCP subpage, then cross-check the TLS client setup path in
-  [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md),
-  then use [docs/book/reference-dot-overlay.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dot-overlay.md)
+  [docs/book/reference-tls-surface.md](docs/book/reference-tls-surface.md),
+  then use [docs/book/reference-dot-overlay.md](docs/book/reference-dot-overlay.md)
   as the shortest combined operator path
 - `doh`:
-  start at [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md),
+  start at [docs/book/reference-http-surface.md](docs/book/reference-http-surface.md),
   then follow the request/response shelf, while reading it with DNS resolver
   intent in mind rather than generic web traffic intent, then use
-  [docs/book/reference-doh-overlay.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-doh-overlay.md)
+  [docs/book/reference-doh-overlay.md](docs/book/reference-doh-overlay.md)
   as the shortest combined operator path
 
 ## Companion-Led Reading Recipes
@@ -156,14 +156,14 @@ Some canonical surfaces are intentionally small, but they now expose
 guessing.
 
 - `https connect`:
-  read [docs/book/reference-https-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-https-surface.md),
+  read [docs/book/reference-https-surface.md](docs/book/reference-https-surface.md),
   then immediately jump to `tls client` using the companion hint recorded in
-  [docs/book/reference-protocol-reading-companions.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-companions.md)
+  [docs/book/reference-protocol-reading-companions.md](docs/book/reference-protocol-reading-companions.md)
 - `http3 request`:
-  read [docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md),
+  read [docs/book/reference-http3-surface.md](docs/book/reference-http3-surface.md),
   then jump to `quic initial` before treating request semantics as trustworthy
 - `tls client`:
-  stay on [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
+  stay on [docs/book/reference-tls-surface.md](docs/book/reference-tls-surface.md)
   only long enough to decide whether the next shelf is `https connect` or
   `dns tcp`
 

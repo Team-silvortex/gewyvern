@@ -1,0 +1,7 @@
+name=mssql_row
+version=0.18.2
+entry=main.gewy
+register.protocol=mssql
+register.entry=row
+register.aliases=mssql-row,mssql_row,sqlserver-row,sqlserver_row,tds-row,tds_row
+register.entry_aliases=data-row,rows,record,records,nbcrow

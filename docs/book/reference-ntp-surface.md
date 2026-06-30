@@ -14,10 +14,10 @@ Use it for:
 
 Primary subpages:
 
-- [docs/book/reference-ntp-client-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-client-surface.md)
-- [docs/book/reference-ntp-time-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-time-surface.md)
-- [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
-- [docs/book/reference-ntp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-failure-semantics.md)
+- [docs/book/reference-ntp-client-surface.md](docs/book/reference-ntp-client-surface.md)
+- [docs/book/reference-ntp-time-surface.md](docs/book/reference-ntp-time-surface.md)
+- [docs/book/reference-management-udp-failure-semantics.md](docs/book/reference-management-udp-failure-semantics.md)
+- [docs/book/reference-ntp-failure-semantics.md](docs/book/reference-ntp-failure-semantics.md)
 
 Current canonical entries:
 
@@ -29,7 +29,7 @@ Default entry: `client`
 
 Read in this order:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-ntp-surface.md](docs/book/reference-ntp-surface.md)
 3. one exact NTP subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

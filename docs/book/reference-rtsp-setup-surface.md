@@ -46,7 +46,7 @@ The current entry stops at successful `SETUP`. It does not attempt to collapse
 setup and playback into one surface.
 
 For the broader family map, see
-[docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md).
+[docs/book/reference-rtsp-surface.md](docs/book/reference-rtsp-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

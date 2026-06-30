@@ -77,3 +77,60 @@ pub(super) const HTTP3_PROFILE: ProtocolProfile = ProtocolProfile {
         },
     ],
 };
+
+pub(super) const GRPC_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "grpc",
+    default_entry: "call",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "call",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/grpc_call_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "status",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/grpc_status_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "stream",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/grpc_stream_path.gewy",
+        },
+    ],
+};
+
+pub(super) const WEBSOCKET_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "websocket",
+    default_entry: "upgrade",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "upgrade",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/websocket_upgrade_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "frame",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/websocket_frame_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "close",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/websocket_close_path.gewy",
+        },
+    ],
+};
+
+pub(super) const GRAPHQL_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "graphql",
+    default_entry: "query",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "query",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/graphql_query_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "mutation",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/graphql_mutation_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "subscription",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/graphql_subscription_path.gewy",
+        },
+    ],
+};

@@ -7,8 +7,8 @@ network module is this process failing in?"
 
 If you want a first-use operator path instead of a semantics page, start with:
 
-- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-- [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+- [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+- [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 
 The key runtime view is:
 
@@ -20,12 +20,12 @@ That view is the best current compression layer for process-oriented debugging.
 
 Read this page alongside:
 
-- [docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md)
+- [docs/ingest-modes.md](docs/ingest-modes.md)
   when you need to decide how much faith to place in PID-scoped conclusions
-- [docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md)
+- [docs/failure-semantics.md](docs/failure-semantics.md)
   when you need the exact meaning of failure modes, details, confidence, and
   basis
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
   when you need the structured machine-facing diagnosis contract behind these
   summaries
 
@@ -88,7 +88,7 @@ to inspect the rawer supporting evidence.
 
 Before leaning too hard on any process-level conclusion from socket ingest,
 check the ingest-side guardrails in
-[docs/ingest-modes.md](/Users/Shared/chroot/dev/gewyvern/docs/ingest-modes.md).
+[docs/ingest-modes.md](docs/ingest-modes.md).
 
 ## Example: `apt`
 
@@ -333,4 +333,4 @@ That order usually gives the best balance between speed and accuracy.
 
 If you want a cluster-by-cluster explanation of the failure language itself,
 continue with
-[docs/failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/failure-semantics.md).
+[docs/failure-semantics.md](docs/failure-semantics.md).

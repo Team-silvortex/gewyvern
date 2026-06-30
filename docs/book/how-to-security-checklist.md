@@ -16,10 +16,10 @@ This is not a penetration-test guide.
 It is a practical operator checklist for the active `0.17.x` runtime shape.
 
 For the broader posture statement, see
-[docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md).
+[docs/security-posture.md](docs/security-posture.md).
 
 For long-lived service expectations, see
-[docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md).
+[docs/service-behavior.md](docs/service-behavior.md).
 
 ## 1. Confirm The Deployment Shape
 
@@ -195,7 +195,7 @@ new local or packaged setup.
 
 The current first script to run is:
 
-- [scripts/validation/runtime_operator_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh)
+- [scripts/validation/runtime_operator_validation.sh](scripts/validation/runtime_operator_validation.sh)
 
 If you want a machine-readable summary for CI or local wrappers, run it as:
 

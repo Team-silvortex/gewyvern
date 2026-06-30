@@ -34,7 +34,7 @@ Default entry: `auth`
 
 ### Authentication
 
-- [docs/book/reference-pop3-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-auth-surface.md)
+- [docs/book/reference-pop3-auth-surface.md](docs/book/reference-pop3-auth-surface.md)
   Banner plus `USER`/`PASS` success or denial flow.
 
 Typical entries:
@@ -44,7 +44,7 @@ Typical entries:
 
 ### Mailbox List
 
-- [docs/book/reference-pop3-list-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-list-surface.md)
+- [docs/book/reference-pop3-list-surface.md](docs/book/reference-pop3-list-surface.md)
   Successful login followed by `LIST` mailbox enumeration.
 
 Typical entries:
@@ -55,10 +55,10 @@ Typical entries:
 
 If you are validating current POP3 support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-pop3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-pop3-surface.md](docs/book/reference-pop3-surface.md)
 3. the auth or list subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Stability Note
 

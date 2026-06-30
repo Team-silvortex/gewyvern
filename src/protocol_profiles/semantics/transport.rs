@@ -31,6 +31,94 @@ pub(super) fn http3_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantic
     }
 }
 
+pub(super) fn grpc_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    match entry {
+        "call" => summary(
+            "rpc-call-path",
+            "gRPC unary call over HTTP/2 with :path, content-type, and DATA frames",
+            Some("content-type: application/grpc"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "status" => summary(
+            "rpc-status-path",
+            "gRPC response trailer carrying grpc-status and optional grpc-message",
+            Some("grpc-status trailer"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "stream" => summary(
+            "rpc-stream-path",
+            "gRPC streaming RPC with repeated HTTP/2 DATA frames",
+            Some("HTTP/2 DATA continuation"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        _ => None,
+    }
+}
+
+pub(super) fn websocket_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    match entry {
+        "upgrade" => summary(
+            "websocket-upgrade-path",
+            "HTTP Upgrade request followed by an HTTP 101 Switching Protocols response",
+            Some("GET + 101 Switching Protocols"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "frame" => summary(
+            "websocket-frame-path",
+            "WebSocket text or binary frame traffic after the upgrade path",
+            Some("opcode text/binary"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "close" => failure(
+            "WebSocket session termination observed through a close control frame",
+            Some("opcode close"),
+            Some("peer_or_local_closed"),
+            Some("session_terminated"),
+        ),
+        _ => None,
+    }
+}
+
+pub(super) fn graphql_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    match entry {
+        "query" => summary(
+            "graphql-query-path",
+            "GraphQL read-style operation transported over HTTP GET or POST",
+            Some("HTTP GraphQL query request"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "mutation" => summary(
+            "graphql-mutation-path",
+            "GraphQL write-style operation transported over HTTP POST",
+            Some("HTTP POST GraphQL mutation candidate"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "subscription" => summary(
+            "graphql-subscription-path",
+            "GraphQL subscription setup over HTTP upgrade or streaming WebSocket traffic",
+            Some("HTTP upgrade + WebSocket frame"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        _ => None,
+    }
+}
+
 pub(super) fn socks5_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     match entry {
         "denied" => failure(

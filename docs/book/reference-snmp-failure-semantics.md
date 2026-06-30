@@ -5,7 +5,7 @@ longer "which entry matched?" and has become "what kind of failure is this?"
 
 Read it alongside the broader UDP control-family guide:
 
-- [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
+- [docs/book/reference-management-udp-failure-semantics.md](docs/book/reference-management-udp-failure-semantics.md)
 
 Use this page for:
 
@@ -86,6 +86,6 @@ Treat it separately from:
 
 Read next:
 
-1. [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
-2. [docs/book/reference-snmp-result-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-result-surface.md)
-3. [docs/book/reference-protocol-operator-playbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-operator-playbook.md)
+1. [docs/book/reference-snmp-surface.md](docs/book/reference-snmp-surface.md)
+2. [docs/book/reference-snmp-result-surface.md](docs/book/reference-snmp-result-surface.md)
+3. [docs/book/reference-protocol-operator-playbook.md](docs/book/reference-protocol-operator-playbook.md)

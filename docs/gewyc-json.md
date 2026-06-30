@@ -13,21 +13,21 @@ Read this page when the question is:
 
 Read these companion pages beside it:
 
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
-- [docs/gewyc-field-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-field-contract.md)
-- [docs/gewyc-sample-index.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-sample-index.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
-- [docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md)
+- [docs/dsl.md](docs/dsl.md)
+- [docs/dsl-syntax.md](docs/dsl-syntax.md)
+- [docs/gewyc-field-contract.md](docs/gewyc-field-contract.md)
+- [docs/gewyc-sample-index.md](docs/gewyc-sample-index.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+- [docs/machine-contract.md](docs/machine-contract.md)
+- [docs/surface-stability.md](docs/surface-stability.md)
 
 Representative fixture snapshots for this page:
 
-- [docs/fixtures/gewyc_frontend_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_frontend_udp_process_debug.json)
-- [docs/fixtures/gewyc_stages_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_stages_udp_process_debug.json)
-- [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_udp_process_debug.json)
-- [docs/fixtures/gewyc_explain_parse_failure.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_parse_failure.json)
-- [docs/fixtures/gewyc_explain_validation_failure.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_failure.json)
+- [docs/fixtures/gewyc_frontend_udp_process_debug.json](docs/fixtures/gewyc_frontend_udp_process_debug.json)
+- [docs/fixtures/gewyc_stages_udp_process_debug.json](docs/fixtures/gewyc_stages_udp_process_debug.json)
+- [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](docs/fixtures/gewyc_explain_validation_udp_process_debug.json)
+- [docs/fixtures/gewyc_explain_parse_failure.json](docs/fixtures/gewyc_explain_parse_failure.json)
+- [docs/fixtures/gewyc_explain_validation_failure.json](docs/fixtures/gewyc_explain_validation_failure.json)
 
 ## Scope
 
@@ -117,13 +117,13 @@ This keeps scripts resilient even when detail payloads widen.
 Command examples:
 
 ```bash
-cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
-cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --focus functions
+cargo run -p gewyc -- frontend dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- frontend dsl/udp_process_debug.gewy --json --focus functions
 ```
 
 Full fixture:
 
-- [docs/fixtures/gewyc_frontend_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_frontend_udp_process_debug.json)
+- [docs/fixtures/gewyc_frontend_udp_process_debug.json](docs/fixtures/gewyc_frontend_udp_process_debug.json)
 
 Top-level shape:
 
@@ -178,7 +178,7 @@ Grouped fields to prefer:
 Command example:
 
 ```bash
-cargo run -p gewyc -- binding /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- binding dsl/udp_process_debug.gewy --json
 ```
 
 Grouped fields to prefer:
@@ -208,7 +208,7 @@ Use the legacy fields when you need exact binding detail.
 Command example:
 
 ```bash
-cargo run -p gewyc -- diagnostics /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- diagnostics dsl/udp_process_debug.gewy --json
 ```
 
 Grouped fields to prefer:
@@ -233,7 +233,7 @@ Each model still carries exact per-rule diagnostics under `rules[]`.
 Command example:
 
 ```bash
-cargo run -p gewyc -- findings /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- findings dsl/udp_process_debug.gewy --json
 ```
 
 Current shape:
@@ -261,12 +261,12 @@ Treat `payload.findings[]` as the stable contract.
 Command example:
 
 ```bash
-cargo run -p gewyc -- stages /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- stages dsl/udp_process_debug.gewy --json
 ```
 
 Full fixture:
 
-- [docs/fixtures/gewyc_stages_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_stages_udp_process_debug.json)
+- [docs/fixtures/gewyc_stages_udp_process_debug.json](docs/fixtures/gewyc_stages_udp_process_debug.json)
 
 Grouped fields to prefer:
 
@@ -293,7 +293,7 @@ This surface is the best machine-readable phase spine below `explain`.
 Command example:
 
 ```bash
-cargo run -p gewyc -- envelope /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- envelope dsl/udp_process_debug.gewy --json
 ```
 
 Grouped fields to prefer:
@@ -320,7 +320,7 @@ The `surfaces` object is the preferred grouped entry point for new consumers.
 Command example:
 
 ```bash
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --focus ir
+cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --json --focus ir
 ```
 
 Grouped fields to prefer:
@@ -346,13 +346,13 @@ Legacy fields remain:
 Command examples:
 
 ```bash
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --focus frontend
+cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --json --focus frontend
 ```
 
 Focused validation fixture:
 
-- [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_udp_process_debug.json)
+- [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](docs/fixtures/gewyc_explain_validation_udp_process_debug.json)
 
 The explain surface is the umbrella machine-facing troubleshooting view.
 
@@ -454,7 +454,7 @@ Use this when you want one command that decides whether the source is healthy
 enough to continue.
 
 ```bash
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json \
+cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --json \
   | jq '.payload.summary.stage_status'
 ```
 
@@ -470,7 +470,7 @@ Typical read pattern:
 Use this when an editor or pre-commit hook wants a source-local marker.
 
 ```bash
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --focus parse \
+cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --json --focus parse \
   | jq '.payload.focused_report.excerpts.parse_source'
 ```
 
@@ -482,14 +482,14 @@ Preferred read:
 
 Failure fixture:
 
-- [docs/fixtures/gewyc_explain_parse_failure.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_parse_failure.json)
+- [docs/fixtures/gewyc_explain_parse_failure.json](docs/fixtures/gewyc_explain_parse_failure.json)
 
 ### `jq`: pull the first validation coverage issue
 
 Use this when a tool wants payload-offset posture instead of general findings.
 
 ```bash
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json --focus validation \
+cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --json --focus validation \
   | jq '.payload.focused_report.excerpts.validation'
 ```
 
@@ -501,7 +501,7 @@ Preferred read:
 
 Failure fixture:
 
-- [docs/fixtures/gewyc_explain_validation_failure.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_failure.json)
+- [docs/fixtures/gewyc_explain_validation_failure.json](docs/fixtures/gewyc_explain_validation_failure.json)
 
 ### `jq`: pull frontend authoring context
 
@@ -509,7 +509,7 @@ Use this when a review tool wants the documentation posture without reading the
 entire frontend graph.
 
 ```bash
-cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json \
+cargo run -p gewyc -- frontend dsl/udp_process_debug.gewy --json \
   | jq '.payload.report.authoring'
 ```
 
@@ -581,15 +581,15 @@ existing groups already matches the meaning.
 
 These files are the current implementation anchors for the JSON surfaces:
 
-- [src/gewyc/frontend_focus/json.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/frontend_focus/json.rs)
-- [src/gewyc/render/surfaces.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/render/surfaces.rs)
-- [src/gewyc/explain/render.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/explain/render.rs)
-- [src/gewyc/explain_support/focus.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/explain_support/focus.rs)
-- [src/gewyc/ir_focus/render.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/ir_focus/render.rs)
+- [src/gewyc/frontend_focus/json.rs](src/gewyc/frontend_focus/json.rs)
+- [src/gewyc/render/surfaces.rs](src/gewyc/render/surfaces.rs)
+- [src/gewyc/explain/render.rs](src/gewyc/explain/render.rs)
+- [src/gewyc/explain_support/focus.rs](src/gewyc/explain_support/focus.rs)
+- [src/gewyc/ir_focus/render.rs](src/gewyc/ir_focus/render.rs)
 
 These tests currently lock the grouped contract direction:
 
-- [src/gewyc/tests/frontend_surface.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/tests/frontend_surface.rs)
-- [src/gewyc/tests/explain_surface.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/tests/explain_surface.rs)
-- [src/gewyc/tests/integration.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/tests/integration.rs)
-- [src/gewyc/tests/ir.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/tests/ir.rs)
+- [src/gewyc/tests/frontend_surface.rs](src/gewyc/tests/frontend_surface.rs)
+- [src/gewyc/tests/explain_surface.rs](src/gewyc/tests/explain_surface.rs)
+- [src/gewyc/tests/integration.rs](src/gewyc/tests/integration.rs)
+- [src/gewyc/tests/ir.rs](src/gewyc/tests/ir.rs)

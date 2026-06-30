@@ -15,4 +15,4 @@ The `get` entry currently stays canonical without extra entry aliases.
 
 Return to the family hub:
 
-- [docs/book/reference-coap-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-coap-surface.md)
+- [docs/book/reference-coap-surface.md](docs/book/reference-coap-surface.md)

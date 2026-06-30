@@ -20,10 +20,10 @@ reframed before it is added.
 
 For the larger system map of how those modes fit together with top-level core
 pages, validation pages, and history pages, see
-[docs/documentation-system.md](/Users/Shared/chroot/dev/gewyvern/docs/documentation-system.md).
+[docs/documentation-system.md](docs/documentation-system.md).
 
 For the book-specific part and chapter discipline, see
-[docs/book/structure.md](/Users/Shared/chroot/dev/gewyvern/docs/book/structure.md).
+[docs/book/structure.md](docs/book/structure.md).
 
 ## The Four Modes
 
@@ -126,7 +126,7 @@ This is the reading framework, not a second copy of the same content.
 
 Within `docs/book/`, also decide which storyline part a page belongs to. The
 current part discipline is documented in
-[docs/book/structure.md](/Users/Shared/chroot/dev/gewyvern/docs/book/structure.md).
+[docs/book/structure.md](docs/book/structure.md).
 
 ## Writing Style
 
@@ -194,7 +194,7 @@ For this project, the middle numeric version component is the minor line:
 When a new minor line begins:
 
 - add one new page under
-  [docs/history](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md)
+  [docs/history](docs/history/index.md)
 - describe what that line means
 - describe what was already whole enough
 - describe what was still intentionally incomplete
@@ -205,7 +205,7 @@ When a new minor line begins:
 If you need the compact checklist for what those companion artifacts should
 look like, use:
 
-- [docs/history/minor-line-evidence-bundle.md](/Users/Shared/chroot/dev/gewyvern/docs/history/minor-line-evidence-bundle.md)
+- [docs/history/minor-line-evidence-bundle.md](docs/history/minor-line-evidence-bundle.md)
 
 Do not create a separate history page for every patch version unless the patch
 series fundamentally changes the line's meaning.

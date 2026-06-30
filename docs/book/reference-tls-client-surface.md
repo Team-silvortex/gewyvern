@@ -31,7 +31,7 @@ Use this slice before jumping into companion overlays such as:
 
 Return to the family hub:
 
-- [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
+- [docs/book/reference-tls-surface.md](docs/book/reference-tls-surface.md)
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

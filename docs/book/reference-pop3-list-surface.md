@@ -47,7 +47,7 @@ not later retrieval or deletion commands that are not yet represented in this
 family.
 
 For the broader family map, see
-[docs/book/reference-pop3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pop3-surface.md).
+[docs/book/reference-pop3-surface.md](docs/book/reference-pop3-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

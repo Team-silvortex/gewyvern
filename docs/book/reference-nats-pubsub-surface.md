@@ -3,7 +3,7 @@
 Use this page for NATS subject publish and subscribe traffic.
 
 For the broader family map, see
-[docs/book/reference-nats-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-nats-surface.md).
+[docs/book/reference-nats-surface.md](docs/book/reference-nats-surface.md).
 
 ## Canonical Entries
 

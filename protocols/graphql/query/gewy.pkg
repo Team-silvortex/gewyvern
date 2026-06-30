@@ -1,0 +1,8 @@
+name=graphql_query
+version=0.18.2
+entry=main.gewy
+register.protocol=graphql
+register.entry=query
+register.default=true
+register.aliases=gql,graphql-query,graphql_query,gql-query,gql_query
+register.entry_aliases=read,lookup,fetch

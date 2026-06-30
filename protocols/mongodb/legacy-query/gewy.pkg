@@ -1,0 +1,7 @@
+name=mongodb_legacy_query
+version=0.18.2
+entry=main.gewy
+register.protocol=mongodb
+register.entry=legacy-query
+register.aliases=mongo-legacy,mongo_legacy,mongodb-legacy,mongodb_legacy,mongo-query,mongodb-query
+register.entry_aliases=query,op-query,opquery,legacy

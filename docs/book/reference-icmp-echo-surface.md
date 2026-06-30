@@ -32,8 +32,8 @@ Operator interpretation:
 
 Read this alongside:
 
-- [docs/book/reference-icmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmp-surface.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/reference-icmp-surface.md](docs/book/reference-icmp-surface.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

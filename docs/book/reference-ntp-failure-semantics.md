@@ -5,7 +5,7 @@ is about timeout, follow-up, or result interpretation.
 
 Read it alongside:
 
-- [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
+- [docs/book/reference-management-udp-failure-semantics.md](docs/book/reference-management-udp-failure-semantics.md)
 
 Use this page for:
 
@@ -49,5 +49,5 @@ Treat stale local state separately from:
 
 Return paths:
 
-- [docs/book/reference-ntp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-surface.md)
-- [docs/book/reference-ntp-time-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ntp-time-surface.md)
+- [docs/book/reference-ntp-surface.md](docs/book/reference-ntp-surface.md)
+- [docs/book/reference-ntp-time-surface.md](docs/book/reference-ntp-time-surface.md)

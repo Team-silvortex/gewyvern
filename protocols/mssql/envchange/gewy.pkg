@@ -1,0 +1,7 @@
+name=mssql_envchange
+version=0.18.2
+entry=main.gewy
+register.protocol=mssql
+register.entry=envchange
+register.aliases=mssql-envchange,mssql_envchange,sqlserver-envchange,sqlserver_envchange,tds-envchange,tds_envchange
+register.entry_aliases=env,environment,env-change,session-change

@@ -8,12 +8,12 @@ line.
 
 Read this alongside:
 
-- [docs/book/reference-protocol-operator-playbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-operator-playbook.md)
-- [docs/book/reference-protocol-command-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-command-paths.md)
-- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
-- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
-- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
-- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
+- [docs/book/reference-protocol-operator-playbook.md](docs/book/reference-protocol-operator-playbook.md)
+- [docs/book/reference-protocol-command-paths.md](docs/book/reference-protocol-command-paths.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
+- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
+- [docs/field-validation.md](docs/field-validation.md)
 
 ## What This Page Is For
 
@@ -61,14 +61,14 @@ Once one direct family path is healthy, confirm the grouped shelves:
 ```bash
 cargo run -- --list-protocols
 cargo run -- --scan-all --json --summary-only
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh
+bash scripts/validation/registry_validation.sh
+bash scripts/validation/high_frequency_validation.sh
 ```
 
 Key grouped routes:
 
-- [scripts/validation/registry_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh)
-- [scripts/validation/high_frequency_validation.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh)
+- [scripts/validation/registry_validation.sh](scripts/validation/registry_validation.sh)
+- [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
 
 Use these to answer:
 
@@ -98,14 +98,16 @@ alone.
 Keep these in the release path:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
+bash scripts/packaging/release_container_check.sh
+bash scripts/validation/three_module_stack_smoke.sh
+bash scripts/validation/pathological_container_validation.sh
 ```
 
 Key release routes:
 
-- [scripts/packaging/release_container_check.sh](/Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh)
-- [scripts/validation/three_module_stack_smoke.sh](/Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh)
+- [scripts/packaging/release_container_check.sh](scripts/packaging/release_container_check.sh)
+- [scripts/validation/three_module_stack_smoke.sh](scripts/validation/three_module_stack_smoke.sh)
+- [scripts/validation/pathological_container_validation.sh](scripts/validation/pathological_container_validation.sh)
 
 Use this layer when the real question is:
 
@@ -122,4 +124,5 @@ Use this layer when the real question is:
 - Runtime trust looks shaky:
   one direct command -> `--serve` -> `summary.json` -> `analysis.json`
 - Release confidence looks shaky:
-  `release_container_check.sh` -> `three_module_stack_smoke.sh`
+  `release_container_check.sh` -> `three_module_stack_smoke.sh` ->
+  `pathological_container_validation.sh`

@@ -4,7 +4,7 @@ Use this page when you need exact lookup for the current package/module shape
 used by `gewylang`.
 
 This is not a tutorial. For a first guided walkthrough, start with
-[docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md).
+[docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md).
 
 ## Scope
 
@@ -18,12 +18,12 @@ This page covers:
 - the current safe package/module subset
 
 For the broader language surface, see
-[docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md).
+[docs/dsl.md](docs/dsl.md).
 
 For the syntax-first companion shelf, see
-[docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md).
+[docs/dsl-syntax.md](docs/dsl-syntax.md).
 For the exact DSL vocabulary and compatibility shelf, see
-[docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md).
+[docs/dsl-reference.md](docs/dsl-reference.md).
 
 ## Package Shape
 

@@ -1,0 +1,7 @@
+name=cassandra_error
+version=0.18.2
+entry=main.gewy
+register.protocol=cassandra
+register.entry=error
+register.aliases=cql-error,cql_error,cassandra-error,cassandra_error
+register.entry_aliases=failure,server-error,denied

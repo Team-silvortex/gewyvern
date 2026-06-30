@@ -14,20 +14,20 @@ Read this page when the question is:
 Use the companion shelves when the question becomes more exact:
 
 - syntax and authoring shape:
-  [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
+  [docs/dsl-syntax.md](docs/dsl-syntax.md)
 - exact key surface, predicates, and parameter/reference lookup:
-  [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
+  [docs/dsl-reference.md](docs/dsl-reference.md)
 - package layout and `include(...)` / `use(...)` rules:
-  [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+  [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
 - compiler JSON and machine-facing report shapes:
-  [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+  [docs/gewyc-json.md](docs/gewyc-json.md)
 - lowering contract and IR-facing explanation:
-  [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+  [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
   and
-  [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
+  [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
 
 If you want the reading order for the whole language shelf, start with
-[docs/gewylang-system.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-system.md).
+[docs/gewylang-system.md](docs/gewylang-system.md).
 
 ## Goal
 
@@ -86,30 +86,30 @@ parameterized pipelines can stay concise without changing their lowering model.
 
 The repository has two durable source shelves for language usage:
 
-- [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)
+- [protocols](protocols)
   Canonical registry packages and runtime-facing package entries.
-- [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
+- [dsl](dsl)
   Underlying protocol-path source files and compiler/debug baselines.
 
 Anchor examples:
 
 - debug/compiler baselines:
-  [dsl/handshake_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/handshake_debug.gewy),
-  [dsl/pipeline_udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/pipeline_udp_process_debug.gewy),
-  [dsl/structured_udp_process_debug.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/structured_udp_process_debug.gewy)
+  [dsl/handshake_debug.gewy](dsl/handshake_debug.gewy),
+  [dsl/pipeline_udp_process_debug.gewy](dsl/pipeline_udp_process_debug.gewy),
+  [dsl/structured_udp_process_debug.gewy](dsl/structured_udp_process_debug.gewy)
 - transport and proxy paths:
-  [dsl/tls_client_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/tls_client_path.gewy),
-  [dsl/quic_stream_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/quic_stream_session_path.gewy),
-  [dsl/http3_request_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http3_request_path.gewy),
-  [dsl/hy2_tcp_relay_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/hy2_tcp_relay_path.gewy)
+  [dsl/tls_client_path.gewy](dsl/tls_client_path.gewy),
+  [dsl/quic_stream_session_path.gewy](dsl/quic_stream_session_path.gewy),
+  [dsl/http3_request_path.gewy](dsl/http3_request_path.gewy),
+  [dsl/hy2_tcp_relay_path.gewy](dsl/hy2_tcp_relay_path.gewy)
 - stateful request/auth/session paths:
-  [dsl/http_request_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy),
-  [dsl/postgres_query_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_session.gewy),
-  [dsl/mysql_query_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy),
-  [dsl/redis_session_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/redis_session_path.gewy),
-  [dsl/mqtt_publish_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_publish_path.gewy),
-  [dsl/sip_invite_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/sip_invite_path.gewy),
-  [dsl/ldap_directory_sync_session.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ldap_directory_sync_session.gewy)
+  [dsl/http_request_path.gewy](dsl/http_request_path.gewy),
+  [dsl/postgres_query_session.gewy](dsl/postgres_query_session.gewy),
+  [dsl/mysql_query_session.gewy](dsl/mysql_query_session.gewy),
+  [dsl/redis_session_path.gewy](dsl/redis_session_path.gewy),
+  [dsl/mqtt_publish_path.gewy](dsl/mqtt_publish_path.gewy),
+  [dsl/sip_invite_path.gewy](dsl/sip_invite_path.gewy),
+  [dsl/ldap_directory_sync_session.gewy](dsl/ldap_directory_sync_session.gewy)
 
 ## Stable Subset
 
@@ -134,10 +134,10 @@ If you only want the package/front-end shape, use `gewyc frontend`.
 Typical examples:
 
 ```bash
-cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
-cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
-cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus graph
-cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus expansion
+cargo run -p gewyc -- frontend dsl/udp_process_debug.gewy
+cargo run -p gewyc -- frontend dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- frontend dsl/udp_process_debug.gewy --focus graph
+cargo run -p gewyc -- frontend dsl/udp_process_debug.gewy --focus expansion
 ```
 
 If you want one human-oriented debugging surface above parse/front-end,
@@ -146,18 +146,18 @@ binding, IR, validation, diagnostics, and findings, use `gewyc explain`.
 Typical examples:
 
 ```bash
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --json
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus ir
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/dsl/udp_process_debug.gewy --focus validation
+cargo run -p gewyc -- explain dsl/udp_process_debug.gewy
+cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --json
+cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --focus ir
+cargo run -p gewyc -- explain dsl/udp_process_debug.gewy --focus validation
 ```
 
 Use these pages for the exact companion contract:
 
-- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
-- [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
-- [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/dsl-syntax.md](docs/dsl-syntax.md)
+- [docs/dsl-reference.md](docs/dsl-reference.md)
+- [docs/gewyc-json.md](docs/gewyc-json.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Reading Paths
 
@@ -165,43 +165,43 @@ Use these pages for the exact companion contract:
 
 Read in this order:
 
-1. [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
-2. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-3. [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
-4. [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+1. [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
+2. [docs/dsl.md](docs/dsl.md)
+3. [docs/dsl-syntax.md](docs/dsl-syntax.md)
+4. [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
 
 ### Compiler-Oriented Contributor
 
 Read in this order:
 
-1. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-2. [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
-3. [docs/gewylang-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/gewylang-evolution.md)
-4. [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-5. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-6. [docs/gewyc-json.md](/Users/Shared/chroot/dev/gewyvern/docs/gewyc-json.md)
+1. [docs/dsl.md](docs/dsl.md)
+2. [docs/dsl-reference.md](docs/dsl-reference.md)
+3. [docs/gewylang-evolution.md](docs/gewylang-evolution.md)
+4. [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+5. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+6. [docs/gewyc-json.md](docs/gewyc-json.md)
 
 ### Safety-Oriented Reviewer
 
 Read in this order:
 
-1. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-2. [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
-3. [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
-4. [docs/book/explanation-gewylang-lightweight-types.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-lightweight-types.md)
+1. [docs/dsl.md](docs/dsl.md)
+2. [docs/dsl-reference.md](docs/dsl-reference.md)
+3. [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
+4. [docs/book/explanation-gewylang-lightweight-types.md](docs/book/explanation-gewylang-lightweight-types.md)
 
 ## Companion Shelves
 
 Use these as peers rather than replacements:
 
-- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
+- [docs/dsl-syntax.md](docs/dsl-syntax.md)
   for pipeline shape, package shape, idioms, and EBNF
-- [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
+- [docs/dsl-reference.md](docs/dsl-reference.md)
   for legacy key surface, predicates, stages, narratives, and fragment
   parameter schema
-- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+- [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
   for exact `include(...)` / `use(...)` lookup rules
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
   for the compiler's lowered contract candidate
 
 ## Implementation Anchors
@@ -209,14 +209,14 @@ Use these as peers rather than replacements:
 If you are changing the language or debugging compiler behavior, these are the
 most relevant implementation shelves:
 
-- [src/dsl.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl.rs)
-- [src/dsl/pipeline.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl/pipeline.rs)
-- [src/dsl/predicate.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl/predicate.rs)
-- [src/dsl/package.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl/package.rs)
-- [src/dsl/frontend.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl/frontend.rs)
-- [src/template.rs](/Users/Shared/chroot/dev/gewyvern/src/template.rs)
-- [src/program.rs](/Users/Shared/chroot/dev/gewyvern/src/program.rs)
-- [src/fragment.rs](/Users/Shared/chroot/dev/gewyvern/src/fragment.rs)
-- [src/gewyc/frontend.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/frontend.rs)
-- [src/gewyc/explain.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc/explain.rs)
-- [tests/dsl_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/dsl_tdd.rs)
+- [src/dsl.rs](src/dsl.rs)
+- [src/dsl/pipeline.rs](src/dsl/pipeline.rs)
+- [src/dsl/predicate.rs](src/dsl/predicate.rs)
+- [src/dsl/package.rs](src/dsl/package.rs)
+- [src/dsl/frontend.rs](src/dsl/frontend.rs)
+- [src/template.rs](src/template.rs)
+- [src/program.rs](src/program.rs)
+- [src/fragment.rs](src/fragment.rs)
+- [src/gewyc/frontend.rs](src/gewyc/frontend.rs)
+- [src/gewyc/explain.rs](src/gewyc/explain.rs)
+- [tests/dsl_tdd.rs](tests/dsl_tdd.rs)

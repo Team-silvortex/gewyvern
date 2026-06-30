@@ -1,0 +1,22 @@
+# gewyvern stable-subset protocol path
+
+fn mongodb_legacy_query_rules() =
+  let module_name = :mongodb_legacy_query_path
+  let query_narrative = "static:observed a legacy MongoDB OP_QUERY request"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:mongodb_legacy_query)
+  |> reason_model(:mongodb_legacy_query_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_server)
+  |> program_rule(predicate: "packet_observed:tcp:remote:27017:local_to_remote:bytes_at:12:0xd4,0x07,0x00,0x00", stage: :packet_observed, narrative: ${query_narrative}, dedupe: true, module: ${module_name}, phase: :send_op_query)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_server)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:27017:local_to_remote:bytes_at:12:0xd4,0x07,0x00,0x00", key_event: :packet_observed, narrative: ${query_narrative}, dedupe: true, module: ${module_name}, phase: :send_op_query)
+
+template(:mongodb_legacy_query_path)
+|> window(:default_5s)
+|> use(:mongodb_legacy_query_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

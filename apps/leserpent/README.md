@@ -1,9 +1,9 @@
-# 🐍 leserpent v0.1.9 Design Spec
+# leserpent Design Spec
 
 ### eBPF Control Plane & Visual Orchestration Service
 
 MIT License
-Status: Active v0.1.9
+Status: Active; follows the root `gewyvern` version line
 
 Monorepo home:
 
@@ -506,7 +506,7 @@ runtime：
 ### 本地运行
 
 ```bash
-cd /Users/Shared/chroot/dev/gewyvern/apps/leserpent/src/Leserpent
+cd apps/leserpent/src/Leserpent
 dotnet run
 ```
 

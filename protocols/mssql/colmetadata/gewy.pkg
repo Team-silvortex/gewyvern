@@ -1,0 +1,7 @@
+name=mssql_colmetadata
+version=0.18.2
+entry=main.gewy
+register.protocol=mssql
+register.entry=colmetadata
+register.aliases=mssql-colmetadata,mssql_colmetadata,sqlserver-colmetadata,sqlserver_colmetadata,tds-colmetadata,tds_colmetadata
+register.entry_aliases=columns,column-metadata,metadata,result-shape,schema

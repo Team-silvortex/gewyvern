@@ -39,4 +39,4 @@ The current entry is intentionally transport-primitive-oriented. It does not
 try to infer stream behavior from Initial traffic alone.
 
 For the broader family map, see
-[docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md).
+[docs/book/reference-quic-surface.md](docs/book/reference-quic-surface.md).

@@ -6,9 +6,9 @@ as the encapsulated payload.
 
 Read this alongside:
 
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-geneve-overlay-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-geneve-overlay-surface.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-geneve-overlay-surface.md](docs/book/reference-geneve-overlay-surface.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 VXLAN is the neighboring overlay family to compare against when option metadata
 is not part of the packet shape.

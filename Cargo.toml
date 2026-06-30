@@ -2,6 +2,10 @@
 members = [".", "crates/gewyc", "apps/etragon"]
 resolver = "3"
 
+[workspace.package]
+version = "0.18.2"
+edition = "2024"
+
 [package]
 name = "gewyvern"
 version = "0.18.2"

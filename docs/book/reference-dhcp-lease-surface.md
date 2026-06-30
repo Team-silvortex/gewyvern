@@ -34,7 +34,7 @@ Protocol package aliases also remain accepted:
 
 Return to the family hub:
 
-- [docs/book/reference-dhcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dhcp-surface.md)
+- [docs/book/reference-dhcp-surface.md](docs/book/reference-dhcp-surface.md)
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

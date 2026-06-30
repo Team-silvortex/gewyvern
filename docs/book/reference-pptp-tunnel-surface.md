@@ -5,9 +5,9 @@ data movement.
 
 Read this alongside:
 
-- [docs/book/reference-pptp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-pptp-surface.md)
-- [docs/book/reference-gre-tunnel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gre-tunnel-surface.md)
-- [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
+- [docs/book/reference-pptp-surface.md](docs/book/reference-pptp-surface.md)
+- [docs/book/reference-gre-tunnel-surface.md](docs/book/reference-gre-tunnel-surface.md)
+- [docs/book/reference-protocol-family-shelves.md](docs/book/reference-protocol-family-shelves.md)
 
 ## Shelf
 

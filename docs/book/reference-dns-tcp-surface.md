@@ -48,7 +48,7 @@ The current entry records coarse TCP query/response behavior and does not try
 to model zone transfer or longer multi-message DNS conversations.
 
 For the broader family map, see
-[docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md).
+[docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

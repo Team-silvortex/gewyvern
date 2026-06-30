@@ -42,7 +42,7 @@ leaving it open for reuse.
   `local_closed`
 
 For the broader family map, see
-[docs/book/reference-http3-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http3-surface.md).
+[docs/book/reference-http3-surface.md](docs/book/reference-http3-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

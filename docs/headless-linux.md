@@ -38,17 +38,17 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
-- [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
-- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+- [docs/development.md](docs/development.md)
+- [docs/packaging.md](docs/packaging.md)
+- [docs/cli-recipes.md](docs/cli-recipes.md)
 
 ## Companion Shelves
 
-- [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+- [docs/development.md](docs/development.md)
   for the broader contributor workflow
-- [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
+- [docs/packaging.md](docs/packaging.md)
   when the question shifts from Linux bring-up to native artifacts
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
   for the shortest goal-based routing into Linux or packaging scripts
 
 ## Prerequisite

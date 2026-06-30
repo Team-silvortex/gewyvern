@@ -12,11 +12,11 @@ to answer four questions quickly:
 
 This page is not the deepest runtime internals note. For that, also read:
 
-- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
-- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-- [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
+- [docs/system.md](docs/system.md)
+- [docs/architecture.md](docs/architecture.md)
+- [docs/module-boundaries.md](docs/module-boundaries.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+- [docs/book/explanation-dataflow-topology.md](docs/book/explanation-dataflow-topology.md)
 
 ## Role In The Shelf
 
@@ -31,17 +31,17 @@ Use it when you want:
 Then branch like this:
 
 - fuller layered prose map:
-  [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+  [docs/system.md](docs/system.md)
 - runtime-pipeline deep dive:
-  [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+  [docs/architecture.md](docs/architecture.md)
 - source-module clustering:
-  [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+  [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
 - project-wide dataflow topology:
-  [docs/book/explanation-dataflow-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-dataflow-topology.md)
+  [docs/book/explanation-dataflow-topology.md](docs/book/explanation-dataflow-topology.md)
 - evolution and sequencing:
-  [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
+  [docs/architecture-evolution.md](docs/architecture-evolution.md)
   and
-  [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+  [docs/architecture-coordination.md](docs/architecture-coordination.md)
 
 ## One-Sentence Intent
 
@@ -53,17 +53,17 @@ replacing the core runtime truth.
 
 ## Companion Shelves
 
-- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+- [docs/system.md](docs/system.md)
   for the layered system map in prose
-- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+- [docs/architecture.md](docs/architecture.md)
   for the runtime-pipeline and IR-bearing deep dive
-- [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+- [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
   for the source-cluster map
-- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+- [docs/module-boundaries.md](docs/module-boundaries.md)
   for file-level ownership rules
-- [docs/architecture-evolution.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-evolution.md)
+- [docs/architecture-evolution.md](docs/architecture-evolution.md)
   and
-  [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+  [docs/architecture-coordination.md](docs/architecture-coordination.md)
   for how the design is supposed to mature
 
 ## System Blueprint
@@ -259,11 +259,11 @@ When taking a design change, use this quick routing table:
 
 ## Companion Pages
 
-- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+- [docs/system.md](docs/system.md)
   Layered system map.
-- [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+- [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
   Module-level dependency and ownership blueprint.
-- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+- [docs/architecture.md](docs/architecture.md)
   Runtime pipeline deep dive.
-- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+- [docs/module-boundaries.md](docs/module-boundaries.md)
   Concrete source ownership rules.

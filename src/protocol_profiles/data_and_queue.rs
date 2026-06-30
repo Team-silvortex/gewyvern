@@ -62,6 +62,48 @@ pub(super) const MYSQL_PROFILE: ProtocolProfile = ProtocolProfile {
     ],
 };
 
+pub(super) const MONGODB_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "mongodb",
+    default_entry: "command",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "command",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mongodb_command_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "reply",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mongodb_reply_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "legacy-query",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mongodb_legacy_query_path.gewy",
+        },
+    ],
+};
+
+pub(super) const CASSANDRA_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "cassandra",
+    default_entry: "query",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "startup",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/cassandra_startup_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "query",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/cassandra_query_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "result",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/cassandra_result_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "error",
+            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/cassandra_error_path.gewy",
+        },
+    ],
+};
+
 pub(super) const MEMCACHED_PROFILE: ProtocolProfile = ProtocolProfile {
     name: "memcached",
     default_entry: "get",

@@ -36,7 +36,7 @@ Default entry: `register`
 
 ### Register
 
-- [docs/book/reference-sip-register-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-register-surface.md)
+- [docs/book/reference-sip-register-surface.md](docs/book/reference-sip-register-surface.md)
   Registration path over UDP.
 
 Typical entries:
@@ -45,7 +45,7 @@ Typical entries:
 
 ### Invite
 
-- [docs/book/reference-sip-invite-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-invite-surface.md)
+- [docs/book/reference-sip-invite-surface.md](docs/book/reference-sip-invite-surface.md)
   Call setup or session invite path over UDP.
 
 Typical entries:
@@ -54,7 +54,7 @@ Typical entries:
 
 ### Bye
 
-- [docs/book/reference-sip-bye-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-bye-surface.md)
+- [docs/book/reference-sip-bye-surface.md](docs/book/reference-sip-bye-surface.md)
   Call termination path over UDP.
 
 Typical entries:
@@ -63,7 +63,7 @@ Typical entries:
 
 ### Response
 
-- [docs/book/reference-sip-response-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-response-surface.md)
+- [docs/book/reference-sip-response-surface.md](docs/book/reference-sip-response-surface.md)
   Response observation path over UDP.
 
 Typical entries:
@@ -72,7 +72,7 @@ Typical entries:
 
 ### Denied
 
-- [docs/book/reference-sip-denied-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-denied-surface.md)
+- [docs/book/reference-sip-denied-surface.md](docs/book/reference-sip-denied-surface.md)
   Failed or rejected SIP response path over UDP.
 
 Typical entries:
@@ -83,10 +83,10 @@ Typical entries:
 
 If you are validating current SIP support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-sip-surface.md](docs/book/reference-sip-surface.md)
 3. the register, invite, bye, response, or denied subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Stability Note
 

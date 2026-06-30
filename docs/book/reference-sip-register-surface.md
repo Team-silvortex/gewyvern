@@ -39,7 +39,7 @@ The current entry is intentionally coarse. It models registration exchange
 shape, not detailed SIP response-class or authentication challenge behavior.
 
 For the broader family map, see
-[docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md).
+[docs/book/reference-sip-surface.md](docs/book/reference-sip-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

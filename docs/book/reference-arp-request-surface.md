@@ -33,8 +33,8 @@ Operator interpretation:
 
 Read this alongside:
 
-- [docs/book/reference-arp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-arp-surface.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/reference-arp-surface.md](docs/book/reference-arp-surface.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

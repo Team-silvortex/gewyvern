@@ -12,11 +12,11 @@ Use it when the question is:
 
 Read this alongside:
 
-- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-- [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
-- [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
-- [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
+- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+- [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
+- [docs/book/explanation-stack-topology.md](docs/book/explanation-stack-topology.md)
+- [docs/sidecar-collaboration.md](docs/sidecar-collaboration.md)
 
 ## Book Path
 
@@ -24,13 +24,13 @@ This chapter lives in Part V: The Broader Stack.
 
 Read it after:
 
-- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 
 Then continue with:
 
-- [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
-- [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
+- [docs/book/explanation-stack-topology.md](docs/book/explanation-stack-topology.md)
+- [docs/architecture-coordination.md](docs/architecture-coordination.md)
 
 ## Short Version
 
@@ -92,16 +92,16 @@ to understand, learn from, and coordinate.
 
 Authoring input starts in:
 
-- [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)
-- [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
-- [docs/book/reference-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-gewylang-package.md)
+- [protocols](protocols)
+- [dsl](dsl)
+- [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
 
 Primary code owners:
 
-- [src/dsl.rs](/Users/Shared/chroot/dev/gewyvern/src/dsl.rs)
-- [src/dsl](/Users/Shared/chroot/dev/gewyvern/src/dsl)
-- [src/gewyc.rs](/Users/Shared/chroot/dev/gewyvern/src/gewyc.rs)
-- [crates/gewyc](/Users/Shared/chroot/dev/gewyvern/crates/gewyc)
+- [src/dsl.rs](src/dsl.rs)
+- [src/dsl](src/dsl)
+- [src/gewyc.rs](src/gewyc.rs)
+- [crates/gewyc](crates/gewyc)
 
 The authoring lane produces:
 
@@ -123,15 +123,15 @@ Runtime input comes from two places:
 
 Primary code owners:
 
-- [src/template.rs](/Users/Shared/chroot/dev/gewyvern/src/template.rs)
-- [src/fragment.rs](/Users/Shared/chroot/dev/gewyvern/src/fragment.rs)
-- [src/loader.rs](/Users/Shared/chroot/dev/gewyvern/src/loader.rs)
-- [src/runtime.rs](/Users/Shared/chroot/dev/gewyvern/src/runtime.rs)
-- [src/ledger.rs](/Users/Shared/chroot/dev/gewyvern/src/ledger.rs)
-- [src/flow.rs](/Users/Shared/chroot/dev/gewyvern/src/flow.rs)
-- [src/program.rs](/Users/Shared/chroot/dev/gewyvern/src/program.rs)
-- [src/reason.rs](/Users/Shared/chroot/dev/gewyvern/src/reason.rs)
-- [src/diagnosis_runtime.rs](/Users/Shared/chroot/dev/gewyvern/src/diagnosis_runtime.rs)
+- [src/template.rs](src/template.rs)
+- [src/fragment.rs](src/fragment.rs)
+- [src/loader.rs](src/loader.rs)
+- [src/runtime.rs](src/runtime.rs)
+- [src/ledger.rs](src/ledger.rs)
+- [src/flow.rs](src/flow.rs)
+- [src/program.rs](src/program.rs)
+- [src/reason.rs](src/reason.rs)
+- [src/diagnosis_runtime.rs](src/diagnosis_runtime.rs)
 
 The runtime lane transforms data like this:
 
@@ -157,12 +157,12 @@ history surfaces.
 
 Primary code owners:
 
-- [src/export.rs](/Users/Shared/chroot/dev/gewyvern/src/export.rs)
-- [src/report_runtime.rs](/Users/Shared/chroot/dev/gewyvern/src/report_runtime.rs)
-- [src/report_runtime](/Users/Shared/chroot/dev/gewyvern/src/report_runtime)
-- [src/data_api.rs](/Users/Shared/chroot/dev/gewyvern/src/data_api.rs)
-- [src/data_api](/Users/Shared/chroot/dev/gewyvern/src/data_api)
-- [src/serve_runtime.rs](/Users/Shared/chroot/dev/gewyvern/src/serve_runtime.rs)
+- [src/export.rs](src/export.rs)
+- [src/report_runtime.rs](src/report_runtime.rs)
+- [src/report_runtime](src/report_runtime)
+- [src/data_api.rs](src/data_api.rs)
+- [src/data_api](src/data_api)
+- [src/serve_runtime.rs](src/serve_runtime.rs)
 
 The publication lane produces:
 
@@ -187,11 +187,11 @@ truth.
 
 Primary code owners:
 
-- [apps/etragon](/Users/Shared/chroot/dev/gewyvern/apps/etragon)
-- [apps/leserpent](/Users/Shared/chroot/dev/gewyvern/apps/leserpent)
-- [src/external_analysis.rs](/Users/Shared/chroot/dev/gewyvern/src/external_analysis.rs)
-- [docs/external-engine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/external-engine-contract.md)
-- [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
+- [apps/etragon](apps/etragon)
+- [apps/leserpent](apps/leserpent)
+- [src/external_analysis.rs](src/external_analysis.rs)
+- [docs/external-engine-contract.md](docs/external-engine-contract.md)
+- [docs/sidecar-collaboration.md](docs/sidecar-collaboration.md)
 
 `etragon` consumes runtime/export context and returns additive learning or
 diagnostic context.

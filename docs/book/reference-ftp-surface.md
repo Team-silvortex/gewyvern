@@ -29,7 +29,7 @@ Default entry: `session`
 
 ### Session And Authentication
 
-- [docs/book/reference-ftp-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-session-surface.md)
+- [docs/book/reference-ftp-session-surface.md](docs/book/reference-ftp-session-surface.md)
   Login/session establishment and explicit authentication failure flow.
 
 Typical entries:
@@ -39,7 +39,7 @@ Typical entries:
 
 ### Passive Transfer
 
-- [docs/book/reference-ftp-passive-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-passive-surface.md)
+- [docs/book/reference-ftp-passive-surface.md](docs/book/reference-ftp-passive-surface.md)
   Passive-mode directory listing, download, and upload.
 
 Typical entries:
@@ -50,7 +50,7 @@ Typical entries:
 
 ### Active Transfer
 
-- [docs/book/reference-ftp-active-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-active-surface.md)
+- [docs/book/reference-ftp-active-surface.md](docs/book/reference-ftp-active-surface.md)
   Active-mode directory listing, download, and upload.
 
 Typical entries:
@@ -63,10 +63,10 @@ Typical entries:
 
 If you are validating current FTP support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-ftp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ftp-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-ftp-surface.md](docs/book/reference-ftp-surface.md)
 3. one narrower FTP subpage for the flow you care about
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Stability Note
 

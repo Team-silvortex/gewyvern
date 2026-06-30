@@ -19,7 +19,21 @@ const PROTOCOL_GROUPS_PAGE: &str = "docs/book/reference-protocol-groups.md";
 const PROTOCOL_GROUPS: &[ProtocolGroup] = &[
     ProtocolGroup {
         title: "Web, Proxy, And Request/Response",
-        families: &["http", "https", "http3", "hy2", "socks5"],
+        families: &[
+            "http",
+            "https",
+            "http3",
+            "grpc",
+            "websocket",
+            "graphql",
+            "socks5",
+        ],
+        fallback_links: &[],
+        note: None,
+    },
+    ProtocolGroup {
+        title: "Secure Transport And Session Setup",
+        families: &["quic", "tls", "hy2", "ipsec"],
         fallback_links: &[],
         note: None,
     },
@@ -31,7 +45,7 @@ const PROTOCOL_GROUPS: &[ProtocolGroup] = &[
     },
     ProtocolGroup {
         title: "Database And Query",
-        families: &["postgres", "mysql"],
+        families: &["postgres", "mysql", "mongodb", "cassandra", "mssql"],
         fallback_links: &[],
         note: None,
     },
@@ -70,9 +84,6 @@ const PROTOCOL_GROUPS: &[ProtocolGroup] = &[
             "ssdp",
             "gtpu",
             "wireguard",
-            "ipsec",
-            "tls",
-            "quic",
             "dns",
             "rtsp",
             "sip",
@@ -376,6 +387,9 @@ fn family_shelf_sections(summaries: &[ProtocolSummary]) -> Vec<FamilyShelfSectio
         "coap",
         "dhcp",
         "ftp",
+        "grpc",
+        "websocket",
+        "graphql",
         "gre",
         "vxlan",
         "geneve",
@@ -399,6 +413,9 @@ fn family_shelf_sections(summaries: &[ProtocolSummary]) -> Vec<FamilyShelfSectio
         "nats",
         "ldap",
         "postgres",
+        "mongodb",
+        "cassandra",
+        "mssql",
         "http",
         "socks5",
         "mysql",
@@ -443,6 +460,9 @@ fn family_label(protocol: &str) -> &'static str {
         "dhcp" => "DHCP",
         "http" => "HTTP",
         "http3" => "HTTP/3",
+        "grpc" => "gRPC",
+        "websocket" => "WebSocket",
+        "graphql" => "GraphQL",
         "ftp" => "FTP",
         "smtp" => "SMTP",
         "mqtt" => "MQTT",
@@ -452,6 +472,9 @@ fn family_label(protocol: &str) -> &'static str {
         "kerberos" => "Kerberos",
         "postgres" => "PostgreSQL",
         "mysql" => "MySQL",
+        "mongodb" => "MongoDB",
+        "cassandra" => "Cassandra",
+        "mssql" => "SQL Server / TDS",
         "gtpu" => "GTP-U",
         "hy2" => "Hysteria2",
         "icmp" => "ICMP",
@@ -509,11 +532,7 @@ fn sync_generated_block(
 }
 
 fn markdown_link(page: &str) -> String {
-    format!("[{page}]({})", absolute_doc(page))
-}
-
-fn absolute_doc(page: &str) -> String {
-    format!("{}/{}", env!("CARGO_MANIFEST_DIR"), page)
+    format!("[{page}]({page})")
 }
 
 fn render_alias_block(aliases: &BTreeSet<String>) -> String {

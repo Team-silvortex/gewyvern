@@ -18,13 +18,13 @@ This means the current runtime and protocol shelf treat DoT as:
 
 Read in this order when the question is “is encrypted DNS itself healthy?”:
 
-1. [docs/book/reference-dns-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-surface.md)
-2. [docs/book/reference-dns-tcp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-dns-tcp-surface.md)
-3. [docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md)
-4. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+1. [docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md)
+2. [docs/book/reference-dns-tcp-surface.md](docs/book/reference-dns-tcp-surface.md)
+3. [docs/book/reference-tls-surface.md](docs/book/reference-tls-surface.md)
+4. [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 For the broader protocol reading spine, also keep
-[docs/book/reference-protocol-reading-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-paths.md)
+[docs/book/reference-protocol-reading-paths.md](docs/book/reference-protocol-reading-paths.md)
 open beside this page.
 
 ## What To Look For

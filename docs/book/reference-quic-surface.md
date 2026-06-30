@@ -41,7 +41,7 @@ Default entry: `initial`
 
 ### Initial
 
-- [docs/book/reference-quic-initial-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-initial-surface.md)
+- [docs/book/reference-quic-initial-surface.md](docs/book/reference-quic-initial-surface.md)
   Initial packet send and handshake-packet receipt posture.
 
 Typical entries:
@@ -50,7 +50,7 @@ Typical entries:
 
 ### Retry
 
-- [docs/book/reference-quic-retry-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-retry-surface.md)
+- [docs/book/reference-quic-retry-surface.md](docs/book/reference-quic-retry-surface.md)
   Address-validation continuation after the first client Initial.
 
 Typical entries:
@@ -59,7 +59,7 @@ Typical entries:
 
 ### Crypto
 
-- [docs/book/reference-quic-crypto-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-crypto-surface.md)
+- [docs/book/reference-quic-crypto-surface.md](docs/book/reference-quic-crypto-surface.md)
   Initial plus CRYPTO frame exchange posture.
 
 Typical entries:
@@ -68,9 +68,9 @@ Typical entries:
 
 ### Close
 
-- [docs/book/reference-quic-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-close-surface.md)
+- [docs/book/reference-quic-close-surface.md](docs/book/reference-quic-close-surface.md)
   Explicit transport termination after early QUIC progression.
-- [docs/book/reference-quic-local-close-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-local-close-surface.md)
+- [docs/book/reference-quic-local-close-surface.md](docs/book/reference-quic-local-close-surface.md)
   Explicit locally initiated transport termination after handshake progress.
 
 Typical entries:
@@ -80,9 +80,9 @@ Typical entries:
 
 ### Streams
 
-- [docs/book/reference-quic-stream-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-stream-surface.md)
+- [docs/book/reference-quic-stream-surface.md](docs/book/reference-quic-stream-surface.md)
   Stream send plus close-observation posture.
-- [docs/book/reference-quic-bidi-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-bidi-surface.md)
+- [docs/book/reference-quic-bidi-surface.md](docs/book/reference-quic-bidi-surface.md)
   Bidirectional request/response stream posture.
 
 Typical entries:
@@ -94,17 +94,17 @@ Typical entries:
 
 If you are validating current QUIC support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-quic-surface.md](docs/book/reference-quic-surface.md)
 3. one narrower QUIC subpage for the transport stage you care about
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Next Useful Checks
 
 - For runtime-confidence checks:
-  [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+  [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 - For exact diagnosis-field meanings:
-  [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+  [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 ## Stability Note
 

@@ -11,7 +11,7 @@ It is intentionally narrow:
 - one reading strategy
 
 If you want the lower-level compiler/runtime story, see
-[docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md).
+[docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md).
 
 ## What You Will Do
 
@@ -197,13 +197,13 @@ That means:
 - the documentation should be enough to get another engineer moving
 
 For the broader release posture, see
-[docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md).
+[docs/v0.14-posture.md](docs/v0.14-posture.md).
 
 ## Where To Go Next
 
 - If you want to understand the runtime pipeline:
-  [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
+  [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
 - If you want the full runtime validation ladder:
-  [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+  [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 - If you want to start authoring `gewylang`:
-  [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
+  [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)

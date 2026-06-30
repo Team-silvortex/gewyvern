@@ -8,7 +8,7 @@ traffic.
 - family: `icmpv6`
 - entry: `unreachable`
 - shelf key: `failure`
-- DSL: [dsl/icmpv6_unreachable_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/icmpv6_unreachable_path.gewy)
+- DSL: [dsl/icmpv6_unreachable_path.gewy](dsl/icmpv6_unreachable_path.gewy)
 
 ## Aliases
 
@@ -28,8 +28,8 @@ traffic.
 
 ## Related Pages
 
-- [docs/book/reference-icmpv6-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-surface.md)
-- [docs/book/reference-icmpv6-echo-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-icmpv6-echo-surface.md)
+- [docs/book/reference-icmpv6-surface.md](docs/book/reference-icmpv6-surface.md)
+- [docs/book/reference-icmpv6-echo-surface.md](docs/book/reference-icmpv6-echo-surface.md)
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

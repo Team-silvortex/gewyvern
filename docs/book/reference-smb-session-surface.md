@@ -3,7 +3,7 @@
 Use this page for SMB2 negotiation and session setup on TCP port `445`.
 
 For the broader family map, see
-[docs/book/reference-smb-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smb-surface.md).
+[docs/book/reference-smb-surface.md](docs/book/reference-smb-surface.md).
 
 ## Canonical Entries
 

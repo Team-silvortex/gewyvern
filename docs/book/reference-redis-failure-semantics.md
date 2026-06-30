@@ -58,9 +58,9 @@ recover the current denial or failure meaning.
 
 ## Operator Reading Order
 
-1. [docs/book/reference-redis-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-redis-surface.md)
+1. [docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md)
 2. this page
-3. [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+3. [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 ## Scope Note
 

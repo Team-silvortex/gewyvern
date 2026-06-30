@@ -12,13 +12,13 @@ This chapter lives in Part III: The Runtime Spine.
 
 Read it after:
 
-- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 Then continue with:
 
-- [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
-- [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
+- [docs/book/explanation-protocol-package-spine.md](docs/book/explanation-protocol-package-spine.md)
+- [docs/book/explanation-stack-topology.md](docs/book/explanation-stack-topology.md)
 
 ## The Short Version
 
@@ -210,8 +210,8 @@ asking you to place in that answer.
 If you want to see how this conservative runtime posture constrains packaged
 protocol work, go to:
 
-- [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
+- [docs/book/explanation-protocol-package-spine.md](docs/book/explanation-protocol-package-spine.md)
 
 If you want to see how it constrains the broader multi-project stack, go to:
 
-- [docs/book/explanation-stack-topology.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-stack-topology.md)
+- [docs/book/explanation-stack-topology.md](docs/book/explanation-stack-topology.md)

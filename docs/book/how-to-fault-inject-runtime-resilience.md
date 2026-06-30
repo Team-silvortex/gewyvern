@@ -14,9 +14,9 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
-- [docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md)
-- [docs/release-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/release-checklist.md)
+- [docs/book/reference-runtime-config.md](docs/book/reference-runtime-config.md)
+- [docs/book/how-to-security-checklist.md](docs/book/how-to-security-checklist.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
 
 ## Goal
 
@@ -44,7 +44,7 @@ Prepare:
 If you want a prebuilt set of helper scripts and a ready-made runbook, use:
 
 ```sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_roundtrip.sh
+bash scripts/validation/runtime_resilience_roundtrip.sh
 ```
 
 That helper prepares:
@@ -57,7 +57,7 @@ That helper prepares:
 
 If you are using the standard config path, start from:
 
-- [docs/fixtures/gewyvern.toml.example](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyvern.toml.example)
+- [docs/fixtures/gewyvern.toml.example](docs/fixtures/gewyvern.toml.example)
 
 The resilience keys we care about are:
 
@@ -94,7 +94,7 @@ non-zero.
 You can generate one with:
 
 ```sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_fault_injection.sh \
+bash scripts/validation/runtime_resilience_fault_injection.sh \
   emit-external-engine timeout \
   /tmp/gewyvern-fault-timeout-engine.sh
 ```
@@ -125,7 +125,7 @@ bin = "/absolute/path/to/failing-engine.sh"
 For a quick recovery drill, you can also emit a healthy helper:
 
 ```sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_fault_injection.sh \
+bash scripts/validation/runtime_resilience_fault_injection.sh \
   emit-external-engine healthy \
   /tmp/gewyvern-fault-healthy-engine.sh
 ```
@@ -197,7 +197,7 @@ fine.
 If `nc` is available, a helper is now included:
 
 ```sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_fault_injection.sh \
+bash scripts/validation/runtime_resilience_fault_injection.sh \
   drive-socket-bad-json 127.0.0.1 9909 6
 ```
 
@@ -319,7 +319,7 @@ If you already have one runtime log file or one log directory, a helper can
 extract the resilience evidence and summarize the event counts:
 
 ```sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_log_evidence.sh \
+bash scripts/validation/runtime_resilience_log_evidence.sh \
   /path/to/runtime.log \
   /tmp/gewyvern-resilience-evidence
 ```
@@ -339,7 +339,7 @@ If you want one output bundle that combines:
 use:
 
 ```sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_resilience_validation.sh \
+bash scripts/validation/runtime_resilience_validation.sh \
   127.0.0.1:9910 \
   /path/to/runtime.log \
   /tmp/gewyvern-resilience-validation

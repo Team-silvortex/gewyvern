@@ -6,22 +6,25 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUN_BUILD=1
 RUN_RELEASE_CHECK=1
 RUN_STACK=1
+RUN_PATHOLOGY=1
 RELEASE_ARGS=()
 
 usage() {
   cat <<'EOF'
-Usage: scripts/packaging/release_gate.sh [--skip-build] [--skip-release-check] [--skip-stack] [--deb|--rpm]
+Usage: scripts/packaging/release_gate.sh [--skip-build] [--skip-release-check] [--skip-stack] [--skip-pathology] [--deb|--rpm]
 
 Run the current release gate as one deliberate sequence:
 
 1. rebuild fresh native packages in Docker
 2. run the packaged release validation wrapper
 3. run the three-module stack smoke
+4. run pathological container/runtime-ingest validation
 
 Flags:
   --skip-build          Reuse current package artifacts instead of rebuilding
   --skip-release-check  Skip packaged DEB/RPM validation
   --skip-stack          Skip three-module stack smoke
+  --skip-pathology      Skip pathological runtime-ingest validation
   --deb                 Run the packaged release check in DEB-only mode
   --rpm                 Run the packaged release check in RPM-only mode
 EOF
@@ -39,6 +42,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-stack)
       RUN_STACK=0
+      shift
+      ;;
+    --skip-pathology)
+      RUN_PATHOLOGY=0
       shift
       ;;
     --deb|--rpm)
@@ -93,6 +100,14 @@ if [[ "${RUN_STACK}" -eq 1 ]]; then
     bash "${ROOT}/scripts/validation/three_module_stack_smoke.sh"
 else
   echo "[release-gate] skipping three-module stack smoke"
+fi
+
+if [[ "${RUN_PATHOLOGY}" -eq 1 ]]; then
+  run_step \
+    "running pathological container validation" \
+    bash "${ROOT}/scripts/validation/pathological_container_validation.sh"
+else
+  echo "[release-gate] skipping pathological container validation"
 fi
 
 echo "[release-gate] ----------------------------------------"

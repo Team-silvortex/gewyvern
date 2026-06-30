@@ -8,10 +8,10 @@ Use this guide when the question is:
 
 This page assumes you already understand the basics of `gewylang`.
 If not, start with
-[docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md).
+[docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md).
 
 For the exact protocol family/entry resolution contract behind this shelf, see
-[docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md).
+[docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md).
 
 ## Book Path
 
@@ -25,16 +25,16 @@ Read it when the question is no longer “what is a package?” but:
 
 Then continue with:
 
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-- [docs/book/explanation-protocol-package-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-protocol-package-spine.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+- [docs/book/explanation-protocol-package-spine.md](docs/book/explanation-protocol-package-spine.md)
 
 ## What A Protocol Package Is
 
 In the current repository shape, a protocol package usually means:
 
-- one directory under [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)
-- one [gewy.pkg](/Users/Shared/chroot/dev/gewyvern/protocols/http/request/gewy.pkg)-style manifest
+- one directory under [protocols](protocols)
+- one [gewy.pkg](protocols/http/request/gewy.pkg)-style manifest
 - one `main.gewy` entry
 - optional included helper modules
 
@@ -57,11 +57,11 @@ Before authoring a new package, find the closest working sibling:
 Examples:
 
 - HTTP-like request paths:
-  [protocols/http/request](/Users/Shared/chroot/dev/gewyvern/protocols/http/request)
+  [protocols/http/request](protocols/http/request)
 - PostgreSQL query/auth paths:
-  [protocols/postgres/query](/Users/Shared/chroot/dev/gewyvern/protocols/postgres/query)
+  [protocols/postgres/query](protocols/postgres/query)
 - SOCKS5 auth/connect paths:
-  [protocols/socks5/session](/Users/Shared/chroot/dev/gewyvern/protocols/socks5/session)
+  [protocols/socks5/session](protocols/socks5/session)
 
 This keeps drift low because you are extending an existing shelf shape instead
 of inventing a new one from scratch.
@@ -107,8 +107,8 @@ hard to validate and harder to debug later.
 Run:
 
 ```bash
-cargo run -p gewyc -- frontend /Users/Shared/chroot/dev/gewyvern/protocols/<family>/<entry>/main.gewy --focus graph
-cargo run -p gewyc -- explain /Users/Shared/chroot/dev/gewyvern/protocols/<family>/<entry>/main.gewy --json
+cargo run -p gewyc -- frontend protocols/<family>/<entry>/main.gewy --focus graph
+cargo run -p gewyc -- explain protocols/<family>/<entry>/main.gewy --json
 ```
 
 Look for:
@@ -155,7 +155,7 @@ Do not stop at “one command worked”.
 Run:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh
+bash scripts/validation/registry_validation.sh
 ```
 
 This tells you whether your package:
@@ -175,7 +175,7 @@ healthy as it looks from one narrow command.
 If the package lives in a high-frequency family, also run:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh
+bash scripts/validation/high_frequency_validation.sh
 ```
 
 This is especially important for:
@@ -275,10 +275,10 @@ predictable.
 
 If the package adds a meaningful new family or entry, update at least one of:
 
-- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-- [docs/process-profiles.md](/Users/Shared/chroot/dev/gewyvern/docs/process-profiles.md)
-- [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
+- [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+- [docs/dsl.md](docs/dsl.md)
+- [docs/process-profiles.md](docs/process-profiles.md)
+- [README.md](README.md)
 
 The goal is simple:
 
@@ -288,8 +288,8 @@ The goal is simple:
 ## Where To Go Next
 
 - For the package authoring tutorial:
-  [docs/book/tutorial-gewylang-package.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-gewylang-package.md)
+  [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
 - For the current runtime validation line:
-  [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+  [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 - For module and source layering:
-  [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+  [docs/module-boundaries.md](docs/module-boundaries.md)

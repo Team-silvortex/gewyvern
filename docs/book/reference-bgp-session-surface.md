@@ -8,8 +8,8 @@ OPEN negotiation and KEEPALIVE liveness.
 - family: `bgp`
 - entries: `open`, `keepalive`
 - shelf key: `session`
-- DSL: [dsl/bgp_open_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/bgp_open_path.gewy)
-- DSL: [dsl/bgp_keepalive_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/bgp_keepalive_path.gewy)
+- DSL: [dsl/bgp_open_path.gewy](dsl/bgp_open_path.gewy)
+- DSL: [dsl/bgp_keepalive_path.gewy](dsl/bgp_keepalive_path.gewy)
 
 ## Aliases
 
@@ -31,7 +31,7 @@ OPEN negotiation and KEEPALIVE liveness.
 
 ## Related Pages
 
-- [docs/book/reference-bgp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-bgp-surface.md)
+- [docs/book/reference-bgp-surface.md](docs/book/reference-bgp-surface.md)
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

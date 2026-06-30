@@ -7,7 +7,7 @@ NDP solicitation models an IPv6 Neighbor Solicitation message.
 - family: `ndp`
 - entry: `solicit`
 - shelf key: `solicit`
-- DSL: [dsl/ndp_solicit_path.gewy](/Users/Shared/chroot/dev/gewyvern/dsl/ndp_solicit_path.gewy)
+- DSL: [dsl/ndp_solicit_path.gewy](dsl/ndp_solicit_path.gewy)
 
 ## Aliases
 
@@ -25,8 +25,8 @@ NDP solicitation models an IPv6 Neighbor Solicitation message.
 
 ## Related Pages
 
-- [docs/book/reference-ndp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-surface.md)
-- [docs/book/reference-ndp-advertise-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ndp-advertise-surface.md)
+- [docs/book/reference-ndp-surface.md](docs/book/reference-ndp-surface.md)
+- [docs/book/reference-ndp-advertise-surface.md](docs/book/reference-ndp-advertise-surface.md)
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

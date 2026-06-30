@@ -1,0 +1,24 @@
+# gewyvern stable-subset protocol path
+
+fn mssql_row_rules() =
+  let module_name = :mssql_row_path
+  let row_narrative = "static:observed a TDS row token from SQL Server"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:mssql_row)
+  |> reason_model(:mssql_row_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_server)
+  |> program_rule(predicate: "packet_observed:tcp:remote:1433:remote_to_local:byte0_mask:0xff:0x04:byte_at:8:0xff:0xd1", stage: :packet_observed, narrative: ${row_narrative}, dedupe: true, module: ${module_name}, phase: :receive_row)
+  |> program_rule(predicate: "packet_observed:tcp:remote:1433:remote_to_local:byte0_mask:0xff:0x04:byte_at:8:0xff:0xd2", stage: :packet_observed, narrative: ${row_narrative}, dedupe: true, module: ${module_name}, phase: :receive_nbcrow)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_server)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:1433:remote_to_local:byte0_mask:0xff:0x04:byte_at:8:0xff:0xd1", key_event: :packet_observed, narrative: ${row_narrative}, dedupe: true, module: ${module_name}, phase: :receive_row)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:1433:remote_to_local:byte0_mask:0xff:0x04:byte_at:8:0xff:0xd2", key_event: :packet_observed, narrative: ${row_narrative}, dedupe: true, module: ${module_name}, phase: :receive_nbcrow)
+
+template(:mssql_row_path)
+|> window(:default_5s)
+|> use(:mssql_row_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

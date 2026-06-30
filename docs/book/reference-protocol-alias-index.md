@@ -37,6 +37,16 @@ Entry aliases:
 - `open` (default): `bgp-open`, `bgp_open`, `peer-open`, `session-open`
 - `keepalive`: `bgp-keepalive`, `bgp_keepalive`, `keep-alive`, `session-keepalive`
 
+## `cassandra`
+
+Default entry: `query`
+Protocol aliases: `cassandra-error`, `cassandra-query`, `cassandra-result`, `cassandra-startup`, `cassandra_error`, `cassandra_query`, `cassandra_result`, `cassandra_startup`, `cql`, `cql-error`, `cql-query`, `cql-result`, `cql-startup`, `cql_error`, `cql_query`, `cql_result`, `cql_startup`
+Entry aliases:
+- `query` (default): `cassandra-query`, `cassandra_query`, `cql`, `cql-query`, `cql_query`, `request`, `select`, `statement`
+- `error`: `cassandra-error`, `cassandra_error`, `cql-error`, `cql_error`, `denied`, `failure`, `server-error`
+- `result`: `cassandra-result`, `cassandra_result`, `cql-result`, `cql_result`, `response`, `rows`, `success`
+- `startup`: `cassandra-startup`, `cassandra_startup`, `connect`, `cql-startup`, `cql_startup`, `handshake`, `hello`
+
 ## `coap`
 
 Default entry: `get`
@@ -87,6 +97,15 @@ Entry aliases:
 - `encap` (default): `geneve-overlay`, `geneve-tunnel`, `geneve_tunnel`, `overlay-options`
 - `options`: `geneve-options`, `geneve-tlv`, `geneve_options`, `geneve_tlv`, `optioned-overlay`
 
+## `graphql`
+
+Default entry: `query`
+Protocol aliases: `gql`, `gql-mutation`, `gql-query`, `gql-subscription`, `gql_mutation`, `gql_query`, `gql_subscription`, `graphql-mutation`, `graphql-query`, `graphql-subscription`, `graphql_mutation`, `graphql_query`, `graphql_subscription`
+Entry aliases:
+- `query` (default): `fetch`, `gql`, `gql-query`, `gql_query`, `graphql-query`, `graphql_query`, `lookup`, `read`
+- `mutation`: `change`, `command`, `gql-mutation`, `gql_mutation`, `graphql-mutation`, `graphql_mutation`, `write`
+- `subscription`: `gql-subscription`, `gql_subscription`, `graphql-subscription`, `graphql_subscription`, `live`, `stream`, `subscribe`
+
 ## `gre`
 
 Default entry: `encap`
@@ -94,6 +113,15 @@ Protocol aliases: `encapsulation`, `gre-keepalive`, `gre-tunnel`, `gre_keepalive
 Entry aliases:
 - `encap` (default): `encapsulation`, `gre-tunnel`, `gre_tunnel`, `tunnel`
 - `keepalive`: `gre-keepalive`, `gre_keepalive`, `keep-alive`, `tunnel-keepalive`
+
+## `grpc`
+
+Default entry: `call`
+Protocol aliases: `grpc-bidi`, `grpc-call`, `grpc-status`, `grpc-stream`, `grpc-trailer`, `grpc-unary`, `grpc_bidi`, `grpc_call`, `grpc_status`, `grpc_stream`, `grpc_trailer`, `grpc_unary`, `http2-rpc`, `http2_rpc`
+Entry aliases:
+- `call` (default): `grpc-call`, `grpc-unary`, `grpc_call`, `grpc_unary`, `http2-rpc`, `http2_rpc`, `request`, `rpc`, `unary`
+- `status`: `grpc-status`, `grpc-trailer`, `grpc_status`, `grpc_trailer`, `result`, `trailer`, `trailers`
+- `stream`: `bidi`, `client-stream`, `grpc-bidi`, `grpc-stream`, `grpc_bidi`, `grpc_stream`, `server-stream`, `streaming`
 
 ## `gtpu`
 
@@ -234,6 +262,15 @@ Entry aliases:
 - `get` (default): `memcached-get`, `memcached-read`, `memcached_get`, `memcached_read`, `read`
 - `set`: `memcached-set`, `memcached-write`, `memcached_set`, `memcached_write`, `write`
 
+## `mongodb`
+
+Default entry: `command`
+Protocol aliases: `mongo`, `mongo-command`, `mongo-legacy`, `mongo-opmsg`, `mongo-query`, `mongo-reply`, `mongo-response`, `mongo_command`, `mongo_legacy`, `mongo_reply`, `mongodb-command`, `mongodb-legacy`, `mongodb-opmsg`, `mongodb-query`, `mongodb-reply`, `mongodb-response`, `mongodb_command`, `mongodb_legacy`, `mongodb_reply`
+Entry aliases:
+- `command` (default): `cmd`, `mongo`, `mongo-command`, `mongo-opmsg`, `mongo_command`, `mongodb-command`, `mongodb-opmsg`, `mongodb_command`, `op-msg`, `opmsg`, `request`
+- `legacy-query`: `legacy`, `mongo-legacy`, `mongo-query`, `mongo_legacy`, `mongodb-legacy`, `mongodb-query`, `mongodb_legacy`, `op-query`, `opquery`, `query`
+- `reply`: `mongo-reply`, `mongo-response`, `mongo_reply`, `mongodb-reply`, `mongodb-response`, `mongodb_reply`, `op-reply`, `opreply`, `response`
+
 ## `mqtt`
 
 Default entry: `connect`
@@ -246,6 +283,21 @@ Entry aliases:
 - `pubrec`: `qos2-receipt`, `stage-2`
 - `pubrel`: `qos2-release`, `resume`
 - `subscribe`: `listen`, `read`
+
+## `mssql`
+
+Default entry: `query`
+Protocol aliases: `mssql-colmetadata`, `mssql-done`, `mssql-envchange`, `mssql-error`, `mssql-login`, `mssql-prelogin`, `mssql-query`, `mssql-response`, `mssql-row`, `mssql_colmetadata`, `mssql_done`, `mssql_envchange`, `mssql_error`, `mssql_login`, `mssql_prelogin`, `mssql_query`, `mssql_response`, `mssql_row`, `sql-server`, `sqlserver`, `sqlserver-colmetadata`, `sqlserver-done`, `sqlserver-envchange`, `sqlserver-error`, `sqlserver-login`, `sqlserver-prelogin`, `sqlserver-query`, `sqlserver-response`, `sqlserver-row`, `sqlserver_colmetadata`, `sqlserver_done`, `sqlserver_envchange`, `sqlserver_error`, `sqlserver_login`, `sqlserver_prelogin`, `sqlserver_query`, `sqlserver_response`, `sqlserver_row`, `tds`, `tds-colmetadata`, `tds-done`, `tds-envchange`, `tds-error`, `tds-login`, `tds-prelogin`, `tds-query`, `tds-response`, `tds-row`, `tds_colmetadata`, `tds_done`, `tds_envchange`, `tds_error`, `tds_login`, `tds_prelogin`, `tds_query`, `tds_response`, `tds_row`
+Entry aliases:
+- `query` (default): `batch`, `mssql-query`, `mssql_query`, `request`, `sql-batch`, `sql-server`, `sqlserver`, `sqlserver-query`, `sqlserver_query`, `tds-query`, `tds_query`
+- `colmetadata`: `column-metadata`, `columns`, `metadata`, `mssql-colmetadata`, `mssql_colmetadata`, `result-shape`, `schema`, `sqlserver-colmetadata`, `sqlserver_colmetadata`, `tds-colmetadata`, `tds_colmetadata`
+- `done`: `complete`, `completion`, `done-token`, `doneinproc`, `doneproc`, `mssql-done`, `mssql_done`, `sqlserver-done`, `sqlserver_done`, `tds-done`, `tds_done`
+- `envchange`: `env`, `env-change`, `environment`, `mssql-envchange`, `mssql_envchange`, `session-change`, `sqlserver-envchange`, `sqlserver_envchange`, `tds-envchange`, `tds_envchange`
+- `error`: `denied`, `error-token`, `failure`, `mssql-error`, `mssql_error`, `server-error`, `sqlserver-error`, `sqlserver_error`, `tds-error`, `tds_error`
+- `login`: `auth`, `authenticate`, `login7`, `mssql-login`, `mssql_login`, `sqlserver-login`, `sqlserver_login`, `tds-login`, `tds_login`
+- `prelogin`: `connect`, `handshake`, `mssql-prelogin`, `mssql_prelogin`, `pre-login`, `sqlserver-prelogin`, `sqlserver_prelogin`, `tds`, `tds-prelogin`, `tds_prelogin`
+- `response`: `mssql-response`, `mssql_response`, `reply`, `result`, `sqlserver-response`, `sqlserver_response`, `tabular`, `tds-response`, `tds_response`
+- `row`: `data-row`, `mssql-row`, `mssql_row`, `nbcrow`, `record`, `records`, `rows`, `sqlserver-row`, `sqlserver_row`, `tds-row`, `tds_row`
 
 ## `mysql`
 
@@ -556,6 +608,15 @@ Protocol aliases: `overlay`, `tenant-overlay`, `vni`, `vni-overlay`, `vxlan-tunn
 Entry aliases:
 - `encap` (default): `overlay`, `vni-overlay`, `vxlan-tunnel`, `vxlan_tunnel`
 - `vni`: `tenant-overlay`, `vni`, `vxlan-vni`, `vxlan_vni`
+
+## `websocket`
+
+Default entry: `upgrade`
+Protocol aliases: `websocket-close`, `websocket-frame`, `websocket-upgrade`, `websocket_close`, `websocket_frame`, `websocket_upgrade`, `ws`, `ws-close`, `ws-frame`, `ws-upgrade`, `ws_close`, `ws_frame`, `ws_upgrade`
+Entry aliases:
+- `upgrade` (default): `handshake`, `http-upgrade`, `switching-protocols`, `websocket-upgrade`, `websocket_upgrade`, `ws`, `ws-upgrade`, `ws_upgrade`
+- `close`: `close-frame`, `shutdown`, `teardown`, `websocket-close`, `websocket_close`, `ws-close`, `ws_close`
+- `frame`: `binary`, `data`, `message`, `text`, `websocket-frame`, `websocket_frame`, `ws-frame`, `ws_frame`
 
 ## `wireguard`
 

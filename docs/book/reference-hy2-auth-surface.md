@@ -20,7 +20,7 @@ Operational split:
 
 Return to the family hub:
 
-- [docs/book/reference-hy2-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-hy2-surface.md)
+- [docs/book/reference-hy2-surface.md](docs/book/reference-hy2-surface.md)
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

@@ -18,9 +18,9 @@ This page is not the best first stop for:
 
 For those, use:
 
-- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-- [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-- [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+- [docs/system.md](docs/system.md)
+- [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+- [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 
 ## What A Fragment Is
 
@@ -48,7 +48,7 @@ not what that evidence means at the final debugger layer.
 ## Current Descriptor Shape
 
 The current Rust-side descriptor is `FragmentDescriptor` in
-[src/fragment.rs](/Users/Shared/chroot/dev/gewyvern/src/fragment.rs).
+[src/fragment.rs](src/fragment.rs).
 
 Fields:
 
@@ -232,7 +232,7 @@ The registry currently enforces:
 
 These invariants are specified in:
 
-- [tests/fragment_rules_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/fragment_rules_tdd.rs)
+- [tests/fragment_rules_tdd.rs](tests/fragment_rules_tdd.rs)
 
 ## Attach Reports And Failures
 
@@ -274,8 +274,8 @@ Use this sequence:
 
 If the new fragment needs real Linux probe coverage, also extend:
 
-- [tests/linux_smoke_tdd.rs](/Users/Shared/chroot/dev/gewyvern/tests/linux_smoke_tdd.rs)
-- [src/loader.rs](/Users/Shared/chroot/dev/gewyvern/src/loader.rs)
+- [tests/linux_smoke_tdd.rs](tests/linux_smoke_tdd.rs)
+- [src/loader.rs](src/loader.rs)
 
 ## Design Rule
 

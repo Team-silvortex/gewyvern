@@ -42,4 +42,4 @@ The current entry is still handshake-centric. It does not attempt to collapse
 handshake and application stream behavior into one surface.
 
 For the broader family map, see
-[docs/book/reference-quic-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-quic-surface.md).
+[docs/book/reference-quic-surface.md](docs/book/reference-quic-surface.md).

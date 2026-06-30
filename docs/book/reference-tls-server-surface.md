@@ -35,7 +35,7 @@ Read this page after the TLS family hub when:
 - you need a server-handshake shelf before IR lowering or overlay reasoning
 
 For the broader family map, see
-[docs/book/reference-tls-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-tls-surface.md).
+[docs/book/reference-tls-surface.md](docs/book/reference-tls-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

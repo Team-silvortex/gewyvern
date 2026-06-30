@@ -104,7 +104,7 @@ the rest of the built-in protocol shelf:
 - lowering into program and reason rules
 
 When you need the broader family map, return to
-[docs/book/reference-postgres-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-postgres-surface.md).
+[docs/book/reference-postgres-surface.md](docs/book/reference-postgres-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

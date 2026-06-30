@@ -11,9 +11,9 @@ This page answers:
 
 Use these nearby pages with it:
 
-- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
-- [docs/book/reference-runtime-certificate-state.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-state.md)
-- [docs/machine-surface-freeze.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-surface-freeze.md)
+- [docs/book/reference-runtime-certificate-policy.md](docs/book/reference-runtime-certificate-policy.md)
+- [docs/book/reference-runtime-certificate-state.md](docs/book/reference-runtime-certificate-state.md)
+- [docs/machine-surface-freeze.md](docs/machine-surface-freeze.md)
 
 ## Preferred Contract
 

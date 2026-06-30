@@ -4,11 +4,11 @@ This note describes the smallest useful contract between `gewyvern` and an
 external analysis engine.
 
 For the broader nearby-sidecar and stack boundary note, see
-[docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md).
+[docs/sidecar-collaboration.md](docs/sidecar-collaboration.md).
 
 For the broader surface contract note, including which CLI flags and analysis
 fields are current contract candidates for downstream use, see
-[docs/surface-stability.md](/Users/Shared/chroot/dev/gewyvern/docs/surface-stability.md).
+[docs/surface-stability.md](docs/surface-stability.md).
 
 The goal is to let `gewyvern` keep ownership of:
 
@@ -195,8 +195,8 @@ handoff state.
 
 Ready-to-use examples live here:
 
-- [docs/fixtures/external_engine_input_example.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/external_engine_input_example.json)
-- [docs/fixtures/external_engine_output_example.json](/Users/Shared/chroot/dev/gewyvern/docs/fixtures/external_engine_output_example.json)
+- [docs/fixtures/external_engine_input_example.json](docs/fixtures/external_engine_input_example.json)
+- [docs/fixtures/external_engine_output_example.json](docs/fixtures/external_engine_output_example.json)
 
 The input example shows the smallest `analysis.json` shape an engine is likely
 to care about. The output example shows the append-only `augmentations` payload

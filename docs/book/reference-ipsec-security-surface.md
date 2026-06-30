@@ -5,8 +5,8 @@ posture.
 
 Read this alongside:
 
-- [docs/book/reference-ipsec-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ipsec-surface.md)
-- [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
+- [docs/book/reference-ipsec-surface.md](docs/book/reference-ipsec-surface.md)
+- [docs/book/reference-protocol-family-shelves.md](docs/book/reference-protocol-family-shelves.md)
 
 ## Shelf
 

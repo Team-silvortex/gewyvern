@@ -46,15 +46,15 @@ Quick role map:
 
 Primary subpages:
 
-- [docs/book/reference-snmp-role-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-role-matrix.md)
-- [docs/book/reference-snmp-read-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-read-surface.md)
-- [docs/book/reference-snmp-set-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-set-surface.md)
-- [docs/book/reference-snmp-notify-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-notify-surface.md)
-- [docs/book/reference-snmp-security-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-security-surface.md)
-- [docs/book/reference-snmp-manage-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-manage-surface.md)
-- [docs/book/reference-snmp-result-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-result-surface.md)
-- [docs/book/reference-snmp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-failure-semantics.md)
-- [docs/book/reference-management-udp-failure-semantics.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-management-udp-failure-semantics.md)
+- [docs/book/reference-snmp-role-matrix.md](docs/book/reference-snmp-role-matrix.md)
+- [docs/book/reference-snmp-read-surface.md](docs/book/reference-snmp-read-surface.md)
+- [docs/book/reference-snmp-set-surface.md](docs/book/reference-snmp-set-surface.md)
+- [docs/book/reference-snmp-notify-surface.md](docs/book/reference-snmp-notify-surface.md)
+- [docs/book/reference-snmp-security-surface.md](docs/book/reference-snmp-security-surface.md)
+- [docs/book/reference-snmp-manage-surface.md](docs/book/reference-snmp-manage-surface.md)
+- [docs/book/reference-snmp-result-surface.md](docs/book/reference-snmp-result-surface.md)
+- [docs/book/reference-snmp-failure-semantics.md](docs/book/reference-snmp-failure-semantics.md)
+- [docs/book/reference-management-udp-failure-semantics.md](docs/book/reference-management-udp-failure-semantics.md)
 
 Current canonical entries:
 
@@ -75,8 +75,8 @@ Default entry: `get`
 
 Read in this order:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-snmp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-surface.md)
-3. [docs/book/reference-snmp-role-matrix.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-snmp-role-matrix.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-snmp-surface.md](docs/book/reference-snmp-surface.md)
+3. [docs/book/reference-snmp-role-matrix.md](docs/book/reference-snmp-role-matrix.md)
 4. one exact SNMP subpage
-5. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+5. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

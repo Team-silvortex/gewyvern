@@ -1,0 +1,7 @@
+name=cassandra_result
+version=0.18.2
+entry=main.gewy
+register.protocol=cassandra
+register.entry=result
+register.aliases=cql-result,cql_result,cassandra-result,cassandra_result
+register.entry_aliases=response,rows,success

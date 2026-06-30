@@ -49,7 +49,7 @@ cargo run -- --scan-all --json --summary-only
 cargo run -- --scan-all --summary-only --report-format html --out /tmp/gewyvern-scan-report.html
 
 # Validate startup, malformed input recovery, logging, shutdown, and cleanup
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_lifecycle_validation.sh
+bash scripts/validation/runtime_lifecycle_validation.sh
 
 # Start a bounded runtime API surface for local inspection
 cargo run -- --protocol http --entry request --serve \
@@ -58,7 +58,7 @@ cargo run -- --protocol http --entry request --serve \
   --json --summary-only --max-sessions 1
 
 # Compile a DSL file or package without starting the runtime
-cargo run -p gewyc -- /Users/Shared/chroot/dev/gewyvern/dsl/http_request_path.gewy --json
+cargo run -p gewyc -- dsl/http_request_path.gewy --json
 ```
 
 `--summary-only --json` is now the fastest operational view: it includes a
@@ -118,16 +118,16 @@ clean lifecycle behavior with no mystery leftovers.
 
 Primary release-line shelves:
 
-- [ROADMAP.md](/Users/Shared/chroot/dev/gewyvern/ROADMAP.md)
-- [docs/v0.14-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/v0.14-posture.md)
-- [docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md)
-- [docs/history/v0.18.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.18.x.md)
-- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
-- [docs/security-posture.md](/Users/Shared/chroot/dev/gewyvern/docs/security-posture.md)
-- [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
-- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
-- [docs/book/reference-runtime-config.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-config.md)
-- [docs/book/reference-runtime-events.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-events.md)
+- [ROADMAP.md](ROADMAP.md)
+- [docs/v0.14-posture.md](docs/v0.14-posture.md)
+- [docs/history/index.md](docs/history/index.md)
+- [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
+- [docs/machine-contract.md](docs/machine-contract.md)
+- [docs/security-posture.md](docs/security-posture.md)
+- [docs/service-behavior.md](docs/service-behavior.md)
+- [docs/book/reference-runtime-layout.md](docs/book/reference-runtime-layout.md)
+- [docs/book/reference-runtime-config.md](docs/book/reference-runtime-config.md)
+- [docs/book/reference-runtime-events.md](docs/book/reference-runtime-events.md)
 
 ## Supported Protocol Families
 
@@ -148,90 +148,90 @@ request/response, auth/query, relay setup, or publish/ack, rather than only
 matching a port number.
 
 For the full operator-facing protocol shelf, use
-[docs/book/reference-protocol-volume.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-volume.md)
+[docs/book/reference-protocol-volume.md](docs/book/reference-protocol-volume.md)
 and
-[docs/book/reference-protocol-standard-library.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-standard-library.md).
+[docs/book/reference-protocol-standard-library.md](docs/book/reference-protocol-standard-library.md).
 
 ## Repository Shape
 
 This repository is easier to read as one ecosystem workspace with clear
 responsibility boundaries:
 
-- [Cargo.toml](/Users/Shared/chroot/dev/gewyvern/Cargo.toml)
+- [Cargo.toml](Cargo.toml)
   Root workspace manifest.
-- [src](/Users/Shared/chroot/dev/gewyvern/src)
+- [src](src)
   Runtime, IR, DSL compiler front-end, export/replay, loader, and built-in CLI.
-- [src/bin](/Users/Shared/chroot/dev/gewyvern/src/bin)
+- [src/bin](src/bin)
   Helper binaries such as socket senders used by local/runtime demos.
-- [crates/gewyc](/Users/Shared/chroot/dev/gewyvern/crates/gewyc)
+- [crates/gewyc](crates/gewyc)
   Dedicated `.gewy` compiler CLI surface.
-- [apps/etragon](/Users/Shared/chroot/dev/gewyvern/apps/etragon)
-  Nearby diagnosis-partner sidecar crate, version `0.1.0`.
-- [apps/leserpent](/Users/Shared/chroot/dev/gewyvern/apps/leserpent)
-  Cross-platform control plane application, version `0.1.9`.
-- [dsl](/Users/Shared/chroot/dev/gewyvern/dsl)
+- [apps/etragon](apps/etragon)
+  Nearby diagnosis-partner sidecar crate; follows the root `gewyvern` version.
+- [apps/leserpent](apps/leserpent)
+  Cross-platform control plane application; follows the root `gewyvern` version.
+- [dsl](dsl)
   Built-in protocol and debugging DSL files.
-- [protocols](/Users/Shared/chroot/dev/gewyvern/protocols)
+- [protocols](protocols)
   Registry-style gewy protocol packages scanned into built-in protocol entries.
-- [tests](/Users/Shared/chroot/dev/gewyvern/tests)
+- [tests](tests)
   TDD coverage for runtime, fragments, templates, compiler, and Linux smoke.
-- [docs](/Users/Shared/chroot/dev/gewyvern/docs)
+- [docs](docs)
   System, architecture, DSL, validation, packaging, and release guides.
-- [ebpf](/Users/Shared/chroot/dev/gewyvern/ebpf)
+- [ebpf](ebpf)
   Current hand-written eBPF fragment sources and smoke assets.
-- [docker](/Users/Shared/chroot/dev/gewyvern/docker)
+- [docker](docker)
   Headless Linux dev/smoke environment support.
-- [scripts](/Users/Shared/chroot/dev/gewyvern/scripts)
+- [scripts](scripts)
   Grouped operator helpers:
   `packaging/`, `validation/`, `demos/`, `linux/`, `perf/`, and `history/`.
-- [packaging](/Users/Shared/chroot/dev/gewyvern/packaging)
+- [packaging](packaging)
   Native Linux packaging templates for DEB/RPM metadata.
 
 ## Documentation Entrypoints
 
 Use the docs in layers:
 
-- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
+- [docs/index.md](docs/index.md)
   Durable top-level map for project, runtime, DSL, validation, and packaging.
-- [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
+- [docs/book/index.md](docs/book/index.md)
   Structured reading spine for tutorials, how-to, reference, and explanation.
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
   Goal-based script/operator map.
-- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+- [docs/cli-recipes.md](docs/cli-recipes.md)
   Runtime CLI, `gewyc`, socket ingest, API, and demo command shelf.
 
 If you are about to operate or expose a real runtime instance, also open:
 
-- [docs/book/how-to-security-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-security-checklist.md)
+- [docs/book/how-to-security-checklist.md](docs/book/how-to-security-checklist.md)
 
 If you only want the project's current core contract surfaces, start with:
 
-- [docs/machine-contract.md](/Users/Shared/chroot/dev/gewyvern/docs/machine-contract.md)
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
-- [docs/book/reference-runtime-certificate-policy.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-certificate-policy.md)
+- [docs/machine-contract.md](docs/machine-contract.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+- [docs/book/reference-runtime-layout.md](docs/book/reference-runtime-layout.md)
+- [docs/book/reference-runtime-certificate-policy.md](docs/book/reference-runtime-certificate-policy.md)
 
 If you are orienting around architecture specifically, the shortest useful
 order is:
 
-1. [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-2. [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-3. [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
-4. [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
-5. [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+1. [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+2. [docs/system.md](docs/system.md)
+3. [docs/architecture.md](docs/architecture.md)
+4. [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
+5. [docs/module-boundaries.md](docs/module-boundaries.md)
 
 If you are orienting yourself for the first time, the shortest useful order is:
 
-1. [README.md](/Users/Shared/chroot/dev/gewyvern/README.md)
-2. [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
-3. [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-4. [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-5. [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+1. [README.md](README.md)
+2. [docs/index.md](docs/index.md)
+3. [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+4. [docs/dsl.md](docs/dsl.md)
+5. [docs/development.md](docs/development.md)
 
 If you already know the system and only need the right operator or validation
 entrypoint, jump to
-[docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md).
+[docs/script-entrypoints.md](docs/script-entrypoints.md).
 
 ## Main Entrypoints
 
@@ -242,7 +242,7 @@ Script naming guide used in this repo:
 - `validation`: one grouped stability check with explicit expectations
 - `summary`: one wrapper that runs several narrower validations in order
 
-Directory split used under [`scripts`](/Users/Shared/chroot/dev/gewyvern/scripts):
+Directory split used under [`scripts`](scripts):
 
 - `scripts/packaging/`
   Build, install, packaged validation, and release-gate entrypoints.
@@ -258,7 +258,7 @@ Directory split used under [`scripts`](/Users/Shared/chroot/dev/gewyvern/scripts
   Historical artifact/render helpers.
 
 If you want the shortest goal-based script map instead of the full shelf below,
-use [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md).
+use [docs/script-entrypoints.md](docs/script-entrypoints.md).
 
 Core CLI and test entrypoints:
 
@@ -275,32 +275,33 @@ Core CLI and test entrypoints:
 
 Packaging entrypoints:
 
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/build_packages.sh --layout-only`
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/build_packages_in_container.sh --format all`
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/package_install_smoke.sh`
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_runtime_validation.sh`
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_validation_summary.sh`
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh`
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh`
+- `bash scripts/packaging/build_packages.sh --layout-only`
+- `bash scripts/packaging/build_packages_in_container.sh --format all`
+- `bash scripts/packaging/package_install_smoke.sh`
+- `bash scripts/packaging/container_runtime_validation.sh`
+- `bash scripts/packaging/container_validation_summary.sh`
+- `bash scripts/packaging/release_container_check.sh`
+- `bash scripts/packaging/release_gate.sh`
 
 Validation and integration entrypoints:
 
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/registry_validation.sh`
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/high_frequency_validation.sh`
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_operator_validation.sh`
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/runtime_lifecycle_validation.sh`
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh`
+- `bash scripts/validation/registry_validation.sh`
+- `bash scripts/validation/high_frequency_validation.sh`
+- `bash scripts/validation/runtime_operator_validation.sh`
+- `bash scripts/validation/runtime_lifecycle_validation.sh`
+- `bash scripts/validation/pathological_container_validation.sh`
+- `bash scripts/validation/three_module_stack_smoke.sh`
 
 Roundtrip demos:
 
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/socket_roundtrip_demo.sh /tmp/gewyvern.sock udp /tmp/gewyvern-out.json unix`
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json`
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/demos/training_dataset_roundtrip_demo.sh 127.0.0.1:9910 /tmp/gewyvern-training-roundtrip`
+- `bash scripts/demos/socket_roundtrip_demo.sh /tmp/gewyvern.sock udp /tmp/gewyvern-out.json unix`
+- `bash scripts/demos/external_engine_roundtrip_demo.sh 127.0.0.1:9900 127.0.0.1:9910 udp /tmp/gewyvern-analysis.json /tmp/external-engine-augmentations.json`
+- `bash scripts/demos/training_dataset_roundtrip_demo.sh 127.0.0.1:9910 /tmp/gewyvern-training-roundtrip`
 
 Performance and history helpers:
 
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/perf/benchmark_summary.sh`
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/history/render_minor_line_ir_snapshot.sh`
+- `bash scripts/perf/benchmark_summary.sh`
+- `bash scripts/history/render_minor_line_ir_snapshot.sh`
 
 ## Capability Snapshot
 
@@ -317,16 +318,16 @@ The current line is already useful for:
 
 For the deeper durable shelves behind those capabilities, use:
 
-- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-- [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md)
-- [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-protocol-volume.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-volume.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-- [docs/book/reference-runtime-layout.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-runtime-layout.md)
-- [docs/service-behavior.md](/Users/Shared/chroot/dev/gewyvern/docs/service-behavior.md)
+- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+- [docs/system.md](docs/system.md)
+- [docs/dsl.md](docs/dsl.md)
+- [docs/dsl-syntax.md](docs/dsl-syntax.md)
+- [docs/dsl-reference.md](docs/dsl-reference.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-protocol-volume.md](docs/book/reference-protocol-volume.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+- [docs/book/reference-runtime-layout.md](docs/book/reference-runtime-layout.md)
+- [docs/service-behavior.md](docs/service-behavior.md)
 
 ## Core Model
 
@@ -361,31 +362,31 @@ Template
 
 For the runtime/IR narrative behind this pipeline, use:
 
-- [docs/book/explanation-gewy-to-runtime.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewy-to-runtime.md)
-- [docs/book/explanation-gewylang-to-ir.md](/Users/Shared/chroot/dev/gewyvern/docs/book/explanation-gewylang-to-ir.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
+- [docs/book/explanation-gewylang-to-ir.md](docs/book/explanation-gewylang-to-ir.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Command Recipes
 
 The detailed command shelf now lives in:
 
-- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+- [docs/cli-recipes.md](docs/cli-recipes.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
 
 If you are learning the CLI for the first time, the best paired reading order
 is:
 
-1. [docs/book/tutorial-first-run.md](/Users/Shared/chroot/dev/gewyvern/docs/book/tutorial-first-run.md)
-2. [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
-3. [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+1. [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
+2. [docs/cli-recipes.md](docs/cli-recipes.md)
+3. [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 
 ## Development
 
 The contributor workflow shelf is intentionally separated:
 
-- [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
-- [docs/performance-baselines.md](/Users/Shared/chroot/dev/gewyvern/docs/performance-baselines.md)
-- [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)
+- [docs/development.md](docs/development.md)
+- [docs/performance-baselines.md](docs/performance-baselines.md)
+- [docs/headless-linux.md](docs/headless-linux.md)
 
 Use these instead of treating the README as the command notebook.
 
@@ -410,26 +411,26 @@ Use these instead of treating the README as the command notebook.
 
 The three main doc front doors are:
 
-- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
+- [docs/index.md](docs/index.md)
   Top-level shelf map.
-- [docs/book/index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/index.md)
+- [docs/book/index.md](docs/book/index.md)
   Reading order if you want the project as a book.
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
   and
-  [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+  [docs/cli-recipes.md](docs/cli-recipes.md)
   Fast operator lookup for scripts and commands.
 
 Then branch by topic:
 
 - architecture:
-  [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md),
-  [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+  [docs/architecture-blueprint.md](docs/architecture-blueprint.md),
+  [docs/system.md](docs/system.md)
 - `gewylang`:
-  [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md),
-  [docs/dsl-syntax.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-syntax.md),
-  [docs/dsl-reference.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl-reference.md)
+  [docs/dsl.md](docs/dsl.md),
+  [docs/dsl-syntax.md](docs/dsl-syntax.md),
+  [docs/dsl-reference.md](docs/dsl-reference.md)
 - contributor workflow:
-  [docs/development.md](/Users/Shared/chroot/dev/gewyvern/docs/development.md)
+  [docs/development.md](docs/development.md)
 
 ## Near-Term Direction
 
@@ -439,4 +440,4 @@ protocol packages should lower toward the same IR vocabulary, runtime exits
 should stay clean, logs and state should explain what happened, and the local
 operator loop should remain predictable before `0.19.x` physical-machine
 testing expands. The concrete release path is tracked in
-[ROADMAP.md](/Users/Shared/chroot/dev/gewyvern/ROADMAP.md).
+[ROADMAP.md](ROADMAP.md).

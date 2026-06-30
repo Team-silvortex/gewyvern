@@ -12,12 +12,12 @@ validation mean?", but simply:
 
 For deeper background, see:
 
-- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
-- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
-- [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
-- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
-- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
+- [docs/field-validation.md](docs/field-validation.md)
+- [docs/field-findings.md](docs/field-findings.md)
+- [docs/packaging.md](docs/packaging.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
+- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
 
 ## Role In The Shelf
 
@@ -37,19 +37,19 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
-- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
-- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
+- [docs/field-validation.md](docs/field-validation.md)
+- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+- [docs/field-findings.md](docs/field-findings.md)
 
 ## Companion Shelves
 
-- [docs/field-validation.md](/Users/Shared/chroot/dev/gewyvern/docs/field-validation.md)
+- [docs/field-validation.md](docs/field-validation.md)
   for the broader validation program and scenario bands
-- [docs/field-findings.md](/Users/Shared/chroot/dev/gewyvern/docs/field-findings.md)
+- [docs/field-findings.md](docs/field-findings.md)
   for the short record of what has already been demonstrated
-- [docs/history/v0.17.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x.md)
+- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
   for the current line's intended product and documentation posture
-- [docs/history/v0.17.x-midline-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.17.x-midline-checklist.md)
+- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
   for the second-half closure checklist
 
 ## Current `0.18.x` Gate
@@ -65,6 +65,8 @@ Treat the line as release-ready only when all of the following stay true:
 7. lifecycle validation proves startup, stop, log evidence, recovery, and cleanup
 8. the default `deb+rpm` release wrapper passes as one routine
 9. the three-module Docker stack smoke still passes
+10. pathological container/runtime-ingest validation still proves bad clients do
+    not wedge the runtime
 
 This section is intentionally binary and operational. It should stay shorter
 and stricter than the broader validation note.
@@ -74,13 +76,13 @@ and stricter than the broader validation note.
 Always rebuild the native packages before calling the release path green:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/build_packages_in_container.sh --format all
+bash scripts/packaging/build_packages_in_container.sh --format all
 ```
 
 Expected outputs:
 
-- `/Users/Shared/chroot/dev/gewyvern/target/packages/gewyvern_0.15.0-1_arm64.deb`
-- `/Users/Shared/chroot/dev/gewyvern/target/packages/rpm/gewyvern-0.15.0-1.aarch64.rpm`
+- `target/packages/gewyvern_0.15.0-1_arm64.deb`
+- `target/packages/rpm/gewyvern-0.15.0-1.aarch64.rpm`
 
 These filenames follow the crate/package version currently declared by the
 build metadata. The release-line posture can move ahead of that metadata, but
@@ -95,25 +97,27 @@ version line.
 The shortest one-command gate is:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh
+bash scripts/packaging/release_gate.sh
 ```
 
 That sequence rebuilds current native artifacts, runs the packaged release
-validation wrapper, and then runs the three-module stack smoke.
+validation wrapper, runs the three-module stack smoke, and then runs the
+pathological container/runtime-ingest validation.
 
 If you want to skip one phase while narrowing a failure, use:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh --skip-build
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh --skip-stack
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh --deb
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh --rpm
+bash scripts/packaging/release_gate.sh --skip-build
+bash scripts/packaging/release_gate.sh --skip-stack
+bash scripts/packaging/release_gate.sh --skip-pathology
+bash scripts/packaging/release_gate.sh --deb
+bash scripts/packaging/release_gate.sh --rpm
 ```
 
 The lower-level packaged release-minded entrypoint is:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh
+bash scripts/packaging/release_container_check.sh
 ```
 
 This must pass in default `deb+rpm` mode.
@@ -136,10 +140,10 @@ surface stays internally consistent:
 If you are narrowing a failure, these subchecks may be run independently:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/package_install_smoke.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_runtime_validation.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_protocol_validation.sh
-bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/container_operator_path_validation.sh
+bash scripts/packaging/package_install_smoke.sh
+bash scripts/packaging/container_runtime_validation.sh
+bash scripts/packaging/container_protocol_validation.sh
+bash scripts/packaging/container_operator_path_validation.sh
 ```
 
 ## Expected Packaged Semantics
@@ -163,7 +167,7 @@ test refresh chore.
 After the single-project packaged path is green, run:
 
 ```bash
-bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
+bash scripts/validation/three_module_stack_smoke.sh
 ```
 
 On physical validation hosts with an already-built stack image, this equivalent
@@ -176,7 +180,7 @@ IMAGE_TAG=gewyvern-stack-dev-physical \
   LESERPENT_DOTNET_RESTORE_FIRST=true \
   LESERPENT_DOTNET_IGNORE_FAILED_SOURCES=true \
   LESERPENT_DOTNET_NO_RESTORE=true \
-  bash /Users/Shared/chroot/dev/gewyvern/scripts/validation/three_module_stack_smoke.sh
+  bash scripts/validation/three_module_stack_smoke.sh
 ```
 
 That smoke should confirm:
@@ -196,6 +200,29 @@ exercises:
 - one nearby `etragon` sidecar
 - one `leserpent` control plane
 
+## Pathological Container Runtime Gate
+
+After normal stack confidence is green, run:
+
+```bash
+bash scripts/validation/pathological_container_validation.sh
+```
+
+That gate drives intentionally bad clients against the runtime ingest surface:
+
+- truncated JSON
+- empty disconnects
+- slow-drip incomplete JSON
+- oversized fact lines
+
+The expected result is not "nothing bad happened"; it is more precise:
+
+- the runtime stays reachable after bad input
+- health and resilience surfaces report degraded/backing-off state
+- post-fault analysis still returns a coherent runtime payload
+- log evidence records the ingest failures without turning them into process
+  death
+
 ## If Something Fails
 
 Use this triage order:
@@ -205,6 +232,7 @@ Use this triage order:
 3. if protocol validation fails, compare current JSON semantics against the scripted expectation
 4. if operator-path validation fails, check whether the runtime drifted or the expected guidance drifted
 5. if three-module smoke fails, inspect cross-project API contracts before changing single-project diagnosis logic
+6. if pathological validation fails, inspect socket ingest resilience and bad-client log evidence before changing protocol diagnosis logic
 
 ## Ship Read
 
@@ -215,6 +243,7 @@ For the active `0.18.x` line, a good practical ship read is:
   three-module smoke sequence green
 - full `release_container_check.sh` green in default mode
 - `three_module_stack_smoke.sh` green
+- `pathological_container_validation.sh` green on a Docker-capable host
 - no new drift in `field-findings` that would downgrade trust in conservative diagnosis
 
-If all four are true, the line is in a healthy release posture.
+If all five are true, the line is in a healthy release posture.

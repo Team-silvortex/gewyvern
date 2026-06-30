@@ -5,8 +5,8 @@ VNI marking.
 
 Read this alongside:
 
-- [docs/book/reference-vxlan-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-vxlan-surface.md)
-- [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
+- [docs/book/reference-vxlan-surface.md](docs/book/reference-vxlan-surface.md)
+- [docs/book/reference-protocol-family-shelves.md](docs/book/reference-protocol-family-shelves.md)
 
 ## Shelf
 

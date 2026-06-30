@@ -18,18 +18,18 @@ Read this page when the question is:
 Start here when you need canonical family, entry, alias, or default-entry
 rules:
 
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
 
 Then continue with:
 
-- [docs/book/reference-protocol-groups.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-groups.md)
-- [docs/book/reference-protocol-family-shelves.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-family-shelves.md)
+- [docs/book/reference-protocol-groups.md](docs/book/reference-protocol-groups.md)
+- [docs/book/reference-protocol-family-shelves.md](docs/book/reference-protocol-family-shelves.md)
 
 ### 2. Reading Spine
 
 Start here when you already found the right family and need the next page:
 
-- [docs/book/reference-protocol-reading-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-reading-paths.md)
+- [docs/book/reference-protocol-reading-paths.md](docs/book/reference-protocol-reading-paths.md)
 
 Use this for:
 
@@ -42,7 +42,7 @@ Use this for:
 
 Start here when you want the nearest real `.gewy` file:
 
-- [docs/book/reference-protocol-example-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-example-paths.md)
+- [docs/book/reference-protocol-example-paths.md](docs/book/reference-protocol-example-paths.md)
 
 Use this for:
 
@@ -54,7 +54,7 @@ Use this for:
 
 Start here when you want the shortest direct CLI route:
 
-- [docs/book/reference-protocol-command-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-command-paths.md)
+- [docs/book/reference-protocol-command-paths.md](docs/book/reference-protocol-command-paths.md)
 
 Use this for:
 
@@ -66,7 +66,7 @@ Use this for:
 
 Start here when you are narrowing a protocol issue in practice:
 
-- [docs/book/reference-protocol-operator-playbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-operator-playbook.md)
+- [docs/book/reference-protocol-operator-playbook.md](docs/book/reference-protocol-operator-playbook.md)
 
 Use this for:
 
@@ -80,7 +80,7 @@ Use this for:
 Start here when the question is whether `0.15.x` is protocol-healthy enough
 to ship:
 
-- [docs/book/reference-protocol-release-handbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-release-handbook.md)
+- [docs/book/reference-protocol-release-handbook.md](docs/book/reference-protocol-release-handbook.md)
 
 Use this for:
 
@@ -91,22 +91,22 @@ Use this for:
 ## Shortest Routes By Intent
 
 - “I need exact protocol rules”:
-  [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
+  [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
   -> groups -> family shelves
 - “I need the closest sample”:
-  family hub -> [docs/book/reference-protocol-example-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-example-paths.md)
+  family hub -> [docs/book/reference-protocol-example-paths.md](docs/book/reference-protocol-example-paths.md)
 - “I need the first runnable command”:
-  family hub -> [docs/book/reference-protocol-command-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-command-paths.md)
+  family hub -> [docs/book/reference-protocol-command-paths.md](docs/book/reference-protocol-command-paths.md)
 - “I need to validate one family or shelf”:
-  family hub -> [docs/book/reference-protocol-validation-paths.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-validation-paths.md)
+  family hub -> [docs/book/reference-protocol-validation-paths.md](docs/book/reference-protocol-validation-paths.md)
 - “I need to debug operator-facing drift”:
-  family hub -> [docs/book/reference-protocol-operator-playbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-operator-playbook.md)
+  family hub -> [docs/book/reference-protocol-operator-playbook.md](docs/book/reference-protocol-operator-playbook.md)
 - “I need a release decision”:
-  family hub -> [docs/book/reference-protocol-release-handbook.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-release-handbook.md)
+  family hub -> [docs/book/reference-protocol-release-handbook.md](docs/book/reference-protocol-release-handbook.md)
 
 ## Keep Nearby
 
-- [docs/book/reference-protocol-alias-index.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-alias-index.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
+- [docs/book/reference-protocol-alias-index.md](docs/book/reference-protocol-alias-index.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+- [docs/cli-recipes.md](docs/cli-recipes.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)

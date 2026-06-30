@@ -2,6 +2,8 @@
 mod access_and_media;
 #[path = "data_and_queue.rs"]
 mod data_and_queue;
+#[path = "database_protocols.rs"]
+mod database_protocols;
 #[path = "mail_and_directory.rs"]
 mod mail_and_directory;
 #[path = "network_control.rs"]
@@ -33,6 +35,9 @@ pub(super) const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
     web_protocols::HTTPS_PROFILE,
     web_protocols::HTTP_PROFILE,
     web_protocols::HTTP3_PROFILE,
+    web_protocols::GRPC_PROFILE,
+    web_protocols::WEBSOCKET_PROFILE,
+    web_protocols::GRAPHQL_PROFILE,
     secure_transport::HY2_PROFILE,
     secure_transport::TLS_PROFILE,
     secure_transport::QUIC_PROFILE,
@@ -57,6 +62,9 @@ pub(super) const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
     network_control::SSDP_PROFILE,
     data_and_queue::POSTGRES_PROFILE,
     data_and_queue::MYSQL_PROFILE,
+    data_and_queue::MONGODB_PROFILE,
+    data_and_queue::CASSANDRA_PROFILE,
+    database_protocols::MSSQL_PROFILE,
     data_and_queue::MEMCACHED_PROFILE,
     data_and_queue::AMQP_PROFILE,
     data_and_queue::REDIS_PROFILE,

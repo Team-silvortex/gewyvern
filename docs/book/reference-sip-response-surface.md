@@ -39,7 +39,7 @@ The current entry identifies the response envelope. It intentionally keeps
 status-code class policy on the `denied` entry until a fuller SIP parser lands.
 
 For the broader family map, see
-[docs/book/reference-sip-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-sip-surface.md).
+[docs/book/reference-sip-surface.md](docs/book/reference-sip-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

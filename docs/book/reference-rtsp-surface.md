@@ -49,7 +49,7 @@ Default entry: `options`
 
 ### Options
 
-- [docs/book/reference-rtsp-options-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-options-surface.md)
+- [docs/book/reference-rtsp-options-surface.md](docs/book/reference-rtsp-options-surface.md)
   Baseline RTSP connect and `OPTIONS` capability probe flow.
 
 Typical entries:
@@ -58,7 +58,7 @@ Typical entries:
 
 ### Describe
 
-- [docs/book/reference-rtsp-describe-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-describe-surface.md)
+- [docs/book/reference-rtsp-describe-surface.md](docs/book/reference-rtsp-describe-surface.md)
   `OPTIONS` plus `DESCRIBE` metadata lookup flow.
 
 Typical entries:
@@ -67,9 +67,9 @@ Typical entries:
 
 ### Setup And Play
 
-- [docs/book/reference-rtsp-setup-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-setup-surface.md)
+- [docs/book/reference-rtsp-setup-surface.md](docs/book/reference-rtsp-setup-surface.md)
   Transport/session setup flow before media playback.
-- [docs/book/reference-rtsp-play-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-play-surface.md)
+- [docs/book/reference-rtsp-play-surface.md](docs/book/reference-rtsp-play-surface.md)
   Full progression through `PLAY` acknowledgement.
 
 Typical entries:
@@ -81,10 +81,10 @@ Typical entries:
 
 If you are validating current RTSP support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-rtsp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-rtsp-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-rtsp-surface.md](docs/book/reference-rtsp-surface.md)
 3. one narrower RTSP subpage for the stage you care about
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Stability Note
 

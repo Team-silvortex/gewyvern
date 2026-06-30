@@ -1,0 +1,8 @@
+name=grpc_call
+version=0.18.2
+entry=main.gewy
+register.protocol=grpc
+register.entry=call
+register.default=true
+register.aliases=grpc-call,grpc-unary,grpc_call,grpc_unary,http2-rpc,http2_rpc
+register.entry_aliases=unary,request,rpc

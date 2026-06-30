@@ -19,11 +19,11 @@ shape we want to preserve while the project matures.
 
 Read this page alongside:
 
-- [docs/architecture-blueprint-modules.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint-modules.md)
+- [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
   for the source-cluster dependency picture
-- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
+- [docs/system.md](docs/system.md)
   for the broader layered system map
-- [docs/architecture.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture.md)
+- [docs/architecture.md](docs/architecture.md)
   for runtime semantics rather than file placement
 
 ## Top-Level Shape

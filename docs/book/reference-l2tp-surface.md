@@ -6,9 +6,9 @@ payload-like session packets are flowing after tunnel setup.
 
 Read this alongside:
 
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-l2tp-tunnel-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-l2tp-tunnel-surface.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-l2tp-tunnel-surface.md](docs/book/reference-l2tp-tunnel-surface.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 IPsec is often nearby in deployed VPN stacks, but L2TP keeps a separate tunnel
 surface for control and session visibility.

@@ -52,7 +52,7 @@ Default entry: `request`
 
 ### Request And Response
 
-- [docs/book/reference-http-message-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-message-surface.md)
+- [docs/book/reference-http-message-surface.md](docs/book/reference-http-message-surface.md)
   Outbound client request flow and inbound server response flow.
 
 Typical entries:
@@ -62,7 +62,7 @@ Typical entries:
 
 ### CONNECT Tunnel
 
-- [docs/book/reference-http-connect-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-connect-surface.md)
+- [docs/book/reference-http-connect-surface.md](docs/book/reference-http-connect-surface.md)
   Plain proxy tunnel establishment and explicit tunnel denial.
 
 Typical entries:
@@ -72,7 +72,7 @@ Typical entries:
 
 ### CONNECT Auth Branches
 
-- [docs/book/reference-http-connect-auth-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-connect-auth-surface.md)
+- [docs/book/reference-http-connect-auth-surface.md](docs/book/reference-http-connect-auth-surface.md)
   Proxy-auth-required and authenticated-tunnel branches.
 
 Typical entries:
@@ -84,24 +84,24 @@ Typical entries:
 
 If you are validating current HTTP support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-http-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-http-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-http-surface.md](docs/book/reference-http-surface.md)
 3. one narrower HTTP subpage for the flow you care about
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Next Useful Checks
 
 - For one concrete end-to-end spine walkthrough:
-  [docs/architecture-walkthrough-http-request.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-walkthrough-http-request.md)
+  [docs/architecture-walkthrough-http-request.md](docs/architecture-walkthrough-http-request.md)
 - For runtime-confidence checks:
-  [docs/book/how-to-validate-runtime-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/how-to-validate-runtime-surface.md)
+  [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 - For exact diagnosis-field meanings:
-  [docs/book/reference-diagnosis-spine.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-diagnosis-spine.md)
+  [docs/book/reference-diagnosis-spine.md](docs/book/reference-diagnosis-spine.md)
 - For encrypted resolver intent layered on the request branch:
   treat `doh` as the HTTP `request` shelf with DNS query semantics carried in
   the request/response payload path
 - For the compact DoH reading spine itself:
-  [docs/book/reference-doh-overlay.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-doh-overlay.md)
+  [docs/book/reference-doh-overlay.md](docs/book/reference-doh-overlay.md)
 
 ## Stability Note
 

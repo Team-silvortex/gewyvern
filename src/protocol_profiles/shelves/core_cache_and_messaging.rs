@@ -60,6 +60,80 @@ pub(crate) fn postgres_shelf(entry: &str) -> Option<ShelfMatch> {
     }
 }
 
+pub(crate) fn mongodb_shelf(entry: &str) -> Option<ShelfMatch> {
+    const COMMAND_REPLY: &[&str] = &["command", "reply"];
+    const LEGACY: &[&str] = &["legacy-query"];
+    if COMMAND_REPLY.contains(&entry) {
+        Some((
+            "command-reply",
+            "Command And Reply",
+            "docs/book/reference-mongodb-command-surface.md",
+            COMMAND_REPLY,
+        ))
+    } else if LEGACY.contains(&entry) {
+        Some((
+            "legacy-query",
+            "Legacy Query",
+            "docs/book/reference-mongodb-legacy-query-surface.md",
+            LEGACY,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn cassandra_shelf(entry: &str) -> Option<ShelfMatch> {
+    const SESSION_QUERY: &[&str] = &["startup", "query", "result"];
+    const ERROR: &[&str] = &["error"];
+    if SESSION_QUERY.contains(&entry) {
+        Some((
+            "session-query",
+            "Session And Query",
+            "docs/book/reference-cassandra-query-surface.md",
+            SESSION_QUERY,
+        ))
+    } else if ERROR.contains(&entry) {
+        Some((
+            "error",
+            "Error",
+            "docs/book/reference-cassandra-error-surface.md",
+            ERROR,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn mssql_shelf(entry: &str) -> Option<ShelfMatch> {
+    const SESSION_QUERY: &[&str] = &["prelogin", "login", "query", "response"];
+    const TOKENS: &[&str] = &["colmetadata", "row", "done", "envchange"];
+    const ERROR: &[&str] = &["error"];
+    if SESSION_QUERY.contains(&entry) {
+        Some((
+            "session-query",
+            "Session And Query",
+            "docs/book/reference-mssql-query-surface.md",
+            SESSION_QUERY,
+        ))
+    } else if TOKENS.contains(&entry) {
+        Some((
+            "token",
+            "TDS Tokens",
+            "docs/book/reference-mssql-token-surface.md",
+            TOKENS,
+        ))
+    } else if ERROR.contains(&entry) {
+        Some((
+            "error",
+            "Error",
+            "docs/book/reference-mssql-error-surface.md",
+            ERROR,
+        ))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn mqtt_shelf(entry: &str) -> Option<ShelfMatch> {
     const SESSION: &[&str] = &["session"];
     const PUBSUB: &[&str] = &["publish", "subscribe"];

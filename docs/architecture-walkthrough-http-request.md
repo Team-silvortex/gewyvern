@@ -5,8 +5,8 @@ instead of several separate theory pages.
 
 This walkthrough follows one built-in packaged path:
 
-- [protocols/http/request/gewy.pkg](/Users/Shared/chroot/dev/gewyvern/protocols/http/request/gewy.pkg)
-- [protocols/http/request/main.gewy](/Users/Shared/chroot/dev/gewyvern/protocols/http/request/main.gewy)
+- [protocols/http/request/gewy.pkg](protocols/http/request/gewy.pkg)
+- [protocols/http/request/main.gewy](protocols/http/request/main.gewy)
 
 It is the shortest representative path that touches all four main lines:
 
@@ -17,11 +17,11 @@ It is the shortest representative path that touches all four main lines:
 
 Read this alongside:
 
-- [docs/architecture-blueprint.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-blueprint.md)
-- [docs/architecture-coordination.md](/Users/Shared/chroot/dev/gewyvern/docs/architecture-coordination.md)
-- [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-- [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
-- [docs/sidecar-collaboration.md](/Users/Shared/chroot/dev/gewyvern/docs/sidecar-collaboration.md)
+- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
+- [docs/architecture-coordination.md](docs/architecture-coordination.md)
+- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+- [docs/sidecar-collaboration.md](docs/sidecar-collaboration.md)
 
 ## Why This Path
 

@@ -36,7 +36,7 @@ Default entry: `session`
 
 ### Session And Greeting
 
-- [docs/book/reference-smtp-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-session-surface.md)
+- [docs/book/reference-smtp-session-surface.md](docs/book/reference-smtp-session-surface.md)
   Initial connect, banner handling, `EHLO`, and authenticated session success.
 
 Typical entries:
@@ -47,7 +47,7 @@ Typical entries:
 
 ### Envelope
 
-- [docs/book/reference-smtp-envelope-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-envelope-surface.md)
+- [docs/book/reference-smtp-envelope-surface.md](docs/book/reference-smtp-envelope-surface.md)
   Sender acceptance, recipient acceptance, and recipient denial.
 
 Typical entries:
@@ -58,7 +58,7 @@ Typical entries:
 
 ### Message Submission
 
-- [docs/book/reference-smtp-data-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-data-surface.md)
+- [docs/book/reference-smtp-data-surface.md](docs/book/reference-smtp-data-surface.md)
   `DATA` readiness, message-body handoff, queue success, and post-body denial.
 
 Typical entries:
@@ -70,10 +70,10 @@ Typical entries:
 
 If you are validating current SMTP support, the shortest useful order is:
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-smtp-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-smtp-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-smtp-surface.md](docs/book/reference-smtp-surface.md)
 3. one narrower SMTP subpage for the flow you care about
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 ## Stability Note
 

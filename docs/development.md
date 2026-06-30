@@ -17,10 +17,10 @@ This page is not the best first stop for:
 
 For those, use:
 
-- [docs/index.md](/Users/Shared/chroot/dev/gewyvern/docs/index.md)
-- [docs/system.md](/Users/Shared/chroot/dev/gewyvern/docs/system.md)
-- [docs/dsl.md](/Users/Shared/chroot/dev/gewyvern/docs/dsl.md)
-- [docs/fragments.md](/Users/Shared/chroot/dev/gewyvern/docs/fragments.md)
+- [docs/index.md](docs/index.md)
+- [docs/system.md](docs/system.md)
+- [docs/dsl.md](docs/dsl.md)
+- [docs/fragments.md](docs/fragments.md)
 
 ## Role In The Shelf
 
@@ -40,18 +40,18 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
-- [docs/script-entrypoints.md](/Users/Shared/chroot/dev/gewyvern/docs/script-entrypoints.md)
-- [docs/packaging.md](/Users/Shared/chroot/dev/gewyvern/docs/packaging.md)
-- [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)
+- [docs/cli-recipes.md](docs/cli-recipes.md)
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
+- [docs/packaging.md](docs/packaging.md)
+- [docs/headless-linux.md](docs/headless-linux.md)
 
 ## Companion Shelves
 
-- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+- [docs/cli-recipes.md](docs/cli-recipes.md)
   for the compact command shelf
-- [docs/headless-linux.md](/Users/Shared/chroot/dev/gewyvern/docs/headless-linux.md)
+- [docs/headless-linux.md](docs/headless-linux.md)
   for Linux-only eBPF bring-up and validation
-- [docs/module-boundaries.md](/Users/Shared/chroot/dev/gewyvern/docs/module-boundaries.md)
+- [docs/module-boundaries.md](docs/module-boundaries.md)
   for source ownership when a change crosses subsystems
 
 ## Quick Start
@@ -231,15 +231,15 @@ implicit for this project.
 
 The compact command shelf now lives in:
 
-- [docs/cli-recipes.md](/Users/Shared/chroot/dev/gewyvern/docs/cli-recipes.md)
+- [docs/cli-recipes.md](docs/cli-recipes.md)
 
 The default contributor commands remain:
 
 - `cargo tdd`: run the acceptance behavior suite first
 - `cargo tdd-one <name>`: iterate on one named acceptance test
 - `cargo tdd-rules`: run rule/invariant specs
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/perf/trim_workspace_disk.sh --dry-run`: preview rebuildable disk usage
-- `bash /Users/Shared/chroot/dev/gewyvern/scripts/perf/trim_workspace_disk.sh`: reclaim local workspace disk from build artifacts and caches
+- `bash scripts/perf/trim_workspace_disk.sh --dry-run`: preview rebuildable disk usage
+- `bash scripts/perf/trim_workspace_disk.sh`: reclaim local workspace disk from build artifacts and caches
 - `cargo test --workspace`: run the full suite before finishing
 
 ## Linux Bring-Up

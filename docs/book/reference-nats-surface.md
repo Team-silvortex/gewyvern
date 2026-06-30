@@ -22,7 +22,7 @@ The current NATS family models three text-command paths on TCP port `4222`:
 
 ### Session
 
-- [docs/book/reference-nats-session-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-nats-session-surface.md)
+- [docs/book/reference-nats-session-surface.md](docs/book/reference-nats-session-surface.md)
   Server greeting and client connection setup.
 
 Typical entries:
@@ -31,7 +31,7 @@ Typical entries:
 
 ### Publish And Subscribe
 
-- [docs/book/reference-nats-pubsub-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-nats-pubsub-surface.md)
+- [docs/book/reference-nats-pubsub-surface.md](docs/book/reference-nats-pubsub-surface.md)
   Subject publish, subscribe, and message delivery.
 
 Typical entries:
@@ -41,7 +41,7 @@ Typical entries:
 
 ## Reading Order
 
-1. [docs/book/reference-protocol-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-protocol-surface.md)
-2. [docs/book/reference-nats-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-nats-surface.md)
+1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
+2. [docs/book/reference-nats-surface.md](docs/book/reference-nats-surface.md)
 3. one narrower NATS subpage
-4. [docs/book/reference-ir-lowering.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-ir-lowering.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

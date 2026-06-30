@@ -121,7 +121,7 @@ separate successful session setup from terminal auth or connect failure without
 duplicating the success-path pages.
 
 For the broader family map, see
-[docs/book/reference-socks5-surface.md](/Users/Shared/chroot/dev/gewyvern/docs/book/reference-socks5-surface.md).
+[docs/book/reference-socks5-surface.md](docs/book/reference-socks5-surface.md).
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases

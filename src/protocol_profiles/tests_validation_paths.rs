@@ -268,7 +268,7 @@ fn protocol_operator_playbook_links_expected_hubs_and_release_routing() {
     }
     for command in [
         "cargo run -- --protocol redis --entry ping --json --summary-only",
-        "bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_gate.sh",
+        "bash scripts/packaging/release_gate.sh",
         "curl http://127.0.0.1:9100/v1/latest/analysis.json",
     ] {
         assert!(
@@ -322,6 +322,7 @@ fn protocol_release_handbook_links_expected_release_and_protocol_routes() {
         "scripts/validation/high_frequency_validation.sh",
         "scripts/packaging/release_container_check.sh",
         "scripts/validation/three_module_stack_smoke.sh",
+        "scripts/validation/pathological_container_validation.sh",
     ]
     .into_iter()
     .map(str::to_string)
@@ -335,7 +336,8 @@ fn protocol_release_handbook_links_expected_release_and_protocol_routes() {
     for command in [
         "cargo run -- --protocol http --entry request --json --summary-only",
         "cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --serve --api-socket 127.0.0.1:9100 --json --summary-only",
-        "bash /Users/Shared/chroot/dev/gewyvern/scripts/packaging/release_container_check.sh",
+        "bash scripts/packaging/release_container_check.sh",
+        "bash scripts/validation/pathological_container_validation.sh",
     ] {
         assert!(
             actual.contains(command),
