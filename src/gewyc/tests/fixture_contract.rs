@@ -6,9 +6,7 @@ fn read_fixture(path: &str) -> String {
 
 #[test]
 fn frontend_fixture_keeps_wrapper_and_grouped_frontend_fields() {
-    let json = read_fixture(
-        "/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_frontend_udp_process_debug.json",
-    );
+    let json = read_fixture("docs/fixtures/gewyc_frontend_udp_process_debug.json");
 
     assert_valid_json_document(&json);
     assert!(json.contains("\"surface_id\": \"gewyc.frontend\""));
@@ -22,9 +20,7 @@ fn frontend_fixture_keeps_wrapper_and_grouped_frontend_fields() {
 
 #[test]
 fn stages_fixture_keeps_grouped_status_and_counts_fields() {
-    let json = read_fixture(
-        "/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_stages_udp_process_debug.json",
-    );
+    let json = read_fixture("docs/fixtures/gewyc_stages_udp_process_debug.json");
 
     assert_valid_json_document(&json);
     assert!(json.contains("\"surface_id\": \"gewyc.stages\""));
@@ -39,9 +35,7 @@ fn stages_fixture_keeps_grouped_status_and_counts_fields() {
 
 #[test]
 fn explain_success_fixture_keeps_summary_focus_shape() {
-    let json = read_fixture(
-        "/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_udp_process_debug.json",
-    );
+    let json = read_fixture("docs/fixtures/gewyc_explain_validation_udp_process_debug.json");
 
     assert_valid_json_document(&json);
     assert!(json.contains("\"surface_id\": \"gewyc.explain\""));
@@ -56,9 +50,7 @@ fn explain_success_fixture_keeps_summary_focus_shape() {
 
 #[test]
 fn explain_parse_failure_fixture_keeps_parse_excerpt_shape() {
-    let json = read_fixture(
-        "/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_parse_failure.json",
-    );
+    let json = read_fixture("docs/fixtures/gewyc_explain_parse_failure.json");
 
     assert_valid_json_document(&json);
     assert!(json.contains("\"surface_id\": \"gewyc.explain\""));
@@ -69,9 +61,7 @@ fn explain_parse_failure_fixture_keeps_parse_excerpt_shape() {
 
 #[test]
 fn explain_validation_failure_fixture_keeps_validation_excerpt_shape() {
-    let json = read_fixture(
-        "/Users/Shared/chroot/dev/gewyvern/docs/fixtures/gewyc_explain_validation_failure.json",
-    );
+    let json = read_fixture("docs/fixtures/gewyc_explain_validation_failure.json");
 
     assert_valid_json_document(&json);
     assert!(json.contains("\"surface_id\": \"gewyc.explain\""));

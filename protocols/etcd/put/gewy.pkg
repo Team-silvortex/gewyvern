@@ -1,0 +1,7 @@
+name=etcd_put
+version=0.18.2
+entry=main.gewy
+register.protocol=etcd
+register.entry=put
+register.aliases=etcd-put,etcd_put
+register.entry_aliases=set,write,kv-put,kv_put

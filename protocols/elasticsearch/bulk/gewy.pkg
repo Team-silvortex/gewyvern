@@ -1,0 +1,8 @@
+name=elasticsearch_bulk
+version=0.18.2
+entry=main.gewy
+register.protocol=elasticsearch
+register.entry=bulk
+register.default=false
+register.aliases=elasticsearch-bulk,elasticsearch_bulk,opensearch-bulk,opensearch_bulk,es-bulk
+register.entry_aliases=batch,bulk-index,bulk_index

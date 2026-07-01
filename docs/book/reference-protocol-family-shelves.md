@@ -121,6 +121,14 @@ Then continue with:
   - [docs/book/reference-graphql-query-surface.md](docs/book/reference-graphql-query-surface.md)
   - [docs/book/reference-graphql-subscription-surface.md](docs/book/reference-graphql-subscription-surface.md)
 
+### S3
+
+- Hub:
+  [docs/book/reference-s3-surface.md](docs/book/reference-s3-surface.md)
+- Subpages:
+  - [docs/book/reference-s3-object-read-surface.md](docs/book/reference-s3-object-read-surface.md)
+  - [docs/book/reference-s3-object-write-surface.md](docs/book/reference-s3-object-write-surface.md)
+
 ### GRE
 
 - Hub:
@@ -326,6 +334,24 @@ Then continue with:
   - [docs/book/reference-mssql-error-surface.md](docs/book/reference-mssql-error-surface.md)
   - [docs/book/reference-mssql-query-surface.md](docs/book/reference-mssql-query-surface.md)
   - [docs/book/reference-mssql-token-surface.md](docs/book/reference-mssql-token-surface.md)
+
+### Elasticsearch / OpenSearch
+
+- Hub:
+  [docs/book/reference-elasticsearch-surface.md](docs/book/reference-elasticsearch-surface.md)
+- Subpages:
+  - [docs/book/reference-elasticsearch-health-surface.md](docs/book/reference-elasticsearch-health-surface.md)
+  - [docs/book/reference-elasticsearch-mutation-surface.md](docs/book/reference-elasticsearch-mutation-surface.md)
+  - [docs/book/reference-elasticsearch-search-surface.md](docs/book/reference-elasticsearch-search-surface.md)
+
+### etcd
+
+- Hub:
+  [docs/book/reference-etcd-surface.md](docs/book/reference-etcd-surface.md)
+- Subpages:
+  - [docs/book/reference-etcd-health-surface.md](docs/book/reference-etcd-health-surface.md)
+  - [docs/book/reference-etcd-kv-surface.md](docs/book/reference-etcd-kv-surface.md)
+  - [docs/book/reference-etcd-stream-lifecycle-surface.md](docs/book/reference-etcd-stream-lifecycle-surface.md)
 
 ### HTTP
 

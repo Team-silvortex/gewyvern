@@ -1,0 +1,8 @@
+name=s3_get_object
+version=0.18.2
+entry=main.gewy
+register.protocol=s3
+register.entry=get-object
+register.default=true
+register.aliases=aws-s3,minio,object-storage,s3-get,s3_get
+register.entry_aliases=get,download,object-get,object_get

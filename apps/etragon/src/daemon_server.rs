@@ -142,6 +142,9 @@ where
                 continue;
             }
         };
+        if invalidation_epoch.load(Ordering::Relaxed) != current_epoch {
+            continue;
+        }
         let (output, latest_input_json, recommendation_summary_json, target_outputs) =
             if last_input_fingerprint.as_deref() == Some(polled.input_fingerprint.as_str())
                 && last_cache_epoch == current_epoch

@@ -105,8 +105,8 @@ machine-facing protocol surface can also include:
 <!-- gewyvern:protocol-surface-overview:start -->
 ## Current Surface Snapshot
 
-- Built-in families: `55`
-- Built-in canonical entries: `299`
+- Built-in families: `58`
+- Built-in canonical entries: `313`
 - Family/default map:
   - `amqp` -> default `session` in cluster `cache-queue-stream` via [docs/book/reference-amqp-surface.md](docs/book/reference-amqp-surface.md)
   - `arp` -> default `request` in cluster `network-control-discovery` via [docs/book/reference-arp-surface.md](docs/book/reference-arp-surface.md)
@@ -115,6 +115,8 @@ machine-facing protocol surface can also include:
   - `coap` -> default `get` in cluster `network-control-discovery` via [docs/book/reference-coap-surface.md](docs/book/reference-coap-surface.md)
   - `dhcp` -> default `client` in cluster `network-control-discovery` via [docs/book/reference-dhcp-surface.md](docs/book/reference-dhcp-surface.md)
   - `dns` -> default `udp` in cluster `network-control-discovery` via [docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md)
+  - `elasticsearch` -> default `search` in cluster `database-query-session` via [docs/book/reference-elasticsearch-surface.md](docs/book/reference-elasticsearch-surface.md)
+  - `etcd` -> default `range` in cluster `database-query-session` via [docs/book/reference-etcd-surface.md](docs/book/reference-etcd-surface.md)
   - `ftp` -> default `session` in cluster `session-control-media-transfer` via [docs/book/reference-ftp-surface.md](docs/book/reference-ftp-surface.md)
   - `geneve` -> default `encap` in cluster `network-control-discovery` via [docs/book/reference-geneve-surface.md](docs/book/reference-geneve-surface.md)
   - `graphql` -> default `query` in cluster `web-proxy-request-response` via [docs/book/reference-graphql-surface.md](docs/book/reference-graphql-surface.md)
@@ -151,6 +153,7 @@ machine-facing protocol surface can also include:
   - `rdp` -> default `connect` in cluster `identity-directory-access` via [docs/book/reference-rdp-surface.md](docs/book/reference-rdp-surface.md)
   - `redis` -> default `ping` in cluster `cache-queue-stream` via [docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md)
   - `rtsp` -> default `options` in cluster `session-control-media-transfer` via [docs/book/reference-rtsp-surface.md](docs/book/reference-rtsp-surface.md)
+  - `s3` -> default `get-object` in cluster `web-proxy-request-response` via [docs/book/reference-s3-surface.md](docs/book/reference-s3-surface.md)
   - `sip` -> default `register` in cluster `session-control-media-transfer` via [docs/book/reference-sip-surface.md](docs/book/reference-sip-surface.md)
   - `smb` -> default `negotiate` in cluster `identity-directory-access` via [docs/book/reference-smb-surface.md](docs/book/reference-smb-surface.md)
   - `smtp` -> default `session` in cluster `mail-delivery-mailbox` via [docs/book/reference-smtp-surface.md](docs/book/reference-smtp-surface.md)

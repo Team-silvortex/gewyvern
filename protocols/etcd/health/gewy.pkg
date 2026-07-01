@@ -1,0 +1,7 @@
+name=etcd_health
+version=0.18.2
+entry=main.gewy
+register.protocol=etcd
+register.entry=health
+register.aliases=etcd-health,etcd_health,etcd-status,etcd_status
+register.entry_aliases=status,healthcheck,cluster-health,cluster_health

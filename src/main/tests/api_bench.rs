@@ -331,57 +331,30 @@ fn api_rejects_oversized_report_bodies() {
 #[test]
 #[ignore = "benchmark"]
 fn benchmark_summary_json_large_protocol_flow_export() {
-    let export = synthesize_large_protocol_flow_export();
-    let start = Instant::now();
-    let mut total_len = 0usize;
-    for _ in 0..200 {
-        total_len += summary_json("bench", &export).len();
-    }
-    let elapsed = start.elapsed();
-    assert!(total_len > 0);
-    eprintln!(
-        "benchmark_summary_json_large_protocol_flow_export: iterations=200 flows={} findings={} elapsed_ms={:.3}",
-        export.program_flows.len(),
-        export.program_findings.len(),
-        elapsed.as_secs_f64() * 1000.0
+    bench_large_export(
+        "benchmark_summary_json_large_protocol_flow_export",
+        200,
+        |export| summary_json("bench", export).len(),
     );
 }
 
 #[test]
 #[ignore = "benchmark"]
 fn benchmark_summary_line_large_protocol_flow_export() {
-    let export = synthesize_large_protocol_flow_export();
-    let start = Instant::now();
-    let mut total_len = 0usize;
-    for _ in 0..200 {
-        total_len += summary_line("bench", &export).len();
-    }
-    let elapsed = start.elapsed();
-    assert!(total_len > 0);
-    eprintln!(
-        "benchmark_summary_line_large_protocol_flow_export: iterations=200 flows={} findings={} elapsed_ms={:.3}",
-        export.program_flows.len(),
-        export.program_findings.len(),
-        elapsed.as_secs_f64() * 1000.0
+    bench_large_export(
+        "benchmark_summary_line_large_protocol_flow_export",
+        200,
+        |export| summary_line("bench", export).len(),
     );
 }
 
 #[test]
 #[ignore = "benchmark"]
 fn benchmark_analysis_snapshot_large_protocol_flow_export() {
-    let export = synthesize_large_protocol_flow_export();
-    let start = Instant::now();
-    let mut total_flows = 0usize;
-    for _ in 0..200 {
-        total_flows += analysis_snapshot(&export).protocol_flows.len();
-    }
-    let elapsed = start.elapsed();
-    assert!(total_flows > 0);
-    eprintln!(
-        "benchmark_analysis_snapshot_large_protocol_flow_export: iterations=200 flows={} findings={} elapsed_ms={:.3}",
-        export.program_flows.len(),
-        export.program_findings.len(),
-        elapsed.as_secs_f64() * 1000.0
+    bench_large_export(
+        "benchmark_analysis_snapshot_large_protocol_flow_export",
+        200,
+        |export| analysis_snapshot(export).protocol_flows.len(),
     );
 }
 
@@ -390,18 +363,11 @@ fn benchmark_analysis_snapshot_large_protocol_flow_export() {
 fn benchmark_analysis_snapshot_json_large_protocol_flow_export() {
     let export = synthesize_large_protocol_flow_export();
     let snapshot = analysis_snapshot(&export);
-    let start = Instant::now();
-    let mut total_len = 0usize;
-    for _ in 0..200 {
-        total_len += analysis_snapshot_json(&snapshot).len();
-    }
-    let elapsed = start.elapsed();
-    assert!(total_len > 0);
-    eprintln!(
-        "benchmark_analysis_snapshot_json_large_protocol_flow_export: iterations=200 flows={} findings={} elapsed_ms={:.3}",
-        export.program_flows.len(),
-        export.program_findings.len(),
-        elapsed.as_secs_f64() * 1000.0
+    bench_large_export_with(
+        "benchmark_analysis_snapshot_json_large_protocol_flow_export",
+        &export,
+        200,
+        || analysis_snapshot_json(&snapshot).len(),
     );
 }
 
@@ -410,108 +376,130 @@ fn benchmark_analysis_snapshot_json_large_protocol_flow_export() {
 fn benchmark_findings_json_large_protocol_flow_export() {
     let export = synthesize_large_protocol_flow_export();
     let analysis = analysis_snapshot(&export);
-    let start = Instant::now();
-    let mut total_len = 0usize;
-    for _ in 0..200 {
-        total_len += findings_json_with_analysis("bench", &export, &analysis).len();
-    }
-    let elapsed = start.elapsed();
-    assert!(total_len > 0);
-    eprintln!(
-        "benchmark_findings_json_large_protocol_flow_export: iterations=200 flows={} findings={} elapsed_ms={:.3}",
-        export.program_flows.len(),
-        export.program_findings.len(),
-        elapsed.as_secs_f64() * 1000.0
+    bench_large_export_with(
+        "benchmark_findings_json_large_protocol_flow_export",
+        &export,
+        200,
+        || findings_json_with_analysis("bench", &export, &analysis).len(),
     );
 }
 
 #[test]
 #[ignore = "benchmark"]
 fn benchmark_http_transactions_json_large_view() {
-    let transactions = synthesize_large_http_transactions();
-    let start = Instant::now();
-    let mut total_len = 0usize;
-    for _ in 0..200 {
-        total_len += http_transactions_json(&transactions).len();
-    }
-    let elapsed = start.elapsed();
-    assert!(total_len > 0);
-    eprintln!(
-        "benchmark_http_transactions_json_large_view: iterations=200 transactions={} elapsed_ms={:.3}",
-        transactions.len(),
-        elapsed.as_secs_f64() * 1000.0
+    bench_large_http_transactions(
+        "benchmark_http_transactions_json_large_view",
+        |transactions| http_transactions_json(transactions).len(),
     );
 }
 
 #[test]
 #[ignore = "benchmark"]
 fn benchmark_http_transactions_text_large_view() {
-    let transactions = synthesize_large_http_transactions();
-    let start = Instant::now();
-    let mut total_len = 0usize;
-    for _ in 0..200 {
-        total_len += http_transactions_text(&transactions).len();
-    }
-    let elapsed = start.elapsed();
-    assert!(total_len > 0);
-    eprintln!(
-        "benchmark_http_transactions_text_large_view: iterations=200 transactions={} elapsed_ms={:.3}",
-        transactions.len(),
-        elapsed.as_secs_f64() * 1000.0
+    bench_large_http_transactions(
+        "benchmark_http_transactions_text_large_view",
+        |transactions| http_transactions_text(transactions).len(),
     );
 }
 
 #[test]
 #[ignore = "benchmark"]
 fn benchmark_scan_report_json_large_protocol_flow_export() {
-    let outputs = synthesize_large_scan_outputs(24);
-    let start = Instant::now();
-    let mut total_len = 0usize;
-    for _ in 0..40 {
-        total_len += scan_report_json(&outputs).len();
-    }
-    let elapsed = start.elapsed();
-    assert!(total_len > 0);
-    eprintln!(
-        "benchmark_scan_report_json_large_protocol_flow_export: iterations=40 targets={} flows_per_target={} elapsed_ms={:.3}",
-        outputs.len(),
-        outputs[0].1.program_flows.len(),
-        elapsed.as_secs_f64() * 1000.0
+    bench_large_scan_outputs(
+        "benchmark_scan_report_json_large_protocol_flow_export",
+        24,
+        40,
+        |outputs| scan_report_json(outputs).len(),
     );
 }
 
 #[test]
 #[ignore = "benchmark"]
 fn benchmark_scan_report_text_large_protocol_flow_export() {
-    let outputs = synthesize_large_scan_outputs(24);
-    let start = Instant::now();
-    let mut total_len = 0usize;
-    for _ in 0..40 {
-        total_len += scan_report_text(&outputs).len();
-    }
-    let elapsed = start.elapsed();
-    assert!(total_len > 0);
-    eprintln!(
-        "benchmark_scan_report_text_large_protocol_flow_export: iterations=40 targets={} flows_per_target={} elapsed_ms={:.3}",
-        outputs.len(),
-        outputs[0].1.program_flows.len(),
-        elapsed.as_secs_f64() * 1000.0
+    bench_large_scan_outputs(
+        "benchmark_scan_report_text_large_protocol_flow_export",
+        24,
+        40,
+        |outputs| scan_report_text(outputs).len(),
     );
 }
 
 #[test]
 #[ignore = "benchmark"]
 fn benchmark_scan_report_html_large_protocol_flow_export() {
-    let outputs = synthesize_large_scan_outputs(12);
+    bench_large_scan_outputs(
+        "benchmark_scan_report_html_large_protocol_flow_export",
+        12,
+        10,
+        |outputs| scan_report_html(outputs).len(),
+    );
+}
+
+fn bench_large_export(
+    label: &str,
+    iterations: usize,
+    mut measure: impl FnMut(&ExportBundle) -> usize,
+) {
+    let export = synthesize_large_protocol_flow_export();
+    bench_large_export_with(label, &export, iterations, || measure(&export));
+}
+
+fn bench_large_export_with(
+    label: &str,
+    export: &ExportBundle,
+    iterations: usize,
+    mut measure: impl FnMut() -> usize,
+) {
     let start = Instant::now();
-    let mut total_len = 0usize;
-    for _ in 0..10 {
-        total_len += scan_report_html(&outputs).len();
+    let mut total = 0usize;
+    for _ in 0..iterations {
+        total += measure();
     }
     let elapsed = start.elapsed();
-    assert!(total_len > 0);
+    assert!(total > 0);
     eprintln!(
-        "benchmark_scan_report_html_large_protocol_flow_export: iterations=10 targets={} flows_per_target={} elapsed_ms={:.3}",
+        "{label}: iterations={iterations} flows={} findings={} elapsed_ms={:.3}",
+        export.program_flows.len(),
+        export.program_findings.len(),
+        elapsed.as_secs_f64() * 1000.0
+    );
+}
+
+fn bench_large_http_transactions(
+    label: &str,
+    mut measure: impl FnMut(&[HttpTransactionView]) -> usize,
+) {
+    let transactions = synthesize_large_http_transactions();
+    let start = Instant::now();
+    let mut total = 0usize;
+    for _ in 0..200 {
+        total += measure(&transactions);
+    }
+    let elapsed = start.elapsed();
+    assert!(total > 0);
+    eprintln!(
+        "{label}: iterations=200 transactions={} elapsed_ms={:.3}",
+        transactions.len(),
+        elapsed.as_secs_f64() * 1000.0
+    );
+}
+
+fn bench_large_scan_outputs(
+    label: &str,
+    target_count: usize,
+    iterations: usize,
+    mut measure: impl FnMut(&[(String, ExportBundle)]) -> usize,
+) {
+    let outputs = synthesize_large_scan_outputs(target_count);
+    let start = Instant::now();
+    let mut total = 0usize;
+    for _ in 0..iterations {
+        total += measure(&outputs);
+    }
+    let elapsed = start.elapsed();
+    assert!(total > 0);
+    eprintln!(
+        "{label}: iterations={iterations} targets={} flows_per_target={} elapsed_ms={:.3}",
         outputs.len(),
         outputs[0].1.program_flows.len(),
         elapsed.as_secs_f64() * 1000.0

@@ -1,0 +1,8 @@
+name=elasticsearch_search
+version=0.18.2
+entry=main.gewy
+register.protocol=elasticsearch
+register.entry=search
+register.default=true
+register.aliases=elastic,opensearch,es,elasticsearch-search,elasticsearch_search,opensearch-search,opensearch_search,es-search
+register.entry_aliases=query,find,lookup

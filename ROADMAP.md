@@ -19,9 +19,9 @@ with enough discipline that `v1.0.0` can come directly after a healthy
   contract eventually needs a deliberate breaking reset
 
 For the durable minor-line record, see
-[docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md).
+[docs/history/index.md](docs/history/index.md).
 For the explicit `0.15.x -> 0.20.x -> 1.0.0` spine, see
-[docs/history/v0.15-to-v1-roadmap.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15-to-v1-roadmap.md).
+[docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md).
 
 ## What `v0.18.x` Means Right Now
 
@@ -58,7 +58,7 @@ It should not be interpreted as:
 
 Execution shelf:
 
-- [docs/history/v0.15-to-v1-roadmap.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15-to-v1-roadmap.md)
+- [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md)
 
 ### 2. `v0.19.x`: Integration And Freeze Preparation
 
@@ -92,7 +92,7 @@ Execution shelf:
 
 Execution shelf:
 
-- [docs/history/v0.16.x-checklist.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.16.x-checklist.md)
+- [docs/history/v0.16.x-checklist.md](docs/history/v0.16.x-checklist.md)
 
 ## Historical Milestones
 
@@ -115,10 +115,10 @@ current release story.
 From `v0.13.x` onward, that history is now tracked through explicit minor-line
 snapshot pages rather than only through scattered posture notes. Start with:
 
-- [docs/history/index.md](/Users/Shared/chroot/dev/gewyvern/docs/history/index.md)
-- [docs/history/v0.13.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.13.x.md)
-- [docs/history/v0.14.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.14.x.md)
-- [docs/history/v0.15.x.md](/Users/Shared/chroot/dev/gewyvern/docs/history/v0.15.x.md)
+- [docs/history/index.md](docs/history/index.md)
+- [docs/history/v0.13.x.md](docs/history/v0.13.x.md)
+- [docs/history/v0.14.x.md](docs/history/v0.14.x.md)
+- [docs/history/v0.15.x.md](docs/history/v0.15.x.md)
 
 ## Exit Criteria For The Road To `v1.0.0`
 

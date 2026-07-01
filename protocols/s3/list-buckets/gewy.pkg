@@ -1,0 +1,8 @@
+name=s3_list_buckets
+version=0.18.2
+entry=main.gewy
+register.protocol=s3
+register.entry=list-buckets
+register.default=false
+register.aliases=s3-list,s3_list
+register.entry_aliases=list,list_buckets,bucket-list,bucket_list

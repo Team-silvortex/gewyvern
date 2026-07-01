@@ -82,12 +82,7 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_service: Option<ApiServ
         EVENT_UNIX_SERVICE_START,
         &[
             ("socket", path.to_string()),
-            (
-                "max_sessions",
-                cli.max_sessions
-                    .map(|value| value.to_string())
-                    .unwrap_or_else(|| "unbounded".to_string()),
-            ),
+            ("max_sessions", max_sessions_label(cli)),
         ],
         "starting unix socket service",
     );
@@ -246,12 +241,7 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_service: Option<ApiServi
         EVENT_TCP_SERVICE_START,
         &[
             ("socket", addr.to_string()),
-            (
-                "max_sessions",
-                cli.max_sessions
-                    .map(|value| value.to_string())
-                    .unwrap_or_else(|| "unbounded".to_string()),
-            ),
+            ("max_sessions", max_sessions_label(cli)),
         ],
         "starting tcp socket service",
     );
@@ -362,6 +352,12 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_service: Option<ApiServi
 pub(crate) fn single_runtime_target_name(export: &ExportBundle) -> String {
     protocol_target_name_for_template_id(&export.template_id)
         .unwrap_or_else(|| "socket_session".to_string())
+}
+
+fn max_sessions_label(cli: &Cli) -> String {
+    cli.max_sessions
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "unbounded".to_string())
 }
 
 fn emit_rendered(

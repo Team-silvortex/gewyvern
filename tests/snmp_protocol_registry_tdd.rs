@@ -15,20 +15,53 @@ use support::{
     udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13,
 };
 
-fn dsl_fixture_path(name: &str) -> String {
+fn fixture_path(base: &str, relative: &str) -> String {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("dsl")
-        .join(name)
+        .join(base)
+        .join(relative)
         .to_string_lossy()
         .into_owned()
 }
 
+fn dsl_fixture_path(name: &str) -> String {
+    fixture_path("dsl", name)
+}
+
 fn protocol_fixture_path(relative: &str) -> String {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("protocols")
-        .join(relative)
-        .to_string_lossy()
-        .into_owned()
+    fixture_path("protocols", relative)
+}
+
+fn snmp_session(dsl_file: &str) -> RuntimeSession {
+    let binding = compile_file(&dsl_fixture_path(dsl_file)).unwrap();
+    RuntimeSession::start(SessionConfig::for_binding(binding).unwrap()).unwrap()
+}
+
+fn ingest_snmp_pdu(
+    session: &mut RuntimeSession,
+    id: u64,
+    cookie: u64,
+    tot_len: u32,
+    dir: PacketDir,
+    local_port: u16,
+    remote_port: u16,
+    payload_prefix2: u16,
+    payload_prefix4: u32,
+    payload_byte13: u8,
+) {
+    session.ingest(
+        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
+            id,
+            cookie,
+            tot_len,
+            dir,
+            Some(local_port),
+            Some(remote_port),
+            Some(0x30),
+            Some(payload_prefix2),
+            Some(payload_prefix4),
+            Some(payload_byte13),
+        ),
+    );
 }
 fn snmp_v3_udp_packet_fact(
     id: u64,
@@ -231,38 +264,32 @@ fn snmp_dsl_files_compile_into_expected_operations() {
 
 #[test]
 fn snmp_bulk_runtime_path_materializes_request_and_response_datagrams() {
-    let binding = compile_file(&dsl_fixture_path("snmp_bulk_path.gewy")).unwrap();
-    let config = SessionConfig::for_binding(binding).unwrap();
-    let mut session = RuntimeSession::start(config).unwrap();
+    let mut session = snmp_session("snmp_bulk_path.gewy");
     session.ingest(sock_lineage_fact(1, 2828, 54000, "snmpbulkget"));
     session.ingest(route_fact(2, 2828, 7));
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            3,
-            2828,
-            108,
-            PacketDir::Egress,
-            Some(54000),
-            Some(161),
-            Some(0x30),
-            Some(0x302c),
-            Some(0x302c0201),
-            Some(0xa5),
-        ),
+    ingest_snmp_pdu(
+        &mut session,
+        3,
+        2828,
+        108,
+        PacketDir::Egress,
+        54000,
+        161,
+        0x302c,
+        0x302c0201,
+        0xa5,
     );
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            4,
-            2828,
-            128,
-            PacketDir::Ingress,
-            Some(54000),
-            Some(161),
-            Some(0x30),
-            Some(0x3040),
-            Some(0x30400201),
-            Some(0xa2),
-        ),
+    ingest_snmp_pdu(
+        &mut session,
+        4,
+        2828,
+        128,
+        PacketDir::Ingress,
+        54000,
+        161,
+        0x3040,
+        0x30400201,
+        0xa2,
     );
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
@@ -271,15 +298,14 @@ fn snmp_bulk_runtime_path_materializes_request_and_response_datagrams() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("snmp_bulk".into())
     );
+    let stages = &export.program_flows[0].stages;
     assert!(
-        export.program_flows[0]
-            .stages
+        stages
             .iter()
             .any(|stage| stage.phase.as_deref() == Some("send_bulk_request"))
     );
     assert!(
-        export.program_flows[0]
-            .stages
+        stages
             .iter()
             .any(|stage| stage.phase.as_deref() == Some("receive_bulk_response"))
     );
@@ -287,38 +313,32 @@ fn snmp_bulk_runtime_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn snmp_get_next_runtime_path_materializes_request_and_response_datagrams() {
-    let binding = compile_file(&dsl_fixture_path("snmp_get_next_path.gewy")).unwrap();
-    let config = SessionConfig::for_binding(binding).unwrap();
-    let mut session = RuntimeSession::start(config).unwrap();
+    let mut session = snmp_session("snmp_get_next_path.gewy");
     session.ingest(sock_lineage_fact(1, 2829, 54001, "snmpwalk"));
     session.ingest(route_fact(2, 2829, 7));
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            3,
-            2829,
-            96,
-            PacketDir::Egress,
-            Some(54001),
-            Some(161),
-            Some(0x30),
-            Some(0x3026),
-            Some(0x30260201),
-            Some(0xa1),
-        ),
+    ingest_snmp_pdu(
+        &mut session,
+        3,
+        2829,
+        96,
+        PacketDir::Egress,
+        54001,
+        161,
+        0x3026,
+        0x30260201,
+        0xa1,
     );
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            4,
-            2829,
-            104,
-            PacketDir::Ingress,
-            Some(54001),
-            Some(161),
-            Some(0x30),
-            Some(0x3028),
-            Some(0x30280201),
-            Some(0xa2),
-        ),
+    ingest_snmp_pdu(
+        &mut session,
+        4,
+        2829,
+        104,
+        PacketDir::Ingress,
+        54001,
+        161,
+        0x3028,
+        0x30280201,
+        0xa2,
     );
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
@@ -327,15 +347,14 @@ fn snmp_get_next_runtime_path_materializes_request_and_response_datagrams() {
         export.program_flows[0].operation,
         ProgramOperation::Custom("snmp_get_next".into())
     );
+    let stages = &export.program_flows[0].stages;
     assert!(
-        export.program_flows[0]
-            .stages
+        stages
             .iter()
             .any(|stage| stage.phase.as_deref() == Some("send_get_next_request"))
     );
     assert!(
-        export.program_flows[0]
-            .stages
+        stages
             .iter()
             .any(|stage| stage.phase.as_deref() == Some("receive_get_next_response"))
     );
@@ -343,38 +362,32 @@ fn snmp_get_next_runtime_path_materializes_request_and_response_datagrams() {
 
 #[test]
 fn snmp_set_runtime_path_rejects_wrong_response_pdu_type() {
-    let binding = compile_file(&dsl_fixture_path("snmp_set_path.gewy")).unwrap();
-    let config = SessionConfig::for_binding(binding).unwrap();
-    let mut session = RuntimeSession::start(config).unwrap();
+    let mut session = snmp_session("snmp_set_path.gewy");
     session.ingest(sock_lineage_fact(1, 2830, 54002, "snmpset"));
     session.ingest(route_fact(2, 2830, 7));
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            3,
-            2830,
-            96,
-            PacketDir::Egress,
-            Some(54002),
-            Some(161),
-            Some(0x30),
-            Some(0x3026),
-            Some(0x30260201),
-            Some(0xa3),
-        ),
+    ingest_snmp_pdu(
+        &mut session,
+        3,
+        2830,
+        96,
+        PacketDir::Egress,
+        54002,
+        161,
+        0x3026,
+        0x30260201,
+        0xa3,
     );
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            4,
-            2830,
-            104,
-            PacketDir::Ingress,
-            Some(54002),
-            Some(161),
-            Some(0x30),
-            Some(0x3028),
-            Some(0x30280201),
-            Some(0xa1),
-        ),
+    ingest_snmp_pdu(
+        &mut session,
+        4,
+        2830,
+        104,
+        PacketDir::Ingress,
+        54002,
+        161,
+        0x3028,
+        0x30280201,
+        0xa1,
     );
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
@@ -389,24 +402,20 @@ fn snmp_set_runtime_path_rejects_wrong_response_pdu_type() {
 
 #[test]
 fn snmp_trap_runtime_path_materializes_one_way_notification_datagram() {
-    let binding = compile_file(&dsl_fixture_path("snmp_trap_path.gewy")).unwrap();
-    let config = SessionConfig::for_binding(binding).unwrap();
-    let mut session = RuntimeSession::start(config).unwrap();
+    let mut session = snmp_session("snmp_trap_path.gewy");
     session.ingest(sock_lineage_fact(1, 2831, 54003, "snmptrap"));
     session.ingest(route_fact(2, 2831, 7));
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            3,
-            2831,
-            112,
-            PacketDir::Egress,
-            Some(54003),
-            Some(162),
-            Some(0x30),
-            Some(0x3030),
-            Some(0x30300201),
-            Some(0xa7),
-        ),
+    ingest_snmp_pdu(
+        &mut session,
+        3,
+        2831,
+        112,
+        PacketDir::Egress,
+        54003,
+        162,
+        0x3030,
+        0x30300201,
+        0xa7,
     );
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
@@ -425,38 +434,32 @@ fn snmp_trap_runtime_path_materializes_one_way_notification_datagram() {
 
 #[test]
 fn snmp_inform_runtime_path_materializes_notification_and_acknowledgement() {
-    let binding = compile_file(&dsl_fixture_path("snmp_inform_path.gewy")).unwrap();
-    let config = SessionConfig::for_binding(binding).unwrap();
-    let mut session = RuntimeSession::start(config).unwrap();
+    let mut session = snmp_session("snmp_inform_path.gewy");
     session.ingest(sock_lineage_fact(1, 2832, 54004, "snmpinform"));
     session.ingest(route_fact(2, 2832, 7));
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            3,
-            2832,
-            112,
-            PacketDir::Egress,
-            Some(54004),
-            Some(161),
-            Some(0x30),
-            Some(0x3030),
-            Some(0x30300201),
-            Some(0xa6),
-        ),
+    ingest_snmp_pdu(
+        &mut session,
+        3,
+        2832,
+        112,
+        PacketDir::Egress,
+        54004,
+        161,
+        0x3030,
+        0x30300201,
+        0xa6,
     );
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            4,
-            2832,
-            120,
-            PacketDir::Ingress,
-            Some(54004),
-            Some(161),
-            Some(0x30),
-            Some(0x3032),
-            Some(0x30320201),
-            Some(0xa2),
-        ),
+    ingest_snmp_pdu(
+        &mut session,
+        4,
+        2832,
+        120,
+        PacketDir::Ingress,
+        54004,
+        161,
+        0x3032,
+        0x30320201,
+        0xa2,
     );
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
@@ -481,9 +484,7 @@ fn snmp_inform_runtime_path_materializes_notification_and_acknowledgement() {
 
 #[test]
 fn snmp_v3_auth_runtime_path_materializes_authenticated_exchange() {
-    let binding = compile_file(&dsl_fixture_path("snmp_v3_auth_path.gewy")).unwrap();
-    let config = SessionConfig::for_binding(binding).unwrap();
-    let mut session = RuntimeSession::start(config).unwrap();
+    let mut session = snmp_session("snmp_v3_auth_path.gewy");
     session.ingest(sock_lineage_fact(1, 2833, 54005, "snmpget"));
     session.ingest(route_fact(2, 2833, 7));
     session.ingest(snmp_v3_udp_packet_fact(
@@ -541,9 +542,7 @@ fn snmp_v3_auth_runtime_path_materializes_authenticated_exchange() {
 
 #[test]
 fn snmp_v3_priv_runtime_path_materializes_privacy_protected_exchange() {
-    let binding = compile_file(&dsl_fixture_path("snmp_v3_priv_path.gewy")).unwrap();
-    let config = SessionConfig::for_binding(binding).unwrap();
-    let mut session = RuntimeSession::start(config).unwrap();
+    let mut session = snmp_session("snmp_v3_priv_path.gewy");
     session.ingest(sock_lineage_fact(1, 2834, 54006, "snmpget"));
     session.ingest(route_fact(2, 2834, 7));
     session.ingest(snmp_v3_udp_packet_fact(

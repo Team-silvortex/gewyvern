@@ -1,0 +1,7 @@
+name=etcd_watch
+version=0.18.2
+entry=main.gewy
+register.protocol=etcd
+register.entry=watch
+register.aliases=etcd-watch,etcd_watch
+register.entry_aliases=stream,observe,watch-stream,watch_stream

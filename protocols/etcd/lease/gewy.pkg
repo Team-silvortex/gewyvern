@@ -1,0 +1,7 @@
+name=etcd_lease
+version=0.18.2
+entry=main.gewy
+register.protocol=etcd
+register.entry=lease
+register.aliases=etcd-lease,etcd_lease
+register.entry_aliases=ttl,keepalive,grant,revoke

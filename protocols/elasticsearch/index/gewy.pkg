@@ -1,0 +1,8 @@
+name=elasticsearch_index
+version=0.18.2
+entry=main.gewy
+register.protocol=elasticsearch
+register.entry=index
+register.default=false
+register.aliases=elasticsearch-index,elasticsearch_index,opensearch-index,opensearch_index,es-index
+register.entry_aliases=write,document,index-document,index_document

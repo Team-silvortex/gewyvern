@@ -1,0 +1,8 @@
+name=s3_head_object
+version=0.18.2
+entry=main.gewy
+register.protocol=s3
+register.entry=head-object
+register.default=false
+register.aliases=s3-head,s3_head
+register.entry_aliases=head,metadata,object-head,object_head

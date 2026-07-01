@@ -1,0 +1,8 @@
+name=s3_put_object
+version=0.18.2
+entry=main.gewy
+register.protocol=s3
+register.entry=put-object
+register.default=false
+register.aliases=s3-put,s3_put
+register.entry_aliases=put,upload,object-put,object_put

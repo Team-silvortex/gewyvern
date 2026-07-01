@@ -433,6 +433,8 @@ mod tests_mysql_auth;
 #[cfg(test)]
 mod tests_ntp;
 #[cfg(test)]
+mod tests_path_resolution;
+#[cfg(test)]
 mod tests_postgres_auth_denied;
 #[cfg(test)]
 mod tests_quic;

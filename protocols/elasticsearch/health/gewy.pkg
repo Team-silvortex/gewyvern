@@ -1,0 +1,8 @@
+name=elasticsearch_health
+version=0.18.2
+entry=main.gewy
+register.protocol=elasticsearch
+register.entry=health
+register.default=false
+register.aliases=elasticsearch-health,elasticsearch_health,opensearch-health,opensearch_health,es-health
+register.entry_aliases=cluster-health,cluster_health,healthcheck

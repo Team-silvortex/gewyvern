@@ -1,0 +1,8 @@
+name=s3_delete_object
+version=0.18.2
+entry=main.gewy
+register.protocol=s3
+register.entry=delete-object
+register.default=false
+register.aliases=s3-delete,s3_delete
+register.entry_aliases=delete,remove,object-delete,object_delete

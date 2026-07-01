@@ -3,6 +3,7 @@ mod data;
 mod discovery;
 mod identity;
 mod media;
+mod search_storage;
 mod transport;
 
 use super::ProtocolEntrySemanticsSummary;
@@ -20,6 +21,8 @@ pub(super) fn built_in_protocol_entry_semantics(
         "geneve" => transport::geneve_entry_semantics(entry),
         "gre" => discovery::gre_entry_semantics(entry),
         "dns" => discovery::dns_entry_semantics(entry),
+        "elasticsearch" => search_storage::elasticsearch_entry_semantics(entry),
+        "etcd" => search_storage::etcd_entry_semantics(entry),
         "http" => transport::http_entry_semantics(entry),
         "http3" => transport::http3_entry_semantics(entry),
         "grpc" => transport::grpc_entry_semantics(entry),
@@ -49,6 +52,7 @@ pub(super) fn built_in_protocol_entry_semantics(
         "radius" => identity::radius_entry_semantics(entry),
         "rdp" => transport::rdp_entry_semantics(entry),
         "redis" => data::redis_entry_semantics(entry),
+        "s3" => search_storage::s3_entry_semantics(entry),
         "snmp" => identity::snmp_entry_semantics(entry),
         "smb" => identity::smb_entry_semantics(entry),
         "socks5" => transport::socks5_entry_semantics(entry),

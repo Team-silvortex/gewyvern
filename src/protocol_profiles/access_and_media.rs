@@ -6,35 +6,35 @@ pub(super) const FTP_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "session",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_session_path.gewy",
+            dsl_path: "dsl/ftp_session_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "denied",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_denied_path.gewy",
+            dsl_path: "dsl/ftp_denied_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "list",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_passive_list_path.gewy",
+            dsl_path: "dsl/ftp_passive_list_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "retr",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_retr_path.gewy",
+            dsl_path: "dsl/ftp_retr_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "stor",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_stor_path.gewy",
+            dsl_path: "dsl/ftp_stor_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "active-list",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_list_path.gewy",
+            dsl_path: "dsl/ftp_active_list_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "active-retr",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_retr_path.gewy",
+            dsl_path: "dsl/ftp_active_retr_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "active-stor",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ftp_active_stor_path.gewy",
+            dsl_path: "dsl/ftp_active_stor_path.gewy",
         },
     ],
 };
@@ -45,19 +45,19 @@ pub(super) const RTSP_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "options",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_options_path.gewy",
+            dsl_path: "dsl/rtsp_options_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "describe",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_describe_path.gewy",
+            dsl_path: "dsl/rtsp_describe_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "setup",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_setup_path.gewy",
+            dsl_path: "dsl/rtsp_setup_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "play",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rtsp_play_path.gewy",
+            dsl_path: "dsl/rtsp_play_path.gewy",
         },
     ],
 };
@@ -68,19 +68,19 @@ pub(super) const SSH_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "session",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssh_session_path.gewy",
+            dsl_path: "dsl/ssh_session_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "auth",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_path.gewy",
+            dsl_path: "dsl/ssh_auth_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "auth-denied",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssh_auth_denied_path.gewy",
+            dsl_path: "dsl/ssh_auth_denied_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "channel",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/ssh_channel_session_path.gewy",
+            dsl_path: "dsl/ssh_channel_session_path.gewy",
         },
     ],
 };
@@ -91,15 +91,15 @@ pub(super) const SMB_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "negotiate",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smb_negotiate_path.gewy",
+            dsl_path: "dsl/smb_negotiate_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "session",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smb_session_path.gewy",
+            dsl_path: "dsl/smb_session_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "tree",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/smb_tree_path.gewy",
+            dsl_path: "dsl/smb_tree_path.gewy",
         },
     ],
 };
@@ -110,15 +110,15 @@ pub(super) const RDP_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "connect",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rdp_connect_path.gewy",
+            dsl_path: "dsl/rdp_connect_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "channel",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rdp_channel_path.gewy",
+            dsl_path: "dsl/rdp_channel_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "denied",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/rdp_denied_path.gewy",
+            dsl_path: "dsl/rdp_denied_path.gewy",
         },
     ],
 };
@@ -129,23 +129,23 @@ pub(super) const SOCKS5_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "session",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/socks5_session_path.gewy",
+            dsl_path: "dsl/socks5_session_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "auth",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_path.gewy",
+            dsl_path: "dsl/socks5_auth_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "auth-denied",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_denied_path.gewy",
+            dsl_path: "dsl/socks5_auth_denied_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "auth-connect-denied",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/socks5_auth_connect_denied_path.gewy",
+            dsl_path: "dsl/socks5_auth_connect_denied_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "denied",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/socks5_denied_path.gewy",
+            dsl_path: "dsl/socks5_denied_path.gewy",
         },
     ],
 };
@@ -156,23 +156,23 @@ pub(super) const SIP_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "register",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/sip_register_path.gewy",
+            dsl_path: "dsl/sip_register_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "invite",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/sip_invite_path.gewy",
+            dsl_path: "dsl/sip_invite_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "bye",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/sip_bye_path.gewy",
+            dsl_path: "dsl/sip_bye_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "response",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/sip_response_path.gewy",
+            dsl_path: "dsl/sip_response_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "denied",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/sip_denied_path.gewy",
+            dsl_path: "dsl/sip_denied_path.gewy",
         },
     ],
 };

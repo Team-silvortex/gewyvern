@@ -72,6 +72,56 @@ pub(super) const PROTOCOL_ENTRY_ALIASES_STREAM_MESSAGING: &[ProtocolAlias] = &[
         entry: Some("fetch"),
     },
     ProtocolAlias {
+        alias: "kafka-api-versions",
+        protocol: "kafka",
+        entry: Some("api-versions"),
+    },
+    ProtocolAlias {
+        alias: "kafka_api_versions",
+        protocol: "kafka",
+        entry: Some("api-versions"),
+    },
+    ProtocolAlias {
+        alias: "broker-api-versions",
+        protocol: "kafka",
+        entry: Some("api-versions"),
+    },
+    ProtocolAlias {
+        alias: "broker_api_versions",
+        protocol: "kafka",
+        entry: Some("api-versions"),
+    },
+    ProtocolAlias {
+        alias: "api-versions",
+        protocol: "kafka",
+        entry: Some("api-versions"),
+    },
+    ProtocolAlias {
+        alias: "api_versions",
+        protocol: "kafka",
+        entry: Some("api-versions"),
+    },
+    ProtocolAlias {
+        alias: "capabilities",
+        protocol: "kafka",
+        entry: Some("api-versions"),
+    },
+    ProtocolAlias {
+        alias: "broker-capabilities",
+        protocol: "kafka",
+        entry: Some("api-versions"),
+    },
+    ProtocolAlias {
+        alias: "version-negotiation",
+        protocol: "kafka",
+        entry: Some("api-versions"),
+    },
+    ProtocolAlias {
+        alias: "version_negotiation",
+        protocol: "kafka",
+        entry: Some("api-versions"),
+    },
+    ProtocolAlias {
         alias: "nats-connect",
         protocol: "nats",
         entry: Some("connect"),

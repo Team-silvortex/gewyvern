@@ -78,6 +78,27 @@ Entry aliases:
 - `tcp`: `dns-over-tls`, `dns-tcp`, `dns_over_tls`, `dns_tcp`, `dot`
 - `tcp-error`: `dns-tcp-error`, `dns_tcp_error`, `tcp-formerr`, `tcp-nxdomain`, `tcp-refused`, `tcp-servfail`
 
+## `elasticsearch`
+
+Default entry: `search`
+Protocol aliases: `elastic`, `elasticsearch-bulk`, `elasticsearch-health`, `elasticsearch-index`, `elasticsearch-search`, `elasticsearch_bulk`, `elasticsearch_health`, `elasticsearch_index`, `elasticsearch_search`, `es`, `es-bulk`, `es-health`, `es-index`, `es-search`, `opensearch`, `opensearch-bulk`, `opensearch-health`, `opensearch-index`, `opensearch-search`, `opensearch_bulk`, `opensearch_health`, `opensearch_index`, `opensearch_search`
+Entry aliases:
+- `search` (default): `elastic`, `elasticsearch-search`, `elasticsearch_search`, `es`, `es-search`, `find`, `lookup`, `opensearch`, `opensearch-search`, `opensearch_search`, `query`
+- `bulk`: `batch`, `bulk-index`, `bulk_index`, `elasticsearch-bulk`, `elasticsearch_bulk`, `es-bulk`, `opensearch-bulk`, `opensearch_bulk`
+- `health`: `cluster-health`, `cluster_health`, `elasticsearch-health`, `elasticsearch_health`, `es-health`, `healthcheck`, `opensearch-health`, `opensearch_health`
+- `index`: `document`, `elasticsearch-index`, `elasticsearch_index`, `es-index`, `index-document`, `index_document`, `opensearch-index`, `opensearch_index`, `write`
+
+## `etcd`
+
+Default entry: `range`
+Protocol aliases: `etcd-health`, `etcd-kv`, `etcd-lease`, `etcd-put`, `etcd-range`, `etcd-status`, `etcd-watch`, `etcd_health`, `etcd_kv`, `etcd_lease`, `etcd_put`, `etcd_range`, `etcd_status`, `etcd_watch`, `etcdctl`
+Entry aliases:
+- `range` (default): `etcd-kv`, `etcd-range`, `etcd_kv`, `etcd_range`, `etcdctl`, `get`, `kv-range`, `kv_range`, `read`
+- `health`: `cluster-health`, `cluster_health`, `etcd-health`, `etcd-status`, `etcd_health`, `etcd_status`, `healthcheck`, `status`
+- `lease`: `etcd-lease`, `etcd_lease`, `grant`, `keepalive`, `revoke`, `ttl`
+- `put`: `etcd-put`, `etcd_put`, `kv-put`, `kv_put`, `set`, `write`
+- `watch`: `etcd-watch`, `etcd_watch`, `observe`, `stream`, `watch-stream`, `watch_stream`
+
 ## `ftp`
 
 Default entry: `session`
@@ -511,6 +532,17 @@ Entry aliases:
 - `describe`: `metadata`, `rtsp-describe`, `rtsp_describe`
 - `play`: `rtsp-play`, `rtsp_play`, `start`
 - `setup`: `rtsp-setup`, `rtsp_setup`, `stream`
+
+## `s3`
+
+Default entry: `get-object`
+Protocol aliases: `aws-s3`, `minio`, `object-storage`, `s3-delete`, `s3-get`, `s3-head`, `s3-list`, `s3-put`, `s3_delete`, `s3_get`, `s3_head`, `s3_list`, `s3_put`
+Entry aliases:
+- `get-object` (default): `aws-s3`, `download`, `get`, `get-object`, `minio`, `object-get`, `object-storage`, `object_get`, `s3-get`, `s3_get`
+- `delete-object`: `delete`, `delete-object`, `object-delete`, `object_delete`, `remove`, `s3-delete`, `s3_delete`
+- `head-object`: `head`, `head-object`, `metadata`, `object-head`, `object_head`, `s3-head`, `s3_head`
+- `list-buckets`: `bucket-list`, `bucket_list`, `list`, `list-buckets`, `list_buckets`, `s3-list`, `s3_list`
+- `put-object`: `object-put`, `object_put`, `put`, `put-object`, `s3-put`, `s3_put`, `upload`
 
 ## `sip`
 

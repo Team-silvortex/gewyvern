@@ -50,11 +50,33 @@ pub(super) fn resolve_built_in_dsl_path(raw: &str) -> String {
     if Path::new(raw).exists() {
         return raw.to_string();
     }
-    let relative = raw
+    let relative_path = raw
+        .strip_prefix("dsl/")
+        .map(PathBuf::from)
+        .or_else(|| raw.strip_prefix("protocols/").map(|_| PathBuf::from(raw)))
+        .or_else(|| {
+            raw.split("/dsl/")
+                .nth(1)
+                .map(|path| Path::new("dsl").join(path))
+        })
+        .or_else(|| {
+            raw.split("/protocols/")
+                .nth(1)
+                .map(|path| Path::new("protocols").join(path))
+        });
+    if let Some(relative) = relative_path {
+        for share_root in packaged_share_roots() {
+            let candidate = share_root.join(&relative);
+            if candidate.exists() {
+                return candidate.to_string_lossy().into_owned();
+            }
+        }
+    }
+    let file_name = raw
         .split("/dsl/")
         .nth(1)
         .or_else(|| Path::new(raw).file_name().and_then(|name| name.to_str()));
-    if let Some(relative) = relative {
+    if let Some(relative) = file_name {
         for share_root in packaged_share_roots() {
             let candidate = share_root.join("dsl").join(relative);
             if candidate.exists() {

@@ -6,27 +6,27 @@ pub(super) const POSTGRES_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "connect",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_connect_process.gewy",
+            dsl_path: "dsl/postgres_connect_process.gewy",
         },
         ProtocolEntryProfile {
             mode: "auth",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_path.gewy",
+            dsl_path: "dsl/postgres_auth_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "auth-denied",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_auth_denied_path.gewy",
+            dsl_path: "dsl/postgres_auth_denied_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "query",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_simple_query_path.gewy",
+            dsl_path: "dsl/postgres_simple_query_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "error",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_error_path.gewy",
+            dsl_path: "dsl/postgres_query_error_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "session",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/postgres_query_session.gewy",
+            dsl_path: "dsl/postgres_query_session.gewy",
         },
     ],
 };
@@ -37,27 +37,27 @@ pub(super) const MYSQL_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "connect",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mysql_connect_process.gewy",
+            dsl_path: "dsl/mysql_connect_process.gewy",
         },
         ProtocolEntryProfile {
             mode: "auth",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mysql_auth_path.gewy",
+            dsl_path: "dsl/mysql_auth_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "auth-denied",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mysql_auth_denied_path.gewy",
+            dsl_path: "dsl/mysql_auth_denied_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "query",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mysql_simple_query_path.gewy",
+            dsl_path: "dsl/mysql_simple_query_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "session",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_session.gewy",
+            dsl_path: "dsl/mysql_query_session.gewy",
         },
         ProtocolEntryProfile {
             mode: "error",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mysql_query_error_path.gewy",
+            dsl_path: "dsl/mysql_query_error_path.gewy",
         },
     ],
 };
@@ -68,19 +68,19 @@ pub(super) const MONGODB_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "command",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mongodb_command_path.gewy",
+            dsl_path: "dsl/mongodb_command_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "reply",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mongodb_reply_path.gewy",
+            dsl_path: "dsl/mongodb_reply_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "legacy-query",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mongodb_legacy_query_path.gewy",
+            dsl_path: "dsl/mongodb_legacy_query_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "query-failure",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mongodb_query_failure_path.gewy",
+            dsl_path: "dsl/mongodb_query_failure_path.gewy",
         },
     ],
 };
@@ -91,23 +91,23 @@ pub(super) const CASSANDRA_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "startup",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/cassandra_startup_path.gewy",
+            dsl_path: "dsl/cassandra_startup_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "authenticate",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/cassandra_authenticate_path.gewy",
+            dsl_path: "dsl/cassandra_authenticate_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "query",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/cassandra_query_path.gewy",
+            dsl_path: "dsl/cassandra_query_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "result",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/cassandra_result_path.gewy",
+            dsl_path: "dsl/cassandra_result_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "error",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/cassandra_error_path.gewy",
+            dsl_path: "dsl/cassandra_error_path.gewy",
         },
     ],
 };
@@ -118,19 +118,19 @@ pub(super) const MEMCACHED_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "get",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/memcached_get_path.gewy",
+            dsl_path: "dsl/memcached_get_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "miss",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/memcached_miss_path.gewy",
+            dsl_path: "dsl/memcached_miss_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "set",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/memcached_set_path.gewy",
+            dsl_path: "dsl/memcached_set_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "not-stored",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/memcached_not_stored_path.gewy",
+            dsl_path: "dsl/memcached_not_stored_path.gewy",
         },
     ],
 };
@@ -141,23 +141,23 @@ pub(super) const AMQP_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "start",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/amqp_connection_start_path.gewy",
+            dsl_path: "dsl/amqp_connection_start_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "auth-denied",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/amqp_auth_denied_path.gewy",
+            dsl_path: "dsl/amqp_auth_denied_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "publish",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_publish_path.gewy",
+            dsl_path: "dsl/amqp_basic_publish_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "consume",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/amqp_basic_consume_path.gewy",
+            dsl_path: "dsl/amqp_basic_consume_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "session",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/amqp_publish_session.gewy",
+            dsl_path: "dsl/amqp_publish_session.gewy",
         },
     ],
 };
@@ -168,331 +168,331 @@ pub(super) const REDIS_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "ping",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_ping_path.gewy",
+            dsl_path: "dsl/redis_ping_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "session",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_session_path.gewy",
+            dsl_path: "dsl/redis_session_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "get",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_get_path.gewy",
+            dsl_path: "dsl/redis_get_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "set",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_set_path.gewy",
+            dsl_path: "dsl/redis_set_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "auth-required",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/auth-required/main.gewy",
+            dsl_path: "protocols/redis/auth-required/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "auth-denied",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/auth-denied/main.gewy",
+            dsl_path: "protocols/redis/auth-denied/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "error",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/error/main.gewy",
+            dsl_path: "protocols/redis/error/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "wrongtype",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/wrongtype/main.gewy",
+            dsl_path: "protocols/redis/wrongtype/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "busygroup",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/busygroup/main.gewy",
+            dsl_path: "protocols/redis/busygroup/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "readonly",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/readonly/main.gewy",
+            dsl_path: "protocols/redis/readonly/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "noscript",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/noscript/main.gewy",
+            dsl_path: "protocols/redis/noscript/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "moved",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/moved/main.gewy",
+            dsl_path: "protocols/redis/moved/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "ask",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/ask/main.gewy",
+            dsl_path: "protocols/redis/ask/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "tryagain",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/tryagain/main.gewy",
+            dsl_path: "protocols/redis/tryagain/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "loading",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/loading/main.gewy",
+            dsl_path: "protocols/redis/loading/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "crossslot",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/crossslot/main.gewy",
+            dsl_path: "protocols/redis/crossslot/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "clusterdown",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/clusterdown/main.gewy",
+            dsl_path: "protocols/redis/clusterdown/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "masterdown",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/masterdown/main.gewy",
+            dsl_path: "protocols/redis/masterdown/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "oom",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/oom/main.gewy",
+            dsl_path: "protocols/redis/oom/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "busy",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/busy/main.gewy",
+            dsl_path: "protocols/redis/busy/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "execabort",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/execabort/main.gewy",
+            dsl_path: "protocols/redis/execabort/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "misconf",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/protocols/redis/misconf/main.gewy",
+            dsl_path: "protocols/redis/misconf/main.gewy",
         },
         ProtocolEntryProfile {
             mode: "del",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_del_path.gewy",
+            dsl_path: "dsl/redis_del_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "incr",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_incr_path.gewy",
+            dsl_path: "dsl/redis_incr_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "decr",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_decr_path.gewy",
+            dsl_path: "dsl/redis_decr_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "mget",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_mget_path.gewy",
+            dsl_path: "dsl/redis_mget_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "mset",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_mset_path.gewy",
+            dsl_path: "dsl/redis_mset_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "exists",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_exists_path.gewy",
+            dsl_path: "dsl/redis_exists_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "expire",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_expire_path.gewy",
+            dsl_path: "dsl/redis_expire_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "ttl",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_ttl_path.gewy",
+            dsl_path: "dsl/redis_ttl_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "pttl",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_pttl_path.gewy",
+            dsl_path: "dsl/redis_pttl_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "hget",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_hget_path.gewy",
+            dsl_path: "dsl/redis_hget_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "hset",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_hset_path.gewy",
+            dsl_path: "dsl/redis_hset_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "hmget",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_hmget_path.gewy",
+            dsl_path: "dsl/redis_hmget_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "hmset",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_hmset_path.gewy",
+            dsl_path: "dsl/redis_hmset_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "lpush",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_lpush_path.gewy",
+            dsl_path: "dsl/redis_lpush_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "rpush",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_rpush_path.gewy",
+            dsl_path: "dsl/redis_rpush_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "lpop",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_lpop_path.gewy",
+            dsl_path: "dsl/redis_lpop_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "rpop",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_rpop_path.gewy",
+            dsl_path: "dsl/redis_rpop_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "lmove",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_lmove_path.gewy",
+            dsl_path: "dsl/redis_lmove_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "blmove",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_blmove_path.gewy",
+            dsl_path: "dsl/redis_blmove_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "lmpop",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_lmpop_path.gewy",
+            dsl_path: "dsl/redis_lmpop_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "blmpop",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_blmpop_path.gewy",
+            dsl_path: "dsl/redis_blmpop_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "blpop",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_blpop_path.gewy",
+            dsl_path: "dsl/redis_blpop_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "brpop",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_brpop_path.gewy",
+            dsl_path: "dsl/redis_brpop_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "rpoplpush",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_rpoplpush_path.gewy",
+            dsl_path: "dsl/redis_rpoplpush_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "brpoplpush",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_brpoplpush_path.gewy",
+            dsl_path: "dsl/redis_brpoplpush_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "sadd",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_sadd_path.gewy",
+            dsl_path: "dsl/redis_sadd_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "smembers",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_smembers_path.gewy",
+            dsl_path: "dsl/redis_smembers_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "publish",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_publish_path.gewy",
+            dsl_path: "dsl/redis_publish_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "subscribe",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_subscribe_path.gewy",
+            dsl_path: "dsl/redis_subscribe_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zadd",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zadd_path.gewy",
+            dsl_path: "dsl/redis_zadd_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zrange",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zrange_path.gewy",
+            dsl_path: "dsl/redis_zrange_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zrangebyscore",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zrangebyscore_path.gewy",
+            dsl_path: "dsl/redis_zrangebyscore_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zrevrangebyscore",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zrevrangebyscore_path.gewy",
+            dsl_path: "dsl/redis_zrevrangebyscore_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zrank",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zrank_path.gewy",
+            dsl_path: "dsl/redis_zrank_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zrevrank",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zrevrank_path.gewy",
+            dsl_path: "dsl/redis_zrevrank_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zscore",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zscore_path.gewy",
+            dsl_path: "dsl/redis_zscore_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zrem",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zrem_path.gewy",
+            dsl_path: "dsl/redis_zrem_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zcard",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zcard_path.gewy",
+            dsl_path: "dsl/redis_zcard_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zcount",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zcount_path.gewy",
+            dsl_path: "dsl/redis_zcount_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zincrby",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zincrby_path.gewy",
+            dsl_path: "dsl/redis_zincrby_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zpopmax",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zpopmax_path.gewy",
+            dsl_path: "dsl/redis_zpopmax_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zpopmin",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zpopmin_path.gewy",
+            dsl_path: "dsl/redis_zpopmin_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "zmpop",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_zmpop_path.gewy",
+            dsl_path: "dsl/redis_zmpop_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "bzpopmax",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_bzpopmax_path.gewy",
+            dsl_path: "dsl/redis_bzpopmax_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "bzpopmin",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_bzpopmin_path.gewy",
+            dsl_path: "dsl/redis_bzpopmin_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "bzmpop",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_bzmpop_path.gewy",
+            dsl_path: "dsl/redis_bzmpop_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xadd",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xadd_path.gewy",
+            dsl_path: "dsl/redis_xadd_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xread",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xread_path.gewy",
+            dsl_path: "dsl/redis_xread_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xrange",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xrange_path.gewy",
+            dsl_path: "dsl/redis_xrange_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xrevrange",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xrevrange_path.gewy",
+            dsl_path: "dsl/redis_xrevrange_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xdel",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xdel_path.gewy",
+            dsl_path: "dsl/redis_xdel_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xtrim",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xtrim_path.gewy",
+            dsl_path: "dsl/redis_xtrim_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xlen",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xlen_path.gewy",
+            dsl_path: "dsl/redis_xlen_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xack",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xack_path.gewy",
+            dsl_path: "dsl/redis_xack_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xpending",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xpending_path.gewy",
+            dsl_path: "dsl/redis_xpending_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xgroup",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xgroup_path.gewy",
+            dsl_path: "dsl/redis_xgroup_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xinfo",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xinfo_path.gewy",
+            dsl_path: "dsl/redis_xinfo_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xreadgroup",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xreadgroup_path.gewy",
+            dsl_path: "dsl/redis_xreadgroup_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xclaim",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xclaim_path.gewy",
+            dsl_path: "dsl/redis_xclaim_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "xautoclaim",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/redis_xautoclaim_path.gewy",
+            dsl_path: "dsl/redis_xautoclaim_path.gewy",
         },
     ],
 };
@@ -503,35 +503,35 @@ pub(super) const MQTT_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "connect",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connect_path.gewy",
+            dsl_path: "dsl/mqtt_connect_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "connack",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_connack_path.gewy",
+            dsl_path: "dsl/mqtt_connack_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "publish",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_publish_path.gewy",
+            dsl_path: "dsl/mqtt_publish_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "subscribe",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_subscribe_path.gewy",
+            dsl_path: "dsl/mqtt_subscribe_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "disconnect",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_disconnect_path.gewy",
+            dsl_path: "dsl/mqtt_disconnect_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "pubrec",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_pubrec_path.gewy",
+            dsl_path: "dsl/mqtt_pubrec_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "pubrel",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_pubrel_path.gewy",
+            dsl_path: "dsl/mqtt_pubrel_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "pubcomp",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/mqtt_pubcomp_path.gewy",
+            dsl_path: "dsl/mqtt_pubcomp_path.gewy",
         },
     ],
 };
@@ -542,15 +542,15 @@ pub(super) const RADIUS_PROFILE: ProtocolProfile = ProtocolProfile {
     entries: &[
         ProtocolEntryProfile {
             mode: "access",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/radius_access_path.gewy",
+            dsl_path: "dsl/radius_access_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "challenge",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/radius_challenge_path.gewy",
+            dsl_path: "dsl/radius_challenge_path.gewy",
         },
         ProtocolEntryProfile {
             mode: "denied",
-            dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/radius_denied_path.gewy",
+            dsl_path: "dsl/radius_denied_path.gewy",
         },
     ],
 };
@@ -560,6 +560,6 @@ pub(super) const GTPU_PROFILE: ProtocolProfile = ProtocolProfile {
     default_entry: "echo",
     entries: &[ProtocolEntryProfile {
         mode: "echo",
-        dsl_path: "/Users/Shared/chroot/dev/gewyvern/dsl/gtpu_echo_path.gewy",
+        dsl_path: "dsl/gtpu_echo_path.gewy",
     }],
 };

@@ -50,13 +50,14 @@ Families:
 - [docs/book/reference-grpc-surface.md](docs/book/reference-grpc-surface.md)
 - [docs/book/reference-websocket-surface.md](docs/book/reference-websocket-surface.md)
 - [docs/book/reference-graphql-surface.md](docs/book/reference-graphql-surface.md)
+- [docs/book/reference-s3-surface.md](docs/book/reference-s3-surface.md)
 - [docs/book/reference-socks5-surface.md](docs/book/reference-socks5-surface.md)
 
 Cluster hint:
 
 - key: `web-proxy-request-response`
 - operator hint: Start with request/response intent, proxy handoff, and selected surface entry before drilling into transport details.
-- sibling protocols: `http`, `https`, `http3`, `grpc`, `websocket`, `graphql`, `socks5`
+- sibling protocols: `http`, `https`, `http3`, `grpc`, `websocket`, `graphql`, `s3`, `socks5`
 
 ## Secure Transport And Session Setup
 
@@ -99,12 +100,14 @@ Families:
 - [docs/book/reference-mongodb-surface.md](docs/book/reference-mongodb-surface.md)
 - [docs/book/reference-cassandra-surface.md](docs/book/reference-cassandra-surface.md)
 - [docs/book/reference-mssql-surface.md](docs/book/reference-mssql-surface.md)
+- [docs/book/reference-elasticsearch-surface.md](docs/book/reference-elasticsearch-surface.md)
+- [docs/book/reference-etcd-surface.md](docs/book/reference-etcd-surface.md)
 
 Cluster hint:
 
 - key: `database-query-session`
 - operator hint: Read auth, query, and transaction surfaces in order; the default entry is rarely enough when session state or query errors are present.
-- sibling protocols: `postgres`, `mysql`, `mongodb`, `cassandra`, `mssql`
+- sibling protocols: `postgres`, `mysql`, `mongodb`, `cassandra`, `mssql`, `elasticsearch`, `etcd`
 
 ## Mail And Mailbox
 

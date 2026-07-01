@@ -134,21 +134,76 @@ pub(crate) fn mssql_shelf(entry: &str) -> Option<ShelfMatch> {
     }
 }
 
+pub(crate) fn elasticsearch_shelf(entry: &str) -> Option<ShelfMatch> {
+    const CLUSTER: &[&str] = &["health"];
+    const QUERY: &[&str] = &["search"];
+    const MUTATION: &[&str] = &["index", "bulk"];
+    if CLUSTER.contains(&entry) {
+        Some((
+            "cluster-health",
+            "Cluster Health",
+            "docs/book/reference-elasticsearch-health-surface.md",
+            CLUSTER,
+        ))
+    } else if QUERY.contains(&entry) {
+        Some((
+            "query",
+            "Search Query",
+            "docs/book/reference-elasticsearch-search-surface.md",
+            QUERY,
+        ))
+    } else if MUTATION.contains(&entry) {
+        Some((
+            "mutation",
+            "Index And Bulk Mutation",
+            "docs/book/reference-elasticsearch-mutation-surface.md",
+            MUTATION,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn etcd_shelf(entry: &str) -> Option<ShelfMatch> {
+    const HEALTH: &[&str] = &["health"];
+    const KV: &[&str] = &["range", "put"];
+    const STREAM_LIFECYCLE: &[&str] = &["watch", "lease"];
+    if HEALTH.contains(&entry) {
+        Some((
+            "cluster-health",
+            "Cluster Health",
+            "docs/book/reference-etcd-health-surface.md",
+            HEALTH,
+        ))
+    } else if KV.contains(&entry) {
+        Some((
+            "kv",
+            "KV Read And Write",
+            "docs/book/reference-etcd-kv-surface.md",
+            KV,
+        ))
+    } else if STREAM_LIFECYCLE.contains(&entry) {
+        Some((
+            "stream-lifecycle",
+            "Watch And Lease Lifecycle",
+            "docs/book/reference-etcd-stream-lifecycle-surface.md",
+            STREAM_LIFECYCLE,
+        ))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn mqtt_shelf(entry: &str) -> Option<ShelfMatch> {
-    const SESSION: &[&str] = &["session", "connack"];
+    const SESSION: &[&str] = &["connect", "connack"];
     const PUBSUB: &[&str] = &["publish", "subscribe"];
     const QOS2: &[&str] = &["pubrec", "pubrel", "pubcomp", "disconnect"];
-    const CONNECT_ONLY: &[&str] = &["connect"];
-    if SESSION.contains(&entry) || CONNECT_ONLY.contains(&entry) {
+    if SESSION.contains(&entry) {
         Some((
             "session",
             "Session",
             "docs/book/reference-mqtt-session-surface.md",
-            if SESSION.contains(&entry) {
-                SESSION
-            } else {
-                CONNECT_ONLY
-            },
+            SESSION,
         ))
     } else if PUBSUB.contains(&entry) {
         Some((

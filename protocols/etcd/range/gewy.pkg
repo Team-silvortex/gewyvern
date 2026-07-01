@@ -1,0 +1,8 @@
+name=etcd_range
+version=0.18.2
+entry=main.gewy
+register.protocol=etcd
+register.entry=range
+register.default=true
+register.aliases=etcdctl,etcd-kv,etcd_kv,etcd-range,etcd_range
+register.entry_aliases=get,read,kv-range,kv_range

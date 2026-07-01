@@ -112,6 +112,7 @@ fn documented_shell_entrypoints_are_executable() {
 fn markdown_docs_do_not_embed_local_checkout_paths() {
     let roots = [
         Path::new(env!("CARGO_MANIFEST_DIR")).join("README.md"),
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("ROADMAP.md"),
         Path::new(env!("CARGO_MANIFEST_DIR")).join("docs"),
         Path::new(env!("CARGO_MANIFEST_DIR")).join("apps/leserpent/README.md"),
     ];

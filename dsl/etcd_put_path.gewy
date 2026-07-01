@@ -1,0 +1,24 @@
+# gewyvern stable-subset protocol path
+
+fn etcd_put_rules() =
+  let module_name = :etcd_put_path
+  let put_narrative = "static:observed an etcd KV put request"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:etcd_put)
+  |> reason_model(:etcd_put_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_member)
+  |> program_rule(predicate: "packet_observed:tcp:remote:https:local_to_remote", stage: :packet_observed, narrative: ${put_narrative}, dedupe: true, module: ${module_name}, phase: :send_put)
+  |> program_rule(predicate: "packet_observed:tcp:remote:https:remote_to_local", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_put)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_member)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:https:local_to_remote", key_event: :packet_observed, narrative: ${put_narrative}, dedupe: true, module: ${module_name}, phase: :send_put)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:https:remote_to_local", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_put)
+
+template(:etcd_put_path)
+|> window(:default_5s)
+|> use(:etcd_put_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

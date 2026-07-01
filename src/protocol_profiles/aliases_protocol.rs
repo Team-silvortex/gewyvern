@@ -72,6 +72,71 @@ pub(crate) const PROTOCOL_ALIASES: &[ProtocolAlias] = &[
         entry: Some("server"),
     },
     ProtocolAlias {
+        alias: "aws-s3",
+        protocol: "s3",
+        entry: None,
+    },
+    ProtocolAlias {
+        alias: "minio",
+        protocol: "s3",
+        entry: None,
+    },
+    ProtocolAlias {
+        alias: "object-storage",
+        protocol: "s3",
+        entry: None,
+    },
+    ProtocolAlias {
+        alias: "s3-list",
+        protocol: "s3",
+        entry: Some("list-buckets"),
+    },
+    ProtocolAlias {
+        alias: "list-buckets",
+        protocol: "s3",
+        entry: Some("list-buckets"),
+    },
+    ProtocolAlias {
+        alias: "s3-head",
+        protocol: "s3",
+        entry: Some("head-object"),
+    },
+    ProtocolAlias {
+        alias: "head-object",
+        protocol: "s3",
+        entry: Some("head-object"),
+    },
+    ProtocolAlias {
+        alias: "s3-put",
+        protocol: "s3",
+        entry: Some("put-object"),
+    },
+    ProtocolAlias {
+        alias: "put-object",
+        protocol: "s3",
+        entry: Some("put-object"),
+    },
+    ProtocolAlias {
+        alias: "s3-get",
+        protocol: "s3",
+        entry: Some("get-object"),
+    },
+    ProtocolAlias {
+        alias: "get-object",
+        protocol: "s3",
+        entry: Some("get-object"),
+    },
+    ProtocolAlias {
+        alias: "s3-delete",
+        protocol: "s3",
+        entry: Some("delete-object"),
+    },
+    ProtocolAlias {
+        alias: "delete-object",
+        protocol: "s3",
+        entry: Some("delete-object"),
+    },
+    ProtocolAlias {
         alias: "hy2-auth",
         protocol: "hy2",
         entry: Some("auth"),

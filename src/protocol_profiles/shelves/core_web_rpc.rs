@@ -89,3 +89,25 @@ pub(crate) fn graphql_shelf(entry: &str) -> Option<ShelfMatch> {
         None
     }
 }
+
+pub(crate) fn s3_shelf(entry: &str) -> Option<ShelfMatch> {
+    const READ: &[&str] = &["list-buckets", "head-object", "get-object"];
+    const WRITE: &[&str] = &["put-object", "delete-object"];
+    if READ.contains(&entry) {
+        Some((
+            "object-read",
+            "Object Read And Metadata",
+            "docs/book/reference-s3-object-read-surface.md",
+            READ,
+        ))
+    } else if WRITE.contains(&entry) {
+        Some((
+            "object-write",
+            "Object Write And Mutation",
+            "docs/book/reference-s3-object-write-surface.md",
+            WRITE,
+        ))
+    } else {
+        None
+    }
+}
