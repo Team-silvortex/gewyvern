@@ -1,6 +1,6 @@
 # CLI Recipes
 
-This page keeps the practical command shelf for the active `0.17.x` line.
+This page keeps the practical command shelf for the active `0.19.x` line.
 
 Use it when you already understand the project shape and just want known-good
 commands for the runtime CLI, `gewyc`, socket ingest, and local integration
@@ -39,6 +39,7 @@ cargo run -- --protocol mysql --entry session --json --summary-only
 cargo run -- --scan-all --json --summary-only
 cargo run -- --scan-all --debug-session --json
 cargo run -- --scan-all --summary-only --report-format html --out /tmp/gewyvern-scan-report.html
+cargo run --quiet --bin gewyvern_validate -- debugger-cross
 ```
 
 Use these when you want the shortest runtime proof that:
@@ -46,6 +47,8 @@ Use these when you want the shortest runtime proof that:
 - protocol registration still resolves
 - one built-in protocol path still works
 - the current sweep path still renders debug-session, machine, and HTML outputs
+- the debugger cross-check still agrees across runtime, console, and compiler
+  envelope surfaces
 
 ## DSL-Focused Runtime Commands
 
@@ -145,7 +148,8 @@ When another service needs a narrow machine-facing surface, prefer:
 - `summary.json` for compact status
 - `analysis.json` for protocol flows, process profiles, failure semantics, and
   append-only augmentations
-- `debug-session.json` for recommended focus, failure spine, and next-step links
+- `debug-session.json` for recommended focus, failure spine, debugger posture,
+  and next-step links
 
 ## Roundtrip Demos
 

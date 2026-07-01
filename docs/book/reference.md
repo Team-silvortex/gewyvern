@@ -178,8 +178,9 @@ contracts, also keep nearby:
 
 ## Future Shape
 
-As the active `0.17.x` line closes its second half, new exact-lookup material should prefer
-this shelf instead of adding more ad hoc “format note” pages at the top level.
+As the active `0.19.x` line prepares for the final `0.20.x` seal, new
+exact-lookup material should prefer this shelf instead of adding more ad hoc
+“format note” pages at the top level.
 
 By contrast, runnable command collections and operator script routing should
 prefer the top-level lookup shelves:

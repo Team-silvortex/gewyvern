@@ -129,7 +129,7 @@ Run freeze work in this order:
 4. confirm a real sample, fixture, or operational validation path exists
 5. update the release-line note if the meaning of the line changes
 
-## Current `0.17.x -> 0.18.x` Reading
+## Current `0.19.x -> 0.20.x` Reading
 
 For the current line, a good practical freeze posture is:
 
@@ -137,6 +137,8 @@ For the current line, a good practical freeze posture is:
 - runtime config behavior is explicit enough that migration and search order are reviewable
 - certificate policy reason codes are stable enough for panel and automation binding
 - export format remains replay-first rather than becoming a generic analytics blob
+- debugger cross-validation is now part of release evidence, not only a
+  convenience smoke
 
 That is enough to start tightening discipline without pretending the `1.0.0`
 contract is already finished.

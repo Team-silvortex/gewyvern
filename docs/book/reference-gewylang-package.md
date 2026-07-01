@@ -263,7 +263,7 @@ Must be a stable lower-case `snake_case` phase name.
 When you inspect a package with:
 
 ```bash
-cargo run -p gewyc -- frontend /path/to/main.gewy --json
+cargo run -p gewyc -- frontend dsl/http_request_path.gewy --json
 ```
 
 the most relevant package/module provenance fields are:

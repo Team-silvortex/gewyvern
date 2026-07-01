@@ -8,7 +8,7 @@ to a narrower question:
 
 - what `gewyvern` is safe to treat as
 - what `gewyvern` is intentionally not trying to be
-- which boundaries matter in the active `0.17.x` line
+- which boundaries matter in the active `0.19.x` line
 
 For long-lived runtime behavior, see
 [docs/service-behavior.md](docs/service-behavior.md).
@@ -161,9 +161,9 @@ If a deployment needs:
 that should live above `gewyvern`, not be inferred from its current local
 service shape.
 
-## Practical `0.15.x` Goal
+## Practical `0.19.x` Goal
 
-For the active `0.17.x` line, the security goal is not “become a control
+For the active `0.19.x` line, the security goal is not “become a control
 plane”.
 
 The goal is narrower:
@@ -171,6 +171,7 @@ The goal is narrower:
 - keep defaults conservative
 - keep exposure explicit
 - keep runtime/resource bounds documented and real
+- keep debugger cross-validation and negative-validation evidence honest
 - keep nearby extensibility additive rather than authority-stealing
 
 That is the posture worth preserving while the project continues converging

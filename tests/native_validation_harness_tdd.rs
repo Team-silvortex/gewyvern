@@ -14,6 +14,7 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     let mod_file = read_repo_file("src/validation_harness.rs");
 
     assert!(binary.contains("\"debugger-cross\""));
+    assert!(binary.contains("evidence-index.json"));
     assert!(binary.contains("\"field-smoke\""));
     assert!(binary.contains("\"high-frequency\""));
     assert!(binary.contains("\"registry\""));

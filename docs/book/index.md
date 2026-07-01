@@ -100,10 +100,10 @@ use this order:
 
 ## Current Release Line
 
-For the current `0.17.x` midline posture, see:
+For the current `0.19.x` debugger-integration posture, see:
 
-- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
-- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
+- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
 
 ## Role-Based Reading Paths
 

@@ -82,9 +82,10 @@ Use `gewyvern_validate registry` for per-package drift, and
 shelf.
 Use `gewyvern_validate debugger-cross` when you want debugger confidence rather
 than only package confidence: the Rust-native harness cross-checks summary
-JSON, debugger-console JSON, and `gewyc` envelope output, then runs negative
-cases that must stay in collect-more-evidence posture instead of pretending to
-be actionable. The legacy
+JSON, debugger-console JSON, debug-session `debugger_posture`, and `gewyc`
+envelope output, then writes `evidence-index.json` as the compact case map. It
+also runs negative cases that must stay in collect-more-evidence posture
+instead of pretending to be actionable. The legacy
 `scripts/validation/registry_validation.sh` and
 `scripts/validation/high_frequency_validation.sh` and
 `scripts/validation/debugger_cross_validation.sh` entrypoints are now thin
@@ -104,14 +105,14 @@ cargo run --quiet --bin gewyvern_validate -- runtime-operator
 cargo run --quiet --bin gewyvern_validate -- field-smoke --socket --scan-all
 cargo run --quiet --bin gewyvern_validate -- runtime-lifecycle
 cargo run --quiet --bin gewyvern_validate -- resilience-roundtrip
-cargo run --quiet --bin gewyvern_validate -- resilience-log-evidence --log-source /path/to/runtime.log
-cargo run --quiet --bin gewyvern_validate -- resilience-bundle --api-addr 127.0.0.1:9910 --log-source /path/to/runtime.log
+cargo run --quiet --bin gewyvern_validate -- resilience-log-evidence --log-source target/validation/runtime.log
+cargo run --quiet --bin gewyvern_validate -- resilience-bundle --api-addr 127.0.0.1:9910 --log-source target/validation/runtime.log
 cargo run --quiet --bin gewyvern_validate -- resilience-emit-helper --mode fail --output /tmp/gewyvern-external-fail.sh
 cargo run --quiet --bin gewyvern_validate -- resilience-drive-bad-json --host 127.0.0.1 --port 9909 --count 6
 bash scripts/validation/runtime_resilience_fault_injection.sh --help
 bash scripts/validation/runtime_resilience_roundtrip.sh
-bash scripts/validation/runtime_resilience_log_evidence.sh /path/to/runtime.log
-bash scripts/validation/runtime_resilience_validation.sh 127.0.0.1:9910 /path/to/runtime.log
+bash scripts/validation/runtime_resilience_log_evidence.sh target/validation/runtime.log
+bash scripts/validation/runtime_resilience_validation.sh 127.0.0.1:9910 target/validation/runtime.log
 ```
 
 Use this when you care about:
@@ -182,7 +183,7 @@ On success it also prints a `resilience_summary=...` path that points to a
 small archive-friendly text summary for the healthy and degraded phases.
 
 If you want that file to land somewhere durable instead of under the temporary
-work directory, set `RESILIENCE_SUMMARY_PATH=/absolute/path/to/file.txt`
+work directory, set `RESILIENCE_SUMMARY_PATH=target/validation/resilience-summary.txt`
 before running the script.
 
 ### I want a narrow consumer roundtrip

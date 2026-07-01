@@ -1,7 +1,7 @@
 # Runtime Event Reference
 
 This page is the exact lookup shelf for the runtime event names that are meant
-to stay recognizable in the active `0.17.x` line, while preserving the earlier
+to stay recognizable in the active `0.19.x` line, while preserving the earlier
 event-contract groundwork.
 
 Use it when you need to answer:
@@ -43,7 +43,7 @@ name over silently mutating the old one.
 A structured record currently follows this shape:
 
 ```text
-ts=2026-06-16T08:12:44.102Z level=INFO target=runtime event=runtime_config_loaded msg="loaded runtime config" config_path="/home/user/.config/gewyvern/runtime.toml"
+ts=2026-06-16T08:12:44.102Z level=INFO target=runtime event=runtime_config_loaded msg="loaded runtime config" config_path="config/runtime.toml"
 ```
 
 Contract-relevant pieces are:

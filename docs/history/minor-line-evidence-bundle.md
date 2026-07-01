@@ -54,7 +54,7 @@ The three-module script now emits a small `resilience-summary.txt` artifact.
 If you want to keep it outside the temporary working directory, run with:
 
 ```bash
-RESILIENCE_SUMMARY_PATH=/absolute/path/to/resilience-summary.txt \
+RESILIENCE_SUMMARY_PATH=target/validation/resilience-summary.txt \
   bash scripts/validation/three_module_stack_smoke.sh
 ```
 

@@ -12,13 +12,16 @@ fn read_repo_file(relative: &str) -> String {
 fn etragon_inherits_the_workspace_version() {
     let root_manifest = read_repo_file("Cargo.toml");
     let etragon_manifest = read_repo_file("apps/etragon/Cargo.toml");
+    let gewyc_manifest = read_repo_file("crates/gewyc/Cargo.toml");
     let lockfile = read_repo_file("Cargo.lock");
 
     assert!(root_manifest.contains("[workspace.package]"));
-    assert!(root_manifest.contains("version = \"0.18.2\""));
+    assert!(root_manifest.contains("version = \"0.19.0\""));
     assert!(etragon_manifest.contains("version.workspace = true"));
+    assert!(gewyc_manifest.contains("version.workspace = true"));
     assert!(!etragon_manifest.contains("version = \"0.1.0\""));
-    assert!(lockfile.contains("name = \"etragon\"\nversion = \"0.18.2\""));
+    assert!(lockfile.contains("name = \"etragon\"\nversion = \"0.19.0\""));
+    assert!(lockfile.contains("name = \"gewyc\"\nversion = \"0.19.0\""));
 }
 
 #[test]
@@ -28,7 +31,7 @@ fn leserpent_uses_the_root_dotnet_version_without_app_specific_version() {
     let frontend_package = read_repo_file("apps/leserpent/package.json");
     let frontend_lock = read_repo_file("apps/leserpent/package-lock.json");
 
-    assert!(root_props.contains("<Version>0.18.2</Version>"));
+    assert!(root_props.contains("<Version>0.19.0</Version>"));
     assert!(!project.contains("<Version>0.1.9</Version>"));
     assert!(!project.contains("<Version>"));
     assert!(!frontend_package.contains("\"version\""));

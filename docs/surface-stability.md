@@ -244,7 +244,7 @@ The current `contract_hint` values are:
 - `compatibility = "grouped_payload_preferred"`
 - `legacy_fields = "retained_in_payload"`
 
-That is a real machine-facing signal for the `0.17.*` line, but not yet a
+That is a real machine-facing signal for the `0.19.*` line, but not yet a
 forever `1.0.0` freeze.
 
 ## Practical Guidance

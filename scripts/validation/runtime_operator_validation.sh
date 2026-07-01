@@ -17,7 +17,7 @@ while [ $# -gt 0 ]; do
       ;;
     *)
       echo "unknown argument: $1" >&2
-      echo "usage: $(basename "$0") [--json-out /path/to/summary.json]" >&2
+      echo "usage: $(basename "$0") [--json-out target/validation/runtime-operator-summary.json]" >&2
       exit 1
       ;;
   esac

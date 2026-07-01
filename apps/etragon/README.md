@@ -49,13 +49,13 @@ single-runtime diagnosis-partner shape for later ML or rerank passes:
 You can run the scaffold directly against a saved `gewyvern` analysis snapshot:
 
 ```bash
-cargo run -p etragon -- analyze-json /path/to/analysis.json
+cargo run -p etragon -- analyze-json target/validation/analysis.json
 ```
 
 Use `-` to read the snapshot from stdin:
 
 ```bash
-cat /path/to/analysis.json | cargo run -p etragon -- analyze-json -
+cat target/validation/analysis.json | cargo run -p etragon -- analyze-json -
 ```
 
 Or fetch directly from a live `gewyvern` API snapshot:

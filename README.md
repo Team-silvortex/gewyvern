@@ -1,4 +1,4 @@
-# gewyvern v0.18.2
+# gewyvern v0.19.0
 
 Protocol-aware local network debugging runtime driven by eBPF fragments,
 `gewylang` packages, and deterministic runtime surfaces.
@@ -72,12 +72,12 @@ session data.
 
 ## Status
 
-- project version: `0.18.2`
-- stage: active `0.18.x` line focused on protocol breadth, lifecycle
-  reliability, packaged validation, and clearer debugger behavior across local,
-  multi-instance, and physical Linux host runs
+- project version: `0.19.0`
+- stage: active `0.19.x` line focused on debugger integration, reliability
+  hardening, lifecycle discipline, and real physical-machine validation on top
+  of the broad protocol catalog built during `0.18.x`
 - transport support: TCP + UDP
-- protocol registry coverage: 49 protocol families and 262 package entries
+- protocol registry coverage: 50 protocol families and 267 package entries
   under `protocols/`
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
@@ -103,14 +103,13 @@ session data.
 `gewyvern` is no longer just a convergence story. The current line is:
 
 - historical validation baseline: `v0.10.0`
-- current release line: `v0.18.x`
-- current focus: turn the broad protocol catalog into reliable debugger
-  behavior by proving startup, stop, logs, recovery, persistence, packaging,
-  and physical-host execution paths
-- next likely work line: `v0.19.x`, focused on reliability hardening and real
-  remote physical-machine validation before the `0.20.x` final pre-1.0 line
+- current release line: `v0.19.x`
+- current focus: make the broad protocol catalog act like one integrated local
+  network debugger by tightening startup, stop, logs, recovery, persistence,
+  cross-validation, and physical-host execution paths
+- next likely work line: `v0.20.x`, the final pre-`1.0` sealing line
 
-The goal is still not “every protocol under the sun”. The `0.18.x` bar is that
+The goal is still not “every protocol under the sun”. The `0.19.x` bar is that
 `gewyvern` is trustworthy enough to serve as infra for process-level network
 debugging: stable CLI/runtime behavior, stable DSL/compiler boundaries,
 reliable HTML/JSON/API reporting, predictable operational performance, and
@@ -121,7 +120,7 @@ Primary release-line shelves:
 - [ROADMAP.md](ROADMAP.md)
 - [docs/v0.14-posture.md](docs/v0.14-posture.md)
 - [docs/history/index.md](docs/history/index.md)
-- [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
+- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
 - [docs/machine-contract.md](docs/machine-contract.md)
 - [docs/security-posture.md](docs/security-posture.md)
 - [docs/service-behavior.md](docs/service-behavior.md)
@@ -438,6 +437,6 @@ The next meaningful step is not only “more protocol branches”.
 It is making the broad protocol shelf feel like one integrated debugger:
 protocol packages should lower toward the same IR vocabulary, runtime exits
 should stay clean, logs and state should explain what happened, and the local
-operator loop should remain predictable before `0.19.x` physical-machine
-testing expands. The concrete release path is tracked in
+operator loop should remain predictable as `0.19.x` physical-machine and
+cross-validation testing expands. The concrete release path is tracked in
 [ROADMAP.md](ROADMAP.md).

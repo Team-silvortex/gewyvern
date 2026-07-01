@@ -417,16 +417,20 @@ fn run_external_command(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|err| format!("failed to launch external engine command: {err}"))?;
-    if let Some(payload) = stdin_payload {
-        let stdin = child
+    let stdin_writer = if let Some(payload) = stdin_payload {
+        let mut stdin = child
             .stdin
-            .as_mut()
+            .take()
             .ok_or_else(|| "external engine stdin unavailable".to_string())?;
-        stdin
-            .write_all(payload)
-            .map_err(|err| format!("failed to write snapshot to external engine stdin: {err}"))?;
-    }
-    let _ = child.stdin.take();
+        let payload = payload.to_vec();
+        Some(thread::spawn(move || {
+            stdin
+                .write_all(&payload)
+                .map_err(|err| format!("failed to write snapshot to external engine stdin: {err}"))
+        }))
+    } else {
+        None
+    };
     let stdout = child
         .stdout
         .take()
@@ -440,6 +444,15 @@ fn run_external_command(
     let stderr_reader =
         thread::spawn(move || read_capped_stream(stderr, max_stderr_bytes, "stderr"));
     let wait_result = wait_for_child_with_timeout(&mut child, timeout);
+    let stdin_result = if let Some(writer) = stdin_writer {
+        Some(
+            writer
+                .join()
+                .map_err(|_| "external engine stdin writer thread panicked".to_string())?,
+        )
+    } else {
+        None
+    };
     let stdout = stdout_reader
         .join()
         .map_err(|_| "external engine stdout reader thread panicked".to_string())??;
@@ -447,6 +460,9 @@ fn run_external_command(
         .join()
         .map_err(|_| "external engine stderr reader thread panicked".to_string())??;
     let status = wait_result?;
+    if let Some(result) = stdin_result {
+        result?;
+    }
     Ok(ExternalCommandOutput {
         status,
         stdout,

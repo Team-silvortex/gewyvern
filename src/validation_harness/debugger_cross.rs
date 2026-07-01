@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use super::command::{
     ValidationError, ValidationReport, assert_array_contains_str, assert_eq_bool, assert_eq_str,
@@ -28,6 +28,7 @@ pub fn run_debugger_cross_validation(
     checks.push("invalid-gewy".to_string());
 
     write_readme(&out_dir)?;
+    write_evidence_index(&out_dir)?;
 
     Ok(ValidationReport {
         name: "debugger cross validation".to_string(),
@@ -56,6 +57,15 @@ fn check_http_request(out_dir: &std::path::Path) -> Result<(), ValidationError> 
         ],
         out_dir.join("http-request.console.json"),
     )?;
+    let session = run_gewyvern_json(
+        &[
+            "--dsl",
+            dsl.to_str().unwrap_or_default(),
+            "--debug-session",
+            "--json",
+        ],
+        out_dir.join("http-request.debug-session.json"),
+    )?;
     let envelope = run_gewyc_envelope(&dsl, out_dir.join("http-request.envelope.json"))?;
 
     assert_eq_str(&summary, &["primary_module_family"], "request-response")?;
@@ -79,6 +89,20 @@ fn check_http_request(out_dir: &std::path::Path) -> Result<(), ValidationError> 
         &envelope,
         &["payload", "stages", "status", "diagnostics_ok"],
         true,
+    )?;
+    assert_eq_str(
+        &session,
+        &["recommended_focus", "debugger_posture", "state"],
+        "healthy",
+    )?;
+    assert_eq_str(
+        &session,
+        &[
+            "recommended_focus",
+            "debugger_posture",
+            "recommended_action",
+        ],
+        "observe_stable_baseline",
     )
 }
 
@@ -104,6 +128,16 @@ fn check_http_connect_denied(out_dir: &std::path::Path) -> Result<(), Validation
         ],
         out_dir.join("http-connect-denied.console.json"),
     )?;
+    let session = run_gewyvern_json(
+        &[
+            "--dsl",
+            dsl.to_str().unwrap_or_default(),
+            "--debug-session",
+            "--json",
+        ],
+        out_dir.join("http-connect-denied.debug-session.json"),
+    )?;
+    let envelope = run_gewyc_envelope(&dsl, out_dir.join("http-connect-denied.envelope.json"))?;
 
     assert_eq_str(&summary, &["primary_module_family"], "relay")?;
     assert_eq_str(&summary, &["primary_failure_basis"], "missing_transition")?;
@@ -130,6 +164,35 @@ fn check_http_connect_denied(out_dir: &std::path::Path) -> Result<(), Validation
             "negative CONNECT validation incorrectly requested manual_review",
         ));
     }
+    assert_eq_str(
+        &session,
+        &["recommended_focus", "debugger_posture", "state"],
+        "needs_evidence",
+    )?;
+    assert_eq_str(
+        &session,
+        &[
+            "recommended_focus",
+            "debugger_posture",
+            "recommended_action",
+        ],
+        "collect_missing_runtime_evidence",
+    )?;
+    assert_eq_bool(
+        &envelope,
+        &["payload", "stages", "status", "parse_ok"],
+        true,
+    )?;
+    assert_eq_bool(
+        &envelope,
+        &["payload", "stages", "status", "validation_ok"],
+        true,
+    )?;
+    assert_eq_bool(
+        &envelope,
+        &["payload", "stages", "status", "diagnostics_ok"],
+        true,
+    )?;
     Ok(())
 }
 
@@ -156,6 +219,17 @@ fn check_socks5_auth_connect_denied(out_dir: &std::path::Path) -> Result<(), Val
         ],
         out_dir.join("socks5-auth-connect-denied.console.json"),
     )?;
+    let session = run_gewyvern_json(
+        &[
+            "--protocol",
+            "socks5",
+            "--entry",
+            "auth-connect-denied",
+            "--debug-session",
+            "--json",
+        ],
+        out_dir.join("socks5-auth-connect-denied.debug-session.json"),
+    )?;
 
     assert_eq_str(&summary, &["primary_module_kind"], "proxy_negotiation")?;
     assert_eq_str(&summary, &["primary_failure_basis"], "missing_transition")?;
@@ -171,6 +245,20 @@ fn check_socks5_auth_connect_denied(out_dir: &std::path::Path) -> Result<(), Val
         &console,
         &["recommended_focus", "first_missing_transition"],
         "resolve_upstream->connect",
+    )?;
+    assert_eq_str(
+        &session,
+        &["recommended_focus", "debugger_posture", "state"],
+        "needs_evidence",
+    )?;
+    assert_eq_str(
+        &session,
+        &[
+            "recommended_focus",
+            "debugger_posture",
+            "recommended_action",
+        ],
+        "collect_missing_runtime_evidence",
     )
 }
 
@@ -257,7 +345,10 @@ fn write_readme(out_dir: &std::path::Path) -> Result<(), ValidationError> {
          Surfaces compared:\n\
          - gewyvern summary JSON\n\
          - local debugger console JSON\n\
+         - local debug-session JSON\n\
          - gewyc envelope JSON\n\n\
+         Fast index:\n\
+         - evidence-index.json\n\n\
          Positive case:\n\
          - http-request\n\n\
          Negative cases:\n\
@@ -268,4 +359,124 @@ fn write_readme(out_dir: &std::path::Path) -> Result<(), ValidationError> {
          Invalid Gewylang must fail parsing before validation or diagnostics claim success.\n",
     )?;
     Ok(())
+}
+
+fn write_evidence_index(out_dir: &std::path::Path) -> Result<(), ValidationError> {
+    let index = json!({
+        "runner": "gewyvern_validate debugger-cross",
+        "status": "ok",
+        "cases": [
+            indexed_runtime_case(out_dir, "http-request", true)?,
+            indexed_runtime_case(out_dir, "http-connect-denied", true)?,
+            indexed_runtime_case(out_dir, "socks5-auth-connect-denied", false)?,
+            indexed_invalid_gewy_case(out_dir)?,
+        ],
+    });
+    let pretty = serde_json::to_vec_pretty(&index)?;
+    fs::write(out_dir.join("evidence-index.json"), pretty)?;
+    Ok(())
+}
+
+fn indexed_runtime_case(
+    out_dir: &std::path::Path,
+    label: &str,
+    has_envelope: bool,
+) -> Result<Value, ValidationError> {
+    let summary_file = format!("{label}.summary.json");
+    let console_file = format!("{label}.console.json");
+    let session_file = format!("{label}.debug-session.json");
+    let summary = read_json(out_dir, &summary_file)?;
+    let console = read_json(out_dir, &console_file)?;
+    let session = read_json(out_dir, &session_file)?;
+
+    let envelope_file = if has_envelope {
+        Some(format!("{label}.envelope.json"))
+    } else {
+        None
+    };
+    let envelope_status = match envelope_file.as_deref() {
+        Some(file) => Some(indexed_envelope_status(&read_json(out_dir, file)?)?),
+        None => None,
+    };
+
+    Ok(json!({
+        "label": label,
+        "kind": "runtime",
+        "surfaces": {
+            "summary": summary_file,
+            "console": console_file,
+            "debug_session": session_file,
+            "envelope": envelope_file,
+        },
+        "summary": {
+            "primary_module_family": optional_string(&summary, &["primary_module_family"]),
+            "primary_module_kind": optional_string(&summary, &["primary_module_kind"]),
+            "primary_failure_mode": optional_string(&summary, &["primary_failure_mode"]),
+            "primary_failure_basis": optional_string(&summary, &["primary_failure_basis"]),
+            "operator_guidance_action": optional_string(&summary, &["operator_guidance_action"]),
+        },
+        "console": {
+            "status": optional_string(&console, &["recommended_focus", "status"]),
+            "first_missing_transition": optional_string(
+                &console,
+                &["recommended_focus", "first_missing_transition"],
+            ),
+        },
+        "debugger_posture": {
+            "posture_state": optional_string(
+                &session,
+                &["recommended_focus", "debugger_posture", "state"],
+            ),
+            "recommended_action": optional_string(
+                &session,
+                &["recommended_focus", "debugger_posture", "recommended_action"],
+            ),
+            "confidence": optional_string(
+                &session,
+                &["recommended_focus", "debugger_posture", "confidence"],
+            ),
+        },
+        "envelope_status": envelope_status,
+    }))
+}
+
+fn indexed_invalid_gewy_case(out_dir: &std::path::Path) -> Result<Value, ValidationError> {
+    let envelope_file = "invalid-gewy.envelope.json";
+    let envelope = read_json(out_dir, envelope_file)?;
+    Ok(json!({
+        "label": "invalid-gewy",
+        "kind": "toolchain-negative",
+        "surfaces": {
+            "envelope": envelope_file,
+        },
+        "envelope_status": indexed_envelope_status(&envelope)?,
+        "first_finding": value_at(&envelope, &["payload", "findings", "findings"])?
+            .as_array()
+            .and_then(|items| items.first())
+            .cloned(),
+    }))
+}
+
+fn indexed_envelope_status(envelope: &Value) -> Result<Value, ValidationError> {
+    Ok(json!({
+        "parse_ok": value_at(envelope, &["payload", "stages", "status", "parse_ok"])?
+            .as_bool(),
+        "validation_ok": value_at(envelope, &["payload", "stages", "status", "validation_ok"])?
+            .as_bool(),
+        "diagnostics_ok": value_at(envelope, &["payload", "stages", "status", "diagnostics_ok"])?
+            .as_bool(),
+    }))
+}
+
+fn read_json(out_dir: &std::path::Path, file_name: &str) -> Result<Value, ValidationError> {
+    let bytes = fs::read(out_dir.join(file_name))?;
+    Ok(serde_json::from_slice(&bytes)?)
+}
+
+fn optional_string(value: &Value, path: &[&str]) -> Option<String> {
+    let mut cursor = value;
+    for key in path {
+        cursor = cursor.get(*key)?;
+    }
+    cursor.as_str().map(ToOwned::to_owned)
 }

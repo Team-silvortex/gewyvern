@@ -1,6 +1,6 @@
 [package]
 name = "gewyc"
-version = "0.18.2"
+version.workspace = true
 edition = "2024"
 
 [dependencies]

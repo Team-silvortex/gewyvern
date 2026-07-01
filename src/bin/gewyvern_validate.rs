@@ -39,6 +39,10 @@ fn run() -> Result<(), ValidationError> {
             println!("{}: ok", report.name);
             println!("checks: {}", report.checks.join(", "));
             println!("evidence: {}", report.out_dir.display());
+            println!(
+                "index: {}",
+                report.out_dir.join("evidence-index.json").display()
+            );
             Ok(())
         }
         "registry" => {
@@ -457,7 +461,7 @@ fn print_help() {
     println!();
     println!("Commands:");
     println!("  list");
-    println!("  debugger-cross [--out-dir <path>]");
+    println!("  debugger-cross [--out-dir <path>]  # writes evidence-index.json");
     println!("  field-smoke [--out-dir <path>] [--socket] [--scan-all]");
     println!(
         "  socket-roundtrip [--socket-target <path-or-addr>] [--socket-kind <unix|tcp>] [--template <id>] [--output <path>]"

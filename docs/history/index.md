@@ -9,6 +9,7 @@ For `gewyvern`, the middle numeric component is treated as the **minor** line:
 - `v0.15.x`
 - `v0.17.x`
 - `v0.18.x`
+- `v0.19.x`
 
 The rule from here forward is simple:
 
@@ -49,11 +50,14 @@ background cleanup.
   Second-half checklist used to close the `0.17.x` line cleanly before the
   `0.18.x` validation and runtime-confidence line.
 - [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
-  Current active line focused on protocol breadth, packaged/runtime confidence,
+  Historical line focused on protocol breadth, packaged/runtime confidence,
   and physical-host validation.
 - [docs/history/v0.18.x-pathological-container.md](docs/history/v0.18.x-pathological-container.md)
   Physical-host pathological container evidence for runtime ingest fault
   handling and resilience degradation.
+- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
+  Current active line focused on integrated debugger behavior, reliability
+  hardening, cross-validation, and final pre-`1.0` preparation.
 - [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md)
   Forward-looking minor-line plan from `0.15.x` through `0.20.x`, intended to
   make `v1.0.0` the direct next step after the final pre-`1.0` seal.
@@ -73,7 +77,8 @@ background cleanup.
 | `v0.14.x` | Earlier maturity line before the `0.15.x` operationalization pass | historical snapshot | [docs/history/v0.14.x.md](docs/history/v0.14.x.md) |
 | `v0.15.x` | Runtime layout, upgrade shape, and operationalization baseline before later deepening lines | recorded baseline | [docs/history/v0.15.x.md](docs/history/v0.15.x.md) |
 | `v0.17.x` | Protocol-cluster deepening plus compiler/IR maturity with runtime-evidence discipline | historical snapshot | [docs/history/v0.17.x.md](docs/history/v0.17.x.md) |
-| `v0.18.x` | Protocol breadth, packaged/runtime confidence, and physical-host validation | active | [docs/history/v0.18.x.md](docs/history/v0.18.x.md) |
+| `v0.18.x` | Protocol breadth, packaged/runtime confidence, and physical-host validation | historical snapshot | [docs/history/v0.18.x.md](docs/history/v0.18.x.md) |
+| `v0.19.x` | Integrated debugger behavior, reliability hardening, and final pre-`1.0` preparation | active | [docs/history/v0.19.x.md](docs/history/v0.19.x.md) |
 | `v0.15.x -> v1.0.0` | Forward roadmap through `v0.20.x` with `v1.0.0` as the intended direct successor | active roadmap | [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md) |
 
 This table is the shortest answer to:
@@ -124,5 +129,5 @@ Use other pages when you want something else:
 - for the current structured reading paths, use
   [docs/book/index.md](docs/book/index.md)
 - for the current active release posture, use
-  [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
+  [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
 - for the shortest ledger of historical release lines, use this page

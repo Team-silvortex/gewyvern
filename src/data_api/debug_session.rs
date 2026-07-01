@@ -108,6 +108,8 @@ fn append_debug_target_json(json: &mut String, name: &str, target: &ApiTargetSna
     json.push_str(",\"summary\":");
     append_json_string(json, &summary.operator_guidance_summary);
     json.push('}');
+    json.push_str(",\"debugger_posture\":");
+    append_debugger_posture_json(json, target, &summary);
     json.push_str(",\"first_missing_transition\":");
     append_opt_json_string(json, summary.first_missing_transition.as_deref());
     json.push_str(",\"protocol_surface\":");
@@ -212,6 +214,23 @@ fn append_protocol_surface_json(json: &mut String, target: &ApiTargetSnapshot) {
     json.push('}');
 }
 
+fn append_debugger_posture_json(
+    json: &mut String,
+    target: &ApiTargetSnapshot,
+    summary: &DebugSummary,
+) {
+    json.push('{');
+    json.push_str("\"state\":");
+    append_json_string(json, debugger_posture_state(target, summary));
+    json.push_str(",\"confidence\":");
+    append_json_string(json, debugger_posture_confidence(target, summary));
+    json.push_str(",\"recommended_action\":");
+    append_json_string(json, debugger_posture_action(target, summary));
+    json.push_str(",\"reason\":");
+    append_json_string(json, debugger_posture_reason(target, summary));
+    json.push('}');
+}
+
 fn append_static_link(json: &mut String, name: &str, path: &str, comma: bool) {
     if comma {
         json.push(',');
@@ -252,6 +271,60 @@ fn debug_rank(target: &ApiTargetSnapshot) -> usize {
             Some("heuristic_summary") => 3,
             _ => 5,
         },
+    }
+}
+
+fn debugger_posture_state(target: &ApiTargetSnapshot, summary: &DebugSummary) -> &'static str {
+    if summary.first_missing_transition.is_some()
+        || target.automation_outcome.as_deref() == Some("collect_more_evidence")
+        || target.evidence_posture.as_deref() == Some("missing_transition")
+    {
+        "needs_evidence"
+    } else if target.automation_outcome.as_deref() == Some("targeted_escalation")
+        || target.evidence_posture.as_deref() == Some("direct_protocol_signal")
+    {
+        "ready_to_escalate"
+    } else if target.automation_outcome.as_deref() == Some("multi_hypothesis")
+        || target.evidence_posture.as_deref() == Some("ambiguous_multi_hypothesis")
+    {
+        "needs_hypothesis_review"
+    } else if target.automation_outcome.as_deref() == Some("advisory_only") {
+        "advisory"
+    } else if summary.status == "healthy" {
+        "healthy"
+    } else {
+        "needs_human_review"
+    }
+}
+
+fn debugger_posture_confidence(target: &ApiTargetSnapshot, summary: &DebugSummary) -> &'static str {
+    match debugger_posture_state(target, summary) {
+        "ready_to_escalate" => "high",
+        "needs_evidence" | "needs_hypothesis_review" => "medium",
+        "healthy" => "high",
+        _ => "low",
+    }
+}
+
+fn debugger_posture_action(target: &ApiTargetSnapshot, summary: &DebugSummary) -> &'static str {
+    match debugger_posture_state(target, summary) {
+        "ready_to_escalate" => "escalate_protocol_signal",
+        "needs_evidence" => "collect_missing_runtime_evidence",
+        "needs_hypothesis_review" => "compare_competing_hypotheses",
+        "healthy" => "observe_stable_baseline",
+        "advisory" => "observe_only",
+        _ => "read_analysis_before_automation",
+    }
+}
+
+fn debugger_posture_reason(target: &ApiTargetSnapshot, summary: &DebugSummary) -> &'static str {
+    match debugger_posture_state(target, summary) {
+        "ready_to_escalate" => "direct protocol evidence supports a targeted next step",
+        "needs_evidence" => "the current conclusion depends on missing runtime evidence",
+        "needs_hypothesis_review" => "multiple plausible explanations remain active",
+        "healthy" => "no debugger action is required for this target",
+        "advisory" => "the signal is useful but not strong enough for automation",
+        _ => "the debugger cannot narrow the conclusion without operator review",
     }
 }
 

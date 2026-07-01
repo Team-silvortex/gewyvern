@@ -188,8 +188,8 @@ inside that engine root.
 If you need to point at a different engine checkout or command:
 
 ```bash
-ENGINE_ROOT=/path/to/external-engine
-EXTERNAL_ENGINE_CMD=/path/to/analyze-url-wrapper
+ENGINE_ROOT=apps/etragon
+EXTERNAL_ENGINE_CMD=apps/etragon/scripts/analyze-url-wrapper
 ```
 
 `EXTERNAL_ENGINE_CMD` is intentionally limited to a single executable path. The

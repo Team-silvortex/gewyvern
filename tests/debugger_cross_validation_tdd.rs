@@ -21,6 +21,12 @@ fn cross_validation_script_checks_positive_and_negative_debugger_surfaces() {
     assert!(harness.contains("http_connect_denied_path.gewy"));
     assert!(harness.contains("auth-connect-denied"));
     assert!(harness.contains("invalid.gewy"));
+    assert!(harness.contains("--debug-session"));
+    assert!(harness.contains("debugger_posture"));
+    assert!(harness.contains("evidence-index.json"));
+    assert!(harness.contains("posture_state"));
+    assert!(harness.contains("observe_stable_baseline"));
+    assert!(harness.contains("collect_missing_runtime_evidence"));
     assert!(harness.contains("primary_failure_basis"));
     assert!(harness.contains("missing_transition"));
     assert!(harness.contains("collect_more_runtime_evidence"));
@@ -40,5 +46,8 @@ fn cross_validation_is_documented_as_a_debugger_readiness_gate() {
         assert!(doc.contains("scripts/validation/debugger_cross_validation.sh"));
         assert!(doc.contains("cross"));
         assert!(doc.contains("negative"));
+        assert!(doc.contains("debug-session"));
+        assert!(doc.contains("debugger_posture"));
+        assert!(doc.contains("evidence-index.json"));
     }
 }

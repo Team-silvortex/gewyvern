@@ -1,7 +1,7 @@
 # Release Checklist
 
 This page is the shortest practical release checklist for the active
-`0.17.x` line.
+`0.19.x` line.
 
 Use it when the question is not "how does packaging work?" or "what does field
 validation mean?", but simply:
@@ -16,8 +16,8 @@ For deeper background, see:
 - [docs/field-findings.md](docs/field-findings.md)
 - [docs/packaging.md](docs/packaging.md)
 - [docs/script-entrypoints.md](docs/script-entrypoints.md)
-- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
-- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
+- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
+- [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
 
 ## Role In The Shelf
 
@@ -38,7 +38,7 @@ Do not use this page as:
 For those, use:
 
 - [docs/field-validation.md](docs/field-validation.md)
-- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
 - [docs/field-findings.md](docs/field-findings.md)
 
 ## Companion Shelves
@@ -47,12 +47,13 @@ For those, use:
   for the broader validation program and scenario bands
 - [docs/field-findings.md](docs/field-findings.md)
   for the short record of what has already been demonstrated
-- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
-  for the current line's intended product and documentation posture
-- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
-  for the second-half closure checklist
+- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
+  for the current line's intended debugger-integration posture
+- [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
+  for the protocol-breadth and physical-host validation baseline that this line
+  inherits
 
-## Current `0.18.x` Gate
+## Current `0.19.x` Gate
 
 Treat the line as release-ready only when all of the following stay true:
 
@@ -67,6 +68,10 @@ Treat the line as release-ready only when all of the following stay true:
 9. the three-module Docker stack smoke still passes
 10. pathological container/runtime-ingest validation still proves bad clients do
     not wedge the runtime
+11. debugger cross-validation still compares runtime summary JSON, debugger
+    console JSON, and `gewyc` envelope JSON without overclaiming negative cases
+12. security dependency checks stay clean for Rust, .NET, and frontend package
+    manifests
 
 This section is intentionally binary and operational. It should stay shorter
 and stricter than the broader validation note.
@@ -81,8 +86,8 @@ bash scripts/packaging/build_packages_in_container.sh --format all
 
 Expected outputs:
 
-- `target/packages/gewyvern_0.15.0-1_arm64.deb`
-- `target/packages/rpm/gewyvern-0.15.0-1.aarch64.rpm`
+- `target/packages/gewyvern_0.19.0-1_<arch>.deb`
+- `target/packages/rpm/gewyvern-0.19.0-1.<arch>.rpm`
 
 These filenames follow the crate/package version currently declared by the
 build metadata. The release-line posture can move ahead of that metadata, but
@@ -144,6 +149,8 @@ bash scripts/packaging/package_install_smoke.sh
 bash scripts/packaging/container_runtime_validation.sh
 bash scripts/packaging/container_protocol_validation.sh
 bash scripts/packaging/container_operator_path_validation.sh
+cargo run --quiet --bin gewyvern_validate -- debugger-cross
+cargo audit
 ```
 
 ## Expected Packaged Semantics
@@ -236,7 +243,7 @@ Use this triage order:
 
 ## Ship Read
 
-For the active `0.18.x` line, a good practical ship read is:
+For the active `0.19.x` line, a good practical ship read is:
 
 - current artifacts rebuilt
 - `release_gate.sh` green, or the equivalent build + packaged release check +
@@ -244,6 +251,8 @@ For the active `0.18.x` line, a good practical ship read is:
 - full `release_container_check.sh` green in default mode
 - `three_module_stack_smoke.sh` green
 - `pathological_container_validation.sh` green on a Docker-capable host
+- `gewyvern_validate -- debugger-cross` green
+- Rust/.NET/frontend dependency vulnerability checks green
 - no new drift in `field-findings` that would downgrade trust in conservative diagnosis
 
-If all five are true, the line is in a healthy release posture.
+If all of these are true, the line is in a healthy release posture.

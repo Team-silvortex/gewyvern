@@ -262,7 +262,7 @@ runtime：
 - very-light backup:
   - 同目录的 `control-plane-state.json.bak`
 - 可用环境变量覆盖：
-  - `LESERPENT_STATE_PATH=/path/to/control-plane-state.json`
+  - `LESERPENT_STATE_PATH=target/leserpent/control-plane-state.json`
 - 仓库只保留 `src/Leserpent/data/control-plane-state.sample.json`，真实运行态 state 不应该提交。
 
 当前会恢复和保存：

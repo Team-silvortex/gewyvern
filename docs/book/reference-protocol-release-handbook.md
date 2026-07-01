@@ -1,9 +1,9 @@
-# Reference: Protocol Release Handbook For `0.17.x`
+# Reference: Protocol Release Handbook For `0.19.x`
 
 Use this page when the question is not just “what command do I run?” but “what
 counts as enough protocol confidence to ship the current minor line?”
 
-This page is the protocol-facing release handbook for the active `0.17.x`
+This page is the protocol-facing release handbook for the active `0.19.x`
 line.
 
 Read this alongside:
@@ -11,8 +11,8 @@ Read this alongside:
 - [docs/book/reference-protocol-operator-playbook.md](docs/book/reference-protocol-operator-playbook.md)
 - [docs/book/reference-protocol-command-paths.md](docs/book/reference-protocol-command-paths.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
-- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
-- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
+- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
 - [docs/field-validation.md](docs/field-validation.md)
 
 ## What This Page Is For

@@ -54,7 +54,7 @@ At startup, `gewyvern` looks for a runtime config file in this order:
 
 If no file exists, startup continues with built-in defaults.
 
-Before selecting the file, active `0.17.x` startup prepares the standard runtime
+Before selecting the file, active `0.19.x` startup prepares the standard runtime
 roots and performs a conservative config copy-forward:
 
 - if the standard `gewyvern.toml` is missing
@@ -100,7 +100,7 @@ Recommended posture:
 
 - new config files should include `schema_version = 1` at the top of the file
 - unversioned older files are still accepted as a compatibility path in the
-  active `0.17.x` line
+  active `0.19.x` line
 - if a file declares a higher version than the runtime understands, startup
   fails instead of guessing
 
@@ -134,14 +134,14 @@ where `schema_status` is currently either:
 
 ### `[external_engine]`
 
-- `bin = "/path/to/engine"`
-- `worker = "/path/to/worker.py"`
+- `bin = "tools/engine"`
+- `worker = "tools/worker.py"`
 - `python_bin = "/usr/bin/python3"`
 
 ### `[paths]`
 
-- `protocol_registry_root = "/path/to/protocols"`
-- `share_root = "/path/to/share"`
+- `protocol_registry_root = "protocols"`
+- `share_root = "share"`
 
 These path keys are configuration-level equivalents of:
 
@@ -156,17 +156,17 @@ The runtime history key also has an environment-level override:
 
 - `level = "error" | "warn" | "info" | "debug"`
 - `stderr = true|false`
-- `file = "/path/to/gewyvern.log"`
+- `file = "target/logs/gewyvern.log"`
 - `max_bytes = 1048576`
 - `max_files = 4`
 
 ### `[certificates]`
 
-- `root = "/path/to/certificates"`
-- `trust_root = "/path/to/certificates/trust"`
-- `authority_root = "/path/to/certificates/authorities"`
-- `identity_root = "/path/to/certificates/identities"`
-- `state_root = "/path/to/state/certificates"`
+- `root = "certificates"`
+- `trust_root = "certificates/trust"`
+- `authority_root = "certificates/authorities"`
+- `identity_root = "certificates/identities"`
+- `state_root = "state/certificates"`
 - `require_explicit_remote_trust = true|false`
 
 These keys establish the operator-facing certificate shelf used by the runtime
@@ -193,7 +193,7 @@ And it now publishes the runtime-managed certificate state shelf at:
 
 - `/v1/runtime/certificate-state.json`
 
-This policy surface is intentionally conservative. In the active `0.17.x`
+This policy surface is intentionally conservative. In the active `0.19.x`
 line it highlights:
 
 - explicit remote trust without any trust anchors
@@ -402,6 +402,6 @@ It is not yet the home for every CLI mode or every future persistence feature.
 That broader surface can grow later on top of the now-explicit path and config
 contract.
 
-The current `0.17.x` startup behavior now pairs this config contract with a
+The current `0.19.x` startup behavior now pairs this config contract with a
 standard state root, so `--serve` can mirror the latest API snapshot to disk
 without inventing ad-hoc paths.

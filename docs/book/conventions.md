@@ -145,7 +145,7 @@ Avoid:
 
 ## Release-Line Discipline
 
-During the active `0.17.x` line, documentation changes should bias toward:
+During the active `0.19.x` line, documentation changes should bias toward:
 
 - clarifying current behavior
 - reducing contradiction

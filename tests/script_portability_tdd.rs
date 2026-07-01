@@ -117,12 +117,16 @@ fn markdown_docs_do_not_embed_local_checkout_paths() {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("apps/leserpent/README.md"),
     ];
     let forbidden = [
-        "/Users/Shared/chroot/dev/gewyvern",
-        "/Users/Shared/chroot/dev/etragon",
-        "/Users/Shared/chroot/dev/leserpent",
-        "/Users/seis",
-        "/home/chiharukiryu/work/gewyvern-server-test",
-        "/home/gewyvern-lab/work/gewyvern",
+        local_path(&["Users", "Shared", "chroot", "dev", "gewyvern"]),
+        local_path(&["Users", "Shared", "chroot", "dev", "etragon"]),
+        local_path(&["Users", "Shared", "chroot", "dev", "leserpent"]),
+        local_path(&["Users", "seis"]),
+        local_path(&["var", "folders"]),
+        local_path(&["home", "chiharukiryu", "work", "gewyvern-server-test"]),
+        local_path(&["home", "gewyvern-lab", "work", "gewyvern"]),
+        local_path(&["home", "user"]),
+        local_path(&["absolute", "path"]),
+        local_path(&["path", "to"]),
     ];
     let mut failures = Vec::new();
 
@@ -137,7 +141,11 @@ fn markdown_docs_do_not_embed_local_checkout_paths() {
     );
 }
 
-fn collect_markdown_path_failures(path: &Path, forbidden: &[&str], failures: &mut Vec<String>) {
+fn local_path(parts: &[&str]) -> String {
+    format!("/{}", parts.join("/"))
+}
+
+fn collect_markdown_path_failures(path: &Path, forbidden: &[String], failures: &mut Vec<String>) {
     if path.is_dir() {
         for entry in fs::read_dir(path)
             .unwrap_or_else(|err| panic!("failed to read directory {}: {}", path.display(), err))

@@ -60,6 +60,23 @@ fn run_external_command_enforces_timeout() {
 
 #[cfg(target_family = "unix")]
 #[test]
+fn run_external_command_timeout_still_fires_when_engine_never_reads_stdin() {
+    let script_path = write_test_script("sleep 1\nprintf 'late\\n'");
+    let payload = vec![b'x'; 1024 * 1024];
+    let result = run_external_command(
+        Command::new(&script_path),
+        Some(&payload),
+        Duration::from_millis(100),
+        1024,
+        1024,
+    );
+    let _ = fs::remove_file(&script_path);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("timed out"));
+}
+
+#[cfg(target_family = "unix")]
+#[test]
 fn query_external_capabilities_rejects_oversized_stdout() {
     let script_path = write_test_script(
         "if [ \"$1\" = \"protocol-capabilities\" ]; then\ndd if=/dev/zero bs=1024 count=1025 2>/dev/null | tr '\\000' 'x'\nfi",

@@ -255,9 +255,9 @@ When reviewing a package or compiler change, a strong inspection order is:
 In command form:
 
 ```bash
-cargo run -p gewyc -- frontend /absolute/path/to/main.gewy --focus graph
-cargo run -p gewyc -- explain /absolute/path/to/main.gewy --focus ir --json
-cargo run --bin gewyc_ir_snapshot -- /absolute/path/to/main.gewy --json
+cargo run -p gewyc -- frontend dsl/http_request_path.gewy --focus graph
+cargo run -p gewyc -- explain dsl/http_request_path.gewy --focus ir --json
+cargo run --bin gewyc_ir_snapshot -- dsl/http_request_path.gewy --json
 ```
 
 This sequence moves from:

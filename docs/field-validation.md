@@ -1,7 +1,7 @@
 # Field Validation
 
 This note defines the practical field-validation phase for the active
-`0.17.x` line.
+`0.19.x` line.
 
 The goal is simple:
 
@@ -13,12 +13,10 @@ This is the bridge between:
 
 - contract freeze
 - benchmark acceptance
-- current release judgment for the active `0.17.x` line
+- current release judgment for the active `0.19.x` line
 
 For the current release posture, see
-[docs/history/v0.17.x.md](docs/history/v0.17.x.md)
-and
-[docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md).
+[docs/history/v0.19.x.md](docs/history/v0.19.x.md).
 
 For the short running record of what this validation has already shown in
 practice, see [docs/field-findings.md](docs/field-findings.md).
@@ -38,7 +36,7 @@ Treat this page as the validation-program page for the active line.
 Use it when the question is:
 
 - what kinds of validation should we still be running repeatedly?
-- which scenario families matter most for trust in `0.17.x`?
+- which scenario families matter most for trust in `0.19.x`?
 - what counts as strong enough validation evidence versus shallow smoke?
 
 Do not use this page as:
@@ -50,7 +48,7 @@ Do not use this page as:
 For those, use:
 
 - [docs/release-checklist.md](docs/release-checklist.md)
-- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
 - [docs/field-findings.md](docs/field-findings.md)
 
 ## Companion Shelves
@@ -59,14 +57,15 @@ For those, use:
   for the short evidence log of what this validation line has already shown
 - [docs/release-checklist.md](docs/release-checklist.md)
   for the shortest current release gate
-- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
   for the current line's intended claim and scope
-- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
-  for the current second-half closure priorities
+- [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
+  for the protocol breadth and physical-host validation baseline this line
+  inherits
 
 ## Current Prelaunch Scope
 
-Keep the current `0.17.x` field-validation line intentionally narrow.
+Keep the current `0.19.x` field-validation line intentionally narrow.
 
 The question is not "what else could `gewyvern` support".
 
@@ -88,11 +87,16 @@ The question is:
    - `DNS + TLS + HTTP`
    - `proxy auth + upstream request`
    - `QUIC + HTTP/3`
-3. Tune built-in operator guidance only in small, standalone-useful ways:
+3. Keep debugger cross-validation as release evidence:
+   - runtime summary JSON
+   - debugger-console JSON
+   - `gewyc` envelope JSON
+   - negative cases that must not overclaim
+4. Tune built-in operator guidance only in small, standalone-useful ways:
    - `observe_more`
    - `manual_review`
    - `targeted_ready`
-4. Accept only small IR improvements that reduce boilerplate or improve
+5. Accept only small IR improvements that reduce boilerplate or improve
    lowering/diagnostic stability.
 
 ### Do Not Expand Right Now
@@ -418,6 +422,6 @@ This note does not replace:
 - release gate judgment
 - the dedicated multi-project collaboration gate with `etragon` and `leserpent`
 
-It exists so the active `0.17.x` line has a concrete "start validating for
+It exists so the active `0.19.x` line has a concrete "keep validating for
 real" shelf rather
 than only architecture cleanup.

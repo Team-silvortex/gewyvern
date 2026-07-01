@@ -16,7 +16,7 @@ Use these nearby pages with it:
 - [docs/gewyc-field-contract.md](docs/gewyc-field-contract.md)
 - [docs/gewyc-contract-matrix.md](docs/gewyc-contract-matrix.md)
 - [docs/gewyc-sample-index.md](docs/gewyc-sample-index.md)
-- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
 
 ## What A Freeze Means
 
@@ -29,7 +29,7 @@ It means:
 - `compat` fields do not disappear casually
 - fixtures and docs keep matching the real renderer
 
-## Current `0.17.x -> 0.18.x` Checklist
+## Current `0.19.x -> 0.20.x` Checklist
 
 Treat the compiler surface as ready for the next tightening step only when all
 of the following are true:

@@ -9,11 +9,11 @@ Use it before:
 - exposing `--api-socket` to anything beyond localhost
 - wiring an external engine
 - pointing the packaged registry at custom roots
-- treating a `0.15.x` deployment as stable enough for repeated automation
+- treating a `0.19.x` deployment as stable enough for repeated automation
 
 This is not a penetration-test guide.
 
-It is a practical operator checklist for the active `0.17.x` runtime shape.
+It is a practical operator checklist for the active `0.19.x` runtime shape.
 
 For the broader posture statement, see
 [docs/security-posture.md](docs/security-posture.md).
@@ -47,7 +47,7 @@ Ask these questions:
 - are you keeping remote socket ingest explicitly opt-in?
 - are you avoiding PID-trust claims from socket-fed sessions?
 
-Current `0.17.x` expectation:
+Current `0.19.x` expectation:
 
 - socket-fed input is advisory-first
 - remote TCP ingest should be a conscious decision, not a default
@@ -65,7 +65,7 @@ Before enabling the API, confirm:
 - localhost is the default unless you truly need broader reach
 - callers understand the API is read-only and latest-snapshot only
 
-Current `0.17.x` safety behavior:
+Current `0.19.x` safety behavior:
 
 - remote bind is rejected unless explicitly allowed
 - restart clears the live in-memory snapshot
@@ -91,7 +91,7 @@ If you use `--external-engine-bin`, verify:
 - failure of the external engine does not break your core workflow
 - the engine can tolerate timeouts and bounded output expectations
 
-Current `0.17.x` behavior:
+Current `0.19.x` behavior:
 
 - built-in analysis runs first
 - external augmentations are appended
@@ -114,7 +114,7 @@ If you use custom protocol/package roots, verify:
 - your package tree is intentionally small and reviewable
 - you are not accidentally scanning a very large shared filesystem subtree
 
-Current `0.17.x` behavior:
+Current `0.19.x` behavior:
 
 - symlink recursion is skipped
 - repeated-directory loops are avoided
@@ -183,8 +183,10 @@ current line:
 4. verify custom registry roots are trusted and scoped
 5. verify automation handles `404`, `503`, and restart-cleared state
 6. verify operators know the API is read-only and latest-snapshot only
+7. verify dependency vulnerability checks and debugger cross-validation stay
+   green before release-style automation
 
-If all six are true, you are aligned with the current `0.17.x` security shape.
+If all seven are true, you are aligned with the current `0.19.x` security shape.
 
 ## 10. Pair The Checklist With Validation
 
@@ -193,15 +195,20 @@ The checklist is about operator intent and deployment shape.
 It should be paired with one real runtime validation pass before you trust a
 new local or packaged setup.
 
-The current first script to run is:
+The current first native check to run is:
+
+- `cargo run --quiet --bin gewyvern_validate -- runtime-operator`
+
+Pair it with the debugger cross-check before release-style automation:
+
+- `cargo run --quiet --bin gewyvern_validate -- debugger-cross`
+
+The legacy shell wrapper remains available for older automation:
 
 - [scripts/validation/runtime_operator_validation.sh](scripts/validation/runtime_operator_validation.sh)
 
-If you want a machine-readable summary for CI or local wrappers, run it as:
-
-- `bash scripts/validation/runtime_operator_validation.sh --json-out /tmp/gewyvern-runtime-validation.json`
-
-That script exercises the practical serve/API shell by checking that:
+The runtime-operator check exercises the practical serve/API shell by checking
+that:
 
 - `--serve` keeps running across repeated sessions
 - the latest snapshot is refreshed through the read-only API

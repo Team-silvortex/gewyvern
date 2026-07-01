@@ -35,7 +35,7 @@ Then continue with:
 Use this guide when you are:
 
 - checking whether a checkout is still healthy
-- preparing a `v0.15.x` release judgment call
+- preparing a `v0.19.x` release judgment call
 - validating a branch after runtime, report, or DSL changes
 - trying to narrow "what broke?" before reading code
 
@@ -138,13 +138,20 @@ This check compares:
 
 - runtime summary JSON
 - local debugger-console JSON
+- local debug-session JSON and its `debugger_posture`
 - `gewyc` envelope JSON
+
+The harness also writes `evidence-index.json` next to the raw case outputs. Use
+that file first when you want a compact map of which case produced which
+posture, guidance action, missing transition, and compiler-envelope status.
+Only open the raw JSON files after the index points you at the suspicious case.
 
 It also runs negative cases. The protocol negatives are valid inputs with
 missing evidence, so they must stay in `attention` /
-`collect_more_runtime_evidence` posture. The toolchain negative is invalid
-Gewylang input, so parse must fail before validation or diagnostics can claim
-success.
+`collect_more_runtime_evidence` posture, while their `debugger_posture` must
+stay in `needs_evidence` rather than pretending the next action is already
+safe. The toolchain negative is invalid Gewylang input, so parse must fail
+before validation or diagnostics can claim success.
 
 The legacy
 `scripts/validation/debugger_cross_validation.sh`
@@ -158,7 +165,9 @@ When the runtime API is serving, prefer `/v1/latest/debug-session.json` as the
 operator-facing starting point. It preserves the recommended focus from the
 debugger console, then adds the target links, failure spine, protocol-reading
 path, and next-step hints needed to continue the investigation without hunting
-through several endpoints first.
+through several endpoints first. Its `debugger_posture` object is the compact
+read: whether the target is healthy, ready to escalate, still missing evidence,
+or still ambiguous enough to need hypothesis review.
 
 ## Step 5: Run The Registry Shelf, Not Just One Target
 
@@ -185,8 +194,8 @@ This is usually the fastest way to answer:
 
 ## Step 6: Exercise The High-Frequency Shelf
 
-For the active `0.17.x` line, the most valuable operator surface is the
-high-frequency protocol shelf.
+For the active `0.19.x` line, the most valuable operator surface is the
+high-frequency protocol shelf plus the debugger cross-validation path.
 
 Run:
 
@@ -202,6 +211,13 @@ This is where we keep pressure on:
 - `SOCKS5 / proxy`
 - `MySQL / PostgreSQL`
 - `QUIC / HTTP/3`
+
+Pair it with `debugger-cross` before release judgment so the broad shelf still
+funnels into one coherent diagnosis story:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- debugger-cross
+```
 
 If this fails while the broad registry sweep still passes, the problem is
 probably not "the whole runtime is broken". It is more likely:
@@ -325,8 +341,8 @@ cargo run --quiet --bin gewyvern_validate -- socket-roundtrip
 cargo run --quiet --bin gewyvern_validate -- runtime-operator
 cargo run --quiet --bin gewyvern_validate -- runtime-lifecycle
 cargo run --quiet --bin gewyvern_validate -- resilience-roundtrip
-cargo run --quiet --bin gewyvern_validate -- resilience-log-evidence --log-source /path/to/runtime.log
-cargo run --quiet --bin gewyvern_validate -- resilience-bundle --api-addr 127.0.0.1:9910 --log-source /path/to/runtime.log
+cargo run --quiet --bin gewyvern_validate -- resilience-log-evidence --log-source target/validation/runtime.log
+cargo run --quiet --bin gewyvern_validate -- resilience-bundle --api-addr 127.0.0.1:9910 --log-source target/validation/runtime.log
 cargo run --quiet --bin gewyvern_validate -- resilience-emit-helper --mode fail --output /tmp/gewyvern-external-fail.sh
 cargo run --quiet --bin gewyvern_validate -- resilience-drive-bad-json --host 127.0.0.1 --port 9909 --count 6
 ```
@@ -391,7 +407,7 @@ Use this when you need confidence in:
 - local sidecar/enrich chains rather than just CLI rendering
 - training manifests versus fetched sample payloads
 
-## What “Healthy Enough For v0.15.x” Means
+## What “Healthy Enough For v0.19.x” Means
 
 For the current line, the runtime surface is in a good state when:
 
@@ -400,8 +416,11 @@ For the current line, the runtime surface is in a good state when:
 - focused runtime JSON still exposes the diagnosis spine coherently
 - registry validation still passes
 - the high-frequency shelf still passes
+- debugger cross-validation still proves runtime, console, and compiler
+  envelopes agree without overclaiming negative cases
 - runtime lifecycle validation still proves start, stop, recovery, and cleanup
 - release/container checks still pass when you need stronger confidence
+- Rust/.NET/frontend dependency checks stay clean when preparing a release
 
 That is enough to say:
 
@@ -409,4 +428,5 @@ That is enough to say:
 - but it is already usable on purpose
 
 For the release posture around that judgment, see
-[docs/v0.14-posture.md](docs/v0.14-posture.md).
+[docs/history/v0.19.x.md](docs/history/v0.19.x.md) and
+[docs/release-checklist.md](docs/release-checklist.md).

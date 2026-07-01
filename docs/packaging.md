@@ -77,7 +77,7 @@ That is enough for:
 - a packaged example config that operators can copy into the standard config
   root
 
-For the broader `0.15.x` runtime layout policy beyond the packaged Linux tree,
+For the broader runtime layout policy beyond the packaged Linux tree,
 also see:
 
 - [docs/book/reference-runtime-layout.md](docs/book/reference-runtime-layout.md)
@@ -114,7 +114,7 @@ artifact. It records:
 
 The default current values are intentionally conservative:
 
-- `release_line = "v0.18.x"`
+- `release_line = "v0.19.x"`
 - `layout_version = 1`
 - `config_schema_version = 1`
 - `upgrade_policy = "copy-forward-without-overwrite"`

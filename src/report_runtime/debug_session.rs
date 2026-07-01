@@ -58,6 +58,8 @@ fn debug_session_text(outputs: &[(String, ExportBundle)], analyses: &[AnalysisSn
         text.push_str(&analysis.primary_failure_mode);
         text.push('/');
         text.push_str(&analysis.primary_failure_detail);
+        text.push_str(" posture=");
+        text.push_str(debugger_posture_state(analysis));
         text.push_str(" next=");
         text.push_str(&next_step_kinds(name, analysis).join(","));
     }
@@ -107,7 +109,9 @@ fn append_target_json(json: &mut String, name: &str, analysis: &AnalysisSnapshot
     append_json_string(json, &analysis.operator_guidance_action);
     json.push_str(",\"summary\":");
     append_json_string(json, &analysis.operator_guidance_summary);
-    json.push_str("},\"first_missing_transition\":");
+    json.push_str("},\"debugger_posture\":");
+    append_debugger_posture_json(json, analysis);
+    json.push_str(",\"first_missing_transition\":");
     match analysis.missing_transitions.first() {
         Some(value) => append_json_string(json, value),
         None => json.push_str("null"),
@@ -157,6 +161,19 @@ fn append_next_steps_json(json: &mut String, name: &str, analysis: &AnalysisSnap
     json.push(']');
 }
 
+fn append_debugger_posture_json(json: &mut String, analysis: &AnalysisSnapshot) {
+    json.push('{');
+    json.push_str("\"state\":");
+    append_json_string(json, debugger_posture_state(analysis));
+    json.push_str(",\"confidence\":");
+    append_json_string(json, debugger_posture_confidence(analysis));
+    json.push_str(",\"recommended_action\":");
+    append_json_string(json, debugger_posture_action(analysis));
+    json.push_str(",\"reason\":");
+    append_json_string(json, debugger_posture_reason(analysis));
+    json.push('}');
+}
+
 fn next_step_kinds(name: &str, analysis: &AnalysisSnapshot) -> Vec<&'static str> {
     let mut steps = vec!["read_analysis"];
     if scan_target_protocol_entry(name).is_some() {
@@ -173,6 +190,60 @@ fn next_step_reason(step: &str) -> &'static str {
         "read_protocol_plan" => "follow companion protocol reading order",
         "collect_missing_evidence" => "inspect missing transitions before escalation",
         _ => "inspect the diagnosis spine",
+    }
+}
+
+fn debugger_posture_state(analysis: &AnalysisSnapshot) -> &'static str {
+    if !analysis.missing_transitions.is_empty()
+        || analysis.automation_outcome == "collect_more_evidence"
+        || analysis.evidence_posture == "missing_transition"
+    {
+        "needs_evidence"
+    } else if analysis.automation_outcome == "targeted_escalation"
+        || analysis.evidence_posture == "direct_protocol_signal"
+    {
+        "ready_to_escalate"
+    } else if analysis.automation_outcome == "multi_hypothesis"
+        || analysis.evidence_posture == "ambiguous_multi_hypothesis"
+    {
+        "needs_hypothesis_review"
+    } else if analysis.automation_outcome == "advisory_only" {
+        "advisory"
+    } else if analysis.target_status.label() == "healthy" {
+        "healthy"
+    } else {
+        "needs_human_review"
+    }
+}
+
+fn debugger_posture_confidence(analysis: &AnalysisSnapshot) -> &'static str {
+    match debugger_posture_state(analysis) {
+        "ready_to_escalate" => "high",
+        "needs_evidence" | "needs_hypothesis_review" => "medium",
+        "healthy" => "high",
+        _ => "low",
+    }
+}
+
+fn debugger_posture_action(analysis: &AnalysisSnapshot) -> &'static str {
+    match debugger_posture_state(analysis) {
+        "ready_to_escalate" => "escalate_protocol_signal",
+        "needs_evidence" => "collect_missing_runtime_evidence",
+        "needs_hypothesis_review" => "compare_competing_hypotheses",
+        "healthy" => "observe_stable_baseline",
+        "advisory" => "observe_only",
+        _ => "read_analysis_before_automation",
+    }
+}
+
+fn debugger_posture_reason(analysis: &AnalysisSnapshot) -> &'static str {
+    match debugger_posture_state(analysis) {
+        "ready_to_escalate" => "direct protocol evidence supports a targeted next step",
+        "needs_evidence" => "the current conclusion depends on missing runtime evidence",
+        "needs_hypothesis_review" => "multiple plausible explanations remain active",
+        "healthy" => "no debugger action is required for this target",
+        "advisory" => "the signal is useful but not strong enough for automation",
+        _ => "the debugger cannot narrow the conclusion without operator review",
     }
 }
 

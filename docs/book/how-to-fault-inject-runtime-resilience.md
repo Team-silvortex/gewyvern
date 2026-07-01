@@ -119,7 +119,7 @@ Then set:
 
 ```toml
 [external_engine]
-bin = "/absolute/path/to/failing-engine.sh"
+bin = "target/validation/gewyvern-fault-failing-engine.sh"
 ```
 
 For a quick recovery drill, you can also emit a healthy helper:
@@ -320,7 +320,7 @@ extract the resilience evidence and summarize the event counts:
 
 ```sh
 bash scripts/validation/runtime_resilience_log_evidence.sh \
-  /path/to/runtime.log \
+  target/validation/runtime.log \
   /tmp/gewyvern-resilience-evidence
 ```
 
@@ -341,7 +341,7 @@ use:
 ```sh
 bash scripts/validation/runtime_resilience_validation.sh \
   127.0.0.1:9910 \
-  /path/to/runtime.log \
+  target/validation/runtime.log \
   /tmp/gewyvern-resilience-validation
 ```
 

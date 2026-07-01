@@ -105,19 +105,19 @@ editor-oriented formatting detail.
 For exact inspection, use:
 
 ```bash
-cargo run -p gewyc -- explain /absolute/path/to/main.gewy --focus ir
+cargo run -p gewyc -- explain dsl/http_request_path.gewy --focus ir
 ```
 
 For machine-facing inspection, use:
 
 ```bash
-cargo run -p gewyc -- explain /absolute/path/to/main.gewy --focus ir --json
+cargo run -p gewyc -- explain dsl/http_request_path.gewy --focus ir --json
 ```
 
 For the deliberately compact archival form, use:
 
 ```bash
-cargo run --bin gewyc_ir_snapshot -- /absolute/path/to/main.gewy --json
+cargo run --bin gewyc_ir_snapshot -- dsl/http_request_path.gewy --json
 ```
 
 The focused IR view is the preferred surface when you need:
@@ -274,7 +274,7 @@ scripts/history/render_minor_line_ir_snapshot.sh \
 
 ## Stability Guidance
 
-For the `0.13.*` line and the current `0.15.x` maturity track, the intended
+For the `0.13.*` baseline and the current `0.19.x` maturity track, the intended
 practical stability is:
 
 - the existence of focused IR inspection is deliberate

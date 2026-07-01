@@ -52,12 +52,12 @@ Retirement rule:
 2. a later minor line may mark it `strictly_legacy`
 3. only after that should removal be considered
 
-For the current `0.17.*` line, the practical reading promise is:
+For the current `0.19.*` line, the practical reading promise is:
 
 - `blessed` fields are safe to adopt now
 - `compat` fields are safe to keep reading now
-- no field documented as `compat` on this page should be removed before at
-  least the `0.19.x` line
+- no field documented as `compat` on this page should be removed before an
+  intentional `0.20.x` freeze or later breaking-change review
 
 That is a planning floor, not a promise that every `compat` field will
 definitely survive all the way to `1.0.0`.

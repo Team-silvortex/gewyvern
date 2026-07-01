@@ -8,11 +8,15 @@ Current app shelves:
 
 - `apps/etragon`
   Diagnosis-partner sidecar for one nearby `gewyvern` runtime.
-  Current version: `0.1.0`.
 - `apps/leserpent`
   Cross-platform control plane for fleets of nearby runtimes and paired
   sidecars.
-  Current version: `0.1.9`.
+
+Versioning rule:
+
+- companion applications follow the root workspace release line
+- do not assign independent `etragon` or `leserpent` product versions unless
+  the repository deliberately re-splits their release cadence later
 
 Working rule:
 
