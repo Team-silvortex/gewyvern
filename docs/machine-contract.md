@@ -500,8 +500,10 @@ When `debug_session` is true, consumers can use:
 These compact surfaces do not replace `analysis.json`, `debugger-console.json`,
 or `protocol-reading.json`; they point at them in one ordered investigation view
 with recommended focus, failure spine, operator guidance, debugger posture, and
-next-step links. Treat `debugger_posture` as a derived reading shortcut, not as
-a replacement for the diagnosis spine:
+next-step links. Treat `debugger_posture` and `debugger_route` as derived
+reading shortcuts, not as replacements for the diagnosis spine.
+
+`debugger_posture` answers "how much should I trust the current conclusion?":
 
 - `healthy`
 - `ready_to_escalate`
@@ -509,6 +511,13 @@ a replacement for the diagnosis spine:
 - `needs_hypothesis_review`
 - `advisory`
 - `needs_human_review`
+
+`debugger_route` answers "which debugger surface should I open first?":
+
+- `primary_step`
+- `fallback_step`
+- `escalation_allowed`
+- `reason`
 
 ## Additive Contract: Augmentations
 

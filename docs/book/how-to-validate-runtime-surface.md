@@ -143,8 +143,9 @@ This check compares:
 
 The harness also writes `evidence-index.json` next to the raw case outputs. Use
 that file first when you want a compact map of which case produced which
-posture, guidance action, missing transition, and compiler-envelope status.
-Only open the raw JSON files after the index points you at the suspicious case.
+posture, `debugger_route`, guidance action, missing transition, and
+compiler-envelope status. Only open the raw JSON files after the index points
+you at the suspicious case.
 
 It also runs negative cases. The protocol negatives are valid inputs with
 missing evidence, so they must stay in `attention` /
@@ -167,7 +168,9 @@ debugger console, then adds the target links, failure spine, protocol-reading
 path, and next-step hints needed to continue the investigation without hunting
 through several endpoints first. Its `debugger_posture` object is the compact
 read: whether the target is healthy, ready to escalate, still missing evidence,
-or still ambiguous enough to need hypothesis review.
+or still ambiguous enough to need hypothesis review. Its `debugger_route`
+object is the UI-friendly route: the primary surface to open first, a fallback
+surface, and whether escalation is currently allowed.
 
 ## Step 5: Run The Registry Shelf, Not Just One Target
 

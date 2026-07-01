@@ -103,6 +103,16 @@ fn check_http_request(out_dir: &std::path::Path) -> Result<(), ValidationError> 
             "recommended_action",
         ],
         "observe_stable_baseline",
+    )?;
+    assert_eq_str(
+        &session,
+        &["recommended_focus", "debugger_route", "primary_step"],
+        "observe",
+    )?;
+    assert_eq_bool(
+        &session,
+        &["recommended_focus", "debugger_route", "escalation_allowed"],
+        false,
     )
 }
 
@@ -177,6 +187,16 @@ fn check_http_connect_denied(out_dir: &std::path::Path) -> Result<(), Validation
             "recommended_action",
         ],
         "collect_missing_runtime_evidence",
+    )?;
+    assert_eq_str(
+        &session,
+        &["recommended_focus", "debugger_route", "primary_step"],
+        "open_anomaly_flow",
+    )?;
+    assert_eq_bool(
+        &session,
+        &["recommended_focus", "debugger_route", "escalation_allowed"],
+        false,
     )?;
     assert_eq_bool(
         &envelope,
@@ -259,6 +279,16 @@ fn check_socks5_auth_connect_denied(out_dir: &std::path::Path) -> Result<(), Val
             "recommended_action",
         ],
         "collect_missing_runtime_evidence",
+    )?;
+    assert_eq_str(
+        &session,
+        &["recommended_focus", "debugger_route", "primary_step"],
+        "open_anomaly_flow",
+    )?;
+    assert_eq_bool(
+        &session,
+        &["recommended_focus", "debugger_route", "escalation_allowed"],
+        false,
     )
 }
 
@@ -436,6 +466,24 @@ fn indexed_runtime_case(
                 &["recommended_focus", "debugger_posture", "confidence"],
             ),
         },
+        "debugger_route": {
+            "primary_step": optional_string(
+                &session,
+                &["recommended_focus", "debugger_route", "primary_step"],
+            ),
+            "fallback_step": optional_string(
+                &session,
+                &["recommended_focus", "debugger_route", "fallback_step"],
+            ),
+            "escalation_allowed": optional_bool(
+                &session,
+                &["recommended_focus", "debugger_route", "escalation_allowed"],
+            ),
+            "reason": optional_string(
+                &session,
+                &["recommended_focus", "debugger_route", "reason"],
+            ),
+        },
         "envelope_status": envelope_status,
     }))
 }
@@ -479,4 +527,12 @@ fn optional_string(value: &Value, path: &[&str]) -> Option<String> {
         cursor = cursor.get(*key)?;
     }
     cursor.as_str().map(ToOwned::to_owned)
+}
+
+fn optional_bool(value: &Value, path: &[&str]) -> Option<bool> {
+    let mut cursor = value;
+    for key in path {
+        cursor = cursor.get(*key)?;
+    }
+    cursor.as_bool()
 }

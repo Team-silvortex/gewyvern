@@ -59,7 +59,16 @@ fn debug_session_text(outputs: &[(String, ExportBundle)], analyses: &[AnalysisSn
         text.push('/');
         text.push_str(&analysis.primary_failure_detail);
         text.push_str(" posture=");
-        text.push_str(debugger_posture_state(analysis));
+        let state = debugger_posture_state(analysis);
+        text.push_str(state);
+        text.push_str(" route=");
+        text.push_str(debugger_route_primary_step(state, name));
+        text.push_str(" escalation=");
+        text.push_str(if state == "ready_to_escalate" {
+            "true"
+        } else {
+            "false"
+        });
         text.push_str(" next=");
         text.push_str(&next_step_kinds(name, analysis).join(","));
     }
@@ -111,6 +120,8 @@ fn append_target_json(json: &mut String, name: &str, analysis: &AnalysisSnapshot
     append_json_string(json, &analysis.operator_guidance_summary);
     json.push_str("},\"debugger_posture\":");
     append_debugger_posture_json(json, analysis);
+    json.push_str(",\"debugger_route\":");
+    append_debugger_route_json(json, name, analysis);
     json.push_str(",\"first_missing_transition\":");
     match analysis.missing_transitions.first() {
         Some(value) => append_json_string(json, value),
@@ -174,6 +185,24 @@ fn append_debugger_posture_json(json: &mut String, analysis: &AnalysisSnapshot) 
     json.push('}');
 }
 
+fn append_debugger_route_json(json: &mut String, name: &str, analysis: &AnalysisSnapshot) {
+    let state = debugger_posture_state(analysis);
+    json.push('{');
+    json.push_str("\"primary_step\":");
+    append_json_string(json, debugger_route_primary_step(state, name));
+    json.push_str(",\"fallback_step\":");
+    append_json_string(json, debugger_route_fallback_step(state));
+    json.push_str(",\"escalation_allowed\":");
+    json.push_str(if state == "ready_to_escalate" {
+        "true"
+    } else {
+        "false"
+    });
+    json.push_str(",\"reason\":");
+    append_json_string(json, debugger_route_reason(state, analysis));
+    json.push('}');
+}
+
 fn next_step_kinds(name: &str, analysis: &AnalysisSnapshot) -> Vec<&'static str> {
     let mut steps = vec!["read_analysis"];
     if scan_target_protocol_entry(name).is_some() {
@@ -190,6 +219,42 @@ fn next_step_reason(step: &str) -> &'static str {
         "read_protocol_plan" => "follow companion protocol reading order",
         "collect_missing_evidence" => "inspect missing transitions before escalation",
         _ => "inspect the diagnosis spine",
+    }
+}
+
+fn debugger_route_primary_step(state: &str, name: &str) -> &'static str {
+    match state {
+        "healthy" => "observe",
+        "ready_to_escalate" => "open_protocol_reading",
+        "needs_evidence" => "open_anomaly_flow",
+        "needs_hypothesis_review" => "compare_hypotheses",
+        _ if scan_target_protocol_entry(name).is_some() => "open_protocol_reading",
+        _ => "open_analysis",
+    }
+}
+
+fn debugger_route_fallback_step(state: &str) -> &'static str {
+    match state {
+        "healthy" => "open_summary",
+        "ready_to_escalate" => "open_analysis",
+        "needs_evidence" => "open_analysis",
+        "needs_hypothesis_review" => "open_protocol_reading",
+        _ => "open_summary",
+    }
+}
+
+fn debugger_route_reason(state: &str, analysis: &AnalysisSnapshot) -> &'static str {
+    match state {
+        "healthy" => "target is stable; keep the baseline visible",
+        "ready_to_escalate" => {
+            "direct evidence is strong enough to follow protocol-specific reading"
+        }
+        "needs_evidence" if !analysis.missing_transitions.is_empty() => {
+            "missing transitions should be inspected before escalation"
+        }
+        "needs_evidence" => "runtime evidence is too thin for escalation",
+        "needs_hypothesis_review" => "competing hypotheses should be compared before action",
+        _ => "analysis is the safest shared starting point",
     }
 }
 

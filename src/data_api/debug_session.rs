@@ -110,6 +110,8 @@ fn append_debug_target_json(json: &mut String, name: &str, target: &ApiTargetSna
     json.push('}');
     json.push_str(",\"debugger_posture\":");
     append_debugger_posture_json(json, target, &summary);
+    json.push_str(",\"debugger_route\":");
+    append_debugger_route_json(json, name, &segment, target, &summary);
     json.push_str(",\"first_missing_transition\":");
     append_opt_json_string(json, summary.first_missing_transition.as_deref());
     json.push_str(",\"protocol_surface\":");
@@ -231,6 +233,55 @@ fn append_debugger_posture_json(
     json.push('}');
 }
 
+fn append_debugger_route_json(
+    json: &mut String,
+    name: &str,
+    segment: &str,
+    target: &ApiTargetSnapshot,
+    summary: &DebugSummary,
+) {
+    let state = debugger_posture_state(target, summary);
+    json.push('{');
+    let primary_path = debugger_route_primary_path(state, segment, target, summary);
+    let fallback_path = debugger_route_fallback_path(state, segment);
+    append_route_step(
+        json,
+        "primary_step",
+        debugger_route_primary_step(state, target, summary),
+        &primary_path,
+        false,
+    );
+    append_route_step(
+        json,
+        "fallback_step",
+        debugger_route_fallback_step(state),
+        &fallback_path,
+        true,
+    );
+    json.push_str(",\"escalation_allowed\":");
+    json.push_str(if state == "ready_to_escalate" {
+        "true"
+    } else {
+        "false"
+    });
+    json.push_str(",\"reason\":");
+    append_json_string(json, debugger_route_reason(state, name, target, summary));
+    json.push('}');
+}
+
+fn append_route_step(json: &mut String, field: &str, kind: &str, path: &str, comma: bool) {
+    if comma {
+        json.push(',');
+    }
+    json.push('"');
+    json.push_str(field);
+    json.push_str("\":{\"kind\":");
+    append_json_string(json, kind);
+    json.push_str(",\"path\":");
+    append_json_string(json, path);
+    json.push('}');
+}
+
 fn append_static_link(json: &mut String, name: &str, path: &str, comma: bool) {
     if comma {
         json.push(',');
@@ -325,6 +376,78 @@ fn debugger_posture_reason(target: &ApiTargetSnapshot, summary: &DebugSummary) -
         "healthy" => "no debugger action is required for this target",
         "advisory" => "the signal is useful but not strong enough for automation",
         _ => "the debugger cannot narrow the conclusion without operator review",
+    }
+}
+
+fn debugger_route_primary_step(
+    state: &str,
+    target: &ApiTargetSnapshot,
+    summary: &DebugSummary,
+) -> &'static str {
+    match state {
+        "healthy" => "observe",
+        "ready_to_escalate" => "open_protocol_reading",
+        "needs_evidence" if summary.first_missing_transition.is_some() => "open_anomaly_flow",
+        "needs_evidence" => "open_analysis",
+        "needs_hypothesis_review" => "compare_hypotheses",
+        _ if target.protocol_surface.is_some() => "open_protocol_reading",
+        _ => "open_analysis",
+    }
+}
+
+fn debugger_route_primary_path(
+    state: &str,
+    segment: &str,
+    target: &ApiTargetSnapshot,
+    summary: &DebugSummary,
+) -> String {
+    match debugger_route_primary_step(state, target, summary) {
+        "observe" => format!("/v1/latest/targets/{segment}/summary.json"),
+        "open_protocol_reading" => format!("/v1/latest/targets/{segment}/protocol-reading.json"),
+        "open_anomaly_flow" => format!("/v1/latest/targets/{segment}/anomaly-flow.json"),
+        "compare_hypotheses" => format!("/v1/latest/targets/{segment}/analysis.json"),
+        _ => format!("/v1/latest/targets/{segment}/analysis.json"),
+    }
+}
+
+fn debugger_route_fallback_step(state: &str) -> &'static str {
+    match state {
+        "healthy" => "open_analysis",
+        "ready_to_escalate" => "open_analysis",
+        "needs_evidence" => "open_analysis",
+        "needs_hypothesis_review" => "open_protocol_reading",
+        _ => "open_summary",
+    }
+}
+
+fn debugger_route_fallback_path(state: &str, segment: &str) -> String {
+    match debugger_route_fallback_step(state) {
+        "open_protocol_reading" => format!("/v1/latest/targets/{segment}/protocol-reading.json"),
+        "open_summary" => format!("/v1/latest/targets/{segment}/summary.json"),
+        _ => format!("/v1/latest/targets/{segment}/analysis.json"),
+    }
+}
+
+fn debugger_route_reason(
+    state: &str,
+    name: &str,
+    target: &ApiTargetSnapshot,
+    summary: &DebugSummary,
+) -> &'static str {
+    match state {
+        "healthy" => "target is stable; keep the baseline visible",
+        "ready_to_escalate" => {
+            "direct evidence is strong enough to follow protocol-specific reading"
+        }
+        "needs_evidence" if summary.first_missing_transition.is_some() => {
+            "missing transitions should be inspected before escalation"
+        }
+        "needs_evidence" => "runtime evidence is too thin for escalation",
+        "needs_hypothesis_review" => "competing hypotheses should be compared before action",
+        _ if target.protocol_surface.is_some() || name.starts_with("scan:") => {
+            "protocol reading is available but analysis remains the safe fallback"
+        }
+        _ => "analysis is the safest shared starting point",
     }
 }
 

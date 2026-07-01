@@ -28,17 +28,55 @@ pub(crate) fn infer_protocol_ir(program_flows: &[ProgramFlow]) -> Vec<ProtocolIr
     let mut inferred = Vec::new();
     for summary in protocol_summaries() {
         for entry in summary.entries {
-            let candidate = format!("{}_{}", summary.protocol, entry.mode.replace('-', "_"));
-            if !operations.remove(&candidate) {
-                continue;
-            }
+            let matched = operation_candidates(&summary.protocol, &entry.mode)
+                .into_iter()
+                .find(|candidate| operations.remove(candidate));
+            let Some(operation) = matched else { continue };
             if let Some(surface) = protocol_surface(&summary.protocol, &entry.mode) {
-                inferred.push(protocol_ir_from_surface(candidate, surface));
+                inferred.push(protocol_ir_from_surface(operation, surface));
             }
         }
     }
     inferred.sort_by(|left, right| left.operation.cmp(&right.operation));
     inferred
+}
+
+fn operation_candidates(protocol: &str, entry: &str) -> Vec<String> {
+    let canonical = format!("{}_{}", protocol, entry.replace('-', "_"));
+    let aliases = match (protocol, entry) {
+        ("dns", "udp") => &["dns_lookup"][..],
+        ("dns", "tcp") => &["dns_tcp_query"][..],
+        ("dns", "tcp-error") => &["dns_tcp_error"][..],
+        ("http", "response") => &["http_server_response"][..],
+        ("http", "connect") => &["http_connect_tunnel"][..],
+        ("http", "denied") => &["http_connect_denied"][..],
+        ("http", "auth-required") => &["http_connect_auth_required"][..],
+        ("http", "auth-tunnel") => &["http_connect_authenticated_tunnel"][..],
+        ("amqp", "start") => &["amqp_connection_start"][..],
+        ("amqp", "publish") => &["amqp_basic_publish"][..],
+        ("amqp", "consume") => &["amqp_basic_consume"][..],
+        ("amqp", "session") => &["amqp_publish_session"][..],
+        ("mysql", "connect") => &["mysql_connect"][..],
+        ("mysql", "query") => &["mysql_simple_query"][..],
+        ("mysql", "session") => &["mysql_query_session"][..],
+        ("mysql", "error") => &["mysql_query_error"][..],
+        ("postgres", "connect") => &["postgres_connect"][..],
+        ("postgres", "query") => &["postgres_simple_query"][..],
+        ("postgres", "session") => &["postgres_query_session"][..],
+        ("postgres", "error") => &["postgres_query_error"][..],
+        ("quic", "retry") => &["quic_retry_validation"][..],
+        ("quic", "close") => &["quic_close_observation"][..],
+        ("quic", "local-close") => &["quic_local_close_observation"][..],
+        ("http3", "close") => &["http3_close_observation"][..],
+        ("http3", "server-close") => &["http3_server_close_observation"][..],
+        ("otlp", "traces") => &["otlp_traces_export"][..],
+        ("otlp", "metrics") => &["otlp_metrics_export"][..],
+        ("otlp", "logs") => &["otlp_logs_export"][..],
+        _ => &[],
+    };
+    std::iter::once(canonical)
+        .chain(aliases.iter().map(|alias| (*alias).to_string()))
+        .collect()
 }
 
 pub(crate) fn protocol_ir_json(ir: &ProtocolIr) -> JsonValue {

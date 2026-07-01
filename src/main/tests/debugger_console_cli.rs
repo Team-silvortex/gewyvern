@@ -73,8 +73,11 @@ fn local_debug_session_renders_machine_and_human_views() {
     assert!(json.contains("\"recommended_focus\":{\"name\":\"scan:http:request\""));
     assert!(json.contains("\"failure_spine\":{"));
     assert!(json.contains("\"debugger_posture\":{"));
+    assert!(json.contains("\"debugger_route\":{"));
     assert!(json.contains("\"state\":\"healthy\""));
     assert!(json.contains("\"recommended_action\":\"observe_stable_baseline\""));
+    assert!(json.contains("\"primary_step\":\"observe\""));
+    assert!(json.contains("\"escalation_allowed\":false"));
     assert!(json.contains("\"next_steps\":["));
     assert!(json.contains("\"kind\":\"read_protocol_plan\""));
 
@@ -84,4 +87,6 @@ fn local_debug_session_renders_machine_and_human_views() {
     assert!(text.contains("debug_session: targets=1"));
     assert!(text.contains("focus: scan:http:request"));
     assert!(text.contains("posture=healthy"));
+    assert!(text.contains("route=observe"));
+    assert!(text.contains("escalation=false"));
 }

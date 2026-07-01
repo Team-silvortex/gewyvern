@@ -7,7 +7,7 @@ fn smtp_auth_denied_rules() =
   |> fragment(:tcp_state_fragment)
   |> fragment(:route_meta_fragment)
   |> fragment(:sock_lineage_fragment)
-  |> operation(:smtp_auth)
+  |> operation(:smtp_auth_denied)
   |> reason_model(:smtp_auth_denied_path_reason)
   |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
   |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)

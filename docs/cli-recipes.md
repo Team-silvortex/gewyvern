@@ -47,6 +47,8 @@ Use these when you want the shortest runtime proof that:
 - protocol registration still resolves
 - one built-in protocol path still works
 - the current sweep path still renders debug-session, machine, and HTML outputs
+- debug-session includes a conservative `debugger_route` for the next safe
+  surface to open
 - the debugger cross-check still agrees across runtime, console, and compiler
   envelope surfaces
 

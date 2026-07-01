@@ -158,8 +158,12 @@ fn debug_session_endpoint_unifies_focus_and_next_steps() {
     assert!(body.contains("\"failure_spine\":{"));
     assert!(body.contains("\"operator_guidance\":{"));
     assert!(body.contains("\"debugger_posture\":{"));
+    assert!(body.contains("\"debugger_route\":{"));
     assert!(body.contains("\"state\":\"needs_evidence\""));
     assert!(body.contains("\"recommended_action\":\"collect_missing_runtime_evidence\""));
+    assert!(body.contains("\"primary_step\":{\"kind\":\"open_anomaly_flow\""));
+    assert!(body.contains("/v1/latest/targets/scan:http3:request/anomaly-flow.json"));
+    assert!(body.contains("\"escalation_allowed\":false"));
     assert!(body.contains("\"kind\":\"read_protocol_plan\""));
     assert!(body.contains("\"kind\":\"collect_missing_evidence\""));
     assert!(body.contains("/v1/latest/targets/scan:http3:request/protocol-reading.json"));
@@ -188,6 +192,8 @@ fn target_debug_session_endpoint_returns_one_target_session() {
     assert!(body.contains("\"entry\":\"request\""));
     assert!(body.contains("\"state\":\"healthy\""));
     assert!(body.contains("\"recommended_action\":\"observe_stable_baseline\""));
+    assert!(body.contains("\"debugger_route\":{"));
+    assert!(body.contains("\"primary_step\":{\"kind\":\"observe\""));
     assert!(body.contains(
         "\"debug_session\":\"/v1/latest/targets/scan:http3:request/debug-session.json\""
     ));

@@ -83,9 +83,11 @@ shelf.
 Use `gewyvern_validate debugger-cross` when you want debugger confidence rather
 than only package confidence: the Rust-native harness cross-checks summary
 JSON, debugger-console JSON, debug-session `debugger_posture`, and `gewyc`
-envelope output, then writes `evidence-index.json` as the compact case map. It
-also runs negative cases that must stay in collect-more-evidence posture
-instead of pretending to be actionable. The legacy
+envelope output, then writes `evidence-index.json` as the compact case map.
+That index includes `debugger_route` so release review can see the safe next
+surface without opening every raw JSON file. It also runs negative cases that
+must stay in collect-more-evidence posture instead of pretending to be
+actionable. The legacy
 `scripts/validation/registry_validation.sh` and
 `scripts/validation/high_frequency_validation.sh` and
 `scripts/validation/debugger_cross_validation.sh` entrypoints are now thin
