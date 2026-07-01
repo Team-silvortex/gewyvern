@@ -1,0 +1,7 @@
+name=consul_kv
+version=0.18.2
+entry=main.gewy
+register.protocol=consul
+register.entry=kv
+register.aliases=consul-kv,consul_kv
+register.entry_aliases=key-value,key_value,kv-get,kv-put

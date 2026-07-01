@@ -1,0 +1,24 @@
+# gewyvern stable-subset protocol path
+
+fn otlp_traces_rules() =
+  let module_name = :otlp_traces_path
+  let traces_narrative = "static:observed OTLP trace export over gRPC or HTTP"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:otlp_traces_export)
+  |> reason_model(:otlp_traces_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_collector)
+  |> program_rule(predicate: "packet_observed:tcp:remote:https:local_to_remote:byte_at:3:0xff:0x01", stage: :packet_observed, narrative: ${traces_narrative}, dedupe: true, module: ${module_name}, phase: :send_trace_headers)
+  |> program_rule(predicate: "packet_observed:tcp:remote:https:local_to_remote:byte_at:3:0xff:0x00", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: false, module: ${module_name}, phase: :send_trace_batch)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_collector)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:https:local_to_remote:byte_at:3:0xff:0x01", key_event: :packet_observed, narrative: ${traces_narrative}, dedupe: true, module: ${module_name}, phase: :send_trace_headers)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:https:local_to_remote:byte_at:3:0xff:0x00", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: false, module: ${module_name}, phase: :send_trace_batch)
+
+template(:otlp_traces_path)
+|> window(duration_ms: 10000, lateness_ms: 300)
+|> use(:otlp_traces_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

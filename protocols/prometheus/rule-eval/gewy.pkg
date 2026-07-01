@@ -1,0 +1,7 @@
+name=prometheus_rule_eval
+version=0.18.2
+entry=main.gewy
+register.protocol=prometheus
+register.entry=rule-eval
+register.aliases=prometheus-rules,prom-rules,prometheus-rule-eval,prom_rule_eval
+register.entry_aliases=rules,rule_eval,alerts-state,alert-state

@@ -1,0 +1,7 @@
+name=consul_catalog
+version=0.18.2
+entry=main.gewy
+register.protocol=consul
+register.entry=catalog
+register.aliases=consul-catalog,consul_catalog
+register.entry_aliases=nodes,services,datacenters

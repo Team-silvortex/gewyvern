@@ -1,0 +1,7 @@
+name=consul_health
+version=0.18.2
+entry=main.gewy
+register.protocol=consul
+register.entry=health
+register.aliases=consul-health,consul_health
+register.entry_aliases=checks,check,health-service,health_service

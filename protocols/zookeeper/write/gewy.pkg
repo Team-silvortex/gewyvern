@@ -1,0 +1,7 @@
+name=zookeeper_write
+version=0.18.2
+entry=main.gewy
+register.protocol=zookeeper
+register.entry=write
+register.aliases=zk-write,zk_write,zookeeper-write,zookeeper_write
+register.entry_aliases=create,setdata,set-data,delete,mutation

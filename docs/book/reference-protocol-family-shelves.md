@@ -129,6 +129,41 @@ Then continue with:
   - [docs/book/reference-s3-object-read-surface.md](docs/book/reference-s3-object-read-surface.md)
   - [docs/book/reference-s3-object-write-surface.md](docs/book/reference-s3-object-write-surface.md)
 
+### OpenTelemetry OTLP
+
+- Hub:
+  [docs/book/reference-otlp-surface.md](docs/book/reference-otlp-surface.md)
+- Subpages:
+  - [docs/book/reference-otlp-collector-response-surface.md](docs/book/reference-otlp-collector-response-surface.md)
+  - [docs/book/reference-otlp-signal-export-surface.md](docs/book/reference-otlp-signal-export-surface.md)
+
+### Prometheus
+
+- Hub:
+  [docs/book/reference-prometheus-surface.md](docs/book/reference-prometheus-surface.md)
+- Subpages:
+  - [docs/book/reference-prometheus-alerting-surface.md](docs/book/reference-prometheus-alerting-surface.md)
+  - [docs/book/reference-prometheus-metrics-collection-surface.md](docs/book/reference-prometheus-metrics-collection-surface.md)
+  - [docs/book/reference-prometheus-query-surface.md](docs/book/reference-prometheus-query-surface.md)
+
+### Loki
+
+- Hub:
+  [docs/book/reference-loki-surface.md](docs/book/reference-loki-surface.md)
+- Subpages:
+  - [docs/book/reference-loki-log-ingest-surface.md](docs/book/reference-loki-log-ingest-surface.md)
+  - [docs/book/reference-loki-log-read-surface.md](docs/book/reference-loki-log-read-surface.md)
+  - [docs/book/reference-loki-ruler-surface.md](docs/book/reference-loki-ruler-surface.md)
+
+### Jaeger
+
+- Hub:
+  [docs/book/reference-jaeger-surface.md](docs/book/reference-jaeger-surface.md)
+- Subpages:
+  - [docs/book/reference-jaeger-sampling-surface.md](docs/book/reference-jaeger-sampling-surface.md)
+  - [docs/book/reference-jaeger-trace-ingest-surface.md](docs/book/reference-jaeger-trace-ingest-surface.md)
+  - [docs/book/reference-jaeger-trace-read-surface.md](docs/book/reference-jaeger-trace-read-surface.md)
+
 ### GRE
 
 - Hub:
@@ -352,6 +387,23 @@ Then continue with:
   - [docs/book/reference-etcd-health-surface.md](docs/book/reference-etcd-health-surface.md)
   - [docs/book/reference-etcd-kv-surface.md](docs/book/reference-etcd-kv-surface.md)
   - [docs/book/reference-etcd-stream-lifecycle-surface.md](docs/book/reference-etcd-stream-lifecycle-surface.md)
+
+### ZooKeeper
+
+- Hub:
+  [docs/book/reference-zookeeper-surface.md](docs/book/reference-zookeeper-surface.md)
+- Subpages:
+  - [docs/book/reference-zookeeper-session-surface.md](docs/book/reference-zookeeper-session-surface.md)
+  - [docs/book/reference-zookeeper-watch-surface.md](docs/book/reference-zookeeper-watch-surface.md)
+  - [docs/book/reference-zookeeper-znode-surface.md](docs/book/reference-zookeeper-znode-surface.md)
+
+### Consul
+
+- Hub:
+  [docs/book/reference-consul-surface.md](docs/book/reference-consul-surface.md)
+- Subpages:
+  - [docs/book/reference-consul-discovery-surface.md](docs/book/reference-consul-discovery-surface.md)
+  - [docs/book/reference-consul-state-surface.md](docs/book/reference-consul-state-surface.md)
 
 ### HTTP
 

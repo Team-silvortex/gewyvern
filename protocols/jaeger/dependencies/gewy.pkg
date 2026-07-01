@@ -1,0 +1,7 @@
+name=jaeger_dependencies
+version=0.18.2
+entry=main.gewy
+register.protocol=jaeger
+register.entry=dependencies
+register.aliases=jaeger-dependencies,jaeger_dependencies,service-dependencies
+register.entry_aliases=dependencies,service-graph,service_graph,dependency-graph

@@ -1,0 +1,7 @@
+name=zookeeper_connect
+version=0.18.2
+entry=main.gewy
+register.protocol=zookeeper
+register.entry=connect
+register.aliases=zk-connect,zk_connect,zookeeper-connect,zookeeper_connect
+register.entry_aliases=session,handshake,connect-request,connect_request

@@ -92,3 +92,57 @@ pub(super) const ETCD_PROFILE: ProtocolProfile = ProtocolProfile {
         },
     ],
 };
+
+pub(super) const ZOOKEEPER_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "zookeeper",
+    default_entry: "read",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "connect",
+            dsl_path: "dsl/zookeeper_connect_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "read",
+            dsl_path: "dsl/zookeeper_read_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "write",
+            dsl_path: "dsl/zookeeper_write_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "watch",
+            dsl_path: "dsl/zookeeper_watch_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "auth-denied",
+            dsl_path: "dsl/zookeeper_auth_denied_path.gewy",
+        },
+    ],
+};
+
+pub(super) const CONSUL_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "consul",
+    default_entry: "service",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "health",
+            dsl_path: "dsl/consul_health_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "catalog",
+            dsl_path: "dsl/consul_catalog_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "service",
+            dsl_path: "dsl/consul_service_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "kv",
+            dsl_path: "dsl/consul_kv_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "session",
+            dsl_path: "dsl/consul_session_path.gewy",
+        },
+    ],
+};

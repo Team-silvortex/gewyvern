@@ -1,0 +1,7 @@
+name=jaeger_sampling
+version=0.18.2
+entry=main.gewy
+register.protocol=jaeger
+register.entry=sampling
+register.aliases=jaeger-sampling,jaeger_sampling,sampling-strategy
+register.entry_aliases=sampling-strategies,sampling_strategies,strategy

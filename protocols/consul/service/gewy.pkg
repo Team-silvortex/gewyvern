@@ -1,0 +1,8 @@
+name=consul_service
+version=0.18.2
+entry=main.gewy
+register.protocol=consul
+register.entry=service
+register.default=true
+register.aliases=consul-agent,consul-service,consul_service,service-discovery
+register.entry_aliases=discover,resolve,service-health,service_health

@@ -1,0 +1,7 @@
+name=loki_rules
+version=0.18.2
+entry=main.gewy
+register.protocol=loki
+register.entry=rules
+register.aliases=loki-rules,loki_rules,loki-ruler
+register.entry_aliases=ruler,rule,rule-groups,rule_groups

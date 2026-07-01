@@ -1,0 +1,7 @@
+name=prometheus_query
+version=0.18.2
+entry=main.gewy
+register.protocol=prometheus
+register.entry=query
+register.aliases=prometheus-query,prom-query,promql,prometheus_query
+register.entry_aliases=query-range,query_range,instant-query,instant_query,api-query

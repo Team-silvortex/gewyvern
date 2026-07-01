@@ -1,0 +1,7 @@
+name=loki_tail
+version=0.18.2
+entry=main.gewy
+register.protocol=loki
+register.entry=tail
+register.aliases=loki-tail,loki_tail,log-tail
+register.entry_aliases=live-tail,live_tail,tail-stream,tail_stream

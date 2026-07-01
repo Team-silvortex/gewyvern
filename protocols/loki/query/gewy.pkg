@@ -1,0 +1,7 @@
+name=loki_query
+version=0.18.2
+entry=main.gewy
+register.protocol=loki
+register.entry=query
+register.aliases=loki-query,loki_query,logql,loki-range-query
+register.entry_aliases=query-range,query_range,instant-query,instant_query,log-query

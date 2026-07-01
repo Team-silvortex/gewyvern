@@ -1,0 +1,7 @@
+name=zookeeper_auth_denied
+version=0.18.2
+entry=main.gewy
+register.protocol=zookeeper
+register.entry=auth-denied
+register.aliases=zk-auth-denied,zk_auth_denied,zookeeper-auth-denied,zookeeper_auth_denied
+register.entry_aliases=noauth,authfailed,acl-denied,acl_denied

@@ -1,0 +1,20 @@
+# gewyvern stable-subset protocol path
+
+fn prometheus_rule_eval_rules() =
+  let module_name = :prometheus_rule_eval_path
+  let rule_narrative = "static:observed a Prometheus rule or alert evaluation API path"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:prometheus_rule_eval)
+  |> reason_model(:prometheus_rule_eval_path_reason)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_api)
+  |> program_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", stage: :packet_observed, narrative: ${rule_narrative}, dedupe: true, module: ${module_name}, phase: :read_rules)
+  |> program_rule(predicate: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_rule_state)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_api)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", key_event: :packet_observed, narrative: ${rule_narrative}, dedupe: true, module: ${module_name}, phase: :read_rules)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_rule_state)
+
+template(:prometheus_rule_eval_path)
+|> window(:default_5s)
+|> use(:prometheus_rule_eval_rules)

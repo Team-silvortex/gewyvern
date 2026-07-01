@@ -1,0 +1,7 @@
+name=jaeger_query
+version=0.18.2
+entry=main.gewy
+register.protocol=jaeger
+register.entry=query
+register.aliases=jaeger-query,jaeger_query,trace-query
+register.entry_aliases=trace-search,trace_search,traces,trace

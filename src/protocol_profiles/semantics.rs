@@ -4,6 +4,7 @@ mod discovery;
 mod identity;
 mod media;
 mod search_storage;
+mod telemetry;
 mod transport;
 
 use super::ProtocolEntrySemanticsSummary;
@@ -23,11 +24,17 @@ pub(super) fn built_in_protocol_entry_semantics(
         "dns" => discovery::dns_entry_semantics(entry),
         "elasticsearch" => search_storage::elasticsearch_entry_semantics(entry),
         "etcd" => search_storage::etcd_entry_semantics(entry),
+        "zookeeper" => search_storage::zookeeper_entry_semantics(entry),
+        "consul" => search_storage::consul_entry_semantics(entry),
         "http" => transport::http_entry_semantics(entry),
         "http3" => transport::http3_entry_semantics(entry),
         "grpc" => transport::grpc_entry_semantics(entry),
         "websocket" => transport::websocket_entry_semantics(entry),
         "graphql" => transport::graphql_entry_semantics(entry),
+        "otlp" => telemetry::otlp_entry_semantics(entry),
+        "prometheus" => telemetry::prometheus_entry_semantics(entry),
+        "loki" => telemetry::loki_entry_semantics(entry),
+        "jaeger" => telemetry::jaeger_entry_semantics(entry),
         "icmp" => transport::icmp_entry_semantics(entry),
         "icmpv6" => transport::icmpv6_entry_semantics(entry),
         "imap" => identity::imap_entry_semantics(entry),

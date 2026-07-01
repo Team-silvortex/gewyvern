@@ -194,6 +194,58 @@ pub(crate) fn etcd_shelf(entry: &str) -> Option<ShelfMatch> {
     }
 }
 
+pub(crate) fn zookeeper_shelf(entry: &str) -> Option<ShelfMatch> {
+    const SESSION: &[&str] = &["connect", "auth-denied"];
+    const DATA: &[&str] = &["read", "write"];
+    const WATCH: &[&str] = &["watch"];
+    if SESSION.contains(&entry) {
+        Some((
+            "session-auth",
+            "Session And Auth",
+            "docs/book/reference-zookeeper-session-surface.md",
+            SESSION,
+        ))
+    } else if DATA.contains(&entry) {
+        Some((
+            "znode-data",
+            "Znode Read And Write",
+            "docs/book/reference-zookeeper-znode-surface.md",
+            DATA,
+        ))
+    } else if WATCH.contains(&entry) {
+        Some((
+            "watch",
+            "Watch Delivery",
+            "docs/book/reference-zookeeper-watch-surface.md",
+            WATCH,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn consul_shelf(entry: &str) -> Option<ShelfMatch> {
+    const DISCOVERY: &[&str] = &["health", "catalog", "service"];
+    const STATE: &[&str] = &["kv", "session"];
+    if DISCOVERY.contains(&entry) {
+        Some((
+            "discovery-health",
+            "Discovery And Health",
+            "docs/book/reference-consul-discovery-surface.md",
+            DISCOVERY,
+        ))
+    } else if STATE.contains(&entry) {
+        Some((
+            "state-session",
+            "KV And Session State",
+            "docs/book/reference-consul-state-surface.md",
+            STATE,
+        ))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn mqtt_shelf(entry: &str) -> Option<ShelfMatch> {
     const SESSION: &[&str] = &["connect", "connack"];
     const PUBSUB: &[&str] = &["publish", "subscribe"];

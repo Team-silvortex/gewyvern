@@ -58,6 +58,17 @@ Entry aliases:
 - `post`: `coap-post`, `coap_post`, `create`, `write`
 - `put`: `coap-put`, `coap_put`, `replace`, `update`
 
+## `consul`
+
+Default entry: `service`
+Protocol aliases: `consul-agent`, `consul-catalog`, `consul-health`, `consul-kv`, `consul-service`, `consul-session`, `consul_catalog`, `consul_health`, `consul_kv`, `consul_service`, `consul_session`, `service-discovery`
+Entry aliases:
+- `service` (default): `consul-agent`, `consul-service`, `consul_service`, `discover`, `resolve`, `service-discovery`, `service-health`, `service_health`
+- `catalog`: `consul-catalog`, `consul_catalog`, `datacenters`, `nodes`, `services`
+- `health`: `check`, `checks`, `consul-health`, `consul_health`, `health-service`, `health_service`
+- `kv`: `consul-kv`, `consul_kv`, `key-value`, `key_value`, `kv-get`, `kv-put`
+- `session`: `consul-session`, `consul_session`, `create-session`, `create_session`, `destroy`, `lock`, `renew`
+
 ## `dhcp`
 
 Default entry: `client`
@@ -228,6 +239,17 @@ Entry aliases:
 - `esp` (default): `esp`, `ipsec-esp`, `ipsec_esp`, `secure-encapsulation`
 - `ah`: `ah`, `auth-header`, `authenticated-header`, `ipsec-ah`, `ipsec_ah`
 
+## `jaeger`
+
+Default entry: `collector`
+Protocol aliases: `jaeger`, `jaeger-agent`, `jaeger-agent-thrift`, `jaeger-collector`, `jaeger-dependencies`, `jaeger-query`, `jaeger-sampling`, `jaeger_agent`, `jaeger_agent_thrift`, `jaeger_collector`, `jaeger_dependencies`, `jaeger_query`, `jaeger_sampling`, `sampling-strategy`, `service-dependencies`, `trace-collector`, `trace-query`
+Entry aliases:
+- `collector` (default): `collector-grpc`, `collector-http`, `ingest`, `jaeger`, `jaeger-collector`, `jaeger_collector`, `span-ingest`, `span_ingest`, `trace-collector`
+- `agent-thrift`: `agent`, `compact-thrift`, `compact_thrift`, `jaeger-agent`, `jaeger-agent-thrift`, `jaeger_agent`, `jaeger_agent_thrift`, `udp-agent`, `udp_agent`
+- `dependencies`: `dependencies`, `dependency-graph`, `jaeger-dependencies`, `jaeger_dependencies`, `service-dependencies`, `service-graph`, `service_graph`
+- `query`: `jaeger-query`, `jaeger_query`, `trace`, `trace-query`, `trace-search`, `trace_search`, `traces`
+- `sampling`: `jaeger-sampling`, `jaeger_sampling`, `sampling-strategies`, `sampling-strategy`, `sampling_strategies`, `strategy`
+
 ## `kafka`
 
 Default entry: `metadata`
@@ -269,6 +291,17 @@ Entry aliases:
 - `search`: `directory`, `ldap-search`, `ldap_search`, `query`
 - `session`: `directory-session`, `ldap-session`, `ldap_session`
 - `write`: `ldap-write`, `ldap_write`
+
+## `loki`
+
+Default entry: `push`
+Protocol aliases: `log-push`, `log-tail`, `logql`, `logs-push`, `loki`, `loki-labels`, `loki-push`, `loki-query`, `loki-range-query`, `loki-ruler`, `loki-rules`, `loki-series`, `loki-tail`, `loki_labels`, `loki_push`, `loki_query`, `loki_rules`, `loki_tail`
+Entry aliases:
+- `push` (default): `ingest`, `ingestion`, `log-push`, `logs-push`, `loki`, `loki-push`, `loki_push`, `push-logs`, `push_logs`
+- `labels`: `label`, `label-values`, `label_values`, `loki-labels`, `loki-series`, `loki_labels`, `metadata`, `series`
+- `query`: `instant-query`, `instant_query`, `log-query`, `logql`, `loki-query`, `loki-range-query`, `loki_query`, `query-range`, `query_range`
+- `rules`: `loki-ruler`, `loki-rules`, `loki_rules`, `rule`, `rule-groups`, `rule_groups`, `ruler`
+- `tail`: `live-tail`, `live_tail`, `log-tail`, `loki-tail`, `loki_tail`, `tail-stream`, `tail_stream`
 
 ## `mdns`
 
@@ -375,6 +408,17 @@ Entry aliases:
 - `hello` (default): `neighbor-hello`, `ospf-hello`, `ospf_hello`
 - `dbdesc`: `database-description`, `db-description`, `dd`, `ospf-dbdesc`, `ospf_dbdesc`
 
+## `otlp`
+
+Default entry: `traces`
+Protocol aliases: `opentelemetry`, `otel`, `otel-error`, `otel-logs`, `otel-metrics`, `otel-partial`, `otel-traces`, `otlp`, `otlp-error`, `otlp-export-error`, `otlp-logs`, `otlp-metrics`, `otlp-partial-success`, `otlp-traces`, `otlp_export_error`, `otlp_logs`, `otlp_metrics`, `otlp_partial_success`, `otlp_traces`
+Entry aliases:
+- `traces` (default): `opentelemetry`, `otel`, `otel-traces`, `otlp`, `otlp-traces`, `otlp_traces`, `span`, `spans`, `trace`, `trace-export`, `trace_export`
+- `export-error`: `collector-error`, `error`, `export-failed`, `export_failed`, `otel-error`, `otlp-error`, `otlp-export-error`, `otlp_export_error`
+- `logs`: `events`, `log`, `log-export`, `log_export`, `otel-logs`, `otlp-logs`, `otlp_logs`
+- `metrics`: `metric`, `metric-export`, `metric_export`, `otel-metrics`, `otlp-metrics`, `otlp_metrics`, `timeseries`
+- `partial-success`: `dropped-items`, `dropped_items`, `otel-partial`, `otlp-partial-success`, `otlp_partial_success`, `partial`, `partial_success`
+
 ## `pop3`
 
 Default entry: `auth`
@@ -403,6 +447,17 @@ Protocol aliases: `pptp-control`, `pptp-data`, `pptp-gre`, `pptp-tunnel`, `pptp_
 Entry aliases:
 - `control` (default): `pptp-control`, `pptp-tunnel`, `pptp_control`, `pptp_tunnel`
 - `data`: `pptp-data`, `pptp-gre`, `pptp_data`, `pptp_gre`
+
+## `prometheus`
+
+Default entry: `scrape`
+Protocol aliases: `alertmanager`, `metrics-scrape`, `prom`, `prom-alertmanager`, `prom-query`, `prom-remote-write`, `prom-rules`, `prom-scrape`, `prom_remote_write`, `prom_rule_eval`, `prometheus`, `prometheus-alertmanager`, `prometheus-query`, `prometheus-remote-write`, `prometheus-rule-eval`, `prometheus-rules`, `prometheus-scrape`, `prometheus_query`, `prometheus_remote_write`, `promql`
+Entry aliases:
+- `scrape` (default): `metrics`, `metrics-endpoint`, `metrics-scrape`, `prom`, `prom-scrape`, `prometheus`, `prometheus-scrape`, `scrape-target`, `target-scrape`
+- `alertmanager`: `alert-post`, `alertmanager`, `alerts`, `notification`, `notify`, `prom-alertmanager`, `prometheus-alertmanager`
+- `query`: `api-query`, `instant-query`, `instant_query`, `prom-query`, `prometheus-query`, `prometheus_query`, `promql`, `query-range`, `query_range`
+- `remote-write`: `prom-remote-write`, `prom_remote_write`, `prometheus-remote-write`, `prometheus_remote_write`, `remote_write`, `samples`, `write`, `write-batch`
+- `rule-eval`: `alert-state`, `alerts-state`, `prom-rules`, `prom_rule_eval`, `prometheus-rule-eval`, `prometheus-rules`, `rule_eval`, `rules`
 
 ## `quic`
 
@@ -670,3 +725,14 @@ Entry aliases:
 - `handshake` (default): none
 - `cookie`: `cookie-reply`, `wireguard-cookie`, `wireguard_cookie`
 - `transport`: `data`, `session`, `wireguard-data`, `wireguard_data`
+
+## `zookeeper`
+
+Default entry: `read`
+Protocol aliases: `zk`, `zk-auth-denied`, `zk-connect`, `zk-read`, `zk-watch`, `zk-write`, `zk_auth_denied`, `zk_connect`, `zk_read`, `zk_watch`, `zk_write`, `zookeeper-auth-denied`, `zookeeper-client`, `zookeeper-connect`, `zookeeper-read`, `zookeeper-watch`, `zookeeper-write`, `zookeeper_auth_denied`, `zookeeper_connect`, `zookeeper_read`, `zookeeper_watch`, `zookeeper_write`
+Entry aliases:
+- `read` (default): `exists`, `get`, `get-children`, `get_children`, `getdata`, `zk`, `zk-read`, `zk_read`, `zookeeper-client`, `zookeeper-read`, `zookeeper_read`
+- `auth-denied`: `acl-denied`, `acl_denied`, `authfailed`, `noauth`, `zk-auth-denied`, `zk_auth_denied`, `zookeeper-auth-denied`, `zookeeper_auth_denied`
+- `connect`: `connect-request`, `connect_request`, `handshake`, `session`, `zk-connect`, `zk_connect`, `zookeeper-connect`, `zookeeper_connect`
+- `watch`: `set-watch`, `set_watch`, `setwatches`, `watch-event`, `watch_event`, `zk-watch`, `zk_watch`, `zookeeper-watch`, `zookeeper_watch`
+- `write`: `create`, `delete`, `mutation`, `set-data`, `setdata`, `zk-write`, `zk_write`, `zookeeper-write`, `zookeeper_write`

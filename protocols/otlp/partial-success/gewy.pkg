@@ -1,0 +1,7 @@
+name=otlp_partial_success
+version=0.18.2
+entry=main.gewy
+register.protocol=otlp
+register.entry=partial-success
+register.aliases=otlp-partial-success,otlp_partial_success,otel-partial
+register.entry_aliases=partial,partial_success,dropped-items,dropped_items

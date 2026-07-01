@@ -1,0 +1,1 @@
+include "../../../dsl/prometheus_scrape_path.gewy"

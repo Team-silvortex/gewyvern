@@ -1,0 +1,8 @@
+name=otlp_traces
+version=0.18.2
+entry=main.gewy
+register.protocol=otlp
+register.entry=traces
+register.default=true
+register.aliases=otlp,opentelemetry,otel,otlp-traces,otlp_traces,otel-traces
+register.entry_aliases=trace,trace-export,trace_export,span,spans

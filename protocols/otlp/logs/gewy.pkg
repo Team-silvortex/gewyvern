@@ -1,0 +1,7 @@
+name=otlp_logs
+version=0.18.2
+entry=main.gewy
+register.protocol=otlp
+register.entry=logs
+register.aliases=otlp-logs,otlp_logs,otel-logs
+register.entry_aliases=log,log-export,log_export,events

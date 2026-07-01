@@ -1,0 +1,7 @@
+name=loki_labels
+version=0.18.2
+entry=main.gewy
+register.protocol=loki
+register.entry=labels
+register.aliases=loki-labels,loki_labels,loki-series
+register.entry_aliases=label,series,label-values,label_values,metadata

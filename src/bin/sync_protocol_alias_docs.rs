@@ -4,6 +4,11 @@ use std::path::PathBuf;
 
 use gewyvern::protocol_profiles::{ProtocolSummary, protocol_summaries, protocol_surface};
 
+#[path = "sync_protocol_alias_docs/catalog.rs"]
+mod catalog;
+
+use catalog::{FAMILY_SHELF_ORDER, PROTOCOL_GROUPS, family_label};
+
 const ALIAS_BLOCK_START: &str = "<!-- gewyvern:entry-aliases:start -->";
 const ALIAS_BLOCK_END: &str = "<!-- gewyvern:entry-aliases:end -->";
 const FAMILY_SHELVES_BLOCK_START: &str = "<!-- gewyvern:family-shelves:start -->";
@@ -16,93 +21,6 @@ const PROTOCOL_SURFACE_OVERVIEW_BLOCK_END: &str = "<!-- gewyvern:protocol-surfac
 const PROTOCOL_SURFACE_PAGE: &str = "docs/book/reference-protocol-surface.md";
 const PROTOCOL_FAMILY_SHELVES_PAGE: &str = "docs/book/reference-protocol-family-shelves.md";
 const PROTOCOL_GROUPS_PAGE: &str = "docs/book/reference-protocol-groups.md";
-const PROTOCOL_GROUPS: &[ProtocolGroup] = &[
-    ProtocolGroup {
-        title: "Web, Proxy, And Request/Response",
-        families: &[
-            "http",
-            "https",
-            "http3",
-            "grpc",
-            "websocket",
-            "graphql",
-            "s3",
-            "socks5",
-        ],
-        fallback_links: &[],
-        note: None,
-    },
-    ProtocolGroup {
-        title: "Secure Transport And Session Setup",
-        families: &["quic", "tls", "hy2", "ipsec"],
-        fallback_links: &[],
-        note: None,
-    },
-    ProtocolGroup {
-        title: "Messaging, Queue, And Cache",
-        families: &["redis", "memcached", "mqtt", "amqp", "kafka", "nats"],
-        fallback_links: &[],
-        note: None,
-    },
-    ProtocolGroup {
-        title: "Database And Query",
-        families: &[
-            "postgres",
-            "mysql",
-            "mongodb",
-            "cassandra",
-            "mssql",
-            "elasticsearch",
-            "etcd",
-        ],
-        fallback_links: &[],
-        note: None,
-    },
-    ProtocolGroup {
-        title: "Mail And Mailbox",
-        families: &["smtp", "imap", "pop3"],
-        fallback_links: &[],
-        note: None,
-    },
-    ProtocolGroup {
-        title: "Identity, Directory, And Access",
-        families: &["ldap", "ssh", "kerberos", "radius", "smb", "rdp"],
-        fallback_links: &[],
-        note: None,
-    },
-    ProtocolGroup {
-        title: "Transport, Media, And Session Control",
-        families: &[
-            "stun",
-            "coap",
-            "dhcp",
-            "arp",
-            "bgp",
-            "icmp",
-            "icmpv6",
-            "ndp",
-            "ntp",
-            "ospf",
-            "gre",
-            "vxlan",
-            "geneve",
-            "l2tp",
-            "pptp",
-            "snmp",
-            "mdns",
-            "ssdp",
-            "gtpu",
-            "wireguard",
-            "dns",
-            "rtsp",
-            "sip",
-            "ftp",
-        ],
-        fallback_links: &[],
-        note: None,
-    },
-];
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let summaries = protocol_summaries();
@@ -389,71 +307,10 @@ fn family_shelf_sections(summaries: &[ProtocolSummary]) -> Vec<FamilyShelfSectio
         }
     }
 
-    let order = [
-        "redis",
-        "arp",
-        "bgp",
-        "coap",
-        "dhcp",
-        "ftp",
-        "grpc",
-        "websocket",
-        "graphql",
-        "s3",
-        "gre",
-        "vxlan",
-        "geneve",
-        "l2tp",
-        "pptp",
-        "gtpu",
-        "https",
-        "hy2",
-        "icmp",
-        "icmpv6",
-        "ipsec",
-        "kerberos",
-        "mdns",
-        "ndp",
-        "ntp",
-        "ospf",
-        "radius",
-        "smtp",
-        "mqtt",
-        "kafka",
-        "nats",
-        "ldap",
-        "postgres",
-        "mongodb",
-        "cassandra",
-        "mssql",
-        "elasticsearch",
-        "etcd",
-        "http",
-        "socks5",
-        "mysql",
-        "amqp",
-        "ssh",
-        "smb",
-        "rdp",
-        "rtsp",
-        "quic",
-        "dns",
-        "snmp",
-        "ssdp",
-        "stun",
-        "tls",
-        "wireguard",
-        "http3",
-        "imap",
-        "sip",
-        "pop3",
-        "memcached",
-    ];
-
-    order
+    FAMILY_SHELF_ORDER
         .into_iter()
         .filter_map(|protocol| {
-            let subpages = sections.remove(protocol)?;
+            let subpages = sections.remove(*protocol)?;
             Some(FamilyShelfSection {
                 label: family_label(protocol),
                 hub: family_hub_page(protocol),
@@ -461,67 +318,6 @@ fn family_shelf_sections(summaries: &[ProtocolSummary]) -> Vec<FamilyShelfSectio
             })
         })
         .collect()
-}
-
-fn family_label(protocol: &str) -> &'static str {
-    match protocol {
-        "redis" => "Redis",
-        "arp" => "ARP",
-        "bgp" => "BGP",
-        "coap" => "CoAP",
-        "dhcp" => "DHCP",
-        "http" => "HTTP",
-        "http3" => "HTTP/3",
-        "grpc" => "gRPC",
-        "websocket" => "WebSocket",
-        "graphql" => "GraphQL",
-        "s3" => "S3",
-        "ftp" => "FTP",
-        "smtp" => "SMTP",
-        "mqtt" => "MQTT",
-        "kafka" => "Kafka",
-        "nats" => "NATS",
-        "ldap" => "LDAP",
-        "kerberos" => "Kerberos",
-        "postgres" => "PostgreSQL",
-        "mysql" => "MySQL",
-        "mongodb" => "MongoDB",
-        "cassandra" => "Cassandra",
-        "mssql" => "SQL Server / TDS",
-        "elasticsearch" => "Elasticsearch / OpenSearch",
-        "etcd" => "etcd",
-        "gtpu" => "GTP-U",
-        "hy2" => "Hysteria2",
-        "icmp" => "ICMP",
-        "icmpv6" => "ICMPv6",
-        "ipsec" => "IPsec",
-        "amqp" => "AMQP",
-        "ssh" => "SSH",
-        "smb" => "SMB",
-        "rdp" => "RDP",
-        "rtsp" => "RTSP",
-        "dns" => "DNS",
-        "gre" => "GRE",
-        "vxlan" => "VXLAN",
-        "geneve" => "GENEVE",
-        "l2tp" => "L2TP",
-        "pptp" => "PPTP",
-        "mdns" => "mDNS",
-        "ndp" => "NDP",
-        "ntp" => "NTP",
-        "ospf" => "OSPF",
-        "radius" => "RADIUS",
-        "snmp" => "SNMP",
-        "ssdp" => "SSDP",
-        "stun" => "STUN",
-        "tls" => "TLS",
-        "wireguard" => "WireGuard",
-        "imap" => "IMAP",
-        "sip" => "SIP",
-        "pop3" => "POP3",
-        "memcached" => "Memcached",
-        _ => Box::leak(protocol.to_uppercase().into_boxed_str()),
-    }
 }
 
 fn sync_generated_block(
@@ -569,11 +365,4 @@ struct FamilyShelfSection {
     label: &'static str,
     hub: String,
     subpages: Vec<String>,
-}
-
-struct ProtocolGroup {
-    title: &'static str,
-    families: &'static [&'static str],
-    fallback_links: &'static [(&'static str, &'static str)],
-    note: Option<&'static str>,
 }

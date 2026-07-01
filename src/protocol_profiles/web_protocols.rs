@@ -169,3 +169,111 @@ pub(super) const S3_PROFILE: ProtocolProfile = ProtocolProfile {
         },
     ],
 };
+
+pub(super) const OTLP_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "otlp",
+    default_entry: "traces",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "traces",
+            dsl_path: "dsl/otlp_traces_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "metrics",
+            dsl_path: "dsl/otlp_metrics_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "logs",
+            dsl_path: "dsl/otlp_logs_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "partial-success",
+            dsl_path: "dsl/otlp_partial_success_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "export-error",
+            dsl_path: "dsl/otlp_export_error_path.gewy",
+        },
+    ],
+};
+
+pub(super) const PROMETHEUS_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "prometheus",
+    default_entry: "scrape",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "scrape",
+            dsl_path: "dsl/prometheus_scrape_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "remote-write",
+            dsl_path: "dsl/prometheus_remote_write_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "query",
+            dsl_path: "dsl/prometheus_query_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "alertmanager",
+            dsl_path: "dsl/prometheus_alertmanager_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "rule-eval",
+            dsl_path: "dsl/prometheus_rule_eval_path.gewy",
+        },
+    ],
+};
+
+pub(super) const LOKI_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "loki",
+    default_entry: "push",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "push",
+            dsl_path: "dsl/loki_push_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "query",
+            dsl_path: "dsl/loki_query_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "tail",
+            dsl_path: "dsl/loki_tail_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "labels",
+            dsl_path: "dsl/loki_labels_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "rules",
+            dsl_path: "dsl/loki_rules_path.gewy",
+        },
+    ],
+};
+
+pub(super) const JAEGER_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "jaeger",
+    default_entry: "collector",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "collector",
+            dsl_path: "dsl/jaeger_collector_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "agent-thrift",
+            dsl_path: "dsl/jaeger_agent_thrift_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "query",
+            dsl_path: "dsl/jaeger_query_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "sampling",
+            dsl_path: "dsl/jaeger_sampling_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "dependencies",
+            dsl_path: "dsl/jaeger_dependencies_path.gewy",
+        },
+    ],
+};

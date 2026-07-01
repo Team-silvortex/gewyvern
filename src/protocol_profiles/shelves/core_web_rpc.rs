@@ -111,3 +111,115 @@ pub(crate) fn s3_shelf(entry: &str) -> Option<ShelfMatch> {
         None
     }
 }
+
+pub(crate) fn otlp_shelf(entry: &str) -> Option<ShelfMatch> {
+    const SIGNAL_EXPORT: &[&str] = &["traces", "metrics", "logs"];
+    const COLLECTOR_RESPONSE: &[&str] = &["partial-success", "export-error"];
+    if SIGNAL_EXPORT.contains(&entry) {
+        Some((
+            "signal-export",
+            "Signal Export",
+            "docs/book/reference-otlp-signal-export-surface.md",
+            SIGNAL_EXPORT,
+        ))
+    } else if COLLECTOR_RESPONSE.contains(&entry) {
+        Some((
+            "collector-response",
+            "Collector Response",
+            "docs/book/reference-otlp-collector-response-surface.md",
+            COLLECTOR_RESPONSE,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn prometheus_shelf(entry: &str) -> Option<ShelfMatch> {
+    const COLLECTION: &[&str] = &["scrape", "remote-write"];
+    const QUERYING: &[&str] = &["query"];
+    const ALERTING: &[&str] = &["alertmanager", "rule-eval"];
+    if COLLECTION.contains(&entry) {
+        Some((
+            "metrics-collection",
+            "Metrics Collection",
+            "docs/book/reference-prometheus-metrics-collection-surface.md",
+            COLLECTION,
+        ))
+    } else if QUERYING.contains(&entry) {
+        Some((
+            "query-api",
+            "Query API",
+            "docs/book/reference-prometheus-query-surface.md",
+            QUERYING,
+        ))
+    } else if ALERTING.contains(&entry) {
+        Some((
+            "alerting",
+            "Alerting",
+            "docs/book/reference-prometheus-alerting-surface.md",
+            ALERTING,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn loki_shelf(entry: &str) -> Option<ShelfMatch> {
+    const INGEST: &[&str] = &["push"];
+    const READ: &[&str] = &["query", "tail", "labels"];
+    const RULER: &[&str] = &["rules"];
+    if INGEST.contains(&entry) {
+        Some((
+            "log-ingest",
+            "Log Ingest",
+            "docs/book/reference-loki-log-ingest-surface.md",
+            INGEST,
+        ))
+    } else if READ.contains(&entry) {
+        Some((
+            "log-read",
+            "Log Query And Metadata",
+            "docs/book/reference-loki-log-read-surface.md",
+            READ,
+        ))
+    } else if RULER.contains(&entry) {
+        Some((
+            "ruler",
+            "Ruler",
+            "docs/book/reference-loki-ruler-surface.md",
+            RULER,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn jaeger_shelf(entry: &str) -> Option<ShelfMatch> {
+    const INGEST: &[&str] = &["collector", "agent-thrift"];
+    const READ: &[&str] = &["query", "dependencies"];
+    const CONTROL: &[&str] = &["sampling"];
+    if INGEST.contains(&entry) {
+        Some((
+            "trace-ingest",
+            "Trace Ingest",
+            "docs/book/reference-jaeger-trace-ingest-surface.md",
+            INGEST,
+        ))
+    } else if READ.contains(&entry) {
+        Some((
+            "trace-read",
+            "Trace Query And Dependencies",
+            "docs/book/reference-jaeger-trace-read-surface.md",
+            READ,
+        ))
+    } else if CONTROL.contains(&entry) {
+        Some((
+            "sampling-control",
+            "Sampling Control",
+            "docs/book/reference-jaeger-sampling-surface.md",
+            CONTROL,
+        ))
+    } else {
+        None
+    }
+}

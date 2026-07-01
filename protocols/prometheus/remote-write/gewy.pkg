@@ -1,0 +1,7 @@
+name=prometheus_remote_write
+version=0.18.2
+entry=main.gewy
+register.protocol=prometheus
+register.entry=remote-write
+register.aliases=prometheus-remote-write,prom-remote-write,prometheus_remote_write,prom_remote_write
+register.entry_aliases=remote_write,write,write-batch,samples

@@ -1,0 +1,8 @@
+name=prometheus_scrape
+version=0.18.2
+entry=main.gewy
+register.protocol=prometheus
+register.entry=scrape
+register.default=true
+register.aliases=prometheus,prom,prom-scrape,prometheus-scrape,metrics-scrape
+register.entry_aliases=metrics,metrics-endpoint,scrape-target,target-scrape

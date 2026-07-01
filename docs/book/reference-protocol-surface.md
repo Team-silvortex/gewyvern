@@ -105,14 +105,15 @@ machine-facing protocol surface can also include:
 <!-- gewyvern:protocol-surface-overview:start -->
 ## Current Surface Snapshot
 
-- Built-in families: `58`
-- Built-in canonical entries: `313`
+- Built-in families: `64`
+- Built-in canonical entries: `343`
 - Family/default map:
   - `amqp` -> default `session` in cluster `cache-queue-stream` via [docs/book/reference-amqp-surface.md](docs/book/reference-amqp-surface.md)
   - `arp` -> default `request` in cluster `network-control-discovery` via [docs/book/reference-arp-surface.md](docs/book/reference-arp-surface.md)
   - `bgp` -> default `open` in cluster `network-control-discovery` via [docs/book/reference-bgp-surface.md](docs/book/reference-bgp-surface.md)
   - `cassandra` -> default `query` in cluster `database-query-session` via [docs/book/reference-cassandra-surface.md](docs/book/reference-cassandra-surface.md)
   - `coap` -> default `get` in cluster `network-control-discovery` via [docs/book/reference-coap-surface.md](docs/book/reference-coap-surface.md)
+  - `consul` -> default `service` in cluster `database-query-session` via [docs/book/reference-consul-surface.md](docs/book/reference-consul-surface.md)
   - `dhcp` -> default `client` in cluster `network-control-discovery` via [docs/book/reference-dhcp-surface.md](docs/book/reference-dhcp-surface.md)
   - `dns` -> default `udp` in cluster `network-control-discovery` via [docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md)
   - `elasticsearch` -> default `search` in cluster `database-query-session` via [docs/book/reference-elasticsearch-surface.md](docs/book/reference-elasticsearch-surface.md)
@@ -131,10 +132,12 @@ machine-facing protocol surface can also include:
   - `icmpv6` -> default `echo` in cluster `network-control-discovery` via [docs/book/reference-icmpv6-surface.md](docs/book/reference-icmpv6-surface.md)
   - `imap` -> default `auth` in cluster `mail-delivery-mailbox` via [docs/book/reference-imap-surface.md](docs/book/reference-imap-surface.md)
   - `ipsec` -> default `esp` in cluster `secure-transport-session` via [docs/book/reference-ipsec-surface.md](docs/book/reference-ipsec-surface.md)
+  - `jaeger` -> default `collector` in cluster `web-proxy-request-response` via [docs/book/reference-jaeger-surface.md](docs/book/reference-jaeger-surface.md)
   - `kafka` -> default `metadata` in cluster `cache-queue-stream` via [docs/book/reference-kafka-surface.md](docs/book/reference-kafka-surface.md)
   - `kerberos` -> default `as` in cluster `identity-directory-access` via [docs/book/reference-kerberos-surface.md](docs/book/reference-kerberos-surface.md)
   - `l2tp` -> default `control` in cluster `network-control-discovery` via [docs/book/reference-l2tp-surface.md](docs/book/reference-l2tp-surface.md)
   - `ldap` -> default `sync` in cluster `identity-directory-access` via [docs/book/reference-ldap-surface.md](docs/book/reference-ldap-surface.md)
+  - `loki` -> default `push` in cluster `web-proxy-request-response` via [docs/book/reference-loki-surface.md](docs/book/reference-loki-surface.md)
   - `mdns` -> default `query` in cluster `network-control-discovery` via [docs/book/reference-mdns-surface.md](docs/book/reference-mdns-surface.md)
   - `memcached` -> default `get` in cluster `cache-queue-stream` via [docs/book/reference-memcached-surface.md](docs/book/reference-memcached-surface.md)
   - `mongodb` -> default `command` in cluster `database-query-session` via [docs/book/reference-mongodb-surface.md](docs/book/reference-mongodb-surface.md)
@@ -145,9 +148,11 @@ machine-facing protocol surface can also include:
   - `ndp` -> default `solicit` in cluster `network-control-discovery` via [docs/book/reference-ndp-surface.md](docs/book/reference-ndp-surface.md)
   - `ntp` -> default `client` in cluster `network-control-discovery` via [docs/book/reference-ntp-surface.md](docs/book/reference-ntp-surface.md)
   - `ospf` -> default `hello` in cluster `network-control-discovery` via [docs/book/reference-ospf-surface.md](docs/book/reference-ospf-surface.md)
+  - `otlp` -> default `traces` in cluster `web-proxy-request-response` via [docs/book/reference-otlp-surface.md](docs/book/reference-otlp-surface.md)
   - `pop3` -> default `auth` in cluster `mail-delivery-mailbox` via [docs/book/reference-pop3-surface.md](docs/book/reference-pop3-surface.md)
   - `postgres` -> default `query` in cluster `database-query-session` via [docs/book/reference-postgres-surface.md](docs/book/reference-postgres-surface.md)
   - `pptp` -> default `control` in cluster `network-control-discovery` via [docs/book/reference-pptp-surface.md](docs/book/reference-pptp-surface.md)
+  - `prometheus` -> default `scrape` in cluster `web-proxy-request-response` via [docs/book/reference-prometheus-surface.md](docs/book/reference-prometheus-surface.md)
   - `quic` -> default `initial` in cluster `secure-transport-session` via [docs/book/reference-quic-surface.md](docs/book/reference-quic-surface.md)
   - `radius` -> default `access` in cluster `identity-directory-access` via [docs/book/reference-radius-surface.md](docs/book/reference-radius-surface.md)
   - `rdp` -> default `connect` in cluster `identity-directory-access` via [docs/book/reference-rdp-surface.md](docs/book/reference-rdp-surface.md)
@@ -166,6 +171,7 @@ machine-facing protocol surface can also include:
   - `vxlan` -> default `encap` in cluster `network-control-discovery` via [docs/book/reference-vxlan-surface.md](docs/book/reference-vxlan-surface.md)
   - `websocket` -> default `upgrade` in cluster `web-proxy-request-response` via [docs/book/reference-websocket-surface.md](docs/book/reference-websocket-surface.md)
   - `wireguard` -> default `handshake` in cluster `network-control-discovery` via [docs/book/reference-wireguard-surface.md](docs/book/reference-wireguard-surface.md)
+  - `zookeeper` -> default `read` in cluster `database-query-session` via [docs/book/reference-zookeeper-surface.md](docs/book/reference-zookeeper-surface.md)
 
 <!-- gewyvern:protocol-surface-overview:end -->
 

@@ -1,0 +1,7 @@
+name=consul_session
+version=0.18.2
+entry=main.gewy
+register.protocol=consul
+register.entry=session
+register.aliases=consul-session,consul_session
+register.entry_aliases=lock,renew,destroy,create-session,create_session

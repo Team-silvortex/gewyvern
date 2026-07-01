@@ -1,0 +1,8 @@
+name=zookeeper_read
+version=0.18.2
+entry=main.gewy
+register.protocol=zookeeper
+register.entry=read
+register.default=true
+register.aliases=zk,zookeeper-client,zk-read,zk_read,zookeeper-read,zookeeper_read
+register.entry_aliases=get,exists,getdata,get-children,get_children

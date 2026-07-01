@@ -1,0 +1,21 @@
+# gewyvern stable-subset protocol path
+
+fn jaeger_agent_thrift_rules() =
+  let module_name = :jaeger_agent_thrift_path
+  let agent_narrative = "static:observed a Jaeger agent compact-thrift UDP span packet"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:jaeger_agent_thrift)
+  |> reason_model(:jaeger_agent_thrift_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_agent)
+  |> program_rule(predicate: "datagram_observed:udp:local_to_remote", stage: :datagram_observed, narrative: ${agent_narrative}, dedupe: false, module: ${module_name}, phase: :send_agent_packet)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_agent)
+  |> reason_rule(predicate: "datagram_observed:udp:local_to_remote", key_event: :udp_datagram_seen, narrative: ${agent_narrative}, dedupe: false, module: ${module_name}, phase: :send_agent_packet)
+
+template(:jaeger_agent_thrift_path)
+|> window(duration_ms: 10000, lateness_ms: 300)
+|> use(:jaeger_agent_thrift_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

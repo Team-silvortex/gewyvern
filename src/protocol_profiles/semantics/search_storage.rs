@@ -112,3 +112,81 @@ pub(super) fn etcd_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
         Some("coordination_datastore_protocol_entry"),
     )
 }
+
+pub(super) fn zookeeper_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "connect" => (
+            "zookeeper-connect-path",
+            "ZooKeeper session connect handshake on the coordination service port",
+            Some("ConnectRequest on tcp/2181"),
+        ),
+        "read" => (
+            "zookeeper-read-path",
+            "ZooKeeper znode read request such as exists, getData, or getChildren",
+            Some("read opcode family"),
+        ),
+        "write" => (
+            "zookeeper-write-path",
+            "ZooKeeper znode mutation request such as create, setData, or delete",
+            Some("write opcode family"),
+        ),
+        "watch" => (
+            "zookeeper-watch-path",
+            "ZooKeeper watch registration or notification flow tied to session ordering",
+            Some("setWatches / watch event"),
+        ),
+        "auth-denied" => (
+            "zookeeper-auth-denied-path",
+            "ZooKeeper authorization or authentication denial on session or znode access",
+            Some("NoAuth/AuthFailed"),
+        ),
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("coordination_datastore_protocol_entry"),
+    )
+}
+
+pub(super) fn consul_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "health" => (
+            "consul-health-path",
+            "Consul health check query used to decide service availability",
+            Some("GET /v1/health"),
+        ),
+        "catalog" => (
+            "consul-catalog-path",
+            "Consul catalog lookup for nodes, services, and datacenters",
+            Some("GET /v1/catalog"),
+        ),
+        "service" => (
+            "consul-service-path",
+            "Consul service discovery query for resolving instances and tags",
+            Some("GET /v1/agent/service or /v1/health/service"),
+        ),
+        "kv" => (
+            "consul-kv-path",
+            "Consul KV read or write request used for lightweight coordination state",
+            Some("GET/PUT /v1/kv"),
+        ),
+        "session" => (
+            "consul-session-path",
+            "Consul session create, renew, destroy, or lock lifecycle flow",
+            Some("PUT /v1/session"),
+        ),
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("service_discovery_protocol_entry"),
+    )
+}

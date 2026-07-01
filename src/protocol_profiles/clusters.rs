@@ -9,16 +9,14 @@ type ClusterMatch = (
 
 pub(super) fn built_in_protocol_cluster_hint(protocol: &str) -> Option<ProtocolClusterHintSummary> {
     let (key, label, operator_hint, sibling_protocols) = match protocol {
-        "http" | "https" | "http3" | "grpc" | "websocket" | "graphql" | "s3" | "socks5" => {
-            web_proxy_cluster(protocol)?
-        }
+        "http" | "https" | "http3" | "grpc" | "websocket" | "graphql" | "s3" | "otlp"
+        | "prometheus" | "loki" | "jaeger" | "socks5" => web_proxy_cluster(protocol)?,
         "quic" | "tls" | "hy2" | "ipsec" => secure_transport_cluster(protocol)?,
         "redis" | "memcached" | "mqtt" | "amqp" | "kafka" | "nats" => {
             cache_queue_cluster(protocol)?
         }
-        "postgres" | "mysql" | "mongodb" | "cassandra" | "mssql" | "elasticsearch" | "etcd" => {
-            database_cluster(protocol)?
-        }
+        "postgres" | "mysql" | "mongodb" | "cassandra" | "mssql" | "elasticsearch" | "etcd"
+        | "zookeeper" | "consul" => database_cluster(protocol)?,
         "smtp" | "imap" | "pop3" => mail_cluster(protocol)?,
         "ldap" | "ssh" | "kerberos" | "radius" | "smb" | "rdp" => {
             identity_access_cluster(protocol)?
@@ -49,6 +47,10 @@ fn web_proxy_cluster(protocol: &str) -> Option<ClusterMatch> {
         "websocket",
         "graphql",
         "s3",
+        "otlp",
+        "prometheus",
+        "loki",
+        "jaeger",
         "socks5",
     ];
     siblings.contains(&protocol).then_some((
@@ -88,6 +90,8 @@ fn database_cluster(protocol: &str) -> Option<ClusterMatch> {
         "mssql",
         "elasticsearch",
         "etcd",
+        "zookeeper",
+        "consul",
     ];
     siblings.contains(&protocol).then_some((
         "database-query-session",

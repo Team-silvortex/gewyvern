@@ -1,0 +1,7 @@
+name=zookeeper_watch
+version=0.18.2
+entry=main.gewy
+register.protocol=zookeeper
+register.entry=watch
+register.aliases=zk-watch,zk_watch,zookeeper-watch,zookeeper_watch
+register.entry_aliases=set-watch,set_watch,setwatches,watch-event,watch_event

@@ -1,0 +1,20 @@
+# gewyvern stable-subset protocol path
+
+fn loki_labels_rules() =
+  let module_name = :loki_labels_path
+  let labels_narrative = "static:observed a Loki label or series metadata request"
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:route_meta_fragment)
+  |> operation(:loki_labels)
+  |> reason_model(:loki_labels_path_reason)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_loki)
+  |> program_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", stage: :packet_observed, narrative: ${labels_narrative}, dedupe: true, module: ${module_name}, phase: :send_metadata_query)
+  |> program_rule(predicate: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_metadata)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_loki)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", key_event: :packet_observed, narrative: ${labels_narrative}, dedupe: true, module: ${module_name}, phase: :send_metadata_query)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_metadata)
+
+template(:loki_labels_path)
+|> window(:default_5s)
+|> use(:loki_labels_rules)

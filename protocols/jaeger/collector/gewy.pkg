@@ -1,0 +1,8 @@
+name=jaeger_collector
+version=0.18.2
+entry=main.gewy
+register.protocol=jaeger
+register.entry=collector
+register.default=true
+register.aliases=jaeger,jaeger-collector,jaeger_collector,trace-collector
+register.entry_aliases=ingest,span-ingest,span_ingest,collector-http,collector-grpc

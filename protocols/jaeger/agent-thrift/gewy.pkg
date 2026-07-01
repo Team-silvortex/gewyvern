@@ -1,0 +1,7 @@
+name=jaeger_agent_thrift
+version=0.18.2
+entry=main.gewy
+register.protocol=jaeger
+register.entry=agent-thrift
+register.aliases=jaeger-agent,jaeger-agent-thrift,jaeger_agent,jaeger_agent_thrift
+register.entry_aliases=agent,compact-thrift,compact_thrift,udp-agent,udp_agent

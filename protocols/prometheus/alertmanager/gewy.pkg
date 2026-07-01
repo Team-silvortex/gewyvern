@@ -1,0 +1,7 @@
+name=prometheus_alertmanager
+version=0.18.2
+entry=main.gewy
+register.protocol=prometheus
+register.entry=alertmanager
+register.aliases=alertmanager,prometheus-alertmanager,prom-alertmanager
+register.entry_aliases=alerts,alert-post,notify,notification

@@ -1,0 +1,8 @@
+name=loki_push
+version=0.18.2
+entry=main.gewy
+register.protocol=loki
+register.entry=push
+register.default=true
+register.aliases=loki,loki-push,loki_push,log-push,logs-push
+register.entry_aliases=push-logs,push_logs,ingest,ingestion

@@ -1,0 +1,7 @@
+name=otlp_metrics
+version=0.18.2
+entry=main.gewy
+register.protocol=otlp
+register.entry=metrics
+register.aliases=otlp-metrics,otlp_metrics,otel-metrics
+register.entry_aliases=metric,metric-export,metric_export,timeseries

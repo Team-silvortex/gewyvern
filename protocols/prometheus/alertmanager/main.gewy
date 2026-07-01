@@ -1,0 +1,1 @@
+include "../../../dsl/prometheus_alertmanager_path.gewy"
