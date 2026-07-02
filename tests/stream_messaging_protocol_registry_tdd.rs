@@ -296,6 +296,19 @@ fn nats_sub_runtime_path_materializes_pubsub_stages() {
             .iter()
             .any(|stage| stage.phase.as_deref() == Some("receive_message"))
     );
+
+    let protocol_ir = export
+        .protocol_ir
+        .iter()
+        .find(|item| item.operation == "nats_sub")
+        .expect("nats sub should materialize protocol IR");
+    assert_eq!(protocol_ir.protocol, "nats");
+    assert_eq!(protocol_ir.entry, "sub");
+    assert_eq!(protocol_ir.shelf_key.as_deref(), Some("pubsub"));
+    assert_eq!(
+        protocol_ir.semantics_category.as_deref(),
+        Some("message-subscribe-path")
+    );
 }
 
 #[test]

@@ -63,6 +63,10 @@ fn redis_xadd_runtime_path_materializes_stream_ir() {
 
     let ir = protocol_ir(&export, "redis_xadd");
     assert_surface(ir, "redis", "xadd", "stream", "cache-queue-stream");
+    assert_eq!(
+        ir.semantics_category.as_deref(),
+        Some("redis-stream-append-path")
+    );
     assert_json_replay(&export);
 }
 
@@ -100,6 +104,10 @@ fn redis_zadd_runtime_path_materializes_sorted_set_ir() {
 
     let ir = protocol_ir(&export, "redis_zadd");
     assert_surface(ir, "redis", "zadd", "sorted-set", "cache-queue-stream");
+    assert_eq!(
+        ir.semantics_category.as_deref(),
+        Some("redis-sorted-set-write-path")
+    );
     assert_json_replay(&export);
 }
 

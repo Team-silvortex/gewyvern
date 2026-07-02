@@ -1,8 +1,46 @@
+mod redis;
+
 use super::common::{failure, summary};
 use crate::protocol_profiles::ProtocolEntrySemanticsSummary;
 
+pub(super) fn redis_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    redis::redis_entry_semantics(entry)
+}
+
 pub(super) fn mysql_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     match entry {
+        "connect" => summary(
+            "mysql-connect-path",
+            "MySQL initial handshake and capability negotiation before authentication",
+            Some("HandshakeV10 packet"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "auth" => summary(
+            "mysql-auth-path",
+            "MySQL authentication exchange accepted after client handshake response",
+            Some("Handshake Response + OK packet"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "query" => summary(
+            "mysql-query-path",
+            "MySQL COM_QUERY request followed by an OK or result-set response",
+            Some("COM_QUERY 0x03 + OK/result"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "session" => summary(
+            "mysql-query-session-path",
+            "MySQL authenticated session carrying one or more SQL query exchanges",
+            Some("auth OK + COM_QUERY"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
         "auth-denied" => failure(
             "database authentication rejection during MySQL handshake response evaluation",
             Some("ERR"),
@@ -21,6 +59,38 @@ pub(super) fn mysql_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantic
 
 pub(super) fn postgres_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     match entry {
+        "connect" => summary(
+            "postgres-connect-path",
+            "PostgreSQL startup message and server authentication negotiation",
+            Some("StartupMessage + Authentication request"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "auth" => summary(
+            "postgres-auth-path",
+            "PostgreSQL password exchange accepted before the session becomes ready",
+            Some("PasswordMessage + AuthenticationOk"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "query" => summary(
+            "postgres-query-path",
+            "PostgreSQL simple query message followed by ReadyForQuery",
+            Some("Query message 'Q' + ReadyForQuery 'Z'"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "session" => summary(
+            "postgres-query-session-path",
+            "PostgreSQL authenticated session carrying simple query exchanges",
+            Some("AuthenticationOk + Query + ReadyForQuery"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
         "auth-denied" => failure(
             "database authentication rejection after PostgreSQL password exchange",
             Some("ErrorResponse"),
@@ -181,121 +251,6 @@ pub(super) fn mssql_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantic
             )
         }
     }
-}
-
-pub(super) fn redis_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
-    let (operator_focus, typical_signal, failure_mode, failure_detail) = match entry {
-        "auth-required" => (
-            "authentication gate before command execution",
-            Some("-NOAUTH"),
-            Some("server_denied"),
-            Some("auth_required"),
-        ),
-        "auth-denied" => (
-            "credential rejection after AUTH",
-            Some("-WRONGPASS"),
-            Some("server_denied"),
-            Some("access_denied"),
-        ),
-        "error" => (
-            "generic command or request semantic failure",
-            Some("-ERR"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        "wrongtype" => (
-            "key-type mismatch against requested command",
-            Some("-WRONGTYPE"),
-            Some("semantic_error"),
-            Some("protocol_constraint_violation"),
-        ),
-        "busygroup" => (
-            "stream consumer-group creation conflict",
-            Some("-BUSYGROUP"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        "readonly" => (
-            "replica write refusal or readonly placement mismatch",
-            Some("-READONLY"),
-            Some("server_denied"),
-            Some("access_denied"),
-        ),
-        "noscript" => (
-            "server script cache miss before EVALSHA-style reuse",
-            Some("-NOSCRIPT"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        "moved" => (
-            "cluster slot redirect that requires target remap",
-            Some("-MOVED"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        "ask" => (
-            "temporary cluster redirect that expects ASKING on retry",
-            Some("-ASK"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        "tryagain" => (
-            "retry-needed transient cluster or script window",
-            Some("-TRYAGAIN"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        "loading" => (
-            "server warmup window before command acceptance",
-            Some("-LOADING"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        "crossslot" => (
-            "multi-key cluster slot mismatch",
-            Some("-CROSSSLOT"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        "clusterdown" => (
-            "cluster topology unavailable for routing",
-            Some("-CLUSTERDOWN"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        "masterdown" => (
-            "primary unavailable during failover window",
-            Some("-MASTERDOWN"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        "oom" => (
-            "memory policy refusal for write amplification",
-            Some("-OOM"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        "busy" => (
-            "Lua or long-running server-side script contention",
-            Some("-BUSY"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        "execabort" => (
-            "transaction abort before EXEC completion",
-            Some("-EXECABORT"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        "misconf" => (
-            "persistence or write-guard policy rejection",
-            Some("-MISCONF"),
-            Some("semantic_error"),
-            Some("protocol_error"),
-        ),
-        _ => return None,
-    };
-    failure(operator_focus, typical_signal, failure_mode, failure_detail)
 }
 
 pub(super) fn kafka_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {

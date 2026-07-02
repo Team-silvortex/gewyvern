@@ -186,3 +186,114 @@ pub(super) fn ssdp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
         None,
     )
 }
+
+pub(super) fn gtpu_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    if entry != "echo" {
+        return None;
+    }
+    summary(
+        "tunnel-liveness-path",
+        "GTP-U echo request and echo response validating user-plane tunnel reachability",
+        Some("GTP-U Echo Request 0x01 + Echo Response 0x02"),
+        None,
+        None,
+        Some("protocol_entry_signal"),
+    )
+}
+
+pub(super) fn coap_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "get" => (
+            "constrained-resource-read-path",
+            "CoAP GET request and content response for constrained resource reads",
+            Some("CoAP GET + 2.05 Content"),
+        ),
+        "post" => (
+            "constrained-resource-create-path",
+            "CoAP POST request and created response for constrained resource writes",
+            Some("CoAP POST + 2.01 Created"),
+        ),
+        "put" => (
+            "constrained-resource-update-path",
+            "CoAP PUT request and changed response for constrained resource updates",
+            Some("CoAP PUT + 2.04 Changed"),
+        ),
+        "delete" => (
+            "constrained-resource-delete-path",
+            "CoAP DELETE request and deleted response for constrained resource removal",
+            Some("CoAP DELETE + 2.02 Deleted"),
+        ),
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("protocol_entry_signal"),
+    )
+}
+
+pub(super) fn dhcp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "client" => (
+            "lease-client-path",
+            "DHCP client request and server reply posture on UDP ports 67/68",
+            Some("DHCP client/server datagrams"),
+        ),
+        "discover" => (
+            "lease-discovery-path",
+            "DHCP discover and offer exchange before a lease is requested",
+            Some("DHCPDISCOVER + DHCPOFFER"),
+        ),
+        "request" => (
+            "lease-request-path",
+            "DHCP request and acknowledgement exchange for lease acquisition or renewal",
+            Some("DHCPREQUEST + DHCPACK"),
+        ),
+        "nak" => (
+            "lease-denied-path",
+            "DHCP server rejected a requested lease with a negative acknowledgement",
+            Some("DHCPNAK"),
+        ),
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("protocol_entry_signal"),
+    )
+}
+
+pub(super) fn ntp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "client" => (
+            "time-client-path",
+            "NTP client exchange against a time server on UDP/123",
+            Some("client mode request + server mode response"),
+        ),
+        "query" => (
+            "time-query-path",
+            "NTP query probe and server response used for time reachability diagnostics",
+            Some("mode 3 request + mode 4 response"),
+        ),
+        "sync" => (
+            "time-sync-path",
+            "NTP synchronization-oriented request and response for clock discipline",
+            Some("synchronization request + response"),
+        ),
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("protocol_entry_signal"),
+    )
+}

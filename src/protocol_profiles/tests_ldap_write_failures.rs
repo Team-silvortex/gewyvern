@@ -55,5 +55,12 @@ fn ldap_write_failure_surfaces_expose_machine_readable_entry_semantics() {
     );
 
     let modify = protocol_surface("ldap", "modify").expect("ldap modify should exist");
-    assert!(modify.entry_semantics.is_none());
+    let modify_semantics = modify
+        .entry_semantics
+        .expect("ldap modify should expose positive modify semantics");
+    assert_eq!(modify_semantics.category, "directory-modify-path");
+    assert_eq!(
+        modify_semantics.operator_focus,
+        "LDAP modify request accepted by the directory server"
+    );
 }

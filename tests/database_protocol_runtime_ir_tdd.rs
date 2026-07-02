@@ -44,6 +44,10 @@ fn postgres_simple_query_runtime_path_keeps_legacy_operation_in_protocol_ir() {
     assert_eq!(ir.entry, "query");
     assert_eq!(ir.shelf_key.as_deref(), Some("query-session"));
     assert_eq!(ir.cluster_key.as_deref(), Some("database-query-session"));
+    assert_eq!(
+        ir.semantics_category.as_deref(),
+        Some("postgres-query-path")
+    );
 
     let replayed = ExportBundle::from_json(&export.to_json()).expect("export json should replay");
     assert_eq!(replayed.protocol_ir, export.protocol_ir);
@@ -74,6 +78,7 @@ fn mysql_simple_query_runtime_path_keeps_legacy_operation_in_protocol_ir() {
     assert_eq!(ir.entry, "query");
     assert_eq!(ir.shelf_key.as_deref(), Some("query-session"));
     assert_eq!(ir.cluster_key.as_deref(), Some("database-query-session"));
+    assert_eq!(ir.semantics_category.as_deref(), Some("mysql-query-path"));
 
     let replayed = ExportBundle::from_json(&export.to_json()).expect("export json should replay");
     assert_eq!(replayed.protocol_ir, export.protocol_ir);

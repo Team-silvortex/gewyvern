@@ -72,6 +72,13 @@ fn operation_candidates(protocol: &str, entry: &str) -> Vec<String> {
         ("otlp", "traces") => &["otlp_traces_export"][..],
         ("otlp", "metrics") => &["otlp_metrics_export"][..],
         ("otlp", "logs") => &["otlp_logs_export"][..],
+        ("ldap", "bind-denied") => &["ldap_bind_denied"][..],
+        ("ldap", "denied") => &["ldap_modify_denied"][..],
+        ("ldap", "constraint") => &["ldap_modify_constraint_violation"][..],
+        ("ldap", "session") => &["ldap_directory_session"][..],
+        ("ldap", "write") => &["ldap_directory_write_session"][..],
+        ("ldap", "sync") => &["ldap_directory_sync_session"][..],
+        ("ssh", "channel") => &["ssh_channel_session"][..],
         _ => &[],
     };
     std::iter::once(canonical)

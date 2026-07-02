@@ -3,6 +3,30 @@ use crate::protocol_profiles::ProtocolEntrySemanticsSummary;
 
 pub(super) fn http_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     match entry {
+        "connect" => summary(
+            "http-connect-tunnel-path",
+            "HTTP CONNECT tunnel establishment through an explicit proxy",
+            Some("CONNECT request + 200 tunnel response"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "authenticated-tunnel" => summary(
+            "http-connect-authenticated-tunnel-path",
+            "HTTP CONNECT tunnel established after proxy authentication",
+            Some("Proxy-Authorization + 200 tunnel response"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "auth-required" => summary(
+            "http-connect-auth-required-path",
+            "HTTP proxy demands credentials before opening a CONNECT tunnel",
+            Some("407 Proxy Authentication Required"),
+            Some("server_denied"),
+            Some("auth_required"),
+            Some("direct_protocol_signal"),
+        ),
         "denied" => failure(
             "proxy tunnel refusal after CONNECT policy evaluation",
             Some("403"),
@@ -157,6 +181,22 @@ pub(super) fn graphql_entry_semantics(entry: &str) -> Option<ProtocolEntrySemant
 
 pub(super) fn socks5_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     match entry {
+        "session" => summary(
+            "socks5-connect-path",
+            "SOCKS5 no-auth method selection followed by upstream CONNECT success",
+            Some("method 0x00 + reply 0x00"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "auth" => summary(
+            "socks5-auth-connect-path",
+            "SOCKS5 username/password authentication followed by CONNECT success",
+            Some("auth status 0x00 + reply 0x00"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
         "denied" => failure(
             "upstream connect refusal after no-auth method selection",
             None,
@@ -213,11 +253,35 @@ pub(super) fn rdp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsS
 
 pub(super) fn stun_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     match entry {
+        "binding" => summary(
+            "nat-binding-path",
+            "STUN binding request and success response for NAT reachability discovery",
+            Some("Binding Request + Binding Success Response"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
         "binding-error" => failure(
             "explicit binding failure response instead of successful reachability confirmation",
             None,
             Some("server_denied"),
             Some("access_denied"),
+        ),
+        "allocate" => summary(
+            "relay-allocation-path",
+            "TURN allocate request and success response for relay candidate setup",
+            Some("Allocate Request + Success Response"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "refresh" => summary(
+            "relay-refresh-path",
+            "TURN refresh request and success response for relay lifetime maintenance",
+            Some("Refresh Request + Success Response"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
         ),
         _ => None,
     }

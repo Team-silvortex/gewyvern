@@ -121,6 +121,77 @@ fn cassandra_error_runtime_path_materializes_failure_ir() {
     assert_json_replay(&export);
 }
 
+#[test]
+fn mssql_query_runtime_path_materializes_sql_batch_ir() {
+    let export = run_protocol_path(
+        "mssql_query_path.gewy",
+        0x5a31,
+        1433,
+        "sqlcmd",
+        &[(PacketDir::Egress, &[(0, 0x01)][..])],
+    );
+
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("mssql_query".into())
+    );
+    assert_stage(&export, "send_sql_batch");
+
+    let ir = protocol_ir(&export, "mssql_query");
+    assert_protocol_surface(ir, "mssql", "query", "session-query");
+    assert_eq!(ir.semantics_category.as_deref(), Some("mssql-query-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn mssql_done_runtime_path_materializes_completion_token_ir() {
+    let export = run_protocol_path(
+        "mssql_done_path.gewy",
+        0x5a32,
+        1433,
+        "sqlcmd",
+        &[(PacketDir::Ingress, &[(0, 0x04), (8, 0xfd)][..])],
+    );
+
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("mssql_done".into())
+    );
+    assert_stage(&export, "receive_done");
+
+    let ir = protocol_ir(&export, "mssql_done");
+    assert_protocol_surface(ir, "mssql", "done", "token");
+    assert_eq!(ir.semantics_category.as_deref(), Some("mssql-done-path"));
+    assert_eq!(
+        ir.typical_signal.as_deref(),
+        Some("DONE/DONEPROC/DONEINPROC token 0xfd/0xfe/0xff")
+    );
+    assert_json_replay(&export);
+}
+
+#[test]
+fn mssql_error_runtime_path_materializes_error_token_ir() {
+    let export = run_protocol_path(
+        "mssql_error_path.gewy",
+        0x5a33,
+        1433,
+        "sqlcmd",
+        &[(PacketDir::Ingress, &[(0, 0x04), (8, 0xaa)][..])],
+    );
+
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("mssql_error".into())
+    );
+    assert_stage(&export, "receive_error_token");
+
+    let ir = protocol_ir(&export, "mssql_error");
+    assert_protocol_surface(ir, "mssql", "error", "error");
+    assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
+    assert_eq!(ir.typical_signal.as_deref(), Some("ERROR token 0xaa"));
+    assert_json_replay(&export);
+}
+
 fn run_protocol_path(
     fixture: &str,
     cookie: u64,

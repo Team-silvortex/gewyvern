@@ -40,6 +40,10 @@ fn mqtt_publish_runtime_path_materializes_publish_and_puback_stages() {
     assert_eq!(ir.entry, "publish");
     assert_eq!(ir.shelf_key.as_deref(), Some("pubsub"));
     assert_eq!(ir.cluster_key.as_deref(), Some("cache-queue-stream"));
+    assert_eq!(
+        ir.semantics_category.as_deref(),
+        Some("message-publish-path")
+    );
 }
 
 #[test]
@@ -63,6 +67,10 @@ fn mqtt_subscribe_runtime_path_materializes_subscribe_and_suback_stages() {
     assert_eq!(ir.protocol, "mqtt");
     assert_eq!(ir.entry, "subscribe");
     assert_eq!(ir.shelf_key.as_deref(), Some("pubsub"));
+    assert_eq!(
+        ir.semantics_category.as_deref(),
+        Some("message-subscribe-path")
+    );
 }
 
 #[test]
@@ -88,6 +96,10 @@ fn mqtt_qos2_pubcomp_runtime_path_materializes_full_ack_ladder() {
     assert_eq!(ir.protocol, "mqtt");
     assert_eq!(ir.entry, "pubcomp");
     assert_eq!(ir.shelf_key.as_deref(), Some("qos2-teardown"));
+    assert_eq!(
+        ir.semantics_category.as_deref(),
+        Some("qos2-continuation-path")
+    );
 
     let replayed = ExportBundle::from_json(&export.to_json()).expect("export json should replay");
     assert_eq!(replayed.protocol_ir, export.protocol_ir);

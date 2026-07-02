@@ -73,5 +73,12 @@ fn mysql_auth_denied_surface_exposes_summary_aliases_and_semantics() {
     );
 
     let auth = protocol_surface("mysql", "auth").expect("mysql auth should exist");
-    assert!(auth.entry_semantics.is_none());
+    let auth_semantics = auth
+        .entry_semantics
+        .expect("mysql auth should expose accepted auth semantics");
+    assert_eq!(auth_semantics.category, "mysql-auth-path");
+    assert_eq!(
+        auth_semantics.operator_focus,
+        "MySQL authentication exchange accepted after client handshake response"
+    );
 }

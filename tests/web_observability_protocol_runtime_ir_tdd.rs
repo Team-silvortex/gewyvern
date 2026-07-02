@@ -162,6 +162,67 @@ fn otlp_traces_runtime_path_materializes_signal_export_ir_from_export_operation(
     assert_json_replay(&export);
 }
 
+#[test]
+fn loki_push_runtime_path_materializes_log_ingest_ir() {
+    let export = run_tcp_path(
+        "loki_push_path.gewy",
+        0x4c31,
+        80,
+        "promtail",
+        &[
+            (PacketDir::Egress, http_post()),
+            (PacketDir::Ingress, http_response()),
+        ],
+    );
+
+    assert_operation(&export, "loki_push");
+    assert_stage(&export, "send_log_batch");
+    assert_stage(&export, "receive_push_response");
+
+    let ir = protocol_ir(&export, "loki_push");
+    assert_surface(
+        ir,
+        "loki",
+        "push",
+        "log-ingest",
+        "web-proxy-request-response",
+    );
+    assert_eq!(ir.semantics_category.as_deref(), Some("loki-push-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn jaeger_collector_runtime_path_materializes_trace_ingest_ir() {
+    let export = run_tcp_path(
+        "jaeger_collector_path.gewy",
+        0x4a31,
+        80,
+        "jaeger-client",
+        &[
+            (PacketDir::Egress, http_post()),
+            (PacketDir::Ingress, http_response()),
+        ],
+    );
+
+    assert_operation(&export, "jaeger_collector");
+    assert_stage(&export, "send_spans");
+    assert_stage(&export, "receive_collector_response");
+
+    let ir = protocol_ir(&export, "jaeger_collector");
+    assert_surface(
+        ir,
+        "jaeger",
+        "collector",
+        "trace-ingest",
+        "web-proxy-request-response",
+    );
+    assert_eq!(
+        ir.semantics_category.as_deref(),
+        Some("jaeger-collector-path")
+    );
+    assert_json_replay(&export);
+}
+
 fn run_tcp_path(
     fixture: &str,
     cookie: u64,

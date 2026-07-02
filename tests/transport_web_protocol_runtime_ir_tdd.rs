@@ -46,6 +46,32 @@ fn dns_tcp_runtime_path_materializes_query_ir_from_legacy_operation() {
 }
 
 #[test]
+fn dns_tcp_error_runtime_path_materializes_name_resolution_failure_ir() {
+    let export = run_tcp_path(
+        "dns_tcp_error_path.gewy",
+        0xd054,
+        53,
+        "dig",
+        &[(PacketDir::Ingress, &[(4, 0x80), (5, 0x03)][..])],
+    );
+
+    assert_operation(&export, "dns_tcp_error");
+    assert_stage(&export, "receive_nxdomain");
+
+    let ir = protocol_ir(&export, "dns_tcp_error");
+    assert_surface(ir, "dns", "tcp-error", "error", "network-control-discovery");
+    assert_eq!(
+        ir.semantics_category.as_deref(),
+        Some("name-resolution-error")
+    );
+    assert_eq!(
+        ir.typical_signal.as_deref(),
+        Some("TCP DNS QR response with non-zero rcode")
+    );
+    assert_json_replay(&export);
+}
+
+#[test]
 fn tls_client_runtime_path_materializes_client_ir() {
     let export = run_tcp_path(
         "tls_client_path.gewy",
