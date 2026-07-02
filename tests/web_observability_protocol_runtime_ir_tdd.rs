@@ -131,6 +131,10 @@ fn prometheus_remote_write_runtime_path_materializes_collection_ir() {
         "metrics-collection",
         "web-proxy-request-response",
     );
+    assert_eq!(
+        ir.semantics_category.as_deref(),
+        Some("prometheus-remote-write-path")
+    );
     assert_json_replay(&export);
 }
 
@@ -158,6 +162,10 @@ fn otlp_traces_runtime_path_materializes_signal_export_ir_from_export_operation(
         "traces",
         "signal-export",
         "web-proxy-request-response",
+    );
+    assert_eq!(
+        ir.semantics_category.as_deref(),
+        Some("otlp-traces-export-path")
     );
     assert_json_replay(&export);
 }

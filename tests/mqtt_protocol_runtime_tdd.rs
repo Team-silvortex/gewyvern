@@ -38,7 +38,7 @@ fn mqtt_publish_runtime_path_materializes_publish_and_puback_stages() {
     let ir = protocol_ir(&export, "mqtt_publish");
     assert_eq!(ir.protocol, "mqtt");
     assert_eq!(ir.entry, "publish");
-    assert_eq!(ir.shelf_key.as_deref(), Some("pubsub"));
+    assert_eq!(ir.shelf_key.as_deref(), Some("publish"));
     assert_eq!(ir.cluster_key.as_deref(), Some("cache-queue-stream"));
     assert_eq!(
         ir.semantics_category.as_deref(),
@@ -66,7 +66,7 @@ fn mqtt_subscribe_runtime_path_materializes_subscribe_and_suback_stages() {
     let ir = protocol_ir(&export, "mqtt_subscribe");
     assert_eq!(ir.protocol, "mqtt");
     assert_eq!(ir.entry, "subscribe");
-    assert_eq!(ir.shelf_key.as_deref(), Some("pubsub"));
+    assert_eq!(ir.shelf_key.as_deref(), Some("subscribe"));
     assert_eq!(
         ir.semantics_category.as_deref(),
         Some("message-subscribe-path")

@@ -237,7 +237,7 @@ fn built_in_mqtt_summary_covers_qos2_and_teardown_entries() {
 }
 
 #[test]
-fn built_in_mqtt_summary_keeps_session_pubsub_and_qos2_aliases() {
+fn built_in_mqtt_summary_keeps_session_publish_subscribe_and_qos2_aliases() {
     let summary = built_in_protocol_summary("mqtt").expect("mqtt summary should exist");
     let entries = summary.entries;
 

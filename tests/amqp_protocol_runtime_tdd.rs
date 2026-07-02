@@ -40,7 +40,7 @@ fn amqp_publish_runtime_path_materializes_ack_and_protocol_ir() {
     assert_eq!(ir.protocol, "amqp");
     assert_eq!(ir.entry, "publish");
     assert_eq!(ir.cluster_key.as_deref(), Some("cache-queue-stream"));
-    assert_eq!(ir.shelf_key.as_deref(), Some("session-publish"));
+    assert_eq!(ir.shelf_key.as_deref(), Some("publish"));
     assert_eq!(ir.semantics_category.as_deref(), Some("amqp-publish-path"));
 }
 

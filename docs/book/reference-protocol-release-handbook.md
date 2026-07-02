@@ -12,18 +12,19 @@ Read this alongside:
 - [docs/book/reference-protocol-command-paths.md](docs/book/reference-protocol-command-paths.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
 - [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
-- [docs/release-checklist.md](docs/release-checklist.md)
+- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
 - [docs/field-validation.md](docs/field-validation.md)
 
 ## What This Page Is For
 
 Use this page when the question is:
 
-- “what protocol evidence should still exist before we call `0.17.x` green?”
+- “what protocol evidence should still exist before we call `0.19.x` green?”
 - “which checks are family-local, grouped, operator-facing, or release-facing?”
 - “how do I walk from one suspicious protocol family to a minor-line ship read?”
 
-## The `0.17.x` Protocol Gate
+## The `0.19.x` Protocol Gate
 
 Treat the current line as protocol-ready only when all of these stay true:
 
@@ -36,7 +37,7 @@ Treat the current line as protocol-ready only when all of these stay true:
 
 ## Minimum High-Frequency Family Checks
 
-These are the shortest family-level checks worth keeping alive in `0.17.x`:
+These are the shortest family-level checks worth keeping alive in `0.19.x`:
 
 ```bash
 cargo run -- --protocol http --entry request --json --summary-only
@@ -113,7 +114,7 @@ Use this layer when the real question is:
 
 - “did packaged protocol behavior survive?”
 - “does protocol evidence still survive `gewyvern + etragon + leserpent`?”
-- “is this good enough for a `0.17.x` ship read?”
+- “is this good enough for a `0.19.x` ship read?”
 
 ## Shortest Practical Release Routes
 

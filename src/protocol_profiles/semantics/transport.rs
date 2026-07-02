@@ -37,6 +37,20 @@ pub(super) fn http_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
     }
 }
 
+pub(super) fn https_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    match entry {
+        "connect" => summary(
+            "https-connect-path",
+            "HTTPS request setup on the remote 443/TLS path before deeper TLS posture review",
+            Some("TCP connect to HTTPS service followed by TLS client posture"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        _ => None,
+    }
+}
+
 pub(super) fn http3_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     match entry {
         "close" => failure(

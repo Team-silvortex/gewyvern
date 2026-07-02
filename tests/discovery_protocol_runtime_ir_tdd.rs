@@ -94,7 +94,7 @@ fn gtpu_echo_runtime_path_materializes_tunnel_liveness_ir() {
     assert_stage(&export, "receive_echo_response");
 
     let ir = protocol_ir(&export, "gtpu_echo");
-    assert_surface(ir, "gtpu", "echo", "echo", "network-control-discovery");
+    assert_surface(ir, "gtpu", "echo", "liveness", "network-control-discovery");
     assert_eq!(
         ir.semantics_category.as_deref(),
         Some("tunnel-liveness-path")

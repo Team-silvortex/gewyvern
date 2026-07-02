@@ -44,8 +44,8 @@ For those, use:
 
 ### 1. Registry Validation Is Fully Green
 
-The built-in protocol registry currently contains `90` package entries, and the
-entire scanned registry now passes:
+At that point, the built-in protocol registry contained `90` package entries,
+and the entire scanned registry passed:
 
 - machine-facing `gewyc envelope --json` validation
 - `gewyvern --scan-all --json --summary-only`

@@ -90,10 +90,10 @@ fn mssql_surface_exposes_database_cluster_shelves_and_semantics() {
     );
 
     for (entry, shelf_key) in [
-        ("prelogin", "session-query"),
-        ("login", "session-query"),
-        ("query", "session-query"),
-        ("response", "session-query"),
+        ("prelogin", "session-auth"),
+        ("login", "session-auth"),
+        ("query", "query-response"),
+        ("response", "query-response"),
         ("colmetadata", "token"),
         ("row", "token"),
         ("done", "token"),

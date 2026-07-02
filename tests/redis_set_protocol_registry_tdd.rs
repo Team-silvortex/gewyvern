@@ -1,5 +1,7 @@
 use gewyvern::dsl::compile_file;
-use gewyvern::protocol_profiles::{protocol_default_entry, protocol_dsl_path, protocol_entries};
+use gewyvern::protocol_profiles::{
+    protocol_default_entry, protocol_dsl_path, protocol_entries, protocol_surface,
+};
 
 fn dsl_fixture_path(name: &str) -> String {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -293,6 +295,22 @@ fn redis_default_entry_stays_ping_after_set_surface_additions() {
     assert!(entries.contains(&"zpopmin".to_string()));
     assert!(entries.contains(&"zpopmax".to_string()));
     assert!(entries.contains(&"zmpop".to_string()));
+
+    let sadd = protocol_surface("redis", "sadd").expect("redis sadd surface should exist");
+    assert_eq!(
+        sadd.shelf.expect("redis sadd shelf should exist").key,
+        "set"
+    );
+
+    let smembers =
+        protocol_surface("redis", "smembers").expect("redis smembers surface should exist");
+    assert_eq!(
+        smembers
+            .shelf
+            .expect("redis smembers shelf should exist")
+            .key,
+        "set"
+    );
 }
 
 #[test]

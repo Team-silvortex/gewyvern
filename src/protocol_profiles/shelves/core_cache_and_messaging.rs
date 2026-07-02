@@ -61,14 +61,22 @@ pub(crate) fn postgres_shelf(entry: &str) -> Option<ShelfMatch> {
 }
 
 pub(crate) fn mongodb_shelf(entry: &str) -> Option<ShelfMatch> {
-    const COMMAND_REPLY: &[&str] = &["command", "reply"];
+    const COMMAND: &[&str] = &["command"];
+    const REPLY: &[&str] = &["reply"];
     const LEGACY: &[&str] = &["legacy-query", "query-failure"];
-    if COMMAND_REPLY.contains(&entry) {
+    if COMMAND.contains(&entry) {
         Some((
-            "command-reply",
-            "Command And Reply",
+            "command",
+            "Command",
             "docs/book/reference-mongodb-command-surface.md",
-            COMMAND_REPLY,
+            COMMAND,
+        ))
+    } else if REPLY.contains(&entry) {
+        Some((
+            "reply",
+            "Reply",
+            "docs/book/reference-mongodb-reply-surface.md",
+            REPLY,
         ))
     } else if LEGACY.contains(&entry) {
         Some((
@@ -83,14 +91,22 @@ pub(crate) fn mongodb_shelf(entry: &str) -> Option<ShelfMatch> {
 }
 
 pub(crate) fn cassandra_shelf(entry: &str) -> Option<ShelfMatch> {
-    const SESSION_QUERY: &[&str] = &["startup", "authenticate", "query", "result"];
+    const SESSION_AUTH: &[&str] = &["startup", "authenticate"];
+    const QUERY_RESULT: &[&str] = &["query", "result"];
     const ERROR: &[&str] = &["error"];
-    if SESSION_QUERY.contains(&entry) {
+    if SESSION_AUTH.contains(&entry) {
         Some((
-            "session-query",
-            "Session And Query",
+            "session-auth",
+            "Session And Auth",
+            "docs/book/reference-cassandra-session-surface.md",
+            SESSION_AUTH,
+        ))
+    } else if QUERY_RESULT.contains(&entry) {
+        Some((
+            "query-result",
+            "Query And Result",
             "docs/book/reference-cassandra-query-surface.md",
-            SESSION_QUERY,
+            QUERY_RESULT,
         ))
     } else if ERROR.contains(&entry) {
         Some((
@@ -105,15 +121,23 @@ pub(crate) fn cassandra_shelf(entry: &str) -> Option<ShelfMatch> {
 }
 
 pub(crate) fn mssql_shelf(entry: &str) -> Option<ShelfMatch> {
-    const SESSION_QUERY: &[&str] = &["prelogin", "login", "query", "response"];
+    const SESSION_AUTH: &[&str] = &["prelogin", "login"];
+    const QUERY_RESPONSE: &[&str] = &["query", "response"];
     const TOKENS: &[&str] = &["colmetadata", "row", "done", "envchange"];
     const ERROR: &[&str] = &["error"];
-    if SESSION_QUERY.contains(&entry) {
+    if SESSION_AUTH.contains(&entry) {
         Some((
-            "session-query",
-            "Session And Query",
+            "session-auth",
+            "Session And Auth",
+            "docs/book/reference-mssql-session-surface.md",
+            SESSION_AUTH,
+        ))
+    } else if QUERY_RESPONSE.contains(&entry) {
+        Some((
+            "query-response",
+            "Query And Response",
             "docs/book/reference-mssql-query-surface.md",
-            SESSION_QUERY,
+            QUERY_RESPONSE,
         ))
     } else if TOKENS.contains(&entry) {
         Some((
@@ -248,7 +272,8 @@ pub(crate) fn consul_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn mqtt_shelf(entry: &str) -> Option<ShelfMatch> {
     const SESSION: &[&str] = &["connect", "connack"];
-    const PUBSUB: &[&str] = &["publish", "subscribe"];
+    const PUBLISH: &[&str] = &["publish"];
+    const SUBSCRIBE: &[&str] = &["subscribe"];
     const QOS2: &[&str] = &["pubrec", "pubrel", "pubcomp", "disconnect"];
     if SESSION.contains(&entry) {
         Some((
@@ -257,12 +282,19 @@ pub(crate) fn mqtt_shelf(entry: &str) -> Option<ShelfMatch> {
             "docs/book/reference-mqtt-session-surface.md",
             SESSION,
         ))
-    } else if PUBSUB.contains(&entry) {
+    } else if PUBLISH.contains(&entry) {
         Some((
-            "pubsub",
-            "Publish And Subscribe",
-            "docs/book/reference-mqtt-pubsub-surface.md",
-            PUBSUB,
+            "publish",
+            "Publish",
+            "docs/book/reference-mqtt-publish-surface.md",
+            PUBLISH,
+        ))
+    } else if SUBSCRIBE.contains(&entry) {
+        Some((
+            "subscribe",
+            "Subscribe",
+            "docs/book/reference-mqtt-subscribe-surface.md",
+            SUBSCRIBE,
         ))
     } else if QOS2.contains(&entry) {
         Some((
@@ -333,7 +365,8 @@ pub(crate) fn redis_shelf(entry: &str) -> Option<ShelfMatch> {
         "session", "ping", "get", "set", "incr", "decr", "mget", "mset", "exists", "del", "expire",
         "ttl", "pttl",
     ];
-    const PUBSUB: &[&str] = &["publish", "subscribe"];
+    const PUBLISH: &[&str] = &["publish"];
+    const SUBSCRIBE: &[&str] = &["subscribe"];
     const SET: &[&str] = &["sadd", "smembers"];
     const HASH: &[&str] = &["hget", "hset", "hmget", "hmset"];
     const LIST: &[&str] = &[
@@ -412,15 +445,27 @@ pub(crate) fn redis_shelf(entry: &str) -> Option<ShelfMatch> {
             "docs/book/reference-redis-kv-surface.md",
             KV,
         ))
-    } else if PUBSUB.contains(&entry) {
+    } else if PUBLISH.contains(&entry) {
         Some((
-            "pubsub",
-            "Publish And Subscribe",
-            "docs/book/reference-redis-surface.md",
-            PUBSUB,
+            "publish",
+            "Publish",
+            "docs/book/reference-redis-publish-surface.md",
+            PUBLISH,
+        ))
+    } else if SUBSCRIBE.contains(&entry) {
+        Some((
+            "subscribe",
+            "Subscribe",
+            "docs/book/reference-redis-subscribe-surface.md",
+            SUBSCRIBE,
         ))
     } else if SET.contains(&entry) {
-        Some(("set", "Set", "docs/book/reference-redis-surface.md", SET))
+        Some((
+            "set",
+            "Set",
+            "docs/book/reference-redis-set-surface.md",
+            SET,
+        ))
     } else if HASH.contains(&entry) {
         Some((
             "hash",

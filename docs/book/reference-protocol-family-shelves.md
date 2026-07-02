@@ -51,8 +51,11 @@ Then continue with:
   - [docs/book/reference-redis-hash-surface.md](docs/book/reference-redis-hash-surface.md)
   - [docs/book/reference-redis-kv-surface.md](docs/book/reference-redis-kv-surface.md)
   - [docs/book/reference-redis-list-surface.md](docs/book/reference-redis-list-surface.md)
+  - [docs/book/reference-redis-publish-surface.md](docs/book/reference-redis-publish-surface.md)
+  - [docs/book/reference-redis-set-surface.md](docs/book/reference-redis-set-surface.md)
   - [docs/book/reference-redis-sorted-set-surface.md](docs/book/reference-redis-sorted-set-surface.md)
   - [docs/book/reference-redis-stream-surface.md](docs/book/reference-redis-stream-surface.md)
+  - [docs/book/reference-redis-subscribe-surface.md](docs/book/reference-redis-subscribe-surface.md)
 
 ### ARP
 
@@ -204,12 +207,14 @@ Then continue with:
 - Hub:
   [docs/book/reference-gtpu-surface.md](docs/book/reference-gtpu-surface.md)
 - Subpages:
+  - [docs/book/reference-gtpu-liveness-surface.md](docs/book/reference-gtpu-liveness-surface.md)
 
 ### HTTPS
 
 - Hub:
   [docs/book/reference-https-surface.md](docs/book/reference-https-surface.md)
 - Subpages:
+  - [docs/book/reference-https-connect-surface.md](docs/book/reference-https-connect-surface.md)
 
 ### Hysteria2
 
@@ -258,6 +263,9 @@ Then continue with:
 - Hub:
   [docs/book/reference-mdns-surface.md](docs/book/reference-mdns-surface.md)
 - Subpages:
+  - [docs/book/reference-mdns-probe-surface.md](docs/book/reference-mdns-probe-surface.md)
+  - [docs/book/reference-mdns-query-surface.md](docs/book/reference-mdns-query-surface.md)
+  - [docs/book/reference-mdns-response-surface.md](docs/book/reference-mdns-response-surface.md)
 
 ### NDP
 
@@ -306,17 +314,19 @@ Then continue with:
 - Hub:
   [docs/book/reference-mqtt-surface.md](docs/book/reference-mqtt-surface.md)
 - Subpages:
-  - [docs/book/reference-mqtt-pubsub-surface.md](docs/book/reference-mqtt-pubsub-surface.md)
+  - [docs/book/reference-mqtt-publish-surface.md](docs/book/reference-mqtt-publish-surface.md)
   - [docs/book/reference-mqtt-qos2-surface.md](docs/book/reference-mqtt-qos2-surface.md)
   - [docs/book/reference-mqtt-session-surface.md](docs/book/reference-mqtt-session-surface.md)
+  - [docs/book/reference-mqtt-subscribe-surface.md](docs/book/reference-mqtt-subscribe-surface.md)
 
 ### Kafka
 
 - Hub:
   [docs/book/reference-kafka-surface.md](docs/book/reference-kafka-surface.md)
 - Subpages:
+  - [docs/book/reference-kafka-fetch-surface.md](docs/book/reference-kafka-fetch-surface.md)
   - [docs/book/reference-kafka-metadata-surface.md](docs/book/reference-kafka-metadata-surface.md)
-  - [docs/book/reference-kafka-stream-surface.md](docs/book/reference-kafka-stream-surface.md)
+  - [docs/book/reference-kafka-produce-surface.md](docs/book/reference-kafka-produce-surface.md)
 
 ### NATS
 
@@ -324,8 +334,9 @@ Then continue with:
   [docs/book/reference-nats-surface.md](docs/book/reference-nats-surface.md)
 - Subpages:
   - [docs/book/reference-nats-error-surface.md](docs/book/reference-nats-error-surface.md)
-  - [docs/book/reference-nats-pubsub-surface.md](docs/book/reference-nats-pubsub-surface.md)
+  - [docs/book/reference-nats-publish-surface.md](docs/book/reference-nats-publish-surface.md)
   - [docs/book/reference-nats-session-surface.md](docs/book/reference-nats-session-surface.md)
+  - [docs/book/reference-nats-subscribe-surface.md](docs/book/reference-nats-subscribe-surface.md)
 
 ### LDAP
 
@@ -351,6 +362,7 @@ Then continue with:
   [docs/book/reference-mongodb-surface.md](docs/book/reference-mongodb-surface.md)
 - Subpages:
   - [docs/book/reference-mongodb-command-surface.md](docs/book/reference-mongodb-command-surface.md)
+  - [docs/book/reference-mongodb-reply-surface.md](docs/book/reference-mongodb-reply-surface.md)
   - [docs/book/reference-mongodb-legacy-query-surface.md](docs/book/reference-mongodb-legacy-query-surface.md)
 
 ### Cassandra
@@ -360,6 +372,7 @@ Then continue with:
 - Subpages:
   - [docs/book/reference-cassandra-error-surface.md](docs/book/reference-cassandra-error-surface.md)
   - [docs/book/reference-cassandra-query-surface.md](docs/book/reference-cassandra-query-surface.md)
+  - [docs/book/reference-cassandra-session-surface.md](docs/book/reference-cassandra-session-surface.md)
 
 ### SQL Server / TDS
 
@@ -368,6 +381,7 @@ Then continue with:
 - Subpages:
   - [docs/book/reference-mssql-error-surface.md](docs/book/reference-mssql-error-surface.md)
   - [docs/book/reference-mssql-query-surface.md](docs/book/reference-mssql-query-surface.md)
+  - [docs/book/reference-mssql-session-surface.md](docs/book/reference-mssql-session-surface.md)
   - [docs/book/reference-mssql-token-surface.md](docs/book/reference-mssql-token-surface.md)
 
 ### Elasticsearch / OpenSearch
@@ -438,6 +452,7 @@ Then continue with:
   [docs/book/reference-amqp-surface.md](docs/book/reference-amqp-surface.md)
 - Subpages:
   - [docs/book/reference-amqp-consume-surface.md](docs/book/reference-amqp-consume-surface.md)
+  - [docs/book/reference-amqp-publish-surface.md](docs/book/reference-amqp-publish-surface.md)
   - [docs/book/reference-amqp-session-surface.md](docs/book/reference-amqp-session-surface.md)
   - [docs/book/reference-amqp-start-surface.md](docs/book/reference-amqp-start-surface.md)
 
@@ -516,6 +531,8 @@ Then continue with:
 - Hub:
   [docs/book/reference-ssdp-surface.md](docs/book/reference-ssdp-surface.md)
 - Subpages:
+  - [docs/book/reference-ssdp-discovery-surface.md](docs/book/reference-ssdp-discovery-surface.md)
+  - [docs/book/reference-ssdp-notify-surface.md](docs/book/reference-ssdp-notify-surface.md)
 
 ### STUN
 
@@ -663,16 +680,20 @@ usually be justified by at least one of these conditions:
 
 In other words, we should now prefer workflow value over raw entry count.
 
-## Families We Should Probably Not Split Yet
+## Families We Should Keep Compact Unless Workflow Demands More
 
-The following families should usually stay as protocol-surface entries only for
-now, unless their entry count or operator ambiguity grows:
+Small families can still earn a subpage when that subpage names a real
+debugging decision. Recent examples include HTTPS connect, GTP-U liveness,
+mDNS query/probe/response, and SSDP discovery/notify.
 
-- smaller families such as `tls`, `wireguard`, `stun`, `radius`, `ntp`,
-  `mdns`, `https`, `gtpu`, `vxlan`, `geneve`, `l2tp`, `pptp`, `dhcp`, `coap`,
-  `ssdp`, and `snmp`
-- three-entry families such as `kerberos` and `hy2`,
-  unless a user-facing workflow starts depending on them heavily
+The following families should usually stay compact unless a new entry creates a
+clear operator fork:
 
-Those smaller families remain covered by
-[docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md).
+- single-purpose families where one shelf already answers the operator
+  question
+- mature small families where the existing subpages already map cleanly to the
+  runtime phases
+- families whose extra pages would only restate the hub instead of reducing
+  lookup friction
+
+The rule is: split for a sharper debugging decision, not for raw entry count.

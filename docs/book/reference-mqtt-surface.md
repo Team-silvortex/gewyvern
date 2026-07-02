@@ -7,7 +7,8 @@ This shelf groups the current MQTT coverage into three narrower operator-facing
 surfaces:
 
 - connect/session establishment
-- publish and subscribe message flow
+- publish message flow
+- subscribe message flow
 - QoS2 continuation and teardown
 
 ## What This Shelf Covers
@@ -42,14 +43,22 @@ Typical entries:
 - `connect`
 - `connack`
 
-### Publish And Subscribe
+### Publish
 
-- [docs/book/reference-mqtt-pubsub-surface.md](docs/book/reference-mqtt-pubsub-surface.md)
-  One-shot publish acknowledgement and subscription acknowledgement flow.
+- [docs/book/reference-mqtt-publish-surface.md](docs/book/reference-mqtt-publish-surface.md)
+  One-shot publish acknowledgement flow.
 
 Typical entries:
 
 - `publish`
+
+### Subscribe
+
+- [docs/book/reference-mqtt-subscribe-surface.md](docs/book/reference-mqtt-subscribe-surface.md)
+  Subscription acknowledgement flow.
+
+Typical entries:
+
 - `subscribe`
 
 ### QoS2 And Teardown

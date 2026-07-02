@@ -11,7 +11,8 @@ lookup path stays predictable as the protocol family grows.
 The current Redis surface is organized by operator intent:
 
 - session and key-value traffic
-- publish and subscribe traffic
+- channel publish traffic
+- channel subscribe traffic
 - set membership traffic
 - hash field reads and writes
 - list push/pop/move flows
@@ -79,22 +80,28 @@ Typical entries:
 - `hmget`
 - `hmset`
 
-### Publish And Subscribe
+### Publish
 
-- [docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md)
-  Channel publish and subscribe flow, kept on the family hub until a narrower
-  pub/sub subpage is warranted.
+- [docs/book/reference-redis-publish-surface.md](docs/book/reference-redis-publish-surface.md)
+  Channel publish flow.
 
 Typical entries:
 
 - `publish`
+
+### Subscribe
+
+- [docs/book/reference-redis-subscribe-surface.md](docs/book/reference-redis-subscribe-surface.md)
+  Channel subscribe and delivery flow.
+
+Typical entries:
+
 - `subscribe`
 
 ### Set
 
-- [docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md)
-  Set member addition and full member listing, kept on the family hub until a
-  narrower set subpage is warranted.
+- [docs/book/reference-redis-set-surface.md](docs/book/reference-redis-set-surface.md)
+  Set member addition and full member listing.
 
 Typical entries:
 

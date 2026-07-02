@@ -32,14 +32,22 @@ Typical entries:
 
 - `connect`
 
-### Publish And Subscribe
+### Publish
 
-- [docs/book/reference-nats-pubsub-surface.md](docs/book/reference-nats-pubsub-surface.md)
-  Subject publish, subscribe, and message delivery.
+- [docs/book/reference-nats-publish-surface.md](docs/book/reference-nats-publish-surface.md)
+  Subject publish from writers.
 
 Typical entries:
 
 - `pub`
+
+### Subscribe
+
+- [docs/book/reference-nats-subscribe-surface.md](docs/book/reference-nats-subscribe-surface.md)
+  Subject subscription and message delivery.
+
+Typical entries:
+
 - `sub`
 
 ### Error

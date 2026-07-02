@@ -35,7 +35,7 @@ pub(crate) fn https_shelf(entry: &str) -> Option<ShelfMatch> {
         Some((
             "connect",
             "Connect",
-            "docs/book/reference-https-surface.md",
+            "docs/book/reference-https-connect-surface.md",
             CONNECT,
         ))
     } else {

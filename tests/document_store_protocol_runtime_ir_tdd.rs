@@ -39,7 +39,7 @@ fn mongodb_command_runtime_path_materializes_command_ir() {
     assert_stage(&export, "send_op_msg");
 
     let ir = protocol_ir(&export, "mongodb_command");
-    assert_protocol_surface(ir, "mongodb", "command", "command-reply");
+    assert_protocol_surface(ir, "mongodb", "command", "command");
     assert_eq!(
         ir.semantics_category.as_deref(),
         Some("mongodb-command-path")
@@ -90,7 +90,7 @@ fn cassandra_query_runtime_path_materializes_query_ir() {
     assert_stage(&export, "send_query");
 
     let ir = protocol_ir(&export, "cassandra_query");
-    assert_protocol_surface(ir, "cassandra", "query", "session-query");
+    assert_protocol_surface(ir, "cassandra", "query", "query-result");
     assert_eq!(
         ir.semantics_category.as_deref(),
         Some("cassandra-query-path")
@@ -138,7 +138,7 @@ fn mssql_query_runtime_path_materializes_sql_batch_ir() {
     assert_stage(&export, "send_sql_batch");
 
     let ir = protocol_ir(&export, "mssql_query");
-    assert_protocol_surface(ir, "mssql", "query", "session-query");
+    assert_protocol_surface(ir, "mssql", "query", "query-response");
     assert_eq!(ir.semantics_category.as_deref(), Some("mssql-query-path"));
     assert_json_replay(&export);
 }

@@ -172,6 +172,10 @@ fn smtp_session_runtime_path_materializes_banner_and_ehlo_stages() {
     assert_eq!(protocol_ir.protocol, "smtp");
     assert_eq!(protocol_ir.entry, "session");
     assert_eq!(protocol_ir.shelf_key.as_deref(), Some("session-auth"));
+    assert_eq!(
+        protocol_ir.semantics_category.as_deref(),
+        Some("mail-submit-session-path")
+    );
 
     let replayed = ExportBundle::from_json(&export.to_json()).expect("export json should replay");
     assert_eq!(replayed.protocol_ir, export.protocol_ir);

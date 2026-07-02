@@ -1,12 +1,12 @@
-# Reference: Kafka Stream Surface
+# Reference: Kafka Produce Surface
 
-Use this page for Kafka request paths that read or write records through a
-broker.
+Use this page for Kafka write paths that publish records into broker topic
+partitions.
 
 For the broader family map, see
 [docs/book/reference-kafka-surface.md](docs/book/reference-kafka-surface.md).
 
-## Canonical Entries
+## Canonical Entry
 
 ### `produce`
 
@@ -24,41 +24,29 @@ Intent:
 - observe a Produce API request
 - observe the broker response
 
-### `fetch`
+## Runtime Shape
 
-Aliases:
+The produce path emits these phases when evidence exists:
 
-- `kafka-fetch`
-- `kafka_fetch`
-- `consume`
-- `broker-read`
-- `topic-read`
-
-Intent:
-
-- resolve the broker route
-- observe a Fetch API request
-- observe the broker response
+1. `resolve_broker`
+2. `send_produce_request`
+3. `receive_produce_response`
 
 ## Operator Reading Order
 
-Start with `metadata` when topology is uncertain, then choose `produce` or
-`fetch` based on whether the workload is writing or consuming topic data.
+Start with `metadata` when topology is uncertain, then use `produce` when the
+workload writes topic data but acknowledgements, routing, or broker visibility
+are unclear.
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases
 
 This generated block tracks the aliases that currently resolve into this custom surface.
 
-- `broker-read`
 - `broker-write`
-- `consume`
-- `kafka-fetch`
 - `kafka-produce`
-- `kafka_fetch`
 - `kafka_produce`
 - `produce`
-- `topic-read`
 - `topic-write`
 
 <!-- gewyvern:entry-aliases:end -->

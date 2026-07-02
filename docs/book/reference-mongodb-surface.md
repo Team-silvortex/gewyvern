@@ -11,7 +11,7 @@ Navigation: [protocol surface](docs/book/reference-protocol-surface.md), [IR low
 ## Entries
 
 - [`command`](docs/book/reference-mongodb-command-surface.md) tracks modern `OP_MSG` command traffic.
-- [`reply`](docs/book/reference-mongodb-command-surface.md) tracks `OP_MSG` and legacy `OP_REPLY` response traffic.
+- [`reply`](docs/book/reference-mongodb-reply-surface.md) tracks `OP_MSG` and legacy `OP_REPLY` response traffic.
 - [`legacy-query`](docs/book/reference-mongodb-legacy-query-surface.md) tracks older `OP_QUERY` request traffic.
 - [`query-failure`](docs/book/reference-mongodb-legacy-query-surface.md) tracks legacy `OP_REPLY` QueryFailure responses.
 

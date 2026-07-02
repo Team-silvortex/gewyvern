@@ -1,52 +1,47 @@
-# Reference: AMQP Session Surface
+# Reference: AMQP Publish Surface
 
-Use this page when you need the current exact lookup surface for AMQP session
-setup flow.
+Use this page when you need the current exact lookup surface for AMQP publish
+and acknowledgement flow.
 
 Family hub: [AMQP surface](docs/book/reference-amqp-surface.md)
 
 ## Canonical Entry
 
-### `session`
+### `publish`
 
 Aliases:
 
-- `connect`
+- `send`
 
 Protocol aliases:
 
-- `amqp-session`
-- `amqp_session`
+- `amqp-publish`
+- `amqp_publish`
 
 Intent:
 
-- establish the AMQP socket
-- send the protocol header
-- receive `start`
-- send `start-ok`
-- open broker connection or channel state before message transfer
+- operate over an established AMQP session
+- send `basic.publish` traffic
+- observe broker acknowledgement
 
 ## Response Shape
 
 1. process binding
 2. route resolution
 3. AMQP socket connect and establish
-4. optional start negotiation
-5. connection or channel opening readiness
-
-`session` keeps the broader broker session framing. Use the sibling
-[AMQP publish surface](docs/book/reference-amqp-publish-surface.md) when the
-question is specifically about `basic.publish` and broker acknowledgement.
+4. publish send
+5. acknowledgement receive
 
 ## Operator Reading Order
 
-If you are reviewing AMQP session coverage, read it in this order:
+If you are reviewing AMQP publish coverage, read it in this order:
 
 1. `start`
 2. `session`
+3. `publish`
 
-That sequence keeps negotiation context in front of the reusable broker session
-path.
+That sequence keeps negotiation and session context in front of the narrower
+publish path.
 
 ## Validation Surface
 
@@ -66,8 +61,8 @@ For the broader family map, see
 
 This generated block tracks the aliases that currently resolve into this custom surface.
 
-- `amqp-session`
-- `amqp_session`
-- `connect`
+- `amqp-publish`
+- `amqp_publish`
+- `send`
 
 <!-- gewyvern:entry-aliases:end -->

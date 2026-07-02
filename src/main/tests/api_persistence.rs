@@ -52,6 +52,22 @@ fn temp_dir(label: &str) -> PathBuf {
     ))
 }
 
+fn remove_temp_tree(path: &PathBuf) {
+    for attempt in 0..5 {
+        match fs::remove_dir_all(path) {
+            Ok(()) => return,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return,
+            Err(err) if attempt < 4 => {
+                thread::sleep(Duration::from_millis(20));
+                if attempt == 3 {
+                    eprintln!("retrying temp cleanup for {} after {}", path.display(), err);
+                }
+            }
+            Err(err) => panic!("failed to remove temp tree {}: {}", path.display(), err),
+        }
+    }
+}
+
 #[test]
 fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
     let _lock = env_test_lock()
@@ -208,7 +224,7 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
     assert!(latest_root.join("summary.json").exists());
     assert!(target_root.join("analysis.json").exists());
 
-    fs::remove_dir_all(&root).unwrap();
+    remove_temp_tree(&root);
 }
 
 #[test]
@@ -401,7 +417,7 @@ fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward()
         current_history_protocol_evolution
     );
 
-    fs::remove_dir_all(&root).unwrap();
+    remove_temp_tree(&root);
 }
 
 #[test]
@@ -477,7 +493,7 @@ fn persisted_snapshot_history_prunes_older_entries_beyond_retention_limit() {
     assert!(history_root.join("10").exists());
     assert!(history_root.join("40").exists());
 
-    fs::remove_dir_all(&root).unwrap();
+    remove_temp_tree(&root);
 }
 
 #[test]
@@ -554,5 +570,5 @@ fn persisted_snapshot_history_respects_configured_retention_override() {
     assert!(history_root.join("4").exists());
     assert!(history_root.join("6").exists());
 
-    fs::remove_dir_all(&root).unwrap();
+    remove_temp_tree(&root);
 }

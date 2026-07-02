@@ -1,21 +1,21 @@
 # Reference: MongoDB Command Surface
 
-The `mongodb/command` and `mongodb/reply` entries track the modern MongoDB request/response wire shape.
+The `mongodb/command` entry tracks the modern client-to-server MongoDB request path.
 
 Family hub: [MongoDB surface](docs/book/reference-mongodb-surface.md)
 
-Canonical entries: `command`, `reply`
+Canonical entry: `command`
 
 ## Debugging Focus
 
 - Client-to-server `OP_MSG` command frames.
-- Server-to-client `OP_MSG` reply frames.
-- Legacy `OP_REPLY` responses for compatibility paths.
-- Route, process, and TCP lineage around the database flow.
+- Route, process, and TCP lineage around command submission.
+- One-way command symptoms where the client appears to send but no matching reply arrives.
+- Proxy or sidecar behavior that may alter request directionality before server handling.
 
 ## Typical Question
 
-Use this surface when a MongoDB client connects but commands appear one-way, responses are missing, or a proxy path may be changing wire behavior.
+Use this surface when a MongoDB client connects but the request path itself is uncertain. Switch to the `reply` shelf once the question becomes response directionality or server return behavior.
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases
@@ -26,21 +26,12 @@ This generated block tracks the aliases that currently resolve into this custom 
 - `mongo`
 - `mongo-command`
 - `mongo-opmsg`
-- `mongo-reply`
-- `mongo-response`
 - `mongo_command`
-- `mongo_reply`
 - `mongodb-command`
 - `mongodb-opmsg`
-- `mongodb-reply`
-- `mongodb-response`
 - `mongodb_command`
-- `mongodb_reply`
 - `op-msg`
-- `op-reply`
 - `opmsg`
-- `opreply`
 - `request`
-- `response`
 
 <!-- gewyvern:entry-aliases:end -->

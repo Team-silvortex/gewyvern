@@ -2,7 +2,8 @@ use super::super::ShelfMatch;
 
 pub(crate) fn amqp_shelf(entry: &str) -> Option<ShelfMatch> {
     const START: &[&str] = &["start", "auth-denied"];
-    const SESSION_PUBLISH: &[&str] = &["session", "publish"];
+    const SESSION: &[&str] = &["session"];
+    const PUBLISH: &[&str] = &["publish"];
     const CONSUME: &[&str] = &["consume"];
     if START.contains(&entry) {
         Some((
@@ -11,12 +12,19 @@ pub(crate) fn amqp_shelf(entry: &str) -> Option<ShelfMatch> {
             "docs/book/reference-amqp-start-surface.md",
             START,
         ))
-    } else if SESSION_PUBLISH.contains(&entry) {
+    } else if SESSION.contains(&entry) {
         Some((
-            "session-publish",
-            "Session And Publish",
+            "session",
+            "Session",
             "docs/book/reference-amqp-session-surface.md",
-            SESSION_PUBLISH,
+            SESSION,
+        ))
+    } else if PUBLISH.contains(&entry) {
+        Some((
+            "publish",
+            "Publish",
+            "docs/book/reference-amqp-publish-surface.md",
+            PUBLISH,
         ))
     } else if CONSUME.contains(&entry) {
         Some((

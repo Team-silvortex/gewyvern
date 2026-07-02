@@ -1,11 +1,11 @@
-# Reference: NATS Publish/Subscribe Surface
+# Reference: NATS Publish Surface
 
-Use this page for NATS subject publish and subscribe traffic.
+Use this page for NATS subject publish traffic.
 
 For the broader family map, see
 [docs/book/reference-nats-surface.md](docs/book/reference-nats-surface.md).
 
-## Canonical Entries
+## Canonical Entry
 
 ### `pub`
 
@@ -21,27 +21,19 @@ Intent:
 
 - resolve the server route
 - observe `PUB`
+- confirm writer-side subject traffic exists
 
-### `sub`
+## Runtime Shape
 
-Aliases:
+The publish path emits these phases when evidence exists:
 
-- `nats-sub`
-- `nats_sub`
-- `nats-subscribe`
-- `nats_subscribe`
-- `subject-read`
-
-Intent:
-
-- resolve the server route
-- observe `SUB`
-- observe server `MSG` delivery
+1. `resolve_server`
+2. `send_publish`
 
 ## Operator Reading Order
 
-Use `connect` first if session state is unknown. Use `pub` for writers and
-`sub` for readers or consumers.
+Use `connect` first if session state is unknown. Use `pub` when writers appear
+healthy locally but subject data is not arriving downstream.
 
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases
@@ -50,13 +42,8 @@ This generated block tracks the aliases that currently resolve into this custom 
 
 - `nats-pub`
 - `nats-publish`
-- `nats-sub`
-- `nats-subscribe`
 - `nats_pub`
 - `nats_publish`
-- `nats_sub`
-- `nats_subscribe`
-- `subject-read`
 - `subject-write`
 
 <!-- gewyvern:entry-aliases:end -->

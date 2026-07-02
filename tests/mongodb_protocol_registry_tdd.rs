@@ -67,8 +67,8 @@ fn mongodb_surface_exposes_database_cluster_shelves_and_semantics() {
     );
 
     for (entry, shelf_key) in [
-        ("command", "command-reply"),
-        ("reply", "command-reply"),
+        ("command", "command"),
+        ("reply", "reply"),
         ("legacy-query", "legacy-query"),
         ("query-failure", "legacy-query"),
     ] {

@@ -89,6 +89,10 @@ fn discovery_surfaces_expose_cluster_shelves_and_semantics() {
         let surface = protocol_surface(protocol, entry).expect("surface should resolve");
         let shelf = surface.shelf.expect("surface should expose shelf");
         assert_eq!(shelf.key, key);
+        assert!(
+            shelf.page.contains(&format!("reference-{protocol}-")),
+            "discovery shelf should use a protocol-specific reference page"
+        );
         assert_eq!(
             surface
                 .entry_semantics

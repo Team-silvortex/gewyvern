@@ -2,7 +2,8 @@ use super::super::ShelfMatch;
 
 pub(crate) fn kafka_shelf(entry: &str) -> Option<ShelfMatch> {
     const METADATA: &[&str] = &["metadata", "api-versions"];
-    const STREAM: &[&str] = &["produce", "fetch"];
+    const PRODUCE: &[&str] = &["produce"];
+    const FETCH: &[&str] = &["fetch"];
     if METADATA.contains(&entry) {
         Some((
             "metadata",
@@ -10,12 +11,19 @@ pub(crate) fn kafka_shelf(entry: &str) -> Option<ShelfMatch> {
             "docs/book/reference-kafka-metadata-surface.md",
             METADATA,
         ))
-    } else if STREAM.contains(&entry) {
+    } else if PRODUCE.contains(&entry) {
         Some((
-            "stream",
-            "Stream",
-            "docs/book/reference-kafka-stream-surface.md",
-            STREAM,
+            "produce",
+            "Produce",
+            "docs/book/reference-kafka-produce-surface.md",
+            PRODUCE,
+        ))
+    } else if FETCH.contains(&entry) {
+        Some((
+            "fetch",
+            "Fetch",
+            "docs/book/reference-kafka-fetch-surface.md",
+            FETCH,
         ))
     } else {
         None
@@ -24,7 +32,8 @@ pub(crate) fn kafka_shelf(entry: &str) -> Option<ShelfMatch> {
 
 pub(crate) fn nats_shelf(entry: &str) -> Option<ShelfMatch> {
     const SESSION: &[&str] = &["connect"];
-    const PUBSUB: &[&str] = &["pub", "sub"];
+    const PUB: &[&str] = &["pub"];
+    const SUB: &[&str] = &["sub"];
     const ERROR: &[&str] = &["error"];
     if SESSION.contains(&entry) {
         Some((
@@ -33,12 +42,19 @@ pub(crate) fn nats_shelf(entry: &str) -> Option<ShelfMatch> {
             "docs/book/reference-nats-session-surface.md",
             SESSION,
         ))
-    } else if PUBSUB.contains(&entry) {
+    } else if PUB.contains(&entry) {
         Some((
-            "pubsub",
-            "Publish And Subscribe",
-            "docs/book/reference-nats-pubsub-surface.md",
-            PUBSUB,
+            "publish",
+            "Publish",
+            "docs/book/reference-nats-publish-surface.md",
+            PUB,
+        ))
+    } else if SUB.contains(&entry) {
+        Some((
+            "subscribe",
+            "Subscribe",
+            "docs/book/reference-nats-subscribe-surface.md",
+            SUB,
         ))
     } else if ERROR.contains(&entry) {
         Some((

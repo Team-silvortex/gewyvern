@@ -15,16 +15,18 @@ Current canonical entries:
 
 Default entry: `echo`
 
-The current line keeps GTP-U as a compact single-slice family:
+Current shelf:
 
-- emit an echo request
-- observe an echo response
+- [docs/book/reference-gtpu-liveness-surface.md](docs/book/reference-gtpu-liveness-surface.md)
 
-This hub is intentionally small until the protocol family grows beyond the
-current baseline liveness exchange.
+The current line keeps GTP-U intentionally narrow: the supported path is
+liveness, not full subscriber-payload decoding. That still matters for network
+debugging because it answers whether the outer user-plane tunnel can exchange
+basic control traffic before inner payload interpretation begins.
 
 Read in this order:
 
 1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
 2. [docs/book/reference-gtpu-surface.md](docs/book/reference-gtpu-surface.md)
-3. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+3. [docs/book/reference-gtpu-liveness-surface.md](docs/book/reference-gtpu-liveness-surface.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

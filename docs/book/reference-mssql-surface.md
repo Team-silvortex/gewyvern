@@ -10,8 +10,8 @@ Navigation: [protocol surface](docs/book/reference-protocol-surface.md), [IR low
 
 ## Entries
 
-- [`prelogin`](docs/book/reference-mssql-query-surface.md) tracks TDS pre-login negotiation.
-- [`login`](docs/book/reference-mssql-query-surface.md) tracks TDS login/authentication packets.
+- [`prelogin`](docs/book/reference-mssql-session-surface.md) tracks TDS pre-login negotiation.
+- [`login`](docs/book/reference-mssql-session-surface.md) tracks TDS login/authentication packets.
 - [`query`](docs/book/reference-mssql-query-surface.md) tracks SQL batch request packets.
 - [`response`](docs/book/reference-mssql-query-surface.md) tracks tabular response packets.
 - [`colmetadata`](docs/book/reference-mssql-token-surface.md) tracks result-set metadata tokens.

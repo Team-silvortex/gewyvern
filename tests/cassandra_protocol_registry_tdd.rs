@@ -71,10 +71,10 @@ fn cassandra_surface_exposes_database_cluster_shelves_and_semantics() {
     );
 
     for (entry, shelf_key) in [
-        ("startup", "session-query"),
-        ("authenticate", "session-query"),
-        ("query", "session-query"),
-        ("result", "session-query"),
+        ("startup", "session-auth"),
+        ("authenticate", "session-auth"),
+        ("query", "query-result"),
+        ("result", "query-result"),
         ("error", "error"),
     ] {
         let surface = protocol_surface("cassandra", entry).expect("cassandra surface should exist");

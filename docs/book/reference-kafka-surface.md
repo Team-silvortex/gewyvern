@@ -36,14 +36,22 @@ Typical entries:
 - `metadata`
 - `api-versions`
 
-### Stream
+### Produce
 
-- [docs/book/reference-kafka-stream-surface.md](docs/book/reference-kafka-stream-surface.md)
-  Produce and fetch request/response paths.
+- [docs/book/reference-kafka-produce-surface.md](docs/book/reference-kafka-produce-surface.md)
+  Produce request/response path for topic writes.
 
 Typical entries:
 
 - `produce`
+
+### Fetch
+
+- [docs/book/reference-kafka-fetch-surface.md](docs/book/reference-kafka-fetch-surface.md)
+  Fetch request/response path for topic reads.
+
+Typical entries:
+
 - `fetch`
 
 ## Reading Order

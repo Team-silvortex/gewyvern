@@ -13,11 +13,11 @@ Use it for:
 
 Current canonical entries:
 
-- `query` as the default entry
-- `response` with entry aliases `answer`, `announcement`, `mdns-response`, and
-  `mdns_response`
-- `probe` with entry aliases `claim`, `conflict-check`, `mdns-probe`, and
-  `mdns_probe`
+- [`query`](docs/book/reference-mdns-query-surface.md) as the default entry
+- [`response`](docs/book/reference-mdns-response-surface.md) with entry aliases
+  `answer`, `announcement`, `mdns-response`, and `mdns_response`
+- [`probe`](docs/book/reference-mdns-probe-surface.md) with entry aliases
+  `claim`, `conflict-check`, `mdns-probe`, and `mdns_probe`
 
 Default entry: `query`
 
@@ -38,4 +38,8 @@ Read in this order:
 
 1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
 2. [docs/book/reference-mdns-surface.md](docs/book/reference-mdns-surface.md)
-3. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+3. one mDNS subpage:
+   [docs/book/reference-mdns-query-surface.md](docs/book/reference-mdns-query-surface.md),
+   [docs/book/reference-mdns-response-surface.md](docs/book/reference-mdns-response-surface.md),
+   or [docs/book/reference-mdns-probe-surface.md](docs/book/reference-mdns-probe-surface.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

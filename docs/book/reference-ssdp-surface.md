@@ -12,9 +12,10 @@ Use it for:
 
 Current canonical entries:
 
-- `discovery` as the default entry
-- `notify` with entry aliases `advertise`, `alive`, `byebye`, `ssdp-notify`,
-  and `ssdp_notify`
+- [`discovery`](docs/book/reference-ssdp-discovery-surface.md) as the default
+  entry
+- [`notify`](docs/book/reference-ssdp-notify-surface.md) with entry aliases
+  `advertise`, `alive`, `byebye`, `ssdp-notify`, and `ssdp_notify`
 
 Default entry: `discovery`
 
@@ -33,4 +34,7 @@ Read in this order:
 
 1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
 2. [docs/book/reference-ssdp-surface.md](docs/book/reference-ssdp-surface.md)
-3. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
+3. one SSDP subpage:
+   [docs/book/reference-ssdp-discovery-surface.md](docs/book/reference-ssdp-discovery-surface.md)
+   or [docs/book/reference-ssdp-notify-surface.md](docs/book/reference-ssdp-notify-surface.md)
+4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)

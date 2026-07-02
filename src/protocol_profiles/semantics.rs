@@ -29,6 +29,7 @@ pub(super) fn built_in_protocol_entry_semantics(
         "consul" => search_storage::consul_entry_semantics(entry),
         "coap" => discovery::coap_entry_semantics(entry),
         "dhcp" => discovery::dhcp_entry_semantics(entry),
+        "https" => transport::https_entry_semantics(entry),
         "http" => transport::http_entry_semantics(entry),
         "http3" => transport::http3_entry_semantics(entry),
         "grpc" => transport::grpc_entry_semantics(entry),

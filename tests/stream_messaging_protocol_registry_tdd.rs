@@ -87,7 +87,10 @@ fn stream_messaging_defaults_shelves_and_semantics_are_stable() {
     assert!(nats_entries.contains(&"error".to_string()));
 
     let kafka = protocol_surface("kafka", "produce").expect("kafka produce surface should exist");
-    assert_eq!(kafka.shelf.expect("kafka shelf should exist").key, "stream");
+    assert_eq!(
+        kafka.shelf.expect("kafka shelf should exist").key,
+        "produce"
+    );
     assert_eq!(
         kafka
             .entry_semantics
@@ -114,7 +117,10 @@ fn stream_messaging_defaults_shelves_and_semantics_are_stable() {
     );
 
     let nats = protocol_surface("nats", "sub").expect("nats sub surface should exist");
-    assert_eq!(nats.shelf.expect("nats shelf should exist").key, "pubsub");
+    assert_eq!(
+        nats.shelf.expect("nats shelf should exist").key,
+        "subscribe"
+    );
     assert_eq!(
         nats.entry_semantics
             .expect("nats semantics should exist")
@@ -262,7 +268,7 @@ fn kafka_produce_runtime_path_materializes_broker_stages() {
         .expect("kafka produce should materialize protocol IR");
     assert_eq!(protocol_ir.protocol, "kafka");
     assert_eq!(protocol_ir.entry, "produce");
-    assert_eq!(protocol_ir.shelf_key.as_deref(), Some("stream"));
+    assert_eq!(protocol_ir.shelf_key.as_deref(), Some("produce"));
     assert_eq!(
         protocol_ir.semantics_category.as_deref(),
         Some("stream-produce-path")
@@ -273,7 +279,7 @@ fn kafka_produce_runtime_path_materializes_broker_stages() {
 }
 
 #[test]
-fn nats_sub_runtime_path_materializes_pubsub_stages() {
+fn nats_sub_runtime_path_materializes_subscribe_stages() {
     let export = run_stream_path(
         &dsl_fixture_path("nats_sub_path.gewy"),
         4222,
@@ -304,7 +310,7 @@ fn nats_sub_runtime_path_materializes_pubsub_stages() {
         .expect("nats sub should materialize protocol IR");
     assert_eq!(protocol_ir.protocol, "nats");
     assert_eq!(protocol_ir.entry, "sub");
-    assert_eq!(protocol_ir.shelf_key.as_deref(), Some("pubsub"));
+    assert_eq!(protocol_ir.shelf_key.as_deref(), Some("subscribe"));
     assert_eq!(
         protocol_ir.semantics_category.as_deref(),
         Some("message-subscribe-path")

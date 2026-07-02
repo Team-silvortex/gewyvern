@@ -10,8 +10,8 @@ Navigation: [protocol surface](docs/book/reference-protocol-surface.md), [IR low
 
 ## Entries
 
-- [`startup`](docs/book/reference-cassandra-query-surface.md) tracks native protocol session startup.
-- [`authenticate`](docs/book/reference-cassandra-query-surface.md) tracks server authentication prompts.
+- [`startup`](docs/book/reference-cassandra-session-surface.md) tracks native protocol session startup.
+- [`authenticate`](docs/book/reference-cassandra-session-surface.md) tracks server authentication prompts.
 - [`query`](docs/book/reference-cassandra-query-surface.md) tracks CQL query request frames.
 - [`result`](docs/book/reference-cassandra-query-surface.md) tracks successful server result frames.
 - [`error`](docs/book/reference-cassandra-error-surface.md) tracks server error frames.

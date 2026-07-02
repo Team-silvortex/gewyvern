@@ -176,6 +176,20 @@ fn gap_protocol_default_entries_and_surface_shelves_stay_stable() {
             .key,
         "local-close"
     );
+
+    let gtpu = protocol_surface("gtpu", "echo").expect("gtpu echo surface should exist");
+    let gtpu_shelf = gtpu.shelf.expect("gtpu shelf should exist");
+    assert_eq!(gtpu_shelf.key, "liveness");
+    assert_eq!(
+        gtpu_shelf.page,
+        "docs/book/reference-gtpu-liveness-surface.md"
+    );
+    assert_eq!(
+        gtpu.entry_semantics
+            .expect("gtpu echo semantics should exist")
+            .category,
+        "tunnel-liveness-path"
+    );
 }
 
 #[test]

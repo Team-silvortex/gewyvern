@@ -63,6 +63,10 @@ fn elasticsearch_bulk_runtime_path_materializes_bulk_ir() {
 
     let ir = protocol_ir(&export, "elasticsearch_bulk");
     assert_surface(ir, "elasticsearch", "bulk", "mutation");
+    assert_eq!(
+        ir.semantics_category.as_deref(),
+        Some("elasticsearch-bulk-path")
+    );
     assert_json_replay(&export);
 }
 
@@ -108,6 +112,7 @@ fn etcd_watch_runtime_path_materializes_watch_ir() {
 
     let ir = protocol_ir(&export, "etcd_watch");
     assert_surface(ir, "etcd", "watch", "stream-lifecycle");
+    assert_eq!(ir.semantics_category.as_deref(), Some("etcd-watch-path"));
     assert_json_replay(&export);
 }
 
@@ -130,6 +135,10 @@ fn consul_service_runtime_path_materializes_discovery_ir() {
 
     let ir = protocol_ir(&export, "consul_service");
     assert_surface(ir, "consul", "service", "discovery-health");
+    assert_eq!(
+        ir.semantics_category.as_deref(),
+        Some("consul-service-path")
+    );
     assert_json_replay(&export);
 }
 
@@ -152,6 +161,7 @@ fn consul_kv_runtime_path_materializes_state_ir() {
 
     let ir = protocol_ir(&export, "consul_kv");
     assert_surface(ir, "consul", "kv", "state-session");
+    assert_eq!(ir.semantics_category.as_deref(), Some("consul-kv-path"));
     assert_json_replay(&export);
 }
 

@@ -8,21 +8,21 @@ pub(crate) fn mdns_shelf(entry: &str) -> Option<ShelfMatch> {
         Some((
             "query",
             "Query",
-            "docs/book/reference-mdns-surface.md",
+            "docs/book/reference-mdns-query-surface.md",
             QUERY,
         ))
     } else if RESPONSE.contains(&entry) {
         Some((
             "response",
             "Response",
-            "docs/book/reference-mdns-surface.md",
+            "docs/book/reference-mdns-response-surface.md",
             RESPONSE,
         ))
     } else if PROBE.contains(&entry) {
         Some((
             "probe",
             "Probe",
-            "docs/book/reference-mdns-surface.md",
+            "docs/book/reference-mdns-probe-surface.md",
             PROBE,
         ))
     } else {
@@ -37,14 +37,14 @@ pub(crate) fn ssdp_shelf(entry: &str) -> Option<ShelfMatch> {
         Some((
             "discovery",
             "Discovery",
-            "docs/book/reference-ssdp-surface.md",
+            "docs/book/reference-ssdp-discovery-surface.md",
             DISCOVERY,
         ))
     } else if NOTIFY.contains(&entry) {
         Some((
             "notify",
             "Notify",
-            "docs/book/reference-ssdp-surface.md",
+            "docs/book/reference-ssdp-notify-surface.md",
             NOTIFY,
         ))
     } else {
@@ -147,7 +147,12 @@ pub(crate) fn radius_shelf(entry: &str) -> Option<ShelfMatch> {
 pub(crate) fn gtpu_shelf(entry: &str) -> Option<ShelfMatch> {
     const ECHO: &[&str] = &["echo"];
     if ECHO.contains(&entry) {
-        Some(("echo", "Echo", "docs/book/reference-gtpu-surface.md", ECHO))
+        Some((
+            "liveness",
+            "Liveness",
+            "docs/book/reference-gtpu-liveness-surface.md",
+            ECHO,
+        ))
     } else {
         None
     }

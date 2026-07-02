@@ -8,25 +8,29 @@ Use it for:
 - `https` family lookup
 - default entry selection for `connect`
 - keeping TLS-protected request setup separate from raw TLS client posture
-- jumping into `tls client` when the protocol surface or runtime report exposes
-  a structured companion hint
+- jumping into `tls client` through reading companions when the runtime report
+  exposes a structured companion hint
 
 Current canonical entries:
 
-- `connect` as the default entry
+- [`connect`](docs/book/reference-https-connect-surface.md) as the default entry
 
 Default entry: `connect`
 
-The current line keeps HTTPS as a compact single-slice family:
+Current shelf:
+
+- [docs/book/reference-https-connect-surface.md](docs/book/reference-https-connect-surface.md)
+
+The current line keeps HTTPS narrow but explicit:
 
 - establish or observe HTTPS request setup through the connect path
-- keep the family hub small until the surface grows beyond one stable entry
+- use the companion link into TLS when handshake detail matters
 
 Read in this order:
 
 1. [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
 2. [docs/book/reference-https-surface.md](docs/book/reference-https-surface.md)
-3. [docs/book/reference-tls-surface.md](docs/book/reference-tls-surface.md)
+3. [docs/book/reference-https-connect-surface.md](docs/book/reference-https-connect-surface.md)
 4. [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
 
 The machine-facing API now records that same jump through

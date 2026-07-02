@@ -68,6 +68,17 @@ fn protocol_surface_exposes_protocol_shelves_for_grouped_families() {
     let https_shelf = https.shelf.expect("https connect should have a shelf");
     assert_eq!(https_shelf.key, "connect");
     assert_eq!(https_shelf.label, "Connect");
+    assert_eq!(
+        https_shelf.page,
+        "docs/book/reference-https-connect-surface.md"
+    );
+    assert_eq!(
+        https
+            .entry_semantics
+            .expect("https connect should expose semantics")
+            .category,
+        "https-connect-path"
+    );
 
     let http = protocol_surface("http", "auth-required").expect("http auth surface should exist");
     let http_shelf = http.shelf.expect("http auth-required should have a shelf");
@@ -126,13 +137,12 @@ fn protocol_surface_exposes_protocol_shelves_for_grouped_families() {
 
     let amqp = protocol_surface("amqp", "publish").expect("amqp publish surface should exist");
     let amqp_shelf = amqp.shelf.expect("amqp publish should have a shelf");
-    assert_eq!(amqp_shelf.key, "session-publish");
-    assert_eq!(amqp_shelf.label, "Session And Publish");
+    assert_eq!(amqp_shelf.key, "publish");
+    assert_eq!(amqp_shelf.label, "Publish");
     assert_eq!(
         amqp_shelf.page,
-        "docs/book/reference-amqp-session-surface.md"
+        "docs/book/reference-amqp-publish-surface.md"
     );
-    assert!(amqp_shelf.entries.contains(&"session".to_string()));
     assert!(amqp_shelf.entries.contains(&"publish".to_string()));
 
     let smtp = protocol_surface("smtp", "rcpt-denied").expect("smtp rcpt surface should exist");

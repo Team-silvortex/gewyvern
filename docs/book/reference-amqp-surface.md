@@ -7,7 +7,8 @@ This shelf groups the current AMQP coverage into three narrower
 operator-facing surfaces:
 
 - connection start and negotiation
-- session and publish flow
+- session flow
+- publish flow
 - consume flow
 
 ## What This Shelf Covers
@@ -59,14 +60,22 @@ Typical entries:
 - `auth-denied`
 - `amqp-auth-denied`
 
-### Session And Publish
+### Session
 
 - [docs/book/reference-amqp-session-surface.md](docs/book/reference-amqp-session-surface.md)
-  Broader session framing and publish acknowledgement flow.
+  Broader broker session framing before message transfer.
 
 Typical entries:
 
 - `session`
+
+### Publish
+
+- [docs/book/reference-amqp-publish-surface.md](docs/book/reference-amqp-publish-surface.md)
+  Publish request and broker acknowledgement flow.
+
+Typical entries:
+
 - `publish`
 
 ### Consume

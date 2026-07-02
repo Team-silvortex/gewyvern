@@ -22,7 +22,11 @@ fn protocol_surface_by_name_includes_redis_shelf_context() {
     assert!(body.contains("\"cluster_hint\":{"));
     assert!(body.contains("\"key\":\"cache-queue-stream\""));
     assert!(body.contains("\"key\":\"sorted-set\""));
-    assert!(body.contains("\"entry_semantics\":null"));
+    assert!(body.contains("\"entry_semantics\":{"));
+    assert!(body.contains("\"category\":\"redis-sorted-set-write-path\""));
+    assert!(body.contains(
+        "\"operator_focus\":\"Redis ZADD updating sorted-set scores and returning changed member count\""
+    ));
 }
 
 #[test]

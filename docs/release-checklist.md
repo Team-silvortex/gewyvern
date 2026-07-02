@@ -86,13 +86,16 @@ bash scripts/packaging/build_packages_in_container.sh --format all
 
 Expected outputs:
 
-- `target/packages/gewyvern_0.19.0-1_<arch>.deb`
-- `target/packages/rpm/gewyvern-0.19.0-1.<arch>.rpm`
+- `target/packages/gewyvern_<version>-1_<deb-arch>.deb`
+- `target/packages/rpm/gewyvern-<version>-1.<rpm-arch>.rpm`
 
-These filenames follow the crate/package version currently declared by the
-build metadata. The release-line posture can move ahead of that metadata, but
-the package smoke must always verify the artifacts that the tree actually
-builds today.
+The `<version>` value is read from the root `gewyvern` package metadata in
+`Cargo.toml`. For the current tree, that resolves to `0.19.0`, so the
+concrete artifact names should look like `gewyvern_0.19.0-1_<deb-arch>.deb`
+and `gewyvern-0.19.0-1.<rpm-arch>.rpm`.
+
+The release-line posture can move ahead of that metadata, but the package
+smoke must always verify the artifacts that the tree actually builds today.
 
 Do not trust an older green run if it was using stale artifacts from another
 version line.
