@@ -8,6 +8,8 @@ mod database_protocols;
 mod mail_and_directory;
 #[path = "network_control.rs"]
 mod network_control;
+#[path = "redis_profile.rs"]
+mod redis_profile;
 #[path = "secure_transport.rs"]
 mod secure_transport;
 #[path = "stream_messaging.rs"]
@@ -76,7 +78,7 @@ pub(super) const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
     database_protocols::CONSUL_PROFILE,
     data_and_queue::MEMCACHED_PROFILE,
     data_and_queue::AMQP_PROFILE,
-    data_and_queue::REDIS_PROFILE,
+    redis_profile::REDIS_PROFILE,
     data_and_queue::MQTT_PROFILE,
     stream_messaging::KAFKA_PROFILE,
     stream_messaging::NATS_PROFILE,

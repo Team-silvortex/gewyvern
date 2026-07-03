@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::aliases::{PROTOCOL_ALIASES, protocol_entry_aliases, split_protocol_alias};
+use super::aliases::{protocol_aliases, protocol_entry_aliases, split_protocol_alias};
 use super::clusters::built_in_protocol_cluster_hint;
 use super::profiles::{PROTOCOL_PROFILES, ProtocolProfile, find_protocol_profile};
 use super::{ProtocolEntrySummary, ProtocolSummary, RegistryManifest};
@@ -128,8 +128,7 @@ fn summary_for_profile(profile: &ProtocolProfile) -> ProtocolSummary {
 }
 
 fn protocol_aliases_for(protocol: &str) -> Vec<String> {
-    PROTOCOL_ALIASES
-        .iter()
+    protocol_aliases()
         .filter(|alias| alias.protocol == protocol && alias.entry.is_none())
         .map(|alias| alias.alias.to_string())
         .collect::<BTreeSet<_>>()
@@ -138,8 +137,7 @@ fn protocol_aliases_for(protocol: &str) -> Vec<String> {
 }
 
 fn entry_aliases_for(protocol: &str, mode: &str) -> Vec<String> {
-    PROTOCOL_ALIASES
-        .iter()
+    protocol_aliases()
         .chain(protocol_entry_aliases())
         .filter(|alias| alias.protocol == protocol && alias.entry == Some(mode))
         .map(|alias| alias.alias.to_string())

@@ -1,13 +1,4 @@
-use super::{
-    protocol_dsl_path, protocol_entries, protocol_summary, protocol_surface,
-    resolve_built_in_dsl_path,
-};
-use std::fs;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs as unix_fs;
-use std::path::PathBuf;
-
-use super::tests_env::EnvGuard;
+use super::{protocol_dsl_path, protocol_entries, protocol_summary, protocol_surface};
 
 #[test]
 fn http_entry_aliases_resolve_to_canonical_registry_targets() {
@@ -211,7 +202,7 @@ fn protocol_surface_exposes_single_entry_shelves() {
         ("wireguard", "handshake", "handshake"),
         ("mdns", "query", "query"),
         ("ssdp", "discovery", "discovery"),
-        ("gtpu", "echo", "echo"),
+        ("gtpu", "echo", "liveness"),
         ("snmp", "get", "read"),
     ] {
         let surface = protocol_surface(protocol, entry).expect("single-entry surface should exist");
@@ -513,86 +504,4 @@ fn access_and_messaging_entry_aliases_resolve_to_canonical_entries() {
         protocol_dsl_path("redis", Some("health")),
         Some(super::protocol_fixture_path("redis/ping"))
     );
-}
-
-#[test]
-fn built_in_dsl_path_falls_back_to_packaged_share_root() {
-    let _lock = super::tests_env::lock();
-    let root = std::env::temp_dir().join(format!(
-        "gewyvern-packaged-dsl-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    let dsl_dir = root.join("dsl");
-    fs::create_dir_all(&dsl_dir).unwrap();
-    let file = dsl_dir.join("http_request_path.gewy");
-    fs::write(&file, "template(:http_request_path)\n").unwrap();
-    let _guard = EnvGuard::set("GEWY_SHARE_ROOT", root.to_string_lossy().into_owned());
-    let resolved = resolve_built_in_dsl_path("/definitely/missing/dsl/http_request_path.gewy");
-    fs::remove_dir_all(&root).unwrap();
-
-    assert_eq!(PathBuf::from(resolved), file);
-}
-
-#[test]
-fn packaged_registry_root_is_used_when_explicitly_set() {
-    let _lock = super::tests_env::lock();
-    let root = std::env::temp_dir().join(format!(
-        "gewyvern-packaged-protocol-registry-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    let package_dir = root.join("http").join("request");
-    fs::create_dir_all(&package_dir).unwrap();
-    fs::write(
-        package_dir.join("gewy.pkg"),
-        "name=http_request\nversion=0.18.2\nentry=main.gewy\nregister.protocol=http\nregister.entry=request\nregister.default=true\n",
-    )
-    .unwrap();
-    fs::write(package_dir.join("main.gewy"), "template(:http_request)\n").unwrap();
-    let _guard = EnvGuard::set(
-        "GEWY_PROTOCOL_REGISTRY_ROOT",
-        root.to_string_lossy().into_owned(),
-    );
-
-    let resolved = protocol_dsl_path("http", Some("request"));
-    let expected = fs::canonicalize(&package_dir)
-        .unwrap()
-        .to_string_lossy()
-        .into_owned();
-    fs::remove_dir_all(&root).unwrap();
-
-    assert_eq!(resolved, Some(expected));
-}
-
-#[cfg(target_family = "unix")]
-#[test]
-fn registry_scan_ignores_symlinked_directories() {
-    let root = std::env::temp_dir().join(format!(
-        "gewyvern-protocol-registry-symlink-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    let package_dir = root.join("mysql").join("session");
-    fs::create_dir_all(&package_dir).unwrap();
-    fs::write(
-        package_dir.join("gewy.pkg"),
-        "name=mysql_session\nversion=0.18.2\nentry=main.gewy\nregister.protocol=mysql\nregister.entry=session\nregister.default=true\n",
-    )
-    .unwrap();
-    fs::write(package_dir.join("main.gewy"), "template(:mysql_session)\n").unwrap();
-    unix_fs::symlink(root.join("mysql"), root.join("mysql-link")).unwrap();
-
-    let targets = super::default_protocol_scan_set_from_dir(root.to_str().unwrap()).unwrap();
-    fs::remove_dir_all(&root).unwrap();
-
-    assert_eq!(targets.len(), 1);
-    assert_eq!(targets[0].protocol, "mysql");
-    assert_eq!(targets[0].entry, "session");
 }

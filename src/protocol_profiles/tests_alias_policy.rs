@@ -1,4 +1,4 @@
-use super::aliases::{PROTOCOL_ALIASES, protocol_entry_aliases};
+use super::aliases::{protocol_aliases, protocol_entry_aliases};
 use std::collections::{BTreeMap, BTreeSet};
 
 fn alias_text(alias: &super::aliases::ProtocolAlias) -> &'static str {
@@ -15,7 +15,7 @@ fn alias_entry(alias: &super::aliases::ProtocolAlias) -> Option<&'static str> {
 
 #[test]
 fn alias_tokens_use_stable_lowercase_slug_style() {
-    for alias in PROTOCOL_ALIASES.iter().chain(protocol_entry_aliases()) {
+    for alias in protocol_aliases().chain(protocol_entry_aliases()) {
         assert!(
             alias_text(alias)
                 .chars()
@@ -29,7 +29,7 @@ fn alias_tokens_use_stable_lowercase_slug_style() {
 #[test]
 fn protocol_scope_does_not_reuse_the_same_alias_for_multiple_targets() {
     let mut seen = BTreeMap::<(&str, &str), BTreeSet<Option<&str>>>::new();
-    for alias in PROTOCOL_ALIASES.iter().chain(protocol_entry_aliases()) {
+    for alias in protocol_aliases().chain(protocol_entry_aliases()) {
         seen.entry((alias_protocol(alias), alias_text(alias)))
             .or_default()
             .insert(alias_entry(alias));
@@ -47,7 +47,7 @@ fn protocol_scope_does_not_reuse_the_same_alias_for_multiple_targets() {
 #[test]
 fn entry_aliases_do_not_shadow_other_canonical_entries_within_the_same_protocol() {
     let mut canonical_entries = BTreeMap::<&str, BTreeSet<&str>>::new();
-    for alias in PROTOCOL_ALIASES {
+    for alias in protocol_aliases() {
         if let Some(entry) = alias_entry(alias) {
             canonical_entries
                 .entry(alias_protocol(alias))
@@ -78,7 +78,7 @@ fn entry_aliases_do_not_shadow_other_canonical_entries_within_the_same_protocol(
 #[test]
 fn protocol_alias_dash_and_snake_pairs_stay_consistent_for_prefixed_families() {
     let mut aliases_by_protocol = BTreeMap::<&str, BTreeSet<&str>>::new();
-    for alias in PROTOCOL_ALIASES {
+    for alias in protocol_aliases() {
         aliases_by_protocol
             .entry(alias_protocol(alias))
             .or_default()
@@ -111,7 +111,7 @@ fn protocol_alias_dash_and_snake_pairs_stay_consistent_for_prefixed_families() {
 #[test]
 fn protocol_alias_snake_pairs_keep_dash_peers_when_family_uses_both_styles() {
     let mut aliases_by_protocol = BTreeMap::<&str, BTreeSet<&str>>::new();
-    for alias in PROTOCOL_ALIASES {
+    for alias in protocol_aliases() {
         aliases_by_protocol
             .entry(alias_protocol(alias))
             .or_default()
