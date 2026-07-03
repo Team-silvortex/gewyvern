@@ -55,6 +55,61 @@ fn snmp_bulk_runtime_path_materializes_management_read_ir() {
 }
 
 #[test]
+fn snmp_set_runtime_path_materializes_management_write_ir() {
+    let export = run_snmp_path(
+        "snmp_set_path.gewy",
+        0x5a04,
+        "snmpset",
+        &[
+            snmp_pdu(PacketDir::Egress, 54002, 161, 96, 0x3026, 0x30260201, 0xa3),
+            snmp_pdu(
+                PacketDir::Ingress,
+                54002,
+                161,
+                104,
+                0x3028,
+                0x30280201,
+                0xa2,
+            ),
+        ],
+    );
+
+    assert_operation(&export, "snmp_set");
+    assert_stage(&export, "send_set_request");
+    assert_stage(&export, "receive_set_response");
+
+    let ir = protocol_ir(&export, "snmp_set");
+    assert_surface(ir, "snmp", "set", "set", "network-control-discovery");
+    assert_eq!(ir.semantics_category.as_deref(), Some("snmp-write-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn snmp_set_runtime_ir_does_not_materialize_when_response_pdu_is_wrong() {
+    let export = run_snmp_path(
+        "snmp_set_path.gewy",
+        0x5a05,
+        "snmpset",
+        &[
+            snmp_pdu(PacketDir::Egress, 54002, 161, 96, 0x3026, 0x30260201, 0xa3),
+            snmp_pdu(
+                PacketDir::Ingress,
+                54002,
+                161,
+                104,
+                0x3028,
+                0x30280201,
+                0xa1,
+            ),
+        ],
+    );
+
+    assert_no_stage(&export, "receive_set_response");
+    assert_no_protocol_ir(&export, "snmp_set");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn snmp_inform_runtime_path_materializes_acknowledged_notify_ir() {
     let export = run_snmp_path(
         "snmp_inform_path.gewy",
@@ -318,9 +373,29 @@ fn assert_stage(export: &ExportBundle, phase: &str) {
     );
 }
 
+fn assert_no_stage(export: &ExportBundle, phase: &str) {
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some(phase)),
+        "unexpected stage {phase}"
+    );
+}
+
 fn assert_json_replay(export: &ExportBundle) {
     let replayed = ExportBundle::from_json(&export.to_json()).expect("export json should replay");
     assert_eq!(replayed.protocol_ir, export.protocol_ir);
+}
+
+fn assert_no_protocol_ir(export: &ExportBundle, operation: &str) {
+    assert!(
+        export
+            .protocol_ir
+            .iter()
+            .all(|item| item.operation != operation),
+        "unexpected protocol IR for {operation}"
+    );
 }
 
 fn protocol_ir<'a>(export: &'a ExportBundle, operation: &str) -> &'a ProtocolIr {

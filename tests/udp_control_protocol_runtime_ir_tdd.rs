@@ -72,6 +72,25 @@ fn dhcp_request_runtime_path_materializes_lease_ack_ir() {
 }
 
 #[test]
+fn dhcp_request_runtime_ir_does_not_materialize_ack_when_offer_arrives() {
+    let export = run_payload_udp_path(
+        "dhcp_request_path.gewy",
+        0xd4c4,
+        "dhclient",
+        68,
+        67,
+        &[
+            (PacketDir::Egress, &[(0, 0x01), (1, 0x01), (242, 0x03)][..]),
+            (PacketDir::Ingress, &[(0, 0x02), (1, 0x01), (242, 0x02)][..]),
+        ],
+    );
+
+    assert_no_stage(&export, "receive_ack");
+    assert_no_protocol_ir(&export, "dhcp_request");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn dhcp_nak_runtime_path_materializes_lease_denied_ir() {
     let export = run_payload_udp_path(
         "dhcp_nak_path.gewy",
@@ -121,6 +140,49 @@ fn ntp_query_runtime_path_materializes_time_ir() {
 }
 
 #[test]
+fn ntp_sync_runtime_path_materializes_time_sync_ir() {
+    let export = run_simple_udp_path(
+        "ntp_sync_path.gewy",
+        0x9171,
+        "chronyd",
+        54021,
+        123,
+        &[
+            (PacketDir::Egress, 0x1b, 0x1b00),
+            (PacketDir::Ingress, 0x24, 0x2400),
+        ],
+    );
+
+    assert_operation(&export, "ntp_sync");
+    assert_stage(&export, "send_sync_request");
+    assert_stage(&export, "receive_sync_response");
+
+    let ir = protocol_ir(&export, "ntp_sync");
+    assert_surface(ir, "ntp", "sync", "sync", "network-control-discovery");
+    assert_eq!(ir.semantics_category.as_deref(), Some("time-sync-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn ntp_sync_runtime_ir_does_not_materialize_for_query_request_byte() {
+    let export = run_simple_udp_path(
+        "ntp_sync_path.gewy",
+        0x9172,
+        "chronyd",
+        54021,
+        123,
+        &[
+            (PacketDir::Egress, 0x23, 0x2300),
+            (PacketDir::Ingress, 0x24, 0x2400),
+        ],
+    );
+
+    assert_no_stage(&export, "send_sync_request");
+    assert_no_protocol_ir(&export, "ntp_sync");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn coap_post_runtime_path_materializes_constrained_write_ir() {
     let export = run_simple_udp_path(
         "coap_post_path.gewy",
@@ -148,6 +210,52 @@ fn coap_post_runtime_path_materializes_constrained_write_ir() {
 }
 
 #[test]
+fn coap_delete_runtime_path_materializes_constrained_delete_ir() {
+    let export = run_simple_udp_path(
+        "coap_delete_path.gewy",
+        0xc0aa,
+        "coap-client",
+        56002,
+        5683,
+        &[
+            (PacketDir::Egress, 0x40, 0x4004),
+            (PacketDir::Ingress, 0x60, 0x6042),
+        ],
+    );
+
+    assert_operation(&export, "coap_delete");
+    assert_stage(&export, "send_request");
+    assert_stage(&export, "receive_deleted");
+
+    let ir = protocol_ir(&export, "coap_delete");
+    assert_surface(ir, "coap", "delete", "write", "network-control-discovery");
+    assert_eq!(
+        ir.semantics_category.as_deref(),
+        Some("constrained-resource-delete-path")
+    );
+    assert_json_replay(&export);
+}
+
+#[test]
+fn coap_delete_runtime_ir_does_not_materialize_when_response_code_is_wrong() {
+    let export = run_simple_udp_path(
+        "coap_delete_path.gewy",
+        0xc0ab,
+        "coap-client",
+        56002,
+        5683,
+        &[
+            (PacketDir::Egress, 0x40, 0x4004),
+            (PacketDir::Ingress, 0x60, 0x6045),
+        ],
+    );
+
+    assert_no_stage(&export, "receive_deleted");
+    assert_no_protocol_ir(&export, "coap_delete");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn stun_allocate_runtime_path_materializes_relay_ir() {
     let export = run_simple_udp_path(
         "stun_allocate_path.gewy",
@@ -171,6 +279,49 @@ fn stun_allocate_runtime_path_materializes_relay_ir() {
         ir.semantics_category.as_deref(),
         Some("relay-allocation-path")
     );
+    assert_json_replay(&export);
+}
+
+#[test]
+fn stun_refresh_runtime_path_materializes_lifetime_ir() {
+    let export = run_simple_udp_path(
+        "stun_refresh_path.gewy",
+        0x5712,
+        "turn-client",
+        54011,
+        3478,
+        &[
+            (PacketDir::Egress, 0x00, 0x0004),
+            (PacketDir::Ingress, 0x01, 0x0104),
+        ],
+    );
+
+    assert_operation(&export, "stun_refresh");
+    assert_stage(&export, "send_refresh_request");
+    assert_stage(&export, "receive_refresh_response");
+
+    let ir = protocol_ir(&export, "stun_refresh");
+    assert_surface(ir, "stun", "refresh", "relay", "network-control-discovery");
+    assert_eq!(ir.semantics_category.as_deref(), Some("relay-refresh-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn stun_refresh_runtime_ir_does_not_materialize_when_response_type_is_wrong() {
+    let export = run_simple_udp_path(
+        "stun_refresh_path.gewy",
+        0x5713,
+        "turn-client",
+        54011,
+        3478,
+        &[
+            (PacketDir::Egress, 0x00, 0x0004),
+            (PacketDir::Ingress, 0x01, 0x0101),
+        ],
+    );
+
+    assert_no_stage(&export, "receive_refresh_response");
+    assert_no_protocol_ir(&export, "stun_refresh");
     assert_json_replay(&export);
 }
 
@@ -342,9 +493,29 @@ fn assert_stage(export: &ExportBundle, phase: &str) {
     );
 }
 
+fn assert_no_stage(export: &ExportBundle, phase: &str) {
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some(phase)),
+        "unexpected stage {phase}"
+    );
+}
+
 fn assert_json_replay(export: &ExportBundle) {
     let replayed = ExportBundle::from_json(&export.to_json()).expect("export json should replay");
     assert_eq!(replayed.protocol_ir, export.protocol_ir);
+}
+
+fn assert_no_protocol_ir(export: &ExportBundle, operation: &str) {
+    assert!(
+        export
+            .protocol_ir
+            .iter()
+            .all(|item| item.operation != operation),
+        "unexpected protocol IR for {operation}"
+    );
 }
 
 fn protocol_ir<'a>(export: &'a ExportBundle, operation: &str) -> &'a ProtocolIr {

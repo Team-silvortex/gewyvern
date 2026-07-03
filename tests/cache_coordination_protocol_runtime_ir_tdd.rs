@@ -151,6 +151,40 @@ fn redis_wrongtype_runtime_path_materializes_failure_ir() {
 }
 
 #[test]
+fn redis_wrongtype_runtime_ir_does_not_materialize_for_bulk_response() {
+    let export = run_tcp_path(
+        &protocol_fixture_path("redis", "wrongtype"),
+        0x7732,
+        6379,
+        "redis-cli",
+        &[
+            (
+                PacketDir::Egress,
+                &[
+                    (0, 0x2a),
+                    (1, 0x32),
+                    (2, 0x0d),
+                    (3, 0x0a),
+                    (8, 0x47),
+                    (9, 0x45),
+                    (10, 0x54),
+                ][..],
+            ),
+            (PacketDir::Ingress, &[(0, 0x24)][..]),
+        ],
+    );
+
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("redis_wrongtype".into())
+    );
+    assert_stage(&export, "send_query");
+    assert_no_stage(&export, "receive_wrongtype_constraint");
+    assert_no_protocol_ir(&export, "redis_wrongtype");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn zookeeper_read_runtime_path_materializes_znode_ir() {
     let export = run_tcp_path(
         &dsl_fixture_path("zookeeper_read_path.gewy"),
@@ -219,6 +253,26 @@ fn zookeeper_auth_denied_runtime_path_materializes_failure_ir() {
     assert_json_replay(&export);
 }
 
+#[test]
+fn zookeeper_auth_denied_runtime_ir_does_not_materialize_without_denial() {
+    let export = run_tcp_path(
+        &dsl_fixture_path("zookeeper_auth_denied_path.gewy"),
+        0x7a6d,
+        2181,
+        "zkCli",
+        &[(PacketDir::Egress, &[(0, 0x00)][..])],
+    );
+
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("zookeeper_auth_denied".into())
+    );
+    assert_stage(&export, "send_auth_or_acl_request");
+    assert_no_stage(&export, "receive_denial");
+    assert_no_protocol_ir(&export, "zookeeper_auth_denied");
+    assert_json_replay(&export);
+}
+
 fn run_tcp_path(
     path: &str,
     cookie: u64,
@@ -278,6 +332,26 @@ fn assert_stage(export: &ExportBundle, phase: &str) {
             .iter()
             .any(|stage| stage.phase.as_deref() == Some(phase)),
         "missing stage {phase}"
+    );
+}
+
+fn assert_no_stage(export: &ExportBundle, phase: &str) {
+    assert!(
+        !export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some(phase)),
+        "unexpected stage {phase}"
+    );
+}
+
+fn assert_no_protocol_ir(export: &ExportBundle, operation: &str) {
+    assert!(
+        !export
+            .protocol_ir
+            .iter()
+            .any(|item| item.operation == operation),
+        "unexpected protocol IR for {operation}"
     );
 }
 

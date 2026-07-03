@@ -23,7 +23,10 @@ pub struct ProtocolIr {
 pub(crate) fn infer_protocol_ir(program_flows: &[ProgramFlow]) -> Vec<ProtocolIr> {
     let mut operations = program_flows
         .iter()
-        .filter_map(|flow| operation_id(&flow.operation))
+        .filter_map(|flow| {
+            let operation = operation_id(&flow.operation)?;
+            protocol_flow_has_required_phases(flow, &operation).then_some(operation)
+        })
         .collect::<BTreeSet<_>>();
     let mut inferred = Vec::new();
     for summary in protocol_summaries() {
@@ -39,6 +42,113 @@ pub(crate) fn infer_protocol_ir(program_flows: &[ProgramFlow]) -> Vec<ProtocolIr
     }
     inferred.sort_by(|left, right| left.operation.cmp(&right.operation));
     inferred
+}
+
+fn protocol_flow_has_required_phases(flow: &ProgramFlow, operation: &str) -> bool {
+    let Some(required_phases) = required_protocol_ir_phases(operation) else {
+        return true;
+    };
+    match required_phases {
+        RequiredProtocolPhases::All(phases) => {
+            phases.iter().all(|phase| flow_has_phase(flow, phase))
+        }
+        RequiredProtocolPhases::Any(phases) => {
+            phases.iter().any(|phase| flow_has_phase(flow, phase))
+        }
+    }
+}
+
+enum RequiredProtocolPhases {
+    All(&'static [&'static str]),
+    Any(&'static [&'static str]),
+}
+
+fn flow_has_phase(flow: &ProgramFlow, phase: &str) -> bool {
+    flow.stages
+        .iter()
+        .any(|stage| stage.phase.as_deref() == Some(phase))
+}
+
+fn required_protocol_ir_phases(operation: &str) -> Option<RequiredProtocolPhases> {
+    match operation {
+        "cassandra_error" => Some(RequiredProtocolPhases::All(&["receive_error"])),
+        "coap_delete" => Some(RequiredProtocolPhases::All(&["receive_deleted"])),
+        "coap_post" => Some(RequiredProtocolPhases::All(&["receive_created"])),
+        "dhcp_discover" => Some(RequiredProtocolPhases::All(&["receive_offer"])),
+        "dhcp_nak" => Some(RequiredProtocolPhases::All(&["receive_nak"])),
+        "dhcp_request" => Some(RequiredProtocolPhases::All(&["receive_ack"])),
+        "dns_error" => Some(RequiredProtocolPhases::All(&["receive_nxdomain"])),
+        "dns_tcp_error" => Some(RequiredProtocolPhases::Any(&[
+            "receive_formerr",
+            "receive_servfail",
+            "receive_nxdomain",
+            "receive_refused",
+        ])),
+        "dns_tcp_query" => Some(RequiredProtocolPhases::All(&["receive_response"])),
+        "ftp_denied" => Some(RequiredProtocolPhases::All(&["receive_auth_denied"])),
+        "grpc_call" => Some(RequiredProtocolPhases::All(&["receive_message"])),
+        "http_connect_denied" => Some(RequiredProtocolPhases::All(&["receive_connect_denied"])),
+        "icmp_unreachable" => Some(RequiredProtocolPhases::All(&["receive_unreachable"])),
+        "icmpv6_unreachable" => Some(RequiredProtocolPhases::All(&["receive_unreachable"])),
+        "ldap_bind_denied" => Some(RequiredProtocolPhases::All(&["receive_bind_denied"])),
+        "mongodb_query_failure" => Some(RequiredProtocolPhases::All(&["receive_query_failure"])),
+        "mssql_error" => Some(RequiredProtocolPhases::All(&["receive_error_token"])),
+        "mysql_auth_denied" => Some(RequiredProtocolPhases::All(&["receive_auth_denied"])),
+        "nats_error" => Some(RequiredProtocolPhases::All(&["receive_error"])),
+        "ntp_query" => Some(RequiredProtocolPhases::All(&["receive_response"])),
+        "ntp_sync" => Some(RequiredProtocolPhases::All(&[
+            "send_sync_request",
+            "receive_sync_response",
+        ])),
+        "http3_close_observation" => Some(RequiredProtocolPhases::All(&[
+            "send_request_stream",
+            "receive_close",
+        ])),
+        "http3_server_close_observation" => Some(RequiredProtocolPhases::All(&[
+            "send_response_stream",
+            "send_close",
+        ])),
+        "quic_close_observation" => Some(RequiredProtocolPhases::All(&["receive_close"])),
+        "quic_retry_validation" => Some(RequiredProtocolPhases::All(&["receive_retry"])),
+        "radius_denied" => Some(RequiredProtocolPhases::All(&["receive_access_reject"])),
+        "rdp_denied" => Some(RequiredProtocolPhases::Any(&[
+            "receive_x224_disconnect",
+            "receive_negotiation_failure",
+        ])),
+        "redis_wrongtype" => Some(RequiredProtocolPhases::All(&[
+            "receive_wrongtype_constraint",
+        ])),
+        "snmp_bulk" => Some(RequiredProtocolPhases::All(&["receive_bulk_response"])),
+        "snmp_inform" => Some(RequiredProtocolPhases::All(&["receive_inform_response"])),
+        "snmp_set" => Some(RequiredProtocolPhases::All(&["receive_set_response"])),
+        "snmp_v3_priv" => Some(RequiredProtocolPhases::All(&["receive_v3_priv_response"])),
+        "sip_denied" => Some(RequiredProtocolPhases::Any(&[
+            "receive_4xx",
+            "receive_5xx",
+            "receive_6xx",
+        ])),
+        "ssh_auth_denied" => Some(RequiredProtocolPhases::All(&["receive_auth_denied"])),
+        "smtp_rcpt_denied" => Some(RequiredProtocolPhases::All(&["receive_rcpt_denied"])),
+        "smtp_auth_denied" => Some(RequiredProtocolPhases::All(&["receive_auth_denied"])),
+        "smtp_data_denied" => Some(RequiredProtocolPhases::All(&["receive_message_denied"])),
+        "postgres_auth_denied" => Some(RequiredProtocolPhases::All(&["receive_auth_denied"])),
+        "stun_allocate" => Some(RequiredProtocolPhases::All(&["receive_allocate_response"])),
+        "stun_refresh" => Some(RequiredProtocolPhases::All(&["receive_refresh_response"])),
+        "tls_alert" => Some(RequiredProtocolPhases::Any(&[
+            "send_alert",
+            "receive_alert",
+        ])),
+        "tls_client" => Some(RequiredProtocolPhases::All(&["send_client_hello"])),
+        "websocket_close" => Some(RequiredProtocolPhases::Any(&[
+            "send_close",
+            "receive_close",
+        ])),
+        "websocket_upgrade" => Some(RequiredProtocolPhases::All(&[
+            "receive_switching_protocols",
+        ])),
+        "zookeeper_auth_denied" => Some(RequiredProtocolPhases::All(&["receive_denial"])),
+        _ => None,
+    }
 }
 
 fn operation_candidates(protocol: &str, entry: &str) -> Vec<String> {

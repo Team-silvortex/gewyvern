@@ -49,6 +49,26 @@ fn http_connect_denied_runtime_path_materializes_denied_ir_from_legacy_operation
 }
 
 #[test]
+fn http_connect_denied_runtime_ir_does_not_materialize_for_success_response() {
+    let export = run_tcp_path(
+        "http_connect_denied_path.gewy",
+        0x4832,
+        8080,
+        "curl",
+        &[
+            (PacketDir::Egress, connect_prefix()),
+            (PacketDir::Ingress, http_200_prefix()),
+        ],
+    );
+
+    assert_operation(&export, "http_connect_denied");
+    assert_stage(&export, "send_connect_request");
+    assert_no_stage(&export, "receive_connect_denied");
+    assert_no_protocol_ir(&export, "http_connect_denied");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn graphql_query_runtime_path_materializes_query_ir() {
     let export = run_tcp_path(
         "graphql_query_path.gewy",
@@ -296,6 +316,10 @@ fn http_403_prefix() -> &'static [(u16, u8)] {
     &[(0, 0x34), (1, 0x30), (2, 0x33), (3, 0x20)]
 }
 
+fn http_200_prefix() -> &'static [(u16, u8)] {
+    &[(0, 0x32), (1, 0x30), (2, 0x30), (3, 0x20)]
+}
+
 fn assert_operation(export: &ExportBundle, operation: &str) {
     assert_eq!(
         export.program_flows[0].operation,
@@ -317,6 +341,26 @@ fn assert_stage(export: &ExportBundle, phase: &str) {
             .iter()
             .any(|stage| stage.phase.as_deref() == Some(phase)),
         "missing stage {phase}"
+    );
+}
+
+fn assert_no_stage(export: &ExportBundle, phase: &str) {
+    assert!(
+        !export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some(phase)),
+        "unexpected stage {phase}"
+    );
+}
+
+fn assert_no_protocol_ir(export: &ExportBundle, operation: &str) {
+    assert!(
+        !export
+            .protocol_ir
+            .iter()
+            .any(|item| item.operation == operation),
+        "unexpected protocol IR for {operation}"
     );
 }
 

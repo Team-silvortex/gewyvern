@@ -105,6 +105,171 @@ fn smtp_rcpt_denied_runtime_path_materializes_envelope_failure_ir() {
 }
 
 #[test]
+fn smtp_rcpt_denied_runtime_ir_does_not_materialize_for_accepted_recipient() {
+    let export = run_tcp_mail_path(
+        "smtp_rcpt_denied_path.gewy",
+        0x5a27,
+        25,
+        "msmtp",
+        &[
+            (PacketDir::Ingress, prefix4(*b"220 ")),
+            (PacketDir::Egress, prefix4(*b"EHLO")),
+            (PacketDir::Ingress, prefix4(*b"250 ")),
+            (PacketDir::Egress, prefix4(*b"AUTH")),
+            (PacketDir::Ingress, prefix4(*b"235 ")),
+            (PacketDir::Egress, prefix4(*b"MAIL")),
+            (
+                PacketDir::Ingress,
+                bytes(&[b'2', b'5', b'0', b' ', b'2', b'.', b'1', b'.']),
+            ),
+            (PacketDir::Egress, prefix4(*b"RCPT")),
+            (PacketDir::Ingress, prefix4(*b"250 ")),
+        ],
+    );
+
+    assert_operation(&export, "smtp_rcpt_denied");
+    assert_stage(&export, "send_rcpt_to");
+    assert_no_stage(&export, "receive_rcpt_denied");
+    assert_no_protocol_ir(&export, "smtp_rcpt_denied");
+    assert_json_replay(&export);
+}
+
+#[test]
+fn smtp_auth_denied_runtime_path_materializes_auth_failure_ir() {
+    let export = run_tcp_mail_path(
+        "smtp_auth_denied_path.gewy",
+        0x5a28,
+        25,
+        "msmtp",
+        &[
+            (PacketDir::Ingress, prefix4(*b"220 ")),
+            (PacketDir::Egress, prefix4(*b"EHLO")),
+            (PacketDir::Ingress, prefix4(*b"250 ")),
+            (PacketDir::Egress, prefix4(*b"AUTH")),
+            (PacketDir::Ingress, prefix4(*b"535 ")),
+        ],
+    );
+
+    assert_operation(&export, "smtp_auth_denied");
+    assert_stage(&export, "send_auth_request");
+    assert_stage(&export, "receive_auth_denied");
+
+    let ir = protocol_ir(&export, "smtp_auth_denied");
+    assert_surface(
+        ir,
+        "smtp",
+        "auth-denied",
+        "session-auth",
+        "mail-delivery-mailbox",
+    );
+    assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn smtp_auth_denied_runtime_ir_does_not_materialize_for_auth_ok() {
+    let export = run_tcp_mail_path(
+        "smtp_auth_denied_path.gewy",
+        0x5a29,
+        25,
+        "msmtp",
+        &[
+            (PacketDir::Ingress, prefix4(*b"220 ")),
+            (PacketDir::Egress, prefix4(*b"EHLO")),
+            (PacketDir::Ingress, prefix4(*b"250 ")),
+            (PacketDir::Egress, prefix4(*b"AUTH")),
+            (PacketDir::Ingress, prefix4(*b"235 ")),
+        ],
+    );
+
+    assert_operation(&export, "smtp_auth_denied");
+    assert_stage(&export, "send_auth_request");
+    assert_no_stage(&export, "receive_auth_denied");
+    assert_no_protocol_ir(&export, "smtp_auth_denied");
+    assert_json_replay(&export);
+}
+
+#[test]
+fn smtp_data_denied_runtime_path_materializes_message_failure_ir() {
+    let export = run_tcp_mail_path(
+        "smtp_data_denied_path.gewy",
+        0x5a2a,
+        25,
+        "msmtp",
+        &[
+            (PacketDir::Ingress, prefix4(*b"220 ")),
+            (PacketDir::Egress, prefix4(*b"EHLO")),
+            (PacketDir::Ingress, prefix4(*b"250 ")),
+            (PacketDir::Egress, prefix4(*b"AUTH")),
+            (PacketDir::Ingress, prefix4(*b"235 ")),
+            (PacketDir::Egress, prefix4(*b"MAIL")),
+            (
+                PacketDir::Ingress,
+                bytes(&[b'2', b'5', b'0', b' ', b'2', b'.', b'1', b'.']),
+            ),
+            (PacketDir::Egress, prefix4(*b"RCPT")),
+            (
+                PacketDir::Ingress,
+                bytes(&[b'2', b'5', b'0', b' ', b'2', b'.', b'1', b'.', b'5']),
+            ),
+            (PacketDir::Egress, prefix4(*b"DATA")),
+            (PacketDir::Ingress, prefix4(*b"354 ")),
+            (PacketDir::Egress, bytes(&[0x0d, 0x0a, b'.', 0x0d, 0x0a])),
+            (PacketDir::Ingress, prefix4(*b"550 ")),
+        ],
+    );
+
+    assert_operation(&export, "smtp_data_denied");
+    assert_stage(&export, "send_message_body");
+    assert_stage(&export, "receive_message_denied");
+
+    let ir = protocol_ir(&export, "smtp_data_denied");
+    assert_surface(ir, "smtp", "data-denied", "data", "mail-delivery-mailbox");
+    assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn smtp_data_denied_runtime_ir_does_not_materialize_for_message_queued() {
+    let export = run_tcp_mail_path(
+        "smtp_data_denied_path.gewy",
+        0x5a2b,
+        25,
+        "msmtp",
+        &[
+            (PacketDir::Ingress, prefix4(*b"220 ")),
+            (PacketDir::Egress, prefix4(*b"EHLO")),
+            (PacketDir::Ingress, prefix4(*b"250 ")),
+            (PacketDir::Egress, prefix4(*b"AUTH")),
+            (PacketDir::Ingress, prefix4(*b"235 ")),
+            (PacketDir::Egress, prefix4(*b"MAIL")),
+            (
+                PacketDir::Ingress,
+                bytes(&[b'2', b'5', b'0', b' ', b'2', b'.', b'1', b'.']),
+            ),
+            (PacketDir::Egress, prefix4(*b"RCPT")),
+            (
+                PacketDir::Ingress,
+                bytes(&[b'2', b'5', b'0', b' ', b'2', b'.', b'1', b'.', b'5']),
+            ),
+            (PacketDir::Egress, prefix4(*b"DATA")),
+            (PacketDir::Ingress, prefix4(*b"354 ")),
+            (PacketDir::Egress, bytes(&[0x0d, 0x0a, b'.', 0x0d, 0x0a])),
+            (
+                PacketDir::Ingress,
+                bytes(&[b'2', b'5', b'0', b' ', b'2', b'.', b'0', b'.', b'0']),
+            ),
+        ],
+    );
+
+    assert_operation(&export, "smtp_data_denied");
+    assert_stage(&export, "send_message_body");
+    assert_no_stage(&export, "receive_message_denied");
+    assert_no_protocol_ir(&export, "smtp_data_denied");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn imap_select_runtime_path_materializes_mailbox_select_ir() {
     let export = run_tcp_mail_path(
         "imap_select_path.gewy",
@@ -276,6 +441,26 @@ fn assert_stage(export: &ExportBundle, phase: &str) {
             .iter()
             .any(|stage| stage.phase.as_deref() == Some(phase)),
         "missing stage {phase}"
+    );
+}
+
+fn assert_no_stage(export: &ExportBundle, phase: &str) {
+    assert!(
+        !export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some(phase)),
+        "unexpected stage {phase}"
+    );
+}
+
+fn assert_no_protocol_ir(export: &ExportBundle, operation: &str) {
+    assert!(
+        !export
+            .protocol_ir
+            .iter()
+            .any(|item| item.operation == operation),
+        "unexpected protocol IR for {operation}"
     );
 }
 

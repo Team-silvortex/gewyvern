@@ -2,6 +2,7 @@ mod common;
 mod data;
 mod discovery;
 mod identity;
+mod management;
 mod media;
 mod search_storage;
 mod telemetry;
@@ -66,7 +67,7 @@ pub(super) fn built_in_protocol_entry_semantics(
         "redis" => data::redis_entry_semantics(entry),
         "rtsp" => media::rtsp_entry_semantics(entry),
         "s3" => search_storage::s3_entry_semantics(entry),
-        "snmp" => identity::snmp_entry_semantics(entry),
+        "snmp" => management::snmp_entry_semantics(entry),
         "smb" => identity::smb_entry_semantics(entry),
         "socks5" => transport::socks5_entry_semantics(entry),
         "smtp" => identity::smtp_entry_semantics(entry),

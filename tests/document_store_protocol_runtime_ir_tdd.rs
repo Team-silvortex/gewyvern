@@ -74,6 +74,28 @@ fn mongodb_query_failure_runtime_path_materializes_hyphenated_entry_ir() {
 }
 
 #[test]
+fn mongodb_query_failure_runtime_ir_does_not_materialize_for_success_reply() {
+    let export = run_protocol_path(
+        "mongodb_query_failure_path.gewy",
+        0x6d72,
+        27017,
+        "mongosh",
+        &[(
+            PacketDir::Ingress,
+            &[(12, 0x01), (13, 0x00), (14, 0x00), (15, 0x00), (16, 0x00)][..],
+        )],
+    );
+
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("mongodb_query_failure".into())
+    );
+    assert_no_stage(&export, "receive_query_failure");
+    assert_no_protocol_ir(&export, "mongodb_query_failure");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn cassandra_query_runtime_path_materializes_query_ir() {
     let export = run_protocol_path(
         "cassandra_query_path.gewy",
@@ -118,6 +140,25 @@ fn cassandra_error_runtime_path_materializes_failure_ir() {
     assert_protocol_surface(ir, "cassandra", "error", "error");
     assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
     assert_eq!(ir.typical_signal.as_deref(), Some("ERROR opcode 0x00"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn cassandra_error_runtime_ir_does_not_materialize_for_query_result_opcode() {
+    let export = run_protocol_path(
+        "cassandra_error_path.gewy",
+        0xca57,
+        9042,
+        "cqlsh",
+        &[(PacketDir::Ingress, &[(4, 0x08)][..])],
+    );
+
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("cassandra_error".into())
+    );
+    assert_no_stage(&export, "receive_error");
+    assert_no_protocol_ir(&export, "cassandra_error");
     assert_json_replay(&export);
 }
 
@@ -192,6 +233,25 @@ fn mssql_error_runtime_path_materializes_error_token_ir() {
     assert_json_replay(&export);
 }
 
+#[test]
+fn mssql_error_runtime_ir_does_not_materialize_for_done_token() {
+    let export = run_protocol_path(
+        "mssql_error_path.gewy",
+        0x5a34,
+        1433,
+        "sqlcmd",
+        &[(PacketDir::Ingress, &[(0, 0x04), (8, 0xfd)][..])],
+    );
+
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom("mssql_error".into())
+    );
+    assert_no_stage(&export, "receive_error_token");
+    assert_no_protocol_ir(&export, "mssql_error");
+    assert_json_replay(&export);
+}
+
 fn run_protocol_path(
     fixture: &str,
     cookie: u64,
@@ -251,6 +311,26 @@ fn assert_stage(export: &ExportBundle, phase: &str) {
             .iter()
             .any(|stage| stage.phase.as_deref() == Some(phase)),
         "missing stage {phase}"
+    );
+}
+
+fn assert_no_stage(export: &ExportBundle, phase: &str) {
+    assert!(
+        !export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some(phase)),
+        "unexpected stage {phase}"
+    );
+}
+
+fn assert_no_protocol_ir(export: &ExportBundle, operation: &str) {
+    assert!(
+        !export
+            .protocol_ir
+            .iter()
+            .any(|item| item.operation == operation),
+        "unexpected protocol IR for {operation}"
     );
 }
 

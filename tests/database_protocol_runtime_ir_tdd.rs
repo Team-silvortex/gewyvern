@@ -84,6 +84,102 @@ fn mysql_simple_query_runtime_path_keeps_legacy_operation_in_protocol_ir() {
     assert_eq!(replayed.protocol_ir, export.protocol_ir);
 }
 
+#[test]
+fn mysql_auth_denied_runtime_path_materializes_auth_failure_ir() {
+    let export = run_database_path(
+        "mysql_auth_denied_path.gewy",
+        0x6d7a,
+        3306,
+        "mysql",
+        &[
+            (PacketDir::Ingress, &[(4, 0x0a)][..]),
+            (PacketDir::Egress, &[(3, 0x01)][..]),
+            (PacketDir::Ingress, &[(4, 0xff)][..]),
+        ],
+    );
+
+    assert_operation(&export, "mysql_auth_denied");
+    assert_stage(&export, "send_login");
+    assert_stage(&export, "receive_auth_denied");
+
+    let ir = protocol_ir(&export, "mysql_auth_denied");
+    assert_eq!(ir.protocol, "mysql");
+    assert_eq!(ir.entry, "auth-denied");
+    assert_eq!(ir.shelf_key.as_deref(), Some("connect-auth"));
+    assert_eq!(ir.cluster_key.as_deref(), Some("database-query-session"));
+    assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn mysql_auth_denied_runtime_ir_does_not_materialize_for_login_ok() {
+    let export = run_database_path(
+        "mysql_auth_denied_path.gewy",
+        0x6d7b,
+        3306,
+        "mysql",
+        &[
+            (PacketDir::Ingress, &[(4, 0x0a)][..]),
+            (PacketDir::Egress, &[(3, 0x01)][..]),
+            (PacketDir::Ingress, &[(4, 0x00)][..]),
+        ],
+    );
+
+    assert_operation(&export, "mysql_auth_denied");
+    assert_stage(&export, "send_login");
+    assert_no_stage(&export, "receive_auth_denied");
+    assert_no_protocol_ir(&export, "mysql_auth_denied");
+    assert_json_replay(&export);
+}
+
+#[test]
+fn postgres_auth_denied_runtime_path_materializes_auth_failure_ir() {
+    let export = run_database_path(
+        "postgres_auth_denied_path.gewy",
+        0x7074,
+        5432,
+        "psql",
+        &[
+            (PacketDir::Ingress, &[(0, 0x52)][..]),
+            (PacketDir::Egress, &[(0, 0x70)][..]),
+            (PacketDir::Ingress, &[(0, 0x45)][..]),
+        ],
+    );
+
+    assert_operation(&export, "postgres_auth_denied");
+    assert_stage(&export, "send_password");
+    assert_stage(&export, "receive_auth_denied");
+
+    let ir = protocol_ir(&export, "postgres_auth_denied");
+    assert_eq!(ir.protocol, "postgres");
+    assert_eq!(ir.entry, "auth-denied");
+    assert_eq!(ir.shelf_key.as_deref(), Some("connect-auth"));
+    assert_eq!(ir.cluster_key.as_deref(), Some("database-query-session"));
+    assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn postgres_auth_denied_runtime_ir_does_not_materialize_for_auth_ok() {
+    let export = run_database_path(
+        "postgres_auth_denied_path.gewy",
+        0x7075,
+        5432,
+        "psql",
+        &[
+            (PacketDir::Ingress, &[(0, 0x52)][..]),
+            (PacketDir::Egress, &[(0, 0x70)][..]),
+            (PacketDir::Ingress, &[(0, 0x5a)][..]),
+        ],
+    );
+
+    assert_operation(&export, "postgres_auth_denied");
+    assert_stage(&export, "send_password");
+    assert_no_stage(&export, "receive_auth_denied");
+    assert_no_protocol_ir(&export, "postgres_auth_denied");
+    assert_json_replay(&export);
+}
+
 fn run_database_path(
     fixture: &str,
     cookie: u64,
@@ -137,6 +233,38 @@ fn assert_stage(export: &ExportBundle, phase: &str) {
             .any(|stage| stage.phase.as_deref() == Some(phase)),
         "missing stage {phase}"
     );
+}
+
+fn assert_operation(export: &ExportBundle, operation: &str) {
+    assert_eq!(
+        export.program_flows[0].operation,
+        ProgramOperation::Custom(operation.into())
+    );
+}
+
+fn assert_no_stage(export: &ExportBundle, phase: &str) {
+    assert!(
+        !export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some(phase)),
+        "unexpected stage {phase}"
+    );
+}
+
+fn assert_no_protocol_ir(export: &ExportBundle, operation: &str) {
+    assert!(
+        !export
+            .protocol_ir
+            .iter()
+            .any(|item| item.operation == operation),
+        "unexpected protocol IR for {operation}"
+    );
+}
+
+fn assert_json_replay(export: &ExportBundle) {
+    let replayed = ExportBundle::from_json(&export.to_json()).expect("export json should replay");
+    assert_eq!(replayed.protocol_ir, export.protocol_ir);
 }
 
 fn protocol_ir<'a>(export: &'a ExportBundle, operation: &str) -> &'a gewyvern::export::ProtocolIr {

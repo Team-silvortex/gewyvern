@@ -68,6 +68,23 @@ fn icmp_unreachable_runtime_path_materializes_failure_ir() {
 }
 
 #[test]
+fn icmp_unreachable_runtime_ir_does_not_materialize_for_echo_reply() {
+    let binding = compile_file(&dsl_fixture_path("icmp_unreachable_path.gewy")).unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 0x1c12, 0, "probe"));
+    session.ingest(route_fact(2, 0x1c12, 7));
+    session.ingest(icmp_packet_fact(3, 0x1c12, PacketDir::Ingress, 0));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_operation(&export, "icmp_unreachable");
+    assert_no_stage(&export, "receive_unreachable");
+    assert_no_protocol_ir(&export, "icmp_unreachable");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn icmpv6_echo_runtime_path_materializes_reachability_ir() {
     let binding = compile_file(&dsl_fixture_path("icmpv6_echo_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
@@ -120,6 +137,23 @@ fn icmpv6_unreachable_runtime_path_materializes_failure_ir() {
         ir.typical_signal.as_deref(),
         Some("type 1 destination unreachable")
     );
+    assert_json_replay(&export);
+}
+
+#[test]
+fn icmpv6_unreachable_runtime_ir_does_not_materialize_for_echo_reply() {
+    let binding = compile_file(&dsl_fixture_path("icmpv6_unreachable_path.gewy")).unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
+    let mut session = RuntimeSession::start(config).unwrap();
+    session.ingest(sock_lineage_fact(1, 0x6c13, 0, "probe6"));
+    session.ingest(route_fact(2, 0x6c13, 7));
+    session.ingest(icmpv6_packet_fact(3, 0x6c13, PacketDir::Ingress, 129));
+    session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
+
+    let export = session.export_bundle();
+    assert_operation(&export, "icmpv6_unreachable");
+    assert_no_stage(&export, "receive_unreachable");
+    assert_no_protocol_ir(&export, "icmpv6_unreachable");
     assert_json_replay(&export);
 }
 
@@ -339,6 +373,26 @@ fn assert_stage(export: &ExportBundle, phase: &str) {
             .iter()
             .any(|stage| stage.phase.as_deref() == Some(phase)),
         "missing stage {phase}"
+    );
+}
+
+fn assert_no_stage(export: &ExportBundle, phase: &str) {
+    assert!(
+        !export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some(phase)),
+        "unexpected stage {phase}"
+    );
+}
+
+fn assert_no_protocol_ir(export: &ExportBundle, operation: &str) {
+    assert!(
+        !export
+            .protocol_ir
+            .iter()
+            .any(|item| item.operation == operation),
+        "unexpected protocol IR for {operation}"
     );
 }
 

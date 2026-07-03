@@ -22,7 +22,7 @@ fn dsl_fixture_path(name: &str) -> String {
 
 #[test]
 fn quic_retry_runtime_path_materializes_retry_ir_from_legacy_operation() {
-    let export = run_quic_retry_path();
+    let export = run_quic_retry_path(true);
 
     assert_operation(&export, "quic_retry_validation");
     assert_stage(&export, "receive_retry");
@@ -34,13 +34,17 @@ fn quic_retry_runtime_path_materializes_retry_ir_from_legacy_operation() {
 }
 
 #[test]
+fn quic_retry_runtime_ir_does_not_materialize_without_retry_packet() {
+    let export = run_quic_retry_path(false);
+
+    assert_no_stage(&export, "receive_retry");
+    assert_no_protocol_ir(&export, "quic_retry_validation");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn quic_close_runtime_path_materializes_close_ir_from_observation_operation() {
-    let export = run_close_like_path(
-        "quic_close_path.gewy",
-        0x7155,
-        "quic-client",
-        CloseDirection::Peer,
-    );
+    let export = run_close_like_path("quic_close_path.gewy", 0x7155, "quic-client", true);
 
     assert_operation(&export, "quic_close_observation");
     assert_stage(&export, "receive_close");
@@ -52,8 +56,17 @@ fn quic_close_runtime_path_materializes_close_ir_from_observation_operation() {
 }
 
 #[test]
+fn quic_close_runtime_ir_does_not_materialize_without_close_frame() {
+    let export = run_close_like_path("quic_close_path.gewy", 0x7156, "quic-client", false);
+
+    assert_no_stage(&export, "receive_close");
+    assert_no_protocol_ir(&export, "quic_close_observation");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn http3_close_runtime_path_materializes_close_ir_from_observation_operation() {
-    let export = run_http3_close_path();
+    let export = run_http3_close_path(true);
 
     assert_operation(&export, "http3_close_observation");
     assert_stage(&export, "send_request_stream");
@@ -66,8 +79,18 @@ fn http3_close_runtime_path_materializes_close_ir_from_observation_operation() {
 }
 
 #[test]
+fn http3_close_runtime_ir_does_not_materialize_without_close_frame() {
+    let export = run_http3_close_path(false);
+
+    assert_stage(&export, "send_request_stream");
+    assert_no_stage(&export, "receive_close");
+    assert_no_protocol_ir(&export, "http3_close_observation");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn http3_server_close_runtime_path_materializes_server_close_ir() {
-    let export = run_http3_server_close_path();
+    let export = run_http3_server_close_path(true);
 
     assert_operation(&export, "http3_server_close_observation");
     assert_stage(&export, "send_response_stream");
@@ -85,7 +108,17 @@ fn http3_server_close_runtime_path_materializes_server_close_ir() {
     assert_json_replay(&export);
 }
 
-fn run_quic_retry_path() -> ExportBundle {
+#[test]
+fn http3_server_close_runtime_ir_does_not_materialize_without_close_frame() {
+    let export = run_http3_server_close_path(false);
+
+    assert_stage(&export, "send_response_stream");
+    assert_no_stage(&export, "send_close");
+    assert_no_protocol_ir(&export, "http3_server_close_observation");
+    assert_json_replay(&export);
+}
+
+fn run_quic_retry_path(include_retry: bool) -> ExportBundle {
     let binding = compile_file(&dsl_fixture_path("quic_retry_path.gewy")).unwrap();
     let config = SessionConfig::for_template(binding.template).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
@@ -102,29 +135,27 @@ fn run_quic_retry_path() -> ExportBundle {
         Some(0xc3),
         Some(0xc300),
     ));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
-        4,
-        cookie,
-        160,
-        PacketDir::Ingress,
-        Some(53000),
-        Some(443),
-        Some(0xf0),
-        None,
-    ));
+    if include_retry {
+        session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+            4,
+            cookie,
+            160,
+            PacketDir::Ingress,
+            Some(53000),
+            Some(443),
+            Some(0xf0),
+            None,
+        ));
+    }
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
     session.export_bundle()
-}
-
-enum CloseDirection {
-    Peer,
 }
 
 fn run_close_like_path(
     fixture: &str,
     cookie: u64,
     process_name: &str,
-    direction: CloseDirection,
+    include_peer_close: bool,
 ) -> ExportBundle {
     let binding = compile_file(&dsl_fixture_path(fixture)).unwrap();
     let config = SessionConfig::for_template(binding.template).unwrap();
@@ -169,8 +200,8 @@ fn run_close_like_path(
         Some(QuicPacketType::Handshake),
         QuicFrameType::Crypto,
     );
-    match direction {
-        CloseDirection::Peer => ingest_quic_frame(
+    if include_peer_close {
+        ingest_quic_frame(
             &mut session,
             7,
             cookie,
@@ -178,13 +209,13 @@ fn run_close_like_path(
             false,
             None,
             QuicFrameType::ConnectionClose,
-        ),
+        );
     }
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(90));
     session.export_bundle()
 }
 
-fn run_http3_close_path() -> ExportBundle {
+fn run_http3_close_path(include_peer_close: bool) -> ExportBundle {
     let binding = compile_file(&dsl_fixture_path("http3_close_path.gewy")).unwrap();
     let config = SessionConfig::for_template(binding.template).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
@@ -244,22 +275,24 @@ fn run_http3_close_path() -> ExportBundle {
         None,
         QuicFrameType::Stream,
     );
-    ingest_quic_frame_with_ports(
-        &mut session,
-        8,
-        cookie,
-        PacketDir::Ingress,
-        Some(53110),
-        Some(443),
-        false,
-        None,
-        QuicFrameType::ConnectionClose,
-    );
+    if include_peer_close {
+        ingest_quic_frame_with_ports(
+            &mut session,
+            8,
+            cookie,
+            PacketDir::Ingress,
+            Some(53110),
+            Some(443),
+            false,
+            None,
+            QuicFrameType::ConnectionClose,
+        );
+    }
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(100));
     session.export_bundle()
 }
 
-fn run_http3_server_close_path() -> ExportBundle {
+fn run_http3_server_close_path(include_local_close: bool) -> ExportBundle {
     let binding = compile_file(&dsl_fixture_path("http3_server_close_path.gewy")).unwrap();
     let config = SessionConfig::for_template(binding.template).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
@@ -329,17 +362,19 @@ fn run_http3_server_close_path() -> ExportBundle {
         None,
         QuicFrameType::Stream,
     );
-    ingest_quic_frame_with_ports(
-        &mut session,
-        8,
-        cookie,
-        PacketDir::Egress,
-        Some(443),
-        Some(53112),
-        false,
-        None,
-        QuicFrameType::ConnectionClose,
-    );
+    if include_local_close {
+        ingest_quic_frame_with_ports(
+            &mut session,
+            8,
+            cookie,
+            PacketDir::Egress,
+            Some(443),
+            Some(53112),
+            false,
+            None,
+            QuicFrameType::ConnectionClose,
+        );
+    }
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(110));
     session.export_bundle()
 }
@@ -413,9 +448,29 @@ fn assert_stage(export: &ExportBundle, phase: &str) {
     );
 }
 
+fn assert_no_stage(export: &ExportBundle, phase: &str) {
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some(phase)),
+        "unexpected stage {phase}"
+    );
+}
+
 fn assert_json_replay(export: &ExportBundle) {
     let replayed = ExportBundle::from_json(&export.to_json()).expect("export json should replay");
     assert_eq!(replayed.protocol_ir, export.protocol_ir);
+}
+
+fn assert_no_protocol_ir(export: &ExportBundle, operation: &str) {
+    assert!(
+        export
+            .protocol_ir
+            .iter()
+            .all(|item| item.operation != operation),
+        "unexpected protocol IR for {operation}"
+    );
 }
 
 fn protocol_ir<'a>(export: &'a ExportBundle, operation: &str) -> &'a ProtocolIr {

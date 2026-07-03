@@ -175,6 +175,29 @@ fn ftp_denied_runtime_path_materializes_login_failure_ir() {
 }
 
 #[test]
+fn ftp_denied_runtime_ir_does_not_materialize_for_successful_login() {
+    let export = run_tcp_path(
+        "ftp_denied_path.gewy",
+        0x3753,
+        21,
+        "curl",
+        &[
+            (PacketDir::Ingress, prefix4(*b"220 ")),
+            (PacketDir::Egress, prefix4(*b"USER")),
+            (PacketDir::Ingress, prefix4(*b"331 ")),
+            (PacketDir::Egress, prefix4(*b"PASS")),
+            (PacketDir::Ingress, prefix4(*b"230 ")),
+        ],
+    );
+
+    assert_operation(&export, "ftp_denied");
+    assert_stage(&export, "send_auth_pass");
+    assert_no_stage(&export, "receive_auth_denied");
+    assert_no_protocol_ir(&export, "ftp_denied");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn rtsp_setup_runtime_path_materializes_media_setup_ir() {
     let export = run_tcp_path(
         "rtsp_setup_path.gewy",
@@ -237,6 +260,23 @@ fn sip_denied_runtime_path_materializes_session_failure_ir() {
         "session-control-media-transfer",
     );
     assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn sip_denied_runtime_ir_does_not_materialize_for_non_denial_response() {
+    let export = run_udp_path(
+        "sip_denied_path.gewy",
+        0x5153,
+        "softphone",
+        &[(PacketDir::Ingress, &[(8, b'2')][..])],
+    );
+
+    assert_operation(&export, "sip_denied");
+    assert_no_stage(&export, "receive_4xx");
+    assert_no_stage(&export, "receive_5xx");
+    assert_no_stage(&export, "receive_6xx");
+    assert_no_protocol_ir(&export, "sip_denied");
     assert_json_replay(&export);
 }
 
@@ -478,6 +518,26 @@ fn assert_stage(export: &ExportBundle, phase: &str) {
             .iter()
             .any(|stage| stage.phase.as_deref() == Some(phase)),
         "missing stage {phase}"
+    );
+}
+
+fn assert_no_stage(export: &ExportBundle, phase: &str) {
+    assert!(
+        !export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some(phase)),
+        "unexpected stage {phase}"
+    );
+}
+
+fn assert_no_protocol_ir(export: &ExportBundle, operation: &str) {
+    assert!(
+        !export
+            .protocol_ir
+            .iter()
+            .any(|item| item.operation == operation),
+        "unexpected protocol IR for {operation}"
     );
 }
 

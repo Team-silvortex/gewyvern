@@ -95,6 +95,73 @@ fn ssh_channel_runtime_path_materializes_channel_ir() {
 }
 
 #[test]
+fn ssh_auth_denied_runtime_path_materializes_auth_failure_ir() {
+    let export = run_tcp_path(
+        "ssh_auth_denied_path.gewy",
+        0x55ca,
+        22,
+        "ssh",
+        &[
+            (
+                PacketDir::Ingress,
+                &[(0, 0x53), (1, 0x53), (2, 0x48), (3, 0x2d)][..],
+            ),
+            (
+                PacketDir::Egress,
+                &[(0, 0x53), (1, 0x53), (2, 0x48), (3, 0x2d)][..],
+            ),
+            (PacketDir::Egress, &[(5, 0x14)][..]),
+            (PacketDir::Egress, &[(5, 0x32)][..]),
+            (PacketDir::Ingress, &[(5, 0x33)][..]),
+        ],
+    );
+
+    assert_operation(&export, "ssh_auth_denied");
+    assert_stage(&export, "send_auth_request");
+    assert_stage(&export, "receive_auth_denied");
+
+    let ir = protocol_ir(&export, "ssh_auth_denied");
+    assert_surface(
+        ir,
+        "ssh",
+        "auth-denied",
+        "auth",
+        "identity-directory-access",
+    );
+    assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn ssh_auth_denied_runtime_ir_does_not_materialize_for_auth_success() {
+    let export = run_tcp_path(
+        "ssh_auth_denied_path.gewy",
+        0x55cb,
+        22,
+        "ssh",
+        &[
+            (
+                PacketDir::Ingress,
+                &[(0, 0x53), (1, 0x53), (2, 0x48), (3, 0x2d)][..],
+            ),
+            (
+                PacketDir::Egress,
+                &[(0, 0x53), (1, 0x53), (2, 0x48), (3, 0x2d)][..],
+            ),
+            (PacketDir::Egress, &[(5, 0x14)][..]),
+            (PacketDir::Egress, &[(5, 0x32)][..]),
+            (PacketDir::Ingress, &[(5, 0x34)][..]),
+        ],
+    );
+
+    assert_operation(&export, "ssh_auth_denied");
+    assert_stage(&export, "send_auth_request");
+    assert_no_stage(&export, "receive_auth_denied");
+    assert_no_protocol_ir(&export, "ssh_auth_denied");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn smb_tree_runtime_path_materializes_share_ir() {
     let export = run_tcp_path(
         "smb_tree_path.gewy",
@@ -147,6 +214,27 @@ fn rdp_denied_runtime_path_materializes_denied_ir() {
 }
 
 #[test]
+fn rdp_denied_runtime_ir_does_not_materialize_without_denial_frame() {
+    let export = run_tcp_path(
+        "rdp_denied_path.gewy",
+        0x8d0a,
+        3389,
+        "xfreerdp",
+        &[
+            (PacketDir::Egress, &[(0, 0x03), (5, 0xe0)][..]),
+            (PacketDir::Ingress, &[(0, 0x03), (5, 0xd0)][..]),
+        ],
+    );
+
+    assert_operation(&export, "rdp_denied");
+    assert_stage(&export, "send_x224_connect");
+    assert_no_stage(&export, "receive_x224_disconnect");
+    assert_no_stage(&export, "receive_negotiation_failure");
+    assert_no_protocol_ir(&export, "rdp_denied");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn radius_denied_runtime_path_materializes_denied_ir() {
     let export = run_udp_path(
         "radius_denied_path.gewy",
@@ -168,6 +256,71 @@ fn radius_denied_runtime_path_materializes_denied_ir() {
         "identity-directory-access",
     );
     assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn radius_denied_runtime_ir_does_not_materialize_for_access_accept() {
+    let export = run_udp_path(
+        "radius_denied_path.gewy",
+        0x8ad2,
+        "radiusd",
+        &[(PacketDir::Egress, 0x01), (PacketDir::Ingress, 0x02)],
+    );
+
+    assert_operation(&export, "radius_denied");
+    assert_stage(&export, "send_access_request");
+    assert_no_stage(&export, "receive_access_reject");
+    assert_no_protocol_ir(&export, "radius_denied");
+    assert_json_replay(&export);
+}
+
+#[test]
+fn ldap_bind_denied_runtime_path_materializes_bind_failure_ir() {
+    let export = run_tcp_path(
+        "ldap_bind_denied_path.gewy",
+        0x1daa,
+        389,
+        "ldapsearch",
+        &[
+            (PacketDir::Egress, &[(5, 0x60)][..]),
+            (PacketDir::Ingress, &[(5, 0x61), (9, 0x31)][..]),
+        ],
+    );
+
+    assert_operation(&export, "ldap_bind_denied");
+    assert_stage(&export, "send_bind");
+    assert_stage(&export, "receive_bind_denied");
+
+    let ir = protocol_ir(&export, "ldap_bind_denied");
+    assert_surface(
+        ir,
+        "ldap",
+        "bind-denied",
+        "bind",
+        "identity-directory-access",
+    );
+    assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn ldap_bind_denied_runtime_ir_does_not_materialize_for_bind_success() {
+    let export = run_tcp_path(
+        "ldap_bind_denied_path.gewy",
+        0x1dab,
+        389,
+        "ldapsearch",
+        &[
+            (PacketDir::Egress, &[(5, 0x60)][..]),
+            (PacketDir::Ingress, &[(5, 0x61), (9, 0x00)][..]),
+        ],
+    );
+
+    assert_operation(&export, "ldap_bind_denied");
+    assert_stage(&export, "send_bind");
+    assert_no_stage(&export, "receive_bind_denied");
+    assert_no_protocol_ir(&export, "ldap_bind_denied");
     assert_json_replay(&export);
 }
 
@@ -266,6 +419,26 @@ fn assert_stage(export: &ExportBundle, phase: &str) {
             .iter()
             .any(|stage| stage.phase.as_deref() == Some(phase)),
         "missing stage {phase}"
+    );
+}
+
+fn assert_no_stage(export: &ExportBundle, phase: &str) {
+    assert!(
+        !export.program_flows[0]
+            .stages
+            .iter()
+            .any(|stage| stage.phase.as_deref() == Some(phase)),
+        "unexpected stage {phase}"
+    );
+}
+
+fn assert_no_protocol_ir(export: &ExportBundle, operation: &str) {
+    assert!(
+        !export
+            .protocol_ir
+            .iter()
+            .any(|item| item.operation == operation),
+        "unexpected protocol IR for {operation}"
     );
 }
 

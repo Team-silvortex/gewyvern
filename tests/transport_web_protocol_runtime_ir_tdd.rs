@@ -46,6 +46,21 @@ fn dns_tcp_runtime_path_materializes_query_ir_from_legacy_operation() {
 }
 
 #[test]
+fn dns_tcp_runtime_ir_does_not_materialize_without_response() {
+    let export = run_tcp_path(
+        "dns_tcp_query_path.gewy",
+        0xd055,
+        53,
+        "dig",
+        &[(PacketDir::Egress, &[(4, 0x00)][..])],
+    );
+
+    assert_no_stage(&export, "receive_response");
+    assert_no_protocol_ir(&export, "dns_tcp_query");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn dns_tcp_error_runtime_path_materializes_name_resolution_failure_ir() {
     let export = run_tcp_path(
         "dns_tcp_error_path.gewy",
@@ -72,6 +87,25 @@ fn dns_tcp_error_runtime_path_materializes_name_resolution_failure_ir() {
 }
 
 #[test]
+fn dns_tcp_error_runtime_ir_does_not_materialize_for_noerror_response() {
+    let export = run_tcp_path(
+        "dns_tcp_error_path.gewy",
+        0xd056,
+        53,
+        "dig",
+        &[(PacketDir::Ingress, &[(4, 0x80), (5, 0x00)][..])],
+    );
+
+    assert_operation(&export, "dns_tcp_error");
+    assert_no_stage(&export, "receive_formerr");
+    assert_no_stage(&export, "receive_servfail");
+    assert_no_stage(&export, "receive_nxdomain");
+    assert_no_stage(&export, "receive_refused");
+    assert_no_protocol_ir(&export, "dns_tcp_error");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn tls_client_runtime_path_materializes_client_ir() {
     let export = run_tcp_path(
         "tls_client_path.gewy",
@@ -87,6 +121,15 @@ fn tls_client_runtime_path_materializes_client_ir() {
     let ir = protocol_ir(&export, "tls_client");
     assert_surface(ir, "tls", "client", "client", "secure-transport-session");
     assert_eq!(ir.semantics_category.as_deref(), Some("tls-client-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn tls_client_runtime_ir_does_not_materialize_without_client_hello() {
+    let export = run_tcp_path("tls_client_path.gewy", 0x7153, 443, "curl", &[]);
+
+    assert_no_stage(&export, "send_client_hello");
+    assert_no_protocol_ir(&export, "tls_client");
     assert_json_replay(&export);
 }
 
@@ -116,6 +159,21 @@ fn tls_alert_runtime_path_materializes_failure_ir() {
 }
 
 #[test]
+fn tls_alert_runtime_ir_does_not_materialize_for_non_alert_record() {
+    let export = run_tcp_path(
+        "tls_alert_path.gewy",
+        0x7154,
+        443,
+        "curl",
+        &[(PacketDir::Ingress, &[(0, 0x16)][..])],
+    );
+
+    assert_no_stage(&export, "receive_alert");
+    assert_no_protocol_ir(&export, "tls_alert");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn grpc_call_runtime_path_materializes_rpc_ir() {
     let export = run_tcp_path(
         "grpc_call_path.gewy",
@@ -137,6 +195,26 @@ fn grpc_call_runtime_path_materializes_rpc_ir() {
     let ir = protocol_ir(&export, "grpc_call");
     assert_surface(ir, "grpc", "call", "call", "web-proxy-request-response");
     assert_eq!(ir.semantics_category.as_deref(), Some("rpc-call-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn grpc_call_runtime_ir_does_not_materialize_without_response_message() {
+    let export = run_tcp_path(
+        "grpc_call_path.gewy",
+        0x6772,
+        443,
+        "grpcurl",
+        &[
+            (PacketDir::Egress, &[(3, 0x01)][..]),
+            (PacketDir::Egress, &[(3, 0x00)][..]),
+        ],
+    );
+
+    assert_stage(&export, "send_headers");
+    assert_stage(&export, "send_message");
+    assert_no_stage(&export, "receive_message");
+    assert_no_protocol_ir(&export, "grpc_call");
     assert_json_replay(&export);
 }
 
@@ -187,6 +265,38 @@ fn websocket_upgrade_runtime_path_materializes_upgrade_ir() {
 }
 
 #[test]
+fn websocket_upgrade_runtime_ir_does_not_materialize_for_plain_http_ok() {
+    let export = run_tcp_path(
+        "websocket_upgrade_path.gewy",
+        0x7753,
+        80,
+        "browser",
+        &[
+            (
+                PacketDir::Egress,
+                &[(0, 0x47), (1, 0x45), (2, 0x54), (3, 0x20)][..],
+            ),
+            (
+                PacketDir::Ingress,
+                &[
+                    (0, 0x48),
+                    (1, 0x54),
+                    (2, 0x54),
+                    (3, 0x50),
+                    (9, 0x32),
+                    (10, 0x30),
+                    (11, 0x30),
+                ][..],
+            ),
+        ],
+    );
+
+    assert_no_stage(&export, "receive_switching_protocols");
+    assert_no_protocol_ir(&export, "websocket_upgrade");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn websocket_close_runtime_path_materializes_close_ir() {
     let export = run_tcp_path(
         "websocket_close_path.gewy",
@@ -208,6 +318,22 @@ fn websocket_close_runtime_path_materializes_close_ir() {
         "web-proxy-request-response",
     );
     assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn websocket_close_runtime_ir_does_not_materialize_for_data_frame() {
+    let export = run_tcp_path(
+        "websocket_close_path.gewy",
+        0x7754,
+        80,
+        "browser",
+        &[(PacketDir::Egress, &[(0, 0x01)][..])],
+    );
+
+    assert_no_stage(&export, "send_close");
+    assert_no_stage(&export, "receive_close");
+    assert_no_protocol_ir(&export, "websocket_close");
     assert_json_replay(&export);
 }
 
@@ -280,9 +406,29 @@ fn assert_stage(export: &ExportBundle, phase: &str) {
     );
 }
 
+fn assert_no_stage(export: &ExportBundle, phase: &str) {
+    assert!(
+        export.program_flows[0]
+            .stages
+            .iter()
+            .all(|stage| stage.phase.as_deref() != Some(phase)),
+        "unexpected stage {phase}"
+    );
+}
+
 fn assert_json_replay(export: &ExportBundle) {
     let replayed = ExportBundle::from_json(&export.to_json()).expect("export json should replay");
     assert_eq!(replayed.protocol_ir, export.protocol_ir);
+}
+
+fn assert_no_protocol_ir(export: &ExportBundle, operation: &str) {
+    assert!(
+        export
+            .protocol_ir
+            .iter()
+            .all(|item| item.operation != operation),
+        "unexpected protocol IR for {operation}"
+    );
 }
 
 fn protocol_ir<'a>(export: &'a ExportBundle, operation: &str) -> &'a ProtocolIr {
