@@ -133,6 +133,52 @@ fn mysql_auth_denied_runtime_ir_does_not_materialize_for_login_ok() {
 }
 
 #[test]
+fn mysql_query_error_runtime_path_materializes_error_ir() {
+    let export = run_database_path(
+        "mysql_query_error_path.gewy",
+        0x6d7c,
+        3306,
+        "mysql",
+        &[
+            (PacketDir::Egress, &[(4, 0x03)][..]),
+            (PacketDir::Ingress, &[(4, 0xff)][..]),
+        ],
+    );
+
+    assert_operation(&export, "mysql_query_error");
+    assert_stage(&export, "send_query");
+    assert_stage(&export, "receive_error");
+
+    let ir = protocol_ir(&export, "mysql_query_error");
+    assert_eq!(ir.protocol, "mysql");
+    assert_eq!(ir.entry, "error");
+    assert_eq!(ir.shelf_key.as_deref(), Some("error"));
+    assert_eq!(ir.cluster_key.as_deref(), Some("database-query-session"));
+    assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn mysql_query_error_runtime_ir_does_not_materialize_for_ok_packet() {
+    let export = run_database_path(
+        "mysql_query_error_path.gewy",
+        0x6d7d,
+        3306,
+        "mysql",
+        &[
+            (PacketDir::Egress, &[(4, 0x03)][..]),
+            (PacketDir::Ingress, &[(4, 0x00)][..]),
+        ],
+    );
+
+    assert_operation(&export, "mysql_query_error");
+    assert_stage(&export, "send_query");
+    assert_no_stage(&export, "receive_error");
+    assert_no_protocol_ir(&export, "mysql_query_error");
+    assert_json_replay(&export);
+}
+
+#[test]
 fn postgres_auth_denied_runtime_path_materializes_auth_failure_ir() {
     let export = run_database_path(
         "postgres_auth_denied_path.gewy",
@@ -177,6 +223,52 @@ fn postgres_auth_denied_runtime_ir_does_not_materialize_for_auth_ok() {
     assert_stage(&export, "send_password");
     assert_no_stage(&export, "receive_auth_denied");
     assert_no_protocol_ir(&export, "postgres_auth_denied");
+    assert_json_replay(&export);
+}
+
+#[test]
+fn postgres_query_error_runtime_path_materializes_error_ir() {
+    let export = run_database_path(
+        "postgres_query_error_path.gewy",
+        0x7076,
+        5432,
+        "psql",
+        &[
+            (PacketDir::Egress, &[(0, 0x51)][..]),
+            (PacketDir::Ingress, &[(0, 0x45)][..]),
+        ],
+    );
+
+    assert_operation(&export, "postgres_query_error");
+    assert_stage(&export, "send_query");
+    assert_stage(&export, "receive_error");
+
+    let ir = protocol_ir(&export, "postgres_query_error");
+    assert_eq!(ir.protocol, "postgres");
+    assert_eq!(ir.entry, "error");
+    assert_eq!(ir.shelf_key.as_deref(), Some("error"));
+    assert_eq!(ir.cluster_key.as_deref(), Some("database-query-session"));
+    assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn postgres_query_error_runtime_ir_does_not_materialize_for_ready_message() {
+    let export = run_database_path(
+        "postgres_query_error_path.gewy",
+        0x7077,
+        5432,
+        "psql",
+        &[
+            (PacketDir::Egress, &[(0, 0x51)][..]),
+            (PacketDir::Ingress, &[(0, 0x5a)][..]),
+        ],
+    );
+
+    assert_operation(&export, "postgres_query_error");
+    assert_stage(&export, "send_query");
+    assert_no_stage(&export, "receive_error");
+    assert_no_protocol_ir(&export, "postgres_query_error");
     assert_json_replay(&export);
 }
 

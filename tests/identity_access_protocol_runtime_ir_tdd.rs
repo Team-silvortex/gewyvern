@@ -324,6 +324,55 @@ fn ldap_bind_denied_runtime_ir_does_not_materialize_for_bind_success() {
     assert_json_replay(&export);
 }
 
+#[test]
+fn ldap_modify_denied_runtime_path_materializes_denied_ir() {
+    let export = run_tcp_path(
+        "ldap_modify_denied_path.gewy",
+        0x1dac,
+        389,
+        "ldapmodify",
+        &[
+            (PacketDir::Egress, &[(5, 0x66)][..]),
+            (PacketDir::Ingress, &[(5, 0x67), (9, 0x32)][..]),
+        ],
+    );
+
+    assert_operation(&export, "ldap_modify_denied");
+    assert_stage(&export, "send_modify");
+    assert_stage(&export, "receive_modify_denied");
+
+    let ir = protocol_ir(&export, "ldap_modify_denied");
+    assert_surface(
+        ir,
+        "ldap",
+        "denied",
+        "write-sync",
+        "identity-directory-access",
+    );
+    assert_eq!(ir.semantics_category.as_deref(), Some("failure-path"));
+    assert_json_replay(&export);
+}
+
+#[test]
+fn ldap_modify_denied_runtime_ir_does_not_materialize_for_modify_success() {
+    let export = run_tcp_path(
+        "ldap_modify_denied_path.gewy",
+        0x1dad,
+        389,
+        "ldapmodify",
+        &[
+            (PacketDir::Egress, &[(5, 0x66)][..]),
+            (PacketDir::Ingress, &[(5, 0x67), (9, 0x00)][..]),
+        ],
+    );
+
+    assert_operation(&export, "ldap_modify_denied");
+    assert_stage(&export, "send_modify");
+    assert_no_stage(&export, "receive_modify_denied");
+    assert_no_protocol_ir(&export, "ldap_modify_denied");
+    assert_json_replay(&export);
+}
+
 fn run_tcp_path(
     fixture: &str,
     cookie: u64,

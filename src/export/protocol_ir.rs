@@ -90,15 +90,24 @@ fn required_protocol_ir_phases(operation: &str) -> Option<RequiredProtocolPhases
         "http_connect_denied" => Some(RequiredProtocolPhases::All(&["receive_connect_denied"])),
         "icmp_unreachable" => Some(RequiredProtocolPhases::All(&["receive_unreachable"])),
         "icmpv6_unreachable" => Some(RequiredProtocolPhases::All(&["receive_unreachable"])),
+        "imap_auth_denied" => Some(RequiredProtocolPhases::All(&["receive_auth_denied"])),
+        "amqp_auth_denied" => Some(RequiredProtocolPhases::All(&["receive_connection_close"])),
+        "kerberos_as_error" => Some(RequiredProtocolPhases::All(&["receive_error"])),
         "ldap_bind_denied" => Some(RequiredProtocolPhases::All(&["receive_bind_denied"])),
+        "ldap_modify_denied" => Some(RequiredProtocolPhases::All(&["receive_modify_denied"])),
         "mongodb_query_failure" => Some(RequiredProtocolPhases::All(&["receive_query_failure"])),
         "mssql_error" => Some(RequiredProtocolPhases::All(&["receive_error_token"])),
         "mysql_auth_denied" => Some(RequiredProtocolPhases::All(&["receive_auth_denied"])),
+        "mysql_query_error" => Some(RequiredProtocolPhases::All(&["receive_error"])),
         "nats_error" => Some(RequiredProtocolPhases::All(&["receive_error"])),
         "ntp_query" => Some(RequiredProtocolPhases::All(&["receive_response"])),
         "ntp_sync" => Some(RequiredProtocolPhases::All(&[
             "send_sync_request",
             "receive_sync_response",
+        ])),
+        "otlp_export_error" => Some(RequiredProtocolPhases::All(&[
+            "receive_error_headers",
+            "receive_error_status",
         ])),
         "http3_close_observation" => Some(RequiredProtocolPhases::All(&[
             "send_request_stream",
@@ -127,12 +136,20 @@ fn required_protocol_ir_phases(operation: &str) -> Option<RequiredProtocolPhases
             "receive_5xx",
             "receive_6xx",
         ])),
+        "socks5_auth_connect_denied" => {
+            Some(RequiredProtocolPhases::All(&["receive_connect_denied"]))
+        }
+        "socks5_auth_denied" => Some(RequiredProtocolPhases::All(&["receive_auth_denied"])),
+        "socks5_denied" => Some(RequiredProtocolPhases::All(&["receive_connect_denied"])),
         "ssh_auth_denied" => Some(RequiredProtocolPhases::All(&["receive_auth_denied"])),
         "smtp_rcpt_denied" => Some(RequiredProtocolPhases::All(&["receive_rcpt_denied"])),
         "smtp_auth_denied" => Some(RequiredProtocolPhases::All(&["receive_auth_denied"])),
         "smtp_data_denied" => Some(RequiredProtocolPhases::All(&["receive_message_denied"])),
         "postgres_auth_denied" => Some(RequiredProtocolPhases::All(&["receive_auth_denied"])),
+        "postgres_query_error" => Some(RequiredProtocolPhases::All(&["receive_error"])),
+        "pop3_auth_denied" => Some(RequiredProtocolPhases::All(&["receive_auth_denied"])),
         "stun_allocate" => Some(RequiredProtocolPhases::All(&["receive_allocate_response"])),
+        "stun_binding_error" => Some(RequiredProtocolPhases::All(&["receive_error_response"])),
         "stun_refresh" => Some(RequiredProtocolPhases::All(&["receive_refresh_response"])),
         "tls_alert" => Some(RequiredProtocolPhases::Any(&[
             "send_alert",
