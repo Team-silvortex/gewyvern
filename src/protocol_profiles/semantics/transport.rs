@@ -301,6 +301,34 @@ pub(super) fn stun_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
     }
 }
 
+pub(super) fn tftp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    match entry {
+        "read" => summary(
+            "tftp-read-path",
+            "TFTP read request followed by the first data packet from the server",
+            Some("RRQ + DATA"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "write" => summary(
+            "tftp-write-path",
+            "TFTP write request followed by the initial acknowledgement from the server",
+            Some("WRQ + ACK"),
+            None,
+            None,
+            Some("protocol_entry_signal"),
+        ),
+        "error" => failure(
+            "TFTP transfer failed with an explicit ERROR packet",
+            Some("ERROR opcode 5"),
+            Some("server_denied"),
+            Some("transfer_failed"),
+        ),
+        _ => None,
+    }
+}
+
 pub(super) fn icmp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     match entry {
         "echo" => summary(

@@ -105,8 +105,8 @@ machine-facing protocol surface can also include:
 <!-- gewyvern:protocol-surface-overview:start -->
 ## Current Surface Snapshot
 
-- Built-in families: `64`
-- Built-in canonical entries: `343`
+- Built-in families: `69`
+- Built-in canonical entries: `358`
 - Family/default map:
   - `amqp` -> default `session` in cluster `cache-queue-stream` via [docs/book/reference-amqp-surface.md](docs/book/reference-amqp-surface.md)
   - `arp` -> default `request` in cluster `network-control-discovery` via [docs/book/reference-arp-surface.md](docs/book/reference-arp-surface.md)
@@ -115,6 +115,7 @@ machine-facing protocol surface can also include:
   - `coap` -> default `get` in cluster `network-control-discovery` via [docs/book/reference-coap-surface.md](docs/book/reference-coap-surface.md)
   - `consul` -> default `service` in cluster `database-query-session` via [docs/book/reference-consul-surface.md](docs/book/reference-consul-surface.md)
   - `dhcp` -> default `client` in cluster `network-control-discovery` via [docs/book/reference-dhcp-surface.md](docs/book/reference-dhcp-surface.md)
+  - `dhcpv6` -> default `solicit` in cluster `network-control-discovery` via [docs/book/reference-dhcpv6-surface.md](docs/book/reference-dhcpv6-surface.md)
   - `dns` -> default `udp` in cluster `network-control-discovery` via [docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md)
   - `elasticsearch` -> default `search` in cluster `database-query-session` via [docs/book/reference-elasticsearch-surface.md](docs/book/reference-elasticsearch-surface.md)
   - `etcd` -> default `range` in cluster `database-query-session` via [docs/book/reference-etcd-surface.md](docs/book/reference-etcd-surface.md)
@@ -137,6 +138,7 @@ machine-facing protocol surface can also include:
   - `kerberos` -> default `as` in cluster `identity-directory-access` via [docs/book/reference-kerberos-surface.md](docs/book/reference-kerberos-surface.md)
   - `l2tp` -> default `control` in cluster `network-control-discovery` via [docs/book/reference-l2tp-surface.md](docs/book/reference-l2tp-surface.md)
   - `ldap` -> default `sync` in cluster `identity-directory-access` via [docs/book/reference-ldap-surface.md](docs/book/reference-ldap-surface.md)
+  - `llmnr` -> default `query` in cluster `network-control-discovery` via [docs/book/reference-llmnr-surface.md](docs/book/reference-llmnr-surface.md)
   - `loki` -> default `push` in cluster `web-proxy-request-response` via [docs/book/reference-loki-surface.md](docs/book/reference-loki-surface.md)
   - `mdns` -> default `query` in cluster `network-control-discovery` via [docs/book/reference-mdns-surface.md](docs/book/reference-mdns-surface.md)
   - `memcached` -> default `get` in cluster `cache-queue-stream` via [docs/book/reference-memcached-surface.md](docs/book/reference-memcached-surface.md)
@@ -145,6 +147,7 @@ machine-facing protocol surface can also include:
   - `mssql` -> default `query` in cluster `database-query-session` via [docs/book/reference-mssql-surface.md](docs/book/reference-mssql-surface.md)
   - `mysql` -> default `session` in cluster `database-query-session` via [docs/book/reference-mysql-surface.md](docs/book/reference-mysql-surface.md)
   - `nats` -> default `connect` in cluster `cache-queue-stream` via [docs/book/reference-nats-surface.md](docs/book/reference-nats-surface.md)
+  - `nbns` -> default `query` in cluster `network-control-discovery` via [docs/book/reference-nbns-surface.md](docs/book/reference-nbns-surface.md)
   - `ndp` -> default `solicit` in cluster `network-control-discovery` via [docs/book/reference-ndp-surface.md](docs/book/reference-ndp-surface.md)
   - `ntp` -> default `client` in cluster `network-control-discovery` via [docs/book/reference-ntp-surface.md](docs/book/reference-ntp-surface.md)
   - `ospf` -> default `hello` in cluster `network-control-discovery` via [docs/book/reference-ospf-surface.md](docs/book/reference-ospf-surface.md)
@@ -167,6 +170,8 @@ machine-facing protocol surface can also include:
   - `ssdp` -> default `discovery` in cluster `network-control-discovery` via [docs/book/reference-ssdp-surface.md](docs/book/reference-ssdp-surface.md)
   - `ssh` -> default `session` in cluster `identity-directory-access` via [docs/book/reference-ssh-surface.md](docs/book/reference-ssh-surface.md)
   - `stun` -> default `binding` in cluster `network-control-discovery` via [docs/book/reference-stun-surface.md](docs/book/reference-stun-surface.md)
+  - `syslog` -> default `udp` in cluster `web-proxy-request-response` via [docs/book/reference-syslog-surface.md](docs/book/reference-syslog-surface.md)
+  - `tftp` -> default `read` in cluster `network-control-discovery` via [docs/book/reference-tftp-surface.md](docs/book/reference-tftp-surface.md)
   - `tls` -> default `client` in cluster `secure-transport-session` via [docs/book/reference-tls-surface.md](docs/book/reference-tls-surface.md)
   - `vxlan` -> default `encap` in cluster `network-control-discovery` via [docs/book/reference-vxlan-surface.md](docs/book/reference-vxlan-surface.md)
   - `websocket` -> default `upgrade` in cluster `web-proxy-request-response` via [docs/book/reference-websocket-surface.md](docs/book/reference-websocket-surface.md)

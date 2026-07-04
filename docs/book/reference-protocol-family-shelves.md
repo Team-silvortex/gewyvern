@@ -80,6 +80,12 @@ Then continue with:
   - [docs/book/reference-coap-get-surface.md](docs/book/reference-coap-get-surface.md)
   - [docs/book/reference-coap-write-surface.md](docs/book/reference-coap-write-surface.md)
 
+### TFTP
+
+- Hub:
+  [docs/book/reference-tftp-surface.md](docs/book/reference-tftp-surface.md)
+- Subpages:
+
 ### DHCP
 
 - Hub:
@@ -87,6 +93,12 @@ Then continue with:
 - Subpages:
   - [docs/book/reference-dhcp-client-surface.md](docs/book/reference-dhcp-client-surface.md)
   - [docs/book/reference-dhcp-lease-surface.md](docs/book/reference-dhcp-lease-surface.md)
+
+### DHCPv6
+
+- Hub:
+  [docs/book/reference-dhcpv6-surface.md](docs/book/reference-dhcpv6-surface.md)
+- Subpages:
 
 ### FTP
 
@@ -166,6 +178,12 @@ Then continue with:
   - [docs/book/reference-jaeger-sampling-surface.md](docs/book/reference-jaeger-sampling-surface.md)
   - [docs/book/reference-jaeger-trace-ingest-surface.md](docs/book/reference-jaeger-trace-ingest-surface.md)
   - [docs/book/reference-jaeger-trace-read-surface.md](docs/book/reference-jaeger-trace-read-surface.md)
+
+### Syslog
+
+- Hub:
+  [docs/book/reference-syslog-surface.md](docs/book/reference-syslog-surface.md)
+- Subpages:
 
 ### GRE
 
@@ -267,6 +285,18 @@ Then continue with:
   - [docs/book/reference-mdns-query-surface.md](docs/book/reference-mdns-query-surface.md)
   - [docs/book/reference-mdns-response-surface.md](docs/book/reference-mdns-response-surface.md)
 
+### LLMNR
+
+- Hub:
+  [docs/book/reference-llmnr-surface.md](docs/book/reference-llmnr-surface.md)
+- Subpages:
+
+### NBNS / NetBIOS Name Service
+
+- Hub:
+  [docs/book/reference-nbns-surface.md](docs/book/reference-nbns-surface.md)
+- Subpages:
+
 ### NDP
 
 - Hub:
@@ -362,8 +392,8 @@ Then continue with:
   [docs/book/reference-mongodb-surface.md](docs/book/reference-mongodb-surface.md)
 - Subpages:
   - [docs/book/reference-mongodb-command-surface.md](docs/book/reference-mongodb-command-surface.md)
-  - [docs/book/reference-mongodb-reply-surface.md](docs/book/reference-mongodb-reply-surface.md)
   - [docs/book/reference-mongodb-legacy-query-surface.md](docs/book/reference-mongodb-legacy-query-surface.md)
+  - [docs/book/reference-mongodb-reply-surface.md](docs/book/reference-mongodb-reply-surface.md)
 
 ### Cassandra
 

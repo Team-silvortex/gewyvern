@@ -55,13 +55,14 @@ Families:
 - [docs/book/reference-prometheus-surface.md](docs/book/reference-prometheus-surface.md)
 - [docs/book/reference-loki-surface.md](docs/book/reference-loki-surface.md)
 - [docs/book/reference-jaeger-surface.md](docs/book/reference-jaeger-surface.md)
+- [docs/book/reference-syslog-surface.md](docs/book/reference-syslog-surface.md)
 - [docs/book/reference-socks5-surface.md](docs/book/reference-socks5-surface.md)
 
 Cluster hint:
 
 - key: `web-proxy-request-response`
 - operator hint: Start with request/response intent, proxy handoff, and selected surface entry before drilling into transport details.
-- sibling protocols: `http`, `https`, `http3`, `grpc`, `websocket`, `graphql`, `s3`, `otlp`, `prometheus`, `loki`, `jaeger`, `socks5`
+- sibling protocols: `http`, `https`, `http3`, `grpc`, `websocket`, `graphql`, `s3`, `otlp`, `prometheus`, `loki`, `jaeger`, `syslog`, `socks5`
 
 ## Secure Transport And Session Setup
 
@@ -152,7 +153,9 @@ Families:
 
 - [docs/book/reference-stun-surface.md](docs/book/reference-stun-surface.md)
 - [docs/book/reference-coap-surface.md](docs/book/reference-coap-surface.md)
+- [docs/book/reference-tftp-surface.md](docs/book/reference-tftp-surface.md)
 - [docs/book/reference-dhcp-surface.md](docs/book/reference-dhcp-surface.md)
+- [docs/book/reference-dhcpv6-surface.md](docs/book/reference-dhcpv6-surface.md)
 - [docs/book/reference-arp-surface.md](docs/book/reference-arp-surface.md)
 - [docs/book/reference-bgp-surface.md](docs/book/reference-bgp-surface.md)
 - [docs/book/reference-icmp-surface.md](docs/book/reference-icmp-surface.md)
@@ -167,6 +170,8 @@ Families:
 - [docs/book/reference-pptp-surface.md](docs/book/reference-pptp-surface.md)
 - [docs/book/reference-snmp-surface.md](docs/book/reference-snmp-surface.md)
 - [docs/book/reference-mdns-surface.md](docs/book/reference-mdns-surface.md)
+- [docs/book/reference-llmnr-surface.md](docs/book/reference-llmnr-surface.md)
+- [docs/book/reference-nbns-surface.md](docs/book/reference-nbns-surface.md)
 - [docs/book/reference-ssdp-surface.md](docs/book/reference-ssdp-surface.md)
 - [docs/book/reference-gtpu-surface.md](docs/book/reference-gtpu-surface.md)
 - [docs/book/reference-wireguard-surface.md](docs/book/reference-wireguard-surface.md)
@@ -179,7 +184,7 @@ Cluster hint:
 
 - key: `network-control-discovery`
 - operator hint: Start with discovery scope, control role, and time or tunnel posture; many issues here are topology-sensitive rather than application-payload-specific.
-- sibling protocols: `dns`, `mdns`, `ssdp`, `stun`, `coap`, `ntp`, `dhcp`, `arp`, `icmp`, `icmpv6`, `ndp`, `bgp`, `ospf`, `gre`, `vxlan`, `geneve`, `l2tp`, `pptp`, `snmp`, `wireguard`, `gtpu`
+- sibling protocols: `dns`, `mdns`, `llmnr`, `nbns`, `ssdp`, `stun`, `coap`, `tftp`, `ntp`, `dhcp`, `dhcpv6`, `arp`, `icmp`, `icmpv6`, `ndp`, `bgp`, `ospf`, `gre`, `vxlan`, `geneve`, `l2tp`, `pptp`, `snmp`, `wireguard`, `gtpu`
 
 <!-- gewyvern:protocol-groups:end -->
 

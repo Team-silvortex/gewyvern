@@ -10,7 +10,7 @@ type ClusterMatch = (
 pub(super) fn built_in_protocol_cluster_hint(protocol: &str) -> Option<ProtocolClusterHintSummary> {
     let (key, label, operator_hint, sibling_protocols) = match protocol {
         "http" | "https" | "http3" | "grpc" | "websocket" | "graphql" | "s3" | "otlp"
-        | "prometheus" | "loki" | "jaeger" | "socks5" => web_proxy_cluster(protocol)?,
+        | "prometheus" | "loki" | "jaeger" | "syslog" | "socks5" => web_proxy_cluster(protocol)?,
         "quic" | "tls" | "hy2" | "ipsec" => secure_transport_cluster(protocol)?,
         "redis" | "memcached" | "mqtt" | "amqp" | "kafka" | "nats" => {
             cache_queue_cluster(protocol)?
@@ -21,9 +21,11 @@ pub(super) fn built_in_protocol_cluster_hint(protocol: &str) -> Option<ProtocolC
         "ldap" | "ssh" | "kerberos" | "radius" | "smb" | "rdp" => {
             identity_access_cluster(protocol)?
         }
-        "dns" | "mdns" | "ssdp" | "stun" | "coap" | "ntp" | "dhcp" | "arp" | "icmp" | "icmpv6"
-        | "ndp" | "bgp" | "ospf" | "gre" | "vxlan" | "geneve" | "l2tp" | "pptp" | "snmp"
-        | "wireguard" | "gtpu" => control_plane_cluster(protocol)?,
+        "dns" | "mdns" | "llmnr" | "nbns" | "ssdp" | "stun" | "coap" | "tftp" | "ntp" | "dhcp"
+        | "dhcpv6" | "arp" | "icmp" | "icmpv6" | "ndp" | "bgp" | "ospf" | "gre" | "vxlan"
+        | "geneve" | "l2tp" | "pptp" | "snmp" | "wireguard" | "gtpu" => {
+            control_plane_cluster(protocol)?
+        }
         "rtsp" | "sip" | "ftp" => media_session_cluster(protocol)?,
         _ => return None,
     };
@@ -51,6 +53,7 @@ fn web_proxy_cluster(protocol: &str) -> Option<ClusterMatch> {
         "prometheus",
         "loki",
         "jaeger",
+        "syslog",
         "socks5",
     ];
     siblings.contains(&protocol).then_some((
@@ -125,11 +128,15 @@ fn control_plane_cluster(protocol: &str) -> Option<ClusterMatch> {
     let siblings = &[
         "dns",
         "mdns",
+        "llmnr",
+        "nbns",
         "ssdp",
         "stun",
         "coap",
+        "tftp",
         "ntp",
         "dhcp",
+        "dhcpv6",
         "arp",
         "icmp",
         "icmpv6",

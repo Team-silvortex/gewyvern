@@ -1,0 +1,21 @@
+# gewyvern stable-subset protocol path
+
+fn syslog_udp_message_rules() =
+  let module_name = :syslog_udp_message_path
+  let message_narrative = "static:program emitted a syslog datagram beginning with PRI"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:syslog_udp_message)
+  |> reason_model(:syslog_udp_message_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_route)
+  |> program_rule(predicate: "datagram_observed:udp:remote:syslog:local_to_remote:byte0_mask:0xff:0x3c", stage: :datagram_observed, narrative: ${message_narrative}, dedupe: true, module: ${module_name}, phase: :send_syslog_message)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_route)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:syslog:local_to_remote:byte0_mask:0xff:0x3c", key_event: :udp_datagram_seen, narrative: ${message_narrative}, dedupe: true, module: ${module_name}, phase: :send_syslog_message)
+
+template(:syslog_udp_message_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:syslog_udp_message_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

@@ -43,3 +43,13 @@ This surface does not claim to decode subscriber payloads or full GTP session
 state. It gives the debugger a stable outer liveness checkpoint so TEID,
 payload, and service-chain work can be added later without losing the basic
 tunnel-reachability question.
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `gtp-u`
+- `gtp_u`
+
+<!-- gewyvern:entry-aliases:end -->

@@ -1,0 +1,8 @@
+name=llmnr_response
+version=0.19.0
+entry=main.gewy
+register.protocol=llmnr
+register.entry=response
+register.default=false
+register.aliases=llmnr-response,llmnr_response
+register.entry_aliases=answer,local-name-answer

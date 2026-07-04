@@ -1,0 +1,8 @@
+package.name = "syslog-tcp"
+package.version = "0.19.0"
+entry = "main.gewy"
+register.protocol = "syslog"
+register.entry = "tcp"
+register.default = false
+register.aliases = "syslog-tcp,syslog_tcp"
+register.entry_aliases = "stream,octet-counted,tcp-stream"

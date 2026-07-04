@@ -277,3 +277,22 @@ pub(super) const JAEGER_PROFILE: ProtocolProfile = ProtocolProfile {
         },
     ],
 };
+
+pub(super) const SYSLOG_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "syslog",
+    default_entry: "udp",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "udp",
+            dsl_path: "dsl/syslog_udp_message_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "tcp",
+            dsl_path: "dsl/syslog_tcp_message_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "tls",
+            dsl_path: "dsl/syslog_tls_transport_path.gewy",
+        },
+    ],
+};

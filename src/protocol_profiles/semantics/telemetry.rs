@@ -184,3 +184,33 @@ pub(super) fn jaeger_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanti
         _ => None,
     }
 }
+
+pub(super) fn syslog_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    match entry {
+        "udp" => summary(
+            "syslog-udp-message-path",
+            "Syslog datagram emitted toward a collector, relay, or network appliance log sink",
+            Some("<PRI> message over UDP/514"),
+            None,
+            None,
+            Some("log_protocol_entry"),
+        ),
+        "tcp" => summary(
+            "syslog-tcp-message-path",
+            "Syslog stream frame emitted over TCP where delivery ordering and reconnect behavior matter",
+            Some("<PRI> message over TCP/514"),
+            None,
+            None,
+            Some("log_stream_protocol_entry"),
+        ),
+        "tls" => summary(
+            "syslog-tls-transport-path",
+            "TLS-protected syslog transport bootstrap before encrypted log payloads are available",
+            Some("TLS ClientHello on TCP/6514"),
+            None,
+            None,
+            Some("log_transport_protocol_entry"),
+        ),
+        _ => None,
+    }
+}

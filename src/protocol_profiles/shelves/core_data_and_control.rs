@@ -30,6 +30,66 @@ pub(crate) fn mdns_shelf(entry: &str) -> Option<ShelfMatch> {
     }
 }
 
+pub(crate) fn llmnr_shelf(entry: &str) -> Option<ShelfMatch> {
+    const QUERY: &[&str] = &["query"];
+    const RESPONSE: &[&str] = &["response"];
+    const ERROR: &[&str] = &["error"];
+    if QUERY.contains(&entry) {
+        Some((
+            "query",
+            "Local Name Query",
+            "docs/book/reference-llmnr-surface.md",
+            QUERY,
+        ))
+    } else if RESPONSE.contains(&entry) {
+        Some((
+            "response",
+            "Local Name Response",
+            "docs/book/reference-llmnr-surface.md",
+            RESPONSE,
+        ))
+    } else if ERROR.contains(&entry) {
+        Some((
+            "error",
+            "Local Name Error",
+            "docs/book/reference-llmnr-surface.md",
+            ERROR,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn nbns_shelf(entry: &str) -> Option<ShelfMatch> {
+    const QUERY: &[&str] = &["query"];
+    const RESPONSE: &[&str] = &["response"];
+    const NEGATIVE: &[&str] = &["negative"];
+    if QUERY.contains(&entry) {
+        Some((
+            "query",
+            "NetBIOS Name Query",
+            "docs/book/reference-nbns-surface.md",
+            QUERY,
+        ))
+    } else if RESPONSE.contains(&entry) {
+        Some((
+            "response",
+            "NetBIOS Name Response",
+            "docs/book/reference-nbns-surface.md",
+            RESPONSE,
+        ))
+    } else if NEGATIVE.contains(&entry) {
+        Some((
+            "negative",
+            "NetBIOS Negative Response",
+            "docs/book/reference-nbns-surface.md",
+            NEGATIVE,
+        ))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn ssdp_shelf(entry: &str) -> Option<ShelfMatch> {
     const DISCOVERY: &[&str] = &["discovery"];
     const NOTIFY: &[&str] = &["notify"];

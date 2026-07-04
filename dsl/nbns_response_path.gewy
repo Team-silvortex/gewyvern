@@ -1,0 +1,21 @@
+# gewyvern stable-subset protocol path
+
+fn nbns_response_rules() =
+  let module_name = :nbns_response_path
+  let response_narrative = "static:observed a NetBIOS name response from a local name responder"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:nbns_response)
+  |> reason_model(:nbns_response_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_local_link)
+  |> program_rule(predicate: "datagram_observed:udp:remote:nbns:remote_to_local:byte_at:2:0x80:0x80", stage: :datagram_observed, narrative: ${response_narrative}, dedupe: true, module: ${module_name}, phase: :receive_response)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_local_link)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:nbns:remote_to_local:byte_at:2:0x80:0x80", key_event: :udp_datagram_seen, narrative: ${response_narrative}, dedupe: true, module: ${module_name}, phase: :receive_response)
+
+template(:nbns_response_path)
+|> window(:default_5s)
+|> use(:nbns_response_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

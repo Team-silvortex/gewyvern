@@ -102,6 +102,216 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES_MANIFEST_CONTINUATION: &[ProtocolAlias] 
         entry: Some("request"),
     },
     ProtocolAlias {
+        alias: "rrq",
+        protocol: "tftp",
+        entry: Some("read"),
+    },
+    ProtocolAlias {
+        alias: "download",
+        protocol: "tftp",
+        entry: Some("read"),
+    },
+    ProtocolAlias {
+        alias: "get",
+        protocol: "tftp",
+        entry: Some("read"),
+    },
+    ProtocolAlias {
+        alias: "wrq",
+        protocol: "tftp",
+        entry: Some("write"),
+    },
+    ProtocolAlias {
+        alias: "upload",
+        protocol: "tftp",
+        entry: Some("write"),
+    },
+    ProtocolAlias {
+        alias: "put",
+        protocol: "tftp",
+        entry: Some("write"),
+    },
+    ProtocolAlias {
+        alias: "transfer-error",
+        protocol: "tftp",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "error-packet",
+        protocol: "tftp",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "failed-transfer",
+        protocol: "tftp",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "datagram",
+        protocol: "syslog",
+        entry: Some("udp"),
+    },
+    ProtocolAlias {
+        alias: "message",
+        protocol: "syslog",
+        entry: Some("udp"),
+    },
+    ProtocolAlias {
+        alias: "rfc3164",
+        protocol: "syslog",
+        entry: Some("udp"),
+    },
+    ProtocolAlias {
+        alias: "rfc5424",
+        protocol: "syslog",
+        entry: Some("udp"),
+    },
+    ProtocolAlias {
+        alias: "stream",
+        protocol: "syslog",
+        entry: Some("tcp"),
+    },
+    ProtocolAlias {
+        alias: "octet-counted",
+        protocol: "syslog",
+        entry: Some("tcp"),
+    },
+    ProtocolAlias {
+        alias: "tcp-stream",
+        protocol: "syslog",
+        entry: Some("tcp"),
+    },
+    ProtocolAlias {
+        alias: "secure",
+        protocol: "syslog",
+        entry: Some("tls"),
+    },
+    ProtocolAlias {
+        alias: "tls-transport",
+        protocol: "syslog",
+        entry: Some("tls"),
+    },
+    ProtocolAlias {
+        alias: "rfc5425",
+        protocol: "syslog",
+        entry: Some("tls"),
+    },
+    ProtocolAlias {
+        alias: "advertise-probe",
+        protocol: "dhcpv6",
+        entry: Some("solicit"),
+    },
+    ProtocolAlias {
+        alias: "lease-solicit",
+        protocol: "dhcpv6",
+        entry: Some("solicit"),
+    },
+    ProtocolAlias {
+        alias: "reply",
+        protocol: "dhcpv6",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "lease-request",
+        protocol: "dhcpv6",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "renew",
+        protocol: "dhcpv6",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "lease-release",
+        protocol: "dhcpv6",
+        entry: Some("release"),
+    },
+    ProtocolAlias {
+        alias: "release-lease",
+        protocol: "dhcpv6",
+        entry: Some("release"),
+    },
+    ProtocolAlias {
+        alias: "lookup",
+        protocol: "llmnr",
+        entry: Some("query"),
+    },
+    ProtocolAlias {
+        alias: "local-name-query",
+        protocol: "llmnr",
+        entry: Some("query"),
+    },
+    ProtocolAlias {
+        alias: "answer",
+        protocol: "llmnr",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "local-name-answer",
+        protocol: "llmnr",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "nxdomain",
+        protocol: "llmnr",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "servfail",
+        protocol: "llmnr",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "formerr",
+        protocol: "llmnr",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "resolution-failed",
+        protocol: "llmnr",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "local-name-failed",
+        protocol: "llmnr",
+        entry: Some("error"),
+    },
+    ProtocolAlias {
+        alias: "name-query",
+        protocol: "nbns",
+        entry: Some("query"),
+    },
+    ProtocolAlias {
+        alias: "netbios-query",
+        protocol: "nbns",
+        entry: Some("query"),
+    },
+    ProtocolAlias {
+        alias: "name-answer",
+        protocol: "nbns",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "netbios-answer",
+        protocol: "nbns",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "name-negative",
+        protocol: "nbns",
+        entry: Some("negative"),
+    },
+    ProtocolAlias {
+        alias: "name-not-found",
+        protocol: "nbns",
+        entry: Some("negative"),
+    },
+    ProtocolAlias {
+        alias: "netbios-not-found",
+        protocol: "nbns",
+        entry: Some("negative"),
+    },
+    ProtocolAlias {
         alias: "ssh-auth",
         protocol: "ssh",
         entry: Some("auth"),

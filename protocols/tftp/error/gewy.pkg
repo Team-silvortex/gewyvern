@@ -1,0 +1,8 @@
+name=tftp_error
+version=0.19.0
+entry=main.gewy
+register.protocol=tftp
+register.entry=error
+register.default=false
+register.aliases=tftp-error,tftp_error
+register.entry_aliases=transfer-error,error-packet,failed-transfer

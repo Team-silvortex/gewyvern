@@ -165,6 +165,64 @@ pub(super) fn mdns_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
     )
 }
 
+pub(super) fn llmnr_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "query" => (
+            "local-name-query-path",
+            "LLMNR local-link name query from a host toward nearby responders",
+            Some("QR=0 query on UDP/5355"),
+        ),
+        "response" => (
+            "local-name-response-path",
+            "LLMNR local-link name answer received from a responder",
+            Some("QR=1 response on UDP/5355"),
+        ),
+        "error" => (
+            "local-name-error-path",
+            "LLMNR response carrying a local resolver error code",
+            Some("QR=1 response with non-zero rcode"),
+        ),
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("protocol_entry_signal"),
+    )
+}
+
+pub(super) fn nbns_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "query" => (
+            "legacy-local-name-query-path",
+            "NetBIOS name query from a host toward nearby Windows-style name responders",
+            Some("NBNS query on UDP/137"),
+        ),
+        "response" => (
+            "legacy-local-name-response-path",
+            "NetBIOS name answer received from a local name responder",
+            Some("NBNS response on UDP/137"),
+        ),
+        "negative" => (
+            "legacy-local-name-negative-path",
+            "NetBIOS name response indicating lookup failure or refusal",
+            Some("NBNS response with non-zero rcode"),
+        ),
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("protocol_entry_signal"),
+    )
+}
+
 pub(super) fn ssdp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     let (operator_focus, typical_signal) = match entry {
         "discovery" => (
@@ -256,6 +314,35 @@ pub(super) fn dhcp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
             "lease-denied-path",
             "DHCP server rejected a requested lease with a negative acknowledgement",
             Some("DHCPNAK"),
+        ),
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("protocol_entry_signal"),
+    )
+}
+
+pub(super) fn dhcpv6_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "solicit" => (
+            "ipv6-lease-discovery-path",
+            "DHCPv6 Solicit and Advertise exchange on UDP ports 546/547",
+            Some("SOLICIT + ADVERTISE"),
+        ),
+        "request" => (
+            "ipv6-lease-request-path",
+            "DHCPv6 Request and Reply exchange for IPv6 lease acquisition or renewal",
+            Some("REQUEST + REPLY"),
+        ),
+        "release" => (
+            "ipv6-lease-release-path",
+            "DHCPv6 client releases an IPv6 lease back to the server",
+            Some("RELEASE"),
         ),
         _ => return None,
     };

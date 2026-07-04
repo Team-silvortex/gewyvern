@@ -1,0 +1,8 @@
+name=dhcpv6_solicit
+version=0.19.0
+entry=main.gewy
+register.protocol=dhcpv6
+register.entry=solicit
+register.default=true
+register.aliases=dhcpv6-solicit,dhcpv6_solicit,dhcp6-solicit,dhcp6_solicit
+register.entry_aliases=advertise-probe,lease-solicit

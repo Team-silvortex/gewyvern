@@ -223,3 +223,25 @@ pub(crate) fn jaeger_shelf(entry: &str) -> Option<ShelfMatch> {
         None
     }
 }
+
+pub(crate) fn syslog_shelf(entry: &str) -> Option<ShelfMatch> {
+    const INGEST: &[&str] = &["udp", "tcp"];
+    const SECURE: &[&str] = &["tls"];
+    if INGEST.contains(&entry) {
+        Some((
+            "log-ingest",
+            "Log Ingest",
+            "docs/book/reference-syslog-surface.md",
+            INGEST,
+        ))
+    } else if SECURE.contains(&entry) {
+        Some((
+            "secure-transport",
+            "Secure Transport",
+            "docs/book/reference-syslog-surface.md",
+            SECURE,
+        ))
+    } else {
+        None
+    }
+}

@@ -188,6 +188,28 @@ pub(crate) fn coap_shelf(entry: &str) -> Option<ShelfMatch> {
     }
 }
 
+pub(crate) fn tftp_shelf(entry: &str) -> Option<ShelfMatch> {
+    const TRANSFER: &[&str] = &["read", "write"];
+    const FAILURE: &[&str] = &["error"];
+    if TRANSFER.contains(&entry) {
+        Some((
+            "transfer",
+            "Transfer",
+            "docs/book/reference-tftp-surface.md",
+            TRANSFER,
+        ))
+    } else if FAILURE.contains(&entry) {
+        Some((
+            "failure",
+            "Failure",
+            "docs/book/reference-tftp-surface.md",
+            FAILURE,
+        ))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn ntp_shelf(entry: &str) -> Option<ShelfMatch> {
     const CLIENT: &[&str] = &["client"];
     const QUERY: &[&str] = &["query"];
@@ -234,6 +256,28 @@ pub(crate) fn dhcp_shelf(entry: &str) -> Option<ShelfMatch> {
             "Lease Negotiation",
             "docs/book/reference-dhcp-lease-surface.md",
             LEASE,
+        ))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn dhcpv6_shelf(entry: &str) -> Option<ShelfMatch> {
+    const LEASE: &[&str] = &["solicit", "request"];
+    const LIFECYCLE: &[&str] = &["release"];
+    if LEASE.contains(&entry) {
+        Some((
+            "lease",
+            "IPv6 Lease Negotiation",
+            "docs/book/reference-dhcpv6-surface.md",
+            LEASE,
+        ))
+    } else if LIFECYCLE.contains(&entry) {
+        Some((
+            "lifecycle",
+            "Lease Lifecycle",
+            "docs/book/reference-dhcpv6-surface.md",
+            LIFECYCLE,
         ))
     } else {
         None

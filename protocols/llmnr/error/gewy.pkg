@@ -1,0 +1,8 @@
+name=llmnr_error
+version=0.19.0
+entry=main.gewy
+register.protocol=llmnr
+register.entry=error
+register.default=false
+register.aliases=llmnr-error,llmnr_error
+register.entry_aliases=nxdomain,servfail,formerr,resolution-failed,local-name-failed

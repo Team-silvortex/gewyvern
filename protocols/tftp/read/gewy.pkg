@@ -1,0 +1,8 @@
+name=tftp_read
+version=0.19.0
+entry=main.gewy
+register.protocol=tftp
+register.entry=read
+register.default=true
+register.aliases=tftp-read,tftp_rrq,tftp-rrq
+register.entry_aliases=rrq,download,get

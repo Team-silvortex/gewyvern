@@ -79,6 +79,15 @@ Entry aliases:
 - `nak`: `dhcp-nak`, `dhcp_nak`, `lease-denied`, `offer-denied`
 - `request`: `dhcp-request`, `dhcp_request`, `lease-request`, `renew`
 
+## `dhcpv6`
+
+Default entry: `solicit`
+Protocol aliases: `dhcp6-release`, `dhcp6-request`, `dhcp6-solicit`, `dhcp6_release`, `dhcp6_request`, `dhcp6_solicit`, `dhcpv6-release`, `dhcpv6-request`, `dhcpv6-solicit`, `dhcpv6_release`, `dhcpv6_request`, `dhcpv6_solicit`
+Entry aliases:
+- `solicit` (default): `advertise-probe`, `dhcp6-solicit`, `dhcp6_solicit`, `dhcpv6-solicit`, `dhcpv6_solicit`, `lease-solicit`
+- `release`: `dhcp6-release`, `dhcp6_release`, `dhcpv6-release`, `dhcpv6_release`, `lease-release`, `release-lease`
+- `request`: `dhcp6-request`, `dhcp6_request`, `dhcpv6-request`, `dhcpv6_request`, `lease-request`, `renew`, `reply`
+
 ## `dns`
 
 Default entry: `udp`
@@ -292,6 +301,15 @@ Entry aliases:
 - `session`: `directory-session`, `ldap-session`, `ldap_session`
 - `write`: `ldap-write`, `ldap_write`
 
+## `llmnr`
+
+Default entry: `query`
+Protocol aliases: `llmnr-error`, `llmnr-query`, `llmnr-response`, `llmnr_error`, `llmnr_query`, `llmnr_response`
+Entry aliases:
+- `query` (default): `llmnr-query`, `llmnr_query`, `local-name-query`, `lookup`
+- `error`: `formerr`, `llmnr-error`, `llmnr_error`, `local-name-failed`, `nxdomain`, `resolution-failed`, `servfail`
+- `response`: `answer`, `llmnr-response`, `llmnr_response`, `local-name-answer`
+
 ## `loki`
 
 Default entry: `push`
@@ -382,6 +400,15 @@ Entry aliases:
 - `error`: `nats-error`, `nats-server-error`, `nats_error`, `nats_server_error`, `protocol-error`, `protocol_error`, `server-error`, `server_error`
 - `pub`: `nats-pub`, `nats-publish`, `nats_pub`, `nats_publish`, `subject-write`
 - `sub`: `nats-sub`, `nats-subscribe`, `nats_sub`, `nats_subscribe`, `subject-read`
+
+## `nbns`
+
+Default entry: `query`
+Protocol aliases: `nbns-negative`, `nbns-query`, `nbns-response`, `nbns_negative`, `nbns_query`, `nbns_response`, `netbios-name-negative`, `netbios-name-query`, `netbios-name-response`
+Entry aliases:
+- `query` (default): `name-query`, `nbns-query`, `nbns_query`, `netbios-name-query`, `netbios-query`
+- `negative`: `name-negative`, `name-not-found`, `nbns-negative`, `nbns_negative`, `netbios-name-negative`, `netbios-not-found`
+- `response`: `name-answer`, `nbns-response`, `nbns_response`, `netbios-answer`, `netbios-name-response`
 
 ## `ndp`
 
@@ -689,6 +716,24 @@ Entry aliases:
 - `allocate`: `relay`, `stun-allocate`, `stun_allocate`, `turn-allocate`
 - `binding-error`: `binding-denied`, `binding-error`, `stun-binding-error`, `stun_binding_error`
 - `refresh`: `keepalive`, `stun-refresh`, `stun_refresh`, `turn-refresh`
+
+## `syslog`
+
+Default entry: `udp`
+Protocol aliases: `syslog-secure`, `syslog-tcp`, `syslog-tls`, `syslog-udp`, `syslog_tcp`, `syslog_tls`, `syslog_udp`
+Entry aliases:
+- `udp` (default): `datagram`, `message`, `rfc3164`, `rfc5424`, `syslog-udp`, `syslog_udp`
+- `tcp`: `octet-counted`, `stream`, `syslog-tcp`, `syslog_tcp`, `tcp-stream`
+- `tls`: `rfc5425`, `secure`, `syslog-secure`, `syslog-tls`, `syslog_tls`, `tls-transport`
+
+## `tftp`
+
+Default entry: `read`
+Protocol aliases: `tftp-error`, `tftp-read`, `tftp-rrq`, `tftp-write`, `tftp-wrq`, `tftp_error`, `tftp_rrq`, `tftp_wrq`
+Entry aliases:
+- `read` (default): `download`, `get`, `rrq`, `tftp-read`, `tftp-rrq`, `tftp_read`, `tftp_rrq`
+- `error`: `error-packet`, `failed-transfer`, `tftp-error`, `tftp_error`, `transfer-error`
+- `write`: `put`, `tftp-write`, `tftp-wrq`, `tftp_write`, `tftp_wrq`, `upload`, `wrq`
 
 ## `tls`
 

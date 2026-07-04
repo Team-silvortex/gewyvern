@@ -46,6 +46,25 @@ pub(super) const COAP_PROFILE: ProtocolProfile = ProtocolProfile {
     ],
 };
 
+pub(super) const TFTP_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "tftp",
+    default_entry: "read",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "read",
+            dsl_path: "dsl/tftp_read_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "write",
+            dsl_path: "dsl/tftp_write_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "error",
+            dsl_path: "dsl/tftp_error_path.gewy",
+        },
+    ],
+};
+
 pub(super) const NTP_PROFILE: ProtocolProfile = ProtocolProfile {
     name: "ntp",
     default_entry: "client",
@@ -84,6 +103,25 @@ pub(super) const DHCP_PROFILE: ProtocolProfile = ProtocolProfile {
         ProtocolEntryProfile {
             mode: "nak",
             dsl_path: "dsl/dhcp_nak_path.gewy",
+        },
+    ],
+};
+
+pub(super) const DHCPV6_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "dhcpv6",
+    default_entry: "solicit",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "solicit",
+            dsl_path: "dsl/dhcpv6_solicit_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "request",
+            dsl_path: "dsl/dhcpv6_request_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "release",
+            dsl_path: "dsl/dhcpv6_release_path.gewy",
         },
     ],
 };
@@ -268,6 +306,44 @@ pub(super) const MDNS_PROFILE: ProtocolProfile = ProtocolProfile {
         ProtocolEntryProfile {
             mode: "probe",
             dsl_path: "dsl/mdns_probe_path.gewy",
+        },
+    ],
+};
+
+pub(super) const LLMNR_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "llmnr",
+    default_entry: "query",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "query",
+            dsl_path: "dsl/llmnr_query_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "response",
+            dsl_path: "dsl/llmnr_response_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "error",
+            dsl_path: "dsl/llmnr_error_path.gewy",
+        },
+    ],
+};
+
+pub(super) const NBNS_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "nbns",
+    default_entry: "query",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "query",
+            dsl_path: "dsl/nbns_query_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "response",
+            dsl_path: "dsl/nbns_response_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "negative",
+            dsl_path: "dsl/nbns_negative_path.gewy",
         },
     ],
 };

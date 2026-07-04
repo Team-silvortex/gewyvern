@@ -1,0 +1,23 @@
+# gewyvern stable-subset protocol path
+
+fn tftp_write_rules() =
+  let module_name = :tftp_write_path
+  let route_narrative = "static:program resolved an upstream route for this TFTP write request"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:tftp_write)
+  |> reason_model(:tftp_write_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "datagram_observed:udp:remote:tftp:local_to_remote:prefix2:0x0002", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_write_request)
+  |> program_rule(predicate: "datagram_observed:udp:remote:tftp:remote_to_local:prefix2:0x0004", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_ack)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:tftp:local_to_remote:prefix2:0x0002", key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_write_request)
+  |> reason_rule(predicate: "datagram_observed:udp:remote:tftp:remote_to_local:prefix2:0x0004", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_ack)
+
+template(:tftp_write_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:tftp_write_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

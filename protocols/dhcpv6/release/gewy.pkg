@@ -1,0 +1,8 @@
+name=dhcpv6_release
+version=0.19.0
+entry=main.gewy
+register.protocol=dhcpv6
+register.entry=release
+register.default=false
+register.aliases=dhcpv6-release,dhcpv6_release,dhcp6-release,dhcp6_release
+register.entry_aliases=lease-release,release-lease

@@ -33,3 +33,16 @@ The runtime phase is:
 
 The typical signal is a `NOTIFY` datagram.
 
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `advertise`
+- `alive`
+- `byebye`
+- `ssdp-notify`
+- `ssdp_notify`
+
+<!-- gewyvern:entry-aliases:end -->

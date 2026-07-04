@@ -1,0 +1,20 @@
+# gewyvern stable-subset protocol path
+
+fn syslog_tls_transport_rules() =
+  let module_name = :syslog_tls_transport_path
+  let tls_narrative = "static:program opened a TLS-protected syslog transport"
+  |> fragment(:tcp_state_fragment)
+  |> fragment(:tcp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:syslog_tls_transport)
+  |> reason_model(:syslog_tls_transport_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: "packet_observed:tcp:remote:syslog_tls:local_to_remote:byte0_mask:0xff:0x16", stage: :packet_observed, narrative: ${tls_narrative}, dedupe: true, module: ${module_name}, phase: :send_tls_client_hello)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: "packet_observed:tcp:remote:syslog_tls:local_to_remote:byte0_mask:0xff:0x16", key_event: :packet_observed, narrative: ${tls_narrative}, dedupe: true, module: ${module_name}, phase: :send_tls_client_hello)
+
+template(:syslog_tls_transport_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:syslog_tls_transport_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

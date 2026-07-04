@@ -1,0 +1,21 @@
+# gewyvern stable-subset protocol path
+
+fn dhcpv6_release_rules() =
+  let module_name = :dhcpv6_release_path
+  let route_narrative = "static:program resolved an upstream route for this DHCPv6 release path"
+  |> fragment(:udp_packet_meta_fragment)
+  |> fragment(:route_meta_fragment)
+  |> fragment(:sock_lineage_fragment)
+  |> operation(:dhcpv6_release)
+  |> reason_model(:dhcpv6_release_path_reason)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> program_rule(predicate: "datagram_observed:udp:local:dhcpv6_client:remote:dhcpv6_server:local_to_remote:byte0_mask:0xff:0x08", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_release)
+  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
+  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
+  |> reason_rule(predicate: "datagram_observed:udp:local:dhcpv6_client:remote:dhcpv6_server:local_to_remote:byte0_mask:0xff:0x08", key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_release)
+
+template(:dhcpv6_release_path)
+|> window(duration_ms: 5000, lateness_ms: 200)
+|> use(:dhcpv6_release_rules)
+|> param(:sock_lineage_fragment.capture_comm, true)

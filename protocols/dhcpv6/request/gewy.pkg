@@ -1,0 +1,8 @@
+name=dhcpv6_request
+version=0.19.0
+entry=main.gewy
+register.protocol=dhcpv6
+register.entry=request
+register.default=false
+register.aliases=dhcpv6-request,dhcpv6_request,dhcp6-request,dhcp6_request
+register.entry_aliases=reply,lease-request,renew

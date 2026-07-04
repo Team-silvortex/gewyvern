@@ -1,0 +1,8 @@
+name=nbns_negative
+version=0.19.0
+entry=main.gewy
+register.protocol=nbns
+register.entry=negative
+register.default=false
+register.aliases=nbns-negative,nbns_negative,netbios-name-negative
+register.entry_aliases=name-negative,name-not-found,netbios-not-found

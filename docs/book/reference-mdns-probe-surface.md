@@ -33,3 +33,15 @@ The runtime phase is:
 
 The typical signal is a query-shaped probe using flags `0x0000`.
 
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `claim`
+- `conflict-check`
+- `mdns-probe`
+- `mdns_probe`
+
+<!-- gewyvern:entry-aliases:end -->

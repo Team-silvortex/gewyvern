@@ -33,3 +33,15 @@ The runtime phase is:
 
 The typical signal is an mDNS response with flags `0x8400`.
 
+
+<!-- gewyvern:entry-aliases:start -->
+## Current Entry Aliases
+
+This generated block tracks the aliases that currently resolve into this custom surface.
+
+- `announcement`
+- `answer`
+- `mdns-response`
+- `mdns_response`
+
+<!-- gewyvern:entry-aliases:end -->

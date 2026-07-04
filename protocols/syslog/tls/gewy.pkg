@@ -1,0 +1,8 @@
+package.name = "syslog-tls"
+package.version = "0.19.0"
+entry = "main.gewy"
+register.protocol = "syslog"
+register.entry = "tls"
+register.default = false
+register.aliases = "syslog-tls,syslog_tls,syslog-secure"
+register.entry_aliases = "secure,tls-transport,rfc5425"

@@ -1,0 +1,8 @@
+name=llmnr_query
+version=0.19.0
+entry=main.gewy
+register.protocol=llmnr
+register.entry=query
+register.default=true
+register.aliases=llmnr-query,llmnr_query
+register.entry_aliases=lookup,local-name-query

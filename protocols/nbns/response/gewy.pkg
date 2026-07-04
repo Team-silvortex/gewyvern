@@ -1,0 +1,8 @@
+name=nbns_response
+version=0.19.0
+entry=main.gewy
+register.protocol=nbns
+register.entry=response
+register.default=false
+register.aliases=nbns-response,nbns_response,netbios-name-response
+register.entry_aliases=name-answer,netbios-answer
