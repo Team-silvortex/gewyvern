@@ -34,20 +34,14 @@ pub(super) fn analyze_targets_url_with_filter(
     url: &str,
     filter_prefix: Option<&str>,
 ) -> Result<String, String> {
-    let (host, port, path) = parse_http_url(url)?;
-    if path != "/v1/latest/targets" {
-        return Err("analyze-targets-url expects a /v1/latest/targets endpoint".to_string());
-    }
-    let targets_json = http_get(&host, port, &path)?;
-    let segments = extract_target_path_segments(&targets_json)?;
+    let endpoint = resolve_target_batch_endpoint(
+        url,
+        "analyze-targets-url expects a /v1/latest/targets endpoint",
+        filter_prefix,
+    )?;
     let mut entries = Vec::new();
-    for segment in segments.into_iter().filter(|segment| {
-        filter_prefix
-            .map(|prefix| segment.starts_with(prefix))
-            .unwrap_or(true)
-    }) {
-        let analysis_path = format!("/v1/latest/targets/{}/analysis.json", segment);
-        let analysis_json = http_get(&host, port, &analysis_path)?;
+    for segment in endpoint.segments.clone() {
+        let analysis_json = endpoint.fetch_analysis_json(&segment)?;
         let output = analyze_input(&analysis_json)?;
         entries.push((segment, output));
     }
@@ -59,21 +53,15 @@ pub(super) fn analyze_targets_url_with_filter_and_python_worker(
     filter_prefix: Option<&str>,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    let (host, port, path) = parse_http_url(url)?;
-    if path != "/v1/latest/targets" {
-        return Err("analyze-targets-url expects a /v1/latest/targets endpoint".to_string());
-    }
-    let targets_json = http_get(&host, port, &path)?;
-    let segments = extract_target_path_segments(&targets_json)?;
+    let endpoint = resolve_target_batch_endpoint(
+        url,
+        "analyze-targets-url expects a /v1/latest/targets endpoint",
+        filter_prefix,
+    )?;
     let mut worker = PythonWorkerClient::spawn(config)?;
     let mut entries = Vec::new();
-    for segment in segments.into_iter().filter(|segment| {
-        filter_prefix
-            .map(|prefix| segment.starts_with(prefix))
-            .unwrap_or(true)
-    }) {
-        let analysis_path = format!("/v1/latest/targets/{}/analysis.json", segment);
-        let analysis_json = http_get(&host, port, &analysis_path)?;
+    for segment in endpoint.segments.clone() {
+        let analysis_json = endpoint.fetch_analysis_json(&segment)?;
         let output = worker.analyze_json(&analysis_json)?;
         entries.push((segment, output));
     }
@@ -87,21 +75,15 @@ pub(super) fn train_targets_url_with_filter_and_python_worker(
     filter_prefix: Option<&str>,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    let (host, port, path) = parse_http_url(url)?;
-    if path != "/v1/latest/targets" {
-        return Err("train-python-targets-url expects a /v1/latest/targets endpoint".to_string());
-    }
-    let targets_json = http_get(&host, port, &path)?;
-    let segments = extract_target_path_segments(&targets_json)?;
+    let endpoint = resolve_target_batch_endpoint(
+        url,
+        "train-python-targets-url expects a /v1/latest/targets endpoint",
+        filter_prefix,
+    )?;
     let mut worker = PythonWorkerClient::spawn(config)?;
     let mut entries = Vec::new();
-    for segment in segments.into_iter().filter(|segment| {
-        filter_prefix
-            .map(|prefix| segment.starts_with(prefix))
-            .unwrap_or(true)
-    }) {
-        let analysis_path = format!("/v1/latest/targets/{}/analysis.json", segment);
-        let analysis_json = http_get(&host, port, &analysis_path)?;
+    for segment in endpoint.segments.clone() {
+        let analysis_json = endpoint.fetch_analysis_json(&segment)?;
         let output = worker.train_json_with_weight(&analysis_json, label, weight)?;
         entries.push((segment, output));
     }
@@ -171,22 +153,14 @@ pub(super) fn watch_python_targets_url(
 ) -> Result<String, String> {
     let mut worker = PythonWorkerClient::spawn(config)?;
     execute_watch_loop(cycles, interval_ms, |cycle| {
-        let (host, port, path) = parse_http_url(url)?;
-        if path != "/v1/latest/targets" {
-            return Err(
-                "watch-python-targets-url expects a /v1/latest/targets endpoint".to_string(),
-            );
-        }
-        let targets_json = http_get(&host, port, &path)?;
-        let segments = extract_target_path_segments(&targets_json)?;
+        let endpoint = resolve_target_batch_endpoint(
+            url,
+            "watch-python-targets-url expects a /v1/latest/targets endpoint",
+            filter_prefix,
+        )?;
         let mut entries = Vec::new();
-        for segment in segments.into_iter().filter(|segment| {
-            filter_prefix
-                .map(|prefix| segment.starts_with(prefix))
-                .unwrap_or(true)
-        }) {
-            let analysis_path = format!("/v1/latest/targets/{}/analysis.json", segment);
-            let analysis_json = http_get(&host, port, &analysis_path)?;
+        for segment in endpoint.segments.clone() {
+            let analysis_json = endpoint.fetch_analysis_json(&segment)?;
             let output = worker.analyze_json(&analysis_json)?;
             entries.push((segment, output));
         }
@@ -241,24 +215,17 @@ pub(super) fn serve_python_targets_url(
         "python-targets-url",
         url,
         |_, worker| {
-            let (host, port, path) = parse_http_url(url)?;
-            if path != "/v1/latest/targets" {
-                return Err(
-                    "serve-python-targets-url expects a /v1/latest/targets endpoint".to_string(),
-                );
-            }
-            let targets_json = http_get(&host, port, &path)?;
-            let segments = extract_target_path_segments(&targets_json)?;
+            let endpoint = resolve_target_batch_endpoint(
+                url,
+                "serve-python-targets-url expects a /v1/latest/targets endpoint",
+                filter_prefix,
+            )?;
+            let segments = endpoint.segments.clone();
             let mut entries = Vec::new();
             let mut target_outputs = Vec::new();
-            let mut input_fingerprint = targets_json;
-            for segment in segments.into_iter().filter(|segment| {
-                filter_prefix
-                    .map(|prefix| segment.starts_with(prefix))
-                    .unwrap_or(true)
-            }) {
-                let analysis_path = format!("/v1/latest/targets/{}/analysis.json", segment);
-                match http_get(&host, port, &analysis_path) {
+            let mut input_fingerprint = segments.join("\n");
+            for segment in segments {
+                match endpoint.fetch_analysis_json(&segment) {
                     Ok(analysis_json) => {
                         input_fingerprint.push('\n');
                         input_fingerprint.push_str(&segment);

@@ -114,34 +114,22 @@ fn visit_federation_member_targets<F>(
 where
     F: FnMut(&str) -> Result<String, String>,
 {
-    let (host, port, path) = match parse_http_url(&member.targets_url) {
-        Ok(parsed) => parsed,
-        Err(err) => return federation_member_error(member, err),
-    };
-    if path != "/v1/latest/targets" {
-        return federation_member_error(
-            member,
-            "federation targets_url must point at /v1/latest/targets".to_string(),
-        );
-    }
-    let targets_json = match http_get(&host, port, &path) {
-        Ok(json) => json,
-        Err(err) => return federation_member_error(member, err),
-    };
-    let segments = match extract_target_path_segments(&targets_json) {
-        Ok(segments) => segments,
+    let endpoint = match resolve_target_batch_endpoint(
+        &member.targets_url,
+        "federation targets_url must point at /v1/latest/targets",
+        filter_prefix,
+    ) {
+        Ok(endpoint) => endpoint,
         Err(err) => return federation_member_error(member, err),
     };
     let mut target_count = 0usize;
-    for segment in segments.into_iter().filter(|segment| {
-        filter_prefix
-            .map(|prefix| segment.starts_with(prefix))
-            .unwrap_or(true)
-    }) {
+    for segment in endpoint.segments.clone() {
         target_count += 1;
         let key = federation_target_key(&member.id, &segment);
-        let analysis_path = format!("/v1/latest/targets/{}/analysis.json", segment);
-        match http_get(&host, port, &analysis_path).and_then(|json| analyze(&json)) {
+        match endpoint
+            .fetch_analysis_json(&segment)
+            .and_then(|json| analyze(&json))
+        {
             Ok(output) => entries.push((key, output)),
             Err(err) => entries.push((key, format!("__error__:{err}"))),
         }

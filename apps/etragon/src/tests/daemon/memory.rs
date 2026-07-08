@@ -75,7 +75,11 @@ fn daemon_memory_state_route_and_clear_route_manage_online_memory() {
 
     let memory = wait_for_body(
         &format!("http://{}/v1/memory-state.json", bind_addr),
-        |body| body.contains(r#""pattern_count":1"#) && body.contains(r#""label_count":1"#),
+        |body| {
+            body.contains(r#""pattern_count":1"#)
+                && body.contains(r#""label_count":1"#)
+                && body.contains(r#""resident_training_event_count":1"#)
+        },
     )
     .expect("daemon should expose memory-state route");
     assert!(memory.contains(r#""worker":{"#));
@@ -126,13 +130,15 @@ fn daemon_memory_state_route_and_clear_route_manage_online_memory() {
     let cleared = post_json(&format!("http://{}/v1/memory-admin/clear", bind_addr), "{}")
         .expect("daemon should clear online memory state");
     assert!(cleared.contains(r#""status":"cleared""#));
-    assert!(cleared.contains(r#""cleared_pattern_count":1"#));
-    assert!(cleared.contains(r#""cleared_label_count":1"#));
     assert!(cleared.contains(r#""resident_training_event_count":0"#));
 
     let empty = wait_for_body(
         &format!("http://{}/v1/memory-state.json", bind_addr),
-        |body| body.contains(r#""status":"empty""#) && body.contains(r#""label_count":0"#),
+        |body| {
+            body.contains(r#""status":"empty""#)
+                && body.contains(r#""label_count":0"#)
+                && body.contains(r#""resident_training_event_count":0"#)
+        },
     )
     .expect("daemon should expose cleared memory-state route");
     assert!(empty.contains(r#""resident_training_event_count":0"#));
@@ -168,7 +174,11 @@ fn daemon_memory_state_route_and_clear_route_manage_online_memory() {
 
     let restored = wait_for_body(
         &format!("http://{}/v1/memory-state.json", bind_addr),
-        |body| body.contains(r#""pattern_count":1"#) && body.contains(r#""label_count":1"#),
+        |body| {
+            body.contains(r#""pattern_count":1"#)
+                && body.contains(r#""label_count":1"#)
+                && body.contains(r#""resident_training_event_count":0"#)
+        },
     )
     .expect("daemon should restore imported memory-state route");
     assert!(restored.contains(r#""resident_training_event_count":0"#));

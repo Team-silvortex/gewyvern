@@ -4,83 +4,43 @@ pub(super) fn memory_state_route_response(
     config: &PythonWorkerConfig,
     snapshot: Option<&DaemonSnapshot>,
 ) -> String {
-    match python_worker_memory_state_json(config, snapshot) {
-        Ok(memory_state) => daemon_http_response("HTTP/1.1 200 OK", &memory_state),
-        Err(err) => daemon_http_response(
-            "HTTP/1.1 502 Bad Gateway",
-            &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-        ),
-    }
+    gateway_json_response(python_worker_memory_state_json(config, snapshot))
 }
 
 pub(super) fn memory_model_route_response(config: &PythonWorkerConfig) -> String {
-    match python_worker_model_info_json(config) {
-        Ok(model_info) => daemon_http_response("HTTP/1.1 200 OK", &model_info),
-        Err(err) => daemon_http_response(
-            "HTTP/1.1 502 Bad Gateway",
-            &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-        ),
-    }
+    gateway_json_response(python_worker_model_info_json(config))
 }
 
 pub(super) fn memory_versions_route_response(config: &PythonWorkerConfig) -> String {
-    match python_worker_memory_versions_json(config) {
-        Ok(memory_versions) => daemon_http_response("HTTP/1.1 200 OK", &memory_versions),
-        Err(err) => daemon_http_response(
-            "HTTP/1.1 502 Bad Gateway",
-            &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-        ),
-    }
+    gateway_json_response(python_worker_memory_versions_json(config))
 }
 
 pub(super) fn memory_snapshot_route_response(config: &PythonWorkerConfig) -> String {
-    match python_worker_memory_snapshot_json(config) {
-        Ok(memory_snapshot) => daemon_http_response("HTTP/1.1 200 OK", &memory_snapshot),
-        Err(err) => daemon_http_response(
-            "HTTP/1.1 502 Bad Gateway",
-            &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-        ),
-    }
+    gateway_json_response(python_worker_memory_snapshot_json(config))
 }
 
 pub(super) fn save_memory_slot_route_response(
     config: &PythonWorkerConfig,
     request_text: &str,
 ) -> String {
-    let body = match request_json_body(request_text) {
+    let body = match request_json(request_text) {
         Ok(body) => body,
-        Err(err) => {
-            return daemon_http_response(
-                "HTTP/1.1 400 Bad Request",
-                &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-            );
-        }
+        Err(err) => return bad_request_response(&err),
     };
-    let slot = match request_json_field_from_body(body, "slot") {
+    let slot = match body.required_field("slot") {
         Ok(slot) => slot,
-        Err(err) => {
-            return daemon_http_response(
-                "HTTP/1.1 400 Bad Request",
-                &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-            );
-        }
+        Err(err) => return bad_request_response(&err),
     };
-    let label = request_json_optional_field_from_body(body, "label");
-    let note = request_json_optional_field_from_body(body, "note");
-    let source = request_json_optional_field_from_body(body, "source");
-    match save_python_worker_memory_slot(
+    let label = body.optional_field("label");
+    let note = body.optional_field("note");
+    let source = body.optional_field("source");
+    gateway_json_response(save_python_worker_memory_slot(
         config,
         &slot,
         label.as_deref(),
         note.as_deref(),
         source.as_deref(),
-    ) {
-        Ok(saved) => daemon_http_response("HTTP/1.1 200 OK", &saved),
-        Err(err) => daemon_http_response(
-            "HTTP/1.1 502 Bad Gateway",
-            &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-        ),
-    }
+    ))
 }
 
 pub(super) fn clear_memory_route_response(
@@ -89,13 +49,12 @@ pub(super) fn clear_memory_route_response(
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,
 ) -> String {
-    match clear_python_worker_memory(config, latest, daemon_state_file, invalidation_epoch) {
-        Ok(memory_state) => daemon_http_response("HTTP/1.1 200 OK", &memory_state),
-        Err(err) => daemon_http_response(
-            "HTTP/1.1 502 Bad Gateway",
-            &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-        ),
-    }
+    gateway_json_response(clear_python_worker_memory(
+        config,
+        latest,
+        daemon_state_file,
+        invalidation_epoch,
+    ))
 }
 
 pub(super) fn load_memory_route_response(
@@ -105,18 +64,14 @@ pub(super) fn load_memory_route_response(
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,
 ) -> String {
-    let body = match request_json_body(request_text) {
+    let body = match request_json(request_text) {
         Ok(body) => body,
-        Err(err) => {
-            return daemon_http_response(
-                "HTTP/1.1 400 Bad Request",
-                &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-            );
-        }
+        Err(err) => return bad_request_response(&err),
     };
-    let slot = request_json_field_from_body(body, "slot").ok();
-    let strategy =
-        request_json_field_from_body(body, "strategy").unwrap_or_else(|_| "replace".to_string());
+    let slot = body.optional_field("slot");
+    let strategy = body
+        .optional_field("strategy")
+        .unwrap_or_else(|| "replace".to_string());
     let result = if let Some(slot) = slot {
         load_python_worker_memory_slot(
             config,
@@ -127,32 +82,66 @@ pub(super) fn load_memory_route_response(
             invalidation_epoch,
         )
     } else {
-        load_python_worker_memory(config, body, latest, daemon_state_file, invalidation_epoch)
+        load_python_worker_memory(
+            config,
+            body.body,
+            latest,
+            daemon_state_file,
+            invalidation_epoch,
+        )
     };
-    match result {
-        Ok(memory_state) => daemon_http_response("HTTP/1.1 200 OK", &memory_state),
-        Err(err) => daemon_http_response(
-            "HTTP/1.1 502 Bad Gateway",
-            &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-        ),
-    }
+    gateway_json_response(result)
 }
 
 pub(super) fn delete_memory_slot_route_response(
     config: &PythonWorkerConfig,
     request_text: &str,
 ) -> String {
-    let slot = match request_json_field(request_text, "slot") {
-        Ok(slot) => slot,
-        Err(err) => {
-            return daemon_http_response(
-                "HTTP/1.1 400 Bad Request",
-                &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-            );
-        }
+    let body = match request_json(request_text) {
+        Ok(body) => body,
+        Err(err) => return bad_request_response(&err),
     };
-    match delete_python_worker_memory_slot(config, &slot) {
-        Ok(deleted) => daemon_http_response("HTTP/1.1 200 OK", &deleted),
+    let slot = match body.required_field("slot") {
+        Ok(slot) => slot,
+        Err(err) => return bad_request_response(&err),
+    };
+    gateway_json_response(delete_python_worker_memory_slot(config, &slot))
+}
+
+struct RequestJsonBody<'a> {
+    body: &'a str,
+}
+
+fn request_json(request_text: &str) -> Result<RequestJsonBody<'_>, String> {
+    request_text
+        .split_once("\r\n\r\n")
+        .or_else(|| request_text.split_once("\n\n"))
+        .map(|(_, body)| body.trim())
+        .filter(|body| !body.is_empty())
+        .map(|body| RequestJsonBody { body })
+        .ok_or_else(|| "missing_json_body".to_string())
+}
+
+impl RequestJsonBody<'_> {
+    fn required_field(&self, field: &str) -> Result<String, String> {
+        let needle = format!("\"{}\":\"", field);
+        let start = self
+            .body
+            .find(&needle)
+            .ok_or_else(|| format!("missing_{}", field))?;
+        let rest = &self.body[start + needle.len()..];
+        let end = rest.find('"').ok_or_else(|| format!("invalid_{}", field))?;
+        Ok(rest[..end].to_string())
+    }
+
+    fn optional_field(&self, field: &str) -> Option<String> {
+        self.required_field(field).ok()
+    }
+}
+
+fn gateway_json_response(result: Result<String, String>) -> String {
+    match result {
+        Ok(body) => daemon_http_response("HTTP/1.1 200 OK", &body),
         Err(err) => daemon_http_response(
             "HTTP/1.1 502 Bad Gateway",
             &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
@@ -160,30 +149,9 @@ pub(super) fn delete_memory_slot_route_response(
     }
 }
 
-fn request_json_body(request_text: &str) -> Result<&str, String> {
-    request_text
-        .split_once("\r\n\r\n")
-        .or_else(|| request_text.split_once("\n\n"))
-        .map(|(_, body)| body.trim())
-        .filter(|body| !body.is_empty())
-        .ok_or_else(|| "missing_json_body".to_string())
-}
-
-fn request_json_field(request_text: &str, field: &str) -> Result<String, String> {
-    let body = request_json_body(request_text)?;
-    request_json_field_from_body(body, field)
-}
-
-fn request_json_field_from_body(body: &str, field: &str) -> Result<String, String> {
-    let needle = format!("\"{}\":\"", field);
-    let start = body
-        .find(&needle)
-        .ok_or_else(|| format!("missing_{}", field))?;
-    let rest = &body[start + needle.len()..];
-    let end = rest.find('"').ok_or_else(|| format!("invalid_{}", field))?;
-    Ok(rest[..end].to_string())
-}
-
-fn request_json_optional_field_from_body(body: &str, field: &str) -> Option<String> {
-    request_json_field_from_body(body, field).ok()
+fn bad_request_response(err: &str) -> String {
+    daemon_http_response(
+        "HTTP/1.1 400 Bad Request",
+        &format!("{{\"error\":\"{}\"}}", escape_json_string(err)),
+    )
 }

@@ -81,75 +81,14 @@ pub(super) fn handle_daemon_client(
             Some(snapshot) => daemon_json_ok(&federation_summary_json_from_snapshot(&snapshot)),
             None => no_snapshot_response(),
         },
-        "/v1/latest/learning-summary.json" => match snapshot {
-            Some(snapshot) => {
-                let queue_summary_override = if snapshot.target_outputs.is_empty() {
-                    None
-                } else {
-                    Some(queue_summary_json_from_targets(&snapshot.target_outputs))
-                };
-                daemon_json_ok(&learning_summary_json_from_output_and_history(
-                    &snapshot.latest_output_json,
-                    &snapshot.latest_recommendation_summary_json,
-                    &snapshot.training_history,
-                    queue_summary_override.as_deref(),
-                ))
-            }
-            None => no_snapshot_response(),
-        },
-        "/v1/latest/evidence-chain-enrichment.json" => match snapshot {
-            Some(snapshot) => {
-                let queue_summary_override = if snapshot.target_outputs.is_empty() {
-                    None
-                } else {
-                    Some(queue_summary_json_from_targets(&snapshot.target_outputs))
-                };
-                daemon_json_ok(&learning_summary_field_json(
-                    &snapshot.latest_output_json,
-                    &snapshot.latest_recommendation_summary_json,
-                    &snapshot.training_history,
-                    queue_summary_override.as_deref(),
-                    "evidence_chain_enrichment",
-                    "latest",
-                ))
-            }
-            None => no_snapshot_response(),
-        },
-        "/v1/latest/diagnostic-opinion.json" => match snapshot {
-            Some(snapshot) => {
-                let queue_summary_override = if snapshot.target_outputs.is_empty() {
-                    None
-                } else {
-                    Some(queue_summary_json_from_targets(&snapshot.target_outputs))
-                };
-                daemon_json_ok(&learning_summary_field_json(
-                    &snapshot.latest_output_json,
-                    &snapshot.latest_recommendation_summary_json,
-                    &snapshot.training_history,
-                    queue_summary_override.as_deref(),
-                    "diagnostic_opinion",
-                    "latest",
-                ))
-            }
-            None => no_snapshot_response(),
-        },
-        "/v1/latest/handoff-summary.json" => match snapshot {
-            Some(snapshot) => {
-                let queue_summary_override = if snapshot.target_outputs.is_empty() {
-                    None
-                } else {
-                    Some(queue_summary_json_from_targets(&snapshot.target_outputs))
-                };
-                daemon_json_ok(&handoff_summary_json(
-                    &snapshot.latest_output_json,
-                    &snapshot.latest_recommendation_summary_json,
-                    &snapshot.training_history,
-                    queue_summary_override.as_deref(),
-                    "latest",
-                ))
-            }
-            None => no_snapshot_response(),
-        },
+        "/v1/latest/learning-summary.json" => latest_route_response(snapshot.as_ref(), "learning"),
+        "/v1/latest/evidence-chain-enrichment.json" => {
+            latest_route_response(snapshot.as_ref(), "evidence_chain_enrichment")
+        }
+        "/v1/latest/diagnostic-opinion.json" => {
+            latest_route_response(snapshot.as_ref(), "diagnostic_opinion")
+        }
+        "/v1/latest/handoff-summary.json" => latest_route_response(snapshot.as_ref(), "handoff"),
         "/v1/latest/output.json" => match snapshot {
             Some(snapshot) => daemon_json_ok(&daemon_snapshot_json(&snapshot)),
             None => no_snapshot_response(),
@@ -162,40 +101,13 @@ pub(super) fn handle_daemon_client(
                 (Some(input_json), Ok((label, weight))) => {
                     match train_and_refresh_daemon_input(input_json, &label, weight, config) {
                         Ok(refresh) => {
-                            let mut snapshot_to_persist = None;
-                            if let Ok(mut guard) = latest.lock() {
-                                if let Some(snapshot) = guard.as_mut() {
-                                    let trained_unix_ms =
-                                        now_unix_ms().unwrap_or(snapshot.updated_unix_ms);
-                                    push_training_event(
-                                        &mut snapshot.training_history,
-                                        TrainingEvent {
-                                            label: label.clone(),
-                                            weight: format!("{}", weight),
-                                            trained_unix_ms,
-                                            scope: "latest".to_string(),
-                                        },
-                                    );
-                                    snapshot.analysis_runs += 1;
-                                    snapshot.updated_unix_ms = trained_unix_ms;
-                                    snapshot.last_success_unix_ms = Some(trained_unix_ms);
-                                    snapshot.last_error = None;
-                                    snapshot.latest_output_json = refresh.analysis_json.clone();
-                                    snapshot.latest_recommendation_summary_json =
-                                        refresh.recommendation_summary_json.clone();
-                                    snapshot.state_hash = state_hash_for_output(
-                                        &snapshot.latest_output_json,
-                                        &snapshot.latest_recommendation_summary_json,
-                                    );
-                                    snapshot_to_persist = Some(snapshot.clone());
-                                }
-                            }
-                            if let (Some(path), Some(snapshot)) =
-                                (daemon_state_file, snapshot_to_persist.as_ref())
-                            {
-                                write_daemon_state(path, snapshot)?;
-                            }
-                            invalidation_epoch.fetch_add(1, Ordering::Relaxed);
+                            let snapshot_to_persist =
+                                apply_latest_training_refresh(latest, &label, weight, &refresh)?;
+                            persist_snapshot_and_invalidate(
+                                daemon_state_file,
+                                snapshot_to_persist.as_ref(),
+                                invalidation_epoch,
+                            )?;
                             daemon_json_ok(&refresh.training_json)
                         }
                         Err(err) => daemon_http_response(
@@ -219,176 +131,8 @@ pub(super) fn handle_daemon_client(
             Some(snapshot) => daemon_json_ok(&daemon_target_index_json(&snapshot)),
             None => no_snapshot_response(),
         },
-        _ if path.starts_with("/v1/latest/targets/") && path.ends_with("/output.json") => {
-            match snapshot {
-                Some(snapshot) => {
-                    let segment = path
-                        .trim_start_matches("/v1/latest/targets/")
-                        .trim_end_matches("/output.json")
-                        .trim_end_matches('/');
-                    match snapshot
-                        .target_outputs
-                        .iter()
-                        .find(|target| target.path_segment == segment)
-                    {
-                        Some(target) => daemon_json_ok(&target.output_json),
-                        None => target_not_found_response(),
-                    }
-                }
-                None => no_snapshot_response(),
-            }
-        }
-        _ if path.starts_with("/v1/latest/targets/") && path.ends_with("/meta.json") => {
-            match snapshot {
-                Some(snapshot) => {
-                    let segment = path
-                        .trim_start_matches("/v1/latest/targets/")
-                        .trim_end_matches("/meta.json")
-                        .trim_end_matches('/');
-                    match snapshot
-                        .target_outputs
-                        .iter()
-                        .find(|target| target.path_segment == segment)
-                    {
-                        Some(target) => {
-                            daemon_json_ok(&target_daemon_meta_json(target, snapshot.interval_ms))
-                        }
-                        None => target_not_found_response(),
-                    }
-                }
-                None => no_snapshot_response(),
-            }
-        }
-        _ if path.starts_with("/v1/latest/targets/")
-            && path.ends_with("/recommendation-summary.json") =>
-        {
-            match snapshot {
-                Some(snapshot) => {
-                    let segment = path
-                        .trim_start_matches("/v1/latest/targets/")
-                        .trim_end_matches("/recommendation-summary.json")
-                        .trim_end_matches('/');
-                    match snapshot
-                        .target_outputs
-                        .iter()
-                        .find(|target| target.path_segment == segment)
-                    {
-                        Some(target) => daemon_json_ok(&target.recommendation_summary_json),
-                        None => target_not_found_response(),
-                    }
-                }
-                None => no_snapshot_response(),
-            }
-        }
-        _ if path.starts_with("/v1/latest/targets/")
-            && path.ends_with("/evidence-chain-enrichment.json") =>
-        {
-            match snapshot {
-                Some(snapshot) => {
-                    let segment = path
-                        .trim_start_matches("/v1/latest/targets/")
-                        .trim_end_matches("/evidence-chain-enrichment.json")
-                        .trim_end_matches('/');
-                    match snapshot
-                        .target_outputs
-                        .iter()
-                        .find(|target| target.path_segment == segment)
-                    {
-                        Some(target) => daemon_json_ok(&learning_summary_field_json(
-                            &target.output_json,
-                            &target.recommendation_summary_json,
-                            &target.training_history,
-                            None,
-                            "evidence_chain_enrichment",
-                            "target",
-                        )),
-                        None => target_not_found_response(),
-                    }
-                }
-                None => no_snapshot_response(),
-            }
-        }
-        _ if path.starts_with("/v1/latest/targets/")
-            && path.ends_with("/diagnostic-opinion.json") =>
-        {
-            match snapshot {
-                Some(snapshot) => {
-                    let segment = path
-                        .trim_start_matches("/v1/latest/targets/")
-                        .trim_end_matches("/diagnostic-opinion.json")
-                        .trim_end_matches('/');
-                    match snapshot
-                        .target_outputs
-                        .iter()
-                        .find(|target| target.path_segment == segment)
-                    {
-                        Some(target) => daemon_json_ok(&learning_summary_field_json(
-                            &target.output_json,
-                            &target.recommendation_summary_json,
-                            &target.training_history,
-                            None,
-                            "diagnostic_opinion",
-                            "target",
-                        )),
-                        None => target_not_found_response(),
-                    }
-                }
-                None => no_snapshot_response(),
-            }
-        }
-        _ if path.starts_with("/v1/latest/targets/") && path.ends_with("/handoff-summary.json") => {
-            match snapshot {
-                Some(snapshot) => {
-                    let segment = path
-                        .trim_start_matches("/v1/latest/targets/")
-                        .trim_end_matches("/handoff-summary.json")
-                        .trim_end_matches('/');
-                    match snapshot
-                        .target_outputs
-                        .iter()
-                        .find(|target| target.path_segment == segment)
-                    {
-                        Some(target) => daemon_json_ok(&handoff_summary_json(
-                            &target.output_json,
-                            &target.recommendation_summary_json,
-                            &target.training_history,
-                            None,
-                            "target",
-                        )),
-                        None => target_not_found_response(),
-                    }
-                }
-                None => no_snapshot_response(),
-            }
-        }
-        _ if path.starts_with("/v1/latest/targets/")
-            && path.ends_with("/learning-summary.json") =>
-        {
-            match snapshot {
-                Some(snapshot) => {
-                    let segment = path
-                        .trim_start_matches("/v1/latest/targets/")
-                        .trim_end_matches("/learning-summary.json")
-                        .trim_end_matches('/');
-                    match snapshot
-                        .target_outputs
-                        .iter()
-                        .find(|target| target.path_segment == segment)
-                    {
-                        Some(target) => daemon_json_ok(
-                            &learning_summary_json_from_output_and_history_with_scope(
-                                &target.output_json,
-                                &target.recommendation_summary_json,
-                                &target.training_history,
-                                None,
-                                "target",
-                            ),
-                        ),
-                        None => target_not_found_response(),
-                    }
-                }
-                None => no_snapshot_response(),
-            }
+        _ if path.starts_with("/v1/latest/targets/") => {
+            target_route_response(snapshot.as_ref(), path)
         }
         _ if method == "POST" && path.starts_with("/v1/train/targets/") => match snapshot {
             Some(snapshot) => {
@@ -407,81 +151,14 @@ pub(super) fn handle_daemon_client(
                                     input_json, &label, weight, config,
                                 ) {
                                     Ok(refresh) => {
-                                        let mut snapshot_to_persist = None;
-                                        if let Ok(mut guard) = latest.lock() {
-                                            if let Some(snapshot) = guard.as_mut() {
-                                                let trained_unix_ms = now_unix_ms()
-                                                    .unwrap_or(snapshot.updated_unix_ms);
-                                                push_training_event(
-                                                    &mut snapshot.training_history,
-                                                    TrainingEvent {
-                                                        label: label.clone(),
-                                                        weight: format!("{}", weight),
-                                                        trained_unix_ms,
-                                                        scope: format!("target:{}", segment),
-                                                    },
-                                                );
-                                                if let Some(target) = snapshot
-                                                    .target_outputs
-                                                    .iter_mut()
-                                                    .find(|target| target.path_segment == segment)
-                                                {
-                                                    target.output_json =
-                                                        refresh.analysis_json.clone();
-                                                    target.recommendation_summary_json =
-                                                        refresh.recommendation_summary_json.clone();
-                                                    target.updated_unix_ms = trained_unix_ms;
-                                                    target.last_success_unix_ms =
-                                                        Some(trained_unix_ms);
-                                                    target.last_error = None;
-                                                    target.state_hash = state_hash_for_output(
-                                                        &target.output_json,
-                                                        &target.recommendation_summary_json,
-                                                    );
-                                                    push_training_event(
-                                                        &mut target.training_history,
-                                                        TrainingEvent {
-                                                            label: label.clone(),
-                                                            weight: format!("{}", weight),
-                                                            trained_unix_ms,
-                                                            scope: "target".to_string(),
-                                                        },
-                                                    );
-                                                }
-                                                let target_entries = snapshot
-                                                    .target_outputs
-                                                    .iter()
-                                                    .map(|target| {
-                                                        (
-                                                            target.path_segment.clone(),
-                                                            target.output_json.clone(),
-                                                        )
-                                                    })
-                                                    .collect::<Vec<_>>();
-                                                snapshot.analysis_runs += 1;
-                                                snapshot.target_count =
-                                                    snapshot.target_outputs.len();
-                                                snapshot.updated_unix_ms = trained_unix_ms;
-                                                snapshot.last_success_unix_ms =
-                                                    Some(trained_unix_ms);
-                                                snapshot.last_error = None;
-                                                snapshot.latest_output_json =
-                                                    batch_output_json(&target_entries);
-                                                snapshot.latest_recommendation_summary_json =
-                                                    recommendation_overview_json(&target_entries);
-                                                snapshot.state_hash = state_hash_for_output(
-                                                    &snapshot.latest_output_json,
-                                                    &snapshot.latest_recommendation_summary_json,
-                                                );
-                                                snapshot_to_persist = Some(snapshot.clone());
-                                            }
-                                        }
-                                        if let (Some(path), Some(snapshot)) =
-                                            (daemon_state_file, snapshot_to_persist.as_ref())
-                                        {
-                                            write_daemon_state(path, snapshot)?;
-                                        }
-                                        invalidation_epoch.fetch_add(1, Ordering::Relaxed);
+                                        let snapshot_to_persist = apply_target_training_refresh(
+                                            latest, segment, &label, weight, &refresh,
+                                        )?;
+                                        persist_snapshot_and_invalidate(
+                                            daemon_state_file,
+                                            snapshot_to_persist.as_ref(),
+                                            invalidation_epoch,
+                                        )?;
                                         daemon_json_ok(&refresh.training_json)
                                     }
                                     Err(err) => daemon_http_response(
@@ -536,8 +213,239 @@ fn train_and_refresh_daemon_input(
     })
 }
 
+fn apply_latest_training_refresh(
+    latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
+    label: &str,
+    weight: f64,
+    refresh: &DaemonTrainingRefresh,
+) -> Result<Option<DaemonSnapshot>, String> {
+    let mut guard = latest
+        .lock()
+        .map_err(|_| "daemon snapshot lock poisoned".to_string())?;
+    let Some(snapshot) = guard.as_mut() else {
+        return Ok(None);
+    };
+    let trained_unix_ms = now_unix_ms().unwrap_or(snapshot.updated_unix_ms);
+    push_training_event(
+        &mut snapshot.training_history,
+        TrainingEvent {
+            label: label.to_string(),
+            weight: format!("{}", weight),
+            trained_unix_ms,
+            scope: "latest".to_string(),
+        },
+    );
+    snapshot.analysis_runs += 1;
+    snapshot.updated_unix_ms = trained_unix_ms;
+    snapshot.last_success_unix_ms = Some(trained_unix_ms);
+    snapshot.last_error = None;
+    snapshot.latest_output_json = refresh.analysis_json.clone();
+    snapshot.latest_recommendation_summary_json = refresh.recommendation_summary_json.clone();
+    snapshot.state_hash = state_hash_for_output(
+        &snapshot.latest_output_json,
+        &snapshot.latest_recommendation_summary_json,
+    );
+    Ok(Some(snapshot.clone()))
+}
+
+fn apply_target_training_refresh(
+    latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
+    segment: &str,
+    label: &str,
+    weight: f64,
+    refresh: &DaemonTrainingRefresh,
+) -> Result<Option<DaemonSnapshot>, String> {
+    let mut guard = latest
+        .lock()
+        .map_err(|_| "daemon snapshot lock poisoned".to_string())?;
+    let Some(snapshot) = guard.as_mut() else {
+        return Ok(None);
+    };
+    let trained_unix_ms = now_unix_ms().unwrap_or(snapshot.updated_unix_ms);
+    push_training_event(
+        &mut snapshot.training_history,
+        TrainingEvent {
+            label: label.to_string(),
+            weight: format!("{}", weight),
+            trained_unix_ms,
+            scope: format!("target:{segment}"),
+        },
+    );
+    if let Some(target) = snapshot
+        .target_outputs
+        .iter_mut()
+        .find(|target| target.path_segment == segment)
+    {
+        target.output_json = refresh.analysis_json.clone();
+        target.recommendation_summary_json = refresh.recommendation_summary_json.clone();
+        target.updated_unix_ms = trained_unix_ms;
+        target.last_success_unix_ms = Some(trained_unix_ms);
+        target.last_error = None;
+        target.state_hash =
+            state_hash_for_output(&target.output_json, &target.recommendation_summary_json);
+        push_training_event(
+            &mut target.training_history,
+            TrainingEvent {
+                label: label.to_string(),
+                weight: format!("{}", weight),
+                trained_unix_ms,
+                scope: "target".to_string(),
+            },
+        );
+    }
+    refresh_snapshot_from_targets(snapshot, trained_unix_ms);
+    Ok(Some(snapshot.clone()))
+}
+
+fn refresh_snapshot_from_targets(snapshot: &mut DaemonSnapshot, trained_unix_ms: u128) {
+    let target_entries = snapshot
+        .target_outputs
+        .iter()
+        .map(|target| (target.path_segment.clone(), target.output_json.clone()))
+        .collect::<Vec<_>>();
+    snapshot.analysis_runs += 1;
+    snapshot.target_count = snapshot.target_outputs.len();
+    snapshot.updated_unix_ms = trained_unix_ms;
+    snapshot.last_success_unix_ms = Some(trained_unix_ms);
+    snapshot.last_error = None;
+    snapshot.latest_output_json = batch_output_json(&target_entries);
+    snapshot.latest_recommendation_summary_json = recommendation_overview_json(&target_entries);
+    snapshot.state_hash = state_hash_for_output(
+        &snapshot.latest_output_json,
+        &snapshot.latest_recommendation_summary_json,
+    );
+}
+
+fn persist_snapshot_and_invalidate(
+    daemon_state_file: Option<&Path>,
+    snapshot: Option<&DaemonSnapshot>,
+    invalidation_epoch: &Arc<AtomicU64>,
+) -> Result<(), String> {
+    if let (Some(path), Some(snapshot)) = (daemon_state_file, snapshot) {
+        write_daemon_state(path, snapshot)?;
+    }
+    invalidation_epoch.fetch_add(1, Ordering::Relaxed);
+    Ok(())
+}
+
 fn daemon_json_ok(body: &str) -> String {
     daemon_http_response("HTTP/1.1 200 OK", body)
+}
+
+fn latest_route_response(snapshot: Option<&DaemonSnapshot>, route: &str) -> String {
+    let Some(snapshot) = snapshot else {
+        return no_snapshot_response();
+    };
+    let queue_summary_override = latest_queue_summary_override(snapshot);
+    match route {
+        "learning" => daemon_json_ok(&learning_summary_json_from_output_and_history(
+            &snapshot.latest_output_json,
+            &snapshot.latest_recommendation_summary_json,
+            &snapshot.training_history,
+            queue_summary_override.as_deref(),
+        )),
+        "evidence_chain_enrichment" => daemon_json_ok(&learning_summary_field_json(
+            &snapshot.latest_output_json,
+            &snapshot.latest_recommendation_summary_json,
+            &snapshot.training_history,
+            queue_summary_override.as_deref(),
+            "evidence_chain_enrichment",
+            "latest",
+        )),
+        "diagnostic_opinion" => daemon_json_ok(&learning_summary_field_json(
+            &snapshot.latest_output_json,
+            &snapshot.latest_recommendation_summary_json,
+            &snapshot.training_history,
+            queue_summary_override.as_deref(),
+            "diagnostic_opinion",
+            "latest",
+        )),
+        "handoff" => daemon_json_ok(&handoff_summary_json(
+            &snapshot.latest_output_json,
+            &snapshot.latest_recommendation_summary_json,
+            &snapshot.training_history,
+            queue_summary_override.as_deref(),
+            "latest",
+        )),
+        _ => daemon_http_response("HTTP/1.1 404 Not Found", "{\"error\":\"not_found\"}"),
+    }
+}
+
+fn latest_queue_summary_override(snapshot: &DaemonSnapshot) -> Option<String> {
+    (!snapshot.target_outputs.is_empty())
+        .then(|| queue_summary_json_from_targets(&snapshot.target_outputs))
+}
+
+fn target_route_response(snapshot: Option<&DaemonSnapshot>, path: &str) -> String {
+    let Some(snapshot) = snapshot else {
+        return no_snapshot_response();
+    };
+    if let Some(target) = target_route_target(snapshot, path, "/output.json") {
+        return daemon_json_ok(&target.output_json);
+    }
+    if let Some(target) = target_route_target(snapshot, path, "/recommendation-summary.json") {
+        return daemon_json_ok(&target.recommendation_summary_json);
+    }
+    if let Some(target) = target_route_target(snapshot, path, "/learning-summary.json") {
+        return daemon_json_ok(&learning_summary_json_from_output_and_history_with_scope(
+            &target.output_json,
+            &target.recommendation_summary_json,
+            &target.training_history,
+            None,
+            "target",
+        ));
+    }
+    if let Some(target) = target_route_target(snapshot, path, "/evidence-chain-enrichment.json") {
+        return daemon_json_ok(&learning_summary_field_json(
+            &target.output_json,
+            &target.recommendation_summary_json,
+            &target.training_history,
+            None,
+            "evidence_chain_enrichment",
+            "target",
+        ));
+    }
+    if let Some(target) = target_route_target(snapshot, path, "/diagnostic-opinion.json") {
+        return daemon_json_ok(&learning_summary_field_json(
+            &target.output_json,
+            &target.recommendation_summary_json,
+            &target.training_history,
+            None,
+            "diagnostic_opinion",
+            "target",
+        ));
+    }
+    if let Some(target) = target_route_target(snapshot, path, "/handoff-summary.json") {
+        return daemon_json_ok(&handoff_summary_json(
+            &target.output_json,
+            &target.recommendation_summary_json,
+            &target.training_history,
+            None,
+            "target",
+        ));
+    }
+    if let Some(target) = target_route_target(snapshot, path, "/meta.json") {
+        return daemon_json_ok(&target_daemon_meta_json(target, snapshot.interval_ms));
+    }
+    target_not_found_response()
+}
+
+fn target_route_target<'a>(
+    snapshot: &'a DaemonSnapshot,
+    path: &str,
+    suffix: &str,
+) -> Option<&'a TargetDaemonOutput> {
+    let segment = target_route_segment(path, suffix)?;
+    snapshot
+        .target_outputs
+        .iter()
+        .find(|target| target.path_segment == segment)
+}
+
+fn target_route_segment<'a>(path: &'a str, suffix: &str) -> Option<&'a str> {
+    path.strip_prefix("/v1/latest/targets/")?
+        .strip_suffix(suffix)
+        .map(|segment| segment.trim_end_matches('/'))
 }
 
 fn no_snapshot_response() -> String {

@@ -1,5 +1,14 @@
 use super::*;
 
+const MAX_HTTP_RESPONSE_BYTES: usize = 1_048_576;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct TargetBatchEndpoint {
+    pub(super) host: String,
+    pub(super) port: u16,
+    pub(super) segments: Vec<String>,
+}
+
 pub(super) fn read_input(path: &str) -> Result<String, String> {
     if path == "-" {
         let mut buffer = String::new();
@@ -15,6 +24,31 @@ pub(super) fn read_input(path: &str) -> Result<String, String> {
 pub(super) fn read_url(url: &str) -> Result<String, String> {
     let (host, port, path) = parse_http_url(url)?;
     http_get(&host, port, &path)
+}
+
+pub(super) fn resolve_target_batch_endpoint(
+    url: &str,
+    invalid_path_message: &str,
+    filter_prefix: Option<&str>,
+) -> Result<TargetBatchEndpoint, String> {
+    let (host, port, path) = parse_http_url(url)?;
+    if path != "/v1/latest/targets" {
+        return Err(invalid_path_message.to_string());
+    }
+    let targets_json = http_get(&host, port, &path)?;
+    let segments = extract_target_path_segments(&targets_json)?
+        .into_iter()
+        .filter(|segment| {
+            filter_prefix
+                .map(|prefix| segment.starts_with(prefix))
+                .unwrap_or(true)
+        })
+        .collect();
+    Ok(TargetBatchEndpoint {
+        host,
+        port,
+        segments,
+    })
 }
 
 pub(super) fn http_get(host: &str, port: u16, path: &str) -> Result<String, String> {
@@ -34,10 +68,24 @@ pub(super) fn http_get(host: &str, port: u16, path: &str) -> Result<String, Stri
         .write_all(request.as_bytes())
         .map_err(|err| format!("failed to send request: {err}"))?;
 
-    let mut response = String::new();
-    stream
-        .read_to_string(&mut response)
-        .map_err(|err| format!("failed to read response: {err}"))?;
+    let mut response = Vec::new();
+    let mut chunk = [0u8; 8192];
+    loop {
+        let size = stream
+            .read(&mut chunk)
+            .map_err(|err| format!("failed to read response: {err}"))?;
+        if size == 0 {
+            break;
+        }
+        response.extend_from_slice(&chunk[..size]);
+        if response.len() > MAX_HTTP_RESPONSE_BYTES {
+            return Err(format!(
+                "http response exceeded size limit of {} bytes",
+                MAX_HTTP_RESPONSE_BYTES
+            ));
+        }
+    }
+    let response = String::from_utf8_lossy(&response).to_string();
 
     let (head, body) = response
         .split_once("\r\n\r\n")
@@ -88,13 +136,57 @@ pub(super) fn extract_target_path_segments(targets_json: &str) -> Result<Vec<Str
         let end = tail
             .find('"')
             .ok_or_else(|| "invalid targets payload: unterminated path_segment".to_string())?;
-        segments.push(tail[..end].to_string());
+        segments.push(validate_target_path_segment(&tail[..end])?);
         rest = &tail[end..];
     }
     if segments.is_empty() {
         return Err("targets payload did not contain any path_segment values".to_string());
     }
     Ok(segments)
+}
+
+pub(super) fn target_analysis_path(path_segment: &str) -> Result<String, String> {
+    Ok(format!(
+        "/v1/latest/targets/{}/analysis.json",
+        encode_target_path_segment(path_segment)?
+    ))
+}
+
+impl TargetBatchEndpoint {
+    pub(super) fn fetch_analysis_json(&self, path_segment: &str) -> Result<String, String> {
+        let path = target_analysis_path(path_segment)?;
+        http_get(&self.host, self.port, &path)
+    }
+}
+
+fn validate_target_path_segment(path_segment: &str) -> Result<String, String> {
+    if path_segment.is_empty() {
+        return Err("invalid targets payload: empty path_segment".to_string());
+    }
+    if path_segment
+        .chars()
+        .any(|ch| ch.is_ascii_control() || matches!(ch, '/' | '\\'))
+    {
+        return Err(format!(
+            "invalid targets payload: unsupported path_segment '{}'",
+            path_segment
+        ));
+    }
+    Ok(path_segment.to_string())
+}
+
+fn encode_target_path_segment(path_segment: &str) -> Result<String, String> {
+    validate_target_path_segment(path_segment)?;
+    let mut encoded = String::with_capacity(path_segment.len());
+    for byte in path_segment.bytes() {
+        let ch = byte as char;
+        if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '~' | ':' | '-') {
+            encoded.push(ch);
+        } else {
+            encoded.push_str(&format!("%{:02X}", byte));
+        }
+    }
+    Ok(encoded)
 }
 
 pub(super) fn extract_named_string_fields(input: &str, key: &str) -> Vec<String> {
@@ -282,4 +374,57 @@ pub(super) fn parse_json_string_value(input: &str) -> Option<String> {
 
 pub(super) fn escape_json_string(input: &str) -> String {
     input.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
+
+    #[test]
+    fn target_analysis_path_percent_encodes_reserved_bytes() {
+        let path = target_analysis_path("scan target?x=1").expect("path should encode");
+        assert_eq!(
+            path,
+            "/v1/latest/targets/scan%20target%3Fx%3D1/analysis.json"
+        );
+    }
+
+    #[test]
+    fn extract_target_path_segments_rejects_path_separators() {
+        let err =
+            extract_target_path_segments("{\"target_refs\":[{\"path_segment\":\"../../admin\"}]}")
+                .expect_err("path separators should be rejected");
+        assert!(err.contains("unsupported path_segment"));
+    }
+
+    #[test]
+    fn http_get_rejects_oversized_response() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+        let addr = listener
+            .local_addr()
+            .expect("listener should have local addr");
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("client should connect");
+            let mut request = [0u8; 1024];
+            let _ = stream.read(&mut request).expect("request should read");
+            let body = "a".repeat(MAX_HTTP_RESPONSE_BYTES + 1);
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            stream
+                .write_all(response.as_bytes())
+                .expect("response should write");
+        });
+
+        let err = http_get("127.0.0.1", addr.port(), "/v1/latest/analysis.json")
+            .expect_err("oversized response should be rejected");
+        assert!(err.contains("exceeded size limit"));
+
+        handle.join().expect("server thread should exit cleanly");
+    }
 }

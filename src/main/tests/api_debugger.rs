@@ -1348,6 +1348,114 @@ fn anomaly_flow_route_uses_smtp_specific_phase_hints() {
 }
 
 #[test]
+fn anomaly_flow_route_uses_redis_specific_phase_hints() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let binding = compile_file(&dsl_fixture_path("redis_get_path.gewy"))
+        .expect("redis_get_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 94008, 43079, "redis-cli"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    94008,
+                    7,
+                    SessionId(1),
+                ),
+                tcp_state_fact_with_ports_for_tests(3, 94008, 1, 2, 43079, 6379),
+                tcp_state_fact_with_ports_for_tests(4, 94008, 2, 3, 43079, 6379),
+                packet_fact_with_dir_and_payload_bytes_for_tests(
+                    5,
+                    94008,
+                    0,
+                    PacketDir::Egress,
+                    Some(43079),
+                    Some(6379),
+                    &[
+                        (0, 0x2a),
+                        (1, 0x32),
+                        (2, 0x0d),
+                        (3, 0x0a),
+                        (8, 0x47),
+                        (9, 0x45),
+                        (10, 0x54),
+                    ],
+                ),
+                packet_fact_with_dir_and_payload_bytes_for_tests(
+                    6,
+                    94008,
+                    0,
+                    PacketDir::Ingress,
+                    Some(43079),
+                    Some(6379),
+                    &[(0, 0x24), (1, 0x35), (2, 0x0d), (3, 0x0a)],
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "redis_get_path",
+        "redis_get",
+        "decode_value",
+        "interpret_payload",
+        "receive_bulk->decode_value",
+        "receive_payload->interpret_payload",
+        "transport_io",
+        "synthetic missing redis bulk decode",
+        "tcp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let analysis = analysis_snapshot(&export);
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    update_api_snapshot_for_single(
+        &state,
+        ApiRenderedTarget {
+            name: "scan:redis:get".into(),
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
+            summary_text: summary_line("scan:redis:get", &export),
+            summary_json: summary_json("scan:redis:get", &export),
+            findings_json: findings_json("scan:redis:get", &export),
+            analysis_json: analysis_snapshot_json(&analysis),
+            training_example_json: training_example_json("scan:redis:get", &export),
+            has_external_sidecar_context: false,
+            has_external_evidence_chain_enrichment: false,
+            has_external_diagnostic_opinion: false,
+            has_external_capability_profile: false,
+            external_capability_status: None,
+            external_hint_status: None,
+            external_context_status: None,
+            external_sidecar_trust_level: None,
+            external_sidecar_consumption_mode: None,
+            export_json: export.to_json(),
+            report_json: scan_report_json(&[("scan:redis:get".to_string(), export.clone())]),
+            report_html: scan_report_html(&[("scan:redis:get".to_string(), export.clone())]),
+        },
+    );
+    let snapshot = state.lock().unwrap().clone();
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:redis:get/anomaly-flow.json",
+        &snapshot,
+    );
+    assert_eq!(status, 200);
+    assert!(body.contains("\"protocol\":\"redis\""), "body={}", body);
+    assert!(body.contains("\"entry\":\"get\""), "body={}", body);
+    assert!(
+        body.contains("bulk reply bytes should arrive here"),
+        "body={}",
+        body
+    );
+}
+
+#[test]
 fn debugger_console_rolls_up_targets_with_attention_first_focus() {
     let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
     update_api_snapshot_for_scan(

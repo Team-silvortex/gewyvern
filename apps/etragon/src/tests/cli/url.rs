@@ -167,3 +167,51 @@ fn cli_watch_python_targets_url_runs_single_cycle() {
 
     handle.join().expect("server thread should exit cleanly");
 }
+
+#[test]
+fn cli_analyze_targets_url_percent_encodes_target_path_segments() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+    let addr = listener
+        .local_addr()
+        .expect("listener should have local addr");
+    let handle = thread::spawn(move || {
+        for expected_path in [
+            "/v1/latest/targets",
+            "/v1/latest/targets/scan%20target%3Fx%3D1/analysis.json",
+        ] {
+            let (mut stream, _) = listener.accept().expect("client should connect");
+            let mut request = [0u8; 2048];
+            let size = stream.read(&mut request).expect("request should read");
+            let request_text = String::from_utf8_lossy(&request[..size]);
+            assert!(
+                request_text.starts_with(&format!("GET {} ", expected_path)),
+                "unexpected request path: {request_text}"
+            );
+            let body = match expected_path {
+                "/v1/latest/targets" => {
+                    "{\"kind\":\"scan\",\"target_count\":1,\"targets\":[\"scan target?x=1\"],\"target_refs\":[{\"name\":\"scan target?x=1\",\"path_segment\":\"scan target?x=1\",\"url_path\":\"/v1/latest/targets/scan%20target%3Fx%3D1\"}],\"path_segment_encoding\":\"percent-encoding\"}".to_string()
+                }
+                _ => {
+                    "{\"primary_module_kind\":\"http_request_response\",\"primary_failure_mode\":\"no_response\",\"primary_failure_detail\":\"request_sent_no_reply\",\"primary_failure_confidence\":\"medium\",\"primary_failure_basis\":\"missing_transition\",\"ambiguous\":false,\"competing_hypotheses\":[]}".to_string()
+                }
+            };
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            stream
+                .write_all(response.as_bytes())
+                .expect("response should write");
+        }
+    });
+
+    let output = run_cli(&[
+        "analyze-targets-url".to_string(),
+        format!("http://{}/v1/latest/targets", addr),
+    ])
+    .expect("cli should analyze targets url");
+    assert!(output.contains("\"path_segment\":\"scan target?x=1\""));
+
+    handle.join().expect("server thread should exit cleanly");
+}

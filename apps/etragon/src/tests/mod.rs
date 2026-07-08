@@ -1,13 +1,14 @@
 use super::*;
 use std::fs;
+use std::fs::OpenOptions;
 use std::net::{TcpListener, TcpStream};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{
     Mutex, OnceLock,
     atomic::{AtomicU16, Ordering},
 };
 use std::thread;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 mod cli;
 mod core;
@@ -49,10 +50,74 @@ fn daemon_test_guard() -> &'static Mutex<()> {
     GUARD.get_or_init(|| Mutex::new(()))
 }
 
-fn lock_daemon_test_guard() -> std::sync::MutexGuard<'static, ()> {
-    daemon_test_guard()
+struct DaemonTestGuard {
+    _local_guard: std::sync::MutexGuard<'static, ()>,
+    lock_path: PathBuf,
+}
+
+impl Drop for DaemonTestGuard {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.lock_path);
+    }
+}
+
+fn daemon_test_lock_path() -> PathBuf {
+    std::env::temp_dir().join("gewyvern-etragon-daemon-tests.lock")
+}
+
+fn daemon_test_lock_is_stale(lock_path: &Path) -> bool {
+    fs::metadata(lock_path)
+        .and_then(|meta| meta.modified())
+        .ok()
+        .and_then(|modified| SystemTime::now().duration_since(modified).ok())
+        .map(|age| age > Duration::from_secs(10))
+        .unwrap_or(false)
+}
+
+fn lock_daemon_test_guard() -> DaemonTestGuard {
+    let local_guard = daemon_test_guard()
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let lock_path = daemon_test_lock_path();
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    loop {
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&lock_path)
+        {
+            Ok(_) => {
+                return DaemonTestGuard {
+                    _local_guard: local_guard,
+                    lock_path,
+                };
+            }
+            Err(err)
+                if err.kind() == std::io::ErrorKind::AlreadyExists
+                    && std::time::Instant::now() < deadline =>
+            {
+                if daemon_test_lock_is_stale(&lock_path) {
+                    let _ = fs::remove_file(&lock_path);
+                    continue;
+                }
+                thread::sleep(Duration::from_millis(25));
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                panic!(
+                    "timed out waiting for cross-process daemon test lock '{}': {}",
+                    lock_path.display(),
+                    err
+                );
+            }
+            Err(err) => {
+                panic!(
+                    "failed to acquire cross-process daemon test lock '{}': {}",
+                    lock_path.display(),
+                    err
+                );
+            }
+        }
+    }
 }
 
 fn wait_for_body<F>(url: &str, predicate: F) -> Option<String>
