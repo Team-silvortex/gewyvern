@@ -8,6 +8,8 @@ mod cli;
 mod cli_validation;
 mod data_api;
 mod diagnosis_runtime;
+#[path = "main/diagnostics_mode.rs"]
+mod diagnostics_mode;
 mod external_analysis;
 #[path = "main/helpers.rs"]
 mod helpers;
@@ -15,6 +17,12 @@ mod helpers;
 mod history_catalog_delta;
 #[path = "main/history_view.rs"]
 mod history_view;
+#[path = "main/output_collection.rs"]
+mod output_collection;
+#[path = "main/preflight.rs"]
+mod preflight;
+#[path = "main/render_dispatch.rs"]
+mod render_dispatch;
 mod render_utils;
 mod report_runtime;
 #[path = "main/runtime_config.rs"]
@@ -39,25 +47,20 @@ mod ui_locale;
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
 use gewyvern::flow::{FlowId, ProcessView, ProgramFlowId};
-use gewyvern::gewyc::{RenderFormat, compile_diagnostics_report_file, render_diagnostics_report};
-use gewyvern::http::compose_http_transactions;
 use gewyvern::ledger::{
     CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, QuicFrameType,
     QuicPacketType, RouteDecisionFact, SessionId, SockLineageFact, TcpStateFact,
 };
 use gewyvern::protocol_profiles::{
     ResolvedProtocolProfile, default_protocol_scan_set, default_protocol_scan_set_from_dir,
-    protocol_dsl_path, protocol_summaries, protocol_summary, resolve_built_in_dsl_path,
-    resolve_protocol_profile,
+    protocol_dsl_path, protocol_summaries, protocol_summary, resolve_protocol_profile,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::socket_input::{
-    bind_unix_socket_listener, collect_tcp_socket_facts, collect_tcp_socket_facts_on_listener,
-    collect_unix_socket_facts, collect_unix_socket_facts_on_listener, remove_unix_socket_file,
-    run_tcp_socket_session, run_tcp_socket_session_on_listener,
-    run_tcp_socket_session_on_listener_with_binding, run_tcp_socket_session_with_binding,
-    run_unix_socket_session, run_unix_socket_session_on_listener,
-    run_unix_socket_session_on_listener_with_binding, run_unix_socket_session_with_binding,
+    bind_unix_socket_listener, collect_tcp_socket_facts_on_listener,
+    collect_unix_socket_facts_on_listener, remove_unix_socket_file,
+    run_tcp_socket_session_on_listener, run_tcp_socket_session_on_listener_with_binding,
+    run_unix_socket_session_on_listener, run_unix_socket_session_on_listener_with_binding,
 };
 use gewyvern::template::{TemplateBinding, handshake_debug_template, udp_debug_template};
 use std::collections::HashSet;
@@ -69,7 +72,6 @@ use std::time::{Duration, SystemTime};
 
 use crate::diagnosis_runtime::*;
 use crate::external_analysis::ExternalAnalysisConfig;
-use crate::history_view::render_history_index;
 use crate::report_runtime::{
     findings_json, findings_json_with_analysis, findings_text, http_transactions_json,
     http_transactions_text, render_debug_session_outputs, render_debugger_console_outputs,
@@ -82,16 +84,15 @@ use crate::report_runtime::{
 use crate::report_runtime::{
     scan_report_html, scan_report_json, scan_report_text, training_example_json,
 };
-use crate::runtime_events::{
-    EVENT_DIAGNOSTICS_COMPILE_FAILED, EVENT_DIAGNOSTICS_REQUIRES_DSL, EVENT_HISTORY_RENDER_FAILED,
-    EVENT_SCAN_TARGET_RESOLVE_FAILED, EVENT_SOCKET_SESSION_COLLECT_FAILED,
-    EVENT_SOCKET_SESSION_RUN_FAILED,
-};
+use crate::runtime_events::EVENT_SCAN_TARGET_RESOLVE_FAILED;
 use crate::runtime_logging::log_error_event;
-use crate::serve_runtime::serve_socket_sessions;
 use crate::startup::bootstrap_cli;
 
 pub(crate) use self::binding_demo::run_binding_demo;
+pub(crate) use self::diagnostics_mode::render_diagnostics_mode;
+pub(crate) use self::output_collection::collect_cli_outputs;
+pub(crate) use self::preflight::handle_cli_preflight;
+pub(crate) use self::render_dispatch::render_cli_outputs;
 pub(crate) use self::ui_locale::UiLocale;
 
 fn main() {
@@ -103,50 +104,6 @@ fn main() {
     }
     let rendered = run_cli_main(&cli, locale);
     write_or_print(&rendered, cli.out_path.as_deref(), locale);
-}
-
-fn handle_cli_preflight(cli: &Cli, locale: UiLocale) -> bool {
-    if cli.list_protocols {
-        let rendered = if cli.json {
-            list_protocols_json()
-        } else {
-            list_protocols_text()
-        };
-        write_or_print(&rendered, cli.out_path.as_deref(), locale);
-        return true;
-    }
-
-    if cli.list_history {
-        let rendered = render_history_index(cli.json).unwrap_or_else(|message| {
-            log_error_event(
-                "history",
-                EVENT_HISTORY_RENDER_FAILED,
-                &[("error", message.clone())],
-                "failed to render history index",
-            );
-            eprintln!("{message}");
-            std::process::exit(2);
-        });
-        write_or_print(&rendered, cli.out_path.as_deref(), locale);
-        return true;
-    }
-
-    if let Some(protocol) = cli.list_entries.as_deref() {
-        let rendered = if cli.json {
-            list_entries_json(protocol).unwrap_or_else(|| {
-                eprintln!("{}", locale.msgf("unsupported_protocol", protocol, None));
-                std::process::exit(2);
-            })
-        } else {
-            list_entries_text(protocol).unwrap_or_else(|| {
-                eprintln!("{}", locale.msgf("unsupported_protocol", protocol, None));
-                std::process::exit(2);
-            })
-        };
-        write_or_print(&rendered, cli.out_path.as_deref(), locale);
-        return true;
-    }
-    false
 }
 
 fn run_cli_main(cli: &Cli, locale: UiLocale) -> String {
@@ -163,384 +120,11 @@ fn run_cli_main(cli: &Cli, locale: UiLocale) -> String {
     });
 
     if cli.diagnostics {
-        let path = cli.dsl_path.as_deref().unwrap_or_else(|| {
-            log_error_event(
-                "diagnostics",
-                EVENT_DIAGNOSTICS_REQUIRES_DSL,
-                &[],
-                "diagnostics mode requires a dsl path",
-            );
-            eprintln!("{}", locale.msg("diagnostics_requires_dsl"));
-            std::process::exit(2);
-        });
-        let report = compile_diagnostics_report_file(path).unwrap_or_else(|err| {
-            log_error_event(
-                "diagnostics",
-                EVENT_DIAGNOSTICS_COMPILE_FAILED,
-                &[("path", path.to_string()), ("error", format!("{err:?}"))],
-                "failed to compile diagnostics report",
-            );
-            eprintln!(
-                "{}",
-                locale.msgf("binding_diagnostics_failed", &format!("{err:?}"), None)
-            );
-            std::process::exit(2);
-        });
-        let rendered = if cli.json {
-            render_diagnostics_report(&report, RenderFormat::Json)
-        } else {
-            render_diagnostics_report(&report, RenderFormat::Text)
-        };
-        return rendered;
+        return render_diagnostics_mode(cli, locale);
     }
 
     let outputs = collect_cli_outputs(cli, base, &scan_targets, locale);
     render_cli_outputs(cli, outputs)
-}
-
-fn collect_cli_outputs(
-    cli: &Cli,
-    base: SystemTime,
-    scan_targets: &[ScanTarget],
-    locale: UiLocale,
-) -> Vec<(String, ExportBundle)> {
-    let mut outputs: Vec<(String, ExportBundle)> = Vec::new();
-    if let Some(socket_target) = cli.socket_target.as_ref() {
-        collect_socket_cli_outputs(&mut outputs, cli, socket_target, scan_targets, locale);
-    } else {
-        collect_non_socket_cli_outputs(&mut outputs, cli, base, scan_targets);
-    }
-    outputs
-}
-
-fn collect_socket_cli_outputs(
-    outputs: &mut Vec<(String, ExportBundle)>,
-    cli: &Cli,
-    socket_target: &SocketTarget,
-    scan_targets: &[ScanTarget],
-    locale: UiLocale,
-) {
-    if cli.serve {
-        serve_socket_sessions(cli, socket_target);
-        return;
-    }
-
-    if cli.scan_all {
-        let facts = match socket_target {
-            SocketTarget::Unix(path) => collect_unix_socket_facts(path),
-            SocketTarget::Tcp(addr) => collect_tcp_socket_facts(addr),
-        }
-        .unwrap_or_else(|err| {
-            let endpoint = socket_target_endpoint(socket_target);
-            log_error_event(
-                "runtime",
-                EVENT_SOCKET_SESSION_COLLECT_FAILED,
-                &[("endpoint", endpoint), ("error", format!("{err:?}"))],
-                "failed to collect socket session facts",
-            );
-            eprintln!(
-                "{}",
-                locale.msgf("socket_session_failed", &format!("{err:?}"), None)
-            );
-            std::process::exit(1);
-        });
-        for target in scan_targets {
-            push_filtered_output(
-                outputs,
-                cli,
-                target.label(),
-                run_binding_session(target.binding(), &facts),
-            );
-        }
-        return;
-    }
-
-    let export = match (socket_target, cli.dsl_binding()) {
-        (SocketTarget::Unix(path), Some(binding)) => {
-            run_unix_socket_session_with_binding(path, binding)
-        }
-        (SocketTarget::Tcp(addr), Some(binding)) => {
-            run_tcp_socket_session_with_binding(addr, binding)
-        }
-        (SocketTarget::Unix(path), None) => {
-            run_unix_socket_session(path, cli.template_mode.template())
-        }
-        (SocketTarget::Tcp(addr), None) => {
-            run_tcp_socket_session(addr, cli.template_mode.template())
-        }
-    }
-    .unwrap_or_else(|err| {
-        let endpoint = socket_target_endpoint(socket_target);
-        log_error_event(
-            "runtime",
-            EVENT_SOCKET_SESSION_RUN_FAILED,
-            &[("endpoint", endpoint), ("error", format!("{err:?}"))],
-            "failed to run socket session",
-        );
-        eprintln!(
-            "{}",
-            locale.msgf("socket_session_failed", &format!("{err:?}"), None)
-        );
-        std::process::exit(1);
-    });
-    push_filtered_output(outputs, cli, "socket_session".to_string(), export);
-}
-
-fn collect_non_socket_cli_outputs(
-    outputs: &mut Vec<(String, ExportBundle)>,
-    cli: &Cli,
-    base: SystemTime,
-    scan_targets: &[ScanTarget],
-) {
-    if cli.scan_all {
-        for target in scan_targets {
-            push_filtered_output(
-                outputs,
-                cli,
-                target.label(),
-                run_binding_demo(target.binding()),
-            );
-        }
-        return;
-    }
-
-    if let Some(binding) = cli.dsl_binding() {
-        push_filtered_output(
-            outputs,
-            cli,
-            "dsl_demo".to_string(),
-            run_binding_demo(binding),
-        );
-        return;
-    }
-
-    if cli.demo_mode.includes_tcp() {
-        push_filtered_output(outputs, cli, "tcp_demo".to_string(), tcp_demo_export(base));
-    }
-
-    if cli.demo_mode.includes_udp() {
-        push_filtered_output(outputs, cli, "udp_demo".to_string(), udp_demo_export(base));
-    }
-}
-
-fn push_filtered_output(
-    outputs: &mut Vec<(String, ExportBundle)>,
-    cli: &Cli,
-    label: String,
-    export: ExportBundle,
-) {
-    let export = cli
-        .pid
-        .map(|pid| filter_export_by_pid(&export, pid))
-        .unwrap_or(export);
-    outputs.push((label, annotate_export_trust(export, cli)));
-}
-
-fn socket_target_endpoint(socket_target: &SocketTarget) -> String {
-    match socket_target {
-        SocketTarget::Unix(path) => format!("unix:{path}"),
-        SocketTarget::Tcp(addr) => format!("tcp:{addr}"),
-    }
-}
-
-fn tcp_demo_export(base: SystemTime) -> ExportBundle {
-    run_session(
-        handshake_debug_template(),
-        vec![
-            FactEnvelope {
-                id: FactId(1),
-                ts: base,
-                cpu: CpuId(0),
-                ifindex: Some(2),
-                session: SessionId(1),
-                fragment_id: "tcp_state_fragment".into(),
-                kind: FactKind::TcpState(TcpStateFact {
-                    netns: 1,
-                    sk_cookie: 42,
-                    saddr: [0; 16],
-                    daddr: [0; 16],
-                    sport: 42310,
-                    dport: 443,
-                    family: 2,
-                    old: 1,
-                    new: 2,
-                }),
-            },
-            FactEnvelope {
-                id: FactId(2),
-                ts: base + Duration::from_millis(10),
-                cpu: CpuId(0),
-                ifindex: Some(2),
-                session: SessionId(1),
-                fragment_id: "tcp_packet_meta_fragment".into(),
-                kind: FactKind::PacketMeta(PacketMetaFact {
-                    netns: 1,
-                    sk_cookie: Some(42),
-                    dir: PacketDir::Egress,
-                    local_port: None,
-                    remote_port: None,
-                    payload_byte0: None,
-                    payload_byte1: None,
-                    payload_prefix2: None,
-                    payload_prefix4: None,
-                    payload_byte4: None,
-                    payload_byte5: None,
-                    payload_byte9: None,
-                    payload_byte10: None,
-                    payload_byte13: None,
-                    payload_bytes: std::collections::BTreeMap::new(),
-                    l3_proto: 0x0800,
-                    l4_proto: 6,
-                    tot_len: 60,
-                    tcp_flags: 0x02,
-                    seq: Some(1),
-                    ack: None,
-                    window: Some(65535),
-                }),
-            },
-            route_fact(3, base + Duration::from_millis(20), 42, 2, SessionId(1)),
-        ],
-    )
-}
-
-fn udp_demo_export(base: SystemTime) -> ExportBundle {
-    run_session(
-        udp_debug_template(),
-        vec![
-            FactEnvelope {
-                id: FactId(1),
-                ts: base,
-                cpu: CpuId(0),
-                ifindex: Some(3),
-                session: SessionId(2),
-                fragment_id: "udp_packet_meta_fragment".into(),
-                kind: FactKind::PacketMeta(PacketMetaFact {
-                    netns: 1,
-                    sk_cookie: Some(99),
-                    dir: PacketDir::Egress,
-                    local_port: None,
-                    remote_port: None,
-                    payload_byte0: None,
-                    payload_byte1: None,
-                    payload_prefix2: None,
-                    payload_prefix4: None,
-                    payload_byte4: None,
-                    payload_byte5: None,
-                    payload_byte9: None,
-                    payload_byte10: None,
-                    payload_byte13: None,
-                    payload_bytes: std::collections::BTreeMap::new(),
-                    l3_proto: 0x0800,
-                    l4_proto: 17,
-                    tot_len: 72,
-                    tcp_flags: 0,
-                    seq: None,
-                    ack: None,
-                    window: None,
-                }),
-            },
-            route_fact(2, base + Duration::from_millis(10), 99, 3, SessionId(2)),
-        ],
-    )
-}
-
-fn render_cli_outputs(cli: &Cli, outputs: Vec<(String, ExportBundle)>) -> String {
-    if cli.http_transactions {
-        let transactions = if cli.dsl_path.is_some() {
-            let mut composed_exports = Vec::new();
-            composed_exports.extend(outputs.iter().map(|(_, export)| export.clone()));
-            if outputs
-                .iter()
-                .any(|(_, export)| export_has_operation(export, "http_request"))
-            {
-                let dns_path = resolve_built_in_dsl_path("dsl/dns_udp_process.gewy");
-                composed_exports.push(run_binding_demo(
-                    compile_file(&dns_path).expect("dns dsl should compile"),
-                ));
-                let http_response_path =
-                    resolve_built_in_dsl_path("dsl/http_server_response_path.gewy");
-                composed_exports.push(run_binding_demo(
-                    compile_file(&http_response_path).expect("http server dsl should compile"),
-                ));
-            }
-            if outputs
-                .iter()
-                .any(|(_, export)| export_has_operation(export, "http3_request"))
-            {
-                let http3_response_path =
-                    resolve_built_in_dsl_path("dsl/http3_server_response_path.gewy");
-                composed_exports.push(run_binding_demo(
-                    compile_file(&http3_response_path).expect("http3 server dsl should compile"),
-                ));
-            }
-            compose_http_transactions(&composed_exports)
-        } else {
-            compose_http_transactions(
-                &outputs
-                    .iter()
-                    .map(|(_, export)| export.clone())
-                    .collect::<Vec<_>>(),
-            )
-        };
-
-        if cli.json {
-            http_transactions_json(&transactions)
-        } else {
-            http_transactions_text(&transactions)
-        }
-    } else if cli.debugger_console {
-        render_debugger_console_outputs(&cli, &outputs)
-    } else if cli.debug_session {
-        render_debug_session_outputs(&cli, &outputs)
-    } else if cli.findings {
-        if cli.scan_all {
-            render_scan_outputs(&cli, &outputs)
-        } else if cli.report_format.is_some() {
-            render_report_outputs(&cli, &outputs)
-        } else {
-            outputs
-                .into_iter()
-                .map(|(name, export)| {
-                    if cli.json {
-                        findings_json(&name, &export)
-                    } else {
-                        findings_text(&name, &export)
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
-    } else if cli.json {
-        if cli.scan_all && cli.summary_only {
-            render_scan_outputs(&cli, &outputs)
-        } else if cli.report_format.is_some() {
-            render_report_outputs(&cli, &outputs)
-        } else {
-            outputs
-                .into_iter()
-                .map(|(name, export)| {
-                    if cli.summary_only {
-                        summary_json(&name, &export)
-                    } else {
-                        export.to_json()
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
-    } else {
-        if cli.scan_all {
-            render_scan_outputs(&cli, &outputs)
-        } else if cli.report_format.is_some() {
-            render_report_outputs(&cli, &outputs)
-        } else {
-            outputs
-                .into_iter()
-                .map(|(name, export)| summary_line(&name, &export))
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
-    }
 }
 
 pub(crate) use self::cli::{Cli, IngestMode, ReportFormat, ScanTarget, SocketTarget};
