@@ -605,6 +605,15 @@ Entry aliases:
 - `zrevrank`: `score-revrank-member`, `sorted-member-revrank`
 - `zscore`: `score-read-member`, `sorted-member-score`
 
+## `rip`
+
+Default entry: `request`
+Protocol aliases: `rip-request`, `rip-response`, `rip-unreachable`, `rip-update`, `rip-withdrawal`, `rip_request`, `rip_response`, `rip_unreachable`, `rip_update`
+Entry aliases:
+- `request` (default): `rip-request`, `rip_request`, `route-request`, `routing-request`
+- `response`: `distance-vector-update`, `rip-response`, `rip-update`, `rip_response`, `rip_update`, `route-update`
+- `unreachable`: `metric16`, `rip-unreachable`, `rip-withdrawal`, `rip_unreachable`, `rip_withdrawal`, `route-unreachable`, `route-withdrawal`
+
 ## `rtsp`
 
 Default entry: `options`
@@ -724,7 +733,7 @@ Protocol aliases: `syslog-secure`, `syslog-tcp`, `syslog-tls`, `syslog-udp`, `sy
 Entry aliases:
 - `udp` (default): `datagram`, `message`, `rfc3164`, `rfc5424`, `syslog-udp`, `syslog_udp`
 - `tcp`: `octet-counted`, `stream`, `syslog-tcp`, `syslog_tcp`, `tcp-stream`
-- `tls`: `rfc5425`, `secure`, `syslog-secure`, `syslog-tls`, `syslog_tls`, `tls-transport`
+- `tls`: `rfc5425`, `secure`, `syslog-secure`, `syslog-tls`, `syslog_secure`, `syslog_tls`, `tls-transport`
 
 ## `tftp`
 

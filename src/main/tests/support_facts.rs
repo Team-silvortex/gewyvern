@@ -310,6 +310,119 @@ pub(super) fn udp_packet_fact_with_dir_and_ports_and_payload_for_tests(
     }
 }
 
+pub(super) fn udp_packet_fact_with_payload_bytes_for_tests(
+    id: u64,
+    cookie: u64,
+    dir: PacketDir,
+    local_port: u16,
+    remote_port: u16,
+    payload_bytes: &[(u16, u8)],
+) -> FactEnvelope {
+    let byte_at = |target: u16| {
+        payload_bytes
+            .iter()
+            .find_map(|(offset, value)| (*offset == target).then_some(*value))
+    };
+    let payload_byte0 = byte_at(0);
+    let payload_byte1 = byte_at(1);
+    let payload_byte2 = byte_at(2);
+    let payload_byte3 = byte_at(3);
+    FactEnvelope {
+        id: FactId(id),
+        ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+        cpu: CpuId(0),
+        ifindex: Some(2),
+        session: SessionId(1),
+        fragment_id: "udp_packet_meta_fragment".into(),
+        kind: FactKind::PacketMeta(PacketMetaFact {
+            netns: 1,
+            sk_cookie: Some(cookie),
+            dir,
+            local_port: Some(local_port),
+            remote_port: Some(remote_port),
+            payload_byte0,
+            payload_byte1,
+            payload_prefix2: payload_byte0
+                .zip(payload_byte1)
+                .map(|(b0, b1)| u16::from_be_bytes([b0, b1])),
+            payload_prefix4: payload_byte0
+                .zip(payload_byte1)
+                .zip(payload_byte2)
+                .zip(payload_byte3)
+                .map(|(((b0, b1), b2), b3)| u32::from_be_bytes([b0, b1, b2, b3])),
+            payload_byte4: byte_at(4),
+            payload_byte5: byte_at(5),
+            payload_byte9: byte_at(9),
+            payload_byte10: byte_at(10),
+            payload_byte13: byte_at(13),
+            payload_bytes: payload_bytes.iter().copied().collect(),
+            l3_proto: 0x0800,
+            l4_proto: 17,
+            tot_len: 128,
+            tcp_flags: 0,
+            seq: None,
+            ack: None,
+            window: None,
+        }),
+    }
+}
+
+pub(super) fn packet_fact_with_l4_proto_and_payload_bytes_for_tests(
+    id: u64,
+    cookie: Option<u64>,
+    dir: PacketDir,
+    l4_proto: u8,
+    payload_bytes: &[(u16, u8)],
+) -> FactEnvelope {
+    let byte_at = |target: u16| {
+        payload_bytes
+            .iter()
+            .find_map(|(offset, value)| (*offset == target).then_some(*value))
+    };
+    let payload_byte0 = byte_at(0);
+    let payload_byte1 = byte_at(1);
+    let payload_byte2 = byte_at(2);
+    let payload_byte3 = byte_at(3);
+    FactEnvelope {
+        id: FactId(id),
+        ts: SystemTime::UNIX_EPOCH + Duration::from_millis(id * 10),
+        cpu: CpuId(0),
+        ifindex: Some(2),
+        session: SessionId(1),
+        fragment_id: "udp_packet_meta_fragment".into(),
+        kind: FactKind::PacketMeta(PacketMetaFact {
+            netns: 1,
+            sk_cookie: cookie,
+            dir,
+            local_port: None,
+            remote_port: None,
+            payload_byte0,
+            payload_byte1,
+            payload_prefix2: payload_byte0
+                .zip(payload_byte1)
+                .map(|(b0, b1)| u16::from_be_bytes([b0, b1])),
+            payload_prefix4: payload_byte0
+                .zip(payload_byte1)
+                .zip(payload_byte2)
+                .zip(payload_byte3)
+                .map(|(((b0, b1), b2), b3)| u32::from_be_bytes([b0, b1, b2, b3])),
+            payload_byte4: byte_at(4),
+            payload_byte5: byte_at(5),
+            payload_byte9: byte_at(9),
+            payload_byte10: byte_at(10),
+            payload_byte13: byte_at(13),
+            payload_bytes: payload_bytes.iter().copied().collect(),
+            l3_proto: 0x0800,
+            l4_proto,
+            tot_len: 128,
+            tcp_flags: 0,
+            seq: None,
+            ack: None,
+            window: None,
+        }),
+    }
+}
+
 pub(super) fn export_from_test_facts(
     binding: TemplateBinding,
     facts: Vec<FactEnvelope>,

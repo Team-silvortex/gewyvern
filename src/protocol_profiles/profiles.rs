@@ -61,6 +61,7 @@ pub(super) const PROTOCOL_PROFILES: &[ProtocolProfile] = &[
     network_control::NDP_PROFILE,
     network_control::BGP_PROFILE,
     network_control::OSPF_PROFILE,
+    network_control::RIP_PROFILE,
     network_control::GRE_PROFILE,
     network_control::VXLAN_PROFILE,
     network_control::GENEVE_PROFILE,

@@ -1,0 +1,8 @@
+name=rip_unreachable
+version=0.19.0
+entry=main.gewy
+register.protocol=rip
+register.entry=unreachable
+register.default=false
+register.aliases=rip-unreachable,rip_unreachable,rip-withdrawal
+register.entry_aliases=metric16,route-unreachable,route-withdrawal

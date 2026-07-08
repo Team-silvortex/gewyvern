@@ -2,7 +2,10 @@ use super::*;
 use std::fs;
 use std::net::{TcpListener, TcpStream};
 use std::path::Path;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{
+    Mutex, OnceLock,
+    atomic::{AtomicU16, Ordering},
+};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -29,12 +32,16 @@ fn fixture(name: &str) -> String {
 }
 
 fn reserve_bind_addr() -> String {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
-    let addr = listener
-        .local_addr()
-        .expect("listener should have local addr");
-    drop(listener);
-    addr.to_string()
+    static NEXT_TEST_PORT: AtomicU16 = AtomicU16::new(43000);
+    for _ in 0..1024 {
+        let port = NEXT_TEST_PORT.fetch_add(1, Ordering::Relaxed);
+        let addr = format!("127.0.0.1:{port}");
+        if let Ok(listener) = TcpListener::bind(&addr) {
+            drop(listener);
+            return addr;
+        }
+    }
+    panic!("failed to reserve a daemon test bind address after scanning 1024 ports");
 }
 
 fn daemon_test_guard() -> &'static Mutex<()> {

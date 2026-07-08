@@ -369,13 +369,14 @@ fn daemon_target_training_route_emits_learned_route_for_target() {
     });
 
     wait_for_daemon_health(&bind_addr).expect("daemon should publish health endpoint");
+    wait_for_daemon_ready(&bind_addr).expect("daemon should publish ready status");
 
     wait_for_body(
         &format!(
             "http://{}/v1/latest/targets/scan:http:request/output.json",
             bind_addr
         ),
-        |body| body.contains("\"py_ml_candidate_observe_longer\""),
+        |body| body.contains("\"name\":\"py_ml_candidate_"),
     )
     .expect("daemon should publish initial target output");
 

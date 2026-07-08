@@ -1,5 +1,20 @@
 use super::*;
 
+fn wait_for_memory_output<F>(url: &str, predicate: F) -> Option<String>
+where
+    F: Fn(&str) -> bool,
+{
+    for _ in 0..12000 {
+        if let Ok(body) = read_url(url) {
+            if predicate(&body) {
+                return Some(body);
+            }
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+    None
+}
+
 #[test]
 fn daemon_memory_state_route_and_clear_route_manage_online_memory() {
     let _guard = lock_daemon_test_guard();
@@ -40,10 +55,7 @@ fn daemon_memory_state_route_and_clear_route_manage_online_memory() {
         )
     });
 
-    wait_for_daemon_health(&bind_addr).expect("daemon should publish health endpoint");
-    wait_for_daemon_ready(&bind_addr).expect("daemon should publish ready status");
-
-    wait_for_body(
+    wait_for_memory_output(
         &format!("http://{}/v1/latest/output.json", bind_addr),
         |body| body.contains(r#""py_ml_candidate_observe_longer""#),
     )

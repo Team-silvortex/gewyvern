@@ -105,8 +105,8 @@ machine-facing protocol surface can also include:
 <!-- gewyvern:protocol-surface-overview:start -->
 ## Current Surface Snapshot
 
-- Built-in families: `69`
-- Built-in canonical entries: `358`
+- Built-in families: `70`
+- Built-in canonical entries: `361`
 - Family/default map:
   - `amqp` -> default `session` in cluster `cache-queue-stream` via [docs/book/reference-amqp-surface.md](docs/book/reference-amqp-surface.md)
   - `arp` -> default `request` in cluster `network-control-discovery` via [docs/book/reference-arp-surface.md](docs/book/reference-arp-surface.md)
@@ -160,6 +160,7 @@ machine-facing protocol surface can also include:
   - `radius` -> default `access` in cluster `identity-directory-access` via [docs/book/reference-radius-surface.md](docs/book/reference-radius-surface.md)
   - `rdp` -> default `connect` in cluster `identity-directory-access` via [docs/book/reference-rdp-surface.md](docs/book/reference-rdp-surface.md)
   - `redis` -> default `ping` in cluster `cache-queue-stream` via [docs/book/reference-redis-surface.md](docs/book/reference-redis-surface.md)
+  - `rip` -> default `request` in cluster `network-control-discovery` via [docs/book/reference-rip-surface.md](docs/book/reference-rip-surface.md)
   - `rtsp` -> default `options` in cluster `session-control-media-transfer` via [docs/book/reference-rtsp-surface.md](docs/book/reference-rtsp-surface.md)
   - `s3` -> default `get-object` in cluster `web-proxy-request-response` via [docs/book/reference-s3-surface.md](docs/book/reference-s3-surface.md)
   - `sip` -> default `register` in cluster `session-control-media-transfer` via [docs/book/reference-sip-surface.md](docs/book/reference-sip-surface.md)

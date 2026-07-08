@@ -97,6 +97,11 @@ pub(crate) const PROTOCOL_ALIASES_CORE: &[ProtocolAlias] = &[
         entry: Some("tls"),
     },
     ProtocolAlias {
+        alias: "syslog_secure",
+        protocol: "syslog",
+        entry: Some("tls"),
+    },
+    ProtocolAlias {
         alias: "dhcpv6-solicit",
         protocol: "dhcpv6",
         entry: Some("solicit"),
@@ -230,6 +235,56 @@ pub(crate) const PROTOCOL_ALIASES_CORE: &[ProtocolAlias] = &[
         alias: "netbios-name-negative",
         protocol: "nbns",
         entry: Some("negative"),
+    },
+    ProtocolAlias {
+        alias: "rip-request",
+        protocol: "rip",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "rip_request",
+        protocol: "rip",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "rip-response",
+        protocol: "rip",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "rip_response",
+        protocol: "rip",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "rip-update",
+        protocol: "rip",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "rip_update",
+        protocol: "rip",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "rip-unreachable",
+        protocol: "rip",
+        entry: Some("unreachable"),
+    },
+    ProtocolAlias {
+        alias: "rip_unreachable",
+        protocol: "rip",
+        entry: Some("unreachable"),
+    },
+    ProtocolAlias {
+        alias: "rip-withdrawal",
+        protocol: "rip",
+        entry: Some("unreachable"),
+    },
+    ProtocolAlias {
+        alias: "rip_withdrawal",
+        protocol: "rip",
+        entry: Some("unreachable"),
     },
     ProtocolAlias {
         alias: "http-request",

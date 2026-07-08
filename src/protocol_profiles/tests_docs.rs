@@ -70,6 +70,7 @@ const EXPECTED_GROUP_FAMILY_HUBS: &[&str] = &[
     "ndp",
     "bgp",
     "ospf",
+    "rip",
     "gre",
     "ntp",
     "snmp",

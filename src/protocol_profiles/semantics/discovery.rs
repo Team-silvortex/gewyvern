@@ -122,6 +122,35 @@ pub(super) fn ospf_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
     summary(category, operator_focus, typical_signal, None, None, None)
 }
 
+pub(super) fn rip_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
+    let (category, operator_focus, typical_signal) = match entry {
+        "request" => (
+            "distance-vector-route-request",
+            "RIP route table request asking a neighbor for distance-vector routes",
+            Some("RIP command 1 on UDP/520"),
+        ),
+        "response" => (
+            "distance-vector-route-update",
+            "RIP route update response advertising distance-vector reachability",
+            Some("RIP command 2 on UDP/520"),
+        ),
+        "unreachable" => (
+            "distance-vector-route-withdrawal",
+            "RIP route update advertising an unreachable metric for one or more routes",
+            Some("RIP command 2 with metric 16"),
+        ),
+        _ => return None,
+    };
+    summary(
+        category,
+        operator_focus,
+        typical_signal,
+        None,
+        None,
+        Some("protocol_entry_signal"),
+    )
+}
+
 pub(super) fn gre_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsSummary> {
     let (category, operator_focus, typical_signal) = match entry {
         "encap" => (

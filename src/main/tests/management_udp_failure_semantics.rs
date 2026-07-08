@@ -261,6 +261,219 @@ fn summary_json_carries_dhcp_request_timeout_detail() {
 }
 
 #[test]
+fn summary_json_carries_rip_request_timeout_detail() {
+    let binding = compile_file(&dsl_fixture_path("rip_request_path.gewy"))
+        .expect("rip_request_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 92011, 520, "rip-query"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    92011,
+                    7,
+                    SessionId(1),
+                ),
+                udp_packet_fact_with_payload_bytes_for_tests(
+                    3,
+                    92011,
+                    PacketDir::Egress,
+                    44020,
+                    520,
+                    &[(0, 0x01), (1, 0x02)],
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "rip_request_path",
+        "rip_request",
+        "receive_response",
+        "receive_payload",
+        "send_request->receive_response",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing rip response",
+        "udp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let json = summary_json("dsl_demo", &export);
+    assert!(
+        json.contains("\"operations\":[\"rip_request\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"no_response\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_basis\":\"missing_transition\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"missing_transitions\":[\"send_request->receive_response\"]"),
+        "json={}",
+        json
+    );
+}
+
+#[test]
+fn summary_json_carries_bgp_open_timeout_detail() {
+    let binding = compile_file(&dsl_fixture_path("bgp_open_path.gewy"))
+        .expect("bgp_open_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 92012, 179, "bgpd"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    92012,
+                    7,
+                    SessionId(1),
+                ),
+                tcp_state_fact_with_ports_for_tests(3, 92012, 1, 2, 50179, 179),
+                tcp_state_fact_with_ports_for_tests(4, 92012, 2, 3, 50179, 179),
+                packet_fact_with_dir_and_payload_bytes_for_tests(
+                    5,
+                    92012,
+                    0x18,
+                    PacketDir::Egress,
+                    Some(50179),
+                    Some(179),
+                    &[
+                        (0, 0xff),
+                        (1, 0xff),
+                        (2, 0xff),
+                        (3, 0xff),
+                        (16, 0x00),
+                        (17, 0x13),
+                        (18, 0x01),
+                    ],
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "bgp_open_path",
+        "bgp_open",
+        "receive_open",
+        "receive_payload",
+        "send_open->receive_open",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing bgp open",
+        "tcp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let json = summary_json("dsl_demo", &export);
+    assert!(
+        json.contains("\"operations\":[\"bgp_open\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_mode\":\"not_sent\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_detail\":\"request_not_sent\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_basis\":\"missing_transition\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"missing_transitions\":[\"send_open->receive_open\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"suspect_areas\":[\"transport_io\"]"),
+        "json={}",
+        json
+    );
+}
+
+#[test]
+fn summary_json_carries_ospf_hello_timeout_detail() {
+    let binding = compile_file(&dsl_fixture_path("ospf_hello_path.gewy"))
+        .expect("ospf_hello_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![packet_fact_with_l4_proto_and_payload_bytes_for_tests(
+                1,
+                None,
+                PacketDir::Egress,
+                89,
+                &[(0, 0x02), (1, 0x01)],
+            )],
+        ),
+        &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "ospf_hello_path",
+        "ospf_hello",
+        "receive_hello",
+        "receive_payload",
+        "send_hello->receive_hello",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing ospf hello",
+        "udp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let json = summary_json("dsl_demo", &export);
+    assert!(
+        json.contains("\"operations\":[\"ospf_hello\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"primary_failure_basis\":\"missing_transition\""),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"missing_transitions\":[\"send_hello->receive_hello\"]"),
+        "json={}",
+        json
+    );
+    assert!(
+        json.contains("\"suspect_areas\":[\"transport_io\"]"),
+        "json={}",
+        json
+    );
+}
+
+#[test]
 fn summary_json_carries_stun_binding_timeout_detail() {
     let binding = compile_file(&dsl_fixture_path("stun_binding_path.gewy"))
         .expect("stun_binding_path DSL should compile");

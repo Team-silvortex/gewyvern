@@ -216,6 +216,25 @@ pub(super) const OSPF_PROFILE: ProtocolProfile = ProtocolProfile {
     ],
 };
 
+pub(super) const RIP_PROFILE: ProtocolProfile = ProtocolProfile {
+    name: "rip",
+    default_entry: "request",
+    entries: &[
+        ProtocolEntryProfile {
+            mode: "request",
+            dsl_path: "dsl/rip_request_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "response",
+            dsl_path: "dsl/rip_response_path.gewy",
+        },
+        ProtocolEntryProfile {
+            mode: "unreachable",
+            dsl_path: "dsl/rip_unreachable_path.gewy",
+        },
+    ],
+};
+
 pub(super) const GRE_PROFILE: ProtocolProfile = ProtocolProfile {
     name: "gre",
     default_entry: "encap",

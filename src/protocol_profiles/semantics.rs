@@ -63,6 +63,7 @@ pub(super) fn built_in_protocol_entry_semantics(
         "ndp" => discovery::ndp_entry_semantics(entry),
         "ntp" => discovery::ntp_entry_semantics(entry),
         "ospf" => discovery::ospf_entry_semantics(entry),
+        "rip" => discovery::rip_entry_semantics(entry),
         "pop3" => identity::pop3_entry_semantics(entry),
         "postgres" => data::postgres_entry_semantics(entry),
         "pptp" => transport::pptp_entry_semantics(entry),

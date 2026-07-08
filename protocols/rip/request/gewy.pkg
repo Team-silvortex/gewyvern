@@ -1,0 +1,8 @@
+name=rip_request
+version=0.19.0
+entry=main.gewy
+register.protocol=rip
+register.entry=request
+register.default=true
+register.aliases=rip-request,rip_request
+register.entry_aliases=route-request,routing-request

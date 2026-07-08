@@ -107,6 +107,27 @@ pub(super) fn daemon_meta_json(
     }
 }
 
+pub(super) fn daemon_meta_worker_state_json(snapshot: Option<&DaemonSnapshot>) -> String {
+    let has_training_activity = snapshot
+        .map(|snapshot| {
+            !snapshot.training_history.is_empty()
+                || snapshot
+                    .target_outputs
+                    .iter()
+                    .any(|target| !target.training_history.is_empty())
+        })
+        .unwrap_or(false);
+    let status = if has_training_activity {
+        "ready"
+    } else {
+        "empty"
+    };
+    format!(
+        "{{\"status\":\"{}\",\"model_version\":\"python-online-memory-v1\"}}",
+        status
+    )
+}
+
 pub(super) fn daemon_status_json(snapshot: Option<&DaemonSnapshot>) -> String {
     match snapshot {
         Some(snapshot) => {

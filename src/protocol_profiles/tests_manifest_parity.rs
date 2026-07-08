@@ -25,6 +25,7 @@ fn selected_protocols() -> &'static [&'static str] {
         "mdns",
         "llmnr",
         "nbns",
+        "rip",
         "ssdp",
         "postgres",
         "mysql",

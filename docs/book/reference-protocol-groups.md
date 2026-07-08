@@ -163,6 +163,7 @@ Families:
 - [docs/book/reference-ndp-surface.md](docs/book/reference-ndp-surface.md)
 - [docs/book/reference-ntp-surface.md](docs/book/reference-ntp-surface.md)
 - [docs/book/reference-ospf-surface.md](docs/book/reference-ospf-surface.md)
+- [docs/book/reference-rip-surface.md](docs/book/reference-rip-surface.md)
 - [docs/book/reference-gre-surface.md](docs/book/reference-gre-surface.md)
 - [docs/book/reference-vxlan-surface.md](docs/book/reference-vxlan-surface.md)
 - [docs/book/reference-geneve-surface.md](docs/book/reference-geneve-surface.md)
@@ -184,7 +185,7 @@ Cluster hint:
 
 - key: `network-control-discovery`
 - operator hint: Start with discovery scope, control role, and time or tunnel posture; many issues here are topology-sensitive rather than application-payload-specific.
-- sibling protocols: `dns`, `mdns`, `llmnr`, `nbns`, `ssdp`, `stun`, `coap`, `tftp`, `ntp`, `dhcp`, `dhcpv6`, `arp`, `icmp`, `icmpv6`, `ndp`, `bgp`, `ospf`, `gre`, `vxlan`, `geneve`, `l2tp`, `pptp`, `snmp`, `wireguard`, `gtpu`
+- sibling protocols: `dns`, `mdns`, `llmnr`, `nbns`, `ssdp`, `stun`, `coap`, `tftp`, `ntp`, `dhcp`, `dhcpv6`, `arp`, `icmp`, `icmpv6`, `ndp`, `bgp`, `ospf`, `rip`, `gre`, `vxlan`, `geneve`, `l2tp`, `pptp`, `snmp`, `wireguard`, `gtpu`
 
 <!-- gewyvern:protocol-groups:end -->
 

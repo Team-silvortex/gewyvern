@@ -321,6 +321,12 @@ Then continue with:
   - [docs/book/reference-ospf-database-surface.md](docs/book/reference-ospf-database-surface.md)
   - [docs/book/reference-ospf-neighbor-surface.md](docs/book/reference-ospf-neighbor-surface.md)
 
+### RIP
+
+- Hub:
+  [docs/book/reference-rip-surface.md](docs/book/reference-rip-surface.md)
+- Subpages:
+
 ### RADIUS
 
 - Hub:

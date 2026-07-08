@@ -32,28 +32,10 @@ where
             snapshot
         });
     let latest = Arc::new(Mutex::new(restored_snapshot.clone()));
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    let mut worker_epoch = 0u64;
     let invalidation_epoch = Arc::new(AtomicU64::new(0));
-    let mut last_input_fingerprint = None::<String>;
-    let mut last_cache_epoch = 0u64;
-    let mut last_output_json = None::<String>;
-    let mut last_latest_input_json = None::<Option<String>>;
-    let mut last_recommendation_summary_json = None::<String>;
-    let mut last_target_outputs = None::<Vec<TargetDaemonOutput>>;
-    let mut analysis_runs = restored_snapshot
-        .as_ref()
-        .map(|snapshot| snapshot.analysis_runs)
-        .unwrap_or(0);
-    let mut cache_hits = restored_snapshot
-        .as_ref()
-        .map(|snapshot| snapshot.cache_hits)
-        .unwrap_or(0);
-
     let access_policy = daemon_access_policy_from_env();
     validate_daemon_bind_addr(bind_addr, &access_policy)?;
-    let listener = TcpListener::bind(bind_addr)
-        .map_err(|err| format!("failed to bind daemon listener on {}: {err}", bind_addr))?;
+    let listener = bind_daemon_listener(bind_addr)?;
     listener
         .set_nonblocking(true)
         .map_err(|err| format!("failed to configure daemon listener: {err}"))?;
@@ -86,6 +68,30 @@ where
         }
         Ok(())
     });
+
+    let mut worker = match PythonWorkerClient::spawn(config) {
+        Ok(worker) => worker,
+        Err(err) => {
+            stop.store(true, Ordering::Relaxed);
+            let _ = server.join();
+            return Err(err);
+        }
+    };
+    let mut worker_epoch = 0u64;
+    let mut last_input_fingerprint = None::<String>;
+    let mut last_cache_epoch = 0u64;
+    let mut last_output_json = None::<String>;
+    let mut last_latest_input_json = None::<Option<String>>;
+    let mut last_recommendation_summary_json = None::<String>;
+    let mut last_target_outputs = None::<Vec<TargetDaemonOutput>>;
+    let mut analysis_runs = restored_snapshot
+        .as_ref()
+        .map(|snapshot| snapshot.analysis_runs)
+        .unwrap_or(0);
+    let mut cache_hits = restored_snapshot
+        .as_ref()
+        .map(|snapshot| snapshot.cache_hits)
+        .unwrap_or(0);
 
     let mut cycle = 0usize;
     while !stop.load(Ordering::Relaxed) {
@@ -285,6 +291,27 @@ pub(super) fn validate_daemon_bind_addr(
 
 pub(super) fn daemon_client_is_loopback(address: IpAddr) -> bool {
     address.is_loopback()
+}
+
+fn bind_daemon_listener(bind_addr: &str) -> Result<TcpListener, String> {
+    let bind_deadline = std::time::Instant::now() + Duration::from_secs(30);
+    loop {
+        match TcpListener::bind(bind_addr) {
+            Ok(listener) => return Ok(listener),
+            Err(err)
+                if err.kind() == io::ErrorKind::AddrInUse
+                    && std::time::Instant::now() < bind_deadline =>
+            {
+                thread::sleep(Duration::from_millis(25));
+            }
+            Err(err) => {
+                return Err(format!(
+                    "failed to bind daemon listener on {}: {err}",
+                    bind_addr
+                ));
+            }
+        }
+    }
 }
 
 pub(super) fn write_daemon_access_denied(stream: &mut TcpStream) -> Result<(), String> {

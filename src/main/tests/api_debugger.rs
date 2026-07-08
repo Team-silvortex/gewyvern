@@ -386,6 +386,968 @@ fn anomaly_flow_route_uses_dot_and_doh_specific_phase_hints() {
 }
 
 #[test]
+fn anomaly_flow_route_uses_rip_specific_phase_hints() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let binding = compile_file(&dsl_fixture_path("rip_request_path.gewy"))
+        .expect("rip_request_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 93001, 520, "rip-query"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    93001,
+                    7,
+                    SessionId(1),
+                ),
+                udp_packet_fact_with_payload_bytes_for_tests(
+                    3,
+                    93001,
+                    PacketDir::Egress,
+                    44020,
+                    520,
+                    &[(0, 0x01), (1, 0x02)],
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "rip_request_path",
+        "rip_request",
+        "receive_response",
+        "receive_payload",
+        "send_request->receive_response",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing rip response",
+        "udp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let analysis = analysis_snapshot(&export);
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    update_api_snapshot_for_single(
+        &state,
+        ApiRenderedTarget {
+            name: "scan:rip:request".into(),
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
+            summary_text: summary_line("scan:rip:request", &export),
+            summary_json: summary_json("scan:rip:request", &export),
+            findings_json: findings_json("scan:rip:request", &export),
+            analysis_json: analysis_snapshot_json(&analysis),
+            training_example_json: training_example_json("scan:rip:request", &export),
+            has_external_sidecar_context: false,
+            has_external_evidence_chain_enrichment: false,
+            has_external_diagnostic_opinion: false,
+            has_external_capability_profile: false,
+            external_capability_status: None,
+            external_hint_status: None,
+            external_context_status: None,
+            external_sidecar_trust_level: None,
+            external_sidecar_consumption_mode: None,
+            export_json: export.to_json(),
+            report_json: scan_report_json(&[("scan:rip:request".to_string(), export.clone())]),
+            report_html: scan_report_html(&[("scan:rip:request".to_string(), export.clone())]),
+        },
+    );
+    let snapshot = state.lock().unwrap().clone();
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:rip:request/anomaly-flow.json",
+        &snapshot,
+    );
+    assert_eq!(status, 200);
+    assert!(body.contains("\"protocol\":\"rip\""), "body={}", body);
+    assert!(body.contains("\"entry\":\"request\""), "body={}", body);
+    assert!(
+        body.contains("the RIP route-table request should leave here"),
+        "body={}",
+        body
+    );
+    assert!(
+        body.contains(
+            "the RIP neighbor route should resolve here before distance-vector exchange begins"
+        ),
+        "body={}",
+        body
+    );
+}
+
+#[test]
+fn anomaly_flow_route_uses_bgp_specific_phase_hints() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let binding = compile_file(&dsl_fixture_path("bgp_open_path.gewy"))
+        .expect("bgp_open_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 93179, 179, "bgpd"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    93179,
+                    7,
+                    SessionId(1),
+                ),
+                tcp_state_fact_with_ports_for_tests(3, 93179, 1, 2, 50179, 179),
+                tcp_state_fact_with_ports_for_tests(4, 93179, 2, 3, 50179, 179),
+                packet_fact_with_dir_and_payload_bytes_for_tests(
+                    5,
+                    93179,
+                    0x18,
+                    PacketDir::Egress,
+                    Some(50179),
+                    Some(179),
+                    &[
+                        (0, 0xff),
+                        (1, 0xff),
+                        (2, 0xff),
+                        (3, 0xff),
+                        (16, 0x00),
+                        (17, 0x13),
+                        (18, 0x01),
+                    ],
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "bgp_open_path",
+        "bgp_open",
+        "receive_open",
+        "receive_payload",
+        "send_open->receive_open",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing bgp open",
+        "tcp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let analysis = analysis_snapshot(&export);
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    update_api_snapshot_for_single(
+        &state,
+        ApiRenderedTarget {
+            name: "scan:bgp:open".into(),
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
+            summary_text: summary_line("scan:bgp:open", &export),
+            summary_json: summary_json("scan:bgp:open", &export),
+            findings_json: findings_json("scan:bgp:open", &export),
+            analysis_json: analysis_snapshot_json(&analysis),
+            training_example_json: training_example_json("scan:bgp:open", &export),
+            has_external_sidecar_context: false,
+            has_external_evidence_chain_enrichment: false,
+            has_external_diagnostic_opinion: false,
+            has_external_capability_profile: false,
+            external_capability_status: None,
+            external_hint_status: None,
+            external_context_status: None,
+            external_sidecar_trust_level: None,
+            external_sidecar_consumption_mode: None,
+            export_json: export.to_json(),
+            report_json: scan_report_json(&[("scan:bgp:open".to_string(), export.clone())]),
+            report_html: scan_report_html(&[("scan:bgp:open".to_string(), export.clone())]),
+        },
+    );
+    let snapshot = state.lock().unwrap().clone();
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:bgp:open/anomaly-flow.json",
+        &snapshot,
+    );
+    assert_eq!(status, 200);
+    assert!(body.contains("\"protocol\":\"bgp\""), "body={}", body);
+    assert!(body.contains("\"entry\":\"open\""), "body={}", body);
+    assert!(
+        body.contains("the BGP OPEN message should leave here"),
+        "body={}",
+        body
+    );
+    assert!(
+        body.contains("the BGP peer route should resolve here before session bring-up begins"),
+        "body={}",
+        body
+    );
+}
+
+#[test]
+fn anomaly_flow_route_uses_ospf_specific_phase_hints() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let binding = compile_file(&dsl_fixture_path("ospf_hello_path.gewy"))
+        .expect("ospf_hello_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![packet_fact_with_l4_proto_and_payload_bytes_for_tests(
+                1,
+                None,
+                PacketDir::Egress,
+                89,
+                &[(0, 0x02), (1, 0x01)],
+            )],
+        ),
+        &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "ospf_hello_path",
+        "ospf_hello",
+        "receive_hello",
+        "receive_payload",
+        "send_hello->receive_hello",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing ospf hello",
+        "udp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let analysis = analysis_snapshot(&export);
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    update_api_snapshot_for_single(
+        &state,
+        ApiRenderedTarget {
+            name: "scan:ospf:hello".into(),
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
+            summary_text: summary_line("scan:ospf:hello", &export),
+            summary_json: summary_json("scan:ospf:hello", &export),
+            findings_json: findings_json("scan:ospf:hello", &export),
+            analysis_json: analysis_snapshot_json(&analysis),
+            training_example_json: training_example_json("scan:ospf:hello", &export),
+            has_external_sidecar_context: false,
+            has_external_evidence_chain_enrichment: false,
+            has_external_diagnostic_opinion: false,
+            has_external_capability_profile: false,
+            external_capability_status: None,
+            external_hint_status: None,
+            external_context_status: None,
+            external_sidecar_trust_level: None,
+            external_sidecar_consumption_mode: None,
+            export_json: export.to_json(),
+            report_json: scan_report_json(&[("scan:ospf:hello".to_string(), export.clone())]),
+            report_html: scan_report_html(&[("scan:ospf:hello".to_string(), export.clone())]),
+        },
+    );
+    let snapshot = state.lock().unwrap().clone();
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:ospf:hello/anomaly-flow.json",
+        &snapshot,
+    );
+    assert_eq!(status, 200);
+    assert!(body.contains("\"protocol\":\"ospf\""), "body={}", body);
+    assert!(body.contains("\"entry\":\"hello\""), "body={}", body);
+    assert!(
+        body.contains("the OSPF hello packet should leave here"),
+        "body={}",
+        body
+    );
+}
+
+#[test]
+fn anomaly_flow_route_uses_ntp_specific_phase_hints() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let binding = compile_file(&dsl_fixture_path("ntp_query_path.gewy"))
+        .expect("ntp_query_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 94001, 44001, "chrony-query"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    94001,
+                    7,
+                    SessionId(1),
+                ),
+                udp_packet_fact_with_payload_bytes_for_tests(
+                    3,
+                    94001,
+                    PacketDir::Egress,
+                    54020,
+                    123,
+                    &[(0, 0x23), (1, 0x00)],
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "ntp_query_path",
+        "ntp_query",
+        "receive_response",
+        "receive_payload",
+        "send_query->receive_response",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing ntp response",
+        "udp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let analysis = analysis_snapshot(&export);
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    update_api_snapshot_for_single(
+        &state,
+        ApiRenderedTarget {
+            name: "scan:ntp:query".into(),
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
+            summary_text: summary_line("scan:ntp:query", &export),
+            summary_json: summary_json("scan:ntp:query", &export),
+            findings_json: findings_json("scan:ntp:query", &export),
+            analysis_json: analysis_snapshot_json(&analysis),
+            training_example_json: training_example_json("scan:ntp:query", &export),
+            has_external_sidecar_context: false,
+            has_external_evidence_chain_enrichment: false,
+            has_external_diagnostic_opinion: false,
+            has_external_capability_profile: false,
+            external_capability_status: None,
+            external_hint_status: None,
+            external_context_status: None,
+            external_sidecar_trust_level: None,
+            external_sidecar_consumption_mode: None,
+            export_json: export.to_json(),
+            report_json: scan_report_json(&[("scan:ntp:query".to_string(), export.clone())]),
+            report_html: scan_report_html(&[("scan:ntp:query".to_string(), export.clone())]),
+        },
+    );
+    let snapshot = state.lock().unwrap().clone();
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:ntp:query/anomaly-flow.json",
+        &snapshot,
+    );
+    assert_eq!(status, 200);
+    assert!(body.contains("\"protocol\":\"ntp\""), "body={}", body);
+    assert!(body.contains("\"entry\":\"query\""), "body={}", body);
+    assert!(
+        body.contains("the NTP query should leave here"),
+        "body={}",
+        body
+    );
+}
+
+#[test]
+fn anomaly_flow_route_uses_dhcp_specific_phase_hints() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let binding = compile_file(&dsl_fixture_path("dhcp_discover_path.gewy"))
+        .expect("dhcp_discover_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 94002, 68, "dhclient"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    94002,
+                    7,
+                    SessionId(1),
+                ),
+                udp_packet_fact_with_payload_bytes_for_tests(
+                    3,
+                    94002,
+                    PacketDir::Egress,
+                    68,
+                    67,
+                    &[(0, 0x01), (1, 0x01), (242, 0x01)],
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "dhcp_discover_path",
+        "dhcp_discover",
+        "receive_offer",
+        "receive_payload",
+        "send_discover->receive_offer",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing dhcp offer",
+        "udp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let analysis = analysis_snapshot(&export);
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    update_api_snapshot_for_single(
+        &state,
+        ApiRenderedTarget {
+            name: "scan:dhcp:client".into(),
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
+            summary_text: summary_line("scan:dhcp:client", &export),
+            summary_json: summary_json("scan:dhcp:client", &export),
+            findings_json: findings_json("scan:dhcp:client", &export),
+            analysis_json: analysis_snapshot_json(&analysis),
+            training_example_json: training_example_json("scan:dhcp:client", &export),
+            has_external_sidecar_context: false,
+            has_external_evidence_chain_enrichment: false,
+            has_external_diagnostic_opinion: false,
+            has_external_capability_profile: false,
+            external_capability_status: None,
+            external_hint_status: None,
+            external_context_status: None,
+            external_sidecar_trust_level: None,
+            external_sidecar_consumption_mode: None,
+            export_json: export.to_json(),
+            report_json: scan_report_json(&[("scan:dhcp:client".to_string(), export.clone())]),
+            report_html: scan_report_html(&[("scan:dhcp:client".to_string(), export.clone())]),
+        },
+    );
+    let snapshot = state.lock().unwrap().clone();
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:dhcp:client/anomaly-flow.json",
+        &snapshot,
+    );
+    assert_eq!(status, 200);
+    assert!(body.contains("\"protocol\":\"dhcp\""), "body={}", body);
+    assert!(body.contains("\"entry\":\"client\""), "body={}", body);
+    assert!(
+        body.contains("the DHCP DISCOVER should leave here"),
+        "body={}",
+        body
+    );
+}
+
+#[test]
+fn anomaly_flow_route_uses_stun_specific_phase_hints() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let binding = compile_file(&dsl_fixture_path("stun_binding_path.gewy"))
+        .expect("stun_binding_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 94003, 45001, "stun-client"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    94003,
+                    7,
+                    SessionId(1),
+                ),
+                udp_packet_fact_with_payload_bytes_for_tests(
+                    3,
+                    94003,
+                    PacketDir::Egress,
+                    54030,
+                    3478,
+                    &[(0, 0x00), (1, 0x01)],
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "stun_binding_path",
+        "stun_binding",
+        "receive_response",
+        "receive_payload",
+        "send_request->receive_response",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing stun response",
+        "udp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let analysis = analysis_snapshot(&export);
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    update_api_snapshot_for_single(
+        &state,
+        ApiRenderedTarget {
+            name: "scan:stun:binding".into(),
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
+            summary_text: summary_line("scan:stun:binding", &export),
+            summary_json: summary_json("scan:stun:binding", &export),
+            findings_json: findings_json("scan:stun:binding", &export),
+            analysis_json: analysis_snapshot_json(&analysis),
+            training_example_json: training_example_json("scan:stun:binding", &export),
+            has_external_sidecar_context: false,
+            has_external_evidence_chain_enrichment: false,
+            has_external_diagnostic_opinion: false,
+            has_external_capability_profile: false,
+            external_capability_status: None,
+            external_hint_status: None,
+            external_context_status: None,
+            external_sidecar_trust_level: None,
+            external_sidecar_consumption_mode: None,
+            export_json: export.to_json(),
+            report_json: scan_report_json(&[("scan:stun:binding".to_string(), export.clone())]),
+            report_html: scan_report_html(&[("scan:stun:binding".to_string(), export.clone())]),
+        },
+    );
+    let snapshot = state.lock().unwrap().clone();
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:stun:binding/anomaly-flow.json",
+        &snapshot,
+    );
+    assert_eq!(status, 200);
+    assert!(body.contains("\"protocol\":\"stun\""), "body={}", body);
+    assert!(body.contains("\"entry\":\"binding\""), "body={}", body);
+    assert!(
+        body.contains("the STUN binding request should leave here"),
+        "body={}",
+        body
+    );
+}
+
+#[test]
+fn anomaly_flow_route_uses_snmp_specific_phase_hints() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let binding = compile_file(&dsl_fixture_path("snmp_get_path.gewy"))
+        .expect("snmp_get_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 94004, 43001, "snmpget"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    94004,
+                    7,
+                    SessionId(1),
+                ),
+                udp_packet_fact_with_payload_bytes_for_tests(
+                    3,
+                    94004,
+                    PacketDir::Egress,
+                    49001,
+                    161,
+                    &[(0, 0x30), (1, 0x2a), (4, 0x02), (13, 0xa0)],
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "snmp_get_path",
+        "snmp_get",
+        "receive_get_response",
+        "receive_payload",
+        "send_get_request->receive_get_response",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing snmp get response",
+        "udp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let analysis = analysis_snapshot(&export);
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    update_api_snapshot_for_single(
+        &state,
+        ApiRenderedTarget {
+            name: "scan:snmp:get".into(),
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
+            summary_text: summary_line("scan:snmp:get", &export),
+            summary_json: summary_json("scan:snmp:get", &export),
+            findings_json: findings_json("scan:snmp:get", &export),
+            analysis_json: analysis_snapshot_json(&analysis),
+            training_example_json: training_example_json("scan:snmp:get", &export),
+            has_external_sidecar_context: false,
+            has_external_evidence_chain_enrichment: false,
+            has_external_diagnostic_opinion: false,
+            has_external_capability_profile: false,
+            external_capability_status: None,
+            external_hint_status: None,
+            external_context_status: None,
+            external_sidecar_trust_level: None,
+            external_sidecar_consumption_mode: None,
+            export_json: export.to_json(),
+            report_json: scan_report_json(&[("scan:snmp:get".to_string(), export.clone())]),
+            report_html: scan_report_html(&[("scan:snmp:get".to_string(), export.clone())]),
+        },
+    );
+    let snapshot = state.lock().unwrap().clone();
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:snmp:get/anomaly-flow.json",
+        &snapshot,
+    );
+    assert_eq!(status, 200);
+    assert!(body.contains("\"protocol\":\"snmp\""), "body={}", body);
+    assert!(body.contains("\"entry\":\"get\""), "body={}", body);
+    assert!(
+        body.contains("the SNMP PDU should be emitted here"),
+        "body={}",
+        body
+    );
+}
+
+#[test]
+fn anomaly_flow_route_uses_mdns_specific_phase_hints() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let binding = compile_file(&dsl_fixture_path("mdns_query_path.gewy"))
+        .expect("mdns_query_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 94005, 5353, "systemd-resolve"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    94005,
+                    7,
+                    SessionId(1),
+                ),
+                udp_packet_fact_with_payload_bytes_for_tests(
+                    3,
+                    94005,
+                    PacketDir::Egress,
+                    5353,
+                    5353,
+                    &[(0, 0x00), (1, 0x00), (2, 0x00), (3, 0x00)],
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "mdns_query_path",
+        "mdns_query",
+        "receive_response",
+        "receive_payload",
+        "send_query->receive_response",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing mdns response",
+        "udp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let analysis = analysis_snapshot(&export);
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    update_api_snapshot_for_single(
+        &state,
+        ApiRenderedTarget {
+            name: "scan:mdns:query".into(),
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
+            summary_text: summary_line("scan:mdns:query", &export),
+            summary_json: summary_json("scan:mdns:query", &export),
+            findings_json: findings_json("scan:mdns:query", &export),
+            analysis_json: analysis_snapshot_json(&analysis),
+            training_example_json: training_example_json("scan:mdns:query", &export),
+            has_external_sidecar_context: false,
+            has_external_evidence_chain_enrichment: false,
+            has_external_diagnostic_opinion: false,
+            has_external_capability_profile: false,
+            external_capability_status: None,
+            external_hint_status: None,
+            external_context_status: None,
+            external_sidecar_trust_level: None,
+            external_sidecar_consumption_mode: None,
+            export_json: export.to_json(),
+            report_json: scan_report_json(&[("scan:mdns:query".to_string(), export.clone())]),
+            report_html: scan_report_html(&[("scan:mdns:query".to_string(), export.clone())]),
+        },
+    );
+    let snapshot = state.lock().unwrap().clone();
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:mdns:query/anomaly-flow.json",
+        &snapshot,
+    );
+    assert_eq!(status, 200);
+    assert!(body.contains("\"protocol\":\"mdns\""), "body={}", body);
+    assert!(body.contains("\"entry\":\"query\""), "body={}", body);
+    assert!(
+        body.contains("the multicast DNS query should leave here"),
+        "body={}",
+        body
+    );
+}
+
+#[test]
+fn anomaly_flow_route_uses_ssh_specific_phase_hints() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let binding = compile_file(&dsl_fixture_path("ssh_auth_path.gewy"))
+        .expect("ssh_auth_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 94006, 53028, "ssh-client"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    94006,
+                    7,
+                    SessionId(1),
+                ),
+                tcp_state_fact_with_ports_for_tests(3, 94006, 1, 2, 53028, 22),
+                packet_fact_with_dir_and_payload_for_tests(
+                    4,
+                    94006,
+                    0x18,
+                    PacketDir::Ingress,
+                    Some(53028),
+                    Some(22),
+                    Some(0x53),
+                    Some(0x5353),
+                    Some(0x5353482d),
+                ),
+                packet_fact_with_dir_and_payload_for_tests(
+                    5,
+                    94006,
+                    0x18,
+                    PacketDir::Egress,
+                    Some(53028),
+                    Some(22),
+                    Some(0x53),
+                    Some(0x5353),
+                    Some(0x5353482d),
+                ),
+                packet_fact_with_dir_and_payload_bytes_for_tests(
+                    6,
+                    94006,
+                    0x18,
+                    PacketDir::Egress,
+                    Some(53028),
+                    Some(22),
+                    &[(0, 0x00), (4, 0x10), (5, 0x14)],
+                ),
+                packet_fact_with_dir_and_payload_bytes_for_tests(
+                    7,
+                    94006,
+                    0x18,
+                    PacketDir::Egress,
+                    Some(53028),
+                    Some(22),
+                    &[(0, 0x00), (4, 0x10), (5, 0x32)],
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "ssh_auth_path",
+        "remote_access_authentication",
+        "receive_auth_success",
+        "receive_payload",
+        "send_auth_request->receive_auth_success",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing ssh auth success",
+        "tcp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let analysis = analysis_snapshot(&export);
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    update_api_snapshot_for_single(
+        &state,
+        ApiRenderedTarget {
+            name: "scan:ssh:auth".into(),
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
+            summary_text: summary_line("scan:ssh:auth", &export),
+            summary_json: summary_json("scan:ssh:auth", &export),
+            findings_json: findings_json("scan:ssh:auth", &export),
+            analysis_json: analysis_snapshot_json(&analysis),
+            training_example_json: training_example_json("scan:ssh:auth", &export),
+            has_external_sidecar_context: false,
+            has_external_evidence_chain_enrichment: false,
+            has_external_diagnostic_opinion: false,
+            has_external_capability_profile: false,
+            external_capability_status: None,
+            external_hint_status: None,
+            external_context_status: None,
+            external_sidecar_trust_level: None,
+            external_sidecar_consumption_mode: None,
+            export_json: export.to_json(),
+            report_json: scan_report_json(&[("scan:ssh:auth".to_string(), export.clone())]),
+            report_html: scan_report_html(&[("scan:ssh:auth".to_string(), export.clone())]),
+        },
+    );
+    let snapshot = state.lock().unwrap().clone();
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:ssh:auth/anomaly-flow.json",
+        &snapshot,
+    );
+    assert_eq!(status, 200);
+    assert!(body.contains("\"protocol\":\"ssh\""), "body={}", body);
+    assert!(body.contains("\"entry\":\"auth\""), "body={}", body);
+    assert!(
+        body.contains("authentication material should be sent here"),
+        "body={}",
+        body
+    );
+}
+
+#[test]
+fn anomaly_flow_route_uses_smtp_specific_phase_hints() {
+    let _guard = test_guard();
+    set_external_analysis_config(None);
+    let binding = compile_file(&dsl_fixture_path("smtp_auth_path.gewy"))
+        .expect("smtp_auth_path DSL should compile");
+    let mut export = annotate_export_trust(
+        export_from_test_facts(
+            binding,
+            vec![
+                sock_lineage_fact_for_tests(1, 94007, 53013, "postfix-client"),
+                route_fact(
+                    2,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(20),
+                    94007,
+                    7,
+                    SessionId(1),
+                ),
+                tcp_state_fact_with_ports_for_tests(3, 94007, 1, 2, 53013, 25),
+                packet_fact_with_dir_and_payload_for_tests(
+                    4,
+                    94007,
+                    0x18,
+                    PacketDir::Ingress,
+                    Some(53013),
+                    Some(25),
+                    Some(0x32),
+                    Some(0x3232),
+                    Some(0x32323020),
+                ),
+                packet_fact_with_dir_and_payload_for_tests(
+                    5,
+                    94007,
+                    0x18,
+                    PacketDir::Egress,
+                    Some(53013),
+                    Some(25),
+                    Some(0x45),
+                    Some(0x4548),
+                    Some(0x45484c4f),
+                ),
+                packet_fact_with_dir_and_payload_for_tests(
+                    6,
+                    94007,
+                    0x18,
+                    PacketDir::Ingress,
+                    Some(53013),
+                    Some(25),
+                    Some(0x32),
+                    Some(0x3235),
+                    Some(0x32353020),
+                ),
+                packet_fact_with_dir_and_payload_for_tests(
+                    7,
+                    94007,
+                    0x18,
+                    PacketDir::Egress,
+                    Some(53013),
+                    Some(25),
+                    Some(0x41),
+                    Some(0x4155),
+                    Some(0x41555448),
+                ),
+            ],
+        ),
+        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+    );
+    let flow = export.program_flows[0].clone();
+    push_synthetic_missing_stage_finding(
+        &mut export,
+        &flow,
+        "smtp_auth_path",
+        "authentication_exchange",
+        "receive_auth_ok",
+        "receive_payload",
+        "send_auth_request->receive_auth_ok",
+        "emit_payload->receive_payload",
+        "transport_io",
+        "synthetic missing smtp auth ok",
+        "tcp_packet_meta_fragment",
+        "missing_signal:packet_observed",
+    );
+    let analysis = analysis_snapshot(&export);
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    update_api_snapshot_for_single(
+        &state,
+        ApiRenderedTarget {
+            name: "scan:smtp:auth".into(),
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
+            summary_text: summary_line("scan:smtp:auth", &export),
+            summary_json: summary_json("scan:smtp:auth", &export),
+            findings_json: findings_json("scan:smtp:auth", &export),
+            analysis_json: analysis_snapshot_json(&analysis),
+            training_example_json: training_example_json("scan:smtp:auth", &export),
+            has_external_sidecar_context: false,
+            has_external_evidence_chain_enrichment: false,
+            has_external_diagnostic_opinion: false,
+            has_external_capability_profile: false,
+            external_capability_status: None,
+            external_hint_status: None,
+            external_context_status: None,
+            external_sidecar_trust_level: None,
+            external_sidecar_consumption_mode: None,
+            export_json: export.to_json(),
+            report_json: scan_report_json(&[("scan:smtp:auth".to_string(), export.clone())]),
+            report_html: scan_report_html(&[("scan:smtp:auth".to_string(), export.clone())]),
+        },
+    );
+    let snapshot = state.lock().unwrap().clone();
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:smtp:auth/anomaly-flow.json",
+        &snapshot,
+    );
+    assert_eq!(status, 200);
+    assert!(body.contains("\"protocol\":\"smtp\""), "body={}", body);
+    assert!(body.contains("\"entry\":\"auth\""), "body={}", body);
+    assert!(
+        body.contains("mail authentication should be attempted here"),
+        "body={}",
+        body
+    );
+}
+
+#[test]
 fn debugger_console_rolls_up_targets_with_attention_first_focus() {
     let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
     update_api_snapshot_for_scan(

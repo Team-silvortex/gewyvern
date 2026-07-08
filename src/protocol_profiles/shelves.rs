@@ -17,9 +17,9 @@ pub(super) use core::{
     icmpv6_shelf, ipsec_shelf, jaeger_shelf, kafka_shelf, l2tp_shelf, llmnr_shelf, loki_shelf,
     mdns_shelf, memcached_shelf, mongodb_shelf, mqtt_shelf, mssql_shelf, mysql_shelf, nats_shelf,
     nbns_shelf, ndp_shelf, ntp_shelf, ospf_shelf, otlp_shelf, postgres_shelf, pptp_shelf,
-    prometheus_shelf, quic_shelf, radius_shelf, redis_shelf, s3_shelf, snmp_shelf, ssdp_shelf,
-    stun_shelf, syslog_shelf, tftp_shelf, tls_shelf, vxlan_shelf, websocket_shelf, wireguard_shelf,
-    zookeeper_shelf,
+    prometheus_shelf, quic_shelf, radius_shelf, redis_shelf, rip_shelf, s3_shelf, snmp_shelf,
+    ssdp_shelf, stun_shelf, syslog_shelf, tftp_shelf, tls_shelf, vxlan_shelf, websocket_shelf,
+    wireguard_shelf, zookeeper_shelf,
 };
 pub(super) use extended::{
     amqp_shelf, imap_shelf, kerberos_shelf, ldap_shelf, pop3_shelf, rdp_shelf, rtsp_shelf,
@@ -55,6 +55,7 @@ pub(super) fn built_in_protocol_shelf(protocol: &str, entry: &str) -> Option<Pro
         "ndp" => ndp_shelf(entry)?,
         "bgp" => bgp_shelf(entry)?,
         "ospf" => ospf_shelf(entry)?,
+        "rip" => rip_shelf(entry)?,
         "gre" => gre_shelf(entry)?,
         "vxlan" => vxlan_shelf(entry)?,
         "geneve" => geneve_shelf(entry)?,

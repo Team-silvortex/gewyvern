@@ -69,12 +69,10 @@ pub(super) fn handle_daemon_client(
             delete_memory_slot_route_response(config, &request_text)
         }
         "/v1/latest/status" => daemon_json_ok(&daemon_status_json(snapshot.as_ref())),
-        "/v1/latest/meta" => match python_worker_memory_state_json(config, snapshot.as_ref()) {
-            Ok(memory_state) => {
-                daemon_json_ok(&daemon_meta_json(snapshot.as_ref(), Some(&memory_state)))
-            }
-            Err(_) => daemon_json_ok(&daemon_meta_json(snapshot.as_ref(), None)),
-        },
+        "/v1/latest/meta" => daemon_json_ok(&daemon_meta_json(
+            snapshot.as_ref(),
+            Some(&daemon_meta_worker_state_json(snapshot.as_ref())),
+        )),
         "/v1/latest/recommendation-summary.json" => match snapshot {
             Some(snapshot) => daemon_json_ok(&snapshot.latest_recommendation_summary_json),
             None => no_snapshot_response(),
@@ -467,6 +465,8 @@ pub(super) fn handle_daemon_client(
                                                 snapshot.last_success_unix_ms =
                                                     Some(trained_unix_ms);
                                                 snapshot.last_error = None;
+                                                snapshot.latest_output_json =
+                                                    batch_output_json(&target_entries);
                                                 snapshot.latest_recommendation_summary_json =
                                                     recommendation_overview_json(&target_entries);
                                                 snapshot.state_hash = state_hash_for_output(

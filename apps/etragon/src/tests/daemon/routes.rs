@@ -394,6 +394,7 @@ fn daemon_serves_target_specific_output_routes() {
     });
 
     wait_for_daemon_health(&bind_addr).expect("daemon should publish health endpoint");
+    wait_for_daemon_ready(&bind_addr).expect("daemon should publish ready status");
 
     wait_for_body(&format!("http://{}/v1/latest/meta", bind_addr), |body| {
         body.contains("\"target_count\":2")
@@ -570,6 +571,9 @@ fn daemon_reports_target_specific_error_metadata() {
             stop_for_thread,
         )
     });
+
+    wait_for_daemon_health(&bind_addr).expect("daemon should publish health endpoint");
+    wait_for_daemon_ready(&bind_addr).expect("daemon should publish ready status");
 
     let target_meta = wait_for_body(
         &format!(

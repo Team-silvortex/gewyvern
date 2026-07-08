@@ -77,7 +77,7 @@ session data.
   hardening, lifecycle discipline, and real physical-machine validation on top
   of the broad protocol catalog built during `0.18.x`
 - transport support: TCP + UDP
-- protocol registry coverage: 69 protocol families and 360 package entries
+- protocol registry coverage: 70 protocol families and 363 package entries
   under `protocols/`
 - input modes: demo facts, Unix socket, TCP socket
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths

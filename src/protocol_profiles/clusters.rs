@@ -22,8 +22,8 @@ pub(super) fn built_in_protocol_cluster_hint(protocol: &str) -> Option<ProtocolC
             identity_access_cluster(protocol)?
         }
         "dns" | "mdns" | "llmnr" | "nbns" | "ssdp" | "stun" | "coap" | "tftp" | "ntp" | "dhcp"
-        | "dhcpv6" | "arp" | "icmp" | "icmpv6" | "ndp" | "bgp" | "ospf" | "gre" | "vxlan"
-        | "geneve" | "l2tp" | "pptp" | "snmp" | "wireguard" | "gtpu" => {
+        | "dhcpv6" | "arp" | "icmp" | "icmpv6" | "ndp" | "bgp" | "ospf" | "rip" | "gre"
+        | "vxlan" | "geneve" | "l2tp" | "pptp" | "snmp" | "wireguard" | "gtpu" => {
             control_plane_cluster(protocol)?
         }
         "rtsp" | "sip" | "ftp" => media_session_cluster(protocol)?,
@@ -143,6 +143,7 @@ fn control_plane_cluster(protocol: &str) -> Option<ClusterMatch> {
         "ndp",
         "bgp",
         "ospf",
+        "rip",
         "gre",
         "vxlan",
         "geneve",

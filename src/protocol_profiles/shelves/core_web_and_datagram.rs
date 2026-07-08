@@ -408,6 +408,28 @@ pub(crate) fn ospf_shelf(entry: &str) -> Option<ShelfMatch> {
     }
 }
 
+pub(crate) fn rip_shelf(entry: &str) -> Option<ShelfMatch> {
+    const EXCHANGE: &[&str] = &["request", "response"];
+    const FAILURE: &[&str] = &["unreachable"];
+    if EXCHANGE.contains(&entry) {
+        Some((
+            "exchange",
+            "Route Exchange",
+            "docs/book/reference-rip-surface.md",
+            EXCHANGE,
+        ))
+    } else if FAILURE.contains(&entry) {
+        Some((
+            "failure",
+            "Unreachable Metric",
+            "docs/book/reference-rip-surface.md",
+            FAILURE,
+        ))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn gre_shelf(entry: &str) -> Option<ShelfMatch> {
     const TUNNEL: &[&str] = &["encap", "keepalive"];
     if TUNNEL.contains(&entry) {

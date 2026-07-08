@@ -312,6 +312,41 @@ pub(crate) const PROTOCOL_ENTRY_ALIASES_MANIFEST_CONTINUATION: &[ProtocolAlias] 
         entry: Some("negative"),
     },
     ProtocolAlias {
+        alias: "route-request",
+        protocol: "rip",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "routing-request",
+        protocol: "rip",
+        entry: Some("request"),
+    },
+    ProtocolAlias {
+        alias: "route-update",
+        protocol: "rip",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "distance-vector-update",
+        protocol: "rip",
+        entry: Some("response"),
+    },
+    ProtocolAlias {
+        alias: "metric16",
+        protocol: "rip",
+        entry: Some("unreachable"),
+    },
+    ProtocolAlias {
+        alias: "route-unreachable",
+        protocol: "rip",
+        entry: Some("unreachable"),
+    },
+    ProtocolAlias {
+        alias: "route-withdrawal",
+        protocol: "rip",
+        entry: Some("unreachable"),
+    },
+    ProtocolAlias {
         alias: "ssh-auth",
         protocol: "ssh",
         entry: Some("auth"),
