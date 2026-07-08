@@ -132,28 +132,24 @@ pub(super) fn python_worker_memory_state_json(
     config: &PythonWorkerConfig,
     snapshot: Option<&DaemonSnapshot>,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    let worker_state = worker.memory_info_json()?;
+    let worker_state = with_python_worker(config, |worker| worker.memory_info_json())?;
     Ok(daemon_memory_state_json(&worker_state, snapshot))
 }
 
 pub(super) fn python_worker_model_info_json(config: &PythonWorkerConfig) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.model_info_json()
+    with_python_worker(config, |worker| worker.model_info_json())
 }
 
 pub(super) fn python_worker_memory_snapshot_json(
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.export_memory_json()
+    with_python_worker(config, |worker| worker.export_memory_json())
 }
 
 pub(super) fn python_worker_memory_versions_json(
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.memory_versions_json()
+    with_python_worker(config, |worker| worker.memory_versions_json())
 }
 
 pub(super) fn protocol_capabilities_json(config: &PythonWorkerConfig) -> Result<String, String> {
@@ -171,22 +167,9 @@ pub(super) fn clear_python_worker_memory(
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    let worker_state = worker.clear_memory_json()?;
-    let mut snapshot_to_persist = None;
-    if let Ok(mut guard) = latest.lock() {
-        if let Some(snapshot) = guard.as_mut() {
-            snapshot.training_history.clear();
-            for target in &mut snapshot.target_outputs {
-                target.training_history.clear();
-            }
-            snapshot_to_persist = Some(snapshot.clone());
-        }
-    }
-    if let (Some(path), Some(snapshot)) = (daemon_state_file, snapshot_to_persist.as_ref()) {
-        write_daemon_state(path, snapshot)?;
-    }
-    invalidation_epoch.fetch_add(1, Ordering::Relaxed);
+    let worker_state = with_python_worker(config, |worker| worker.clear_memory_json())?;
+    let snapshot_to_persist =
+        reset_snapshot_training_state(latest, daemon_state_file, invalidation_epoch)?;
     Ok(daemon_memory_state_json(
         &worker_state,
         snapshot_to_persist.as_ref(),
@@ -200,22 +183,11 @@ pub(super) fn load_python_worker_memory(
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    let worker_state = worker.import_memory_json(memory_snapshot_json)?;
-    let mut snapshot_to_persist = None;
-    if let Ok(mut guard) = latest.lock() {
-        if let Some(snapshot) = guard.as_mut() {
-            snapshot.training_history.clear();
-            for target in &mut snapshot.target_outputs {
-                target.training_history.clear();
-            }
-            snapshot_to_persist = Some(snapshot.clone());
-        }
-    }
-    if let (Some(path), Some(snapshot)) = (daemon_state_file, snapshot_to_persist.as_ref()) {
-        write_daemon_state(path, snapshot)?;
-    }
-    invalidation_epoch.fetch_add(1, Ordering::Relaxed);
+    let worker_state = with_python_worker(config, |worker| {
+        worker.import_memory_json(memory_snapshot_json)
+    })?;
+    let snapshot_to_persist =
+        reset_snapshot_training_state(latest, daemon_state_file, invalidation_epoch)?;
     Ok(daemon_memory_state_json(
         &worker_state,
         snapshot_to_persist.as_ref(),
@@ -229,8 +201,9 @@ pub(super) fn save_python_worker_memory_slot(
     note: Option<&str>,
     source: Option<&str>,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.save_memory_slot_json(slot, label, note, source)
+    with_python_worker(config, |worker| {
+        worker.save_memory_slot_json(slot, label, note, source)
+    })
 }
 
 pub(super) fn load_python_worker_memory_slot(
@@ -241,8 +214,29 @@ pub(super) fn load_python_worker_memory_slot(
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    let worker_state = worker.load_memory_slot_json(slot, strategy)?;
+    let worker_state = with_python_worker(config, |worker| {
+        worker.load_memory_slot_json(slot, strategy)
+    })?;
+    let snapshot_to_persist =
+        reset_snapshot_training_state(latest, daemon_state_file, invalidation_epoch)?;
+    Ok(daemon_memory_state_json(
+        &worker_state,
+        snapshot_to_persist.as_ref(),
+    ))
+}
+
+pub(super) fn delete_python_worker_memory_slot(
+    config: &PythonWorkerConfig,
+    slot: &str,
+) -> Result<String, String> {
+    with_python_worker(config, |worker| worker.delete_memory_slot_json(slot))
+}
+
+fn reset_snapshot_training_state(
+    latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
+    daemon_state_file: Option<&Path>,
+    invalidation_epoch: &Arc<AtomicU64>,
+) -> Result<Option<DaemonSnapshot>, String> {
     let mut snapshot_to_persist = None;
     if let Ok(mut guard) = latest.lock() {
         if let Some(snapshot) = guard.as_mut() {
@@ -257,18 +251,7 @@ pub(super) fn load_python_worker_memory_slot(
         write_daemon_state(path, snapshot)?;
     }
     invalidation_epoch.fetch_add(1, Ordering::Relaxed);
-    Ok(daemon_memory_state_json(
-        &worker_state,
-        snapshot_to_persist.as_ref(),
-    ))
-}
-
-pub(super) fn delete_python_worker_memory_slot(
-    config: &PythonWorkerConfig,
-    slot: &str,
-) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.delete_memory_slot_json(slot)
+    Ok(snapshot_to_persist)
 }
 
 fn protocol_capabilities_document_json(

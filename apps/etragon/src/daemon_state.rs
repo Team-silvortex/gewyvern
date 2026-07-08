@@ -148,15 +148,8 @@ pub(super) fn target_daemon_output_persistence_json(target: &TargetDaemonOutput)
         target.recommendation_summary_json,
         target.updated_unix_ms,
         escape_json_string(&target.state_hash),
-        target
-            .last_success_unix_ms
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "null".to_string()),
-        target
-            .last_error
-            .as_ref()
-            .map(|value| format!("\"{}\"", escape_json_string(value)))
-            .unwrap_or_else(|| "null".to_string()),
+        persistence_optional_u128_json(target.last_success_unix_ms),
+        persistence_optional_error_json(target.last_error.as_deref()),
         training_history_json(&target.training_history)
     )
 }
@@ -291,12 +284,7 @@ pub(super) fn compact_daemon_snapshot_for_persistence(snapshot: &DaemonSnapshot)
 
 pub(super) fn daemon_snapshot_persistence_json(snapshot: &DaemonSnapshot) -> String {
     let snapshot = compact_daemon_snapshot_for_persistence(snapshot);
-    let target_outputs = snapshot
-        .target_outputs
-        .iter()
-        .map(target_daemon_output_persistence_json)
-        .collect::<Vec<_>>()
-        .join(",");
+    let target_outputs = persistence_target_outputs_json(&snapshot.target_outputs);
     format!(
         "{{\"source\":\"{}\",\"upstream_url\":\"{}\",\"interval_ms\":{},\"cycle\":{},\"analysis_runs\":{},\"cache_hits\":{},\"target_count\":{},\"updated_unix_ms\":{},\"state_hash\":\"{}\",\"latest_output_json\":{},\"latest_input_json\":{},\"latest_recommendation_summary_json\":{},\"target_outputs\":[{}],\"last_success_unix_ms\":{},\"last_error\":{},\"training_history\":{}}}",
         escape_json_string(&snapshot.source),
@@ -312,17 +300,30 @@ pub(super) fn daemon_snapshot_persistence_json(snapshot: &DaemonSnapshot) -> Str
         snapshot.latest_input_json.as_deref().unwrap_or("null"),
         snapshot.latest_recommendation_summary_json,
         target_outputs,
-        snapshot
-            .last_success_unix_ms
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "null".to_string()),
-        snapshot
-            .last_error
-            .as_ref()
-            .map(|value| format!("\"{}\"", escape_json_string(value)))
-            .unwrap_or_else(|| "null".to_string()),
+        persistence_optional_u128_json(snapshot.last_success_unix_ms),
+        persistence_optional_error_json(snapshot.last_error.as_deref()),
         training_history_json(&snapshot.training_history)
     )
+}
+
+fn persistence_target_outputs_json(target_outputs: &[TargetDaemonOutput]) -> String {
+    target_outputs
+        .iter()
+        .map(target_daemon_output_persistence_json)
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn persistence_optional_u128_json(value: Option<u128>) -> String {
+    value
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn persistence_optional_error_json(value: Option<&str>) -> String {
+    value
+        .map(|value| format!("\"{}\"", escape_json_string(value)))
+        .unwrap_or_else(|| "null".to_string())
 }
 
 pub(super) fn parse_training_event_from_json(input: &str) -> Result<TrainingEvent, String> {

@@ -12,8 +12,7 @@ pub(super) fn analyze_input_with_python_worker(
     input: &str,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.analyze_json(input)
+    with_python_worker(config, |worker| worker.analyze_json(input))
 }
 
 pub(super) fn train_input_with_python_worker(
@@ -22,8 +21,9 @@ pub(super) fn train_input_with_python_worker(
     weight: f64,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.train_json_with_weight(input, label, weight)
+    with_python_worker(config, |worker| {
+        worker.train_json_with_weight(input, label, weight)
+    })
 }
 
 pub(super) fn analyze_targets_url(url: &str) -> Result<String, String> {
@@ -58,14 +58,15 @@ pub(super) fn analyze_targets_url_with_filter_and_python_worker(
         "analyze-targets-url expects a /v1/latest/targets endpoint",
         filter_prefix,
     )?;
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    let mut entries = Vec::new();
-    for segment in endpoint.segments.clone() {
-        let analysis_json = endpoint.fetch_analysis_json(&segment)?;
-        let output = worker.analyze_json(&analysis_json)?;
-        entries.push((segment, output));
-    }
-    Ok(batch_output_json(&entries))
+    with_python_worker(config, |worker| {
+        let mut entries = Vec::new();
+        for segment in endpoint.segments.clone() {
+            let analysis_json = endpoint.fetch_analysis_json(&segment)?;
+            let output = worker.analyze_json(&analysis_json)?;
+            entries.push((segment, output));
+        }
+        Ok(batch_output_json(&entries))
+    })
 }
 
 pub(super) fn train_targets_url_with_filter_and_python_worker(
@@ -80,14 +81,15 @@ pub(super) fn train_targets_url_with_filter_and_python_worker(
         "train-python-targets-url expects a /v1/latest/targets endpoint",
         filter_prefix,
     )?;
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    let mut entries = Vec::new();
-    for segment in endpoint.segments.clone() {
-        let analysis_json = endpoint.fetch_analysis_json(&segment)?;
-        let output = worker.train_json_with_weight(&analysis_json, label, weight)?;
-        entries.push((segment, output));
-    }
-    Ok(target_results_json(&entries))
+    with_python_worker(config, |worker| {
+        let mut entries = Vec::new();
+        for segment in endpoint.segments.clone() {
+            let analysis_json = endpoint.fetch_analysis_json(&segment)?;
+            let output = worker.train_json_with_weight(&analysis_json, label, weight)?;
+            entries.push((segment, output));
+        }
+        Ok(target_results_json(&entries))
+    })
 }
 
 pub(super) fn watch_event_json(cycle: usize, source: &str, url: &str, output: &str) -> String {
@@ -136,11 +138,12 @@ pub(super) fn watch_python_url(
     cycles: usize,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    execute_watch_loop(cycles, interval_ms, |cycle| {
-        let analysis_json = read_url(url)?;
-        let output = worker.analyze_json(&analysis_json)?;
-        Ok(watch_event_json(cycle, "python-url", url, &output))
+    with_python_worker(config, |worker| {
+        execute_watch_loop(cycles, interval_ms, |cycle| {
+            let analysis_json = read_url(url)?;
+            let output = worker.analyze_json(&analysis_json)?;
+            Ok(watch_event_json(cycle, "python-url", url, &output))
+        })
     })
 }
 
@@ -151,21 +154,22 @@ pub(super) fn watch_python_targets_url(
     filter_prefix: Option<&str>,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    execute_watch_loop(cycles, interval_ms, |cycle| {
-        let endpoint = resolve_target_batch_endpoint(
-            url,
-            "watch-python-targets-url expects a /v1/latest/targets endpoint",
-            filter_prefix,
-        )?;
-        let mut entries = Vec::new();
-        for segment in endpoint.segments.clone() {
-            let analysis_json = endpoint.fetch_analysis_json(&segment)?;
-            let output = worker.analyze_json(&analysis_json)?;
-            entries.push((segment, output));
-        }
-        let batch = batch_output_json(&entries);
-        Ok(watch_event_json(cycle, "python-targets-url", url, &batch))
+    with_python_worker(config, |worker| {
+        execute_watch_loop(cycles, interval_ms, |cycle| {
+            let endpoint = resolve_target_batch_endpoint(
+                url,
+                "watch-python-targets-url expects a /v1/latest/targets endpoint",
+                filter_prefix,
+            )?;
+            let mut entries = Vec::new();
+            for segment in endpoint.segments.clone() {
+                let analysis_json = endpoint.fetch_analysis_json(&segment)?;
+                let output = worker.analyze_json(&analysis_json)?;
+                entries.push((segment, output));
+            }
+            let batch = batch_output_json(&entries);
+            Ok(watch_event_json(cycle, "python-targets-url", url, &batch))
+        })
     })
 }
 

@@ -9,4 +9,6 @@ pub use engine::{
     CandidateAugmenter, ExternalAnalysisEngine, PassPipeline, RecommendationAugmenter, RerankPass,
     analyze_gewyvern_analysis_json, append_engine_output, engine_output_json,
 };
-pub use python_worker::{PythonWorkerClient, PythonWorkerConfig, default_python_worker_script};
+pub use python_worker::{
+    PythonWorkerClient, PythonWorkerConfig, default_python_worker_script, with_python_worker,
+};

@@ -5,18 +5,10 @@ pub(super) fn single_output_recommendation_summary(output_json: &str) -> String 
 }
 
 pub(super) fn daemon_snapshot_json(snapshot: &DaemonSnapshot) -> String {
-    let (learning_active, learned_routes) = learned_route_summary_from_recommendation_summary(
-        &snapshot.latest_recommendation_summary_json,
-    );
-    let last_success_unix_ms = snapshot
-        .last_success_unix_ms
-        .map(|value| value.to_string())
-        .unwrap_or_else(|| "null".to_string());
-    let last_error = snapshot
-        .last_error
-        .as_ref()
-        .map(|value| format!("\"{}\"", escape_json_string(value)))
-        .unwrap_or_else(|| "null".to_string());
+    let (learning_active, learned_routes) =
+        daemon_learning_flags(&snapshot.latest_recommendation_summary_json);
+    let last_success_unix_ms = optional_u128_json(snapshot.last_success_unix_ms);
+    let last_error = optional_error_json(snapshot.last_error.as_deref());
     format!(
         "{{\"source\":\"{}\",\"upstream_url\":\"{}\",\"interval_ms\":{},\"cycle\":{},\"analysis_runs\":{},\"cache_hits\":{},\"target_count\":{},\"updated_unix_ms\":{},\"last_success_unix_ms\":{},\"last_error\":{},\"state_hash\":\"{}\",\"learning_active\":{},\"learned_routes\":{},\"recommendation_summary\":{},\"output\":{}}}",
         escape_json_string(&snapshot.source),
@@ -50,23 +42,10 @@ pub(super) fn daemon_meta_json(
     match snapshot {
         Some(snapshot) => {
             let (learning_active, learned_routes) =
-                learned_route_summary_from_recommendation_summary(
-                    &snapshot.latest_recommendation_summary_json,
-                );
-            let status = if snapshot.last_error.is_some() {
-                "degraded"
-            } else {
-                "ready"
-            };
-            let last_success_unix_ms = snapshot
-                .last_success_unix_ms
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| "null".to_string());
-            let last_error = snapshot
-                .last_error
-                .as_ref()
-                .map(|value| format!("\"{}\"", escape_json_string(value)))
-                .unwrap_or_else(|| "null".to_string());
+                daemon_learning_flags(&snapshot.latest_recommendation_summary_json);
+            let status = daemon_snapshot_status(snapshot);
+            let last_success_unix_ms = optional_u128_json(snapshot.last_success_unix_ms);
+            let last_error = optional_error_json(snapshot.last_error.as_deref());
             let queue_summary_override = if snapshot.target_outputs.is_empty() {
                 None
             } else {
@@ -132,21 +111,10 @@ pub(super) fn daemon_status_json(snapshot: Option<&DaemonSnapshot>) -> String {
     match snapshot {
         Some(snapshot) => {
             let (learning_active, learned_routes) =
-                learned_route_summary_from_recommendation_summary(&snapshot.latest_recommendation_summary_json);
-            let status = if snapshot.last_error.is_some() {
-                "degraded"
-            } else {
-                "ready"
-            };
-            let last_success_unix_ms = snapshot
-                .last_success_unix_ms
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| "null".to_string());
-            let last_error = snapshot
-                .last_error
-                .as_ref()
-                .map(|value| format!("\"{}\"", escape_json_string(value)))
-                .unwrap_or_else(|| "null".to_string());
+                daemon_learning_flags(&snapshot.latest_recommendation_summary_json);
+            let status = daemon_snapshot_status(snapshot);
+            let last_success_unix_ms = optional_u128_json(snapshot.last_success_unix_ms);
+            let last_error = optional_error_json(snapshot.last_error.as_deref());
             format!(
                 "{{\"status\":\"{}\",\"source\":\"{}\",\"cycle\":{},\"analysis_runs\":{},\"cache_hits\":{},\"target_count\":{},\"updated_unix_ms\":{},\"last_success_unix_ms\":{},\"last_error\":{},\"learning_active\":{},\"learned_routes\":{}}}",
                 status,
@@ -206,21 +174,9 @@ pub(super) fn daemon_target_index_json(snapshot: &DaemonSnapshot) -> String {
         .iter()
         .map(|target| {
             let (learning_active, learned_routes) =
-                learned_route_summary_from_recommendation_summary(&target.recommendation_summary_json);
+                daemon_learning_flags(&target.recommendation_summary_json);
             let (has_memory_state, memory_learning_active) = target_memory_flags(target);
-            let stale_after_ms = u128::from(snapshot.interval_ms) * 3;
-            let basis_ms = target.last_success_unix_ms.unwrap_or(target.updated_unix_ms);
-            let stale = target
-                .last_error
-                .as_ref()
-                .map(|_| target.last_success_unix_ms.is_none())
-                .unwrap_or(false)
-                || now_ms.saturating_sub(basis_ms) > stale_after_ms;
-            let stale_for_ms = if stale {
-                now_ms.saturating_sub(basis_ms).to_string()
-            } else {
-                "null".to_string()
-            };
+            let target_staleness = target_staleness(target, snapshot.interval_ms, now_ms);
             let handoff_summary = handoff_summary_json(
                 &target.output_json,
                 &target.recommendation_summary_json,
@@ -235,18 +191,11 @@ pub(super) fn daemon_target_index_json(snapshot: &DaemonSnapshot) -> String {
                 escape_json_string(&target.path_segment),
                 target.updated_unix_ms,
                 escape_json_string(&target.state_hash),
-                target
-                    .last_success_unix_ms
-                    .map(|value| value.to_string())
-                    .unwrap_or_else(|| "null".to_string()),
-                target
-                    .last_error
-                    .as_ref()
-                    .map(|value| format!("\"{}\"", escape_json_string(value)))
-                    .unwrap_or_else(|| "null".to_string()),
-                if stale { "true" } else { "false" },
-                stale_after_ms,
-                stale_for_ms,
+                optional_u128_json(target.last_success_unix_ms),
+                optional_error_json(target.last_error.as_deref()),
+                json_bool(target_staleness.stale),
+                target_staleness.stale_after_ms,
+                target_staleness.stale_for_ms,
                 if learning_active { "true" } else { "false" },
                 learned_routes,
                 if has_memory_state { "true" } else { "false" },
@@ -265,24 +214,10 @@ pub(super) fn daemon_target_index_json(snapshot: &DaemonSnapshot) -> String {
 
 pub(super) fn target_daemon_meta_json(target: &TargetDaemonOutput, interval_ms: u64) -> String {
     let (learning_active, learned_routes) =
-        learned_route_summary_from_recommendation_summary(&target.recommendation_summary_json);
+        daemon_learning_flags(&target.recommendation_summary_json);
     let (has_memory_state, memory_learning_active) = target_memory_flags(target);
     let now_ms = now_unix_ms().unwrap_or(target.updated_unix_ms);
-    let stale_after_ms = u128::from(interval_ms) * 3;
-    let basis_ms = target
-        .last_success_unix_ms
-        .unwrap_or(target.updated_unix_ms);
-    let stale = target
-        .last_error
-        .as_ref()
-        .map(|_| target.last_success_unix_ms.is_none())
-        .unwrap_or(false)
-        || now_ms.saturating_sub(basis_ms) > stale_after_ms;
-    let stale_for_ms = if stale {
-        now_ms.saturating_sub(basis_ms).to_string()
-    } else {
-        "null".to_string()
-    };
+    let target_staleness = target_staleness(target, interval_ms, now_ms);
     let handoff_summary = handoff_summary_json(
         &target.output_json,
         &target.recommendation_summary_json,
@@ -295,18 +230,11 @@ pub(super) fn target_daemon_meta_json(target: &TargetDaemonOutput, interval_ms: 
         escape_json_string(&target.path_segment),
         target.updated_unix_ms,
         escape_json_string(&target.state_hash),
-        target
-            .last_success_unix_ms
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "null".to_string()),
-        target
-            .last_error
-            .as_ref()
-            .map(|value| format!("\"{}\"", escape_json_string(value)))
-            .unwrap_or_else(|| "null".to_string()),
-        if stale { "true" } else { "false" },
-        stale_after_ms,
-        stale_for_ms,
+        optional_u128_json(target.last_success_unix_ms),
+        optional_error_json(target.last_error.as_deref()),
+        json_bool(target_staleness.stale),
+        target_staleness.stale_after_ms,
+        target_staleness.stale_for_ms,
         if learning_active { "true" } else { "false" },
         learned_routes,
         if has_memory_state { "true" } else { "false" },
@@ -360,12 +288,99 @@ pub(super) fn enrich_target_outputs(
         .collect()
 }
 
+fn daemon_learning_flags(recommendation_summary_json: &str) -> (bool, usize) {
+    learned_route_summary_from_recommendation_summary(recommendation_summary_json)
+}
+
+fn daemon_snapshot_status(snapshot: &DaemonSnapshot) -> &'static str {
+    if snapshot.last_error.is_some() {
+        "degraded"
+    } else {
+        "ready"
+    }
+}
+
+fn optional_u128_json(value: Option<u128>) -> String {
+    value
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn optional_error_json(value: Option<&str>) -> String {
+    value
+        .map(|value| format!("\"{}\"", escape_json_string(value)))
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn json_bool(value: bool) -> &'static str {
+    if value { "true" } else { "false" }
+}
+
+struct TargetStaleness {
+    stale: bool,
+    stale_after_ms: u128,
+    stale_for_ms: String,
+}
+
+fn target_staleness(
+    target: &TargetDaemonOutput,
+    interval_ms: u64,
+    now_ms: u128,
+) -> TargetStaleness {
+    let stale_after_ms = u128::from(interval_ms) * 3;
+    let basis_ms = target
+        .last_success_unix_ms
+        .unwrap_or(target.updated_unix_ms);
+    let stale = target
+        .last_error
+        .as_ref()
+        .map(|_| target.last_success_unix_ms.is_none())
+        .unwrap_or(false)
+        || now_ms.saturating_sub(basis_ms) > stale_after_ms;
+    let stale_for_ms = if stale {
+        now_ms.saturating_sub(basis_ms).to_string()
+    } else {
+        "null".to_string()
+    };
+    TargetStaleness {
+        stale,
+        stale_after_ms,
+        stale_for_ms,
+    }
+}
+
 pub(super) fn daemon_http_response(status_line: &str, body: &str) -> String {
     format!(
         "{status_line}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
         body.len(),
         body
     )
+}
+
+pub(super) fn daemon_json_ok(body: &str) -> String {
+    daemon_http_response("HTTP/1.1 200 OK", body)
+}
+
+pub(super) fn daemon_error_response(status_line: &str, err: &str) -> String {
+    daemon_http_response(
+        status_line,
+        &format!("{{\"error\":\"{}\"}}", escape_json_string(err)),
+    )
+}
+
+pub(super) fn daemon_bad_request_response(err: &str) -> String {
+    daemon_error_response("HTTP/1.1 400 Bad Request", err)
+}
+
+pub(super) fn daemon_bad_gateway_response(err: &str) -> String {
+    daemon_error_response("HTTP/1.1 502 Bad Gateway", err)
+}
+
+pub(super) fn daemon_gateway_json_response(result: Result<String, String>) -> String {
+    match result {
+        Ok(body) => daemon_json_ok(&body),
+        Err(err) => daemon_bad_gateway_response(&err),
+    }
 }
 
 pub(super) fn parse_training_feedback(request_text: &str) -> Result<(String, f64), String> {

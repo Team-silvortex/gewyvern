@@ -12,10 +12,8 @@ pub(super) fn handle_daemon_client(
     let request_text = match read_daemon_request(&mut stream)? {
         DaemonRequestRead::Complete(request_text) => request_text,
         DaemonRequestRead::TooLarge => {
-            let response = daemon_http_response(
-                "HTTP/1.1 413 Payload Too Large",
-                "{\"error\":\"daemon_request_too_large\"}",
-            );
+            let response =
+                daemon_error_response("HTTP/1.1 413 Payload Too Large", "daemon_request_too_large");
             stream
                 .write_all(response.as_bytes())
                 .map_err(|err| format!("failed to write daemon request limit response: {err}"))?;
@@ -45,13 +43,9 @@ pub(super) fn handle_daemon_client(
         "/v1/memory-model.json" => memory_model_route_response(config),
         "/v1/memory-versions.json" => memory_versions_route_response(config),
         "/v1/memory-snapshot.json" => memory_snapshot_route_response(config),
-        "/v1/protocol-capabilities.json" => match protocol_capabilities_json(config) {
-            Ok(capabilities) => daemon_json_ok(&capabilities),
-            Err(err) => daemon_http_response(
-                "HTTP/1.1 502 Bad Gateway",
-                &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-            ),
-        },
+        "/v1/protocol-capabilities.json" => {
+            daemon_gateway_json_response(protocol_capabilities_json(config))
+        }
         "/v1/memory-admin/save" if method == "POST" => {
             save_memory_slot_route_response(config, &request_text)
         }
@@ -93,40 +87,14 @@ pub(super) fn handle_daemon_client(
             Some(snapshot) => daemon_json_ok(&daemon_snapshot_json(&snapshot)),
             None => no_snapshot_response(),
         },
-        "/v1/train/latest" if method == "POST" => match snapshot {
-            Some(snapshot) => match (
-                &snapshot.latest_input_json,
-                parse_training_feedback(&request_text),
-            ) {
-                (Some(input_json), Ok((label, weight))) => {
-                    match train_and_refresh_daemon_input(input_json, &label, weight, config) {
-                        Ok(refresh) => {
-                            let snapshot_to_persist =
-                                apply_latest_training_refresh(latest, &label, weight, &refresh)?;
-                            persist_snapshot_and_invalidate(
-                                daemon_state_file,
-                                snapshot_to_persist.as_ref(),
-                                invalidation_epoch,
-                            )?;
-                            daemon_json_ok(&refresh.training_json)
-                        }
-                        Err(err) => daemon_http_response(
-                            "HTTP/1.1 502 Bad Gateway",
-                            &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-                        ),
-                    }
-                }
-                (None, _) => daemon_http_response(
-                    "HTTP/1.1 409 Conflict",
-                    "{\"error\":\"no_trainable_snapshot_available\"}",
-                ),
-                (_, Err(err)) => daemon_http_response(
-                    "HTTP/1.1 400 Bad Request",
-                    &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-                ),
-            },
-            None => no_snapshot_response(),
-        },
+        "/v1/train/latest" if method == "POST" => train_latest_route_response(
+            snapshot.as_ref(),
+            &request_text,
+            config,
+            latest,
+            daemon_state_file,
+            invalidation_epoch,
+        )?,
         "/v1/latest/targets" => match snapshot {
             Some(snapshot) => daemon_json_ok(&daemon_target_index_json(&snapshot)),
             None => no_snapshot_response(),
@@ -134,55 +102,18 @@ pub(super) fn handle_daemon_client(
         _ if path.starts_with("/v1/latest/targets/") => {
             target_route_response(snapshot.as_ref(), path)
         }
-        _ if method == "POST" && path.starts_with("/v1/train/targets/") => match snapshot {
-            Some(snapshot) => {
-                let segment = path
-                    .trim_start_matches("/v1/train/targets/")
-                    .trim_end_matches('/');
-                match snapshot
-                    .target_outputs
-                    .iter()
-                    .find(|target| target.path_segment == segment)
-                {
-                    Some(target) => {
-                        match (&target.input_json, parse_training_feedback(&request_text)) {
-                            (Some(input_json), Ok((label, weight))) => {
-                                match train_and_refresh_daemon_input(
-                                    input_json, &label, weight, config,
-                                ) {
-                                    Ok(refresh) => {
-                                        let snapshot_to_persist = apply_target_training_refresh(
-                                            latest, segment, &label, weight, &refresh,
-                                        )?;
-                                        persist_snapshot_and_invalidate(
-                                            daemon_state_file,
-                                            snapshot_to_persist.as_ref(),
-                                            invalidation_epoch,
-                                        )?;
-                                        daemon_json_ok(&refresh.training_json)
-                                    }
-                                    Err(err) => daemon_http_response(
-                                        "HTTP/1.1 502 Bad Gateway",
-                                        &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-                                    ),
-                                }
-                            }
-                            (None, _) => daemon_http_response(
-                                "HTTP/1.1 409 Conflict",
-                                "{\"error\":\"no_trainable_snapshot_available\"}",
-                            ),
-                            (_, Err(err)) => daemon_http_response(
-                                "HTTP/1.1 400 Bad Request",
-                                &format!("{{\"error\":\"{}\"}}", escape_json_string(&err)),
-                            ),
-                        }
-                    }
-                    None => target_not_found_response(),
-                }
-            }
-            None => no_snapshot_response(),
-        },
-        _ => daemon_http_response("HTTP/1.1 404 Not Found", "{\"error\":\"not_found\"}"),
+        _ if method == "POST" && path.starts_with("/v1/train/targets/") => {
+            train_target_route_response(
+                snapshot.as_ref(),
+                path,
+                &request_text,
+                config,
+                latest,
+                daemon_state_file,
+                invalidation_epoch,
+            )?
+        }
+        _ => not_found_response(),
     };
     stream
         .write_all(response.as_bytes())
@@ -211,6 +142,100 @@ fn train_and_refresh_daemon_input(
         analysis_json,
         recommendation_summary_json,
     })
+}
+
+fn train_latest_route_response(
+    snapshot: Option<&DaemonSnapshot>,
+    request_text: &str,
+    config: &PythonWorkerConfig,
+    latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
+    daemon_state_file: Option<&Path>,
+    invalidation_epoch: &Arc<AtomicU64>,
+) -> Result<String, String> {
+    let Some(snapshot) = snapshot else {
+        return Ok(no_snapshot_response());
+    };
+    let Some(input_json) = snapshot.latest_input_json.as_deref() else {
+        return Ok(no_trainable_snapshot_response());
+    };
+    let (label, weight) = match parse_training_feedback(request_text) {
+        Ok(feedback) => feedback,
+        Err(err) => return Ok(bad_request_response(&err)),
+    };
+    Ok(complete_training_route(
+        input_json,
+        &label,
+        weight,
+        config,
+        |refresh| apply_latest_training_refresh(latest, &label, weight, refresh),
+        daemon_state_file,
+        invalidation_epoch,
+    )?)
+}
+
+fn train_target_route_response(
+    snapshot: Option<&DaemonSnapshot>,
+    path: &str,
+    request_text: &str,
+    config: &PythonWorkerConfig,
+    latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
+    daemon_state_file: Option<&Path>,
+    invalidation_epoch: &Arc<AtomicU64>,
+) -> Result<String, String> {
+    let Some(snapshot) = snapshot else {
+        return Ok(no_snapshot_response());
+    };
+    let segment = path
+        .trim_start_matches("/v1/train/targets/")
+        .trim_end_matches('/');
+    let Some(target) = snapshot
+        .target_outputs
+        .iter()
+        .find(|target| target.path_segment == segment)
+    else {
+        return Ok(target_not_found_response());
+    };
+    let Some(input_json) = target.input_json.as_deref() else {
+        return Ok(no_trainable_snapshot_response());
+    };
+    let (label, weight) = match parse_training_feedback(request_text) {
+        Ok(feedback) => feedback,
+        Err(err) => return Ok(bad_request_response(&err)),
+    };
+    Ok(complete_training_route(
+        input_json,
+        &label,
+        weight,
+        config,
+        |refresh| apply_target_training_refresh(latest, segment, &label, weight, refresh),
+        daemon_state_file,
+        invalidation_epoch,
+    )?)
+}
+
+fn complete_training_route<F>(
+    input_json: &str,
+    label: &str,
+    weight: f64,
+    config: &PythonWorkerConfig,
+    apply_refresh: F,
+    daemon_state_file: Option<&Path>,
+    invalidation_epoch: &Arc<AtomicU64>,
+) -> Result<String, String>
+where
+    F: FnOnce(&DaemonTrainingRefresh) -> Result<Option<DaemonSnapshot>, String>,
+{
+    let refresh = match train_and_refresh_daemon_input(input_json, label, weight, config) {
+        Ok(refresh) => refresh,
+        Err(err) => return Ok(bad_gateway_response(&err)),
+    };
+    let snapshot_to_persist = apply_refresh(&refresh)?;
+    persist_snapshot_and_invalidate(
+        daemon_state_file,
+        snapshot_to_persist.as_ref(),
+        invalidation_epoch,
+    )?;
+    Ok(daemon_json_ok(&refresh.training_json))
 }
 
 fn apply_latest_training_refresh(
@@ -328,8 +353,16 @@ fn persist_snapshot_and_invalidate(
     Ok(())
 }
 
-fn daemon_json_ok(body: &str) -> String {
-    daemon_http_response("HTTP/1.1 200 OK", body)
+fn bad_request_response(err: &str) -> String {
+    daemon_bad_request_response(err)
+}
+
+fn bad_gateway_response(err: &str) -> String {
+    daemon_bad_gateway_response(err)
+}
+
+fn not_found_response() -> String {
+    daemon_error_response("HTTP/1.1 404 Not Found", "not_found")
 }
 
 fn latest_route_response(snapshot: Option<&DaemonSnapshot>, route: &str) -> String {
@@ -367,7 +400,7 @@ fn latest_route_response(snapshot: Option<&DaemonSnapshot>, route: &str) -> Stri
             queue_summary_override.as_deref(),
             "latest",
         )),
-        _ => daemon_http_response("HTTP/1.1 404 Not Found", "{\"error\":\"not_found\"}"),
+        _ => not_found_response(),
     }
 }
 
@@ -449,12 +482,13 @@ fn target_route_segment<'a>(path: &'a str, suffix: &str) -> Option<&'a str> {
 }
 
 fn no_snapshot_response() -> String {
-    daemon_http_response(
-        "HTTP/1.1 503 Service Unavailable",
-        "{\"error\":\"no_snapshot_available\"}",
-    )
+    daemon_error_response("HTTP/1.1 503 Service Unavailable", "no_snapshot_available")
+}
+
+fn no_trainable_snapshot_response() -> String {
+    daemon_error_response("HTTP/1.1 409 Conflict", "no_trainable_snapshot_available")
 }
 
 fn target_not_found_response() -> String {
-    daemon_http_response("HTTP/1.1 404 Not Found", "{\"error\":\"target_not_found\"}")
+    daemon_error_response("HTTP/1.1 404 Not Found", "target_not_found")
 }

@@ -46,14 +46,15 @@ pub(super) fn analyze_federation_manifest_with_python_worker(
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
     let members = parse_federation_members(manifest_json)?;
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    let mut entries = Vec::new();
-    let mut runtime_results = Vec::new();
-    for member in members {
-        let result = analyze_federation_member(&member, filter_prefix, &mut worker, &mut entries);
-        runtime_results.push(result);
-    }
-    Ok(federation_output_json(&runtime_results, &entries))
+    with_python_worker(config, |worker| {
+        let mut entries = Vec::new();
+        let mut runtime_results = Vec::new();
+        for member in members {
+            let result = analyze_federation_member(&member, filter_prefix, worker, &mut entries);
+            runtime_results.push(result);
+        }
+        Ok(federation_output_json(&runtime_results, &entries))
+    })
 }
 
 pub(super) fn train_federation_manifest_with_python_worker(
@@ -64,21 +65,22 @@ pub(super) fn train_federation_manifest_with_python_worker(
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
     let members = parse_federation_members(manifest_json)?;
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    let mut entries = Vec::new();
-    let mut runtime_results = Vec::new();
-    for member in members {
-        let result = train_federation_member(
-            &member,
-            label,
-            weight,
-            filter_prefix,
-            &mut worker,
-            &mut entries,
-        );
-        runtime_results.push(result);
-    }
-    Ok(federation_output_json(&runtime_results, &entries))
+    with_python_worker(config, |worker| {
+        let mut entries = Vec::new();
+        let mut runtime_results = Vec::new();
+        for member in members {
+            let result = train_federation_member(
+                &member,
+                label,
+                weight,
+                filter_prefix,
+                worker,
+                &mut entries,
+            );
+            runtime_results.push(result);
+        }
+        Ok(federation_output_json(&runtime_results, &entries))
+    })
 }
 
 fn analyze_federation_member(

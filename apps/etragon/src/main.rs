@@ -1,6 +1,6 @@
 use etragon::{
     MockMlAdvisoryEngine, PythonWorkerClient, PythonWorkerConfig, analyze_gewyvern_analysis_json,
-    default_python_worker_script, engine_output_json,
+    default_python_worker_script, engine_output_json, with_python_worker,
 };
 use std::env;
 use std::fs;

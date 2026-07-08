@@ -31,6 +31,14 @@ pub struct PythonWorkerClient {
     stdout: BufReader<ChildStdout>,
 }
 
+pub fn with_python_worker<T, F>(config: &PythonWorkerConfig, f: F) -> Result<T, String>
+where
+    F: FnOnce(&mut PythonWorkerClient) -> Result<T, String>,
+{
+    let mut worker = PythonWorkerClient::spawn(config)?;
+    f(&mut worker)
+}
+
 impl PythonWorkerClient {
     pub fn spawn(config: &PythonWorkerConfig) -> Result<Self, String> {
         if !config.worker_script.exists() {

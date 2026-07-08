@@ -50,26 +50,8 @@ pub(super) fn parse_train_options(
                 }
                 index += 2;
             }
-            "--python-worker" => {
-                let value = args
-                    .get(index + 1)
-                    .ok_or_else(|| "missing value for --python-worker".to_string())?;
-                config.worker_script = value.into();
-                index += 2;
-            }
-            "--python-bin" => {
-                let value = args
-                    .get(index + 1)
-                    .ok_or_else(|| "missing value for --python-bin".to_string())?;
-                config.python_bin = value.clone();
-                index += 2;
-            }
-            "--python-state" => {
-                let value = args
-                    .get(index + 1)
-                    .ok_or_else(|| "missing value for --python-state".to_string())?;
-                config.state_file = Some(value.into());
-                index += 2;
+            "--python-worker" | "--python-bin" | "--python-state" => {
+                index += consume_python_worker_option(args, index, &mut config)?;
             }
             other => return Err(format!("unknown option for train command: {other}")),
         }
@@ -84,26 +66,8 @@ pub(super) fn parse_python_worker_options(
     let mut index = 0;
     while index < args.len() {
         match args[index].as_str() {
-            "--python-worker" => {
-                let path = args
-                    .get(index + 1)
-                    .ok_or_else(|| "missing value for --python-worker".to_string())?;
-                config.worker_script = path.into();
-                index += 2;
-            }
-            "--python-bin" => {
-                let python_bin = args
-                    .get(index + 1)
-                    .ok_or_else(|| "missing value for --python-bin".to_string())?;
-                config.python_bin = python_bin.clone();
-                index += 2;
-            }
-            "--python-state" => {
-                let state_file = args
-                    .get(index + 1)
-                    .ok_or_else(|| "missing value for --python-state".to_string())?;
-                config.state_file = Some(state_file.into());
-                index += 2;
+            "--python-worker" | "--python-bin" | "--python-state" => {
+                index += consume_python_worker_option(args, index, &mut config)?;
             }
             _ => break,
         }
@@ -146,26 +110,8 @@ pub(super) fn parse_watch_options(
                 filter_prefix = Some(value.clone());
                 index += 2;
             }
-            "--python-worker" => {
-                let value = args
-                    .get(index + 1)
-                    .ok_or_else(|| "missing value for --python-worker".to_string())?;
-                config.worker_script = value.into();
-                index += 2;
-            }
-            "--python-bin" => {
-                let value = args
-                    .get(index + 1)
-                    .ok_or_else(|| "missing value for --python-bin".to_string())?;
-                config.python_bin = value.clone();
-                index += 2;
-            }
-            "--python-state" => {
-                let value = args
-                    .get(index + 1)
-                    .ok_or_else(|| "missing value for --python-state".to_string())?;
-                config.state_file = Some(value.into());
-                index += 2;
+            "--python-worker" | "--python-bin" | "--python-state" => {
+                index += consume_python_worker_option(args, index, &mut config)?;
             }
             other => return Err(format!("unknown option for watch command: {other}")),
         }
@@ -216,26 +162,8 @@ pub(super) fn parse_daemon_options(
                 filter_prefix = Some(value.clone());
                 index += 2;
             }
-            "--python-worker" => {
-                let value = args
-                    .get(index + 1)
-                    .ok_or_else(|| "missing value for --python-worker".to_string())?;
-                config.worker_script = value.into();
-                index += 2;
-            }
-            "--python-bin" => {
-                let value = args
-                    .get(index + 1)
-                    .ok_or_else(|| "missing value for --python-bin".to_string())?;
-                config.python_bin = value.clone();
-                index += 2;
-            }
-            "--python-state" => {
-                let value = args
-                    .get(index + 1)
-                    .ok_or_else(|| "missing value for --python-state".to_string())?;
-                config.state_file = Some(value.into());
-                index += 2;
+            "--python-worker" | "--python-bin" | "--python-state" => {
+                index += consume_python_worker_option(args, index, &mut config)?;
             }
             "--daemon-state" => {
                 let value = args
@@ -254,4 +182,33 @@ pub(super) fn parse_daemon_options(
         config,
         daemon_state_file,
     ))
+}
+
+fn consume_python_worker_option(
+    args: &[String],
+    index: usize,
+    config: &mut PythonWorkerConfig,
+) -> Result<usize, String> {
+    match args[index].as_str() {
+        "--python-worker" => {
+            let value = args
+                .get(index + 1)
+                .ok_or_else(|| "missing value for --python-worker".to_string())?;
+            config.worker_script = value.into();
+        }
+        "--python-bin" => {
+            let value = args
+                .get(index + 1)
+                .ok_or_else(|| "missing value for --python-bin".to_string())?;
+            config.python_bin = value.clone();
+        }
+        "--python-state" => {
+            let value = args
+                .get(index + 1)
+                .ok_or_else(|| "missing value for --python-state".to_string())?;
+            config.state_file = Some(value.into());
+        }
+        other => return Err(format!("unsupported python worker option: {other}")),
+    }
+    Ok(2)
 }

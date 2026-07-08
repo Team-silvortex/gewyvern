@@ -104,47 +104,20 @@ where
         let polled = match poll_output(cycle, &mut worker) {
             Ok(polled) => polled,
             Err(err) => {
-                let updated_unix_ms = now_unix_ms()?;
-                let mut guard = latest
-                    .lock()
-                    .map_err(|_| "daemon snapshot lock poisoned".to_string())?;
-                let mut snapshot = guard.clone().unwrap_or(DaemonSnapshot {
-                    source: source.to_string(),
-                    upstream_url: upstream_url.to_string(),
-                    interval_ms,
-                    cycle,
-                    analysis_runs,
-                    cache_hits,
-                    target_count: 0,
-                    updated_unix_ms,
-                    state_hash: String::new(),
-                    latest_output_json: "null".to_string(),
-                    latest_input_json: None,
-                    latest_recommendation_summary_json: "null".to_string(),
-                    target_outputs: Vec::new(),
-                    last_success_unix_ms: None,
-                    last_error: None,
-                    training_history: Vec::new(),
-                });
-                snapshot.cycle = cycle;
-                snapshot.analysis_runs = analysis_runs;
-                snapshot.cache_hits = cache_hits;
-                snapshot.updated_unix_ms = updated_unix_ms;
-                snapshot.last_error = Some(err);
-                *guard = Some(snapshot);
-                let snapshot_to_persist = guard.clone();
-                drop(guard);
-                if let (Some(path), Some(snapshot)) =
-                    (daemon_state_file, snapshot_to_persist.as_ref())
-                {
-                    write_daemon_state(path, snapshot)?;
-                }
-                let mut slept = 0u64;
-                while slept < interval_ms && !stop.load(Ordering::Relaxed) {
-                    let step = (interval_ms - slept).min(25);
-                    thread::sleep(Duration::from_millis(step));
-                    slept += step;
-                }
+                persist_poll_error_snapshot(
+                    &latest,
+                    daemon_state_file,
+                    DaemonErrorContext {
+                        source,
+                        upstream_url,
+                        interval_ms,
+                        cycle,
+                        analysis_runs,
+                        cache_hits,
+                    },
+                    err,
+                )?;
+                sleep_until_next_poll(interval_ms, &stop);
                 continue;
             }
         };
@@ -186,65 +159,180 @@ where
                 )
             };
         let updated_unix_ms = now_unix_ms()?;
-        let state_hash = state_hash_for_output(&output, &recommendation_summary_json);
-        let mut guard = latest
-            .lock()
-            .map_err(|_| "daemon snapshot lock poisoned".to_string())?;
-        let previous_snapshot = guard.as_ref().cloned();
-        let target_outputs = enrich_target_outputs(target_outputs, updated_unix_ms);
-        let target_outputs = if let Some(previous) = &previous_snapshot {
-            target_outputs
-                .into_iter()
-                .map(|mut target| {
-                    if let Some(old_target) = previous
-                        .target_outputs
-                        .iter()
-                        .find(|old| old.path_segment == target.path_segment)
-                    {
-                        target.training_history = old_target.training_history.clone();
-                    }
-                    target
-                })
-                .collect()
-        } else {
-            target_outputs
-        };
-        *guard = Some(DaemonSnapshot {
-            source: source.to_string(),
-            upstream_url: upstream_url.to_string(),
-            interval_ms,
-            cycle,
-            analysis_runs,
-            cache_hits,
-            target_count: target_outputs.len(),
-            updated_unix_ms,
-            state_hash,
-            latest_output_json: output,
+        persist_polled_snapshot(
+            &latest,
+            daemon_state_file,
+            PolledSnapshotContext {
+                source,
+                upstream_url,
+                interval_ms,
+                cycle,
+                analysis_runs,
+                cache_hits,
+                updated_unix_ms,
+            },
+            output,
             latest_input_json,
-            latest_recommendation_summary_json: recommendation_summary_json,
+            recommendation_summary_json,
             target_outputs,
-            last_success_unix_ms: Some(updated_unix_ms),
-            last_error: None,
-            training_history: previous_snapshot
-                .map(|snapshot| snapshot.training_history)
-                .unwrap_or_default(),
-        });
-        let snapshot_to_persist = guard.clone();
-        drop(guard);
-        if let (Some(path), Some(snapshot)) = (daemon_state_file, snapshot_to_persist.as_ref()) {
-            write_daemon_state(path, snapshot)?;
-        }
-        let mut slept = 0u64;
-        while slept < interval_ms && !stop.load(Ordering::Relaxed) {
-            let step = (interval_ms - slept).min(25);
-            thread::sleep(Duration::from_millis(step));
-            slept += step;
-        }
+        )?;
+        sleep_until_next_poll(interval_ms, &stop);
     }
 
     server
         .join()
         .map_err(|_| "daemon server thread panicked".to_string())?
+}
+
+struct DaemonErrorContext<'a> {
+    source: &'a str,
+    upstream_url: &'a str,
+    interval_ms: u64,
+    cycle: usize,
+    analysis_runs: usize,
+    cache_hits: usize,
+}
+
+struct PolledSnapshotContext<'a> {
+    source: &'a str,
+    upstream_url: &'a str,
+    interval_ms: u64,
+    cycle: usize,
+    analysis_runs: usize,
+    cache_hits: usize,
+    updated_unix_ms: u128,
+}
+
+fn persist_poll_error_snapshot(
+    latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
+    daemon_state_file: Option<&Path>,
+    context: DaemonErrorContext<'_>,
+    err: String,
+) -> Result<(), String> {
+    let updated_unix_ms = now_unix_ms()?;
+    let mut guard = latest
+        .lock()
+        .map_err(|_| "daemon snapshot lock poisoned".to_string())?;
+    let mut snapshot = guard
+        .clone()
+        .unwrap_or_else(|| empty_daemon_snapshot(&context, updated_unix_ms));
+    snapshot.cycle = context.cycle;
+    snapshot.analysis_runs = context.analysis_runs;
+    snapshot.cache_hits = context.cache_hits;
+    snapshot.updated_unix_ms = updated_unix_ms;
+    snapshot.last_error = Some(err);
+    *guard = Some(snapshot);
+    let snapshot_to_persist = guard.clone();
+    drop(guard);
+    write_snapshot_if_configured(daemon_state_file, snapshot_to_persist.as_ref())
+}
+
+fn empty_daemon_snapshot(
+    context: &DaemonErrorContext<'_>,
+    updated_unix_ms: u128,
+) -> DaemonSnapshot {
+    DaemonSnapshot {
+        source: context.source.to_string(),
+        upstream_url: context.upstream_url.to_string(),
+        interval_ms: context.interval_ms,
+        cycle: context.cycle,
+        analysis_runs: context.analysis_runs,
+        cache_hits: context.cache_hits,
+        target_count: 0,
+        updated_unix_ms,
+        state_hash: String::new(),
+        latest_output_json: "null".to_string(),
+        latest_input_json: None,
+        latest_recommendation_summary_json: "null".to_string(),
+        target_outputs: Vec::new(),
+        last_success_unix_ms: None,
+        last_error: None,
+        training_history: Vec::new(),
+    }
+}
+
+fn persist_polled_snapshot(
+    latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
+    daemon_state_file: Option<&Path>,
+    context: PolledSnapshotContext<'_>,
+    output: String,
+    latest_input_json: Option<String>,
+    recommendation_summary_json: String,
+    target_outputs: Vec<TargetDaemonOutput>,
+) -> Result<(), String> {
+    let state_hash = state_hash_for_output(&output, &recommendation_summary_json);
+    let mut guard = latest
+        .lock()
+        .map_err(|_| "daemon snapshot lock poisoned".to_string())?;
+    let previous_snapshot = guard.as_ref().cloned();
+    let target_outputs = retain_target_training_history(
+        enrich_target_outputs(target_outputs, context.updated_unix_ms),
+        previous_snapshot.as_ref(),
+    );
+    *guard = Some(DaemonSnapshot {
+        source: context.source.to_string(),
+        upstream_url: context.upstream_url.to_string(),
+        interval_ms: context.interval_ms,
+        cycle: context.cycle,
+        analysis_runs: context.analysis_runs,
+        cache_hits: context.cache_hits,
+        target_count: target_outputs.len(),
+        updated_unix_ms: context.updated_unix_ms,
+        state_hash,
+        latest_output_json: output,
+        latest_input_json,
+        latest_recommendation_summary_json: recommendation_summary_json,
+        target_outputs,
+        last_success_unix_ms: Some(context.updated_unix_ms),
+        last_error: None,
+        training_history: previous_snapshot
+            .map(|snapshot| snapshot.training_history)
+            .unwrap_or_default(),
+    });
+    let snapshot_to_persist = guard.clone();
+    drop(guard);
+    write_snapshot_if_configured(daemon_state_file, snapshot_to_persist.as_ref())
+}
+
+fn retain_target_training_history(
+    target_outputs: Vec<TargetDaemonOutput>,
+    previous_snapshot: Option<&DaemonSnapshot>,
+) -> Vec<TargetDaemonOutput> {
+    let Some(previous) = previous_snapshot else {
+        return target_outputs;
+    };
+    target_outputs
+        .into_iter()
+        .map(|mut target| {
+            if let Some(old_target) = previous
+                .target_outputs
+                .iter()
+                .find(|old| old.path_segment == target.path_segment)
+            {
+                target.training_history = old_target.training_history.clone();
+            }
+            target
+        })
+        .collect()
+}
+
+fn write_snapshot_if_configured(
+    daemon_state_file: Option<&Path>,
+    snapshot: Option<&DaemonSnapshot>,
+) -> Result<(), String> {
+    if let (Some(path), Some(snapshot)) = (daemon_state_file, snapshot) {
+        write_daemon_state(path, snapshot)?;
+    }
+    Ok(())
+}
+
+fn sleep_until_next_poll(interval_ms: u64, stop: &Arc<AtomicBool>) {
+    let mut slept = 0u64;
+    while slept < interval_ms && !stop.load(Ordering::Relaxed) {
+        let step = (interval_ms - slept).min(25);
+        thread::sleep(Duration::from_millis(step));
+        slept += step;
+    }
 }
 
 pub(super) fn daemon_access_policy_from_env() -> DaemonAccessPolicy {

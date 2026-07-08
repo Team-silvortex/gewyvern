@@ -1,23 +1,19 @@
 use super::*;
 
 pub(super) fn python_memory_info(config: &PythonWorkerConfig) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.memory_info_json()
+    with_python_worker(config, |worker| worker.memory_info_json())
 }
 
 pub(super) fn python_memory_model_info(config: &PythonWorkerConfig) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.model_info_json()
+    with_python_worker(config, |worker| worker.model_info_json())
 }
 
 pub(super) fn python_memory_versions(config: &PythonWorkerConfig) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.memory_versions_json()
+    with_python_worker(config, |worker| worker.memory_versions_json())
 }
 
 pub(super) fn python_memory_snapshot(config: &PythonWorkerConfig) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.export_memory_json()
+    with_python_worker(config, |worker| worker.export_memory_json())
 }
 
 pub(super) fn protocol_capabilities(config: &PythonWorkerConfig) -> Result<String, String> {
@@ -25,8 +21,7 @@ pub(super) fn protocol_capabilities(config: &PythonWorkerConfig) -> Result<Strin
 }
 
 pub(super) fn clear_python_memory(config: &PythonWorkerConfig) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.clear_memory_json()
+    with_python_worker(config, |worker| worker.clear_memory_json())
 }
 
 pub(super) fn import_python_memory(
@@ -34,8 +29,9 @@ pub(super) fn import_python_memory(
     strategy: &str,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.import_memory_with_strategy_json(memory_snapshot_json, strategy)
+    with_python_worker(config, |worker| {
+        worker.import_memory_with_strategy_json(memory_snapshot_json, strategy)
+    })
 }
 
 pub(super) fn plan_python_memory_transfer(
@@ -53,8 +49,9 @@ pub(super) fn save_python_memory_slot(
     source: Option<&str>,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.save_memory_slot_json(slot, label, note, source)
+    with_python_worker(config, |worker| {
+        worker.save_memory_slot_json(slot, label, note, source)
+    })
 }
 
 pub(super) fn load_python_memory_slot(
@@ -62,16 +59,16 @@ pub(super) fn load_python_memory_slot(
     strategy: &str,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.load_memory_slot_json(slot, strategy)
+    with_python_worker(config, |worker| {
+        worker.load_memory_slot_json(slot, strategy)
+    })
 }
 
 pub(super) fn delete_python_memory_slot(
     slot: &str,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    worker.delete_memory_slot_json(slot)
+    with_python_worker(config, |worker| worker.delete_memory_slot_json(slot))
 }
 
 pub(super) fn parse_memory_strategy_and_python_options(

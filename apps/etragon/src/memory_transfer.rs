@@ -18,9 +18,9 @@ pub(super) fn python_memory_transfer_plan(
     if !matches!(strategy, "replace" | "merge") {
         return Err("strategy must be one of: replace, merge".to_string());
     }
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    let model_info = worker.model_info_json()?;
-    let current_snapshot = worker.export_memory_json()?;
+    let (model_info, current_snapshot) = with_python_worker(config, |worker| {
+        Ok((worker.model_info_json()?, worker.export_memory_json()?))
+    })?;
     let current = memory_shape_from_json(&current_snapshot)?;
     let incoming = memory_shape_from_json(memory_snapshot_json)?;
 
