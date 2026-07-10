@@ -81,21 +81,10 @@ pub fn linux_tracepoint_smoke_failures(
     hookpoint_name: &'static str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     use crate::fragment::HookPoint;
-    validate_tracepoint_name(hookpoint_name)?;
-    let output = run_repo_script("linux_attach_smoke.sh", hookpoint_name)?;
-
-    if output.status.success() {
-        return Ok(Vec::new());
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let message = if !stderr.is_empty() {
-        stderr
-    } else if !stdout.is_empty() {
-        stdout
-    } else {
-        format!("smoke attach exited with {}", output.status)
+    crate::linux_ebpf_smoke::validate_tracepoint_name(hookpoint_name).map_err(map_smoke_error)?;
+    let message = match crate::linux_ebpf_smoke::run_tracepoint_attach_smoke(hookpoint_name, None) {
+        Ok(()) => return Ok(Vec::new()),
+        Err(err) => err.to_string(),
     };
 
     Ok(vec![AttachFailure {
@@ -118,21 +107,10 @@ pub fn linux_probe_tracepoint_hook(
     hookpoint_name: &'static str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     use crate::fragment::HookPoint;
-    validate_tracepoint_name(hookpoint_name)?;
-    let output = run_repo_script("linux_attach_smoke.sh", hookpoint_name)?;
-
-    if output.status.success() {
-        return Ok(Vec::new());
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let message = if !stderr.is_empty() {
-        stderr
-    } else if !stdout.is_empty() {
-        stdout
-    } else {
-        format!("probe attach exited with {}", output.status)
+    crate::linux_ebpf_smoke::validate_tracepoint_name(hookpoint_name).map_err(map_smoke_error)?;
+    let message = match crate::linux_ebpf_smoke::run_tracepoint_attach_smoke(hookpoint_name, None) {
+        Ok(()) => return Ok(Vec::new()),
+        Err(err) => err.to_string(),
     };
 
     Ok(vec![AttachFailure {
@@ -156,21 +134,10 @@ pub fn linux_probe_kprobe_hook(
     symbol_name: &'static str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     use crate::fragment::HookPoint;
-    validate_symbol_name(symbol_name)?;
-    let output = run_repo_script("linux_kprobe_smoke.sh", symbol_name)?;
-
-    if output.status.success() {
-        return Ok(Vec::new());
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let message = if !stderr.is_empty() {
-        stderr
-    } else if !stdout.is_empty() {
-        stdout
-    } else {
-        format!("probe attach exited with {}", output.status)
+    crate::linux_ebpf_smoke::validate_symbol_name(symbol_name).map_err(map_smoke_error)?;
+    let message = match crate::linux_ebpf_smoke::run_kprobe_attach_smoke(symbol_name, None) {
+        Ok(()) => return Ok(Vec::new()),
+        Err(err) => err.to_string(),
     };
 
     Ok(vec![AttachFailure {
@@ -194,21 +161,10 @@ pub fn linux_probe_tc_ingress_hook(
     dev_name: &'static str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     use crate::fragment::HookPoint;
-    validate_netdev_name(dev_name)?;
-    let output = run_repo_script("linux_tc_smoke.sh", dev_name)?;
-
-    if output.status.success() {
-        return Ok(Vec::new());
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let message = if !stderr.is_empty() {
-        stderr
-    } else if !stdout.is_empty() {
-        stdout
-    } else {
-        format!("probe attach exited with {}", output.status)
+    crate::linux_ebpf_smoke::validate_netdev_name(dev_name).map_err(map_smoke_error)?;
+    let message = match crate::linux_ebpf_smoke::run_tc_attach_smoke(dev_name, None) {
+        Ok(()) => return Ok(Vec::new()),
+        Err(err) => err.to_string(),
     };
 
     Ok(vec![AttachFailure {
@@ -275,102 +231,53 @@ pub fn linux_probe_kernel_hooks(_plan: &AttachPlan) -> Result<Vec<AttachFailure>
     Err(LoaderError::UnsupportedPlatform)
 }
 
-#[cfg(target_os = "linux")]
-fn run_repo_script(
-    script_name: &'static str,
-    arg: &'static str,
-) -> Result<std::process::Output, LoaderError> {
-    let script_path = repo_script_path(script_name)?;
-    std::process::Command::new(script_path)
-        .arg(arg)
-        .output()
-        .map_err(|err| LoaderError::LaunchFailed(err.to_string()))
-}
-
-#[cfg(target_os = "linux")]
-fn repo_script_path(script_name: &'static str) -> Result<std::path::PathBuf, LoaderError> {
-    let script_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("scripts")
-        .join(script_name);
-    let canonical = std::fs::canonicalize(&script_path)
-        .map_err(|err| LoaderError::LaunchFailed(err.to_string()))?;
-    let scripts_root =
-        std::fs::canonicalize(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts"))
-            .map_err(|err| LoaderError::LaunchFailed(err.to_string()))?;
-    if !canonical.starts_with(&scripts_root) {
-        return Err(LoaderError::LaunchFailed(format!(
-            "refusing to execute script outside scripts root: {}",
-            canonical.display()
-        )));
+#[cfg(any(test, target_os = "linux"))]
+fn map_smoke_error(err: crate::linux_ebpf_smoke::LinuxEbpfSmokeError) -> LoaderError {
+    match err {
+        crate::linux_ebpf_smoke::LinuxEbpfSmokeError::UnsupportedPlatform => {
+            LoaderError::UnsupportedPlatform
+        }
+        crate::linux_ebpf_smoke::LinuxEbpfSmokeError::InvalidTarget(message) => {
+            LoaderError::InvalidProbeTarget(message)
+        }
+        crate::linux_ebpf_smoke::LinuxEbpfSmokeError::Io(message)
+        | crate::linux_ebpf_smoke::LinuxEbpfSmokeError::CommandFailed(message) => {
+            LoaderError::LaunchFailed(message)
+        }
     }
-    Ok(canonical)
-}
-
-#[cfg(any(test, target_os = "linux"))]
-fn validate_tracepoint_name(name: &str) -> Result<(), LoaderError> {
-    validate_probe_target(
-        name,
-        |ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '/' | '-'),
-        "tracepoint",
-    )
-}
-
-#[cfg(any(test, target_os = "linux"))]
-fn validate_symbol_name(name: &str) -> Result<(), LoaderError> {
-    validate_probe_target(
-        name,
-        |ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.'),
-        "symbol",
-    )
-}
-
-#[cfg(any(test, target_os = "linux"))]
-fn validate_netdev_name(name: &str) -> Result<(), LoaderError> {
-    validate_probe_target(
-        name,
-        |ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.'),
-        "netdev",
-    )
-}
-
-#[cfg(any(test, target_os = "linux"))]
-fn validate_probe_target<F>(
-    value: &str,
-    is_allowed: F,
-    label: &'static str,
-) -> Result<(), LoaderError>
-where
-    F: Fn(char) -> bool,
-{
-    if value.is_empty() || value.len() > 128 || value.chars().any(|ch| !is_allowed(ch)) {
-        return Err(LoaderError::InvalidProbeTarget(format!(
-            "invalid {label} target '{value}'"
-        )));
-    }
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        LoaderError, validate_netdev_name, validate_symbol_name, validate_tracepoint_name,
+    use super::LoaderError;
+    use crate::linux_ebpf_smoke::{
+        validate_netdev_name, validate_symbol_name, validate_tracepoint_name,
     };
 
     #[test]
     fn tracepoint_validation_rejects_shell_metacharacters() {
         let err = validate_tracepoint_name("syscalls/sys_enter_openat;touch").unwrap_err();
-        assert!(matches!(err, LoaderError::InvalidProbeTarget(_)));
+        assert!(matches!(
+            super::map_smoke_error(err),
+            LoaderError::InvalidProbeTarget(_)
+        ));
     }
 
     #[test]
     fn symbol_validation_rejects_path_characters() {
         let err = validate_symbol_name("../tcp_v4_connect").unwrap_err();
-        assert!(matches!(err, LoaderError::InvalidProbeTarget(_)));
+        assert!(matches!(
+            super::map_smoke_error(err),
+            LoaderError::InvalidProbeTarget(_)
+        ));
     }
 
     #[test]
     fn netdev_validation_rejects_whitespace() {
         let err = validate_netdev_name("eth0 prod").unwrap_err();
-        assert!(matches!(err, LoaderError::InvalidProbeTarget(_)));
+        assert!(matches!(
+            super::map_smoke_error(err),
+            LoaderError::InvalidProbeTarget(_)
+        ));
     }
 }

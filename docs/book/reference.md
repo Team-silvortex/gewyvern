@@ -8,6 +8,8 @@ exact contract page, start with:
 
 - [docs/cli-recipes.md](docs/cli-recipes.md)
 - [docs/script-entrypoints.md](docs/script-entrypoints.md)
+  Prefer the native `gewyvern_validate` release and packaging commands there
+  before dropping down to legacy wrapper scripts.
 
 If the question is about release-line direction rather than a stable contract,
 start with:

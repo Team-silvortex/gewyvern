@@ -196,8 +196,8 @@ For the exact machine-facing contract, keep nearby:
 Use this when you are deciding whether to ship:
 
 ```bash
-bash scripts/packaging/release_gate.sh
-bash scripts/packaging/release_container_check.sh
+cargo run --quiet --bin gewyvern_validate -- release-gate
+cargo run --quiet --bin gewyvern_validate -- release-container-check
 bash scripts/validation/three_module_stack_smoke.sh
 ```
 
@@ -222,4 +222,4 @@ Use this layer when the real question is:
 - Operator surface looks wrong:
   one direct command -> `--serve` -> `/health` and `summary.json`
 - Release confidence is in doubt:
-  one direct command -> `release_gate.sh` -> `three_module_stack_smoke.sh`
+  one direct command -> `gewyvern_validate release-gate` -> `three_module_stack_smoke.sh`

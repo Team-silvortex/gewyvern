@@ -29,6 +29,8 @@ If you want the project as a book instead of a shelf map, jump to:
 If you want the script/operator map first, jump to:
 
 - [docs/script-entrypoints.md](docs/script-entrypoints.md)
+  Native `gewyvern_validate` entrypoints are the preferred release and
+  packaging path; legacy shell wrappers remain there as compatibility shims.
 
 If you want the command shelf first, jump to:
 
@@ -50,6 +52,7 @@ If you want the project-wide dataflow topology first, jump to:
   [docs/field-validation.md](docs/field-validation.md)
 - running the right scripts:
   [docs/script-entrypoints.md](docs/script-entrypoints.md)
+  Prefer the native `gewyvern_validate` commands listed there first.
 - runtime CLI, `gewyc`, socket, and API commands:
   [docs/cli-recipes.md](docs/cli-recipes.md)
 - current monorepo stack layout and subproject entrypoints:
@@ -128,6 +131,7 @@ Use these when you want reading order instead of topic lookup:
 - [docs/field-findings.md](docs/field-findings.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
 - [docs/script-entrypoints.md](docs/script-entrypoints.md)
+  Native validation entrypoints first; shell wrappers kept for compatibility.
 - [docs/cli-recipes.md](docs/cli-recipes.md)
 
 ### Extend The Broader Stack

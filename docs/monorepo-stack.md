@@ -116,7 +116,7 @@ When you want confidence after a stack-wide change, use this order:
 4. stack scripts under [scripts](scripts), especially:
    [scripts/demos/external_engine_roundtrip_demo.sh](scripts/demos/external_engine_roundtrip_demo.sh)
    and
-   [scripts/validation/three_module_stack_smoke.sh](scripts/validation/three_module_stack_smoke.sh)
+   `cargo run --quiet --bin gewyvern_validate -- three-module-stack-smoke`
 
 Use the thin demos first when the question is “did the path still connect?”.
 Use the fuller stack validation when the question is “does the topology still

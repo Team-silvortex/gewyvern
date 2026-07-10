@@ -2,8 +2,9 @@ use std::process::{Command, Stdio};
 
 use super::command::{ValidationError, ValidationReport, repo_root};
 use super::{
-    run_container_runtime_validation, run_container_validation_summary, run_package_install_smoke,
-    run_pathological_container_validation, run_three_module_stack_smoke,
+    RemoteLinuxHostOptions, run_container_runtime_validation, run_container_validation_summary,
+    run_package_install_smoke, run_pathological_container_validation,
+    run_remote_linux_host_validation, run_three_module_stack_smoke,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -30,6 +31,11 @@ pub struct ReleaseGateOptions {
     pub run_release_check: bool,
     pub run_stack: bool,
     pub run_pathology: bool,
+    pub run_remote_host: bool,
+    pub remote_host: String,
+    pub remote_dir: Option<String>,
+    pub keep_remote_dir: bool,
+    pub remote_build_packages: bool,
     pub release_mode: ReleaseCheckMode,
 }
 
@@ -40,6 +46,12 @@ impl Default for ReleaseGateOptions {
             run_release_check: true,
             run_stack: true,
             run_pathology: true,
+            run_remote_host: false,
+            remote_host: std::env::var("GEWY_REMOTE_HOST")
+                .unwrap_or_else(|_| "kyuubiki-lab".to_string()),
+            remote_dir: None,
+            keep_remote_dir: false,
+            remote_build_packages: true,
             release_mode: ReleaseCheckMode::DebAndRpm,
         }
     }
@@ -132,6 +144,40 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
         checks.push("pathological_container_validation".to_string());
     } else {
         println!("[release-gate] skipping pathological container validation");
+    }
+
+    if options.run_remote_host {
+        println!("[release-gate] ----------------------------------------");
+        println!(
+            "[release-gate] running remote linux host validation ({})",
+            options.remote_host
+        );
+        let remote_report = run_remote_linux_host_validation(RemoteLinuxHostOptions {
+            host: options.remote_host,
+            remote_dir: options.remote_dir,
+            build_packages: options.remote_build_packages,
+            keep_remote_dir: options.keep_remote_dir,
+        })?;
+        checks.push("remote_linux_host_validation".to_string());
+        if remote_report
+            .checks
+            .iter()
+            .any(|check| check == "remote_ebpf_smoke")
+        {
+            println!("[release-gate] remote Linux eBPF attach evidence: ok");
+            checks.push("remote_ebpf_smoke".to_string());
+        } else if remote_report
+            .checks
+            .iter()
+            .any(|check| check == "remote_ebpf_smoke_skipped")
+        {
+            println!(
+                "[release-gate] remote Linux eBPF attach evidence: skipped (see remote-ebpf.txt)"
+            );
+            checks.push("remote_ebpf_smoke_skipped".to_string());
+        }
+    } else {
+        println!("[release-gate] skipping remote linux host validation");
     }
 
     println!("[release-gate] ----------------------------------------");

@@ -4,6 +4,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${ROOT}/target/packages"
+TARGET_ROOT="${CARGO_TARGET_DIR:-${ROOT}/target}"
+RELEASE_BIN_DIR="${GEWY_PACKAGE_BINARIES_ROOT:-${TARGET_ROOT}/release}"
 WORK_DIR=""
 KEEP_WORK_DIR=0
 FORMAT="all"
@@ -90,11 +92,11 @@ stage_layout() {
     "${stage_root}/usr/share/gewyvern" \
     "${stage_root}/usr/share/doc/${PACKAGE_NAME}"
 
-  install -m 0755 "${ROOT}/target/release/gewyvern" \
+  install -m 0755 "${RELEASE_BIN_DIR}/gewyvern" \
     "${stage_root}/usr/bin/gewyvern"
-  install -m 0755 "${ROOT}/target/release/gewyvern_socket_send" \
+  install -m 0755 "${RELEASE_BIN_DIR}/gewyvern_socket_send" \
     "${stage_root}/usr/bin/gewyvern_socket_send"
-  install -m 0755 "${ROOT}/target/release/gewyc" \
+  install -m 0755 "${RELEASE_BIN_DIR}/gewyc" \
     "${stage_root}/usr/bin/gewyc"
 
   cp -a "${ROOT}/dsl" "${stage_root}/usr/share/gewyvern/dsl"
@@ -164,6 +166,7 @@ build_deb() {
 build_rpm() {
   local version="$1"
   local rpm_arch="$2"
+  local stage_root="$3"
   local spec_path="${WORK_DIR}/rpmbuild/SPECS/${PACKAGE_NAME}.spec"
   local rpm_topdir="${WORK_DIR}/rpmbuild"
   local rpm_out_dir="${OUT_DIR}/rpm"
@@ -182,8 +185,7 @@ build_rpm() {
   export GEWY_TEMPLATE_RELEASE="${PACKAGE_RELEASE}"
   export GEWY_TEMPLATE_DIST="${RPM_DIST}"
   export GEWY_TEMPLATE_RPM_ARCH="${rpm_arch}"
-  export GEWY_TEMPLATE_SOURCE_ROOT="${ROOT}"
-  export GEWY_TEMPLATE_BINARIES_ROOT="${ROOT}/target/release"
+  export GEWY_TEMPLATE_STAGE_ROOT="${stage_root}"
   export GEWY_TEMPLATE_RELEASE_LINE="${RELEASE_LINE}"
   export GEWY_TEMPLATE_LAYOUT_VERSION="${LAYOUT_VERSION}"
   export GEWY_TEMPLATE_CONFIG_SCHEMA_VERSION="${CONFIG_SCHEMA_VERSION}"
@@ -204,6 +206,25 @@ build_rpm() {
   rpmbuild --define "_topdir ${rpm_topdir}" -bb "${spec_path}"
   find "${rpm_topdir}/RPMS" -type f -name '*.rpm' -exec cp '{}' "${rpm_out_dir}/" ';'
   echo "built rpm packages in ${rpm_out_dir}"
+}
+
+build_all_formats() {
+  local version="$1"
+  local deb_arch="$2"
+  local rpm_arch="$3"
+  local stage_root="$4"
+  local deb_pid=""
+  local rpm_pid=""
+  local status=0
+
+  build_deb "${version}" "${deb_arch}" "${stage_root}" &
+  deb_pid=$!
+  build_rpm "${version}" "${rpm_arch}" "${stage_root}" &
+  rpm_pid=$!
+
+  wait "${deb_pid}" || status=$?
+  wait "${rpm_pid}" || status=$?
+  return "${status}"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -272,11 +293,10 @@ case "${FORMAT}" in
     build_deb "${VERSION}" "${DEB_ARCH}" "${STAGE_ROOT}"
     ;;
   rpm)
-    build_rpm "${VERSION}" "${RPM_ARCH}"
+    build_rpm "${VERSION}" "${RPM_ARCH}" "${STAGE_ROOT}"
     ;;
   all)
-    build_deb "${VERSION}" "${DEB_ARCH}" "${STAGE_ROOT}"
-    build_rpm "${VERSION}" "${RPM_ARCH}"
+    build_all_formats "${VERSION}" "${DEB_ARCH}" "${RPM_ARCH}" "${STAGE_ROOT}"
     ;;
 esac
 

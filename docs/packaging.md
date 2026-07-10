@@ -172,6 +172,11 @@ That command:
 - renders DEB control metadata
 - renders an RPM spec
 
+When `--format all` is used for a real package build, the script now emits the
+`deb` and `rpm` packages in parallel against the same staged layout so Linux
+release-style runs spend less wall-clock time waiting on serial package
+assembly.
+
 It does not require `dpkg-deb` or `rpmbuild`.
 
 When `--layout-only` is used, the staged tree is kept under:
@@ -310,7 +315,7 @@ To run the packaged Linux container validation suite through one summary
 entrypoint, use:
 
 ```bash
-bash scripts/packaging/container_validation_summary.sh
+cargo run --quiet --bin gewyvern_validate -- container-validation-summary
 ```
 
 That wrapper runs, in order:
@@ -327,8 +332,8 @@ Naming note for the packaging scripts:
 If you only want one package family, use:
 
 ```bash
-bash scripts/packaging/container_validation_summary.sh --deb
-bash scripts/packaging/container_validation_summary.sh --rpm
+cargo run --quiet --bin gewyvern_validate -- container-validation-summary --deb
+cargo run --quiet --bin gewyvern_validate -- container-validation-summary --rpm
 ```
 
 ## Release Container Check
@@ -337,7 +342,7 @@ To run the current release-oriented packaged Linux validation suite through one
 entrypoint, use:
 
 ```bash
-bash scripts/packaging/release_container_check.sh
+cargo run --quiet --bin gewyvern_validate -- release-container-check
 ```
 
 That wrapper runs, in order:
@@ -349,8 +354,8 @@ That wrapper runs, in order:
 If you only want one package family, use:
 
 ```bash
-bash scripts/packaging/release_container_check.sh --deb
-bash scripts/packaging/release_container_check.sh --rpm
+cargo run --quiet --bin gewyvern_validate -- release-container-check --deb
+cargo run --quiet --bin gewyvern_validate -- release-container-check --rpm
 ```
 
 For the shorter release-minded decision shelf that also includes the
@@ -362,7 +367,7 @@ If you want one orchestration command that rebuilds artifacts, runs the
 packaged release check, and then runs the three-module stack smoke, use:
 
 ```bash
-bash scripts/packaging/release_gate.sh
+cargo run --quiet --bin gewyvern_validate -- release-gate
 ```
 
 That ship gate belongs conceptually to

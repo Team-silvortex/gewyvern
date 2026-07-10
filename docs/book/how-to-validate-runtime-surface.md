@@ -235,13 +235,14 @@ When you are judging release confidence or cross-environment behavior, use the
 container line as well:
 
 ```bash
-bash scripts/packaging/release_container_check.sh --deb
+cargo run --quiet --bin gewyvern_validate -- release-container-check --deb
 bash scripts/validation/three_module_stack_smoke.sh
 ```
 
 These answer different questions:
 
 - `release_container_check.sh`
+- `gewyvern_validate release-container-check`
   asks whether packaged Linux install/runtime/protocol/operator-path behavior is
   still healthy
 - `three_module_stack_smoke.sh`

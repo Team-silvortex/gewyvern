@@ -20,36 +20,7 @@ debugging workflows.
 
 %install
 rm -rf %{buildroot}
-install -d %{buildroot}/usr/bin
-install -d %{buildroot}/usr/share/gewyvern
-install -d %{buildroot}/usr/share/gewyvern/examples
-install -d %{buildroot}/usr/share/doc/gewyvern
-
-install -m 0755 @BINARIES_ROOT@/gewyvern %{buildroot}/usr/bin/gewyvern
-install -m 0755 @BINARIES_ROOT@/gewyvern_socket_send %{buildroot}/usr/bin/gewyvern_socket_send
-install -m 0755 @BINARIES_ROOT@/gewyc %{buildroot}/usr/bin/gewyc
-
-cp -a @SOURCE_ROOT@/dsl %{buildroot}/usr/share/gewyvern/dsl
-cp -a @SOURCE_ROOT@/protocols %{buildroot}/usr/share/gewyvern/protocols
-install -m 0644 @SOURCE_ROOT@/docs/fixtures/gewyvern.toml.example %{buildroot}/usr/share/gewyvern/examples/gewyvern.toml.example
-cp -a @SOURCE_ROOT@/docs %{buildroot}/usr/share/doc/gewyvern/docs
-install -m 0644 @SOURCE_ROOT@/README.md %{buildroot}/usr/share/doc/gewyvern/README.md
-install -m 0644 @SOURCE_ROOT@/LICENSE %{buildroot}/usr/share/doc/gewyvern/LICENSE
-cat > %{buildroot}/usr/share/gewyvern/package-compat.toml <<'EOF'
-schema_version = 1
-package_name = "@PACKAGE_NAME@"
-package_version = "@VERSION@"
-package_release = "@RELEASE@"
-release_line = "@RELEASE_LINE@"
-layout_version = @LAYOUT_VERSION@
-config_schema_version = @CONFIG_SCHEMA_VERSION@
-share_root = "/usr/share/gewyvern"
-protocol_registry_root = "/usr/share/gewyvern/protocols"
-dsl_root = "/usr/share/gewyvern/dsl"
-config_example = "/usr/share/gewyvern/examples/gewyvern.toml.example"
-legacy_compat_root = "~/.gewyvern"
-upgrade_policy = "copy-forward-without-overwrite"
-EOF
+cp -a @STAGE_ROOT@/. %{buildroot}/
 
 %files
 %defattr(-,root,root,-)

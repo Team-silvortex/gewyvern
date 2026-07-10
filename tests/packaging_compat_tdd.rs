@@ -15,12 +15,23 @@ fn package_layout_writes_compat_manifest() {
     assert!(build_script.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v0.20.x}\""));
     assert!(build_script.contains("LAYOUT_VERSION=\"${GEWY_LAYOUT_VERSION:-1}\""));
     assert!(build_script.contains("CONFIG_SCHEMA_VERSION=\"${GEWY_CONFIG_SCHEMA_VERSION:-1}\""));
+    assert!(build_script.contains("TARGET_ROOT=\"${CARGO_TARGET_DIR:-${ROOT}/target}\""));
+    assert!(
+        build_script
+            .contains("RELEASE_BIN_DIR=\"${GEWY_PACKAGE_BINARIES_ROOT:-${TARGET_ROOT}/release}\"")
+    );
     assert!(build_script.contains("/usr/share/gewyvern/package-compat.toml"));
     assert!(build_script.contains("release_line = \"${RELEASE_LINE}\""));
     assert!(build_script.contains("layout_version = ${LAYOUT_VERSION}"));
     assert!(build_script.contains("config_schema_version = ${CONFIG_SCHEMA_VERSION}"));
+    assert!(build_script.contains("${RELEASE_BIN_DIR}/gewyvern"));
     assert!(build_script.contains("/usr/share/gewyvern/examples/gewyvern.toml.example"));
     assert!(build_script.contains("copy-forward-without-overwrite"));
+    assert!(build_script.contains("build_all_formats()"));
+    assert!(build_script.contains("build_deb \"${version}\" \"${deb_arch}\" \"${stage_root}\" &"));
+    assert!(build_script.contains("build_rpm \"${version}\" \"${rpm_arch}\" \"${stage_root}\" &"));
+    assert!(build_script.contains("local stage_root=\"$3\""));
+    assert!(build_script.contains("GEWY_TEMPLATE_STAGE_ROOT=\"${stage_root}\""));
 }
 
 #[test]
@@ -28,16 +39,9 @@ fn rpm_template_matches_deb_staged_compat_contract() {
     let spec = read_repo_file("packaging/rpm/gewyvern.spec.in");
 
     assert!(spec.contains("/usr/share/gewyvern/package-compat.toml"));
-    assert!(spec.contains("package_name = \"@PACKAGE_NAME@\""));
-    assert!(spec.contains("package_version = \"@VERSION@\""));
-    assert!(spec.contains("package_release = \"@RELEASE@\""));
-    assert!(spec.contains("release_line = \"@RELEASE_LINE@\""));
-    assert!(spec.contains("layout_version = @LAYOUT_VERSION@"));
-    assert!(spec.contains("config_schema_version = @CONFIG_SCHEMA_VERSION@"));
-    assert!(
-        spec.contains("config_example = \"/usr/share/gewyvern/examples/gewyvern.toml.example\"")
-    );
-    assert!(spec.contains("upgrade_policy = \"copy-forward-without-overwrite\""));
+    assert!(spec.contains("cp -a @STAGE_ROOT@/. %{buildroot}/"));
+    assert!(!spec.contains("@SOURCE_ROOT@/dsl"));
+    assert!(!spec.contains("@BINARIES_ROOT@/gewyvern"));
 }
 
 #[test]

@@ -10,9 +10,10 @@ use gewyvern::validation_harness::{
     run_container_operator_path_validation, run_container_protocol_validation,
     run_container_runtime_validation, run_container_validation_summary,
     run_debugger_cross_validation, run_external_engine_roundtrip_demo, run_field_smoke_validation,
-    run_high_frequency_validation, run_package_install_smoke,
-    run_pathological_container_validation, run_registry_validation, run_release_container_check,
-    run_release_gate, run_remote_linux_host_validation, run_resilience_bundle_validation,
+    run_high_frequency_validation, run_linux_attach_smoke, run_linux_kprobe_smoke,
+    run_linux_tc_smoke, run_package_install_smoke, run_pathological_container_validation,
+    run_registry_validation, run_release_container_check, run_release_gate,
+    run_remote_linux_host_validation, run_resilience_bundle_validation,
     run_resilience_drive_bad_json_validation, run_resilience_emit_helper_validation,
     run_resilience_log_evidence_validation, run_resilience_roundtrip_validation,
     run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
@@ -196,6 +197,49 @@ fn run() -> Result<(), ValidationError> {
         "runtime-operator" => {
             let options = parse_options(rest)?;
             let report = run_runtime_operator_validation(options.out_dir, options.json_out)?;
+
+            println!("{}: ok", report.name);
+            println!("checks: {}", report.checks.join(", "));
+            println!("evidence: {}", report.out_dir.display());
+            Ok(())
+        }
+        "linux-attach-smoke" => {
+            if wants_subcommand_help(&rest) {
+                print_linux_attach_smoke_help();
+                return Ok(());
+            }
+            let options = parse_linux_ebpf_smoke_options(
+                rest,
+                "syscalls/sys_enter_nanosleep",
+                "--hookpoint",
+            )?;
+            let report = run_linux_attach_smoke(&options.target, options.out_dir)?;
+
+            println!("{}: ok", report.name);
+            println!("checks: {}", report.checks.join(", "));
+            println!("evidence: {}", report.out_dir.display());
+            Ok(())
+        }
+        "linux-kprobe-smoke" => {
+            if wants_subcommand_help(&rest) {
+                print_linux_kprobe_smoke_help();
+                return Ok(());
+            }
+            let options = parse_linux_ebpf_smoke_options(rest, "ip_route_output_flow", "--symbol")?;
+            let report = run_linux_kprobe_smoke(&options.target, options.out_dir)?;
+
+            println!("{}: ok", report.name);
+            println!("checks: {}", report.checks.join(", "));
+            println!("evidence: {}", report.out_dir.display());
+            Ok(())
+        }
+        "linux-tc-smoke" => {
+            if wants_subcommand_help(&rest) {
+                print_linux_tc_smoke_help();
+                return Ok(());
+            }
+            let options = parse_linux_ebpf_smoke_options(rest, "eth0", "--dev")?;
+            let report = run_linux_tc_smoke(&options.target, options.out_dir)?;
 
             println!("{}: ok", report.name);
             println!("checks: {}", report.checks.join(", "));
@@ -403,6 +447,11 @@ struct RemoteLinuxHostCliOptions {
     remote_dir: Option<String>,
     build_packages: bool,
     keep_remote_dir: bool,
+}
+
+struct LinuxEbpfSmokeCliOptions {
+    target: String,
+    out_dir: Option<PathBuf>,
 }
 
 fn parse_options(args: Vec<String>) -> Result<Options, ValidationError> {
@@ -637,6 +686,22 @@ fn parse_release_gate_options(args: Vec<String>) -> Result<ReleaseGateOptions, V
             "--skip-release-check" => options.run_release_check = false,
             "--skip-stack" => options.run_stack = false,
             "--skip-pathology" => options.run_pathology = false,
+            "--remote-host-validation" => options.run_remote_host = true,
+            "--keep-remote-dir" => options.keep_remote_dir = true,
+            "--skip-remote-build" => options.remote_build_packages = false,
+            "--remote-host" => {
+                options.remote_host = iter
+                    .next()
+                    .ok_or_else(|| ValidationError::new("--remote-host requires a value"))?;
+                options.run_remote_host = true;
+            }
+            "--remote-dir" => {
+                options.remote_dir = Some(
+                    iter.next()
+                        .ok_or_else(|| ValidationError::new("--remote-dir requires a value"))?,
+                );
+                options.run_remote_host = true;
+            }
             "--deb" => options.release_mode = ReleaseCheckMode::Deb,
             "--rpm" => options.release_mode = ReleaseCheckMode::Rpm,
             other => {
@@ -690,6 +755,49 @@ fn parse_remote_linux_host_options(
         remote_dir: options.remote_dir,
         build_packages: options.build_packages,
         keep_remote_dir: options.keep_remote_dir,
+    })
+}
+
+fn parse_linux_ebpf_smoke_options(
+    args: Vec<String>,
+    default_target: &str,
+    expected_flag: &str,
+) -> Result<LinuxEbpfSmokeCliOptions, ValidationError> {
+    let mut target = None;
+    let mut out_dir = None;
+    let mut iter = args.into_iter();
+
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--hookpoint" | "--symbol" | "--dev" => {
+                if arg != expected_flag {
+                    return Err(ValidationError::new(format!(
+                        "{expected_flag} is required for this command; got `{arg}`"
+                    )));
+                }
+                target = Some(
+                    iter.next()
+                        .ok_or_else(|| ValidationError::new(format!("{arg} requires a value")))?,
+                );
+            }
+            "--out-dir" => {
+                let value = iter
+                    .next()
+                    .ok_or_else(|| ValidationError::new("--out-dir requires a path"))?;
+                out_dir = Some(PathBuf::from(value));
+            }
+            other if other.starts_with('-') => {
+                return Err(ValidationError::new(format!(
+                    "unknown linux smoke option `{other}`"
+                )));
+            }
+            other => target = Some(other.to_string()),
+        }
+    }
+
+    Ok(LinuxEbpfSmokeCliOptions {
+        target: target.unwrap_or_else(|| default_target.to_string()),
+        out_dir,
     })
 }
 
@@ -756,6 +864,9 @@ fn print_help() {
         "  external-engine-roundtrip [--ingest-addr <addr>] [--api-addr <addr>] [--template <id>] [--analysis-out <path>] [--engine-out <path>] [--target-path-segment <segment>] [--engine-root <path>] [--engine-cmd <cmd>]"
     );
     println!("  high-frequency [--out-dir <path>]");
+    println!("  linux-attach-smoke [--hookpoint <category/event>] [--out-dir <path>]");
+    println!("  linux-kprobe-smoke [--symbol <kernel-symbol>] [--out-dir <path>]");
+    println!("  linux-tc-smoke --dev <netdev> [--out-dir <path>]");
     println!("  package-install-smoke [--deb|--rpm]");
     println!(
         "  remote-linux-host-validation [--host <ssh-host>] [--remote-dir <path>] [--skip-build] [--keep-remote-dir]"
@@ -797,13 +908,48 @@ fn print_package_install_smoke_help() {
     println!("By default, both the DEB and RPM paths run.");
 }
 
+fn print_linux_attach_smoke_help() {
+    println!(
+        "Usage: gewyvern_validate linux-attach-smoke [--hookpoint <category/event>] [--out-dir <path>]"
+    );
+    println!();
+    println!(
+        "Compile the minimal Linux tracepoint smoke object and loader, then attempt one real attach."
+    );
+    println!(
+        "Run this on Linux with BPF attach privileges; unprivileged runs may fail with `Operation not permitted`."
+    );
+}
+
+fn print_linux_kprobe_smoke_help() {
+    println!(
+        "Usage: gewyvern_validate linux-kprobe-smoke [--symbol <kernel-symbol>] [--out-dir <path>]"
+    );
+    println!();
+    println!("Compile the minimal Linux kprobe smoke object and attempt one real kprobe attach.");
+    println!(
+        "Run this on Linux with BPF attach privileges; unprivileged runs may fail with `Operation not permitted`."
+    );
+}
+
+fn print_linux_tc_smoke_help() {
+    println!("Usage: gewyvern_validate linux-tc-smoke --dev <netdev> [--out-dir <path>]");
+    println!();
+    println!(
+        "Compile the minimal Linux tc ingress smoke object and attempt one real tc filter attach."
+    );
+    println!(
+        "Run this on Linux with BPF attach privileges and pass the default-route device explicitly."
+    );
+}
+
 fn print_remote_linux_host_validation_help() {
     println!(
         "Usage: gewyvern_validate remote-linux-host-validation [--host <ssh-host>] [--remote-dir <path>] [--skip-build] [--keep-remote-dir]"
     );
     println!();
     println!(
-        "Sync the current workspace to a remote Linux host over SSH, build x86_64 packages there, then run host-mode package and runtime smoke checks."
+        "Collect remote Linux/x86_64 preflight evidence, sync the current workspace over SSH, build x86_64 packages there, then run host-mode package and runtime smoke checks."
     );
     println!(
         "Defaults: host from GEWY_REMOTE_HOST or `kyuubiki-lab`, remote dir under `~/.kyuubiki-remote-runs/`."
@@ -840,7 +986,7 @@ fn print_container_runtime_validation_help() {
 
 fn print_release_gate_help() {
     println!(
-        "Usage: gewyvern_validate release-gate [--skip-build] [--skip-release-check] [--skip-stack] [--skip-pathology] [--deb|--rpm]"
+        "Usage: gewyvern_validate release-gate [--skip-build] [--skip-release-check] [--skip-stack] [--skip-pathology] [--remote-host-validation] [--remote-host <ssh-host>] [--remote-dir <path>] [--skip-remote-build] [--keep-remote-dir] [--deb|--rpm]"
     );
     println!();
     println!("Run the current release gate as one deliberate sequence:");
@@ -848,12 +994,18 @@ fn print_release_gate_help() {
     println!("2. run the packaged release validation wrapper");
     println!("3. run the three-module stack smoke");
     println!("4. run pathological container/runtime-ingest validation");
+    println!("5. optionally run remote Linux host validation over SSH");
     println!();
     println!("Flags:");
     println!("  --skip-build          Reuse current package artifacts instead of rebuilding");
     println!("  --skip-release-check  Skip packaged DEB/RPM validation");
     println!("  --skip-stack          Skip three-module stack smoke");
     println!("  --skip-pathology      Skip pathological runtime-ingest validation");
+    println!("  --remote-host-validation  Run remote Linux host validation after local gates");
+    println!("  --remote-host         Override the SSH host used for remote validation");
+    println!("  --remote-dir          Override the remote workspace path");
+    println!("  --skip-remote-build   Reuse existing remote artifacts instead of rebuilding there");
+    println!("  --keep-remote-dir     Keep the remote workspace after the run");
     println!("  --deb                 Run the packaged release check in DEB-only mode");
     println!("  --rpm                 Run the packaged release check in RPM-only mode");
 }

@@ -336,6 +336,15 @@ For this phase, treat the following as pass conditions:
 
 The current local smoke entry point is:
 
+- `cargo run --quiet --bin gewyvern_validate -- field-smoke`
+- `cargo run --quiet --bin gewyvern_validate -- high-frequency`
+- `cargo run --quiet --bin gewyvern_validate -- release-container-check`
+- `cargo run --quiet --bin gewyvern_validate -- container-validation-summary`
+- `cargo run --quiet --bin gewyvern_validate -- container-protocol-validation`
+- `cargo run --quiet --bin gewyvern_validate -- container-operator-path-validation`
+- `cargo run --quiet --bin gewyvern_validate -- registry`
+- `cargo run --quiet --bin gewyvern_validate -- runtime-operator`
+- `cargo run --quiet --bin gewyvern_validate -- container-runtime-validation`
 - [scripts/validation/field_validation_smoke.sh](scripts/validation/field_validation_smoke.sh)
 - [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
 - [scripts/packaging/release_container_check.sh](scripts/packaging/release_container_check.sh)

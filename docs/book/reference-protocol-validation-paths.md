@@ -163,5 +163,5 @@ This is the right layer when the real question is:
 - High-frequency confidence:
   family hub -> [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
 - Release confidence:
-  family hub -> [scripts/packaging/release_container_check.sh](scripts/packaging/release_container_check.sh)
+  family hub -> `gewyvern_validate release-container-check`
   -> [scripts/validation/three_module_stack_smoke.sh](scripts/validation/three_module_stack_smoke.sh)

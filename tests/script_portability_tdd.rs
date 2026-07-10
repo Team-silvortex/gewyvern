@@ -141,6 +141,30 @@ fn markdown_docs_do_not_embed_local_checkout_paths() {
     );
 }
 
+#[test]
+fn release_docs_prefer_native_validation_entrypoints() {
+    let field_validation = read_repo_file("docs/field-validation.md");
+    let field_findings = read_repo_file("docs/field-findings.md");
+    let v020 = read_repo_file("docs/history/v0.20.x.md");
+
+    assert!(
+        field_validation
+            .contains("cargo run --quiet --bin gewyvern_validate -- release-container-check")
+    );
+    assert!(
+        field_validation
+            .contains("cargo run --quiet --bin gewyvern_validate -- container-runtime-validation")
+    );
+    assert!(
+        field_findings
+            .contains("cargo run --quiet --bin gewyvern_validate -- release-gate --skip-build")
+    );
+    assert!(v020.contains("cargo run --quiet --bin gewyvern_validate -- release-container-check"));
+    assert!(
+        v020.contains("cargo run --quiet --bin gewyvern_validate -- release-gate --skip-build")
+    );
+}
+
 fn local_path(parts: &[&str]) -> String {
     format!("/{}", parts.join("/"))
 }

@@ -47,7 +47,7 @@ For those, use:
 
 The current release-style entrypoint now passes in one run:
 
-- `bash scripts/packaging/release_gate.sh --skip-build`
+- `cargo run --quiet --bin gewyvern_validate -- release-gate --skip-build`
 
 That green path includes:
 
@@ -214,18 +214,18 @@ states:
 That is a good prelaunch shape for a standalone debugger: the runtime is
 preferring stable conservatism over premature collapse.
 
-### 6. The Release Wrapper Itself Now Holds Up Under Default `deb+rpm` Mode
+### 6. The Release Validation Path Now Holds Up Under Default `deb+rpm` Mode
 
-The release-style wrapper path exposed one real scripting bug during this
-validation cycle:
+The release-style compatibility layer exposed one real scripting bug during
+this validation cycle:
 
-- `scripts/packaging/release_container_check.sh`
-- `scripts/packaging/container_validation_summary.sh`
+- `cargo run --quiet --bin gewyvern_validate -- release-container-check`
+- `cargo run --quiet --bin gewyvern_validate -- container-validation-summary`
 
-In default `deb+rpm` mode, both scripts could trip `set -u` because they
+In default `deb+rpm` mode, the underlying wrapper path could trip `set -u` because it
 expanded an empty `mode_args` array directly.
 
-That is now fixed, so the default wrapper path can be used as a real release
+That is now fixed, so the native release path can be used as a real release
 entrypoint instead of only the explicit `--deb` / `--rpm` submodes.
 
 ### 7. A Release-Style Packaged Linux Checklist Already Passes

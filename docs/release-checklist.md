@@ -106,7 +106,7 @@ version line.
 The shortest one-command gate is:
 
 ```bash
-bash scripts/packaging/release_gate.sh
+cargo run --quiet --bin gewyvern_validate -- release-gate
 ```
 
 That sequence rebuilds current native artifacts, runs the packaged release
@@ -116,17 +116,18 @@ pathological container/runtime-ingest validation.
 If you want to skip one phase while narrowing a failure, use:
 
 ```bash
-bash scripts/packaging/release_gate.sh --skip-build
-bash scripts/packaging/release_gate.sh --skip-stack
-bash scripts/packaging/release_gate.sh --skip-pathology
-bash scripts/packaging/release_gate.sh --deb
-bash scripts/packaging/release_gate.sh --rpm
+cargo run --quiet --bin gewyvern_validate -- release-gate --skip-build
+cargo run --quiet --bin gewyvern_validate -- release-gate --skip-stack
+cargo run --quiet --bin gewyvern_validate -- release-gate --skip-pathology
+cargo run --quiet --bin gewyvern_validate -- release-gate --remote-host-validation
+cargo run --quiet --bin gewyvern_validate -- release-gate --deb
+cargo run --quiet --bin gewyvern_validate -- release-gate --rpm
 ```
 
 The lower-level packaged release-minded entrypoint is:
 
 ```bash
-bash scripts/packaging/release_container_check.sh
+cargo run --quiet --bin gewyvern_validate -- release-container-check
 ```
 
 This must pass in default `deb+rpm` mode.
@@ -149,13 +150,35 @@ surface stays internally consistent:
 If you are narrowing a failure, these subchecks may be run independently:
 
 ```bash
-bash scripts/packaging/package_install_smoke.sh
-bash scripts/packaging/container_runtime_validation.sh
-bash scripts/packaging/container_protocol_validation.sh
-bash scripts/packaging/container_operator_path_validation.sh
+cargo run --quiet --bin gewyvern_validate -- package-install-smoke
+cargo run --quiet --bin gewyvern_validate -- container-runtime-validation
+cargo run --quiet --bin gewyvern_validate -- container-protocol-validation
+cargo run --quiet --bin gewyvern_validate -- container-operator-path-validation
 cargo run --quiet --bin gewyvern_validate -- debugger-cross
 cargo audit
 ```
+
+If you need one real Linux host signal in addition to the local packaged gate,
+run:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- remote-linux-host-validation
+```
+
+Or fold it into the main release gate:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- release-gate --remote-host-validation
+```
+
+Interpret the remote Linux signal explicitly:
+
+- `remote_ebpf_smoke` means a real Linux host had enough privilege to prove
+  native attach/kprobe/tc smoke behavior.
+- `remote_ebpf_smoke_skipped` means package/runtime confidence still passed,
+  but Linux eBPF attach confidence was not established on that host because
+  privilege or route-device prerequisites were missing. Treat that as an
+  environment gap, not as a hidden green light.
 
 For the dependency-vulnerability portion of the release gate, the current
 practical commands are:

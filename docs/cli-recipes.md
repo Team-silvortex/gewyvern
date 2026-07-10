@@ -197,9 +197,9 @@ For contributor workflow and layout guidance, use:
 If the change touches real eBPF attach/runtime behavior, use:
 
 - [docs/headless-linux.md](docs/headless-linux.md)
-- [scripts/linux/linux_attach_smoke.sh](scripts/linux/linux_attach_smoke.sh)
-- [scripts/linux/linux_kprobe_smoke.sh](scripts/linux/linux_kprobe_smoke.sh)
-- [scripts/linux/linux_tc_smoke.sh](scripts/linux/linux_tc_smoke.sh)
+- `cargo run --quiet --bin gewyvern_validate -- linux-attach-smoke`
+- `cargo run --quiet --bin gewyvern_validate -- linux-kprobe-smoke`
+- `cargo run --quiet --bin gewyvern_validate -- linux-tc-smoke --dev <default-route-device>`
 
 Run these with root/BPF attach privileges, for example through `sudo`, and pass
 the default-route interface to the TC smoke. An unprivileged run may fail during

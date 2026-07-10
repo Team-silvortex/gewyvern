@@ -83,6 +83,29 @@ cargo run --quiet --bin gewyvern_validate -- remote-linux-host-validation
 
 This syncs the current workspace to a remote Linux host over SSH, builds
 `x86_64` packages there, then runs host-mode package and runtime smoke checks.
+Before any package/run step, it records a remote preflight snapshot so failures
+separate environment drift from runtime regressions.
+It also records Linux eBPF smoke evidence: when passwordless `sudo` and a
+default-route device are available, it runs the native attach/kprobe/tc smokes;
+otherwise it records an explicit `skipped` reason instead of turning an
+environment privilege gap into a false runtime regression.
+The remote packaging and remote eBPF validator paths now reuse a shared remote
+Cargo target cache under `~/.cache/gewyvern/remote-target`, so repeated runs do
+not have to cold-rebuild every binary from a brand-new workspace.
+They also reuse a shared remote source cache under
+`~/.cache/gewyvern/remote-source`: the local machine rsyncs incrementally into
+that stable cache first, then each validation run materializes its own working
+directory from the cache on the remote host itself.
+The workspace sync for this command is intentionally narrower than the full
+monorepo: it skips `tests/`, transient `apps/**/bin/` / `apps/**/obj/` outputs,
+`__pycache__`, and similar local-only residue because the remote host package
+and runtime checks do not consume those shelves.
+
+If the SSH user cannot `sudo -n` but you do have a separate admin account,
+export `GEWY_REMOTE_EBPF_ADMIN_USER` and `GEWY_REMOTE_EBPF_ADMIN_PASSWORD`
+before running the command. That credential path is used only for the remote
+eBPF attach step; the normal workspace sync and package/runtime flow stay on
+the existing SSH path.
 
 Defaults:
 
@@ -95,6 +118,20 @@ Useful flags:
 - `--remote-dir <path>`
 - `--skip-build`
 - `--keep-remote-dir`
+
+Evidence written locally:
+
+- `target/validation/remote-linux-host-validation/remote-preflight.txt`
+- `target/validation/remote-linux-host-validation/remote-artifacts.txt`
+- `target/validation/remote-linux-host-validation/remote-ebpf.txt`
+- `target/validation/remote-linux-host-validation/remote-ebpf/`
+- `target/validation/remote-linux-host-validation/remote-phase-timings.txt`
+- `target/validation/remote-linux-host-validation/remote-run.txt`
+
+The phase-timing file records the observed wall-clock time for each major
+remote validation step so we can tell whether regressions come from sync,
+materialization, build, package smoke, runtime smoke, or the privileged eBPF
+attach path.
 
 ### I want to validate built-in protocol packages
 
@@ -236,15 +273,18 @@ wrappers around the native `gewyvern_validate` commands.
 Run one of:
 
 ```bash
-sudo bash scripts/linux/linux_attach_smoke.sh
-sudo bash scripts/linux/linux_kprobe_smoke.sh
-sudo bash scripts/linux/linux_tc_smoke.sh <default-route-device>
+sudo cargo run --quiet --bin gewyvern_validate -- linux-attach-smoke
+sudo cargo run --quiet --bin gewyvern_validate -- linux-kprobe-smoke
+sudo cargo run --quiet --bin gewyvern_validate -- linux-tc-smoke --dev <default-route-device>
 ```
 
 Use these only on Linux-capable environments with the required kernel support
 and BPF attach privileges. Without root, `CAP_BPF`/`CAP_NET_ADMIN`, or an
 equivalent lab setup, the loader can fail with `Operation not permitted` before
 it reaches gewyvern-specific behavior.
+
+The legacy `scripts/linux/*.sh` entrypoints remain as thin compatibility
+wrappers around these native commands.
 
 ### I want a local benchmark or history snapshot
 

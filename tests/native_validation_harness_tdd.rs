@@ -20,6 +20,9 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("\"container-validation-summary\""));
     assert!(binary.contains("\"package-install-smoke\""));
     assert!(binary.contains("\"remote-linux-host-validation\""));
+    assert!(binary.contains("\"linux-attach-smoke\""));
+    assert!(binary.contains("\"linux-kprobe-smoke\""));
+    assert!(binary.contains("\"linux-tc-smoke\""));
     assert!(binary.contains("evidence-index.json"));
     assert!(binary.contains("\"field-smoke\""));
     assert!(binary.contains("\"high-frequency\""));
@@ -38,6 +41,9 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("print_stack_list"));
     assert!(binary.contains("--limit"));
     assert!(binary.contains("--json-out"));
+    assert!(binary.contains("--remote-host-validation"));
+    assert!(binary.contains("--skip-remote-build"));
+    assert!(binary.contains("--keep-remote-dir"));
     assert!(mod_file.contains("run_debugger_cross_validation"));
     assert!(mod_file.contains("run_socket_roundtrip_demo"));
     assert!(mod_file.contains("run_training_dataset_roundtrip_demo"));
@@ -58,10 +64,71 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(mod_file.contains("run_container_validation_summary"));
     assert!(mod_file.contains("run_package_install_smoke"));
     assert!(mod_file.contains("run_remote_linux_host_validation"));
+    assert!(mod_file.contains("run_linux_attach_smoke"));
+    assert!(mod_file.contains("run_linux_kprobe_smoke"));
+    assert!(mod_file.contains("run_linux_tc_smoke"));
     assert!(mod_file.contains("run_stack_probe_validation"));
     assert!(mod_file.contains("run_three_module_stack_smoke"));
     assert!(mod_file.contains("run_pathological_container_validation"));
     assert!(mod_file.contains("write_stack_resilience_summary"));
+}
+
+#[test]
+fn linux_ebpf_smokes_are_native_with_legacy_wrappers() {
+    let smoke = read_repo_file("src/linux_ebpf_smoke.rs");
+    let harness = read_repo_file("src/validation_harness/linux_ebpf.rs");
+    let binary = read_repo_file("src/bin/gewyvern_validate.rs");
+    let attach_script = read_repo_file("scripts/linux/linux_attach_smoke.sh");
+    let kprobe_script = read_repo_file("scripts/linux/linux_kprobe_smoke.sh");
+    let tc_script = read_repo_file("scripts/linux/linux_tc_smoke.sh");
+    let entrypoints = read_repo_file("docs/script-entrypoints.md");
+
+    assert!(smoke.contains("run_tracepoint_attach_smoke"));
+    assert!(smoke.contains("run_kprobe_attach_smoke"));
+    assert!(smoke.contains("run_tc_attach_smoke"));
+    assert!(smoke.contains("Command::new(\"clang\")"));
+    assert!(smoke.contains("Command::new(\"cc\")"));
+    assert!(smoke.contains("Command::new(\"tc\")"));
+    assert!(smoke.contains("std::env::current_dir()"));
+    assert!(smoke.contains("current_dir.join(\"ebpf\").join(\"smoke\").is_dir()"));
+    assert!(smoke.contains("env!(\"CARGO_MANIFEST_DIR\")"));
+    assert!(harness.contains("run_linux_attach_smoke"));
+    assert!(harness.contains("run_linux_kprobe_smoke"));
+    assert!(harness.contains("run_linux_tc_smoke"));
+    assert!(harness.contains("Operation not permitted"));
+    assert!(binary.contains("linux-attach-smoke"));
+    assert!(binary.contains("linux-kprobe-smoke"));
+    assert!(binary.contains("linux-tc-smoke"));
+    assert!(attach_script.contains("gewyvern_validate -- linux-attach-smoke"));
+    assert!(kprobe_script.contains("gewyvern_validate -- linux-kprobe-smoke"));
+    assert!(tc_script.contains("gewyvern_validate -- linux-tc-smoke"));
+    assert!(
+        entrypoints
+            .contains("sudo cargo run --quiet --bin gewyvern_validate -- linux-attach-smoke")
+    );
+    assert!(entrypoints.contains("thin compatibility"));
+}
+
+#[test]
+fn remote_host_validation_records_phase_timings() {
+    let remote_host = read_repo_file("src/validation_harness/remote_host.rs");
+    let entrypoints = read_repo_file("docs/script-entrypoints.md");
+
+    assert!(remote_host.contains("struct PhaseTiming"));
+    assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_preflight\""));
+    assert!(remote_host.contains("measure_phase(&mut phase_timings, \"workspace_sync\""));
+    assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_package_build\""));
+    assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_package_smoke\""));
+    assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_runtime_smoke\""));
+    assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_ebpf_smoke\""));
+    assert!(
+        remote_host.contains("measure_phase(&mut phase_timings, \"remote_workspace_materialize\"")
+    );
+    assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_workspace_cleanup\""));
+    assert!(remote_host.contains("remote-phase-timings.txt"));
+    assert!(remote_host.contains("checks.push(\"remote_phase_timings\".to_string())"));
+    assert!(remote_host.contains("total={:.3}"));
+    assert!(entrypoints.contains("remote-phase-timings.txt"));
 }
 
 #[test]
@@ -302,6 +369,10 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(release_gate.contains("run_package_install_smoke(mode)?"));
     assert!(release_gate.contains("run_container_runtime_validation(mode)?"));
     assert!(release_gate.contains("run_container_validation_summary(mode)?"));
+    assert!(release_gate.contains("run_remote_linux_host_validation"));
+    assert!(release_gate.contains("remote_linux_host_validation"));
+    assert!(release_gate.contains("remote_ebpf_smoke"));
+    assert!(release_gate.contains("remote_ebpf_smoke_skipped"));
     assert!(smoke.contains("gewyvern_validate"));
     assert!(smoke.contains("package-install-smoke"));
     assert!(protocol.contains("gewyvern_validate"));
@@ -326,14 +397,61 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("rsync"));
     assert!(remote.contains("ssh"));
     assert!(remote.contains("build_packages.sh --format all"));
+    assert!(remote.contains("remote-preflight.txt"));
+    assert!(remote.contains("remote-artifacts.txt"));
+    assert!(remote.contains("remote-ebpf.txt"));
+    assert!(remote.contains("collect_remote_preflight"));
+    assert!(remote.contains("collect_remote_artifact_manifest"));
+    assert!(remote.contains("collect_remote_ebpf_evidence"));
+    assert!(remote.contains("sync_remote_ebpf_evidence"));
+    assert!(remote.contains(".arg(\"tests/\")"));
+    assert!(remote.contains(".arg(\"apps/**/obj/\")"));
+    assert!(remote.contains(".arg(\"apps/**/bin/\")"));
+    assert!(remote.contains(".arg(\"**/__pycache__/\")"));
+    assert!(remote.contains(".arg(\".DS_Store\")"));
+    assert!(remote.contains("remote_source_cache_dir"));
+    assert!(remote.contains(".cache/gewyvern/remote-source"));
+    assert!(remote.contains("materialize_remote_workspace"));
+    assert!(remote.contains("remote_workspace_materialize"));
+    assert!(remote.contains("remote_workspace_materialized"));
+    assert!(remote.contains("GEWY_REMOTE_EBPF_ADMIN_USER"));
+    assert!(remote.contains("GEWY_REMOTE_EBPF_ADMIN_PASSWORD"));
+    assert!(remote.contains("sshpass"));
+    assert!(remote.contains("remote_cargo_target_dir"));
+    assert!(remote.contains(".cache/gewyvern/remote-target"));
+    assert!(remote.contains(
+        "CARGO_TARGET_DIR={target_dir} ./scripts/packaging/build_packages.sh --format all"
+    ));
+    assert!(
+        remote
+            .contains("CARGO_TARGET_DIR={target_dir} cargo build --quiet --bin gewyvern_validate")
+    );
+    assert!(remote.contains("debug/gewyvern_validate"));
+    assert!(remote.contains("remote_preflight"));
+    assert!(remote.contains("remote_artifacts_present"));
+    assert!(remote.contains("remote_ebpf_smoke"));
+    assert!(remote.contains("remote_ebpf_evidence_synced"));
+    assert!(remote.contains("remote_ebpf_smoke_skipped"));
+    assert!(remote.contains("uname -s"));
+    assert!(remote.contains("uname -m"));
+    assert!(remote.contains("sudo_available"));
+    assert!(remote.contains("default_route_device"));
+    assert!(remote.contains("sudo_not_available"));
+    assert!(remote.contains("all_smokes_passed_admin_ssh"));
     assert!(remote.contains("remote package smoke: ok"));
     assert!(remote.contains("remote runtime smoke: ok"));
     assert!(remote.contains("rpm2cpio"));
+    assert!(remote.contains("x86_64/amd64"));
     assert!(remote.contains("kyuubiki-lab"));
     assert!(binary.contains("remote-linux-host-validation"));
     assert!(binary.contains("--keep-remote-dir"));
     assert!(binary.contains("--skip-build"));
+    assert!(binary.contains("Collect remote Linux/x86_64 preflight evidence"));
     assert!(docs.contains("remote-linux-host-validation"));
+    assert!(docs.contains("remote-preflight.txt"));
+    assert!(docs.contains("remote-artifacts.txt"));
+    assert!(docs.contains("remote-ebpf.txt"));
+    assert!(docs.contains("target/validation/remote-linux-host-validation/remote-ebpf"));
 }
 
 #[test]

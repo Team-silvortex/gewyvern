@@ -119,10 +119,10 @@ repo now includes:
 - [scripts/history/render_minor_line_ir_snapshot.sh](scripts/history/render_minor_line_ir_snapshot.sh)
   Thin helper that renders Markdown-ready IR history snapshot blocks from one
   or more `.gewy` inputs.
-- [scripts/validation/three_module_stack_smoke.sh](scripts/validation/three_module_stack_smoke.sh)
+- `cargo run --quiet --bin gewyvern_validate -- three-module-stack-smoke`
   Current cross-project gate that can also emit one small `resilience-summary`
   text artifact for archive-friendly runtime-collaboration evidence.
-- [scripts/validation/pathological_container_validation.sh](scripts/validation/pathological_container_validation.sh)
+- `cargo run --quiet --bin gewyvern_validate -- pathological-container-validation`
   Containerized malformed-client gate for runtime ingest resilience and
   post-fault service continuity.
 - [docs/history/minor-line-evidence-bundle.md](docs/history/minor-line-evidence-bundle.md)

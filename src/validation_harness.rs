@@ -4,6 +4,7 @@ mod debugger_cross;
 mod demo_roundtrip;
 mod field_smoke;
 mod high_frequency;
+mod linux_ebpf;
 mod registry;
 mod release_gate;
 mod remote_host;
@@ -25,6 +26,7 @@ pub use demo_roundtrip::{
 };
 pub use field_smoke::run_field_smoke_validation;
 pub use high_frequency::run_high_frequency_validation;
+pub use linux_ebpf::{run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke};
 pub use registry::run_registry_validation;
 pub use release_gate::{
     ReleaseCheckMode, ReleaseGateOptions, run_release_container_check, run_release_gate,

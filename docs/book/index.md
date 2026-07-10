@@ -106,6 +106,12 @@ For the current `0.20.x` final pre-`1.0` posture, see:
 - [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
 
+For release validation routing, prefer the native `gewyvern_validate`
+entrypoints described in:
+
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
+- [docs/packaging.md](docs/packaging.md)
+
 ## Role-Based Reading Paths
 
 The shortest useful path depends on who you are.

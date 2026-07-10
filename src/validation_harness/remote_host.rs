@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::io::Write;
 use std::process::{Command, Stdio};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use super::command::{ValidationError, ValidationReport, default_out_dir, repo_root};
 
@@ -30,9 +30,11 @@ pub fn run_remote_linux_host_validation(
 ) -> Result<ValidationReport, ValidationError> {
     require_cmd("ssh")?;
     require_cmd("rsync")?;
+    let admin_auth = remote_ebpf_admin_auth()?;
 
     let out_dir = default_out_dir("remote-linux-host-validation");
     fs::create_dir_all(&out_dir)?;
+    let mut phase_timings = Vec::new();
 
     let remote_dir = options
         .remote_dir
@@ -46,56 +48,133 @@ pub fn run_remote_linux_host_validation(
 
     let result: Result<ValidationReport, ValidationError> = (|| {
         println!("[remote-host] ----------------------------------------");
-        println!("[remote-host] creating remote workspace");
-        run_ssh_command(
-            &options.host,
-            &format!("mkdir -p {remote_path}"),
-            "failed to create remote workspace",
-        )?;
+        println!("[remote-host] collecting remote preflight");
+        let preflight = measure_phase(&mut phase_timings, "remote_preflight", || {
+            collect_remote_preflight(&options.host, options.build_packages)
+        })?;
+        fs::write(out_dir.join("remote-preflight.txt"), preflight.render())?;
+        let resolved_remote_path = resolve_remote_workspace_path(&remote_path, &preflight.home_dir);
+        let remote_source_cache = remote_source_cache_dir(&preflight.home_dir);
+        let remote_source_cache_quoted = shell_single_quote(&remote_source_cache);
+        let remote_path_quoted = shell_single_quote(&resolved_remote_path);
 
         println!("[remote-host] ----------------------------------------");
-        println!("[remote-host] syncing current workspace");
-        sync_workspace(&options.host, &remote_path)?;
+        println!("[remote-host] creating remote workspace roots");
+        measure_phase(&mut phase_timings, "remote_workspace_create", || {
+            run_ssh_command(
+                &options.host,
+                &format!("mkdir -p {remote_source_cache_quoted} {remote_path_quoted}"),
+                "failed to create remote workspace roots",
+            )
+        })?;
+
+        println!("[remote-host] ----------------------------------------");
+        println!("[remote-host] syncing current workspace into remote source cache");
+        measure_phase(&mut phase_timings, "workspace_sync", || {
+            sync_workspace(&options.host, &remote_source_cache)
+        })?;
+
+        println!("[remote-host] ----------------------------------------");
+        println!("[remote-host] materializing remote workspace from source cache");
+        measure_phase(&mut phase_timings, "remote_workspace_materialize", || {
+            materialize_remote_workspace(&options.host, &remote_source_cache, &resolved_remote_path)
+        })?;
 
         let mut checks = vec!["workspace_synced".to_string()];
+        checks.insert(0, "remote_preflight".to_string());
+        checks.push("remote_workspace_materialized".to_string());
 
         if options.build_packages {
             println!("[remote-host] ----------------------------------------");
             println!("[remote-host] building x86_64 packages on remote host");
-            run_ssh_command(
-                &options.host,
-                &format!("cd {remote_path} && ./scripts/packaging/build_packages.sh --format all"),
-                "remote package build failed",
-            )?;
+            measure_phase(&mut phase_timings, "remote_package_build", || {
+                let target_dir = shell_single_quote(&remote_cargo_target_dir(&preflight.home_dir));
+                run_ssh_command(
+                    &options.host,
+                    &format!(
+                        "mkdir -p {target_dir} && cd {resolved_remote_path} && CARGO_TARGET_DIR={target_dir} ./scripts/packaging/build_packages.sh --format all"
+                    ),
+                    "remote package build failed",
+                )
+            })?;
             checks.push("remote_package_build".to_string());
         } else {
             println!("[remote-host] skipping remote package build");
         }
 
         println!("[remote-host] ----------------------------------------");
-        println!("[remote-host] running remote package smoke");
-        run_ssh_script(
-            &options.host,
-            &format!("cd {remote_path} && bash -s"),
-            &remote_package_smoke_script(&release_line),
-            "remote package smoke failed",
+        println!("[remote-host] verifying remote package artifacts");
+        let artifact_manifest =
+            measure_phase(&mut phase_timings, "remote_artifact_verify", || {
+                collect_remote_artifact_manifest(&options.host, &remote_path)
+            })?;
+        fs::write(
+            out_dir.join("remote-artifacts.txt"),
+            artifact_manifest.render(),
         )?;
+        checks.push("remote_artifacts_present".to_string());
+
+        println!("[remote-host] ----------------------------------------");
+        println!("[remote-host] running remote package smoke");
+        measure_phase(&mut phase_timings, "remote_package_smoke", || {
+            run_ssh_script(
+                &options.host,
+                &format!("cd {resolved_remote_path} && bash -s"),
+                &remote_package_smoke_script(&release_line),
+                "remote package smoke failed",
+            )
+        })?;
         checks.push("remote_package_smoke".to_string());
 
         println!("[remote-host] ----------------------------------------");
         println!("[remote-host] running remote runtime smoke");
-        run_ssh_script(
-            &options.host,
-            &format!("cd {remote_path} && bash -s"),
-            REMOTE_RUNTIME_SMOKE_SCRIPT,
-            "remote runtime smoke failed",
-        )?;
+        measure_phase(&mut phase_timings, "remote_runtime_smoke", || {
+            run_ssh_script(
+                &options.host,
+                &format!("cd {resolved_remote_path} && bash -s"),
+                REMOTE_RUNTIME_SMOKE_SCRIPT,
+                "remote runtime smoke failed",
+            )
+        })?;
         checks.push("remote_runtime_smoke".to_string());
+
+        println!("[remote-host] ----------------------------------------");
+        println!("[remote-host] collecting remote eBPF smoke evidence");
+        let ebpf_evidence = measure_phase(&mut phase_timings, "remote_ebpf_smoke", || {
+            collect_remote_ebpf_evidence(
+                &options.host,
+                &resolved_remote_path,
+                &preflight,
+                admin_auth.as_ref(),
+            )
+        })?;
+        fs::write(out_dir.join("remote-ebpf.txt"), ebpf_evidence.render())?;
+        if ebpf_evidence.status == "ok" {
+            println!("[remote-host] syncing remote eBPF evidence");
+            measure_phase(&mut phase_timings, "remote_ebpf_evidence_sync", || {
+                sync_remote_ebpf_evidence(
+                    &options.host,
+                    &resolved_remote_path,
+                    &preflight.home_dir,
+                    &out_dir,
+                )
+            })?;
+            checks.push("remote_ebpf_evidence_synced".to_string());
+        }
+        checks.push(match ebpf_evidence.status.as_str() {
+            "ok" => "remote_ebpf_smoke".to_string(),
+            _ => "remote_ebpf_smoke_skipped".to_string(),
+        });
+        fs::write(
+            out_dir.join("remote-phase-timings.txt"),
+            render_phase_timings(&phase_timings),
+        )?;
+        checks.push("remote_phase_timings".to_string());
 
         let summary = format!(
             "host={}\nremote_dir={}\nbuild_packages={}\nkeep_remote_dir={}\nchecks={}\n",
             options.host,
-            remote_path,
+            resolved_remote_path,
             options.build_packages,
             options.keep_remote_dir,
             checks.join(",")
@@ -107,10 +186,17 @@ pub fn run_remote_linux_host_validation(
         } else {
             println!("[remote-host] ----------------------------------------");
             println!("[remote-host] removing remote workspace");
-            run_ssh_command(
-                &options.host,
-                &format!("rm -rf {remote_path}"),
-                "failed to remove remote workspace",
+            measure_phase(&mut phase_timings, "remote_workspace_cleanup", || {
+                remove_remote_workspace(
+                    &options.host,
+                    &resolved_remote_path,
+                    &preflight.home_dir,
+                    admin_auth.as_ref(),
+                )
+            })?;
+            fs::write(
+                out_dir.join("remote-phase-timings.txt"),
+                render_phase_timings(&phase_timings),
             )?;
         }
 
@@ -129,6 +215,42 @@ pub fn run_remote_linux_host_validation(
     })
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct PhaseTiming {
+    name: String,
+    elapsed: Duration,
+}
+
+fn measure_phase<T>(
+    phase_timings: &mut Vec<PhaseTiming>,
+    name: &str,
+    operation: impl FnOnce() -> Result<T, ValidationError>,
+) -> Result<T, ValidationError> {
+    let started_at = Instant::now();
+    let result = operation();
+    phase_timings.push(PhaseTiming {
+        name: name.to_string(),
+        elapsed: started_at.elapsed(),
+    });
+    result
+}
+
+fn render_phase_timings(phase_timings: &[PhaseTiming]) -> String {
+    let total = phase_timings
+        .iter()
+        .fold(Duration::ZERO, |acc, timing| acc + timing.elapsed);
+    let mut lines = Vec::with_capacity(phase_timings.len() + 1);
+    for timing in phase_timings {
+        lines.push(format!(
+            "{}={:.3}",
+            timing.name,
+            timing.elapsed.as_secs_f64()
+        ));
+    }
+    lines.push(format!("total={:.3}", total.as_secs_f64()));
+    format!("{}\n", lines.join("\n"))
+}
+
 fn default_remote_dir() -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -145,6 +267,14 @@ fn remote_workspace_path(remote_dir: &str) -> String {
     }
 }
 
+fn remote_cargo_target_dir(home_dir: &str) -> String {
+    format!("{home_dir}/.cache/gewyvern/remote-target")
+}
+
+fn remote_source_cache_dir(home_dir: &str) -> String {
+    format!("{home_dir}/.cache/gewyvern/remote-source")
+}
+
 fn sync_workspace(host: &str, remote_path: &str) -> Result<(), ValidationError> {
     let root = repo_root();
     let mut command = Command::new("rsync");
@@ -158,9 +288,15 @@ fn sync_workspace(host: &str, remote_path: &str) -> Result<(), ValidationError> 
         .arg("--exclude")
         .arg("node_modules/")
         .arg("--exclude")
-        .arg("**/obj/")
+        .arg("tests/")
         .arg("--exclude")
-        .arg("apps/leserpent/src/Leserpent/data/control-plane-state.json")
+        .arg("apps/**/obj/")
+        .arg("--exclude")
+        .arg("apps/**/bin/")
+        .arg("--exclude")
+        .arg("**/__pycache__/")
+        .arg("--exclude")
+        .arg(".DS_Store")
         .arg(format!("{}/", root.display()))
         .arg(format!("{host}:{remote_path}/"))
         .stdin(Stdio::null())
@@ -175,6 +311,54 @@ fn sync_workspace(host: &str, remote_path: &str) -> Result<(), ValidationError> 
     } else {
         Err(ValidationError::new(format!(
             "rsync failed with status {status}"
+        )))
+    }
+}
+
+fn materialize_remote_workspace(
+    host: &str,
+    remote_source_cache: &str,
+    remote_path: &str,
+) -> Result<(), ValidationError> {
+    let remote_source_cache = shell_single_quote(remote_source_cache);
+    let remote_path = shell_single_quote(remote_path);
+    run_ssh_command(
+        host,
+        &format!("rsync -a --delete {remote_source_cache}/ {remote_path}/"),
+        "failed to materialize remote workspace from source cache",
+    )
+}
+
+fn sync_remote_ebpf_evidence(
+    host: &str,
+    remote_path: &str,
+    home_dir: &str,
+    out_dir: &std::path::Path,
+) -> Result<(), ValidationError> {
+    let remote_workspace = resolve_remote_workspace_path(remote_path, home_dir);
+    let remote_evidence_root = format!("{host}:{remote_workspace}/target/validation/remote-ebpf/");
+    let local_evidence_root = out_dir.join("remote-ebpf");
+    fs::create_dir_all(&local_evidence_root)?;
+
+    let status = Command::new("rsync")
+        .arg("-az")
+        .arg("--delete")
+        .arg(&remote_evidence_root)
+        .arg(format!("{}/", local_evidence_root.display()))
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .map_err(|err| {
+            ValidationError::new(format!(
+                "failed to launch rsync for remote eBPF evidence: {err}"
+            ))
+        })?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(ValidationError::new(format!(
+            "remote eBPF evidence rsync failed with status {status}"
         )))
     }
 }
@@ -245,6 +429,389 @@ fn require_cmd(name: &str) -> Result<(), ValidationError> {
             "required command not found: {name}"
         )))
     }
+}
+
+fn remote_ebpf_admin_auth() -> Result<Option<RemoteAdminAuth>, ValidationError> {
+    let user = env::var("GEWY_REMOTE_EBPF_ADMIN_USER").ok();
+    let password = env::var("GEWY_REMOTE_EBPF_ADMIN_PASSWORD").ok();
+
+    match (user, password) {
+        (None, None) => Ok(None),
+        (Some(user), Some(password)) => {
+            require_cmd("sshpass")?;
+            Ok(Some(RemoteAdminAuth { user, password }))
+        }
+        (Some(_), None) => Err(ValidationError::new(
+            "GEWY_REMOTE_EBPF_ADMIN_USER is set but GEWY_REMOTE_EBPF_ADMIN_PASSWORD is missing",
+        )),
+        (None, Some(_)) => Err(ValidationError::new(
+            "GEWY_REMOTE_EBPF_ADMIN_PASSWORD is set but GEWY_REMOTE_EBPF_ADMIN_USER is missing",
+        )),
+    }
+}
+
+fn remove_remote_workspace(
+    host: &str,
+    remote_path: &str,
+    home_dir: &str,
+    admin_auth: Option<&RemoteAdminAuth>,
+) -> Result<(), ValidationError> {
+    let workspace_path = resolve_remote_workspace_path(remote_path, home_dir);
+    if let Some(admin_auth) = admin_auth {
+        let script = format!(
+            r#"set -euo pipefail
+printf '%s\n' {password} | sudo -S -p '' -k rm -rf {workspace_path}
+"#,
+            password = shell_single_quote(&admin_auth.password),
+        );
+        run_ssh_script_capture_with_auth(
+            Some(admin_auth),
+            host,
+            "bash -s",
+            &script,
+            "failed to remove remote workspace",
+        )
+        .map(|_| ())
+    } else {
+        run_ssh_command(
+            host,
+            &format!("rm -rf {workspace_path}"),
+            "failed to remove remote workspace",
+        )
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct RemotePreflight {
+    os: String,
+    arch: String,
+    kernel: String,
+    home_dir: String,
+    required_commands: Vec<String>,
+    sudo_available: bool,
+    default_route_device: Option<String>,
+}
+
+impl RemotePreflight {
+    fn render(&self) -> String {
+        format!(
+            "os={}\narch={}\nkernel={}\nhome_dir={}\ncommands={}\nsudo_available={}\ndefault_route_device={}\n",
+            self.os,
+            self.arch,
+            self.kernel,
+            self.home_dir,
+            self.required_commands.join(","),
+            self.sudo_available,
+            self.default_route_device.as_deref().unwrap_or("")
+        )
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct RemoteArtifactManifest {
+    deb: String,
+    rpm: String,
+}
+
+impl RemoteArtifactManifest {
+    fn render(&self) -> String {
+        format!("deb={}\nrpm={}\n", self.deb, self.rpm)
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct RemoteEbpfEvidence {
+    status: String,
+    reason: String,
+    default_route_device: Option<String>,
+}
+
+impl RemoteEbpfEvidence {
+    fn render(&self) -> String {
+        format!(
+            "status={}\nreason={}\ndefault_route_device={}\n",
+            self.status,
+            self.reason,
+            self.default_route_device.as_deref().unwrap_or("")
+        )
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct RemoteAdminAuth {
+    user: String,
+    password: String,
+}
+
+fn collect_remote_preflight(
+    host: &str,
+    build_packages: bool,
+) -> Result<RemotePreflight, ValidationError> {
+    let mut required = vec![
+        "bash", "curl", "dpkg-deb", "rpm2cpio", "cpio", "find", "grep", "mktemp",
+    ];
+    if build_packages {
+        required.extend(["cargo", "rustc", "python3", "rpmbuild"]);
+    }
+
+    let commands = required.join(" ");
+    let script = format!(
+        r#"set -euo pipefail
+printf 'os=%s\n' "$(uname -s)"
+printf 'arch=%s\n' "$(uname -m)"
+printf 'kernel=%s\n' "$(uname -r)"
+printf 'home_dir=%s\n' "$HOME"
+for cmd in {commands}; do
+  command -v "$cmd" >/dev/null 2>&1 || {{
+    echo "missing command: $cmd" >&2
+    exit 19
+  }}
+done
+if sudo -n true >/dev/null 2>&1; then
+  printf 'sudo_available=true\n'
+else
+  printf 'sudo_available=false\n'
+fi
+DEFAULT_DEV=$(ip route show default 2>/dev/null | awk 'NR==1 {{print $5}}')
+printf 'default_route_device=%s\n' "$DEFAULT_DEV"
+printf 'commands=%s\n' "{commands}"
+"#
+    );
+    let output = run_ssh_script_capture(host, "bash -s", &script, "remote preflight failed")?;
+    let preflight = parse_remote_preflight(&output)?;
+
+    if preflight.os != "Linux" {
+        return Err(ValidationError::new(format!(
+            "remote host must be Linux, got `{}`",
+            preflight.os
+        )));
+    }
+
+    if preflight.arch != "x86_64" && preflight.arch != "amd64" {
+        return Err(ValidationError::new(format!(
+            "remote host must be x86_64/amd64 for packaged validation, got `{}`",
+            preflight.arch
+        )));
+    }
+
+    Ok(preflight)
+}
+
+fn parse_remote_preflight(output: &str) -> Result<RemotePreflight, ValidationError> {
+    let mut os = None;
+    let mut arch = None;
+    let mut kernel = None;
+    let mut home_dir = None;
+    let mut commands = None;
+    let mut sudo_available = None;
+    let mut default_route_device = None;
+
+    for line in output.lines() {
+        if let Some(value) = line.strip_prefix("os=") {
+            os = Some(value.to_string());
+        } else if let Some(value) = line.strip_prefix("arch=") {
+            arch = Some(value.to_string());
+        } else if let Some(value) = line.strip_prefix("kernel=") {
+            kernel = Some(value.to_string());
+        } else if let Some(value) = line.strip_prefix("home_dir=") {
+            home_dir = Some(value.to_string());
+        } else if let Some(value) = line.strip_prefix("commands=") {
+            commands = Some(
+                value
+                    .split_whitespace()
+                    .map(ToOwned::to_owned)
+                    .collect::<Vec<_>>(),
+            );
+        } else if let Some(value) = line.strip_prefix("sudo_available=") {
+            sudo_available = Some(matches!(value, "true"));
+        } else if let Some(value) = line.strip_prefix("default_route_device=") {
+            if !value.is_empty() {
+                default_route_device = Some(value.to_string());
+            }
+        }
+    }
+
+    Ok(RemotePreflight {
+        os: os.ok_or_else(|| ValidationError::new("remote preflight missing os"))?,
+        arch: arch.ok_or_else(|| ValidationError::new("remote preflight missing arch"))?,
+        kernel: kernel.ok_or_else(|| ValidationError::new("remote preflight missing kernel"))?,
+        home_dir: home_dir
+            .ok_or_else(|| ValidationError::new("remote preflight missing home_dir"))?,
+        required_commands: commands
+            .ok_or_else(|| ValidationError::new("remote preflight missing commands"))?,
+        sudo_available: sudo_available
+            .ok_or_else(|| ValidationError::new("remote preflight missing sudo_available"))?,
+        default_route_device,
+    })
+}
+
+fn collect_remote_ebpf_evidence(
+    host: &str,
+    remote_path: &str,
+    preflight: &RemotePreflight,
+    admin_auth: Option<&RemoteAdminAuth>,
+) -> Result<RemoteEbpfEvidence, ValidationError> {
+    if !preflight.sudo_available && admin_auth.is_none() {
+        return Ok(RemoteEbpfEvidence {
+            status: "skipped".to_string(),
+            reason: "sudo_not_available".to_string(),
+            default_route_device: preflight.default_route_device.clone(),
+        });
+    }
+
+    let Some(default_route_device) = preflight.default_route_device.clone() else {
+        return Ok(RemoteEbpfEvidence {
+            status: "skipped".to_string(),
+            reason: "default_route_device_not_detected".to_string(),
+            default_route_device: None,
+        });
+    };
+    let workspace_path = resolve_remote_workspace_path(remote_path, &preflight.home_dir);
+    let target_dir = remote_cargo_target_dir(&preflight.home_dir);
+    let validate_bin = format!("{target_dir}/debug/gewyvern_validate");
+
+    let script = if preflight.sudo_available {
+        format!(
+            r#"set -euo pipefail
+cd {workspace_path}
+mkdir -p target/validation/remote-ebpf
+mkdir -p {target_dir}
+CURRENT_PATH="$PATH"
+CARGO_TARGET_DIR={target_dir} cargo build --quiet --bin gewyvern_validate
+sudo -n env "PATH=$CURRENT_PATH" {validate_bin} linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke
+sudo -n env "PATH=$CURRENT_PATH" {validate_bin} linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke
+sudo -n env "PATH=$CURRENT_PATH" {validate_bin} linux-tc-smoke --dev {default_route_device} --out-dir target/validation/remote-ebpf/linux-tc-smoke
+printf 'status=ok\n'
+printf 'reason=all_smokes_passed\n'
+printf 'default_route_device=%s\n' "{default_route_device}"
+"#,
+            target_dir = shell_single_quote(&target_dir),
+            validate_bin = shell_single_quote(&validate_bin),
+        )
+    } else {
+        let admin_password = shell_single_quote(&admin_auth.expect("admin auth required").password);
+        format!(
+            r#"set -euo pipefail
+CURRENT_PATH="$PATH"
+WORKDIR={workspace_path}
+printf '%s\n' {admin_password} | sudo -S -p '' -k bash -lc '
+  set -euo pipefail
+  export PATH="'"$CURRENT_PATH"'"
+  export HOME="{home_dir}"
+  export CARGO_HOME="{home_dir}/.cargo"
+  export RUSTUP_HOME="{home_dir}/.rustup"
+  mkdir -p "{target_dir}"
+  export CARGO_TARGET_DIR="{target_dir}"
+  cd "'"$WORKDIR"'"
+  mkdir -p target/validation/remote-ebpf
+  cargo build --quiet --bin gewyvern_validate
+  "{validate_bin}" linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke
+  "{validate_bin}" linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke
+  "{validate_bin}" linux-tc-smoke --dev {default_route_device} --out-dir target/validation/remote-ebpf/linux-tc-smoke
+'
+printf 'status=ok\n'
+printf 'reason=all_smokes_passed_admin_ssh\n'
+printf 'default_route_device=%s\n' "{default_route_device}"
+"#,
+            home_dir = preflight.home_dir,
+            target_dir = target_dir,
+            validate_bin = validate_bin,
+        )
+    };
+    let output = run_ssh_script_capture_with_auth(
+        admin_auth,
+        host,
+        "bash -s",
+        &script,
+        "remote eBPF smoke failed",
+    )?;
+    parse_remote_ebpf_evidence(&output)
+}
+
+fn resolve_remote_workspace_path(remote_path: &str, home_dir: &str) -> String {
+    if let Some(rest) = remote_path.strip_prefix("~/") {
+        format!("{home_dir}/{rest}")
+    } else {
+        remote_path.to_string()
+    }
+}
+
+fn collect_remote_artifact_manifest(
+    host: &str,
+    remote_path: &str,
+) -> Result<RemoteArtifactManifest, ValidationError> {
+    let script = format!(
+        r#"set -euo pipefail
+cd {remote_path}
+DEB=$(find target/packages -maxdepth 1 -name 'gewyvern_*_amd64.deb' | sort | tail -n 1)
+RPM=$(find target/packages/rpm -maxdepth 1 -name 'gewyvern-*.x86_64.rpm' | sort | tail -n 1)
+[ -n "$DEB" ] || {{
+  echo "missing remote deb artifact under target/packages" >&2
+  exit 21
+}}
+[ -n "$RPM" ] || {{
+  echo "missing remote rpm artifact under target/packages/rpm" >&2
+  exit 22
+}}
+printf 'deb=%s\n' "$DEB"
+printf 'rpm=%s\n' "$RPM"
+"#
+    );
+    let output = run_ssh_script_capture(
+        host,
+        "bash -s",
+        &script,
+        "remote artifact verification failed; rerun without --skip-build or reuse a populated --remote-dir",
+    )?;
+    parse_remote_artifact_manifest(&output)
+}
+
+fn parse_remote_artifact_manifest(output: &str) -> Result<RemoteArtifactManifest, ValidationError> {
+    let mut deb = None;
+    let mut rpm = None;
+
+    for line in output.lines() {
+        if let Some(value) = line.strip_prefix("deb=") {
+            deb = Some(value.to_string());
+        } else if let Some(value) = line.strip_prefix("rpm=") {
+            rpm = Some(value.to_string());
+        }
+    }
+
+    Ok(RemoteArtifactManifest {
+        deb: deb.ok_or_else(|| ValidationError::new("remote artifact manifest missing deb"))?,
+        rpm: rpm.ok_or_else(|| ValidationError::new("remote artifact manifest missing rpm"))?,
+    })
+}
+
+fn parse_remote_ebpf_evidence(output: &str) -> Result<RemoteEbpfEvidence, ValidationError> {
+    let mut status = None;
+    let mut reason = None;
+    let mut default_route_device = None;
+
+    for line in output.lines() {
+        if let Some(value) = line.strip_prefix("status=") {
+            status = Some(value.to_string());
+        } else if let Some(value) = line.strip_prefix("reason=") {
+            reason = Some(value.to_string());
+        } else if let Some(value) = line.strip_prefix("default_route_device=") {
+            if !value.is_empty() {
+                default_route_device = Some(value.to_string());
+            }
+        }
+    }
+
+    Ok(RemoteEbpfEvidence {
+        status: status
+            .ok_or_else(|| ValidationError::new("remote eBPF evidence missing status"))?,
+        reason: reason
+            .ok_or_else(|| ValidationError::new("remote eBPF evidence missing reason"))?,
+        default_route_device,
+    })
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', r#"'\''"#))
 }
 
 fn remote_package_smoke_script(release_line: &str) -> String {
@@ -328,3 +895,120 @@ wait_http "http://$UDP_API/v1/latest/summary.json" "$TMP/udp-summary.json" '"pri
 wait_http "http://$UDP_API/v1/latest/analysis.json" "$TMP/udp-analysis.json" '"primary_failure_mode":"none"'
 echo 'remote runtime smoke: ok'
 "#;
+
+fn run_ssh_script_capture(
+    host: &str,
+    command: &str,
+    script: &str,
+    context: &str,
+) -> Result<String, ValidationError> {
+    run_ssh_script_capture_with_auth(None, host, command, script, context)
+}
+
+fn run_ssh_script_capture_with_auth(
+    auth: Option<&RemoteAdminAuth>,
+    host: &str,
+    command: &str,
+    script: &str,
+    context: &str,
+) -> Result<String, ValidationError> {
+    let mut ssh_command = if let Some(auth) = auth {
+        let mut command_builder = Command::new("sshpass");
+        command_builder
+            .arg("-p")
+            .arg(&auth.password)
+            .arg("ssh")
+            .args([
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "PreferredAuthentications=password",
+                "-o",
+                "PubkeyAuthentication=no",
+                &format!("{}@{}", auth.user, host),
+                command,
+            ]);
+        command_builder
+    } else {
+        let mut command_builder = Command::new("ssh");
+        command_builder.args(["-o", "BatchMode=yes", host, command]);
+        command_builder
+    };
+
+    let mut child = ssh_command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|err| ValidationError::new(format!("{context}: {err}")))?;
+
+    {
+        let stdin = child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| ValidationError::new(format!("{context}: missing ssh stdin")))?;
+        stdin
+            .write_all(script.as_bytes())
+            .map_err(|err| ValidationError::new(format!("{context}: {err}")))?;
+    }
+
+    let output = child
+        .wait_with_output()
+        .map_err(|err| ValidationError::new(format!("{context}: {err}")))?;
+    if !output.status.success() {
+        return Err(ValidationError::new(format!(
+            "{context}: remote script exited with status {}",
+            output.status
+        )));
+    }
+
+    String::from_utf8(output.stdout).map_err(|err| {
+        ValidationError::new(format!("{context}: invalid utf-8 from ssh stdout: {err}"))
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        parse_remote_artifact_manifest, parse_remote_ebpf_evidence, parse_remote_preflight,
+    };
+
+    #[test]
+    fn parse_remote_preflight_accepts_linux_x86_64_manifest() {
+        let preflight = parse_remote_preflight(
+            "os=Linux\narch=x86_64\nkernel=6.8.0\nhome_dir=/home/kyuubiki-dev\nsudo_available=true\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\n",
+        )
+        .unwrap();
+
+        assert_eq!(preflight.os, "Linux");
+        assert_eq!(preflight.arch, "x86_64");
+        assert_eq!(preflight.kernel, "6.8.0");
+        assert_eq!(preflight.home_dir, "/home/kyuubiki-dev");
+        assert!(preflight.sudo_available);
+        assert_eq!(preflight.default_route_device.as_deref(), Some("eth0"));
+        assert!(preflight.required_commands.contains(&"cargo".to_string()));
+    }
+
+    #[test]
+    fn parse_remote_artifact_manifest_requires_both_package_formats() {
+        let manifest = parse_remote_artifact_manifest(
+            "deb=target/packages/gewyvern_0.20.0-1_amd64.deb\nrpm=target/packages/rpm/gewyvern-0.20.0-1.x86_64.rpm\n",
+        )
+        .unwrap();
+
+        assert!(manifest.deb.ends_with("_amd64.deb"));
+        assert!(manifest.rpm.ends_with(".x86_64.rpm"));
+    }
+
+    #[test]
+    fn parse_remote_ebpf_evidence_reads_status_and_route_device() {
+        let evidence = parse_remote_ebpf_evidence(
+            "status=ok\nreason=all_smokes_passed\ndefault_route_device=ens5\n",
+        )
+        .unwrap();
+
+        assert_eq!(evidence.status, "ok");
+        assert_eq!(evidence.reason, "all_smokes_passed");
+        assert_eq!(evidence.default_route_device.as_deref(), Some("ens5"));
+    }
+}

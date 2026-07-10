@@ -10,6 +10,7 @@ pub mod gewyc;
 pub mod http;
 pub mod ir;
 pub mod ledger;
+pub mod linux_ebpf_smoke;
 pub mod loader;
 pub mod program;
 pub mod protocol_profiles;

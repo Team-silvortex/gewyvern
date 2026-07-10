@@ -35,6 +35,9 @@ command or script, prefer these top-level operator shelves first:
 - [docs/script-entrypoints.md](docs/script-entrypoints.md)
 - [docs/cli-recipes.md](docs/cli-recipes.md)
 
+For release-style validation, prefer the native `gewyvern_validate`
+entrypoints before the compatibility shell wrappers.
+
 ## Operate The Runtime
 
 - [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
@@ -56,7 +59,7 @@ command or script, prefer these top-level operator shelves first:
   Fault-inject external-engine and socket-session failures to confirm that
   repeated failure degrades into visible bounded fallback instead of hangs.
 - [docs/script-entrypoints.md](docs/script-entrypoints.md)
-  Fast script routing when you already know what kind of validation you need.
+  Fast validation routing when you already know what kind of check you need.
 - [docs/field-validation.md](docs/field-validation.md)
   Current validation matrix and local entrypoints.
 - [docs/field-findings.md](docs/field-findings.md)

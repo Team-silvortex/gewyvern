@@ -99,16 +99,16 @@ alone.
 Keep these in the release path:
 
 ```bash
-bash scripts/packaging/release_container_check.sh
-bash scripts/validation/three_module_stack_smoke.sh
-bash scripts/validation/pathological_container_validation.sh
+cargo run --quiet --bin gewyvern_validate -- release-container-check
+cargo run --quiet --bin gewyvern_validate -- three-module-stack-smoke
+cargo run --quiet --bin gewyvern_validate -- pathological-container-validation
 ```
 
 Key release routes:
 
+- [docs/script-entrypoints.md](docs/script-entrypoints.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
 - [scripts/packaging/release_container_check.sh](scripts/packaging/release_container_check.sh)
-- [scripts/validation/three_module_stack_smoke.sh](scripts/validation/three_module_stack_smoke.sh)
-- [scripts/validation/pathological_container_validation.sh](scripts/validation/pathological_container_validation.sh)
 
 Use this layer when the real question is:
 
@@ -125,5 +125,5 @@ Use this layer when the real question is:
 - Runtime trust looks shaky:
   one direct command -> `--serve` -> `summary.json` -> `analysis.json`
 - Release confidence looks shaky:
-  `release_container_check.sh` -> `three_module_stack_smoke.sh` ->
+  `gewyvern_validate release-container-check` -> `three_module_stack_smoke.sh` ->
   `pathological_container_validation.sh`
