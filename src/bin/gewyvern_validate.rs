@@ -1,6 +1,10 @@
+use std::collections::BTreeMap;
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 use std::process;
+
+use serde_json::json;
 
 #[path = "../validation_harness_cli_stack.rs"]
 mod gewyvern_validate_stack;
@@ -20,15 +24,56 @@ use gewyvern::validation_harness::{
     run_three_module_stack_smoke, run_training_dataset_roundtrip_demo,
 };
 
+const TOP_LEVEL_COMMANDS: &[&str] = &[
+    "container-operator-path-validation",
+    "container-protocol-validation",
+    "container-runtime-validation",
+    "container-validation-summary",
+    "debugger-cross",
+    "external-engine-roundtrip",
+    "field-smoke",
+    "help",
+    "high-frequency",
+    "linux-attach-smoke",
+    "linux-kprobe-smoke",
+    "linux-tc-smoke",
+    "list",
+    "package-install-smoke",
+    "pathological-container-validation",
+    "registry",
+    "release-container-check",
+    "release-gate",
+    "remote-linux-host-validation",
+    "resilience-bundle",
+    "resilience-drive-bad-json",
+    "resilience-emit-helper",
+    "resilience-log-evidence",
+    "resilience-roundtrip",
+    "runtime-lifecycle",
+    "runtime-operator",
+    "socket-roundtrip",
+    "three-module-stack-smoke",
+    "training-roundtrip",
+];
+
 fn main() {
-    if let Err(err) = run() {
-        eprintln!("validation failed: {err}");
+    let raw_args = env::args().skip(1).collect::<Vec<_>>();
+    let (global_options, args) = parse_global_cli_options(raw_args);
+
+    if let Err(err) = run(args) {
+        let message = err.to_string();
+        if global_options.json_errors {
+            print_failure_guidance_json(&message);
+        } else {
+            eprintln!("validation failed: {message}");
+            print_failure_guidance(&message);
+        }
         process::exit(1);
     }
 }
 
-fn run() -> Result<(), ValidationError> {
-    let mut args = env::args().skip(1);
+fn run(args: Vec<String>) -> Result<(), ValidationError> {
+    let mut args = args.into_iter();
     let command = args.next().unwrap_or_else(|| "help".to_string());
     let rest = args.collect::<Vec<_>>();
 
@@ -257,6 +302,7 @@ fn run() -> Result<(), ValidationError> {
             println!("{}: ok", report.name);
             println!("checks: {}", report.checks.join(", "));
             println!("evidence: {}", report.out_dir.display());
+            print_release_container_check_summary(&report);
             Ok(())
         }
         "package-install-smoke" => {
@@ -335,6 +381,7 @@ fn run() -> Result<(), ValidationError> {
             println!("{}: ok", report.name);
             println!("checks: {}", report.checks.join(", "));
             println!("evidence: {}", report.out_dir.display());
+            print_remote_linux_host_validation_summary(&report.out_dir);
             Ok(())
         }
         "release-gate" => {
@@ -381,40 +428,20 @@ fn run() -> Result<(), ValidationError> {
             Ok(())
         }
         "list" => {
-            println!("container-operator-path-validation");
-            println!("container-protocol-validation");
-            println!("container-runtime-validation");
-            println!("container-validation-summary");
-            println!("debugger-cross");
-            println!("external-engine-roundtrip");
-            println!("field-smoke");
-            println!("high-frequency");
-            println!("package-install-smoke");
-            println!("pathological-container-validation");
-            println!("remote-linux-host-validation");
-            println!("release-container-check");
-            println!("release-gate");
-            println!("registry");
-            println!("resilience-bundle");
-            println!("resilience-drive-bad-json");
-            println!("resilience-emit-helper");
-            println!("resilience-log-evidence");
-            println!("resilience-roundtrip");
-            println!("runtime-lifecycle");
-            println!("runtime-operator");
-            println!("socket-roundtrip");
-            println!("three-module-stack-smoke");
+            for command in TOP_LEVEL_COMMANDS {
+                if matches!(*command, "help" | "list") {
+                    continue;
+                }
+                println!("{command}");
+            }
             gewyvern_validate_stack::print_stack_list();
-            println!("training-roundtrip");
             Ok(())
         }
         "help" | "--help" | "-h" => {
             print_help();
             Ok(())
         }
-        other => Err(ValidationError::new(format!(
-            "unknown validation command `{other}`; try `gewyvern_validate list`"
-        ))),
+        other => Err(unknown_command_error(other)),
     }
 }
 
@@ -846,6 +873,9 @@ fn print_help() {
     println!();
     println!("Native validation harness for gewyvern release and debugger checks.");
     println!();
+    println!("Global flags:");
+    println!("  --json-errors   Emit machine-readable JSON on failure");
+    println!();
     println!("Commands:");
     println!("  list");
     println!("  container-operator-path-validation [--deb|--rpm]");
@@ -890,6 +920,190 @@ fn print_help() {
     gewyvern_validate_stack::print_stack_help();
 }
 
+fn unknown_command_error(command: &str) -> ValidationError {
+    let mut message =
+        format!("unknown validation command `{command}`; try `gewyvern_validate list`");
+    if let Some(suggested) = suggest_command(command) {
+        message.push_str(&format!("; did you mean `{suggested}`?"));
+    }
+    ValidationError::new(message)
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct GlobalCliOptions {
+    json_errors: bool,
+}
+
+fn parse_global_cli_options(args: Vec<String>) -> (GlobalCliOptions, Vec<String>) {
+    let mut options = GlobalCliOptions::default();
+    let mut filtered = Vec::with_capacity(args.len());
+
+    for arg in args {
+        match arg.as_str() {
+            "--json-errors" => options.json_errors = true,
+            _ => filtered.push(arg),
+        }
+    }
+
+    (options, filtered)
+}
+
+fn suggest_command(input: &str) -> Option<&'static str> {
+    let mut best = None;
+
+    for command in TOP_LEVEL_COMMANDS
+        .iter()
+        .chain(gewyvern_validate_stack::STACK_COMMANDS.iter())
+    {
+        let distance = levenshtein_distance(input, command);
+        let max_distance = if command.len() <= 8 { 2 } else { 4 };
+        if distance > max_distance {
+            continue;
+        }
+
+        match best {
+            Some((best_distance, _)) if distance >= best_distance => {}
+            _ => best = Some((distance, *command)),
+        }
+    }
+
+    best.map(|(_, command)| command)
+}
+
+fn levenshtein_distance(left: &str, right: &str) -> usize {
+    let right_chars = right.chars().collect::<Vec<_>>();
+    let mut previous = (0..=right_chars.len()).collect::<Vec<_>>();
+    let mut current = vec![0; right_chars.len() + 1];
+
+    for (left_index, left_char) in left.chars().enumerate() {
+        current[0] = left_index + 1;
+        for (right_index, right_char) in right_chars.iter().enumerate() {
+            let substitution_cost = usize::from(left_char != *right_char);
+            current[right_index + 1] = (previous[right_index + 1] + 1)
+                .min(current[right_index] + 1)
+                .min(previous[right_index] + substitution_cost);
+        }
+        previous.clone_from(&current);
+    }
+
+    previous[right_chars.len()]
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FailureClass {
+    Environment,
+    Privilege,
+    Remote,
+    Dependency,
+}
+
+impl FailureClass {
+    fn code(self) -> &'static str {
+        match self {
+            Self::Environment => "environment",
+            Self::Privilege => "privilege",
+            Self::Remote => "remote",
+            Self::Dependency => "dependency",
+        }
+    }
+}
+
+fn classify_failure(message: &str) -> Option<(FailureClass, &'static str)> {
+    if message.contains("docker daemon is not reachable")
+        || message.contains("failed to query docker")
+    {
+        return Some((FailureClass::Environment, "docker_unreachable"));
+    }
+    if message.contains("remote workspace retained at ") {
+        return Some((FailureClass::Remote, "remote_workspace_retained"));
+    }
+    if message.contains("Operation not permitted")
+        || message
+            .contains("linux eBPF smoke requires Linux kernel support and BPF attach privileges")
+        || message.contains("linux eBPF smoke requires a Linux environment")
+    {
+        return Some((FailureClass::Privilege, "linux_ebpf_privilege_required"));
+    }
+    if message.contains("required command not found: sshpass") {
+        return Some((FailureClass::Dependency, "missing_sshpass"));
+    }
+    if message.contains("required command not found: rsync")
+        || message.contains("required command not found: ssh")
+        || message.contains("required command not found: docker")
+    {
+        return Some((FailureClass::Dependency, "missing_system_command"));
+    }
+    None
+}
+
+fn print_failure_guidance(message: &str) {
+    if let Some((class, code)) = classify_failure(message) {
+        eprintln!("failure-class: {}", class.code());
+        eprintln!("failure-code: {code}");
+    }
+
+    for line in failure_guidance_lines(message) {
+        eprintln!("{line}");
+    }
+}
+
+fn print_failure_guidance_json(message: &str) {
+    let classified = classify_failure(message);
+    let next_steps = failure_guidance_lines(message);
+    let payload = json!({
+        "ok": false,
+        "message": message,
+        "failure_class": classified.map(|(class, _)| class.code()),
+        "failure_code": classified.map(|(_, code)| code),
+        "next_steps": next_steps,
+    });
+    eprintln!("{payload}");
+}
+
+fn failure_guidance_lines(message: &str) -> Vec<&'static str> {
+    let mut guidance = Vec::new();
+
+    if message.contains("docker daemon is not reachable")
+        || message.contains("failed to query docker")
+    {
+        guidance.push(
+            "next-step: start Docker Desktop or another local daemon, then retry `gewyvern_validate release-container-check` or the narrower packaged command that failed",
+        );
+    }
+
+    if message.contains("remote workspace retained at ") {
+        guidance.push(
+            "next-step: SSH into the remote host, inspect the retained workspace, or rerun with `--keep-remote-dir` if you want the directory preserved on purpose",
+        );
+    }
+
+    if message.contains("Operation not permitted")
+        || message
+            .contains("linux eBPF smoke requires Linux kernel support and BPF attach privileges")
+        || message.contains("linux eBPF smoke requires a Linux environment")
+    {
+        guidance.push(
+            "next-step: rerun on Linux with sudo or equivalent BPF privileges, for example `sudo cargo run --quiet --bin gewyvern_validate -- linux-attach-smoke`",
+        );
+    }
+
+    if message.contains("required command not found: sshpass") {
+        guidance.push(
+            "next-step: install `sshpass`, or unset `GEWY_REMOTE_EBPF_ADMIN_USER` / `GEWY_REMOTE_EBPF_ADMIN_PASSWORD` if you want to skip the admin-assisted remote eBPF path",
+        );
+    }
+
+    if message.contains("required command not found: rsync")
+        || message.contains("required command not found: ssh")
+        || message.contains("required command not found: docker")
+    {
+        guidance.push(
+            "next-step: install the missing system command and rerun the same validation entrypoint",
+        );
+    }
+    guidance
+}
+
 fn print_release_container_check_help() {
     println!("Usage: gewyvern_validate release-container-check [--deb] [--rpm]");
     println!();
@@ -899,6 +1113,29 @@ fn print_release_container_check_help() {
     println!("  container_validation_summary.sh");
     println!();
     println!("By default, both the DEB and RPM paths run.");
+}
+
+fn print_release_container_check_summary(report: &gewyvern::validation_harness::ValidationReport) {
+    let mode = report
+        .name
+        .split('(')
+        .nth(1)
+        .and_then(|rest| rest.strip_suffix(')'))
+        .unwrap_or("unknown");
+    println!("release-mode: {mode}");
+
+    let covered = report
+        .checks
+        .iter()
+        .map(|check| match check.as_str() {
+            "package_install_smoke" => "package-install-smoke",
+            "packaged_runtime_validation" => "container-runtime-validation",
+            "packaged_protocol_operator_summary" => "container-validation-summary",
+            other => other,
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    println!("covered-checks: {covered}");
 }
 
 fn print_package_install_smoke_help() {
@@ -954,6 +1191,66 @@ fn print_remote_linux_host_validation_help() {
     println!(
         "Defaults: host from GEWY_REMOTE_HOST or `kyuubiki-lab`, remote dir under `~/.kyuubiki-remote-runs/`."
     );
+    println!(
+        "The command prints a compact post-run summary including resolved remote dir, cache-backed phases, eBPF status, and the slowest observed timings."
+    );
+}
+
+fn print_remote_linux_host_validation_summary(out_dir: &std::path::Path) {
+    let run = parse_key_value_file(&out_dir.join("remote-run.txt"));
+    let preflight = parse_key_value_file(&out_dir.join("remote-preflight.txt"));
+    let ebpf = parse_key_value_file(&out_dir.join("remote-ebpf.txt"));
+    let timings = parse_phase_timings(&out_dir.join("remote-phase-timings.txt"));
+
+    if let Some(remote_dir) = run.get("remote_dir") {
+        println!("remote-dir: {remote_dir}");
+    }
+    if let Some(home_dir) = preflight.get("home_dir") {
+        println!("source-cache: {home_dir}/.cache/gewyvern/remote-source");
+        println!("target-cache: {home_dir}/.cache/gewyvern/remote-target");
+    }
+    if let Some(build_packages) = run.get("build_packages") {
+        println!("build-packages: {build_packages}");
+    }
+    if let Some(status) = ebpf.get("status") {
+        let reason = ebpf.get("reason").map(String::as_str).unwrap_or("unknown");
+        println!("remote-ebpf: {status} ({reason})");
+    }
+
+    let mut slowest = timings
+        .into_iter()
+        .filter(|(name, _)| name != "total")
+        .collect::<Vec<_>>();
+    slowest.sort_by(|left, right| right.1.total_cmp(&left.1));
+    if !slowest.is_empty() {
+        let summary = slowest
+            .iter()
+            .take(3)
+            .map(|(name, seconds)| format!("{name}={seconds:.3}s"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!("slowest-phases: {summary}");
+    }
+}
+
+fn parse_key_value_file(path: &std::path::Path) -> BTreeMap<String, String> {
+    let Ok(contents) = fs::read_to_string(path) else {
+        return BTreeMap::new();
+    };
+    let mut values = BTreeMap::new();
+    for line in contents.lines() {
+        if let Some((key, value)) = line.split_once('=') {
+            values.insert(key.to_string(), value.to_string());
+        }
+    }
+    values
+}
+
+fn parse_phase_timings(path: &std::path::Path) -> Vec<(String, f64)> {
+    parse_key_value_file(path)
+        .into_iter()
+        .filter_map(|(name, value)| value.parse::<f64>().ok().map(|seconds| (name, seconds)))
+        .collect()
 }
 
 fn print_container_protocol_validation_help() {

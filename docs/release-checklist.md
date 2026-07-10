@@ -171,6 +171,11 @@ Or fold it into the main release gate:
 cargo run --quiet --bin gewyvern_validate -- release-gate --remote-host-validation
 ```
 
+When the remote host path is enabled through `release-gate`, the CLI now also
+prints the resolved remote directory, the remote eBPF outcome, and the slowest
+observed remote phases so you can narrow release friction without opening the
+remote evidence directory first.
+
 Interpret the remote Linux signal explicitly:
 
 - `remote_ebpf_smoke` means a real Linux host had enough privilege to prove

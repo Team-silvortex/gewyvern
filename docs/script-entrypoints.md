@@ -94,8 +94,7 @@ Cargo target cache under `~/.cache/gewyvern/remote-target`, so repeated runs do
 not have to cold-rebuild every binary from a brand-new workspace.
 They also reuse a shared remote source cache under
 `~/.cache/gewyvern/remote-source`: the local machine rsyncs incrementally into
-that stable cache first, then each validation run materializes its own working
-directory from the cache on the remote host itself.
+that stable cache first, then each validation run materializes its own working directory from the cache on the remote host itself.
 The workspace sync for this command is intentionally narrower than the full
 monorepo: it skips `tests/`, transient `apps/**/bin/` / `apps/**/obj/` outputs,
 `__pycache__`, and similar local-only residue because the remote host package
@@ -132,6 +131,10 @@ The phase-timing file records the observed wall-clock time for each major
 remote validation step so we can tell whether regressions come from sync,
 materialization, build, package smoke, runtime smoke, or the privileged eBPF
 attach path.
+The CLI now also prints a compact post-run summary with the resolved remote
+workspace, source/target cache roots, remote eBPF result, and the slowest
+slowest observed phases so the common debugging path does not require opening the
+evidence files first.
 
 ### I want to validate built-in protocol packages
 

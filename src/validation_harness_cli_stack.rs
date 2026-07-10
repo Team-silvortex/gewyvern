@@ -5,6 +5,13 @@ use gewyvern::validation_harness::{
     run_stack_register_runtime_json, write_stack_resilience_summary,
 };
 
+pub const STACK_COMMANDS: &[&str] = &[
+    "stack-check-json",
+    "stack-probe",
+    "stack-register-runtime-json",
+    "stack-resilience-summary",
+];
+
 pub fn run_stack_command(command: &str, args: Vec<String>) -> Result<bool, ValidationError> {
     match command {
         "stack-check-json" => run_check_json(args),
@@ -16,10 +23,9 @@ pub fn run_stack_command(command: &str, args: Vec<String>) -> Result<bool, Valid
 }
 
 pub fn print_stack_list() {
-    println!("stack-check-json");
-    println!("stack-probe");
-    println!("stack-register-runtime-json");
-    println!("stack-resilience-summary");
+    for command in STACK_COMMANDS {
+        println!("{command}");
+    }
 }
 
 pub fn print_stack_help() {

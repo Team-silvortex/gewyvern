@@ -41,6 +41,12 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("print_stack_list"));
     assert!(binary.contains("--limit"));
     assert!(binary.contains("--json-out"));
+    assert!(binary.contains("--json-errors"));
+    assert!(binary.contains("TOP_LEVEL_COMMANDS"));
+    assert!(binary.contains("unknown_command_error"));
+    assert!(binary.contains("suggest_command"));
+    assert!(binary.contains("levenshtein_distance"));
+    assert!(binary.contains("did you mean"));
     assert!(binary.contains("--remote-host-validation"));
     assert!(binary.contains("--skip-remote-build"));
     assert!(binary.contains("--keep-remote-dir"));
@@ -128,6 +134,10 @@ fn remote_host_validation_records_phase_timings() {
     assert!(remote_host.contains("remote-phase-timings.txt"));
     assert!(remote_host.contains("checks.push(\"remote_phase_timings\".to_string())"));
     assert!(remote_host.contains("total={:.3}"));
+    assert!(remote_host.contains("requested remote workspace"));
+    assert!(remote_host.contains("resolved remote workspace"));
+    assert!(remote_host.contains("remote source cache"));
+    assert!(remote_host.contains("remote cargo target cache"));
     assert!(entrypoints.contains("remote-phase-timings.txt"));
 }
 
@@ -370,6 +380,12 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(release_gate.contains("run_container_runtime_validation(mode)?"));
     assert!(release_gate.contains("run_container_validation_summary(mode)?"));
     assert!(release_gate.contains("run_remote_linux_host_validation"));
+    assert!(release_gate.contains("print_remote_release_gate_summary"));
+    assert!(release_gate.contains("remote slowest phases"));
+    assert!(release_gate.contains("remote eBPF summary"));
+    assert!(release_gate.contains("remote dir:"));
+    assert!(release_gate.contains("covered packaged checks"));
+    assert!(release_gate.contains("packaged release scope"));
     assert!(release_gate.contains("remote_linux_host_validation"));
     assert!(release_gate.contains("remote_ebpf_smoke"));
     assert!(release_gate.contains("remote_ebpf_smoke_skipped"));
@@ -447,11 +463,42 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(binary.contains("--keep-remote-dir"));
     assert!(binary.contains("--skip-build"));
     assert!(binary.contains("Collect remote Linux/x86_64 preflight evidence"));
+    assert!(binary.contains("print_remote_linux_host_validation_summary"));
+    assert!(binary.contains("slowest-phases:"));
+    assert!(binary.contains("source-cache:"));
+    assert!(binary.contains("target-cache:"));
+    assert!(binary.contains("remote-ebpf:"));
+    assert!(binary.contains("print_release_container_check_summary"));
+    assert!(binary.contains("release-mode:"));
+    assert!(binary.contains("covered-checks:"));
+    assert!(binary.contains("print_failure_guidance"));
+    assert!(binary.contains("classify_failure"));
+    assert!(binary.contains("enum FailureClass"));
+    assert!(binary.contains("failure-class:"));
+    assert!(binary.contains("failure-code:"));
+    assert!(binary.contains("docker_unreachable"));
+    assert!(binary.contains("remote_workspace_retained"));
+    assert!(binary.contains("linux_ebpf_privilege_required"));
+    assert!(binary.contains("missing_sshpass"));
+    assert!(binary.contains("missing_system_command"));
+    assert!(binary.contains("GlobalCliOptions"));
+    assert!(binary.contains("parse_global_cli_options"));
+    assert!(binary.contains("print_failure_guidance_json"));
+    assert!(binary.contains("\"failure_class\""));
+    assert!(binary.contains("\"failure_code\""));
+    assert!(binary.contains("\"next_steps\""));
+    assert!(binary.contains("docker daemon is not reachable"));
+    assert!(binary.contains("remote workspace retained at "));
+    assert!(binary.contains("Operation not permitted"));
+    assert!(binary.contains("next-step:"));
     assert!(docs.contains("remote-linux-host-validation"));
     assert!(docs.contains("remote-preflight.txt"));
     assert!(docs.contains("remote-artifacts.txt"));
     assert!(docs.contains("remote-ebpf.txt"));
     assert!(docs.contains("target/validation/remote-linux-host-validation/remote-ebpf"));
+    assert!(docs.contains("remote source cache"));
+    assert!(docs.contains("materializes its own working directory"));
+    assert!(docs.contains("slowest observed phases"));
 }
 
 #[test]

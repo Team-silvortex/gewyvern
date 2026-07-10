@@ -44,7 +44,9 @@ pub fn run_remote_linux_host_validation(
     let release_line = env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v0.20.x".to_string());
 
     println!("[remote-host] host: {}", options.host);
-    println!("[remote-host] remote workspace: {}", remote_path);
+    println!("[remote-host] requested remote workspace: {}", remote_path);
+    println!("[remote-host] build packages: {}", options.build_packages);
+    println!("[remote-host] keep remote dir: {}", options.keep_remote_dir);
 
     let result: Result<ValidationReport, ValidationError> = (|| {
         println!("[remote-host] ----------------------------------------");
@@ -57,6 +59,15 @@ pub fn run_remote_linux_host_validation(
         let remote_source_cache = remote_source_cache_dir(&preflight.home_dir);
         let remote_source_cache_quoted = shell_single_quote(&remote_source_cache);
         let remote_path_quoted = shell_single_quote(&resolved_remote_path);
+        println!(
+            "[remote-host] resolved remote workspace: {}",
+            resolved_remote_path
+        );
+        println!("[remote-host] remote source cache: {}", remote_source_cache);
+        println!(
+            "[remote-host] remote cargo target cache: {}",
+            remote_cargo_target_dir(&preflight.home_dir)
+        );
 
         println!("[remote-host] ----------------------------------------");
         println!("[remote-host] creating remote workspace roots");

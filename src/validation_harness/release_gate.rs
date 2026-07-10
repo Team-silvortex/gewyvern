@@ -1,4 +1,5 @@
 use std::process::{Command, Stdio};
+use std::{collections::BTreeMap, fs, path::Path};
 
 use super::command::{ValidationError, ValidationReport, repo_root};
 use super::{
@@ -86,6 +87,9 @@ pub fn run_release_container_check(
         "[release-check] packaged release validation: ok ({})",
         mode.label()
     );
+    println!(
+        "[release-check] covered packaged checks: package-install-smoke, container-runtime-validation, container-validation-summary"
+    );
 
     Ok(ValidationReport {
         name: format!("packaged release validation ({})", mode.label()),
@@ -114,10 +118,17 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
         match options.release_mode {
             ReleaseCheckMode::DebAndRpm => {
                 println!("[release-gate] running packaged release validation");
+                println!(
+                    "[release-gate] packaged release scope: package-install-smoke + container-runtime-validation + container-validation-summary (deb+rpm)"
+                );
             }
             mode => {
                 println!(
                     "[release-gate] running packaged release validation ({})",
+                    mode.label()
+                );
+                println!(
+                    "[release-gate] packaged release scope: package-install-smoke + container-runtime-validation + container-validation-summary ({})",
                     mode.label()
                 );
             }
@@ -159,6 +170,7 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
             keep_remote_dir: options.keep_remote_dir,
         })?;
         checks.push("remote_linux_host_validation".to_string());
+        print_remote_release_gate_summary(&remote_report.out_dir);
         if remote_report
             .checks
             .iter()
@@ -221,4 +233,53 @@ fn run_repo_script(script_relative_path: &str, args: &[&str]) -> Result<(), Vali
     }
 
     Ok(())
+}
+
+fn print_remote_release_gate_summary(out_dir: &Path) {
+    let run = parse_key_value_file(&out_dir.join("remote-run.txt"));
+    let ebpf = parse_key_value_file(&out_dir.join("remote-ebpf.txt"));
+    let timings = parse_phase_timings(&out_dir.join("remote-phase-timings.txt"));
+
+    if let Some(remote_dir) = run.get("remote_dir") {
+        println!("[release-gate] remote dir: {remote_dir}");
+    }
+    if let Some(status) = ebpf.get("status") {
+        let reason = ebpf.get("reason").map(String::as_str).unwrap_or("unknown");
+        println!("[release-gate] remote eBPF summary: {status} ({reason})");
+    }
+
+    let mut slowest = timings
+        .into_iter()
+        .filter(|(name, _)| name != "total")
+        .collect::<Vec<_>>();
+    slowest.sort_by(|left, right| right.1.total_cmp(&left.1));
+    if !slowest.is_empty() {
+        let summary = slowest
+            .iter()
+            .take(3)
+            .map(|(name, seconds)| format!("{name}={seconds:.3}s"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!("[release-gate] remote slowest phases: {summary}");
+    }
+}
+
+fn parse_key_value_file(path: &Path) -> BTreeMap<String, String> {
+    let Ok(contents) = fs::read_to_string(path) else {
+        return BTreeMap::new();
+    };
+    let mut values = BTreeMap::new();
+    for line in contents.lines() {
+        if let Some((key, value)) = line.split_once('=') {
+            values.insert(key.to_string(), value.to_string());
+        }
+    }
+    values
+}
+
+fn parse_phase_timings(path: &Path) -> Vec<(String, f64)> {
+    parse_key_value_file(path)
+        .into_iter()
+        .filter_map(|(name, value)| value.parse::<f64>().ok().map(|seconds| (name, seconds)))
+        .collect()
 }
