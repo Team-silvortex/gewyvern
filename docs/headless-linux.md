@@ -94,6 +94,18 @@ cargo tdd
 cargo test --workspace
 ```
 
+Run the native Linux smoke commands when the container has enough privilege:
+
+```bash
+sudo cargo run --quiet --bin gewyvern_validate -- linux-attach-smoke
+sudo cargo run --quiet --bin gewyvern_validate -- linux-kprobe-smoke
+sudo cargo run --quiet --bin gewyvern_validate -- linux-tc-smoke --dev eth0
+```
+
+Each smoke writes `run.log`, `target.txt`, `environment.txt`, and
+`evidence-index.json` under `target/validation/...`; the tc path also writes
+`netdev.txt` so interface state is captured next to the attach transcript.
+
 ## Recommended Next eBPF Milestones
 
 1. Add a loader-facing TDD spec for attach outcomes and ringbuf wiring.

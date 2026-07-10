@@ -120,6 +120,27 @@ cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation
 
 cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
   | jq '.extra.phase_timings.remote_package_build'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.total_seconds'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.ebpf.default_route_device'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.budget_warnings // []'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.recent_ebpf_trend, .extra.remote_ebpf_status_counts'
+```
+
+Recent remote eBPF history from the local evidence shelf:
+
+```bash
+tail -n 5 target/validation/remote-linux-host-validation/remote-ebpf-history.jsonl
+jq '.ebpf.status, .ebpf.reason, .total_seconds' target/validation/remote-linux-host-validation/remote-ebpf-latest.json
+cat target/validation/remote-linux-host-validation/remote-ebpf-recent.txt
+jq '.status_counts, .reason_counts' target/validation/remote-linux-host-validation/remote-ebpf-status-summary.json
 ```
 
 Failure-mode example:

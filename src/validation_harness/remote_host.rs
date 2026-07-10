@@ -3,6 +3,9 @@ use std::fs;
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::{collections::BTreeMap, path::Path};
+
+use serde_json::json;
 
 use super::command::{
     ValidationError, ValidationReport, default_out_dir, repo_root, validation_command_stdout,
@@ -228,6 +231,14 @@ pub fn run_remote_linux_host_validation(
                 render_phase_timings(&phase_timings),
             )?;
         }
+        write_remote_ebpf_history(
+            &out_dir,
+            &options,
+            &preflight,
+            &ebpf_evidence,
+            &phase_timings,
+            &checks,
+        )?;
 
         Ok(ValidationReport {
             name: format!("remote linux host validation ({})", options.host),
@@ -278,6 +289,166 @@ fn render_phase_timings(phase_timings: &[PhaseTiming]) -> String {
     }
     lines.push(format!("total={:.3}", total.as_secs_f64()));
     format!("{}\n", lines.join("\n"))
+}
+
+fn write_remote_ebpf_history(
+    out_dir: &Path,
+    options: &RemoteLinuxHostOptions,
+    preflight: &RemotePreflight,
+    ebpf_evidence: &RemoteEbpfEvidence,
+    phase_timings: &[PhaseTiming],
+    checks: &[String],
+) -> Result<(), ValidationError> {
+    const HISTORY_RETENTION: usize = 32;
+
+    let history_path = out_dir.join("remote-ebpf-history.jsonl");
+    let latest_path = out_dir.join("remote-ebpf-latest.json");
+    let recent_path = out_dir.join("remote-ebpf-recent.txt");
+    let summary_path = out_dir.join("remote-ebpf-status-summary.json");
+    let observed_at_unix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let total_seconds = phase_timings
+        .iter()
+        .fold(Duration::ZERO, |acc, timing| acc + timing.elapsed)
+        .as_secs_f64();
+    let phase_timings_json = phase_timings
+        .iter()
+        .map(|timing| (timing.name.clone(), json!(timing.elapsed.as_secs_f64())))
+        .collect::<serde_json::Map<String, serde_json::Value>>();
+
+    let entry = json!({
+        "schema_version": 1,
+        "observed_at_unix": observed_at_unix,
+        "host": options.host,
+        "build_packages": options.build_packages,
+        "keep_remote_dir": options.keep_remote_dir,
+        "preflight": {
+            "os": preflight.os,
+            "arch": preflight.arch,
+            "kernel": preflight.kernel,
+            "sudo_available": preflight.sudo_available,
+            "default_route_device": preflight.default_route_device,
+        },
+        "ebpf": {
+            "status": ebpf_evidence.status,
+            "reason": ebpf_evidence.reason,
+            "default_route_device": ebpf_evidence.default_route_device,
+        },
+        "checks": checks,
+        "total_seconds": total_seconds,
+        "phase_timings": phase_timings_json,
+    });
+
+    let mut lines = fs::read_to_string(&history_path)
+        .ok()
+        .map(|body| {
+            body.lines()
+                .filter(|line| !line.trim().is_empty())
+                .map(ToOwned::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    lines.push(serde_json::to_string(&entry)?);
+    if lines.len() > HISTORY_RETENTION {
+        lines.drain(0..(lines.len() - HISTORY_RETENTION));
+    }
+    fs::write(&history_path, lines.join("\n") + "\n")?;
+    fs::write(&latest_path, serde_json::to_string_pretty(&entry)?)?;
+    fs::write(&recent_path, render_remote_ebpf_recent(&lines))?;
+    fs::write(
+        &summary_path,
+        serde_json::to_string_pretty(&summarize_remote_ebpf_history(&lines))?,
+    )?;
+    Ok(())
+}
+
+fn render_remote_ebpf_recent(lines: &[String]) -> String {
+    let mut rendered = Vec::new();
+    for line in lines.iter().rev().take(5).rev() {
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let observed_at_unix = value
+            .get("observed_at_unix")
+            .and_then(|value| value.as_u64())
+            .unwrap_or_default();
+        let host = value
+            .get("host")
+            .and_then(|value| value.as_str())
+            .unwrap_or("unknown");
+        let status = value
+            .get("ebpf")
+            .and_then(|value| value.get("status"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("unknown");
+        let reason = value
+            .get("ebpf")
+            .and_then(|value| value.get("reason"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("unknown");
+        let total_seconds = value
+            .get("total_seconds")
+            .and_then(|value| value.as_f64())
+            .unwrap_or_default();
+        let kernel = value
+            .get("preflight")
+            .and_then(|value| value.get("kernel"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("unknown");
+        let route_device = value
+            .get("ebpf")
+            .and_then(|value| value.get("default_route_device"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("-");
+
+        rendered.push(format!(
+            "{observed_at_unix} host={host} status={status} reason={reason} total={total_seconds:.3}s kernel={kernel} route={route_device}"
+        ));
+    }
+
+    if rendered.is_empty() {
+        "no remote eBPF history yet\n".to_string()
+    } else {
+        rendered.join("\n") + "\n"
+    }
+}
+
+fn summarize_remote_ebpf_history(lines: &[String]) -> serde_json::Value {
+    let mut status_counts = BTreeMap::<String, usize>::new();
+    let mut reason_counts = BTreeMap::<String, usize>::new();
+    let mut latest = None;
+
+    for line in lines {
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let status = value
+            .get("ebpf")
+            .and_then(|value| value.get("status"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let reason = value
+            .get("ebpf")
+            .and_then(|value| value.get("reason"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        *status_counts.entry(status).or_default() += 1;
+        *reason_counts.entry(reason).or_default() += 1;
+        latest = Some(value);
+    }
+
+    json!({
+        "schema_version": 1,
+        "entries": lines.len(),
+        "status_counts": status_counts,
+        "reason_counts": reason_counts,
+        "latest": latest,
+    })
 }
 
 fn default_remote_dir() -> String {
@@ -697,7 +868,7 @@ fn collect_remote_ebpf_evidence(
     };
     let workspace_path = resolve_remote_workspace_path(remote_path, &preflight.home_dir);
     let target_dir = remote_cargo_target_dir(&preflight.home_dir);
-    let validate_bin = format!("{target_dir}/debug/gewyvern_validate");
+    let validate_bin = format!("{target_dir}/release/gewyvern_validate");
 
     let script = if preflight.sudo_available {
         format!(
@@ -706,7 +877,9 @@ cd {workspace_path}
 mkdir -p target/validation/remote-ebpf
 mkdir -p {target_dir}
 CURRENT_PATH="$PATH"
-CARGO_TARGET_DIR={target_dir} cargo build --quiet --bin gewyvern_validate
+if [ ! -x {validate_bin} ]; then
+  CARGO_TARGET_DIR={target_dir} cargo build --quiet --release --bin gewyvern_validate
+fi
 sudo -n env "PATH=$CURRENT_PATH" {validate_bin} linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke
 sudo -n env "PATH=$CURRENT_PATH" {validate_bin} linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke
 sudo -n env "PATH=$CURRENT_PATH" {validate_bin} linux-tc-smoke --dev {default_route_device} --out-dir target/validation/remote-ebpf/linux-tc-smoke
@@ -733,7 +906,9 @@ printf '%s\n' {admin_password} | sudo -S -p '' -k bash -lc '
   export CARGO_TARGET_DIR="{target_dir}"
   cd "'"$WORKDIR"'"
   mkdir -p target/validation/remote-ebpf
-  cargo build --quiet --bin gewyvern_validate
+  if [ ! -x "{validate_bin}" ]; then
+    cargo build --quiet --release --bin gewyvern_validate
+  fi
   "{validate_bin}" linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke
   "{validate_bin}" linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke
   "{validate_bin}" linux-tc-smoke --dev {default_route_device} --out-dir target/validation/remote-ebpf/linux-tc-smoke

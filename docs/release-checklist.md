@@ -189,6 +189,8 @@ When the remote host path is enabled through `release-gate`, the CLI now also
 prints the resolved remote directory, the remote eBPF outcome, and the slowest
 observed remote phases so you can narrow release friction without opening the
 remote evidence directory first.
+It also prints the recent remote eBPF trend and the newest recent-history
+entries when local history is available.
 
 In JSON mode, the final `release-gate` object now carries:
 
@@ -198,6 +200,10 @@ In JSON mode, the final `release-gate` object now carries:
 - `extra.remote.preflight`, `extra.remote.ebpf`, and
   `extra.remote.phase_timings` when the current run did execute the remote
   stage
+- `extra.remote.total_seconds` as the full remote validation wall-clock total
+  for quick regression comparison
+- `extra.remote.budget_warnings` when a keyed remote phase exceeded the current
+  soft release budget
 
 Practical `jq` examples:
 
@@ -210,6 +216,9 @@ cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-v
 
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation \
   | jq '.extra.remote.slowest_phase_entries'
+
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation \
+  | jq '.extra.remote.recent_ebpf_trend, .extra.remote.remote_ebpf_status_counts'
 ```
 
 Interpret the remote Linux signal explicitly:

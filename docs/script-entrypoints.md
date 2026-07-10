@@ -193,15 +193,33 @@ Evidence written locally:
 - `target/validation/remote-linux-host-validation/remote-ebpf/`
 - `target/validation/remote-linux-host-validation/remote-phase-timings.txt`
 - `target/validation/remote-linux-host-validation/remote-run.txt`
+- `target/validation/remote-linux-host-validation/remote-ebpf-history.jsonl`
+- `target/validation/remote-linux-host-validation/remote-ebpf-latest.json`
+- `target/validation/remote-linux-host-validation/remote-ebpf-recent.txt`
+- `target/validation/remote-linux-host-validation/remote-ebpf-status-summary.json`
 
 The phase-timing file records the observed wall-clock time for each major
 remote validation step so we can tell whether regressions come from sync,
 materialization, build, package smoke, runtime smoke, or the privileged eBPF
 attach path.
+The eBPF history files keep a bounded local record of the newest remote Linux
+eBPF outcomes so we can tell whether the attach path is consistently `ok`,
+frequently `skipped`, or drifting in total runtime.
+`remote-ebpf-recent.txt` gives a compact last-five human view, while
+`remote-ebpf-status-summary.json` rolls up counts by status and reason.
 The CLI now also prints a compact post-run summary with the resolved remote
 workspace, source/target cache roots, remote eBPF result, and the slowest
 slowest observed phases so the common debugging path does not require opening the
 evidence files first.
+It also prints the remote kernel, the detected default-route device for the tc
+smoke, and the total observed wall-clock seconds for the full remote run.
+When keyed remote phases materially exceed the current soft baseline budgets,
+the summary also prints `budget-warnings:`.
+That currently includes the full `total`, `workspace_sync`,
+`remote_package_build`, `remote_ebpf_smoke`, and `remote_ebpf_evidence_sync`
+phases.
+When local remote-eBPF history exists, the summary also prints a compact recent
+trend line plus the newest recent-history entries.
 
 For machine-readable consumption, use:
 
@@ -220,7 +238,14 @@ The `extra` object for this command now includes structured fields such as:
 - `preflight`
 - `ebpf`
 - `phase_timings`
+- `total_seconds`
 - `slowest_phase_entries`
+- `budget_warnings`
+- `remote_ebpf_history_entries`
+- `remote_ebpf_status_counts`
+- `remote_ebpf_reason_counts`
+- `recent_ebpf_trend`
+- `recent_ebpf_lines`
 
 Example `jq` checks:
 
@@ -421,6 +446,19 @@ Use these only on Linux-capable environments with the required kernel support
 and BPF attach privileges. Without root, `CAP_BPF`/`CAP_NET_ADMIN`, or an
 equivalent lab setup, the loader can fail with `Operation not permitted` before
 it reaches gewyvern-specific behavior.
+
+Each Linux smoke writes an evidence shelf under `target/validation/...` with:
+
+- `target.txt`
+- `run.log`
+- `environment.txt`
+- `evidence-index.json`
+- `netdev.txt` for `linux-tc-smoke`
+
+`environment.txt` records the kernel release/version, effective capability
+mask, BPF-related filesystem presence, and whether `clang`, `cc`, `tc`, and
+`bpftool` were discoverable in `PATH`. That makes attach failures much easier
+to compare across local Linux hosts and remote validation runs.
 
 The legacy `scripts/linux/*.sh` entrypoints remain as thin compatibility
 wrappers around these native commands.

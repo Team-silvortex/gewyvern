@@ -60,7 +60,14 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("\"preflight\""));
     assert!(binary.contains("\"ebpf\""));
     assert!(binary.contains("\"phase_timings\""));
+    assert!(binary.contains("\"total_seconds\""));
     assert!(binary.contains("\"slowest_phase_entries\""));
+    assert!(binary.contains("\"budget_warnings\""));
+    assert!(binary.contains("\"recent_ebpf_trend\""));
+    assert!(binary.contains("\"recent_ebpf_lines\""));
+    assert!(binary.contains("\"remote_ebpf_status_counts\""));
+    assert!(binary.contains("\"remote_ebpf_reason_counts\""));
+    assert!(binary.contains("\"workspace_sync\" => Some(WORKSPACE_SYNC_BUDGET_SECONDS)"));
     assert!(binary.contains("\"stages\""));
     assert!(binary.contains("\"remote\""));
     assert!(binary.contains("json_out_missing"));
@@ -116,9 +123,19 @@ fn linux_ebpf_smokes_are_native_with_legacy_wrappers() {
     assert!(smoke.contains("std::env::current_dir()"));
     assert!(smoke.contains("current_dir.join(\"ebpf\").join(\"smoke\").is_dir()"));
     assert!(smoke.contains("env!(\"CARGO_MANIFEST_DIR\")"));
+    assert!(smoke.contains("finalize_run_result"));
+    assert!(smoke.contains("write_transcript"));
     assert!(harness.contains("run_linux_attach_smoke"));
     assert!(harness.contains("run_linux_kprobe_smoke"));
     assert!(harness.contains("run_linux_tc_smoke"));
+    assert!(harness.contains("write_linux_smoke_evidence"));
+    assert!(harness.contains("environment.txt"));
+    assert!(harness.contains("evidence-index.json"));
+    assert!(harness.contains("netdev.txt"));
+    assert!(harness.contains("linux_environment_evidence"));
+    assert!(harness.contains("bpftool_in_path"));
+    assert!(harness.contains("/proc/self/status"));
+    assert!(harness.contains("/sys/kernel/btf/vmlinux"));
     assert!(harness.contains("Operation not permitted"));
     assert!(binary.contains("linux-attach-smoke"));
     assert!(binary.contains("linux-kprobe-smoke"));
@@ -131,6 +148,8 @@ fn linux_ebpf_smokes_are_native_with_legacy_wrappers() {
             .contains("sudo cargo run --quiet --bin gewyvern_validate -- linux-attach-smoke")
     );
     assert!(entrypoints.contains("thin compatibility"));
+    assert!(entrypoints.contains("environment.txt"));
+    assert!(entrypoints.contains("evidence-index.json"));
 }
 
 #[test]
@@ -151,6 +170,14 @@ fn remote_host_validation_records_phase_timings() {
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_workspace_cleanup\""));
     assert!(remote_host.contains("remote-phase-timings.txt"));
     assert!(remote_host.contains("checks.push(\"remote_phase_timings\".to_string())"));
+    assert!(remote_host.contains("write_remote_ebpf_history"));
+    assert!(remote_host.contains("remote-ebpf-history.jsonl"));
+    assert!(remote_host.contains("remote-ebpf-latest.json"));
+    assert!(remote_host.contains("remote-ebpf-recent.txt"));
+    assert!(remote_host.contains("remote-ebpf-status-summary.json"));
+    assert!(remote_host.contains("HISTORY_RETENTION: usize = 32"));
+    assert!(remote_host.contains("render_remote_ebpf_recent"));
+    assert!(remote_host.contains("summarize_remote_ebpf_history"));
     assert!(remote_host.contains("total={:.3}"));
     assert!(remote_host.contains("requested remote workspace"));
     assert!(remote_host.contains("resolved remote workspace"));
@@ -365,6 +392,7 @@ fn resilience_validation_bundle_is_native_with_legacy_wrappers() {
 #[test]
 fn packaging_container_validations_are_native_with_legacy_wrappers() {
     let packaging = read_repo_file("src/validation_harness/container_packaging.rs");
+    let build_packages = read_repo_file("scripts/packaging/build_packages.sh");
     let release_gate = read_repo_file("src/validation_harness/release_gate.rs");
     let smoke = read_repo_file("scripts/packaging/package_install_smoke.sh");
     let protocol = read_repo_file("scripts/packaging/container_protocol_validation.sh");
@@ -393,6 +421,9 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(packaging.contains("curl"));
     assert!(packaging.contains("wait_for_http_body"));
     assert!(packaging.contains("gewyvern_socket_send"));
+    assert!(build_packages.contains("--bin gewyvern_validate"));
+    assert!(build_packages.contains("-p gewyvern"));
+    assert!(build_packages.contains("-p gewyc"));
     assert!(packaging.contains("container runtime validation: ok"));
     assert!(release_gate.contains("run_package_install_smoke(mode)?"));
     assert!(release_gate.contains("run_container_runtime_validation(mode)?"));
@@ -401,6 +432,8 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(release_gate.contains("print_remote_release_gate_summary"));
     assert!(release_gate.contains("remote slowest phases"));
     assert!(release_gate.contains("remote eBPF summary"));
+    assert!(release_gate.contains("remote recent eBPF trend"));
+    assert!(release_gate.contains("remote recent eBPF:"));
     assert!(release_gate.contains("remote dir:"));
     assert!(release_gate.contains("covered packaged checks"));
     assert!(release_gate.contains("packaged release scope"));
@@ -438,6 +471,9 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("collect_remote_artifact_manifest"));
     assert!(remote.contains("collect_remote_ebpf_evidence"));
     assert!(remote.contains("sync_remote_ebpf_evidence"));
+    assert!(remote.contains("release/gewyvern_validate"));
+    assert!(remote.contains("cargo build --quiet --release --bin gewyvern_validate"));
+    assert!(remote.contains("if [ ! -x"));
     assert!(remote.contains(".arg(\"tests/\")"));
     assert!(remote.contains(".arg(\"apps/**/obj/\")"));
     assert!(remote.contains(".arg(\"apps/**/bin/\")"));
@@ -456,11 +492,9 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains(
         "CARGO_TARGET_DIR={target_dir} ./scripts/packaging/build_packages.sh --format all"
     ));
-    assert!(
-        remote
-            .contains("CARGO_TARGET_DIR={target_dir} cargo build --quiet --bin gewyvern_validate")
-    );
-    assert!(remote.contains("debug/gewyvern_validate"));
+    assert!(remote.contains(
+        "CARGO_TARGET_DIR={target_dir} cargo build --quiet --release --bin gewyvern_validate"
+    ));
     assert!(remote.contains("remote_preflight"));
     assert!(remote.contains("remote_artifacts_present"));
     assert!(remote.contains("remote_ebpf_smoke"));
@@ -554,6 +588,15 @@ fn docs_prefer_native_validation_entrypoints() {
         "cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation"
     ));
     assert!(entrypoints.contains("slowest_phase_entries"));
+    assert!(entrypoints.contains("total_seconds"));
+    assert!(entrypoints.contains("budget_warnings"));
+    assert!(entrypoints.contains("workspace_sync"));
+    assert!(entrypoints.contains("remote-ebpf-history.jsonl"));
+    assert!(entrypoints.contains("remote-ebpf-latest.json"));
+    assert!(entrypoints.contains("remote-ebpf-recent.txt"));
+    assert!(entrypoints.contains("remote-ebpf-status-summary.json"));
+    assert!(entrypoints.contains("recent_ebpf_trend"));
+    assert!(entrypoints.contains("recent_ebpf_lines"));
     assert!(entrypoints.contains("extra.stages"));
     assert!(entrypoints.contains("--json-out <path>"));
     assert!(entrypoints.contains("Current JSON failure codes"));
@@ -564,6 +607,9 @@ fn docs_prefer_native_validation_entrypoints() {
             .contains("cargo run --quiet --bin gewyvern_validate -- --json release-gate")
     );
     assert!(release_checklist.contains("extra.remote.ebpf.status"));
+    assert!(release_checklist.contains("extra.remote.total_seconds"));
+    assert!(release_checklist.contains("extra.remote.budget_warnings"));
+    assert!(release_checklist.contains("extra.remote.recent_ebpf_trend"));
     assert!(cli_recipes.contains("## Validation JSON Recipes"));
     assert!(
         cli_recipes.contains("cargo run --quiet --bin gewyvern_validate -- --json release-gate")
@@ -573,10 +619,21 @@ fn docs_prefer_native_validation_entrypoints() {
     ));
     assert!(cli_recipes.contains("--json-out /tmp/gewyvern-release-gate.json"));
     assert!(cli_recipes.contains("jq '.extra.stages'"));
+    assert!(cli_recipes.contains("jq '.extra.total_seconds'"));
+    assert!(cli_recipes.contains("jq '.extra.ebpf.default_route_device'"));
+    assert!(cli_recipes.contains("jq '.extra.budget_warnings // []'"));
+    assert!(
+        cli_recipes.contains("jq '.extra.recent_ebpf_trend, .extra.remote_ebpf_status_counts'")
+    );
+    assert!(cli_recipes.contains("remote-ebpf-history.jsonl"));
+    assert!(cli_recipes.contains("remote-ebpf-latest.json"));
+    assert!(cli_recipes.contains("remote-ebpf-recent.txt"));
+    assert!(cli_recipes.contains("remote-ebpf-status-summary.json"));
     assert!(cli_recipes.contains("schema_version"));
     assert!(cli_recipes.contains("failure_code"));
     assert!(cli_recipes.contains("validation_timeout"));
     assert!(cli_recipes.contains("remote_host_wrong_arch"));
+    assert!(read_repo_file("docs/performance-baselines.md").contains("workspace_sync <= 8s"));
     assert!(
         read_repo_file("docs/fixtures/gewyvern_validate_list.json")
             .contains("\"schema_version\": 1")

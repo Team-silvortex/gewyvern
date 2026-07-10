@@ -126,8 +126,13 @@ EOF
 }
 
 build_release_binaries() {
-  cargo build --release -p gewyvern --bin gewyvern --bin gewyvern_socket_send
-  cargo build --release -p gewyc --bin gewyc
+  cargo build --release \
+    -p gewyvern \
+    -p gewyc \
+    --bin gewyvern \
+    --bin gewyvern_socket_send \
+    --bin gewyvern_validate \
+    --bin gewyc
 }
 
 build_deb() {

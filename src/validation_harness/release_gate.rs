@@ -242,6 +242,8 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
     let run = parse_key_value_file(&out_dir.join("remote-run.txt"));
     let ebpf = parse_key_value_file(&out_dir.join("remote-ebpf.txt"));
     let timings = parse_phase_timings(&out_dir.join("remote-phase-timings.txt"));
+    let recent = read_trimmed_lines(&out_dir.join("remote-ebpf-recent.txt"));
+    let history_summary = parse_json_file(&out_dir.join("remote-ebpf-status-summary.json"));
 
     if let Some(remote_dir) = run.get("remote_dir") {
         validation_log(format!("[release-gate] remote dir: {remote_dir}"));
@@ -267,6 +269,12 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
             .join(", ");
         validation_log(format!("[release-gate] remote slowest phases: {summary}"));
     }
+    if let Some(trend) = summarize_recent_ebpf_trend(history_summary.as_ref()) {
+        validation_log(format!("[release-gate] remote recent eBPF trend: {trend}"));
+    }
+    for line in recent.iter().take(3) {
+        validation_log(format!("[release-gate] remote recent eBPF: {line}"));
+    }
 }
 
 fn parse_key_value_file(path: &Path) -> BTreeMap<String, String> {
@@ -287,4 +295,41 @@ fn parse_phase_timings(path: &Path) -> Vec<(String, f64)> {
         .into_iter()
         .filter_map(|(name, value)| value.parse::<f64>().ok().map(|seconds| (name, seconds)))
         .collect()
+}
+
+fn parse_json_file(path: &Path) -> Option<serde_json::Value> {
+    let body = fs::read_to_string(path).ok()?;
+    serde_json::from_str(&body).ok()
+}
+
+fn read_trimmed_lines(path: &Path) -> Vec<String> {
+    fs::read_to_string(path)
+        .ok()
+        .map(|body| {
+            body.lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .map(ToOwned::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn summarize_recent_ebpf_trend(history_summary: Option<&serde_json::Value>) -> Option<String> {
+    let history_summary = history_summary?;
+    let entries = history_summary
+        .get("entries")
+        .and_then(|value| value.as_u64())?;
+    let status_counts = history_summary.get("status_counts")?.as_object()?;
+    let ok_count = status_counts
+        .get("ok")
+        .and_then(|value| value.as_u64())
+        .unwrap_or_default();
+    let skipped_count = status_counts
+        .get("skipped")
+        .and_then(|value| value.as_u64())
+        .unwrap_or_default();
+    Some(format!(
+        "{ok_count}/{entries} ok, {skipped_count}/{entries} skipped"
+    ))
 }

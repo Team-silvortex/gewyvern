@@ -1622,6 +1622,20 @@ fn print_remote_linux_host_validation_help() {
 
 fn print_remote_linux_host_validation_summary(out_dir: &std::path::Path) {
     let summary = remote_linux_host_summary_value(out_dir);
+    if let Some(kernel) = summary
+        .get("preflight")
+        .and_then(|value| value.get("kernel"))
+        .and_then(|value| value.as_str())
+    {
+        println!("kernel: {kernel}");
+    }
+    if let Some(default_route_device) = summary
+        .get("ebpf")
+        .and_then(|value| value.get("default_route_device"))
+        .and_then(|value| value.as_str())
+    {
+        println!("default-route-device: {default_route_device}");
+    }
     if let Some(remote_dir) = summary.get("remote_dir").and_then(|value| value.as_str()) {
         println!("remote-dir: {remote_dir}");
     }
@@ -1645,6 +1659,48 @@ fn print_remote_linux_host_validation_summary(out_dir: &std::path::Path) {
         .and_then(|value| value.as_str())
     {
         println!("slowest-phases: {slowest_phases}");
+    }
+    if let Some(total_seconds) = summary
+        .get("total_seconds")
+        .and_then(|value| value.as_f64())
+    {
+        println!("total-seconds: {total_seconds:.3}");
+    }
+    if let Some(warnings) = summary
+        .get("budget_warnings")
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str())
+                .collect::<Vec<_>>()
+                .join(" | ")
+        })
+        .filter(|text| !text.is_empty())
+    {
+        println!("budget-warnings: {warnings}");
+    }
+    if let Some(trend) = summary
+        .get("recent_ebpf_trend")
+        .and_then(|value| value.as_str())
+    {
+        println!("recent-ebpf-trend: {trend}");
+    }
+    if let Some(lines) = summary
+        .get("recent_ebpf_lines")
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str())
+                .take(3)
+                .collect::<Vec<_>>()
+        })
+        .filter(|items| !items.is_empty())
+    {
+        for line in lines {
+            println!("recent-ebpf: {line}");
+        }
     }
 }
 
@@ -1721,6 +1777,34 @@ fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Val
             }),
         );
     }
+    if let Some(history_summary) = parse_json_file(&out_dir.join("remote-ebpf-status-summary.json"))
+    {
+        if let Some(entries) = history_summary
+            .get("entries")
+            .and_then(|value| value.as_u64())
+        {
+            summary.insert("remote_ebpf_history_entries".to_string(), json!(entries));
+        }
+        if let Some(status_counts) = history_summary.get("status_counts") {
+            summary.insert(
+                "remote_ebpf_status_counts".to_string(),
+                status_counts.clone(),
+            );
+        }
+        if let Some(reason_counts) = history_summary.get("reason_counts") {
+            summary.insert(
+                "remote_ebpf_reason_counts".to_string(),
+                reason_counts.clone(),
+            );
+        }
+        if let Some(trend) = summarize_recent_ebpf_trend(&history_summary) {
+            summary.insert("recent_ebpf_trend".to_string(), json!(trend));
+        }
+    }
+    let recent_lines = read_trimmed_lines(&out_dir.join("remote-ebpf-recent.txt"));
+    if !recent_lines.is_empty() {
+        summary.insert("recent_ebpf_lines".to_string(), json!(recent_lines));
+    }
 
     if !timings.is_empty() {
         let phase_timings = timings
@@ -1732,9 +1816,15 @@ fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Val
             serde_json::Value::Object(phase_timings),
         );
     }
+    if let Some((_, total_seconds)) = timings.iter().find(|(name, _)| name == "total") {
+        summary.insert("total_seconds".to_string(), json!(total_seconds));
+    }
+
+    let budget_warnings = remote_phase_budget_warnings(&timings);
 
     let mut slowest = timings
-        .into_iter()
+        .iter()
+        .map(|(name, seconds)| (name.clone(), *seconds))
         .filter(|(name, _)| name != "total")
         .collect::<Vec<_>>();
     slowest.sort_by(|left, right| right.1.total_cmp(&left.1));
@@ -1760,7 +1850,34 @@ fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Val
             ),
         );
     }
+    if !budget_warnings.is_empty() {
+        summary.insert("budget_warnings".to_string(), json!(budget_warnings));
+    }
     serde_json::Value::Object(summary)
+}
+
+fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
+    const REMOTE_TOTAL_BUDGET_SECONDS: f64 = 45.0;
+    const WORKSPACE_SYNC_BUDGET_SECONDS: f64 = 8.0;
+    const REMOTE_PACKAGE_BUILD_BUDGET_SECONDS: f64 = 20.0;
+    const REMOTE_EBPF_SMOKE_BUDGET_SECONDS: f64 = 10.0;
+    const REMOTE_EBPF_SYNC_BUDGET_SECONDS: f64 = 5.0;
+
+    timings
+        .iter()
+        .filter_map(|(name, seconds)| {
+            let budget = match name.as_str() {
+                "total" => Some(REMOTE_TOTAL_BUDGET_SECONDS),
+                "workspace_sync" => Some(WORKSPACE_SYNC_BUDGET_SECONDS),
+                "remote_package_build" => Some(REMOTE_PACKAGE_BUILD_BUDGET_SECONDS),
+                "remote_ebpf_smoke" => Some(REMOTE_EBPF_SMOKE_BUDGET_SECONDS),
+                "remote_ebpf_evidence_sync" => Some(REMOTE_EBPF_SYNC_BUDGET_SECONDS),
+                _ => None,
+            }?;
+            (seconds > &budget)
+                .then(|| format!("{name} exceeded budget ({seconds:.3}s > {budget:.3}s)"))
+        })
+        .collect()
 }
 
 fn release_gate_summary_value(
@@ -1806,6 +1923,43 @@ fn parse_phase_timings(path: &std::path::Path) -> Vec<(String, f64)> {
         .into_iter()
         .filter_map(|(name, value)| value.parse::<f64>().ok().map(|seconds| (name, seconds)))
         .collect()
+}
+
+fn parse_json_file(path: &std::path::Path) -> Option<serde_json::Value> {
+    let body = fs::read_to_string(path).ok()?;
+    serde_json::from_str(&body).ok()
+}
+
+fn read_trimmed_lines(path: &std::path::Path) -> Vec<String> {
+    fs::read_to_string(path)
+        .ok()
+        .map(|body| {
+            body.lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .map(ToOwned::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn summarize_recent_ebpf_trend(history_summary: &serde_json::Value) -> Option<String> {
+    let entries = history_summary
+        .get("entries")
+        .and_then(|value| value.as_u64())?;
+    let status_counts = history_summary.get("status_counts")?.as_object()?;
+    let ok_count = status_counts
+        .get("ok")
+        .and_then(|value| value.as_u64())
+        .unwrap_or_default();
+    let skipped_count = status_counts
+        .get("skipped")
+        .and_then(|value| value.as_u64())
+        .unwrap_or_default();
+
+    Some(format!(
+        "{ok_count}/{entries} ok, {skipped_count}/{entries} skipped"
+    ))
 }
 
 fn parse_bool_string(value: Option<&String>) -> Option<bool> {

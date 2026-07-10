@@ -45,16 +45,18 @@ pub fn run_tracepoint_attach_smoke(
 
     compile_bpf_smoke_object("ebpf/smoke/tracepoint_min.bpf.c", &bpf_obj, &mut transcript)?;
     compile_linux_smoke_loader("ebpf/smoke/attach_smoke.c", &loader_bin, &mut transcript)?;
-    run_command(
+    let result = run_command(
         Command::new(&loader_bin)
             .arg(&bpf_obj)
             .arg(category)
             .arg(event),
         &mut transcript,
-    )?;
-    transcript.push_str("linux attach smoke ok\n");
+    );
+    if result.is_ok() {
+        transcript.push_str("linux attach smoke ok\n");
+    }
 
-    finish_run(tmp_dir, transcript_path, transcript)
+    finalize_run_result(tmp_dir, transcript_path, transcript, result)
 }
 
 pub fn run_kprobe_attach_smoke(
@@ -75,13 +77,15 @@ pub fn run_kprobe_attach_smoke(
         &loader_bin,
         &mut transcript,
     )?;
-    run_command(
+    let result = run_command(
         Command::new(&loader_bin).arg(&bpf_obj).arg(symbol_name),
         &mut transcript,
-    )?;
-    transcript.push_str("linux kprobe smoke ok\n");
+    );
+    if result.is_ok() {
+        transcript.push_str("linux kprobe smoke ok\n");
+    }
 
-    finish_run(tmp_dir, transcript_path, transcript)
+    finalize_run_result(tmp_dir, transcript_path, transcript, result)
 }
 
 pub fn run_tc_attach_smoke(
@@ -109,8 +113,7 @@ pub fn run_tc_attach_smoke(
     let result = run_result
         .and(cleanup_after_run)
         .and(cleanup_result.or(Ok(())));
-    finish_run(tmp_dir, transcript_path, transcript)?;
-    result
+    finalize_run_result(tmp_dir, transcript_path, transcript, result)
 }
 
 pub fn validate_tracepoint_name(name: &str) -> Result<(), LinuxEbpfSmokeError> {
@@ -351,10 +354,9 @@ fn render_os_arg(arg: &OsStr) -> String {
     }
 }
 
-fn finish_run(
-    tmp_dir: PathBuf,
+fn write_transcript(
     transcript_path: Option<&Path>,
-    transcript: String,
+    transcript: &str,
 ) -> Result<(), LinuxEbpfSmokeError> {
     if let Some(path) = transcript_path {
         if let Some(parent) = path.parent() {
@@ -362,8 +364,18 @@ fn finish_run(
         }
         fs::write(path, transcript).map_err(io_err)?;
     }
-    fs::remove_dir_all(tmp_dir).map_err(io_err)?;
     Ok(())
+}
+
+fn finalize_run_result(
+    tmp_dir: PathBuf,
+    transcript_path: Option<&Path>,
+    transcript: String,
+    result: Result<(), LinuxEbpfSmokeError>,
+) -> Result<(), LinuxEbpfSmokeError> {
+    write_transcript(transcript_path, &transcript)?;
+    fs::remove_dir_all(tmp_dir).map_err(io_err)?;
+    result
 }
 
 fn io_err(err: std::io::Error) -> LinuxEbpfSmokeError {
