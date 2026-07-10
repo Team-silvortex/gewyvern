@@ -3,9 +3,12 @@ use std::error::Error;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde_json::Value;
+
+static VALIDATION_JSON_MODE: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug)]
 pub struct ValidationError {
@@ -44,6 +47,28 @@ pub struct ValidationReport {
     pub name: String,
     pub out_dir: PathBuf,
     pub checks: Vec<String>,
+}
+
+pub fn set_validation_json_mode(enabled: bool) {
+    VALIDATION_JSON_MODE.store(enabled, Ordering::Relaxed);
+}
+
+pub fn validation_json_mode() -> bool {
+    VALIDATION_JSON_MODE.load(Ordering::Relaxed)
+}
+
+pub fn validation_log(message: impl AsRef<str>) {
+    if !validation_json_mode() {
+        println!("{}", message.as_ref());
+    }
+}
+
+pub fn validation_command_stdout() -> Stdio {
+    if validation_json_mode() {
+        Stdio::null()
+    } else {
+        Stdio::inherit()
+    }
 }
 
 pub fn repo_root() -> PathBuf {

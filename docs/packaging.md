@@ -255,6 +255,13 @@ cargo run --quiet --bin gewyvern_validate -- package-install-smoke --deb
 cargo run --quiet --bin gewyvern_validate -- package-install-smoke --rpm
 ```
 
+If a wrapper or CI job needs one final machine-readable result instead of text
+summaries, prefix the command with the global JSON flag:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json package-install-smoke
+```
+
 ## Container Runtime Validation
 
 To go beyond install smoke and validate the packaged standalone runtime itself,

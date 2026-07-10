@@ -52,6 +52,113 @@ Use these when you want the shortest runtime proof that:
 - the debugger cross-check still agrees across runtime, console, and compiler
   envelope surfaces
 
+## Validation JSON Recipes
+
+Use these when the caller is CI, a release bot, or a local wrapper that should
+consume one final machine-readable result instead of scraping text logs.
+
+List and help:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json list
+cargo run --quiet --bin gewyvern_validate -- --json help
+```
+
+Fastest release-gate result:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json release-gate
+cargo run --quiet --bin gewyvern_validate -- --json --json-out /tmp/gewyvern-release-gate.json release-gate
+```
+
+Narrow the gate without leaving JSON mode:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-build
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-stack
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-pathology
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation
+```
+
+Remote Linux host evidence as one structured object:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation
+```
+
+Current stable top-level fields:
+
+- `schema_version`
+- `ok`
+- `command`
+- `name`
+- `checks`
+- `evidence_dir`
+- `extra`
+
+Current version gate:
+
+- `schema_version = 1`
+
+High-value `jq` snippets:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json release-gate \
+  | jq '.schema_version == 1'
+
+cargo run --quiet --bin gewyvern_validate -- --json release-gate \
+  | jq '.extra.stages'
+
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation \
+  | jq '.extra.remote.ebpf.status'
+
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation \
+  | jq '.extra.remote.slowest_phase_entries'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.preflight.arch == "x86_64"'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.phase_timings.remote_package_build'
+```
+
+Failure-mode example:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json linux-tc-smoke --dev eth0
+```
+
+If a pipeline wants both stdout and a saved artifact, place the global output
+path before the command:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json --json-out /tmp/gewyvern-remote.json remote-linux-host-validation
+```
+
+That failure shape carries:
+
+- `failure_class`
+- `failure_code`
+- `message`
+- `next_steps`
+
+Current high-value `failure_code` values:
+
+- `invalid_cli_input`
+- `docker_unreachable`
+- `missing_package_artifact`
+- `validation_timeout`
+- `remote_workspace_retained`
+- `remote_host_not_linux`
+- `remote_host_wrong_arch`
+- `remote_admin_credentials_incomplete`
+- `linux_ebpf_privilege_required`
+- `missing_sshpass`
+- `missing_system_command`
+
+Use `extra` fields instead of scraping text summaries such as
+`remote-ebpf:` or `slowest-phases:` whenever a wrapper can consume JSON.
+
 ## DSL-Focused Runtime Commands
 
 ```bash

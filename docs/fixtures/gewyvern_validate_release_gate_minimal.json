@@ -1,0 +1,18 @@
+{
+  "checks": [],
+  "command": "release-gate",
+  "evidence_dir": "/Users/Shared/chroot/dev/gewyvern/target/validation",
+  "extra": {
+    "remote": null,
+    "stages": {
+      "build_packages": false,
+      "pathological_container_validation": false,
+      "release_container_check": false,
+      "remote_linux_host_validation": false,
+      "three_module_stack_smoke": false
+    }
+  },
+  "name": "release gate",
+  "ok": true,
+  "schema_version": 1
+}

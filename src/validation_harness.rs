@@ -14,7 +14,10 @@ mod runtime_operator;
 mod stack_probe;
 mod stack_suites;
 
-pub use command::{ValidationError, ValidationReport, repo_root};
+pub use command::{
+    ValidationError, ValidationReport, repo_root, set_validation_json_mode,
+    validation_command_stdout, validation_json_mode, validation_log,
+};
 pub use container_packaging::{
     run_container_operator_path_validation, run_container_protocol_validation,
     run_container_runtime_validation, run_container_validation_summary, run_package_install_smoke,

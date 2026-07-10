@@ -4,7 +4,10 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use super::command::{ValidationError, ValidationReport, default_out_dir, repo_root};
+use super::command::{
+    ValidationError, ValidationReport, default_out_dir, repo_root, validation_command_stdout,
+    validation_log,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RemoteLinuxHostOptions {
@@ -43,14 +46,23 @@ pub fn run_remote_linux_host_validation(
     let remote_path = remote_workspace_path(&remote_dir);
     let release_line = env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v0.20.x".to_string());
 
-    println!("[remote-host] host: {}", options.host);
-    println!("[remote-host] requested remote workspace: {}", remote_path);
-    println!("[remote-host] build packages: {}", options.build_packages);
-    println!("[remote-host] keep remote dir: {}", options.keep_remote_dir);
+    validation_log(format!("[remote-host] host: {}", options.host));
+    validation_log(format!(
+        "[remote-host] requested remote workspace: {}",
+        remote_path
+    ));
+    validation_log(format!(
+        "[remote-host] build packages: {}",
+        options.build_packages
+    ));
+    validation_log(format!(
+        "[remote-host] keep remote dir: {}",
+        options.keep_remote_dir
+    ));
 
     let result: Result<ValidationReport, ValidationError> = (|| {
-        println!("[remote-host] ----------------------------------------");
-        println!("[remote-host] collecting remote preflight");
+        validation_log("[remote-host] ----------------------------------------");
+        validation_log("[remote-host] collecting remote preflight");
         let preflight = measure_phase(&mut phase_timings, "remote_preflight", || {
             collect_remote_preflight(&options.host, options.build_packages)
         })?;
@@ -59,18 +71,21 @@ pub fn run_remote_linux_host_validation(
         let remote_source_cache = remote_source_cache_dir(&preflight.home_dir);
         let remote_source_cache_quoted = shell_single_quote(&remote_source_cache);
         let remote_path_quoted = shell_single_quote(&resolved_remote_path);
-        println!(
+        validation_log(format!(
             "[remote-host] resolved remote workspace: {}",
             resolved_remote_path
-        );
-        println!("[remote-host] remote source cache: {}", remote_source_cache);
-        println!(
+        ));
+        validation_log(format!(
+            "[remote-host] remote source cache: {}",
+            remote_source_cache
+        ));
+        validation_log(format!(
             "[remote-host] remote cargo target cache: {}",
             remote_cargo_target_dir(&preflight.home_dir)
-        );
+        ));
 
-        println!("[remote-host] ----------------------------------------");
-        println!("[remote-host] creating remote workspace roots");
+        validation_log("[remote-host] ----------------------------------------");
+        validation_log("[remote-host] creating remote workspace roots");
         measure_phase(&mut phase_timings, "remote_workspace_create", || {
             run_ssh_command(
                 &options.host,
@@ -79,14 +94,14 @@ pub fn run_remote_linux_host_validation(
             )
         })?;
 
-        println!("[remote-host] ----------------------------------------");
-        println!("[remote-host] syncing current workspace into remote source cache");
+        validation_log("[remote-host] ----------------------------------------");
+        validation_log("[remote-host] syncing current workspace into remote source cache");
         measure_phase(&mut phase_timings, "workspace_sync", || {
             sync_workspace(&options.host, &remote_source_cache)
         })?;
 
-        println!("[remote-host] ----------------------------------------");
-        println!("[remote-host] materializing remote workspace from source cache");
+        validation_log("[remote-host] ----------------------------------------");
+        validation_log("[remote-host] materializing remote workspace from source cache");
         measure_phase(&mut phase_timings, "remote_workspace_materialize", || {
             materialize_remote_workspace(&options.host, &remote_source_cache, &resolved_remote_path)
         })?;
@@ -96,8 +111,8 @@ pub fn run_remote_linux_host_validation(
         checks.push("remote_workspace_materialized".to_string());
 
         if options.build_packages {
-            println!("[remote-host] ----------------------------------------");
-            println!("[remote-host] building x86_64 packages on remote host");
+            validation_log("[remote-host] ----------------------------------------");
+            validation_log("[remote-host] building x86_64 packages on remote host");
             measure_phase(&mut phase_timings, "remote_package_build", || {
                 let target_dir = shell_single_quote(&remote_cargo_target_dir(&preflight.home_dir));
                 run_ssh_command(
@@ -110,11 +125,11 @@ pub fn run_remote_linux_host_validation(
             })?;
             checks.push("remote_package_build".to_string());
         } else {
-            println!("[remote-host] skipping remote package build");
+            validation_log("[remote-host] skipping remote package build");
         }
 
-        println!("[remote-host] ----------------------------------------");
-        println!("[remote-host] verifying remote package artifacts");
+        validation_log("[remote-host] ----------------------------------------");
+        validation_log("[remote-host] verifying remote package artifacts");
         let artifact_manifest =
             measure_phase(&mut phase_timings, "remote_artifact_verify", || {
                 collect_remote_artifact_manifest(&options.host, &remote_path)
@@ -125,8 +140,8 @@ pub fn run_remote_linux_host_validation(
         )?;
         checks.push("remote_artifacts_present".to_string());
 
-        println!("[remote-host] ----------------------------------------");
-        println!("[remote-host] running remote package smoke");
+        validation_log("[remote-host] ----------------------------------------");
+        validation_log("[remote-host] running remote package smoke");
         measure_phase(&mut phase_timings, "remote_package_smoke", || {
             run_ssh_script(
                 &options.host,
@@ -137,8 +152,8 @@ pub fn run_remote_linux_host_validation(
         })?;
         checks.push("remote_package_smoke".to_string());
 
-        println!("[remote-host] ----------------------------------------");
-        println!("[remote-host] running remote runtime smoke");
+        validation_log("[remote-host] ----------------------------------------");
+        validation_log("[remote-host] running remote runtime smoke");
         measure_phase(&mut phase_timings, "remote_runtime_smoke", || {
             run_ssh_script(
                 &options.host,
@@ -149,8 +164,8 @@ pub fn run_remote_linux_host_validation(
         })?;
         checks.push("remote_runtime_smoke".to_string());
 
-        println!("[remote-host] ----------------------------------------");
-        println!("[remote-host] collecting remote eBPF smoke evidence");
+        validation_log("[remote-host] ----------------------------------------");
+        validation_log("[remote-host] collecting remote eBPF smoke evidence");
         let ebpf_evidence = measure_phase(&mut phase_timings, "remote_ebpf_smoke", || {
             collect_remote_ebpf_evidence(
                 &options.host,
@@ -161,7 +176,7 @@ pub fn run_remote_linux_host_validation(
         })?;
         fs::write(out_dir.join("remote-ebpf.txt"), ebpf_evidence.render())?;
         if ebpf_evidence.status == "ok" {
-            println!("[remote-host] syncing remote eBPF evidence");
+            validation_log("[remote-host] syncing remote eBPF evidence");
             measure_phase(&mut phase_timings, "remote_ebpf_evidence_sync", || {
                 sync_remote_ebpf_evidence(
                     &options.host,
@@ -193,10 +208,13 @@ pub fn run_remote_linux_host_validation(
         fs::write(out_dir.join("remote-run.txt"), summary)?;
 
         if options.keep_remote_dir {
-            println!("[remote-host] keeping remote workspace: {}", remote_path);
+            validation_log(format!(
+                "[remote-host] keeping remote workspace: {}",
+                remote_path
+            ));
         } else {
-            println!("[remote-host] ----------------------------------------");
-            println!("[remote-host] removing remote workspace");
+            validation_log("[remote-host] ----------------------------------------");
+            validation_log("[remote-host] removing remote workspace");
             measure_phase(&mut phase_timings, "remote_workspace_cleanup", || {
                 remove_remote_workspace(
                     &options.host,
@@ -311,7 +329,7 @@ fn sync_workspace(host: &str, remote_path: &str) -> Result<(), ValidationError> 
         .arg(format!("{}/", root.display()))
         .arg(format!("{host}:{remote_path}/"))
         .stdin(Stdio::null())
-        .stdout(Stdio::inherit())
+        .stdout(validation_command_stdout())
         .stderr(Stdio::inherit());
 
     let status = command
@@ -357,7 +375,7 @@ fn sync_remote_ebpf_evidence(
         .arg(&remote_evidence_root)
         .arg(format!("{}/", local_evidence_root.display()))
         .stdin(Stdio::null())
-        .stdout(Stdio::inherit())
+        .stdout(validation_command_stdout())
         .stderr(Stdio::inherit())
         .status()
         .map_err(|err| {
@@ -378,7 +396,7 @@ fn run_ssh_command(host: &str, command: &str, context: &str) -> Result<(), Valid
     let status = Command::new("ssh")
         .args(["-o", "BatchMode=yes", host, command])
         .stdin(Stdio::null())
-        .stdout(Stdio::inherit())
+        .stdout(validation_command_stdout())
         .stderr(Stdio::inherit())
         .status()
         .map_err(|err| ValidationError::new(format!("{context}: {err}")))?;
@@ -400,7 +418,7 @@ fn run_ssh_script(
     let mut child = Command::new("ssh")
         .args(["-o", "BatchMode=yes", host, command])
         .stdin(Stdio::piped())
-        .stdout(Stdio::inherit())
+        .stdout(validation_command_stdout())
         .stderr(Stdio::inherit())
         .spawn()
         .map_err(|err| ValidationError::new(format!("{context}: {err}")))?;

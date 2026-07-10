@@ -11,13 +11,19 @@ pub const STACK_COMMANDS: &[&str] = &[
     "stack-register-runtime-json",
     "stack-resilience-summary",
 ];
+const JSON_SCHEMA_VERSION: u32 = 1;
 
-pub fn run_stack_command(command: &str, args: Vec<String>) -> Result<bool, ValidationError> {
+pub fn run_stack_command(
+    command: &str,
+    args: Vec<String>,
+    json_output: bool,
+    json_out: Option<&std::path::Path>,
+) -> Result<bool, ValidationError> {
     match command {
-        "stack-check-json" => run_check_json(args),
-        "stack-probe" => run_probe(args),
+        "stack-check-json" => run_check_json(args, json_output, json_out),
+        "stack-probe" => run_probe(args, json_output, json_out),
         "stack-register-runtime-json" => run_register_runtime(args),
-        "stack-resilience-summary" => run_resilience_summary(args),
+        "stack-resilience-summary" => run_resilience_summary(args, json_output, json_out),
         _ => Ok(false),
     }
 }
@@ -41,7 +47,11 @@ pub fn print_stack_help() {
     );
 }
 
-fn run_probe(args: Vec<String>) -> Result<bool, ValidationError> {
+fn run_probe(
+    args: Vec<String>,
+    json_output: bool,
+    json_out: Option<&std::path::Path>,
+) -> Result<bool, ValidationError> {
     let options = StackOptions::parse(args)?;
     let report = run_stack_probe_validation(
         &required(options.url, "--url")?,
@@ -49,7 +59,13 @@ fn run_probe(args: Vec<String>) -> Result<bool, ValidationError> {
         options.admin_token.as_deref(),
         options.output,
     )?;
-    print_report(&report.name, &report.checks, &report.out_dir);
+    print_report(
+        &report.name,
+        &report.checks,
+        &report.out_dir,
+        json_output,
+        json_out,
+    );
     Ok(true)
 }
 
@@ -70,17 +86,31 @@ fn run_register_runtime(args: Vec<String>) -> Result<bool, ValidationError> {
     Ok(true)
 }
 
-fn run_check_json(args: Vec<String>) -> Result<bool, ValidationError> {
+fn run_check_json(
+    args: Vec<String>,
+    json_output: bool,
+    json_out: Option<&std::path::Path>,
+) -> Result<bool, ValidationError> {
     let options = StackOptions::parse(args)?;
     let report = run_stack_json_file_validation(
         &required_path(options.input, "--input")?,
         &required(options.profile, "--profile")?,
     )?;
-    print_report(&report.name, &report.checks, &report.out_dir);
+    print_report(
+        &report.name,
+        &report.checks,
+        &report.out_dir,
+        json_output,
+        json_out,
+    );
     Ok(true)
 }
 
-fn run_resilience_summary(args: Vec<String>) -> Result<bool, ValidationError> {
+fn run_resilience_summary(
+    args: Vec<String>,
+    json_output: bool,
+    json_out: Option<&std::path::Path>,
+) -> Result<bool, ValidationError> {
     let options = StackOptions::parse(args)?;
     let report = write_stack_resilience_summary(
         &required_path(options.healthy_a, "--healthy-a")?,
@@ -88,7 +118,13 @@ fn run_resilience_summary(args: Vec<String>) -> Result<bool, ValidationError> {
         &required_path(options.degraded_b, "--degraded-b")?,
         &required_path(options.output, "--output")?,
     )?;
-    print_report(&report.name, &report.checks, &report.out_dir);
+    print_report(
+        &report.name,
+        &report.checks,
+        &report.out_dir,
+        json_output,
+        json_out,
+    );
     Ok(true)
 }
 
@@ -195,7 +231,32 @@ fn required_path(value: Option<PathBuf>, name: &str) -> Result<PathBuf, Validati
     value.ok_or_else(|| ValidationError::new(format!("{name} is required")))
 }
 
-fn print_report(name: &str, checks: &[String], out_dir: &std::path::Path) {
+fn print_report(
+    name: &str,
+    checks: &[String],
+    out_dir: &std::path::Path,
+    json_output: bool,
+    json_out: Option<&std::path::Path>,
+) {
+    if json_output {
+        let payload = serde_json::json!({
+            "schema_version": JSON_SCHEMA_VERSION,
+            "ok": true,
+            "name": name,
+            "checks": checks,
+            "evidence_dir": out_dir.display().to_string(),
+        });
+        let rendered = payload.to_string();
+        if let Some(path) = json_out {
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(path, rendered.as_bytes());
+        }
+        println!("{rendered}");
+        return;
+    }
+
     println!("{name}: ok");
     println!("checks: {}", checks.join(", "));
     println!("evidence: {}", out_dir.display());

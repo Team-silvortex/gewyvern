@@ -4,7 +4,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::command::{ValidationError, ValidationReport, default_out_dir, repo_root};
+use super::command::{
+    ValidationError, ValidationReport, default_out_dir, repo_root, validation_command_stdout,
+    validation_log,
+};
 use super::release_gate::ReleaseCheckMode;
 
 const DEFAULT_DEB_PROTOCOL_IMAGE: &str = "ubuntu:24.04";
@@ -42,7 +45,7 @@ pub fn run_package_install_smoke(
         checks.push("rpm_install_smoke".to_string());
     }
 
-    println!("package install smoke: ok");
+    validation_log("package install smoke: ok");
     Ok(ValidationReport {
         name: format!("package install smoke ({})", mode.label()),
         out_dir: default_out_dir("package-install-smoke"),
@@ -76,7 +79,7 @@ pub fn run_container_runtime_validation(
         checks.push("rpm_runtime_validation".to_string());
     }
 
-    println!("container runtime validation: ok");
+    validation_log("container runtime validation: ok");
     Ok(ValidationReport {
         name: format!("container runtime validation ({})", mode.label()),
         out_dir: default_out_dir("container-runtime-validation"),
@@ -110,7 +113,7 @@ pub fn run_container_protocol_validation(
         checks.push("rpm_protocol_validation".to_string());
     }
 
-    println!("container protocol validation: ok");
+    validation_log("container protocol validation: ok");
     Ok(ValidationReport {
         name: format!("container protocol validation ({})", mode.label()),
         out_dir: default_out_dir("container-protocol-validation"),
@@ -144,7 +147,7 @@ pub fn run_container_operator_path_validation(
         checks.push("rpm_operator_path_validation".to_string());
     }
 
-    println!("container operator path validation: ok");
+    validation_log("container operator path validation: ok");
     Ok(ValidationReport {
         name: format!("container operator path validation ({})", mode.label()),
         out_dir: default_out_dir("container-operator-path-validation"),
@@ -155,24 +158,24 @@ pub fn run_container_operator_path_validation(
 pub fn run_container_validation_summary(
     mode: ReleaseCheckMode,
 ) -> Result<ValidationReport, ValidationError> {
-    println!(
+    validation_log(format!(
         "[summary] starting packaged container validation ({})",
         mode.label()
-    );
+    ));
 
-    println!("[summary] ----------------------------------------");
-    println!("[summary] running packaged protocol validation");
+    validation_log("[summary] ----------------------------------------");
+    validation_log("[summary] running packaged protocol validation");
     let protocol = run_container_protocol_validation(mode)?;
 
-    println!("[summary] ----------------------------------------");
-    println!("[summary] running packaged operator-path validation");
+    validation_log("[summary] ----------------------------------------");
+    validation_log("[summary] running packaged operator-path validation");
     let operator = run_container_operator_path_validation(mode)?;
 
-    println!("[summary] ----------------------------------------");
-    println!(
+    validation_log("[summary] ----------------------------------------");
+    validation_log(format!(
         "[summary] packaged container validation: ok ({})",
         mode.label()
-    );
+    ));
 
     let mut checks = protocol.checks;
     checks.extend(operator.checks);
@@ -246,11 +249,11 @@ apt-get update >/dev/null\n\
         &cfg.deb_image,
         &script,
     )?;
-    println!(
+    validation_log(format!(
         "deb {} validation: ok ({})",
         cfg.validation_name,
         deb_path.display()
-    );
+    ));
     Ok(())
 }
 
@@ -299,11 +302,11 @@ GEWY_PACKAGE_FILE=\"/packages/{package_name}\"\n\
         &cfg.rpm_image,
         &script,
     )?;
-    println!(
+    validation_log(format!(
         "rpm {} validation: ok ({})",
         cfg.validation_name,
         rpm_path.display()
-    );
+    ));
     Ok(())
 }
 
@@ -345,7 +348,7 @@ fn run_docker_script(
         cmd.arg("docker");
         cmd.args(args);
         cmd.stdin(Stdio::null())
-            .stdout(Stdio::inherit())
+            .stdout(validation_command_stdout())
             .stderr(Stdio::inherit());
         let status = cmd.status().map_err(|err| {
             ValidationError::new(format!(
@@ -367,7 +370,7 @@ fn run_docker_script(
         let mut cmd = Command::new("docker");
         cmd.args(args);
         cmd.stdin(Stdio::null())
-            .stdout(Stdio::inherit())
+            .stdout(validation_command_stdout())
             .stderr(Stdio::inherit());
         cmd.status().map_err(|err| {
             ValidationError::new(format!(
@@ -420,6 +423,8 @@ fn has_command(name: &str) -> bool {
 fn ensure_docker_reachable() -> Result<(), ValidationError> {
     let status = Command::new("docker")
         .arg("info")
+        .stdout(validation_command_stdout())
+        .stderr(Stdio::inherit())
         .status()
         .map_err(|err| ValidationError::new(format!("failed to query docker: {err}")))?;
     if status.success() {

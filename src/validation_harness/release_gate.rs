@@ -5,7 +5,8 @@ use super::command::{ValidationError, ValidationReport, repo_root};
 use super::{
     RemoteLinuxHostOptions, run_container_runtime_validation, run_container_validation_summary,
     run_package_install_smoke, run_pathological_container_validation,
-    run_remote_linux_host_validation, run_three_module_stack_smoke,
+    run_remote_linux_host_validation, run_three_module_stack_smoke, validation_command_stdout,
+    validation_log,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -62,33 +63,33 @@ pub fn run_release_container_check(
     mode: ReleaseCheckMode,
 ) -> Result<ValidationReport, ValidationError> {
     let mut checks = Vec::new();
-    println!(
+    validation_log(format!(
         "[release-check] starting packaged release validation ({})",
         mode.label()
-    );
+    ));
 
-    println!("[release-check] ----------------------------------------");
-    println!("[release-check] running package install smoke");
+    validation_log("[release-check] ----------------------------------------");
+    validation_log("[release-check] running package install smoke");
     run_package_install_smoke(mode)?;
     checks.push("package_install_smoke".to_string());
 
-    println!("[release-check] ----------------------------------------");
-    println!("[release-check] running packaged runtime validation");
+    validation_log("[release-check] ----------------------------------------");
+    validation_log("[release-check] running packaged runtime validation");
     run_container_runtime_validation(mode)?;
     checks.push("packaged_runtime_validation".to_string());
 
-    println!("[release-check] ----------------------------------------");
-    println!("[release-check] running packaged protocol/operator summary");
+    validation_log("[release-check] ----------------------------------------");
+    validation_log("[release-check] running packaged protocol/operator summary");
     run_container_validation_summary(mode)?;
     checks.push("packaged_protocol_operator_summary".to_string());
 
-    println!("[release-check] ----------------------------------------");
-    println!(
+    validation_log("[release-check] ----------------------------------------");
+    validation_log(format!(
         "[release-check] packaged release validation: ok ({})",
         mode.label()
-    );
-    println!(
-        "[release-check] covered packaged checks: package-install-smoke, container-runtime-validation, container-validation-summary"
+    ));
+    validation_log(
+        "[release-check] covered packaged checks: package-install-smoke, container-runtime-validation, container-validation-summary",
     );
 
     Ok(ValidationReport {
@@ -110,59 +111,59 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
         )?;
         checks.push("build_packages_in_container".to_string());
     } else {
-        println!("[release-gate] skipping package rebuild");
+        validation_log("[release-gate] skipping package rebuild");
     }
 
     if options.run_release_check {
-        println!("[release-gate] ----------------------------------------");
+        validation_log("[release-gate] ----------------------------------------");
         match options.release_mode {
             ReleaseCheckMode::DebAndRpm => {
-                println!("[release-gate] running packaged release validation");
-                println!(
-                    "[release-gate] packaged release scope: package-install-smoke + container-runtime-validation + container-validation-summary (deb+rpm)"
+                validation_log("[release-gate] running packaged release validation");
+                validation_log(
+                    "[release-gate] packaged release scope: package-install-smoke + container-runtime-validation + container-validation-summary (deb+rpm)",
                 );
             }
             mode => {
-                println!(
+                validation_log(format!(
                     "[release-gate] running packaged release validation ({})",
                     mode.label()
-                );
-                println!(
+                ));
+                validation_log(format!(
                     "[release-gate] packaged release scope: package-install-smoke + container-runtime-validation + container-validation-summary ({})",
                     mode.label()
-                );
+                ));
             }
         }
         run_release_container_check(options.release_mode)?;
         checks.push("release_container_check".to_string());
     } else {
-        println!("[release-gate] skipping packaged release validation");
+        validation_log("[release-gate] skipping packaged release validation");
     }
 
     if options.run_stack {
-        println!("[release-gate] ----------------------------------------");
-        println!("[release-gate] running three-module stack smoke");
+        validation_log("[release-gate] ----------------------------------------");
+        validation_log("[release-gate] running three-module stack smoke");
         run_three_module_stack_smoke()?;
         checks.push("three_module_stack_smoke".to_string());
     } else {
-        println!("[release-gate] skipping three-module stack smoke");
+        validation_log("[release-gate] skipping three-module stack smoke");
     }
 
     if options.run_pathology {
-        println!("[release-gate] ----------------------------------------");
-        println!("[release-gate] running pathological container validation");
+        validation_log("[release-gate] ----------------------------------------");
+        validation_log("[release-gate] running pathological container validation");
         run_pathological_container_validation(None)?;
         checks.push("pathological_container_validation".to_string());
     } else {
-        println!("[release-gate] skipping pathological container validation");
+        validation_log("[release-gate] skipping pathological container validation");
     }
 
     if options.run_remote_host {
-        println!("[release-gate] ----------------------------------------");
-        println!(
+        validation_log("[release-gate] ----------------------------------------");
+        validation_log(format!(
             "[release-gate] running remote linux host validation ({})",
             options.remote_host
-        );
+        ));
         let remote_report = run_remote_linux_host_validation(RemoteLinuxHostOptions {
             host: options.remote_host,
             remote_dir: options.remote_dir,
@@ -176,24 +177,24 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
             .iter()
             .any(|check| check == "remote_ebpf_smoke")
         {
-            println!("[release-gate] remote Linux eBPF attach evidence: ok");
+            validation_log("[release-gate] remote Linux eBPF attach evidence: ok");
             checks.push("remote_ebpf_smoke".to_string());
         } else if remote_report
             .checks
             .iter()
             .any(|check| check == "remote_ebpf_smoke_skipped")
         {
-            println!(
-                "[release-gate] remote Linux eBPF attach evidence: skipped (see remote-ebpf.txt)"
+            validation_log(
+                "[release-gate] remote Linux eBPF attach evidence: skipped (see remote-ebpf.txt)",
             );
             checks.push("remote_ebpf_smoke_skipped".to_string());
         }
     } else {
-        println!("[release-gate] skipping remote linux host validation");
+        validation_log("[release-gate] skipping remote linux host validation");
     }
 
-    println!("[release-gate] ----------------------------------------");
-    println!("[release-gate] release gate: ok");
+    validation_log("[release-gate] ----------------------------------------");
+    validation_log("[release-gate] release gate: ok");
 
     Ok(ValidationReport {
         name: "release gate".to_string(),
@@ -208,8 +209,10 @@ fn run_step(
     script_relative_path: &str,
     args: &[&str],
 ) -> Result<(), ValidationError> {
-    println!("[{prefix}] ----------------------------------------");
-    println!("[{prefix}] {label}");
+    validation_log(format!(
+        "[{prefix}] ----------------------------------------"
+    ));
+    validation_log(format!("[{prefix}] {label}"));
     run_repo_script(script_relative_path, args)
 }
 
@@ -219,7 +222,7 @@ fn run_repo_script(script_relative_path: &str, args: &[&str]) -> Result<(), Vali
         .arg(repo_root().join(script_relative_path))
         .args(args)
         .stdin(Stdio::null())
-        .stdout(Stdio::inherit())
+        .stdout(validation_command_stdout())
         .stderr(Stdio::inherit())
         .status()
         .map_err(|err| {
@@ -241,11 +244,13 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
     let timings = parse_phase_timings(&out_dir.join("remote-phase-timings.txt"));
 
     if let Some(remote_dir) = run.get("remote_dir") {
-        println!("[release-gate] remote dir: {remote_dir}");
+        validation_log(format!("[release-gate] remote dir: {remote_dir}"));
     }
     if let Some(status) = ebpf.get("status") {
         let reason = ebpf.get("reason").map(String::as_str).unwrap_or("unknown");
-        println!("[release-gate] remote eBPF summary: {status} ({reason})");
+        validation_log(format!(
+            "[release-gate] remote eBPF summary: {status} ({reason})"
+        ));
     }
 
     let mut slowest = timings
@@ -260,7 +265,7 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
             .map(|(name, seconds)| format!("{name}={seconds:.3}s"))
             .collect::<Vec<_>>()
             .join(", ");
-        println!("[release-gate] remote slowest phases: {summary}");
+        validation_log(format!("[release-gate] remote slowest phases: {summary}"));
     }
 }
 

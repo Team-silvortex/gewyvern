@@ -21,7 +21,7 @@ use gewyvern::validation_harness::{
     run_resilience_drive_bad_json_validation, run_resilience_emit_helper_validation,
     run_resilience_log_evidence_validation, run_resilience_roundtrip_validation,
     run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
-    run_three_module_stack_smoke, run_training_dataset_roundtrip_demo,
+    run_three_module_stack_smoke, run_training_dataset_roundtrip_demo, set_validation_json_mode,
 };
 
 const TOP_LEVEL_COMMANDS: &[&str] = &[
@@ -55,15 +55,25 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
     "three-module-stack-smoke",
     "training-roundtrip",
 ];
+const JSON_SCHEMA_VERSION: u32 = 1;
 
 fn main() {
     let raw_args = env::args().skip(1).collect::<Vec<_>>();
     let (global_options, args) = parse_global_cli_options(raw_args);
+    let json_enabled = global_options.json;
+    let json_errors_enabled = global_options.json_errors;
+    let failure_json_out = global_options.json_out.clone();
+    set_validation_json_mode(global_options.json);
 
-    if let Err(err) = run(args) {
+    if global_options.json_out_missing {
+        eprintln!("validation failed: --json-out requires a path");
+        process::exit(1);
+    }
+
+    if let Err(err) = run(args, global_options) {
         let message = err.to_string();
-        if global_options.json_errors {
-            print_failure_guidance_json(&message);
+        if json_enabled || json_errors_enabled {
+            print_failure_guidance_json(&message, failure_json_out.as_deref());
         } else {
             eprintln!("validation failed: {message}");
             print_failure_guidance(&message);
@@ -72,12 +82,17 @@ fn main() {
     }
 }
 
-fn run(args: Vec<String>) -> Result<(), ValidationError> {
+fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), ValidationError> {
     let mut args = args.into_iter();
     let command = args.next().unwrap_or_else(|| "help".to_string());
     let rest = args.collect::<Vec<_>>();
 
-    if gewyvern_validate_stack::run_stack_command(&command, rest.clone())? {
+    if gewyvern_validate_stack::run_stack_command(
+        &command,
+        rest.clone(),
+        global_options.json,
+        global_options.json_out.as_deref(),
+    )? {
         return Ok(());
     }
 
@@ -85,42 +100,53 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
         "debugger-cross" => {
             let options = parse_options(rest)?;
             let report = run_debugger_cross_validation(options.out_dir)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
-            println!(
-                "index: {}",
-                report.out_dir.join("evidence-index.json").display()
+            let extra = json!({
+                "index": report.out_dir.join("evidence-index.json").display().to_string(),
+            });
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                Some(extra),
             );
             Ok(())
         }
         "registry" => {
             let options = parse_options(rest)?;
             let report = run_registry_validation(options.out_dir, options.limit)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.len());
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "high-frequency" => {
             let options = parse_options(rest)?;
             let report = run_high_frequency_validation(options.out_dir)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "field-smoke" => {
             let options = parse_options(rest)?;
             let report =
                 run_field_smoke_validation(options.out_dir, options.socket, options.scan_all)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "socket-roundtrip" => {
@@ -131,10 +157,13 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
                 options.output,
                 options.socket_kind.as_deref(),
             )?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "training-roundtrip" => {
@@ -145,10 +174,13 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
                 options.target_path_segment.as_deref(),
                 options.limit,
             )?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "external-engine-roundtrip" => {
@@ -163,39 +195,51 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
                 options.engine_root,
                 options.engine_cmd.as_deref(),
             )?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "runtime-lifecycle" => {
             let options = parse_options(rest)?;
             let report = run_runtime_lifecycle_validation(options.out_dir)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "resilience-log-evidence" => {
             let options = parse_options(rest)?;
             let log_source = require_path_option(options.log_source, "--log-source")?;
             let report = run_resilience_log_evidence_validation(log_source, options.out_dir)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "resilience-roundtrip" => {
             let options = parse_options(rest)?;
             let report =
                 run_resilience_roundtrip_validation(options.api_addr.as_deref(), options.out_dir)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "resilience-bundle" => {
@@ -206,10 +250,13 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
                 log_source,
                 options.out_dir,
             )?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "resilience-emit-helper" => {
@@ -217,10 +264,13 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
             let mode = require_string_option(options.mode, "--mode")?;
             let output_path = require_path_option(options.output, "--output")?;
             let report = run_resilience_emit_helper_validation(&mode, output_path)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "resilience-drive-bad-json" => {
@@ -233,19 +283,25 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
                 options.count.unwrap_or(5),
                 options.out_dir,
             )?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "runtime-operator" => {
             let options = parse_options(rest)?;
             let report = run_runtime_operator_validation(options.out_dir, options.json_out)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "linux-attach-smoke" => {
@@ -259,10 +315,13 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
                 "--hookpoint",
             )?;
             let report = run_linux_attach_smoke(&options.target, options.out_dir)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "linux-kprobe-smoke" => {
@@ -272,10 +331,13 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
             }
             let options = parse_linux_ebpf_smoke_options(rest, "ip_route_output_flow", "--symbol")?;
             let report = run_linux_kprobe_smoke(&options.target, options.out_dir)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "linux-tc-smoke" => {
@@ -285,10 +347,13 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
             }
             let options = parse_linux_ebpf_smoke_options(rest, "eth0", "--dev")?;
             let report = run_linux_tc_smoke(&options.target, options.out_dir)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "release-container-check" => {
@@ -298,11 +363,14 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
             }
             let mode = parse_release_check_mode("release-container-check", rest)?;
             let report = run_release_container_check(mode)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
-            print_release_container_check_summary(&report);
+            let extra = release_container_check_summary_value(&report);
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                Some(extra),
+            );
             Ok(())
         }
         "package-install-smoke" => {
@@ -312,10 +380,13 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
             }
             let mode = parse_release_check_mode("package-install-smoke", rest)?;
             let report = run_package_install_smoke(mode)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "container-protocol-validation" => {
@@ -325,10 +396,13 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
             }
             let mode = parse_release_check_mode("container-protocol-validation", rest)?;
             let report = run_container_protocol_validation(mode)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "container-operator-path-validation" => {
@@ -338,10 +412,13 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
             }
             let mode = parse_release_check_mode("container-operator-path-validation", rest)?;
             let report = run_container_operator_path_validation(mode)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "container-validation-summary" => {
@@ -351,10 +428,13 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
             }
             let mode = parse_release_check_mode("container-validation-summary", rest)?;
             let report = run_container_validation_summary(mode)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "container-runtime-validation" => {
@@ -364,10 +444,13 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
             }
             let mode = parse_release_check_mode("container-runtime-validation", rest)?;
             let report = run_container_runtime_validation(mode)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "remote-linux-host-validation" => {
@@ -377,11 +460,14 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
             }
             let options = parse_remote_linux_host_options(rest)?;
             let report = run_remote_linux_host_validation(options)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
-            print_remote_linux_host_validation_summary(&report.out_dir);
+            let extra = remote_linux_host_summary_value(&report.out_dir);
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                Some(extra),
+            );
             Ok(())
         }
         "release-gate" => {
@@ -391,10 +477,14 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
             }
             let options = parse_release_gate_options(rest)?;
             let report = run_release_gate(options)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            let extra = release_gate_summary_value(&report);
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                Some(extra),
+            );
             Ok(())
         }
         "three-module-stack-smoke" => {
@@ -408,10 +498,13 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
                 ));
             }
             let report = run_three_module_stack_smoke()?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "pathological-container-validation" => {
@@ -421,24 +514,49 @@ fn run(args: Vec<String>) -> Result<(), ValidationError> {
             }
             let out_dir = parse_optional_out_dir(rest)?;
             let report = run_pathological_container_validation(out_dir)?;
-
-            println!("{}: ok", report.name);
-            println!("checks: {}", report.checks.join(", "));
-            println!("evidence: {}", report.out_dir.display());
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
             Ok(())
         }
         "list" => {
-            for command in TOP_LEVEL_COMMANDS {
-                if matches!(*command, "help" | "list") {
-                    continue;
+            if global_options.json {
+                let commands = TOP_LEVEL_COMMANDS
+                    .iter()
+                    .filter(|command| !matches!(**command, "help" | "list"))
+                    .chain(gewyvern_validate_stack::STACK_COMMANDS.iter())
+                    .copied()
+                    .collect::<Vec<_>>();
+                emit_json_payload(
+                    &json!({
+                        "schema_version": JSON_SCHEMA_VERSION,
+                        "ok": true,
+                        "commands": commands,
+                    }),
+                    global_options.json_out.as_deref(),
+                    false,
+                );
+            } else {
+                for command in TOP_LEVEL_COMMANDS {
+                    if matches!(*command, "help" | "list") {
+                        continue;
+                    }
+                    println!("{command}");
                 }
-                println!("{command}");
+                gewyvern_validate_stack::print_stack_list();
             }
-            gewyvern_validate_stack::print_stack_list();
             Ok(())
         }
         "help" | "--help" | "-h" => {
-            print_help();
+            if global_options.json {
+                print_help_json(global_options.json_out.as_deref());
+            } else {
+                print_help();
+            }
             Ok(())
         }
         other => Err(unknown_command_error(other)),
@@ -874,7 +992,11 @@ fn print_help() {
     println!("Native validation harness for gewyvern release and debugger checks.");
     println!();
     println!("Global flags:");
+    println!("  --json          Emit machine-readable JSON on success and failure when supported");
     println!("  --json-errors   Emit machine-readable JSON on failure");
+    println!(
+        "  --json-out <path>  Write the final JSON result to a file; place before the command"
+    );
     println!();
     println!("Commands:");
     println!("  list");
@@ -920,6 +1042,162 @@ fn print_help() {
     gewyvern_validate_stack::print_stack_help();
 }
 
+fn print_help_json(json_out: Option<&std::path::Path>) {
+    let commands = TOP_LEVEL_COMMANDS
+        .iter()
+        .filter(|command| !matches!(**command, "help" | "list"))
+        .chain(gewyvern_validate_stack::STACK_COMMANDS.iter())
+        .copied()
+        .collect::<Vec<_>>();
+    emit_json_payload(
+        &json!({
+            "schema_version": JSON_SCHEMA_VERSION,
+            "ok": true,
+            "name": "gewyvern_validate",
+            "summary": "Native validation harness for gewyvern release and debugger checks.",
+            "global_flags": [
+                {
+                    "name": "--json",
+                    "description": "Emit machine-readable JSON on success and failure when supported",
+                },
+                {
+                    "name": "--json-errors",
+                    "description": "Emit machine-readable JSON on failure",
+                },
+                {
+                    "name": "--json-out",
+                    "description": "Write the final JSON result to a file; place before the command to use the global form",
+                }
+            ],
+            "commands": commands,
+        }),
+        json_out,
+        false,
+    );
+}
+
+fn print_validation_report(
+    command: &str,
+    report: &gewyvern::validation_harness::ValidationReport,
+    json_output: bool,
+    json_out: Option<&std::path::Path>,
+    extra: Option<serde_json::Value>,
+) {
+    if json_output {
+        let mut payload = json!({
+            "schema_version": JSON_SCHEMA_VERSION,
+            "ok": true,
+            "command": command,
+            "name": report.name,
+            "checks": report.checks,
+            "evidence_dir": report.out_dir.display().to_string(),
+        });
+        if let Some(extra) = extra {
+            payload["extra"] = extra;
+        }
+        emit_json_payload(&payload, json_out, false);
+        return;
+    }
+
+    println!("{}: ok", report.name);
+    if command == "registry" {
+        println!("checks: {}", report.checks.len());
+    } else {
+        println!("checks: {}", report.checks.join(", "));
+    }
+    println!("evidence: {}", report.out_dir.display());
+
+    match command {
+        "release-container-check" => print_release_container_check_summary(report),
+        "remote-linux-host-validation" => {
+            print_remote_linux_host_validation_summary(&report.out_dir)
+        }
+        _ => {
+            if let Some(extra) = extra {
+                print_report_extra_lines(command, &extra);
+            }
+        }
+    }
+}
+
+fn print_report_extra_lines(command: &str, extra: &serde_json::Value) {
+    match command {
+        "debugger-cross" => {
+            if let Some(index) = extra.get("index").and_then(|value| value.as_str()) {
+                println!("index: {index}");
+            }
+        }
+        "release-container-check" => {
+            if let Some(mode) = extra.get("release_mode").and_then(|value| value.as_str()) {
+                println!("release-mode: {mode}");
+            }
+            if let Some(covered) = extra
+                .get("covered_checks")
+                .and_then(|value| value.as_array())
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(|item| item.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+            {
+                println!("covered-checks: {covered}");
+            }
+        }
+        "remote-linux-host-validation" => {
+            if let Some(summary) = extra.as_object() {
+                for key in [
+                    "remote_dir",
+                    "source_cache",
+                    "target_cache",
+                    "build_packages",
+                    "remote_ebpf",
+                    "slowest_phases",
+                ] {
+                    if let Some(value) = summary.get(key).and_then(|value| value.as_str()) {
+                        println!("{}: {value}", key.replace('_', "-"));
+                    }
+                }
+            }
+        }
+        "release-gate" => {
+            if let Some(stages) =
+                extra
+                    .get("stages")
+                    .and_then(|value| value.as_object())
+                    .map(|items| {
+                        items
+                            .iter()
+                            .map(|(name, ran)| format!("{name}={}", ran.as_bool().unwrap_or(false)))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    })
+            {
+                println!("stages: {stages}");
+            }
+            if let Some(remote) = extra.get("remote").and_then(|value| value.as_object()) {
+                if let Some(remote_dir) = remote.get("remote_dir").and_then(|value| value.as_str())
+                {
+                    println!("remote-dir: {remote_dir}");
+                }
+                if let Some(remote_ebpf) =
+                    remote.get("remote_ebpf").and_then(|value| value.as_str())
+                {
+                    println!("remote-ebpf: {remote_ebpf}");
+                }
+                if let Some(slowest) = remote
+                    .get("slowest_phases")
+                    .and_then(|value| value.as_str())
+                {
+                    println!("slowest-phases: {slowest}");
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 fn unknown_command_error(command: &str) -> ValidationError {
     let mut message =
         format!("unknown validation command `{command}`; try `gewyvern_validate list`");
@@ -929,19 +1207,39 @@ fn unknown_command_error(command: &str) -> ValidationError {
     ValidationError::new(message)
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct GlobalCliOptions {
+    json: bool,
     json_errors: bool,
+    json_out: Option<PathBuf>,
+    json_out_missing: bool,
 }
 
 fn parse_global_cli_options(args: Vec<String>) -> (GlobalCliOptions, Vec<String>) {
     let mut options = GlobalCliOptions::default();
     let mut filtered = Vec::with_capacity(args.len());
+    let mut iter = args.into_iter().peekable();
 
-    for arg in args {
+    while let Some(arg) = iter.next() {
         match arg.as_str() {
+            "--json" => {
+                options.json = true;
+                options.json_errors = true;
+            }
             "--json-errors" => options.json_errors = true,
-            _ => filtered.push(arg),
+            "--json-out" => {
+                if let Some(value) = iter.next() {
+                    options.json_out = Some(PathBuf::from(value));
+                } else {
+                    options.json_out_missing = true;
+                }
+            }
+            _ if arg.starts_with('-') => filtered.push(arg),
+            _ => {
+                filtered.push(arg);
+                filtered.extend(iter);
+                break;
+            }
         }
     }
 
@@ -991,31 +1289,76 @@ fn levenshtein_distance(left: &str, right: &str) -> usize {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum FailureClass {
+    Input,
     Environment,
     Privilege,
     Remote,
     Dependency,
+    Artifact,
+    Timeout,
 }
 
 impl FailureClass {
     fn code(self) -> &'static str {
         match self {
+            Self::Input => "input",
             Self::Environment => "environment",
             Self::Privilege => "privilege",
             Self::Remote => "remote",
             Self::Dependency => "dependency",
+            Self::Artifact => "artifact",
+            Self::Timeout => "timeout",
         }
     }
 }
 
 fn classify_failure(message: &str) -> Option<(FailureClass, &'static str)> {
+    if message.contains("requires a path")
+        || message.contains("requires a value")
+        || message.contains("requires a number")
+        || message.contains("is required")
+        || message.contains("invalid --limit value")
+        || message.contains("invalid --port value")
+        || message.contains("invalid --count value")
+        || message.contains("unknown validation option `")
+        || message.contains("unknown release-gate option `")
+        || message.contains("unknown remote-linux-host-validation option `")
+        || message.contains("unknown linux smoke option `")
+        || message.contains("unknown pathological-container-validation option `")
+    {
+        return Some((FailureClass::Input, "invalid_cli_input"));
+    }
     if message.contains("docker daemon is not reachable")
         || message.contains("failed to query docker")
     {
         return Some((FailureClass::Environment, "docker_unreachable"));
     }
+    if message.contains("no .deb artifact found under ")
+        || message.contains("no .rpm artifact found under ")
+    {
+        return Some((FailureClass::Artifact, "missing_package_artifact"));
+    }
+    if message.contains("container validation timed out after ")
+        || message.contains("timed out waiting for ")
+        || message.contains("did not exit in time")
+    {
+        return Some((FailureClass::Timeout, "validation_timeout"));
+    }
     if message.contains("remote workspace retained at ") {
         return Some((FailureClass::Remote, "remote_workspace_retained"));
+    }
+    if message.contains("remote host must be Linux, got `") {
+        return Some((FailureClass::Remote, "remote_host_not_linux"));
+    }
+    if message.contains("remote host must be x86_64/amd64 for packaged validation, got `") {
+        return Some((FailureClass::Remote, "remote_host_wrong_arch"));
+    }
+    if message.contains(
+        "GEWY_REMOTE_EBPF_ADMIN_USER is set but GEWY_REMOTE_EBPF_ADMIN_PASSWORD is missing",
+    ) || message.contains(
+        "GEWY_REMOTE_EBPF_ADMIN_PASSWORD is set but GEWY_REMOTE_EBPF_ADMIN_USER is missing",
+    ) {
+        return Some((FailureClass::Remote, "remote_admin_credentials_incomplete"));
     }
     if message.contains("Operation not permitted")
         || message
@@ -1047,21 +1390,59 @@ fn print_failure_guidance(message: &str) {
     }
 }
 
-fn print_failure_guidance_json(message: &str) {
+fn print_failure_guidance_json(message: &str, json_out: Option<&std::path::Path>) {
     let classified = classify_failure(message);
     let next_steps = failure_guidance_lines(message);
     let payload = json!({
+        "schema_version": JSON_SCHEMA_VERSION,
         "ok": false,
         "message": message,
         "failure_class": classified.map(|(class, _)| class.code()),
         "failure_code": classified.map(|(_, code)| code),
         "next_steps": next_steps,
     });
-    eprintln!("{payload}");
+    emit_json_payload(&payload, json_out, true);
+}
+
+fn emit_json_payload(
+    payload: &serde_json::Value,
+    json_out: Option<&std::path::Path>,
+    stderr: bool,
+) {
+    let rendered = payload.to_string();
+    if let Some(path) = json_out {
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = fs::write(path, rendered.as_bytes());
+    }
+    if stderr {
+        eprintln!("{rendered}");
+    } else {
+        println!("{rendered}");
+    }
 }
 
 fn failure_guidance_lines(message: &str) -> Vec<&'static str> {
     let mut guidance = Vec::new();
+
+    if message.contains("requires a path")
+        || message.contains("requires a value")
+        || message.contains("requires a number")
+        || message.contains("is required")
+        || message.contains("invalid --limit value")
+        || message.contains("invalid --port value")
+        || message.contains("invalid --count value")
+        || message.contains("unknown validation option `")
+        || message.contains("unknown release-gate option `")
+        || message.contains("unknown remote-linux-host-validation option `")
+        || message.contains("unknown linux smoke option `")
+        || message.contains("unknown pathological-container-validation option `")
+    {
+        guidance.push(
+            "next-step: rerun with `gewyvern_validate help` or the subcommand `--help` output and correct the missing or invalid CLI option",
+        );
+    }
 
     if message.contains("docker daemon is not reachable")
         || message.contains("failed to query docker")
@@ -1074,6 +1455,41 @@ fn failure_guidance_lines(message: &str) -> Vec<&'static str> {
     if message.contains("remote workspace retained at ") {
         guidance.push(
             "next-step: SSH into the remote host, inspect the retained workspace, or rerun with `--keep-remote-dir` if you want the directory preserved on purpose",
+        );
+    }
+
+    if message.contains("no .deb artifact found under ")
+        || message.contains("no .rpm artifact found under ")
+    {
+        guidance.push(
+            "next-step: rebuild native packages first, for example `bash scripts/packaging/build_packages_in_container.sh --format all`, then rerun the packaged validation entrypoint",
+        );
+    }
+
+    if message.contains("container validation timed out after ")
+        || message.contains("timed out waiting for ")
+        || message.contains("did not exit in time")
+    {
+        guidance.push(
+            "next-step: inspect the retained evidence or logs, then rerun the narrower validation command to isolate whether startup, HTTP readiness, package install, or remote attach is hanging",
+        );
+    }
+
+    if message.contains("remote host must be Linux, got `")
+        || message.contains("remote host must be x86_64/amd64 for packaged validation, got `")
+    {
+        guidance.push(
+            "next-step: rerun against a Linux x86_64 host, or disable the remote-host stage while narrowing local packaged validation first",
+        );
+    }
+
+    if message.contains(
+        "GEWY_REMOTE_EBPF_ADMIN_USER is set but GEWY_REMOTE_EBPF_ADMIN_PASSWORD is missing",
+    ) || message.contains(
+        "GEWY_REMOTE_EBPF_ADMIN_PASSWORD is set but GEWY_REMOTE_EBPF_ADMIN_USER is missing",
+    ) {
+        guidance.push(
+            "next-step: set both `GEWY_REMOTE_EBPF_ADMIN_USER` and `GEWY_REMOTE_EBPF_ADMIN_PASSWORD`, or unset both to skip the admin-assisted remote eBPF path",
         );
     }
 
@@ -1116,13 +1532,19 @@ fn print_release_container_check_help() {
 }
 
 fn print_release_container_check_summary(report: &gewyvern::validation_harness::ValidationReport) {
+    let summary = release_container_check_summary_value(report);
+    print_report_extra_lines("release-container-check", &summary);
+}
+
+fn release_container_check_summary_value(
+    report: &gewyvern::validation_harness::ValidationReport,
+) -> serde_json::Value {
     let mode = report
         .name
         .split('(')
         .nth(1)
         .and_then(|rest| rest.strip_suffix(')'))
         .unwrap_or("unknown");
-    println!("release-mode: {mode}");
 
     let covered = report
         .checks
@@ -1133,9 +1555,11 @@ fn print_release_container_check_summary(report: &gewyvern::validation_harness::
             "packaged_protocol_operator_summary" => "container-validation-summary",
             other => other,
         })
-        .collect::<Vec<_>>()
-        .join(", ");
-    println!("covered-checks: {covered}");
+        .collect::<Vec<_>>();
+    json!({
+        "release_mode": mode,
+        "covered_checks": covered,
+    })
 }
 
 fn print_package_install_smoke_help() {
@@ -1197,24 +1621,116 @@ fn print_remote_linux_host_validation_help() {
 }
 
 fn print_remote_linux_host_validation_summary(out_dir: &std::path::Path) {
+    let summary = remote_linux_host_summary_value(out_dir);
+    if let Some(remote_dir) = summary.get("remote_dir").and_then(|value| value.as_str()) {
+        println!("remote-dir: {remote_dir}");
+    }
+    if let Some(source_cache) = summary.get("source_cache").and_then(|value| value.as_str()) {
+        println!("source-cache: {source_cache}");
+    }
+    if let Some(target_cache) = summary.get("target_cache").and_then(|value| value.as_str()) {
+        println!("target-cache: {target_cache}");
+    }
+    if let Some(build_packages) = summary
+        .get("build_packages")
+        .and_then(|value| value.as_str())
+    {
+        println!("build-packages: {build_packages}");
+    }
+    if let Some(remote_ebpf) = summary.get("remote_ebpf").and_then(|value| value.as_str()) {
+        println!("remote-ebpf: {remote_ebpf}");
+    }
+    if let Some(slowest_phases) = summary
+        .get("slowest_phases")
+        .and_then(|value| value.as_str())
+    {
+        println!("slowest-phases: {slowest_phases}");
+    }
+}
+
+fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Value {
     let run = parse_key_value_file(&out_dir.join("remote-run.txt"));
     let preflight = parse_key_value_file(&out_dir.join("remote-preflight.txt"));
     let ebpf = parse_key_value_file(&out_dir.join("remote-ebpf.txt"));
     let timings = parse_phase_timings(&out_dir.join("remote-phase-timings.txt"));
+    let mut summary = serde_json::Map::new();
 
     if let Some(remote_dir) = run.get("remote_dir") {
-        println!("remote-dir: {remote_dir}");
+        summary.insert("remote_dir".to_string(), json!(remote_dir));
     }
     if let Some(home_dir) = preflight.get("home_dir") {
-        println!("source-cache: {home_dir}/.cache/gewyvern/remote-source");
-        println!("target-cache: {home_dir}/.cache/gewyvern/remote-target");
+        summary.insert(
+            "source_cache".to_string(),
+            json!(format!("{home_dir}/.cache/gewyvern/remote-source")),
+        );
+        summary.insert(
+            "target_cache".to_string(),
+            json!(format!("{home_dir}/.cache/gewyvern/remote-target")),
+        );
     }
     if let Some(build_packages) = run.get("build_packages") {
-        println!("build-packages: {build_packages}");
+        summary.insert("build_packages".to_string(), json!(build_packages));
+    }
+    if let Some(build_packages) = parse_bool_string(run.get("build_packages")) {
+        summary.insert("build_packages_enabled".to_string(), json!(build_packages));
+    }
+    if let Some(keep_remote_dir) = parse_bool_string(run.get("keep_remote_dir")) {
+        summary.insert("keep_remote_dir".to_string(), json!(keep_remote_dir));
+    }
+    if let Some(checks) = run.get("checks") {
+        summary.insert(
+            "remote_checks".to_string(),
+            json!(
+                checks
+                    .split(',')
+                    .filter(|item| !item.is_empty())
+                    .collect::<Vec<_>>()
+            ),
+        );
+    }
+    if !preflight.is_empty() {
+        summary.insert(
+            "preflight".to_string(),
+            json!({
+                "os": preflight.get("os"),
+                "arch": preflight.get("arch"),
+                "kernel": preflight.get("kernel"),
+                "home_dir": preflight.get("home_dir"),
+                "commands": preflight
+                    .get("commands")
+                    .map(|value| value.split(',').filter(|item| !item.is_empty()).collect::<Vec<_>>()),
+                "sudo_available": parse_bool_string(preflight.get("sudo_available")),
+                "default_route_device": preflight.get("default_route_device"),
+            }),
+        );
     }
     if let Some(status) = ebpf.get("status") {
         let reason = ebpf.get("reason").map(String::as_str).unwrap_or("unknown");
-        println!("remote-ebpf: {status} ({reason})");
+        summary.insert(
+            "remote_ebpf".to_string(),
+            json!(format!("{status} ({reason})")),
+        );
+    }
+    if !ebpf.is_empty() {
+        summary.insert(
+            "ebpf".to_string(),
+            json!({
+                "status": ebpf.get("status"),
+                "reason": ebpf.get("reason"),
+                "default_route_device": ebpf.get("default_route_device"),
+            }),
+        );
+    }
+
+    if !timings.is_empty() {
+        let phase_timings = timings
+            .iter()
+            .map(|(name, seconds)| (name.clone(), json!(seconds)))
+            .collect::<serde_json::Map<String, serde_json::Value>>();
+        summary.insert(
+            "phase_timings".to_string(),
+            serde_json::Value::Object(phase_timings),
+        );
     }
 
     let mut slowest = timings
@@ -1223,14 +1739,53 @@ fn print_remote_linux_host_validation_summary(out_dir: &std::path::Path) {
         .collect::<Vec<_>>();
     slowest.sort_by(|left, right| right.1.total_cmp(&left.1));
     if !slowest.is_empty() {
-        let summary = slowest
+        let slowest_summary = slowest
             .iter()
             .take(3)
             .map(|(name, seconds)| format!("{name}={seconds:.3}s"))
             .collect::<Vec<_>>()
             .join(", ");
-        println!("slowest-phases: {summary}");
+        summary.insert("slowest_phases".to_string(), json!(slowest_summary));
+        summary.insert(
+            "slowest_phase_entries".to_string(),
+            json!(
+                slowest
+                    .iter()
+                    .take(3)
+                    .map(|(name, seconds)| json!({
+                        "name": name,
+                        "seconds": seconds,
+                    }))
+                    .collect::<Vec<_>>()
+            ),
+        );
     }
+    serde_json::Value::Object(summary)
+}
+
+fn release_gate_summary_value(
+    report: &gewyvern::validation_harness::ValidationReport,
+) -> serde_json::Value {
+    let checks = &report.checks;
+    let remote_out_dir = report.out_dir.join("remote-linux-host-validation");
+    let remote_ran = checks
+        .iter()
+        .any(|check| check == "remote_linux_host_validation");
+
+    json!({
+        "stages": {
+            "build_packages": checks.iter().any(|check| check == "build_packages_in_container"),
+            "release_container_check": checks.iter().any(|check| check == "release_container_check"),
+            "three_module_stack_smoke": checks.iter().any(|check| check == "three_module_stack_smoke"),
+            "pathological_container_validation": checks.iter().any(|check| check == "pathological_container_validation"),
+            "remote_linux_host_validation": remote_ran,
+        },
+        "remote": if remote_ran && remote_out_dir.is_dir() {
+            remote_linux_host_summary_value(&remote_out_dir)
+        } else {
+            serde_json::Value::Null
+        }
+    })
 }
 
 fn parse_key_value_file(path: &std::path::Path) -> BTreeMap<String, String> {
@@ -1251,6 +1806,14 @@ fn parse_phase_timings(path: &std::path::Path) -> Vec<(String, f64)> {
         .into_iter()
         .filter_map(|(name, value)| value.parse::<f64>().ok().map(|seconds| (name, seconds)))
         .collect()
+}
+
+fn parse_bool_string(value: Option<&String>) -> Option<bool> {
+    match value.map(String::as_str) {
+        Some("true") => Some(true),
+        Some("false") => Some(false),
+        _ => None,
+    }
 }
 
 fn print_container_protocol_validation_help() {

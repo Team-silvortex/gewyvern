@@ -109,6 +109,13 @@ The shortest one-command gate is:
 cargo run --quiet --bin gewyvern_validate -- release-gate
 ```
 
+For CI or release bots that should consume one final machine-readable result
+instead of scraping progress logs, use:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json release-gate
+```
+
 That sequence rebuilds current native artifacts, runs the packaged release
 validation wrapper, runs the three-module stack smoke, and then runs the
 pathological container/runtime-ingest validation.
@@ -122,6 +129,13 @@ cargo run --quiet --bin gewyvern_validate -- release-gate --skip-pathology
 cargo run --quiet --bin gewyvern_validate -- release-gate --remote-host-validation
 cargo run --quiet --bin gewyvern_validate -- release-gate --deb
 cargo run --quiet --bin gewyvern_validate -- release-gate --rpm
+```
+
+The same narrowing paths also work with `--json` placed before the command:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-build
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation
 ```
 
 The lower-level packaged release-minded entrypoint is:
@@ -175,6 +189,28 @@ When the remote host path is enabled through `release-gate`, the CLI now also
 prints the resolved remote directory, the remote eBPF outcome, and the slowest
 observed remote phases so you can narrow release friction without opening the
 remote evidence directory first.
+
+In JSON mode, the final `release-gate` object now carries:
+
+- top-level `schema_version = 1`
+- `extra.stages.*` booleans for each major gate phase
+- `extra.remote = null` when the current run skipped remote validation
+- `extra.remote.preflight`, `extra.remote.ebpf`, and
+  `extra.remote.phase_timings` when the current run did execute the remote
+  stage
+
+Practical `jq` examples:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json release-gate \
+  | jq '.ok and .extra.stages.release_container_check'
+
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation \
+  | jq '.extra.remote.ebpf.status'
+
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation \
+  | jq '.extra.remote.slowest_phase_entries'
+```
 
 Interpret the remote Linux signal explicitly:
 

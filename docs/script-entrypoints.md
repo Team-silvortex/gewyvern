@@ -12,6 +12,73 @@ The naming split used throughout the repository is:
 - `validation`: one grouped expectation check
 - `summary`: one wrapper over narrower validations
 
+## JSON Mode
+
+Most native `gewyvern_validate` entrypoints now support a global `--json` flag:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json list
+cargo run --quiet --bin gewyvern_validate -- --json help
+```
+
+Use this when the caller is CI, a release bot, or a local wrapper that should
+not scrape human-facing log lines.
+
+Current JSON behavior:
+
+- success paths emit one final JSON object on stdout
+- failure paths emit one final JSON object on stderr
+- `release-gate`, packaged validation, and remote-host validation now suppress
+  their normal progress chatter on stdout while `--json` is active
+- human-facing text mode remains unchanged when `--json` is not present
+
+If you want the final JSON result written to a file as well, add the global
+flag before the command:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json --json-out /tmp/gewyvern-release-gate.json release-gate
+```
+
+Place the global `--json-out <path>` before the subcommand. This keeps
+`runtime-operator --json-out <path>` available for its existing per-command
+summary file behavior.
+
+Stable top-level fields today:
+
+- `schema_version`
+- `ok`
+- `command`
+- `name`
+- `checks`
+- `evidence_dir`
+- `extra`
+
+Current rule:
+
+- `schema_version = 1`
+
+Machine consumers should gate parser behavior on `schema_version` before
+assuming newer `extra.*` fields exist.
+
+For machine consumers, prefer `extra` over parsing text summaries like
+`slowest-phases:` or `covered-checks:`.
+
+Current JSON failure codes:
+
+| `failure_code` | Meaning | Typical action |
+| --- | --- | --- |
+| `invalid_cli_input` | a required option is missing, malformed, or unknown | rerun with `gewyvern_validate help` or the subcommand `--help` output |
+| `docker_unreachable` | Docker is installed but the daemon is not reachable | start Docker Desktop or another daemon, then retry |
+| `missing_package_artifact` | packaged validation could not find a local `.deb` or `.rpm` artifact | rebuild packages first, then rerun the packaged command |
+| `validation_timeout` | one validation phase timed out or a process never exited cleanly | rerun a narrower command and inspect the corresponding evidence |
+| `remote_workspace_retained` | a remote-host run failed after creating a remote workspace | SSH in and inspect the retained remote directory |
+| `remote_host_not_linux` | the chosen remote host is not Linux | rerun against a Linux host |
+| `remote_host_wrong_arch` | the chosen remote host is not `x86_64` / `amd64` | rerun against a supported Linux architecture |
+| `remote_admin_credentials_incomplete` | only one of the remote admin credential env vars was set | set both `GEWY_REMOTE_EBPF_ADMIN_USER` and `GEWY_REMOTE_EBPF_ADMIN_PASSWORD`, or unset both |
+| `linux_ebpf_privilege_required` | Linux eBPF attach smoke lacked a Linux/BPF-privileged environment | rerun on Linux with `sudo` or equivalent privileges |
+| `missing_sshpass` | the optional admin-assisted remote eBPF path was requested without `sshpass` installed | install `sshpass`, or disable the admin-assisted path |
+| `missing_system_command` | a required system command such as `ssh`, `rsync`, or `docker` is missing | install the missing command and rerun |
+
 ## Directory Map
 
 - [`scripts/packaging/`](scripts/packaging)
@@ -136,6 +203,38 @@ workspace, source/target cache roots, remote eBPF result, and the slowest
 slowest observed phases so the common debugging path does not require opening the
 evidence files first.
 
+For machine-readable consumption, use:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation
+```
+
+The `extra` object for this command now includes structured fields such as:
+
+- `remote_dir`
+- `source_cache`
+- `target_cache`
+- `build_packages_enabled`
+- `keep_remote_dir`
+- `remote_checks`
+- `preflight`
+- `ebpf`
+- `phase_timings`
+- `slowest_phase_entries`
+
+Example `jq` checks:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.preflight.arch == "x86_64"'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.ebpf.status'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.slowest_phase_entries[0]'
+```
+
 ### I want to validate built-in protocol packages
 
 Run:
@@ -166,6 +265,43 @@ Relevant docs:
 
 - [docs/field-validation.md](docs/field-validation.md)
 - [docs/book/how-to-add-or-debug-protocol-package.md](docs/book/how-to-add-or-debug-protocol-package.md)
+
+### I want CI-friendly release-gate output
+
+Run:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json release-gate
+```
+
+Or, for narrow debugging:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-build
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-stack
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-pathology
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation
+```
+
+The `extra` object for `release-gate` currently exposes:
+
+- `stages.build_packages`
+- `stages.release_container_check`
+- `stages.three_module_stack_smoke`
+- `stages.pathological_container_validation`
+- `stages.remote_linux_host_validation`
+- `remote`
+
+`remote` is `null` unless the current run actually executed the remote-host
+stage. This is deliberate so CI cannot accidentally read stale evidence from an
+older local `target/validation/remote-linux-host-validation` directory.
+
+Example:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json release-gate \
+  | jq '.extra.stages'
+```
 
 ### I want to validate live `--serve` behavior
 

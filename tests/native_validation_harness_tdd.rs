@@ -41,11 +41,29 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("print_stack_list"));
     assert!(binary.contains("--limit"));
     assert!(binary.contains("--json-out"));
+    assert!(binary.contains("--json"));
     assert!(binary.contains("--json-errors"));
     assert!(binary.contains("TOP_LEVEL_COMMANDS"));
     assert!(binary.contains("unknown_command_error"));
     assert!(binary.contains("suggest_command"));
     assert!(binary.contains("levenshtein_distance"));
+    assert!(binary.contains("print_help_json"));
+    assert!(binary.contains("print_validation_report"));
+    assert!(binary.contains("emit_json_payload"));
+    assert!(binary.contains("JSON_SCHEMA_VERSION"));
+    assert!(binary.contains("release_gate_summary_value"));
+    assert!(binary.contains("remote_linux_host_summary_value"));
+    assert!(binary.contains("parse_bool_string"));
+    assert!(binary.contains("\"commands\""));
+    assert!(binary.contains("\"evidence_dir\""));
+    assert!(binary.contains("\"schema_version\""));
+    assert!(binary.contains("\"preflight\""));
+    assert!(binary.contains("\"ebpf\""));
+    assert!(binary.contains("\"phase_timings\""));
+    assert!(binary.contains("\"slowest_phase_entries\""));
+    assert!(binary.contains("\"stages\""));
+    assert!(binary.contains("\"remote\""));
+    assert!(binary.contains("json_out_missing"));
     assert!(binary.contains("did you mean"));
     assert!(binary.contains("--remote-host-validation"));
     assert!(binary.contains("--skip-remote-build"));
@@ -478,9 +496,15 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(binary.contains("failure-code:"));
     assert!(binary.contains("docker_unreachable"));
     assert!(binary.contains("remote_workspace_retained"));
+    assert!(binary.contains("remote_host_not_linux"));
+    assert!(binary.contains("remote_host_wrong_arch"));
+    assert!(binary.contains("remote_admin_credentials_incomplete"));
     assert!(binary.contains("linux_ebpf_privilege_required"));
     assert!(binary.contains("missing_sshpass"));
     assert!(binary.contains("missing_system_command"));
+    assert!(binary.contains("missing_package_artifact"));
+    assert!(binary.contains("validation_timeout"));
+    assert!(binary.contains("invalid_cli_input"));
     assert!(binary.contains("GlobalCliOptions"));
     assert!(binary.contains("parse_global_cli_options"));
     assert!(binary.contains("print_failure_guidance_json"));
@@ -504,6 +528,8 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
 #[test]
 fn docs_prefer_native_validation_entrypoints() {
     let entrypoints = read_repo_file("docs/script-entrypoints.md");
+    let cli_recipes = read_repo_file("docs/cli-recipes.md");
+    let release_checklist = read_repo_file("docs/release-checklist.md");
     let runtime_surface = read_repo_file("docs/book/how-to-validate-runtime-surface.md");
 
     for doc in [&entrypoints, &runtime_surface] {
@@ -520,4 +546,47 @@ fn docs_prefer_native_validation_entrypoints() {
         );
         assert!(doc.contains("legacy"));
     }
+
+    assert!(
+        entrypoints.contains("cargo run --quiet --bin gewyvern_validate -- --json release-gate")
+    );
+    assert!(entrypoints.contains(
+        "cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation"
+    ));
+    assert!(entrypoints.contains("slowest_phase_entries"));
+    assert!(entrypoints.contains("extra.stages"));
+    assert!(entrypoints.contains("--json-out <path>"));
+    assert!(entrypoints.contains("Current JSON failure codes"));
+    assert!(entrypoints.contains("remote_admin_credentials_incomplete"));
+    assert!(entrypoints.contains("missing_package_artifact"));
+    assert!(
+        release_checklist
+            .contains("cargo run --quiet --bin gewyvern_validate -- --json release-gate")
+    );
+    assert!(release_checklist.contains("extra.remote.ebpf.status"));
+    assert!(cli_recipes.contains("## Validation JSON Recipes"));
+    assert!(
+        cli_recipes.contains("cargo run --quiet --bin gewyvern_validate -- --json release-gate")
+    );
+    assert!(cli_recipes.contains(
+        "cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation"
+    ));
+    assert!(cli_recipes.contains("--json-out /tmp/gewyvern-release-gate.json"));
+    assert!(cli_recipes.contains("jq '.extra.stages'"));
+    assert!(cli_recipes.contains("schema_version"));
+    assert!(cli_recipes.contains("failure_code"));
+    assert!(cli_recipes.contains("validation_timeout"));
+    assert!(cli_recipes.contains("remote_host_wrong_arch"));
+    assert!(
+        read_repo_file("docs/fixtures/gewyvern_validate_list.json")
+            .contains("\"schema_version\": 1")
+    );
+    assert!(
+        read_repo_file("docs/fixtures/gewyvern_validate_release_gate_minimal.json")
+            .contains("\"command\": \"release-gate\"")
+    );
+    assert!(
+        read_repo_file("docs/fixtures/gewyvern_validate_invalid_cli_input.json")
+            .contains("\"failure_code\": \"invalid_cli_input\"")
+    );
 }

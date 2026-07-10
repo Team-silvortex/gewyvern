@@ -1,0 +1,10 @@
+{
+  "failure_class": "input",
+  "failure_code": "invalid_cli_input",
+  "message": "unknown release-gate option `--wat`",
+  "next_steps": [
+    "next-step: rerun with `gewyvern_validate help` or the subcommand `--help` output and correct the missing or invalid CLI option"
+  ],
+  "ok": false,
+  "schema_version": 1
+}
