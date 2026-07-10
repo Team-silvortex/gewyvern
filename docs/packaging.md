@@ -225,7 +225,7 @@ After building native artifacts, verify that they install cleanly in fresh
 Linux containers:
 
 ```bash
-bash scripts/packaging/package_install_smoke.sh
+cargo run --quiet --bin gewyvern_validate -- package-install-smoke
 ```
 
 That smoke path:
@@ -246,8 +246,8 @@ That smoke path:
 If you only want one package family, use:
 
 ```bash
-bash scripts/packaging/package_install_smoke.sh --deb
-bash scripts/packaging/package_install_smoke.sh --rpm
+cargo run --quiet --bin gewyvern_validate -- package-install-smoke --deb
+cargo run --quiet --bin gewyvern_validate -- package-install-smoke --rpm
 ```
 
 ## Container Runtime Validation
@@ -256,7 +256,7 @@ To go beyond install smoke and validate the packaged standalone runtime itself,
 use:
 
 ```bash
-bash scripts/packaging/container_runtime_validation.sh
+cargo run --quiet --bin gewyvern_validate -- container-runtime-validation
 ```
 
 That path installs the latest package into a clean Linux container and then:
@@ -270,8 +270,8 @@ That path installs the latest package into a clean Linux container and then:
 If you only want one package family, use:
 
 ```bash
-bash scripts/packaging/container_runtime_validation.sh --deb
-bash scripts/packaging/container_runtime_validation.sh --rpm
+cargo run --quiet --bin gewyvern_validate -- container-runtime-validation --deb
+cargo run --quiet --bin gewyvern_validate -- container-runtime-validation --rpm
 ```
 
 ## Container Protocol Validation

@@ -197,7 +197,7 @@ This is usually the fastest way to answer:
 
 ## Step 6: Exercise The High-Frequency Shelf
 
-For the active `0.19.x` line, the most valuable operator surface is the
+For the active `0.20.x` line, the most valuable operator surface is the
 high-frequency protocol shelf plus the debugger cross-validation path.
 
 Run:
@@ -410,7 +410,7 @@ Use this when you need confidence in:
 - local sidecar/enrich chains rather than just CLI rendering
 - training manifests versus fetched sample payloads
 
-## What “Healthy Enough For v0.19.x” Means
+## What “Healthy Enough For v0.20.x” Means
 
 For the current line, the runtime surface is in a good state when:
 
@@ -431,5 +431,5 @@ That is enough to say:
 - but it is already usable on purpose
 
 For the release posture around that judgment, see
-[docs/history/v0.19.x.md](docs/history/v0.19.x.md) and
+[docs/history/v0.20.x.md](docs/history/v0.20.x.md) and
 [docs/release-checklist.md](docs/release-checklist.md).

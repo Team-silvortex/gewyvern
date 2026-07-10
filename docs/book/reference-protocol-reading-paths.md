@@ -178,4 +178,4 @@ The reference volume needs to do three things well:
 - show you how that contract becomes runtime behavior
 - point you at the right validation path when trust matters
 
-That is the purpose of this page in the active `0.19.x` line.
+That is the purpose of this page in the active `0.20.x` line.

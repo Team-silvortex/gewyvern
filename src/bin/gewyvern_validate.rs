@@ -6,13 +6,17 @@ use std::process;
 mod gewyvern_validate_stack;
 
 use gewyvern::validation_harness::{
-    ValidationError, run_debugger_cross_validation, run_external_engine_roundtrip_demo,
-    run_field_smoke_validation, run_high_frequency_validation, run_registry_validation,
-    run_resilience_bundle_validation, run_resilience_drive_bad_json_validation,
-    run_resilience_emit_helper_validation, run_resilience_log_evidence_validation,
-    run_resilience_roundtrip_validation, run_runtime_lifecycle_validation,
-    run_runtime_operator_validation, run_socket_roundtrip_demo,
-    run_training_dataset_roundtrip_demo,
+    ReleaseCheckMode, ReleaseGateOptions, RemoteLinuxHostOptions, ValidationError,
+    run_container_operator_path_validation, run_container_protocol_validation,
+    run_container_runtime_validation, run_container_validation_summary,
+    run_debugger_cross_validation, run_external_engine_roundtrip_demo, run_field_smoke_validation,
+    run_high_frequency_validation, run_package_install_smoke,
+    run_pathological_container_validation, run_registry_validation, run_release_container_check,
+    run_release_gate, run_remote_linux_host_validation, run_resilience_bundle_validation,
+    run_resilience_drive_bad_json_validation, run_resilience_emit_helper_validation,
+    run_resilience_log_evidence_validation, run_resilience_roundtrip_validation,
+    run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
+    run_three_module_stack_smoke, run_training_dataset_roundtrip_demo,
 };
 
 fn main() {
@@ -198,11 +202,154 @@ fn run() -> Result<(), ValidationError> {
             println!("evidence: {}", report.out_dir.display());
             Ok(())
         }
+        "release-container-check" => {
+            if wants_subcommand_help(&rest) {
+                print_release_container_check_help();
+                return Ok(());
+            }
+            let mode = parse_release_check_mode("release-container-check", rest)?;
+            let report = run_release_container_check(mode)?;
+
+            println!("{}: ok", report.name);
+            println!("checks: {}", report.checks.join(", "));
+            println!("evidence: {}", report.out_dir.display());
+            Ok(())
+        }
+        "package-install-smoke" => {
+            if wants_subcommand_help(&rest) {
+                print_package_install_smoke_help();
+                return Ok(());
+            }
+            let mode = parse_release_check_mode("package-install-smoke", rest)?;
+            let report = run_package_install_smoke(mode)?;
+
+            println!("{}: ok", report.name);
+            println!("checks: {}", report.checks.join(", "));
+            println!("evidence: {}", report.out_dir.display());
+            Ok(())
+        }
+        "container-protocol-validation" => {
+            if wants_subcommand_help(&rest) {
+                print_container_protocol_validation_help();
+                return Ok(());
+            }
+            let mode = parse_release_check_mode("container-protocol-validation", rest)?;
+            let report = run_container_protocol_validation(mode)?;
+
+            println!("{}: ok", report.name);
+            println!("checks: {}", report.checks.join(", "));
+            println!("evidence: {}", report.out_dir.display());
+            Ok(())
+        }
+        "container-operator-path-validation" => {
+            if wants_subcommand_help(&rest) {
+                print_container_operator_path_validation_help();
+                return Ok(());
+            }
+            let mode = parse_release_check_mode("container-operator-path-validation", rest)?;
+            let report = run_container_operator_path_validation(mode)?;
+
+            println!("{}: ok", report.name);
+            println!("checks: {}", report.checks.join(", "));
+            println!("evidence: {}", report.out_dir.display());
+            Ok(())
+        }
+        "container-validation-summary" => {
+            if wants_subcommand_help(&rest) {
+                print_container_validation_summary_help();
+                return Ok(());
+            }
+            let mode = parse_release_check_mode("container-validation-summary", rest)?;
+            let report = run_container_validation_summary(mode)?;
+
+            println!("{}: ok", report.name);
+            println!("checks: {}", report.checks.join(", "));
+            println!("evidence: {}", report.out_dir.display());
+            Ok(())
+        }
+        "container-runtime-validation" => {
+            if wants_subcommand_help(&rest) {
+                print_container_runtime_validation_help();
+                return Ok(());
+            }
+            let mode = parse_release_check_mode("container-runtime-validation", rest)?;
+            let report = run_container_runtime_validation(mode)?;
+
+            println!("{}: ok", report.name);
+            println!("checks: {}", report.checks.join(", "));
+            println!("evidence: {}", report.out_dir.display());
+            Ok(())
+        }
+        "remote-linux-host-validation" => {
+            if wants_subcommand_help(&rest) {
+                print_remote_linux_host_validation_help();
+                return Ok(());
+            }
+            let options = parse_remote_linux_host_options(rest)?;
+            let report = run_remote_linux_host_validation(options)?;
+
+            println!("{}: ok", report.name);
+            println!("checks: {}", report.checks.join(", "));
+            println!("evidence: {}", report.out_dir.display());
+            Ok(())
+        }
+        "release-gate" => {
+            if wants_subcommand_help(&rest) {
+                print_release_gate_help();
+                return Ok(());
+            }
+            let options = parse_release_gate_options(rest)?;
+            let report = run_release_gate(options)?;
+
+            println!("{}: ok", report.name);
+            println!("checks: {}", report.checks.join(", "));
+            println!("evidence: {}", report.out_dir.display());
+            Ok(())
+        }
+        "three-module-stack-smoke" => {
+            if wants_subcommand_help(&rest) {
+                print_three_module_stack_smoke_help();
+                return Ok(());
+            }
+            if !rest.is_empty() {
+                return Err(ValidationError::new(
+                    "three-module-stack-smoke does not accept positional arguments",
+                ));
+            }
+            let report = run_three_module_stack_smoke()?;
+
+            println!("{}: ok", report.name);
+            println!("checks: {}", report.checks.join(", "));
+            println!("evidence: {}", report.out_dir.display());
+            Ok(())
+        }
+        "pathological-container-validation" => {
+            if wants_subcommand_help(&rest) {
+                print_pathological_container_validation_help();
+                return Ok(());
+            }
+            let out_dir = parse_optional_out_dir(rest)?;
+            let report = run_pathological_container_validation(out_dir)?;
+
+            println!("{}: ok", report.name);
+            println!("checks: {}", report.checks.join(", "));
+            println!("evidence: {}", report.out_dir.display());
+            Ok(())
+        }
         "list" => {
+            println!("container-operator-path-validation");
+            println!("container-protocol-validation");
+            println!("container-runtime-validation");
+            println!("container-validation-summary");
             println!("debugger-cross");
             println!("external-engine-roundtrip");
             println!("field-smoke");
             println!("high-frequency");
+            println!("package-install-smoke");
+            println!("pathological-container-validation");
+            println!("remote-linux-host-validation");
+            println!("release-container-check");
+            println!("release-gate");
             println!("registry");
             println!("resilience-bundle");
             println!("resilience-drive-bad-json");
@@ -212,6 +359,7 @@ fn run() -> Result<(), ValidationError> {
             println!("runtime-lifecycle");
             println!("runtime-operator");
             println!("socket-roundtrip");
+            println!("three-module-stack-smoke");
             gewyvern_validate_stack::print_stack_list();
             println!("training-roundtrip");
             Ok(())
@@ -248,6 +396,13 @@ struct Options {
     target_path_segment: Option<String>,
     socket: bool,
     scan_all: bool,
+}
+
+struct RemoteLinuxHostCliOptions {
+    host: String,
+    remote_dir: Option<String>,
+    build_packages: bool,
+    keep_remote_dir: bool,
 }
 
 fn parse_options(args: Vec<String>) -> Result<Options, ValidationError> {
@@ -450,8 +605,132 @@ fn require_u16_option(value: Option<u16>, name: &str) -> Result<u16, ValidationE
     value.ok_or_else(|| ValidationError::new(format!("{name} is required")))
 }
 
+fn parse_release_check_mode(
+    command_name: &str,
+    args: Vec<String>,
+) -> Result<ReleaseCheckMode, ValidationError> {
+    let mut mode = ReleaseCheckMode::DebAndRpm;
+    let mut iter = args.into_iter();
+
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--deb" => mode = ReleaseCheckMode::Deb,
+            "--rpm" => mode = ReleaseCheckMode::Rpm,
+            other => {
+                return Err(ValidationError::new(format!(
+                    "unknown {command_name} option `{other}`"
+                )));
+            }
+        }
+    }
+
+    Ok(mode)
+}
+
+fn parse_release_gate_options(args: Vec<String>) -> Result<ReleaseGateOptions, ValidationError> {
+    let mut options = ReleaseGateOptions::default();
+    let mut iter = args.into_iter();
+
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--skip-build" => options.run_build = false,
+            "--skip-release-check" => options.run_release_check = false,
+            "--skip-stack" => options.run_stack = false,
+            "--skip-pathology" => options.run_pathology = false,
+            "--deb" => options.release_mode = ReleaseCheckMode::Deb,
+            "--rpm" => options.release_mode = ReleaseCheckMode::Rpm,
+            other => {
+                return Err(ValidationError::new(format!(
+                    "unknown release-gate option `{other}`"
+                )));
+            }
+        }
+    }
+
+    Ok(options)
+}
+
+fn parse_remote_linux_host_options(
+    args: Vec<String>,
+) -> Result<RemoteLinuxHostOptions, ValidationError> {
+    let mut options = RemoteLinuxHostCliOptions {
+        host: env::var("GEWY_REMOTE_HOST").unwrap_or_else(|_| "kyuubiki-lab".to_string()),
+        remote_dir: None,
+        build_packages: true,
+        keep_remote_dir: false,
+    };
+    let mut iter = args.into_iter();
+
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--host" => {
+                options.host = iter
+                    .next()
+                    .ok_or_else(|| ValidationError::new("--host requires a value"))?;
+            }
+            "--remote-dir" => {
+                options.remote_dir = Some(
+                    iter.next()
+                        .ok_or_else(|| ValidationError::new("--remote-dir requires a value"))?,
+                );
+            }
+            "--skip-build" => options.build_packages = false,
+            "--keep-remote-dir" => options.keep_remote_dir = true,
+            other if other.starts_with('-') => {
+                return Err(ValidationError::new(format!(
+                    "unknown remote-linux-host-validation option `{other}`"
+                )));
+            }
+            other => options.host = other.to_string(),
+        }
+    }
+
+    Ok(RemoteLinuxHostOptions {
+        host: options.host,
+        remote_dir: options.remote_dir,
+        build_packages: options.build_packages,
+        keep_remote_dir: options.keep_remote_dir,
+    })
+}
+
+fn parse_optional_out_dir(args: Vec<String>) -> Result<Option<PathBuf>, ValidationError> {
+    let mut out_dir = None;
+    let mut iter = args.into_iter();
+
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--out-dir" => {
+                let value = iter
+                    .next()
+                    .ok_or_else(|| ValidationError::new("--out-dir requires a path"))?;
+                out_dir = Some(PathBuf::from(value));
+            }
+            other if other.starts_with('-') => {
+                return Err(ValidationError::new(format!(
+                    "unknown pathological-container-validation option `{other}`"
+                )));
+            }
+            other => {
+                if out_dir.is_some() {
+                    return Err(ValidationError::new(
+                        "pathological-container-validation accepts at most one output path",
+                    ));
+                }
+                out_dir = Some(PathBuf::from(other));
+            }
+        }
+    }
+
+    Ok(out_dir)
+}
+
 fn env_flag(name: &str) -> bool {
     matches!(env::var(name).as_deref(), Ok("1") | Ok("true") | Ok("yes"))
+}
+
+fn wants_subcommand_help(args: &[String]) -> bool {
+    args.iter()
+        .any(|arg| matches!(arg.as_str(), "-h" | "--help"))
 }
 
 fn print_help() {
@@ -461,6 +740,10 @@ fn print_help() {
     println!();
     println!("Commands:");
     println!("  list");
+    println!("  container-operator-path-validation [--deb|--rpm]");
+    println!("  container-protocol-validation [--deb|--rpm]");
+    println!("  container-runtime-validation [--deb|--rpm]");
+    println!("  container-validation-summary [--deb|--rpm]");
     println!("  debugger-cross [--out-dir <path>]  # writes evidence-index.json");
     println!("  field-smoke [--out-dir <path>] [--socket] [--scan-all]");
     println!(
@@ -473,6 +756,10 @@ fn print_help() {
         "  external-engine-roundtrip [--ingest-addr <addr>] [--api-addr <addr>] [--template <id>] [--analysis-out <path>] [--engine-out <path>] [--target-path-segment <segment>] [--engine-root <path>] [--engine-cmd <cmd>]"
     );
     println!("  high-frequency [--out-dir <path>]");
+    println!("  package-install-smoke [--deb|--rpm]");
+    println!(
+        "  remote-linux-host-validation [--host <ssh-host>] [--remote-dir <path>] [--skip-build] [--keep-remote-dir]"
+    );
     println!("  registry [--out-dir <path>] [--limit <n>]");
     println!("  resilience-log-evidence --log-source <path> [--out-dir <path>]");
     println!("  resilience-roundtrip [--api-addr <addr>] [--out-dir <path>]");
@@ -481,7 +768,110 @@ fn print_help() {
     println!(
         "  resilience-drive-bad-json --host <host> --port <port> [--count <n>] [--out-dir <path>]"
     );
+    println!("  pathological-container-validation [--out-dir <path>]");
+    println!("  release-container-check [--deb|--rpm]");
+    println!(
+        "  release-gate [--skip-build] [--skip-release-check] [--skip-stack] [--skip-pathology] [--deb|--rpm]"
+    );
     println!("  runtime-lifecycle [--out-dir <path>]");
     println!("  runtime-operator [--out-dir <path>] [--json-out <path>]");
+    println!("  three-module-stack-smoke");
     gewyvern_validate_stack::print_stack_help();
+}
+
+fn print_release_container_check_help() {
+    println!("Usage: gewyvern_validate release-container-check [--deb] [--rpm]");
+    println!();
+    println!("Run the current release-oriented packaged Linux validation suite:");
+    println!("  package_install_smoke.sh");
+    println!("  container_runtime_validation.sh");
+    println!("  container_validation_summary.sh");
+    println!();
+    println!("By default, both the DEB and RPM paths run.");
+}
+
+fn print_package_install_smoke_help() {
+    println!("Usage: gewyvern_validate package-install-smoke [--deb] [--rpm]");
+    println!();
+    println!("Run the packaged install smoke in clean Linux containers.");
+    println!("By default, both the DEB and RPM paths run.");
+}
+
+fn print_remote_linux_host_validation_help() {
+    println!(
+        "Usage: gewyvern_validate remote-linux-host-validation [--host <ssh-host>] [--remote-dir <path>] [--skip-build] [--keep-remote-dir]"
+    );
+    println!();
+    println!(
+        "Sync the current workspace to a remote Linux host over SSH, build x86_64 packages there, then run host-mode package and runtime smoke checks."
+    );
+    println!(
+        "Defaults: host from GEWY_REMOTE_HOST or `kyuubiki-lab`, remote dir under `~/.kyuubiki-remote-runs/`."
+    );
+}
+
+fn print_container_protocol_validation_help() {
+    println!("Usage: gewyvern_validate container-protocol-validation [--deb] [--rpm]");
+    println!();
+    println!("Run the packaged protocol registry validation in clean Linux containers.");
+    println!("By default, both the DEB and RPM paths run.");
+}
+
+fn print_container_operator_path_validation_help() {
+    println!("Usage: gewyvern_validate container-operator-path-validation [--deb] [--rpm]");
+    println!();
+    println!("Run the packaged operator-path validation in clean Linux containers.");
+    println!("By default, both the DEB and RPM paths run.");
+}
+
+fn print_container_validation_summary_help() {
+    println!("Usage: gewyvern_validate container-validation-summary [--deb] [--rpm]");
+    println!();
+    println!("Run the packaged protocol + operator-path container validation summary.");
+    println!("By default, both the DEB and RPM paths run.");
+}
+
+fn print_container_runtime_validation_help() {
+    println!("Usage: gewyvern_validate container-runtime-validation [--deb] [--rpm]");
+    println!();
+    println!("Run the packaged standalone runtime validation in clean Linux containers.");
+    println!("By default, both the DEB and RPM paths run.");
+}
+
+fn print_release_gate_help() {
+    println!(
+        "Usage: gewyvern_validate release-gate [--skip-build] [--skip-release-check] [--skip-stack] [--skip-pathology] [--deb|--rpm]"
+    );
+    println!();
+    println!("Run the current release gate as one deliberate sequence:");
+    println!("1. rebuild fresh native packages in Docker");
+    println!("2. run the packaged release validation wrapper");
+    println!("3. run the three-module stack smoke");
+    println!("4. run pathological container/runtime-ingest validation");
+    println!();
+    println!("Flags:");
+    println!("  --skip-build          Reuse current package artifacts instead of rebuilding");
+    println!("  --skip-release-check  Skip packaged DEB/RPM validation");
+    println!("  --skip-stack          Skip three-module stack smoke");
+    println!("  --skip-pathology      Skip pathological runtime-ingest validation");
+    println!("  --deb                 Run the packaged release check in DEB-only mode");
+    println!("  --rpm                 Run the packaged release check in RPM-only mode");
+}
+
+fn print_three_module_stack_smoke_help() {
+    println!("Usage: gewyvern_validate three-module-stack-smoke");
+    println!();
+    println!(
+        "Run the full gewyvern + etragon + leserpent stack smoke with native Rust orchestration."
+    );
+    println!("Environment variables from the legacy shell entrypoint are still honored.");
+}
+
+fn print_pathological_container_validation_help() {
+    println!("Usage: gewyvern_validate pathological-container-validation [--out-dir <path>]");
+    println!();
+    println!("Run the pathological container/runtime-ingest validation suite.");
+    println!(
+        "A single positional output path is also accepted for compatibility with the legacy shell entrypoint."
+    );
 }

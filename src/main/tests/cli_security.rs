@@ -1,4 +1,4 @@
-use super::*;
+use super::Cli;
 
 #[test]
 fn cli_rejects_external_engine_bin_that_looks_like_next_flag() {

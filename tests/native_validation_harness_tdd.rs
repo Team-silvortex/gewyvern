@@ -14,6 +14,12 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     let mod_file = read_repo_file("src/validation_harness.rs");
 
     assert!(binary.contains("\"debugger-cross\""));
+    assert!(binary.contains("\"container-operator-path-validation\""));
+    assert!(binary.contains("\"container-protocol-validation\""));
+    assert!(binary.contains("\"container-runtime-validation\""));
+    assert!(binary.contains("\"container-validation-summary\""));
+    assert!(binary.contains("\"package-install-smoke\""));
+    assert!(binary.contains("\"remote-linux-host-validation\""));
     assert!(binary.contains("evidence-index.json"));
     assert!(binary.contains("\"field-smoke\""));
     assert!(binary.contains("\"high-frequency\""));
@@ -46,7 +52,15 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(mod_file.contains("run_resilience_drive_bad_json_validation"));
     assert!(mod_file.contains("run_runtime_lifecycle_validation"));
     assert!(mod_file.contains("run_runtime_operator_validation"));
+    assert!(mod_file.contains("run_container_protocol_validation"));
+    assert!(mod_file.contains("run_container_operator_path_validation"));
+    assert!(mod_file.contains("run_container_runtime_validation"));
+    assert!(mod_file.contains("run_container_validation_summary"));
+    assert!(mod_file.contains("run_package_install_smoke"));
+    assert!(mod_file.contains("run_remote_linux_host_validation"));
     assert!(mod_file.contains("run_stack_probe_validation"));
+    assert!(mod_file.contains("run_three_module_stack_smoke"));
+    assert!(mod_file.contains("run_pathological_container_validation"));
     assert!(mod_file.contains("write_stack_resilience_summary"));
 }
 
@@ -155,17 +169,21 @@ fn runtime_operator_validation_moves_live_operator_checks_into_rust() {
 fn three_module_stack_smoke_uses_native_stack_probe_for_json_readiness() {
     let stack_probe = read_repo_file("src/validation_harness/stack_probe.rs");
     let stack_cli = read_repo_file("src/validation_harness_cli_stack.rs");
+    let suites = read_repo_file("src/validation_harness/stack_suites.rs");
     let script = read_repo_file("scripts/validation/three_module_stack_smoke.sh");
 
     assert!(stack_probe.contains("resilience-healthy"));
     assert!(stack_probe.contains("leserpent-runtime-detail"));
     assert!(stack_cli.contains("stack-check-json"));
     assert!(stack_cli.contains("stack-register-runtime-json"));
-    assert!(script.contains("stack-probe"));
-    assert!(script.contains("stack-resilience-summary"));
-    assert!(script.contains("127.0.0.1:${socket_port}:9000"));
-    assert!(script.contains("127.0.0.1:${api_port}:9100"));
-    assert!(script.contains("127.0.0.1:${ET_A_API_PORT}:4321"));
+    assert!(suites.contains("run_three_module_stack_smoke"));
+    assert!(suites.contains("run_stack_probe_validation"));
+    assert!(suites.contains("write_stack_resilience_summary"));
+    assert!(suites.contains("127.0.0.1:{socket_port}:9000"));
+    assert!(suites.contains("127.0.0.1:{api_port}:9100"));
+    assert!(suites.contains("127.0.0.1:{}:4321"));
+    assert!(script.contains("gewyvern_validate"));
+    assert!(script.contains("three-module-stack-smoke"));
     assert!(!script.contains("wait_for_json_python"));
     assert!(!script.contains("assert_json_python"));
     assert!(!script.contains("python3 -c"));
@@ -215,6 +233,18 @@ fn control_plane_state_defaults_avoid_source_tree_runtime_state() {
 }
 
 #[test]
+fn control_plane_environment_query_binding_is_explicit_for_runtime_filters() {
+    let runtime_endpoints =
+        read_repo_file("apps/leserpent/src/Leserpent/ProgramRuntimeEndpoints.cs");
+    let fleet_endpoints = read_repo_file("apps/leserpent/src/Leserpent/ProgramFleetEndpoints.cs");
+
+    assert!(runtime_endpoints.contains("using Microsoft.AspNetCore.Mvc;"));
+    assert!(fleet_endpoints.contains("using Microsoft.AspNetCore.Mvc;"));
+    assert!(runtime_endpoints.contains("[FromQuery(Name = \"environment\")]"));
+    assert!(fleet_endpoints.contains("[FromQuery(Name = \"environment\")]"));
+}
+
+#[test]
 fn resilience_validation_bundle_is_native_with_legacy_wrappers() {
     let resilience = read_repo_file("src/validation_harness/resilience.rs");
     let fault = read_repo_file("scripts/validation/runtime_resilience_fault_injection.sh");
@@ -235,6 +265,75 @@ fn resilience_validation_bundle_is_native_with_legacy_wrappers() {
     assert!(evidence.contains("resilience-log-evidence"));
     assert!(roundtrip.contains("resilience-roundtrip"));
     assert!(bundle.contains("resilience-bundle"));
+}
+
+#[test]
+fn packaging_container_validations_are_native_with_legacy_wrappers() {
+    let packaging = read_repo_file("src/validation_harness/container_packaging.rs");
+    let release_gate = read_repo_file("src/validation_harness/release_gate.rs");
+    let smoke = read_repo_file("scripts/packaging/package_install_smoke.sh");
+    let protocol = read_repo_file("scripts/packaging/container_protocol_validation.sh");
+    let operator = read_repo_file("scripts/packaging/container_operator_path_validation.sh");
+    let runtime = read_repo_file("scripts/packaging/container_runtime_validation.sh");
+    let summary = read_repo_file("scripts/packaging/container_validation_summary.sh");
+
+    assert!(packaging.contains("run_container_protocol_validation"));
+    assert!(packaging.contains("run_container_operator_path_validation"));
+    assert!(packaging.contains("run_container_runtime_validation"));
+    assert!(packaging.contains("run_container_validation_summary"));
+    assert!(packaging.contains("GEWY_DEB_PROTOCOL_IMAGE"));
+    assert!(packaging.contains("GEWY_RPM_PROTOCOL_IMAGE"));
+    assert!(packaging.contains("GEWY_DEB_OPERATOR_IMAGE"));
+    assert!(packaging.contains("GEWY_RPM_OPERATOR_IMAGE"));
+    assert!(packaging.contains("GEWY_DEB_RUNTIME_IMAGE"));
+    assert!(packaging.contains("GEWY_RPM_RUNTIME_IMAGE"));
+    assert!(packaging.contains("GEWY_DEB_SMOKE_IMAGE"));
+    assert!(packaging.contains("GEWY_RPM_SMOKE_IMAGE"));
+    assert!(packaging.contains("timeout_seconds"));
+    assert!(packaging.contains("docker"));
+    assert!(packaging.contains("run_package_install_smoke"));
+    assert!(packaging.contains("package install smoke: ok"));
+    assert!(packaging.contains("dpkg-deb -c"));
+    assert!(packaging.contains("rpm -qpl"));
+    assert!(packaging.contains("curl"));
+    assert!(packaging.contains("wait_for_http_body"));
+    assert!(packaging.contains("gewyvern_socket_send"));
+    assert!(packaging.contains("container runtime validation: ok"));
+    assert!(release_gate.contains("run_package_install_smoke(mode)?"));
+    assert!(release_gate.contains("run_container_runtime_validation(mode)?"));
+    assert!(release_gate.contains("run_container_validation_summary(mode)?"));
+    assert!(smoke.contains("gewyvern_validate"));
+    assert!(smoke.contains("package-install-smoke"));
+    assert!(protocol.contains("gewyvern_validate"));
+    assert!(protocol.contains("container-protocol-validation"));
+    assert!(operator.contains("gewyvern_validate"));
+    assert!(operator.contains("container-operator-path-validation"));
+    assert!(runtime.contains("gewyvern_validate"));
+    assert!(runtime.contains("container-runtime-validation"));
+    assert!(summary.contains("gewyvern_validate"));
+    assert!(summary.contains("container-validation-summary"));
+    assert!(!summary.contains("run_mode_script"));
+}
+
+#[test]
+fn remote_linux_host_validation_is_native_and_ssh_backed() {
+    let remote = read_repo_file("src/validation_harness/remote_host.rs");
+    let binary = read_repo_file("src/bin/gewyvern_validate.rs");
+    let docs = read_repo_file("docs/script-entrypoints.md");
+
+    assert!(remote.contains("RemoteLinuxHostOptions"));
+    assert!(remote.contains("run_remote_linux_host_validation"));
+    assert!(remote.contains("rsync"));
+    assert!(remote.contains("ssh"));
+    assert!(remote.contains("build_packages.sh --format all"));
+    assert!(remote.contains("remote package smoke: ok"));
+    assert!(remote.contains("remote runtime smoke: ok"));
+    assert!(remote.contains("rpm2cpio"));
+    assert!(remote.contains("kyuubiki-lab"));
+    assert!(binary.contains("remote-linux-host-validation"));
+    assert!(binary.contains("--keep-remote-dir"));
+    assert!(binary.contains("--skip-build"));
+    assert!(docs.contains("remote-linux-host-validation"));
 }
 
 #[test]

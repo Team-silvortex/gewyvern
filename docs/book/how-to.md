@@ -102,8 +102,8 @@ command or script, prefer these top-level operator shelves first:
 
 - [docs/v0.15-posture.md](docs/v0.15-posture.md)
   Historical release posture for the earlier `0.15.x` line.
-- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
-  Current release posture for the active `0.19.x` line.
+- [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
+  Current release posture for the active `0.20.x` line.
 - [docs/release-checklist.md](docs/release-checklist.md)
   Current release gate and ship/no-ship checklist.
 - [docs/security-posture.md](docs/security-posture.md)

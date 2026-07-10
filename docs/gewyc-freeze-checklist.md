@@ -129,7 +129,7 @@ When a freeze step changes what consumers should read first:
 
 1. update [docs/gewyc-field-contract.md](docs/gewyc-field-contract.md)
 2. update [docs/gewyc-contract-matrix.md](docs/gewyc-contract-matrix.md)
-3. update [docs/history/v0.17.x.md](docs/history/v0.17.x.md) if it changes the meaning of the line
+3. update [docs/history/v0.19.x.md](docs/history/v0.19.x.md) if it changes the meaning of the line
 
 That keeps the contract, the examples, and the release narrative aligned.
 

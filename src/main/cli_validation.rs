@@ -1,5 +1,8 @@
-use super::*;
 use crate::cli::DemoMode;
+use crate::{
+    IngestMode, ReportFormat, SocketTarget, UiLocale, api_socket_addr_is_local,
+    socket_target_is_local,
+};
 
 pub(crate) struct CliValidationInput<'a> {
     pub(crate) summary_only: bool,

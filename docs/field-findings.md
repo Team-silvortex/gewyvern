@@ -1,6 +1,7 @@
 # Field Findings
 
-This note records the highest-signal findings from the earlier `0.15.x`
+This note records the highest-signal findings from the active `0.20.x` line
+while preserving a shorter historical tail from the earlier `0.15.x`
 field-validation phase.
 
 It is intentionally short.
@@ -8,9 +9,9 @@ It is intentionally short.
 It is not a replacement for:
 
 - [docs/field-validation.md](docs/field-validation.md)
-- [docs/v0.15-posture.md](docs/v0.15-posture.md)
-- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
-- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
+- [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
+- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
+- [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
 
 Instead, it answers a narrower question:
 
@@ -38,7 +39,85 @@ For those, use:
 
 - [docs/field-validation.md](docs/field-validation.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
-- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+- [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
+
+## Current `2026-07-10` Findings From `0.20.x`
+
+### 1. The Default Release Gate Now Passes As One Routine
+
+The current release-style entrypoint now passes in one run:
+
+- `bash scripts/packaging/release_gate.sh --skip-build`
+
+That green path includes:
+
+- packaged release validation in default `deb+rpm` mode
+- the three-module stack smoke
+- pathological container validation
+
+This is stronger than a collection of isolated green commands because it proves
+the current orchestration order also holds up.
+
+### 2. Packaged Linux Validation Is Green Across Both Package Families
+
+The current packaged release routine is green in default mode through:
+
+- package install smoke
+- packaged runtime validation
+- packaged protocol validation
+- packaged operator-path validation
+
+That means the active `0.20.0` native artifacts are usable not only as local
+build outputs, but as real installed runtime inputs across both `deb` and
+`rpm` flows.
+
+### 3. The Multi-Project Stack Now Holds Up Under Resilience Checks
+
+The current Docker collaboration smoke now passes through:
+
+- two `gewyvern` runtimes
+- one nearby `etragon` sidecar
+- one `leserpent` control plane
+
+The observed green outputs include:
+
+- `etragon-status-ok`
+- `etragon-output-ok`
+- `summary-ok`
+- `runtimes-ok`
+- `gw-a-resilience-ok`
+- `gw-b-resilience-ok`
+- `gw-b-health-degraded-ok`
+- `gw-b-resilience-degraded-ok`
+
+This is currently one of the clearest signals that the monorepo collaboration
+story is not only documented but operational.
+
+### 4. Pathological Ingest Currently Degrades And Recovers Correctly
+
+The current pathological container gate now passes with all intended bad-input
+classes:
+
+- truncated JSON
+- empty disconnects
+- slow-drip incomplete JSON
+- oversized fact lines
+
+The important current finding is not merely that the runtime "survived". It is
+that degraded health, degraded resilience, post-fault analysis, and log
+evidence all remain observable after the bad clients run.
+
+### 5. Dependency Vulnerability Checks Are Currently Clean
+
+The current release-ready security checks are green for:
+
+- Rust via `cargo audit`
+- Leserpent NuGet packages via
+  `dotnet list apps/leserpent/src/Leserpent/Leserpent.csproj package --vulnerable`
+- Leserpent frontend dependencies via `npm audit`
+
+That closes one of the last release-checklist items that should not remain
+implicit before a `1.0` push.
 
 ## Historical Stable Findings From `0.15.x`
 
@@ -248,16 +327,20 @@ That is useful and intentional, but it is not the same thing as saying:
 
 ## Practical Read Of The Current Line
 
-The earlier `0.15.x` line looked strong in these ways:
+The current `0.20.x` line now looks strong in these ways:
 
 - protocol/package shelf is stable
-- current `0.14.0` native artifacts are the ones being exercised
+- current `0.20.0` native artifacts are the ones being exercised
 - packaged standalone runtime works
 - packaged high-frequency protocol families work
 - packaged operator paths stay conservative and coherent
 - packaged Linux release-style validation can run as one checklist in default
   `deb+rpm` mode
 - the current three-module collaboration topology already works in Docker
+- pathological ingest validation currently preserves degraded-but-live runtime
+  behavior
+- dependency vulnerability checks are currently green across Rust, .NET, and
+  frontend lockfiles
 
 The current line should still be read cautiously in these ways:
 

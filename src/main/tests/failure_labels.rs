@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    Cli, annotate_export_trust, dsl_fixture_path, push_synthetic_missing_stage_finding,
+    run_binding_demo,
+};
+use gewyvern::dsl::compile_file;
 
 #[test]
 fn failure_mode_label_classifies_database_directory_quic_tls_http3_and_hy2_families() {

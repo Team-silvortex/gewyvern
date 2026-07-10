@@ -61,8 +61,9 @@ If you want the project-wide dataflow topology first, jump to:
 - runtime exposure and security preflight:
   [docs/book/how-to-security-checklist.md](docs/book/how-to-security-checklist.md)
 - current release posture and history:
-  [docs/history/v0.17.x.md](docs/history/v0.17.x.md),
-  [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md),
+  [docs/history/v0.20.x.md](docs/history/v0.20.x.md),
+  [docs/history/v0.19.x.md](docs/history/v0.19.x.md),
+  [docs/history/v0.18.x.md](docs/history/v0.18.x.md),
   [docs/history/index.md](docs/history/index.md)
 - current validation program:
   [docs/field-validation.md](docs/field-validation.md)
@@ -157,8 +158,9 @@ Use these when you want reading order instead of topic lookup:
   [docs/development.md](docs/development.md),
   [docs/module-boundaries.md](docs/module-boundaries.md)
 - reviewer:
-  [docs/history/v0.17.x.md](docs/history/v0.17.x.md),
-  [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md),
+  [docs/history/v0.20.x.md](docs/history/v0.20.x.md),
+  [docs/history/v0.19.x.md](docs/history/v0.19.x.md),
+  [docs/history/v0.18.x.md](docs/history/v0.18.x.md),
   [docs/field-findings.md](docs/field-findings.md)
 
 ## Scope

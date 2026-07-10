@@ -1,4 +1,5 @@
 using Leserpent.ControlPlane;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Leserpent;
 
@@ -6,11 +7,11 @@ public partial class Program
 {
     private static void MapRuntimeEndpoints(WebApplication app)
     {
-        app.MapGet("/v1/runtimes", (string? environment, string? cluster, string? role, RegistryService registry) =>
+        app.MapGet("/v1/runtimes", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
             Results.Ok(new
             {
-                filter = new RuntimeListFilter(environment, cluster, role),
-                runtimes = registry.ListRuntimes(new RuntimeListFilter(environment, cluster, role)),
+                filter = new RuntimeListFilter(environmentTag, cluster, role),
+                runtimes = registry.ListRuntimes(new RuntimeListFilter(environmentTag, cluster, role)),
             }));
 
         app.MapGet("/v1/runtimes/{id}", (string id, RegistryService registry) =>
@@ -229,9 +230,9 @@ public partial class Program
                 });
         });
 
-        app.MapPost("/v1/runtimes/delete-failed", (string? environment, string? cluster, string? role, RegistryService registry) =>
+        app.MapPost("/v1/runtimes/delete-failed", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
         {
-            var filter = new RuntimeListFilter(environment, cluster, role);
+            var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var deleted = registry.DeleteFailedRuntimes(filter);
             return Results.Ok(new
             {
@@ -243,9 +244,9 @@ public partial class Program
             });
         });
 
-        app.MapPost("/v1/runtimes/delete-unobserved", (string? environment, string? cluster, string? role, RegistryService registry) =>
+        app.MapPost("/v1/runtimes/delete-unobserved", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
         {
-            var filter = new RuntimeListFilter(environment, cluster, role);
+            var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var deleted = registry.DeleteUnobservedRuntimes(filter);
             return Results.Ok(new
             {
@@ -257,9 +258,9 @@ public partial class Program
             });
         });
 
-        app.MapPost("/v1/runtimes/delete-slice", (string? environment, string? cluster, string? role, RegistryService registry) =>
+        app.MapPost("/v1/runtimes/delete-slice", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
         {
-            var filter = new RuntimeListFilter(environment, cluster, role);
+            var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var deleted = registry.DeleteRuntimes(filter);
             return Results.Ok(new
             {

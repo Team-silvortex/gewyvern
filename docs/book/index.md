@@ -100,8 +100,9 @@ use this order:
 
 ## Current Release Line
 
-For the current `0.19.x` debugger-integration posture, see:
+For the current `0.20.x` final pre-`1.0` posture, see:
 
+- [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 - [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
 
@@ -178,9 +179,10 @@ Start here if your question is:
 
 Recommended order:
 
-1. [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
-2. [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
-3. [docs/field-findings.md](docs/field-findings.md)
+1. [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
+2. [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
+3. [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
+4. [docs/field-findings.md](docs/field-findings.md)
 4. [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 5. [docs/book/how-to-fault-inject-runtime-resilience.md](docs/book/how-to-fault-inject-runtime-resilience.md)
 6. [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
@@ -219,7 +221,7 @@ shape and a predictable shelf:
 - reference for exact lookup
 - explanation for deeper mental models
 
-As the `0.17.x` line closes its second half, new documentation should prefer landing into one of
+As the `0.20.x` line approaches its final pre-`1.0` seal, new documentation should prefer landing into one of
 these four tracks instead of growing the top-level `docs/` folder without a
 clear reading mode.
 

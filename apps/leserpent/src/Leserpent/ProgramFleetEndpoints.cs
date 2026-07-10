@@ -1,4 +1,5 @@
 using Leserpent.ControlPlane;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Leserpent;
 
@@ -6,30 +7,30 @@ public partial class Program
 {
     private static void MapFleetEndpoints(WebApplication app)
     {
-        app.MapGet("/v1/fleet/summary", (string? environment, string? cluster, string? role, RegistryService registry) =>
+        app.MapGet("/v1/fleet/summary", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
             Results.Ok(new
             {
-                filter = new RuntimeListFilter(environment, cluster, role),
-                summary = registry.GetFleetSummary(new RuntimeListFilter(environment, cluster, role)),
+                filter = new RuntimeListFilter(environmentTag, cluster, role),
+                summary = registry.GetFleetSummary(new RuntimeListFilter(environmentTag, cluster, role)),
             }));
 
-        app.MapGet("/v1/fleet/runtimes-needing-attention", (string? environment, string? cluster, string? role, RegistryService registry) =>
+        app.MapGet("/v1/fleet/runtimes-needing-attention", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
             Results.Ok(new
             {
-                filter = new RuntimeListFilter(environment, cluster, role),
-                runtimes = registry.GetRuntimesNeedingAttention(new RuntimeListFilter(environment, cluster, role)),
+                filter = new RuntimeListFilter(environmentTag, cluster, role),
+                runtimes = registry.GetRuntimesNeedingAttention(new RuntimeListFilter(environmentTag, cluster, role)),
             }));
 
-        app.MapGet("/v1/fleet/attention-summary", (string? environment, string? cluster, string? role, RegistryService registry) =>
+        app.MapGet("/v1/fleet/attention-summary", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
             Results.Ok(new
             {
-                filter = new RuntimeListFilter(environment, cluster, role),
-                summary = registry.GetFleetAttentionSummary(new RuntimeListFilter(environment, cluster, role)),
+                filter = new RuntimeListFilter(environmentTag, cluster, role),
+                summary = registry.GetFleetAttentionSummary(new RuntimeListFilter(environmentTag, cluster, role)),
             }));
 
-        app.MapPost("/v1/fleet/refresh-all", async (string? environment, string? cluster, string? role, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/fleet/refresh-all", async ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
         {
-            var filter = new RuntimeListFilter(environment, cluster, role);
+            var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var refreshed = new List<FleetRefreshAllItem>();
             foreach (var runtime in registry.ListRuntimes(filter))
             {
@@ -90,9 +91,9 @@ public partial class Program
             });
         });
 
-        app.MapPost("/v1/fleet/refresh-capabilities", async (string? environment, string? cluster, string? role, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/fleet/refresh-capabilities", async ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
         {
-            var filter = new RuntimeListFilter(environment, cluster, role);
+            var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var refreshed = new List<FleetCapabilityRefreshItem>();
             foreach (var runtime in registry.ListRuntimes(filter))
             {
@@ -120,9 +121,9 @@ public partial class Program
             });
         });
 
-        app.MapPost("/v1/fleet/refresh-sidecars", async (string? environment, string? cluster, string? role, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/fleet/refresh-sidecars", async ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
         {
-            var filter = new RuntimeListFilter(environment, cluster, role);
+            var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var refreshed = new List<FleetSidecarRefreshItem>();
             foreach (var runtime in registry.ListRuntimes(filter))
             {
@@ -171,9 +172,9 @@ public partial class Program
             });
         });
 
-        app.MapPost("/v1/fleet/refresh-status", async (string? environment, string? cluster, string? role, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/fleet/refresh-status", async ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
         {
-            var filter = new RuntimeListFilter(environment, cluster, role);
+            var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var refreshed = new List<FleetStatusRefreshItem>();
             foreach (var runtime in registry.ListRuntimes(filter))
             {

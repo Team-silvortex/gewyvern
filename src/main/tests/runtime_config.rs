@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cli, IngestMode};
 use crate::runtime_config::{apply_runtime_path_overrides, load_runtime_config};
 use crate::runtime_logging::LogLevel;
 use crate::{SocketTarget, cli::CliDefaults};

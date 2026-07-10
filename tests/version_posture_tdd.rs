@@ -130,7 +130,7 @@ fn docs_describe_one_shared_mainline_version() {
 fn docs_catalog_anchor_matches_packaged_protocol_tree() {
     let (families, entries) = count_protocol_catalog();
     let readme = read_repo_file("README.md");
-    let history = read_repo_file("docs/history/v0.19.x.md");
+    let history = read_repo_file("docs/history/v0.20.x.md");
 
     assert!(
         readme.contains(&format!(
@@ -142,13 +142,13 @@ fn docs_catalog_anchor_matches_packaged_protocol_tree() {
         history.contains(&format!(
             "{families} protocol family directories under `protocols/`"
         )),
-        "v0.19.x history anchor should match protocol family count"
+        "v0.20.x history anchor should match protocol family count"
     );
     assert!(
         history.contains(&format!(
             "{entries} packaged protocol entries under those family directories"
         )),
-        "v0.19.x history anchor should match protocol entry count"
+        "v0.20.x history anchor should match protocol entry count"
     );
 }
 
@@ -164,6 +164,6 @@ fn release_checklist_uses_version_template_for_package_artifacts() {
     assert!(checklist.contains(&format!("that resolves to `{workspace_version}`")));
     assert!(checklist.contains(&format!("gewyvern_{workspace_version}-1_<deb-arch>.deb")));
     assert!(checklist.contains(&format!("gewyvern-{workspace_version}-1.<rpm-arch>.rpm")));
-    assert!(!checklist.contains("target/packages/gewyvern_0.19.0-1_<arch>.deb"));
-    assert!(!checklist.contains("target/packages/rpm/gewyvern-0.19.0-1.<arch>.rpm"));
+    assert!(!checklist.contains("target/packages/gewyvern_0.20.0-1_<arch>.deb"));
+    assert!(!checklist.contains("target/packages/rpm/gewyvern-0.20.0-1.<arch>.rpm"));
 }

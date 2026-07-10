@@ -1,5 +1,13 @@
-use super::*;
+use super::{
+    Cli, IngestMode, ReportFormat, dsl_fixture_path, list_entries_json, list_entries_text,
+    list_protocols_json, list_protocols_text, protocol_dsl_path, protocol_fixture_path,
+    run_binding_demo, scan_targets_for_cli,
+};
 use crate::helpers::scan_targets_from_set_file;
+use gewyvern::dsl::compile_file;
+use gewyvern::flow::ProgramOperation;
+use std::fs;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn http_request_demo_produces_healthy_cross_transport_path() {

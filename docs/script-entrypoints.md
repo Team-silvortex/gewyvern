@@ -59,13 +59,42 @@ Relevant docs:
 Run:
 
 ```bash
-bash scripts/packaging/package_install_smoke.sh
-bash scripts/packaging/container_runtime_validation.sh
-bash scripts/packaging/container_validation_summary.sh
+cargo run --quiet --bin gewyvern_validate -- package-install-smoke
+cargo run --quiet --bin gewyvern_validate -- container-runtime-validation
+cargo run --quiet --bin gewyvern_validate -- container-protocol-validation
+cargo run --quiet --bin gewyvern_validate -- container-operator-path-validation
+cargo run --quiet --bin gewyvern_validate -- container-validation-summary
 ```
 
 Use these when the question is specifically about `deb`/`rpm` output rather
 than source-tree behavior.
+
+The protocol/operator container checks are now native `gewyvern_validate`
+commands. Their `scripts/packaging/*.sh` entrypoints remain as thin
+compatibility wrappers.
+
+### I want to validate on a real Linux host
+
+Run:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- remote-linux-host-validation
+```
+
+This syncs the current workspace to a remote Linux host over SSH, builds
+`x86_64` packages there, then runs host-mode package and runtime smoke checks.
+
+Defaults:
+
+- host from `GEWY_REMOTE_HOST` or `kyuubiki-lab`
+- remote workspace under `~/.kyuubiki-remote-runs/`
+
+Useful flags:
+
+- `--host <ssh-host>`
+- `--remote-dir <path>`
+- `--skip-build`
+- `--keep-remote-dir`
 
 ### I want to validate built-in protocol packages
 

@@ -1,7 +1,7 @@
 # Field Validation
 
 This note defines the practical field-validation phase for the active
-`0.19.x` line.
+`0.20.x` line.
 
 The goal is simple:
 
@@ -13,10 +13,10 @@ This is the bridge between:
 
 - contract freeze
 - benchmark acceptance
-- current release judgment for the active `0.19.x` line
+- current release judgment for the active `0.20.x` line
 
 For the current release posture, see
-[docs/history/v0.19.x.md](docs/history/v0.19.x.md).
+[docs/history/v0.20.x.md](docs/history/v0.20.x.md).
 
 For the short running record of what this validation has already shown in
 practice, see [docs/field-findings.md](docs/field-findings.md).
@@ -36,7 +36,7 @@ Treat this page as the validation-program page for the active line.
 Use it when the question is:
 
 - what kinds of validation should we still be running repeatedly?
-- which scenario families matter most for trust in `0.19.x`?
+- which scenario families matter most for trust in `0.20.x`?
 - what counts as strong enough validation evidence versus shallow smoke?
 
 Do not use this page as:
@@ -48,7 +48,7 @@ Do not use this page as:
 For those, use:
 
 - [docs/release-checklist.md](docs/release-checklist.md)
-- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
+- [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 - [docs/field-findings.md](docs/field-findings.md)
 
 ## Companion Shelves
@@ -57,7 +57,7 @@ For those, use:
   for the short evidence log of what this validation line has already shown
 - [docs/release-checklist.md](docs/release-checklist.md)
   for the shortest current release gate
-- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
+- [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
   for the current line's intended claim and scope
 - [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
   for the protocol breadth and physical-host validation baseline this line
@@ -65,7 +65,7 @@ For those, use:
 
 ## Current Prelaunch Scope
 
-Keep the current `0.19.x` field-validation line intentionally narrow.
+Keep the current `0.20.x` field-validation line intentionally narrow.
 
 The question is not "what else could `gewyvern` support".
 
@@ -422,6 +422,6 @@ This note does not replace:
 - release gate judgment
 - the dedicated multi-project collaboration gate with `etragon` and `leserpent`
 
-It exists so the active `0.19.x` line has a concrete "keep validating for
+It exists so the active `0.20.x` line has a concrete "keep validating for
 real" shelf rather
 than only architecture cleanup.

@@ -1,4 +1,4 @@
-use super::*;
+use std::env;
 
 #[path = "ui_locale/catalog.rs"]
 mod catalog;

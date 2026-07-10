@@ -44,34 +44,19 @@ mod tests;
 #[path = "main/ui_locale.rs"]
 mod ui_locale;
 
-use gewyvern::dsl::compile_file;
-use gewyvern::export::ExportBundle;
-use gewyvern::flow::{FlowId, ProcessView, ProgramFlowId};
-use gewyvern::ledger::{
-    CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, QuicFrameType,
-    QuicPacketType, RouteDecisionFact, SessionId, SockLineageFact, TcpStateFact,
-};
-use gewyvern::protocol_profiles::{
-    ResolvedProtocolProfile, default_protocol_scan_set, default_protocol_scan_set_from_dir,
-    protocol_dsl_path, protocol_summaries, protocol_summary, resolve_protocol_profile,
-};
-use gewyvern::runtime::{RuntimeSession, SessionConfig};
+#[cfg(test)]
+use gewyvern::protocol_profiles::protocol_dsl_path;
 use gewyvern::socket_input::{
     bind_unix_socket_listener, collect_tcp_socket_facts_on_listener,
     collect_unix_socket_facts_on_listener, remove_unix_socket_file,
     run_tcp_socket_session_on_listener, run_tcp_socket_session_on_listener_with_binding,
     run_unix_socket_session_on_listener, run_unix_socket_session_on_listener_with_binding,
 };
-use gewyvern::template::{TemplateBinding, handshake_debug_template, udp_debug_template};
-use std::collections::HashSet;
 use std::env;
 use std::fs;
-use std::net::ToSocketAddrs;
-use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 use crate::diagnosis_runtime::*;
-use crate::external_analysis::ExternalAnalysisConfig;
 use crate::report_runtime::{
     findings_json, findings_json_with_analysis, findings_text, http_transactions_json,
     http_transactions_text, render_debug_session_outputs, render_debugger_console_outputs,

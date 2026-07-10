@@ -1,7 +1,7 @@
 # Release Checklist
 
 This page is the shortest practical release checklist for the active
-`0.19.x` line.
+`0.20.x` line.
 
 Use it when the question is not "how does packaging work?" or "what does field
 validation mean?", but simply:
@@ -16,6 +16,7 @@ For deeper background, see:
 - [docs/field-findings.md](docs/field-findings.md)
 - [docs/packaging.md](docs/packaging.md)
 - [docs/script-entrypoints.md](docs/script-entrypoints.md)
+- [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 - [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
 - [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
 
@@ -38,7 +39,7 @@ Do not use this page as:
 For those, use:
 
 - [docs/field-validation.md](docs/field-validation.md)
-- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
+- [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 - [docs/field-findings.md](docs/field-findings.md)
 
 ## Companion Shelves
@@ -53,7 +54,7 @@ For those, use:
   for the protocol-breadth and physical-host validation baseline that this line
   inherits
 
-## Current `0.19.x` Gate
+## Current `0.20.x` Gate
 
 Treat the line as release-ready only when all of the following stay true:
 
@@ -90,9 +91,9 @@ Expected outputs:
 - `target/packages/rpm/gewyvern-<version>-1.<rpm-arch>.rpm`
 
 The `<version>` value is read from the root `gewyvern` package metadata in
-`Cargo.toml`. For the current tree, that resolves to `0.19.0`, so the
-concrete artifact names should look like `gewyvern_0.19.0-1_<deb-arch>.deb`
-and `gewyvern-0.19.0-1.<rpm-arch>.rpm`.
+`Cargo.toml`. For the current tree, that resolves to `0.20.0`, so the
+concrete artifact names should look like `gewyvern_0.20.0-1_<deb-arch>.deb`
+and `gewyvern-0.20.0-1.<rpm-arch>.rpm`.
 
 The release-line posture can move ahead of that metadata, but the package
 smoke must always verify the artifacts that the tree actually builds today.
@@ -155,6 +156,22 @@ bash scripts/packaging/container_operator_path_validation.sh
 cargo run --quiet --bin gewyvern_validate -- debugger-cross
 cargo audit
 ```
+
+For the dependency-vulnerability portion of the release gate, the current
+practical commands are:
+
+```bash
+cargo audit
+dotnet list apps/leserpent/src/Leserpent/Leserpent.csproj package --vulnerable
+cd apps/leserpent && npm audit --json
+cd apps/leserpent && npm audit --omit=dev --json
+```
+
+Treat this set as the current release-ready minimum for:
+
+- Rust crates through `Cargo.lock`
+- Leserpent's NuGet graph
+- Leserpent's frontend package lock
 
 ## Expected Packaged Semantics
 
@@ -246,7 +263,7 @@ Use this triage order:
 
 ## Ship Read
 
-For the active `0.19.x` line, a good practical ship read is:
+For the active `0.20.x` line, a good practical ship read is:
 
 - current artifacts rebuilt
 - `release_gate.sh` green, or the equivalent build + packaged release check +

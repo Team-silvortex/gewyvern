@@ -1,4 +1,13 @@
-use super::*;
+use gewyvern::export::ExportBundle;
+use gewyvern::ledger::{
+    CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, QuicFrameType,
+    QuicPacketType, SessionId, SockLineageFact, TcpStateFact,
+};
+use gewyvern::runtime::{RuntimeSession, SessionConfig};
+use gewyvern::template::TemplateBinding;
+use std::time::{Duration, SystemTime};
+
+use crate::{UiLocale, route_fact};
 
 pub(crate) fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
     let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_000);
