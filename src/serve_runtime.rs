@@ -28,11 +28,13 @@ use super::{
     Cli, ReportFormat, SocketTarget, UiLocale, analysis_snapshot, analysis_snapshot_json,
     annotate_export_trust, findings_json_with_analysis, findings_text, render_scan_outputs,
     run_binding_session, scan_report_html_with_analyses, scan_report_json_with_analyses,
-    scan_report_text_with_analyses, scan_targets_for_cli,
+    scan_report_text_with_analyses, scan_targets_for_cli, scan_analysis_json_array,
     single_target_report_html_with_analysis, single_target_report_json_with_analysis,
     summary_json_with_analysis, summary_line_with_analysis, training_example_json_array,
     training_example_json_with_analysis,
 };
+
+pub(crate) const SOCKET_SESSION_TARGET_NAME: &str = "socket_session";
 
 pub(super) fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {
     let api_service = cli.api_socket.as_deref().map(|addr| {
@@ -354,7 +356,7 @@ fn serve_tcp_socket_sessions(cli: &Cli, addr: &str, api_service: Option<ApiServi
 
 pub(crate) fn single_runtime_target_name(export: &ExportBundle) -> String {
     protocol_target_name_for_template_id(&export.template_id)
-        .unwrap_or_else(|| "socket_session".to_string())
+        .unwrap_or_else(|| SOCKET_SESSION_TARGET_NAME.to_string())
 }
 
 fn max_sessions_label(cli: &Cli) -> String {
@@ -461,19 +463,7 @@ fn emit_scan_outputs(
     let analyses = collect_analyses(outputs);
     let scan_summary_text = scan_report_text_with_analyses(outputs, &analyses);
     let scan_summary_json = scan_report_json_with_analyses(outputs, &analyses);
-    let scan_analysis_json = format!(
-        "[{}]",
-        outputs
-            .iter()
-            .zip(analyses.iter())
-            .map(|((name, _), analysis)| format!(
-                "{{\"target\":\"{}\",\"analysis\":{}}}",
-                name.replace('\\', "\\\\").replace('"', "\\\""),
-                analysis_snapshot_json(analysis),
-            ))
-            .collect::<Vec<_>>()
-            .join(",")
-    );
+    let scan_analysis_json = scan_analysis_json_array(outputs, &analyses);
     let scan_training_example_json = training_example_json_array(outputs, &analyses);
     let scan_report_html_body = scan_report_html_with_analyses(outputs, &analyses);
     if let Some(state) = api_state {

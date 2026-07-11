@@ -14,9 +14,7 @@ mod scan_surface;
 mod sidecar;
 mod training;
 
-use self::sidecar::{
-    append_external_sidecar_context_field, append_external_sidecar_contract_fields,
-};
+use self::sidecar::append_external_sidecar_fields;
 
 pub(crate) fn collect_analyses(outputs: &[(String, ExportBundle)]) -> Vec<AnalysisSnapshot> {
     outputs
@@ -139,6 +137,34 @@ pub(super) fn training_example_json_array(
     self::training::training_example_json_array(outputs, analyses)
 }
 
+pub(super) fn scan_analysis_json_array(
+    outputs: &[(String, ExportBundle)],
+    analyses: &[AnalysisSnapshot],
+) -> String {
+    let estimated_capacity = 2
+        + outputs
+            .iter()
+            .zip(analyses.iter())
+            .map(|((name, _), analysis)| {
+                name.len() + estimate_analysis_snapshot_json_capacity(analysis) + 24
+            })
+            .sum::<usize>();
+    let mut json = String::with_capacity(estimated_capacity);
+    json.push('[');
+    for (index, ((name, _), analysis)) in outputs.iter().zip(analyses.iter()).enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("{\"target\":");
+        append_json_string(&mut json, name);
+        json.push_str(",\"analysis\":");
+        append_analysis_snapshot_json(&mut json, analysis);
+        json.push('}');
+    }
+    json.push(']');
+    json
+}
+
 pub(super) fn summary_json(name: &str, export: &ExportBundle) -> String {
     let analysis = analysis_snapshot(export);
     summary_json_with_analysis(name, export, &analysis)
@@ -149,6 +175,8 @@ pub(super) fn summary_json_with_analysis(
     export: &ExportBundle,
     analysis: &AnalysisSnapshot,
 ) -> String {
+    use std::fmt::Write;
+
     let mut json = String::from("{\"kind\":\"single\",\"name\":\"");
     json.push_str(name);
     json.push_str("\",\"demo\":\"");
@@ -157,24 +185,19 @@ pub(super) fn summary_json_with_analysis(
     json.push_str(&export.template_id);
     json.push_str("\",");
     append_analysis_context_json(&mut json, export, analysis);
-    json.push_str(",\"fragments_loaded\":");
-    json.push_str(&export.debug_summary.fragments_loaded.to_string());
-    json.push_str(",\"hookpoints_failed\":");
-    json.push_str(&export.debug_summary.hookpoints_failed.to_string());
-    json.push_str(",\"accepted_facts\":");
-    json.push_str(&export.debug_summary.accepted_facts.to_string());
-    json.push_str(",\"rejected_facts\":");
-    json.push_str(&export.debug_summary.rejected_facts.to_string());
-    json.push_str(",\"flows\":");
-    json.push_str(&export.debug_summary.flows.to_string());
-    json.push_str(",\"program_findings\":");
-    json.push_str(&export.debug_summary.program_findings.to_string());
-    json.push_str(",\"module_findings\":");
-    json.push_str(&export.debug_summary.module_findings.to_string());
-    json.push_str(",\"reasons\":");
-    json.push_str(&export.debug_summary.reasons.to_string());
-    json.push_str(",\"degraded\":");
-    json.push_str(&export.debug_summary.degraded.to_string());
+    let _ = write!(
+        json,
+        ",\"fragments_loaded\":{},\"hookpoints_failed\":{},\"accepted_facts\":{},\"rejected_facts\":{},\"flows\":{},\"program_findings\":{},\"module_findings\":{},\"reasons\":{},\"degraded\":{}",
+        export.debug_summary.fragments_loaded,
+        export.debug_summary.hookpoints_failed,
+        export.debug_summary.accepted_facts,
+        export.debug_summary.rejected_facts,
+        export.debug_summary.flows,
+        export.debug_summary.program_findings,
+        export.debug_summary.module_findings,
+        export.debug_summary.reasons,
+        export.debug_summary.degraded
+    );
     json.push_str(",\"suspect_modules\":[");
     for (index, finding) in export.program_findings.iter().enumerate() {
         if index > 0 {
@@ -185,11 +208,14 @@ pub(super) fn summary_json_with_analysis(
         json.push('"');
     }
     json.push_str("],\"protocol_flows\":");
-    json.push_str(&protocol_flow_summaries_json_from_snapshot(analysis));
+    json.push('[');
+    append_protocol_flow_summaries_json_from_snapshot(&mut json, analysis);
+    json.push(']');
     json.push_str(",\"process_network_profiles\":");
-    json.push_str(&process_network_profiles_json_from_snapshot(analysis));
-    append_external_sidecar_context_field(&mut json, analysis);
-    append_external_sidecar_contract_fields(&mut json, analysis);
+    json.push('[');
+    append_process_network_profiles_json_from_snapshot(&mut json, analysis);
+    json.push(']');
+    append_external_sidecar_fields(&mut json, analysis);
     json.push('}');
     json
 }
@@ -294,9 +320,10 @@ pub(super) fn findings_json_with_analysis(
         append_program_finding_json(&mut json, finding);
     }
     json.push_str("],\"process_network_profiles\":");
-    json.push_str(&process_network_profiles_json_from_snapshot(analysis));
-    append_external_sidecar_context_field(&mut json, analysis);
-    append_external_sidecar_contract_fields(&mut json, analysis);
+    json.push('[');
+    append_process_network_profiles_json_from_snapshot(&mut json, analysis);
+    json.push(']');
+    append_external_sidecar_fields(&mut json, analysis);
     json.push('}');
     json
 }
@@ -337,7 +364,7 @@ pub(super) fn append_module_finding_json(
         if index > 0 {
             json.push(',');
         }
-        json.push_str(&flow.0.to_string());
+        let _ = write!(json, "{}", flow.0);
     }
     json.push_str("],\"summaries\":");
     append_string_list_json(json, &finding.summaries);
@@ -350,8 +377,7 @@ pub(super) fn append_program_finding_json(
     json: &mut String,
     finding: &gewyvern::flow::ProgramFinding,
 ) {
-    json.push_str("{\"program_flow\":");
-    json.push_str(&finding.program_flow.0.to_string());
+    let _ = write!(json, "{{\"program_flow\":{}", finding.program_flow.0);
     json.push_str(",\"module_label\":\"");
     json.push_str(&finding.module_label);
     json.push_str("\",\"network_module_kind\":\"");
@@ -390,13 +416,7 @@ pub(super) fn append_program_finding_json(
 }
 
 pub(super) fn append_http_transaction_json(json: &mut String, transaction: &HttpTransactionView) {
-    let suspect_sides = transaction
-        .suspect_sides
-        .iter()
-        .map(|side| http_suspect_side_label(side).to_string())
-        .collect::<Vec<_>>();
-    json.push_str("{\"id\":");
-    json.push_str(&transaction.id.0.to_string());
+    let _ = write!(json, "{{\"id\":{}", transaction.id.0);
     json.push_str(",\"client_process\":");
     append_process_json(json, transaction.client_process.as_ref());
     json.push_str(",\"server_process\":");
@@ -418,7 +438,7 @@ pub(super) fn append_http_transaction_json(json: &mut String, transaction: &Http
         "false"
     });
     json.push_str(",\"suspect_sides\":");
-    append_string_list_json(json, &suspect_sides);
+    append_str_list_json(json, transaction.suspect_sides.iter().map(http_suspect_side_label));
     json.push_str(",\"phases\":");
     append_string_list_json(json, &transaction.phases);
     json.push_str(",\"components\":[");
@@ -525,6 +545,5 @@ pub(super) fn append_analysis_spine_json(json: &mut String, analysis: &AnalysisS
     json.push_str(&analysis.operator_guidance_summary);
     json.push_str("\",\"augmentations\":");
     append_analysis_augmentations_json(json, &analysis.augmentations);
-    append_external_sidecar_context_field(json, analysis);
-    append_external_sidecar_contract_fields(json, analysis);
+    append_external_sidecar_fields(json, analysis);
 }

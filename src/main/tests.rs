@@ -12,7 +12,7 @@ use super::{
     list_entries_json, list_entries_text, list_protocols_json, list_protocols_text,
     protocol_dsl_path, push_analysis_augmentation,
     render_debug_session_outputs, render_debugger_console_outputs, render_report_outputs,
-    route_fact, run_binding_demo, scan_report_html, scan_report_html_with_analyses,
+    route_fact, run_binding_demo, scan_analysis_json_array, scan_report_html, scan_report_html_with_analyses,
     scan_report_json, scan_report_json_with_analyses, scan_report_text,
     scan_report_text_with_analyses, scan_targets_for_cli,
     single_target_report_html_with_analysis, single_target_report_json_with_analysis, summary_json, summary_line,

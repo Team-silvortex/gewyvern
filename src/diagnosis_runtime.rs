@@ -22,19 +22,23 @@ use self::profiles::{
 pub(crate) use self::render::process_network_profiles_json;
 pub(crate) use self::render::{
     analysis_snapshot_json, append_analysis_augmentations_json,
+    append_analysis_snapshot_json,
     append_external_sidecar_context_json, append_external_sidecar_contract_json,
+    estimate_analysis_snapshot_json_capacity,
     append_process_network_profiles_json_from_snapshot,
     append_process_network_profiles_text_from_snapshot,
+    append_protocol_flow_summaries_json_from_snapshot,
     append_protocol_flow_summaries_json_limited, append_protocol_flow_summaries_text_limited,
-    process_network_profiles_json_from_snapshot, process_network_profiles_text_from_snapshot,
-    protocol_flow_summaries_json_from_snapshot, protocol_flow_summaries_text_from_snapshot,
+    process_network_profiles_text_from_snapshot, protocol_flow_summaries_text_from_snapshot,
 };
 pub(crate) use self::status::{
-    ScanTargetStatus, analysis_augmentation_names_text, analysis_automation_outcome,
-    analysis_evidence_posture, external_capability_summary, external_sidecar_consumption_mode,
-    external_sidecar_item_consumption_mode, external_sidecar_presence,
+    ExternalSidecarContractState, ScanTargetStatus, analysis_augmentation_names_text,
+    analysis_automation_outcome, analysis_evidence_posture, external_capability_summary,
+    external_sidecar_consumption_mode, external_sidecar_consumption_mode_for,
+    external_sidecar_contract_state, external_sidecar_item_consumption_mode,
+    external_sidecar_presence,
     external_sidecar_trust_level, protocol_flow_has_terminal_failure, protocol_flow_last_phase,
-    protocol_flow_phases, scan_target_status, suspect_modules_json_from_snapshot,
+    protocol_flow_phases, scan_target_status,
 };
 
 #[derive(Default)]

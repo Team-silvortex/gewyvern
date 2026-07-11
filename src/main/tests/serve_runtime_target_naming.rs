@@ -1,7 +1,7 @@
 use super::{
     Cli, annotate_export_trust, dsl_fixture_path, protocol_fixture_path, run_binding_demo,
 };
-use crate::serve_runtime::single_runtime_target_name;
+use crate::serve_runtime::{SOCKET_SESSION_TARGET_NAME, single_runtime_target_name};
 use gewyvern::dsl::compile_file;
 
 #[test]
@@ -37,5 +37,5 @@ fn single_runtime_target_name_falls_back_for_unknown_template() {
         run_binding_demo(binding),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    assert_eq!(single_runtime_target_name(&export), "socket_session");
+    assert_eq!(single_runtime_target_name(&export), SOCKET_SESSION_TARGET_NAME);
 }

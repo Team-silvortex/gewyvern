@@ -558,6 +558,9 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("GEWY_REMOTE_EBPF_ADMIN_USER"));
     assert!(remote.contains("GEWY_REMOTE_EBPF_ADMIN_PASSWORD"));
     assert!(remote.contains("sshpass"));
+    assert!(remote.contains("ssh_auth_target(host, &auth.user)"));
+    assert!(remote.contains("fn ssh_auth_target(host: &str, user: &str) -> String"));
+    assert!(!remote.contains(".arg(format!(\"{}@{}\", auth.user, host))"));
     assert!(remote.contains("remote_cargo_target_dir"));
     assert!(remote.contains(".cache/gewyvern/remote-target"));
     assert!(remote.contains(

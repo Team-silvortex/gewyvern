@@ -5,6 +5,9 @@ use super::{
 use gewyvern::dsl::compile_file;
 use gewyvern::flow::{ProgramFinding, ProgramFindingCause};
 
+const HTTP_REQUEST_TARGET_NAME: &str = "scan:http:request";
+const HTTP3_REQUEST_TARGET_NAME: &str = "scan:http3:request";
+
 #[test]
 fn process_profiles_lower_confidence_for_competing_missing_transition_hypotheses() {
     let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
@@ -171,7 +174,7 @@ fn summary_json_exposes_ambiguous_competing_hypotheses() {
         "missing_signal:packet_observed",
     );
 
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(HTTP_REQUEST_TARGET_NAME, &export);
     assert!(json.contains("\"ambiguous\":true"), "json={}", json);
     assert!(json.contains("\"competing_hypotheses\":["), "json={}", json);
     assert!(
@@ -231,7 +234,7 @@ fn mixed_dns_tls_http_profile_stays_ambiguous_and_low_confidence() {
     );
 
     let export = merge_exports_for_tests(vec![dns_export, tls_export, http_export]);
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(HTTP_REQUEST_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"http_request_response\""));
     assert!(json.contains("\"ambiguous\":true"), "json={}", json);
     assert!(
@@ -295,7 +298,7 @@ fn mixed_proxy_tunnel_and_upstream_request_exposes_competing_hypotheses() {
     );
 
     let export = merge_exports_for_tests(vec![proxy_export, http_export]);
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(HTTP3_REQUEST_TARGET_NAME, &export);
     assert!(json.contains("\"ambiguous\":true"), "json={}", json);
     assert!(
         json.contains("\"primary_failure_confidence\":\"low\""),
@@ -374,7 +377,7 @@ fn mixed_quic_http3_hy2_profile_stays_conservative() {
     );
 
     let export = merge_exports_for_tests(vec![quic_export, http3_export, hy2_export]);
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(HTTP3_REQUEST_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"http3_request_response\""));
     assert!(json.contains("\"ambiguous\":true"), "json={}", json);
     assert!(

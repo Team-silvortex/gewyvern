@@ -1,7 +1,44 @@
+use std::borrow::Cow;
+
 use gewyvern::export::ExportBundle;
 
 use super::{AnalysisAugmentation, AnalysisSnapshot};
 use crate::UiLocale;
+
+#[derive(Default)]
+pub(crate) struct ExternalSidecarContractState<'a> {
+    pub(crate) has_sidecar_context: bool,
+    pub(crate) has_enrichment: bool,
+    pub(crate) has_opinion: bool,
+    pub(crate) has_profile: bool,
+    pub(crate) capability_status: Option<Cow<'a, str>>,
+    pub(crate) hint_status: Option<Cow<'a, str>>,
+    pub(crate) context_status: Option<Cow<'a, str>>,
+    pub(crate) consumption_mode: Option<&'static str>,
+}
+
+impl ExternalSidecarContractState<'_> {
+    pub(crate) fn trust_level(&self) -> Option<&'static str> {
+        if !self.has_sidecar_context && !self.has_profile {
+            return None;
+        }
+        match (
+            self.capability_status.as_deref(),
+            self.hint_status.as_deref(),
+            self.context_status.as_deref(),
+            self.has_sidecar_context,
+        ) {
+            (Some("verified"), Some("declared"), Some("declared"), true) => Some("trusted"),
+            (Some("verified"), _, _, true) => Some("degraded"),
+            (Some(_), _, _, true) => Some("unverified"),
+            (Some("verified"), Some("declared"), Some("declared"), false) => Some("trusted"),
+            (Some("verified"), _, _, false) => Some("degraded"),
+            (Some(_), _, _, false) => Some("unverified"),
+            _ if self.has_sidecar_context => Some("unverified"),
+            _ => Some("unverified"),
+        }
+    }
+}
 
 #[derive(Clone, Copy, Default)]
 pub(crate) enum ScanTargetStatus {
@@ -86,48 +123,40 @@ pub(crate) fn analysis_augmentation_names_text(items: &[AnalysisAugmentation]) -
 }
 
 pub(crate) fn external_sidecar_presence(snapshot: &AnalysisSnapshot) -> (bool, bool, bool) {
-    let has_enrichment = snapshot
-        .augmentations
-        .iter()
-        .any(|item| item.name == "external_evidence_chain_enrichment");
-    let has_opinion = snapshot
-        .augmentations
-        .iter()
-        .any(|item| item.name == "external_diagnostic_opinion");
-    (has_enrichment || has_opinion, has_enrichment, has_opinion)
+    let state = external_sidecar_contract_state(snapshot);
+    (
+        state.has_sidecar_context,
+        state.has_enrichment,
+        state.has_opinion,
+    )
 }
 
 pub(crate) fn external_capability_summary(
     snapshot: &AnalysisSnapshot,
 ) -> (bool, Option<String>, Option<String>, Option<String>) {
-    let Some(item) = snapshot
-        .augmentations
-        .iter()
-        .find(|item| item.name == "external_capability_profile")
-    else {
-        return (false, None, None, None);
-    };
-    let compatibility_status = item.data_json.as_deref().and_then(|data| {
-        crate::render_utils::extract_json_string_field(data, "compatibility_status")
-    });
-    let hint_status = item
-        .data_json
-        .as_deref()
-        .and_then(|data| crate::render_utils::extract_json_string_field(data, "hint_status"));
-    let context_status = item
-        .data_json
-        .as_deref()
-        .and_then(|data| crate::render_utils::extract_json_string_field(data, "context_status"));
-    (true, compatibility_status, hint_status, context_status)
+    let state = external_sidecar_contract_state(snapshot);
+    (
+        state.has_profile,
+        state.capability_status.map(Cow::into_owned),
+        state.hint_status.map(Cow::into_owned),
+        state.context_status.map(Cow::into_owned),
+    )
 }
 
 pub(crate) fn external_sidecar_item_consumption_mode(
     item: &AnalysisAugmentation,
 ) -> Option<&'static str> {
     let merge_hint = item.data_json.as_deref().and_then(|data| {
-        crate::render_utils::extract_json_string_field(data, "external_merge_hint")
+        crate::render_utils::extract_json_string_field_borrowed(data, "external_merge_hint")
     });
-    match (item.name.as_str(), merge_hint.as_deref()) {
+    external_sidecar_consumption_mode_for(item.name.as_str(), merge_hint)
+}
+
+pub(crate) fn external_sidecar_consumption_mode_for(
+    item_name: &str,
+    merge_hint: Option<&str>,
+) -> Option<&'static str> {
+    match (item_name, merge_hint) {
         ("external_evidence_chain_enrichment", Some("augmentations_only")) => Some("append_only"),
         ("external_evidence_chain_enrichment", Some("augmentations_and_guidance_context")) => {
             Some("guidance_context")
@@ -145,56 +174,58 @@ pub(crate) fn external_sidecar_item_consumption_mode(
 }
 
 pub(crate) fn external_sidecar_consumption_mode(snapshot: &AnalysisSnapshot) -> Option<String> {
+    external_sidecar_contract_state(snapshot)
+        .consumption_mode
+        .map(str::to_string)
+}
+
+pub(crate) fn external_sidecar_contract_state<'a>(
+    snapshot: &'a AnalysisSnapshot,
+) -> ExternalSidecarContractState<'a> {
     let mut best_rank = 0u8;
-    let mut best_mode = None;
+    let mut state = ExternalSidecarContractState::default();
     for item in &snapshot.augmentations {
-        let Some(mode) = external_sidecar_item_consumption_mode(item) else {
-            continue;
-        };
-        let rank = match mode {
-            "append_only" => 1,
-            "guidance_context" => 2,
-            "operator_review" => 3,
-            "operator_guidance_support" => 4,
-            "guidance_candidate" => 5,
-            _ => 0,
-        };
-        if rank > best_rank {
-            best_rank = rank;
-            best_mode = Some(mode.to_string());
+        match item.name.as_str() {
+            "external_evidence_chain_enrichment" => state.has_enrichment = true,
+            "external_diagnostic_opinion" => state.has_opinion = true,
+            "external_capability_profile" => {
+                state.has_profile = true;
+                state.capability_status = item.data_json.as_deref().and_then(|data| {
+                    crate::render_utils::extract_json_string_field_cow(data, "compatibility_status")
+                });
+                state.hint_status = item.data_json.as_deref().and_then(|data| {
+                    crate::render_utils::extract_json_string_field_cow(data, "hint_status")
+                });
+                state.context_status = item.data_json.as_deref().and_then(|data| {
+                    crate::render_utils::extract_json_string_field_cow(data, "context_status")
+                });
+            }
+            _ => {}
+        }
+
+        if let Some(mode) = external_sidecar_item_consumption_mode(item) {
+            let rank = match mode {
+                "append_only" => 1,
+                "guidance_context" => 2,
+                "operator_review" => 3,
+                "operator_guidance_support" => 4,
+                "guidance_candidate" => 5,
+                _ => 0,
+            };
+            if rank > best_rank {
+                best_rank = rank;
+                state.consumption_mode = Some(mode);
+            }
         }
     }
-    best_mode
+    state.has_sidecar_context = state.has_enrichment || state.has_opinion;
+    state
 }
 
 pub(crate) fn external_sidecar_trust_level(snapshot: &AnalysisSnapshot) -> Option<String> {
-    let (has_profile, capability_status, hint_status, context_status) =
-        external_capability_summary(snapshot);
-    let (has_sidecar_context, _, _) = external_sidecar_presence(snapshot);
-    if !has_sidecar_context && !has_profile {
-        return None;
-    }
-    match (
-        capability_status.as_deref(),
-        hint_status.as_deref(),
-        context_status.as_deref(),
-        has_sidecar_context,
-    ) {
-        (Some("verified"), Some("declared"), Some("declared"), true) => Some("trusted".to_string()),
-        (Some("verified"), _, _, true) => Some("degraded".to_string()),
-        (Some(_), _, _, true) => Some("unverified".to_string()),
-        (Some("verified"), Some("declared"), Some("declared"), false) => {
-            Some("trusted".to_string())
-        }
-        (Some("verified"), _, _, false) => Some("degraded".to_string()),
-        (Some(_), _, _, false) => Some("unverified".to_string()),
-        _ if has_sidecar_context => Some("unverified".to_string()),
-        _ => Some("unverified".to_string()),
-    }
-}
-
-pub(crate) fn suspect_modules_json_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
-    crate::render_utils::string_list_json(&snapshot.suspect_modules)
+    external_sidecar_contract_state(snapshot)
+        .trust_level()
+        .map(str::to_string)
 }
 
 pub(crate) fn analysis_evidence_posture(

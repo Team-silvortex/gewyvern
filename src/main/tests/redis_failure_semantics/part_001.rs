@@ -1,5 +1,19 @@
 use super::*;
 
+const REDIS_AUTH_REQUIRED_TARGET_NAME: &str = "scan:redis:auth-required";
+const REDIS_AUTH_DENIED_TARGET_NAME: &str = "scan:redis:auth-denied";
+const REDIS_ERROR_TARGET_NAME: &str = "scan:redis:error";
+const REDIS_WRONGTYPE_TARGET_NAME: &str = "scan:redis:wrongtype";
+const REDIS_BUSYGROUP_TARGET_NAME: &str = "scan:redis:busygroup";
+const REDIS_READONLY_TARGET_NAME: &str = "scan:redis:readonly";
+const REDIS_NOSCRIPT_TARGET_NAME: &str = "scan:redis:noscript";
+const REDIS_MOVED_TARGET_NAME: &str = "scan:redis:moved";
+const REDIS_ASK_TARGET_NAME: &str = "scan:redis:ask";
+const REDIS_TRYAGAIN_TARGET_NAME: &str = "scan:redis:tryagain";
+const REDIS_LOADING_TARGET_NAME: &str = "scan:redis:loading";
+const REDIS_CROSSSLOT_TARGET_NAME: &str = "scan:redis:crossslot";
+const REDIS_CLUSTERDOWN_TARGET_NAME: &str = "scan:redis:clusterdown";
+
 #[test]
 fn summary_json_carries_redis_auth_required_detail() {
     let export = redis_error_export(
@@ -19,7 +33,7 @@ fn summary_json_carries_redis_auth_required_detail() {
             redis_response_fact(6, 94001, &[(0, 0x2d), (1, 0x4e), (2, 0x4f), (3, 0x41)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_AUTH_REQUIRED_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_auth_required\"]"),
         "json={}",
@@ -65,7 +79,7 @@ fn summary_json_carries_redis_auth_denied_detail() {
             ),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_AUTH_DENIED_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_auth_denied\"]"),
         "json={}",
@@ -107,7 +121,7 @@ fn summary_json_carries_redis_error_detail() {
             redis_response_fact(6, 94003, &[(0, 0x2d), (1, 0x45), (2, 0x52), (3, 0x52)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_ERROR_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_error\"]"),
         "json={}",
@@ -153,7 +167,7 @@ fn summary_json_carries_redis_wrongtype_detail() {
             ),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_WRONGTYPE_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_wrongtype\"]"),
         "json={}",
@@ -195,7 +209,7 @@ fn summary_json_carries_redis_busygroup_detail() {
             redis_response_fact(6, 94005, &[(0, 0x2d), (1, 0x42), (2, 0x55), (3, 0x53)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_BUSYGROUP_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_busygroup\"]"),
         "json={}",
@@ -232,7 +246,7 @@ fn summary_json_carries_redis_readonly_detail() {
             redis_response_fact(6, 94006, &[(0, 0x2d), (1, 0x52), (2, 0x45), (3, 0x41)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_READONLY_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_readonly\"]"),
         "json={}",
@@ -269,7 +283,7 @@ fn summary_json_carries_redis_noscript_detail() {
             redis_response_fact(6, 94007, &[(0, 0x2d), (1, 0x4e), (2, 0x4f), (3, 0x53)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_NOSCRIPT_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_noscript\"]"),
         "json={}",
@@ -306,7 +320,7 @@ fn summary_json_carries_redis_moved_detail() {
             redis_response_fact(6, 94008, &[(0, 0x2d), (1, 0x4d), (2, 0x4f), (3, 0x56)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_MOVED_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_moved\"]"),
         "json={}",
@@ -343,7 +357,7 @@ fn summary_json_carries_redis_ask_detail() {
             redis_response_fact(6, 94009, &[(0, 0x2d), (1, 0x41), (2, 0x53), (3, 0x4b)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_ASK_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_ask\"]"),
         "json={}",
@@ -380,7 +394,7 @@ fn summary_json_carries_redis_tryagain_detail() {
             redis_response_fact(6, 94010, &[(0, 0x2d), (1, 0x54), (2, 0x52), (3, 0x59)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_TRYAGAIN_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_tryagain\"]"),
         "json={}",
@@ -417,7 +431,7 @@ fn summary_json_carries_redis_loading_detail() {
             redis_response_fact(6, 94011, &[(0, 0x2d), (1, 0x4c), (2, 0x4f), (3, 0x41)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_LOADING_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_loading\"]"),
         "json={}",
@@ -454,7 +468,7 @@ fn summary_json_carries_redis_crossslot_detail() {
             redis_response_fact(6, 94012, &[(0, 0x2d), (1, 0x43), (2, 0x52), (3, 0x4f)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_CROSSSLOT_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_crossslot\"]"),
         "json={}",
@@ -491,7 +505,7 @@ fn summary_json_carries_redis_clusterdown_detail() {
             redis_response_fact(6, 94013, &[(0, 0x2d), (1, 0x43), (2, 0x4c), (3, 0x55)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_CLUSTERDOWN_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_clusterdown\"]"),
         "json={}",

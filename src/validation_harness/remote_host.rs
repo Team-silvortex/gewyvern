@@ -2029,7 +2029,7 @@ fn run_ssh_script_capture_with_auth(
             .arg(&auth.password)
             .arg("ssh")
             .args(ssh_password_mode_args())
-            .arg(format!("{}@{}", auth.user, host))
+            .arg(ssh_auth_target(host, &auth.user))
             .arg(command);
         command_builder
     } else {
@@ -2073,11 +2073,33 @@ fn run_ssh_script_capture_with_auth(
     })
 }
 
+fn ssh_auth_target(host: &str, user: &str) -> String {
+    let remote_host = host.rsplit_once('@').map(|(_, host)| host).unwrap_or(host);
+    format!("{user}@{remote_host}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         parse_remote_artifact_manifest, parse_remote_ebpf_evidence, parse_remote_preflight,
+        ssh_auth_target,
     };
+
+    #[test]
+    fn ssh_auth_target_replaces_existing_user_prefix() {
+        assert_eq!(
+            ssh_auth_target("builder@192.168.1.12", "chiharukiryu"),
+            "chiharukiryu@192.168.1.12"
+        );
+    }
+
+    #[test]
+    fn ssh_auth_target_adds_user_when_host_has_no_prefix() {
+        assert_eq!(
+            ssh_auth_target("kyuubiki-lab", "chiharukiryu"),
+            "chiharukiryu@kyuubiki-lab"
+        );
+    }
 
     #[test]
     fn parse_remote_preflight_accepts_linux_x86_64_manifest() {

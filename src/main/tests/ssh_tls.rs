@@ -1,5 +1,11 @@
 use super::*;
 
+const HTTP3_REQUEST_TARGET_NAME: &str = "scan:http3:request";
+const TLS_CLIENT_TARGET_NAME: &str = "scan:tls:client";
+const SSH_SESSION_TARGET_NAME: &str = "scan:ssh:session";
+const SSH_AUTH_TARGET_NAME: &str = "scan:ssh:auth";
+const SSH_CHANNEL_TARGET_NAME: &str = "scan:ssh:channel";
+
 #[test]
 fn summary_json_carries_modern_protocol_failure_detail() {
     let binding = compile_file(&dsl_fixture_path("http3_request_path.gewy"))
@@ -23,7 +29,7 @@ fn summary_json_carries_modern_protocol_failure_detail() {
         "quic_frame_meta_fragment",
         "missing_signal:quic_frame_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(HTTP3_REQUEST_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"http3_request_response\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),
@@ -61,7 +67,7 @@ fn summary_json_carries_tls_handshake_incomplete_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(TLS_CLIENT_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"tls_handshake\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"setup_incomplete\""),
@@ -107,7 +113,7 @@ fn summary_json_carries_ssh_banner_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SSH_SESSION_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"remote_access_session\""));
     assert!(json.contains("\"primary_failure_mode\":\"setup_incomplete\""));
     assert!(json.contains("\"primary_failure_detail\":\"handshake_incomplete\""));
@@ -158,7 +164,7 @@ fn summary_json_carries_ssh_kex_followup_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SSH_SESSION_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"remote_access_session\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"not_sent\""),
@@ -246,7 +252,7 @@ fn summary_json_carries_ssh_auth_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SSH_AUTH_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"remote_access_authentication\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),
@@ -356,7 +362,7 @@ fn summary_json_carries_ssh_channel_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SSH_CHANNEL_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"remote_access_session\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),

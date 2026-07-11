@@ -5,6 +5,7 @@ use super::{
     single_target_report_html_with_analysis, single_target_report_json_with_analysis, summary_json,
     synthesize_large_scan_outputs, with_fake_etragon_hook,
 };
+use crate::serve_runtime::SOCKET_SESSION_TARGET_NAME;
 use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
 use gewyvern::flow::{ProgramFinding, ProgramFindingCause};
@@ -42,7 +43,7 @@ fn summary_json_marks_socket_ingest_as_unverified_local() {
     let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
     let export = annotate_export_trust(run_binding_demo(binding), &cli);
-    let json = summary_json("socket_session", &export);
+    let json = summary_json(SOCKET_SESSION_TARGET_NAME, &export);
     assert!(json.contains("\"ingest_mode\":\"local-advisory\""));
     assert!(json.contains("\"ingest_mode_note\":\"local advisory mode: facts come from a local socket source, but lineage is still unverified\""));
     assert!(json.contains("\"ingest_trust_mode\":\"unverified-local\""));

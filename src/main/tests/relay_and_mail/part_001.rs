@@ -1,5 +1,12 @@
 use super::*;
 
+const SMTP_MAIL_TARGET_NAME: &str = "scan:smtp:mail";
+const HY2_AUTH_TARGET_NAME: &str = "scan:hy2:auth";
+const HY2_TCP_RELAY_TARGET_NAME: &str = "scan:hy2:tcp-relay";
+const SOCKS5_SESSION_TARGET_NAME: &str = "scan:socks5:session";
+const SOCKS5_AUTH_CONNECT_TARGET_NAME: &str = "scan:socks5:auth-connect";
+const IMAP_AUTH_TARGET_NAME: &str = "scan:imap:auth";
+
 #[test]
 fn summary_json_carries_smtp_data_denied_detail() {
     let binding = compile_file(&dsl_fixture_path("smtp_data_denied_path.gewy"))
@@ -177,7 +184,7 @@ fn summary_json_carries_smtp_data_denied_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SMTP_MAIL_TARGET_NAME, &export);
     assert!(
         json.contains("\"primary_module_kind\":\"mail_session\""),
         "json={}",
@@ -228,7 +235,7 @@ fn summary_json_carries_hy2_auth_timeout_detail() {
         "quic_frame_meta_fragment",
         "missing_signal:quic_frame_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(HY2_AUTH_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"proxy_authentication\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),
@@ -265,7 +272,7 @@ fn summary_json_carries_hy2_tcp_relay_timeout_detail() {
         "quic_frame_meta_fragment",
         "missing_signal:quic_frame_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(HY2_TCP_RELAY_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"proxy_tcp_relay\""));
     assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
     assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
@@ -340,7 +347,7 @@ fn summary_json_carries_socks5_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SOCKS5_SESSION_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"proxy_negotiation\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),
@@ -429,7 +436,7 @@ fn summary_json_carries_socks5_auth_connect_denied_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SOCKS5_AUTH_CONNECT_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"proxy_negotiation\""));
     assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));
@@ -504,7 +511,7 @@ fn summary_json_carries_imap_auth_denied_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(IMAP_AUTH_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
     assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));

@@ -1,5 +1,7 @@
 use super::*;
 
+const IMAP_SELECT_TARGET_NAME: &str = "scan:imap:select";
+
 #[test]
 fn summary_json_carries_imap_select_timeout_detail() {
     let binding = compile_file(&dsl_fixture_path("imap_select_path.gewy"))
@@ -102,7 +104,7 @@ fn summary_json_carries_imap_select_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(IMAP_SELECT_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
     assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
     assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));

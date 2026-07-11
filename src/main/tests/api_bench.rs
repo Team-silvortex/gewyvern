@@ -159,19 +159,7 @@ fn api_snapshot_routes_cover_scan_export() {
         rendered_targets,
         scan_report_text(&outputs),
         scan_report_json(&outputs),
-        format!(
-            "[{}]",
-            outputs
-                .iter()
-                .zip(analyses.iter())
-                .map(|((name, _export), analysis)| format!(
-                    "{{\"target\":\"{}\",\"analysis\":{}}}",
-                    name.replace('\\', "\\\\").replace('"', "\\\""),
-                    analysis_snapshot_json(analysis),
-                ))
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
+        scan_analysis_json_array(&outputs, &analyses),
         training_example_json_array(&outputs, &analyses),
         scan_report_json(&outputs),
         scan_report_html(&outputs),

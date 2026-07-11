@@ -1,5 +1,10 @@
 use super::*;
 
+const POP3_AUTH_TARGET_NAME: &str = "scan:pop3:auth";
+const POP3_LIST_TARGET_NAME: &str = "scan:pop3:list";
+const KERBEROS_AS_TARGET_NAME: &str = "scan:kerberos:as";
+const RTSP_SETUP_TARGET_NAME: &str = "scan:rtsp:setup";
+
 #[test]
 fn summary_json_carries_pop3_auth_timeout_detail() {
     let binding = compile_file(&dsl_fixture_path("pop3_auth_path.gewy"))
@@ -90,7 +95,7 @@ fn summary_json_carries_pop3_auth_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(POP3_AUTH_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
     assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
     assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
@@ -191,7 +196,7 @@ fn summary_json_carries_pop3_auth_denied_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(POP3_AUTH_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
     assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));
@@ -316,7 +321,7 @@ fn summary_json_carries_pop3_list_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(POP3_LIST_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
     assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
     assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
@@ -369,7 +374,7 @@ fn summary_json_carries_kerberos_as_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:datagram_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(KERBEROS_AS_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
     assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
     assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
@@ -415,7 +420,7 @@ fn summary_json_carries_kerberos_as_error_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(KERBEROS_AS_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
     assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""));
     assert!(json.contains("\"primary_failure_detail\":\"protocol_error\""));
@@ -499,7 +504,7 @@ fn summary_json_carries_rtsp_setup_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(RTSP_SETUP_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"signaling_session\""));
     assert!(json.contains("\"primary_failure_mode\":\"not_sent\""));
     assert!(json.contains("\"primary_failure_detail\":\"followup_not_sent\""));

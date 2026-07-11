@@ -14,6 +14,69 @@ pub(super) fn protocol_surface_for_target(target: &str) -> Option<ProtocolSurfac
     protocol_surface(protocol, entry)
 }
 
+pub(super) fn estimate_protocol_surface_json_capacity(
+    surface: Option<&ProtocolSurfaceSummary>,
+) -> usize {
+    let Some(surface) = surface else {
+        return 24;
+    };
+    let overlays_capacity = surface.overlays.iter().fold(0usize, |acc, overlay| {
+        acc + overlay.key.len()
+            + overlay.label.len()
+            + overlay.companion_protocol.as_deref().map_or(0, str::len)
+            + overlay.companion_entry.as_deref().map_or(0, str::len)
+            + 48
+    });
+    256
+        + surface.protocol.len()
+        + surface.entry.len()
+        + surface.default_entry.len()
+        + surface.protocol_aliases.iter().map(String::len).sum::<usize>()
+        + surface.entry_aliases.iter().map(String::len).sum::<usize>()
+        + surface.sibling_entries.iter().map(String::len).sum::<usize>()
+        + surface.selected_overlay.as_deref().map_or(0, str::len)
+        + surface.entry_semantics.as_ref().map_or(0, |semantics| {
+            semantics.category.len()
+                + semantics.operator_focus.len()
+                + semantics.typical_signal.as_deref().map_or(0, str::len)
+                + semantics.primary_failure_mode.as_deref().map_or(0, str::len)
+                + semantics.primary_failure_detail.as_deref().map_or(0, str::len)
+                + semantics.primary_failure_basis.as_deref().map_or(0, str::len)
+                + 80
+        })
+        + surface.cluster_hint.as_ref().map_or(0, |hint| {
+            hint.key.len()
+                + hint.label.len()
+                + hint.operator_hint.len()
+                + hint.sibling_protocols.iter().map(String::len).sum::<usize>()
+                + 64
+        })
+        + surface.shelf.as_ref().map_or(0, |shelf| {
+            shelf.key.len()
+                + shelf.label.len()
+                + shelf.page.len()
+                + shelf.entries.iter().map(String::len).sum::<usize>()
+                + 64
+        })
+        + overlays_capacity
+}
+
+pub(super) fn estimate_protocol_surface_text_capacity(
+    surface: Option<&ProtocolSurfaceSummary>,
+) -> usize {
+    let Some(surface) = surface else {
+        return 20;
+    };
+    320
+        + surface.protocol.len()
+        + surface.entry.len()
+        + surface.default_entry.len()
+        + surface.protocol_aliases.len() * 16
+        + surface.entry_aliases.len() * 16
+        + surface.sibling_entries.len() * 16
+        + surface.overlays.len() * 32
+}
+
 pub(super) fn append_protocol_surface_json(
     json: &mut String,
     surface: Option<&ProtocolSurfaceSummary>,
@@ -57,52 +120,37 @@ pub(super) fn append_protocol_surface_json(
     }
 }
 
-pub(super) fn protocol_surface_text(surface: Option<&ProtocolSurfaceSummary>) -> String {
+pub(super) fn append_protocol_surface_text(
+    text: &mut String,
+    surface: Option<&ProtocolSurfaceSummary>,
+) {
     match surface {
         Some(surface) => {
-            let shelf = surface.shelf.as_ref().map_or_else(
-                || "none".to_string(),
-                |shelf| {
-                    format!(
-                        "{}:{}:{}:{}",
-                        shelf.key,
-                        shelf.label,
-                        shelf.page,
-                        join_or_none(&shelf.entries)
-                    )
-                },
+            use std::fmt::Write;
+
+            let _ = write!(
+                text,
+                "protocol_surface={} entry={} default={} selected_default={}",
+                surface.protocol, surface.entry, surface.default_entry, surface.selected_is_default
             );
-            let cluster_hint = surface.cluster_hint.as_ref().map_or_else(
-                || "none".to_string(),
-                |hint| {
-                    format!(
-                        "{}:{}:{}:{}",
-                        hint.key,
-                        hint.label,
-                        hint.operator_hint,
-                        join_or_none(&hint.sibling_protocols)
-                    )
-                },
-            );
-            let companions = companions_text(surface);
-            let entry_semantics = entry_semantics_text(surface);
-            format!(
-                "protocol_surface={} entry={} default={} selected_default={} protocol_aliases={} entry_aliases={} sibling_entries={} selected_overlay={} entry_semantics={} reading_companions={} cluster_hint={} shelf={}",
-                surface.protocol,
-                surface.entry,
-                surface.default_entry,
-                surface.selected_is_default,
-                join_or_none(&surface.protocol_aliases),
-                join_or_none(&surface.entry_aliases),
-                join_or_none(&surface.sibling_entries),
-                surface.selected_overlay.as_deref().unwrap_or("none"),
-                entry_semantics,
-                companions,
-                cluster_hint,
-                shelf,
-            )
+            text.push_str(" protocol_aliases=");
+            append_join_or_none(text, &surface.protocol_aliases, " | ");
+            text.push_str(" entry_aliases=");
+            append_join_or_none(text, &surface.entry_aliases, " | ");
+            text.push_str(" sibling_entries=");
+            append_join_or_none(text, &surface.sibling_entries, " | ");
+            text.push_str(" selected_overlay=");
+            text.push_str(surface.selected_overlay.as_deref().unwrap_or("none"));
+            text.push_str(" entry_semantics=");
+            append_entry_semantics_text(text, surface);
+            text.push_str(" reading_companions=");
+            append_companions_text(text, surface);
+            text.push_str(" cluster_hint=");
+            append_cluster_hint_text(text, surface);
+            text.push_str(" shelf=");
+            append_shelf_text(text, surface);
         }
-        None => "protocol_surface=none".to_string(),
+        None => text.push_str("protocol_surface=none"),
     }
 }
 
@@ -236,9 +284,23 @@ fn append_optional_string_json(json: &mut String, value: Option<&str>) {
 }
 
 fn append_companions_json(json: &mut String, surface: &ProtocolSurfaceSummary) {
-    let companions = reading_companions(surface);
     json.push('[');
-    for (index, (protocol, entry, overlay_key, overlay_label)) in companions.iter().enumerate() {
+    let mut seen = Vec::<(&str, &str)>::new();
+    let mut index = 0usize;
+    for overlay in &surface.overlays {
+        let Some(protocol) = overlay.companion_protocol.as_deref() else {
+            continue;
+        };
+        let Some(entry) = overlay.companion_entry.as_deref() else {
+            continue;
+        };
+        if seen
+            .iter()
+            .any(|(seen_protocol, seen_entry)| *seen_protocol == protocol && *seen_entry == entry)
+        {
+            continue;
+        }
+        seen.push((protocol, entry));
         if index > 0 {
             json.push(',');
         }
@@ -248,64 +310,99 @@ fn append_companions_json(json: &mut String, surface: &ProtocolSurfaceSummary) {
         json.push_str(",\"entry\":");
         append_json_string(json, entry);
         json.push_str(",\"via_overlay\":");
-        append_json_string(json, overlay_key);
+        append_json_string(json, &overlay.key);
         json.push_str(",\"via_label\":");
-        append_json_string(json, overlay_label);
+        append_json_string(json, &overlay.label);
         json.push('}');
+        index += 1;
     }
     json.push(']');
 }
 
-fn companions_text(surface: &ProtocolSurfaceSummary) -> String {
-    let companions = reading_companions(surface);
-    if companions.is_empty() {
-        return "none".to_string();
+fn append_companions_text(text: &mut String, surface: &ProtocolSurfaceSummary) {
+    let mut seen = Vec::<(&str, &str)>::new();
+    let mut wrote_any = false;
+    for overlay in &surface.overlays {
+        let Some(protocol) = overlay.companion_protocol.as_deref() else {
+            continue;
+        };
+        let Some(entry) = overlay.companion_entry.as_deref() else {
+            continue;
+        };
+        if seen
+            .iter()
+            .any(|(seen_protocol, seen_entry)| *seen_protocol == protocol && *seen_entry == entry)
+        {
+            continue;
+        }
+        seen.push((protocol, entry));
+        if wrote_any {
+            text.push_str(" | ");
+        }
+        text.push_str(protocol);
+        text.push(':');
+        text.push_str(entry);
+        text.push('@');
+        text.push_str(&overlay.key);
+        wrote_any = true;
     }
-    companions
-        .into_iter()
-        .map(|(protocol, entry, overlay_key, _)| format!("{protocol}:{entry}@{overlay_key}"))
-        .collect::<Vec<_>>()
-        .join(" | ")
+    if !wrote_any {
+        text.push_str("none");
+    }
 }
 
-fn entry_semantics_text(surface: &ProtocolSurfaceSummary) -> String {
-    surface.entry_semantics.as_ref().map_or_else(
-        || "none".to_string(),
-        |semantics| {
-            format!(
-                "{}:{}:{}:{}:{}:{}",
-                semantics.category,
-                semantics.operator_focus,
-                semantics.typical_signal.as_deref().unwrap_or("none"),
-                semantics.primary_failure_mode.as_deref().unwrap_or("none"),
-                semantics
-                    .primary_failure_detail
-                    .as_deref()
-                    .unwrap_or("none"),
-                semantics.primary_failure_basis.as_deref().unwrap_or("none"),
-            )
-        },
-    )
+fn append_entry_semantics_text(text: &mut String, surface: &ProtocolSurfaceSummary) {
+    if let Some(semantics) = surface.entry_semantics.as_ref() {
+        text.push_str(&semantics.category);
+        text.push(':');
+        text.push_str(&semantics.operator_focus);
+        text.push(':');
+        text.push_str(semantics.typical_signal.as_deref().unwrap_or("none"));
+        text.push(':');
+        text.push_str(semantics.primary_failure_mode.as_deref().unwrap_or("none"));
+        text.push(':');
+        text.push_str(semantics.primary_failure_detail.as_deref().unwrap_or("none"));
+        text.push(':');
+        text.push_str(semantics.primary_failure_basis.as_deref().unwrap_or("none"));
+    } else {
+        text.push_str("none");
+    }
 }
 
 fn companions_html(surface: &ProtocolSurfaceSummary) -> String {
-    let companions = reading_companions(surface);
-    if companions.is_empty() {
+    let mut rendered = String::new();
+    let mut seen = Vec::<(&str, &str)>::new();
+    let mut wrote_any = false;
+    for overlay in &surface.overlays {
+        let Some(protocol) = overlay.companion_protocol.as_deref() else {
+            continue;
+        };
+        let Some(entry) = overlay.companion_entry.as_deref() else {
+            continue;
+        };
+        if seen
+            .iter()
+            .any(|(seen_protocol, seen_entry)| *seen_protocol == protocol && *seen_entry == entry)
+        {
+            continue;
+        }
+        seen.push((protocol, entry));
+        if wrote_any {
+            rendered.push_str(" | ");
+        }
+        rendered.push_str(&html_escape(protocol));
+        rendered.push(':');
+        rendered.push_str(&html_escape(entry));
+        rendered.push_str(" via ");
+        rendered.push_str(&html_escape(&overlay.key));
+        rendered.push_str(" (");
+        rendered.push_str(&html_escape(&overlay.label));
+        rendered.push(')');
+        wrote_any = true;
+    }
+    if !wrote_any {
         return "<li><strong>reading companions:</strong> none</li>".to_string();
     }
-    let rendered = companions
-        .into_iter()
-        .map(|(protocol, entry, overlay_key, overlay_label)| {
-            format!(
-                "{}:{} via {} ({})",
-                html_escape(&protocol),
-                html_escape(&entry),
-                html_escape(&overlay_key),
-                html_escape(&overlay_label),
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(" | ");
     format!("<li><strong>reading companions:</strong> {}</li>", rendered)
 }
 
@@ -338,22 +435,43 @@ fn entry_semantics_html(surface: &ProtocolSurfaceSummary) -> String {
     })
 }
 
-fn reading_companions(surface: &ProtocolSurfaceSummary) -> Vec<(String, String, String, String)> {
-    let mut companions = Vec::new();
-    for overlay in &surface.overlays {
-        let Some(protocol) = overlay.companion_protocol.clone() else {
-            continue;
-        };
-        let Some(entry) = overlay.companion_entry.clone() else {
-            continue;
-        };
-        if companions
-            .iter()
-            .any(|item: &(String, String, String, String)| item.0 == protocol && item.1 == entry)
-        {
-            continue;
+fn append_join_or_none(text: &mut String, items: &[String], separator: &str) {
+    if items.is_empty() {
+        text.push_str("none");
+    } else {
+        for (index, item) in items.iter().enumerate() {
+            if index > 0 {
+                text.push_str(separator);
+            }
+            text.push_str(item);
         }
-        companions.push((protocol, entry, overlay.key.clone(), overlay.label.clone()));
     }
-    companions
+}
+
+fn append_cluster_hint_text(text: &mut String, surface: &ProtocolSurfaceSummary) {
+    if let Some(hint) = surface.cluster_hint.as_ref() {
+        text.push_str(&hint.key);
+        text.push(':');
+        text.push_str(&hint.label);
+        text.push(':');
+        text.push_str(&hint.operator_hint);
+        text.push(':');
+        append_join_or_none(text, &hint.sibling_protocols, " | ");
+    } else {
+        text.push_str("none");
+    }
+}
+
+fn append_shelf_text(text: &mut String, surface: &ProtocolSurfaceSummary) {
+    if let Some(shelf) = surface.shelf.as_ref() {
+        text.push_str(&shelf.key);
+        text.push(':');
+        text.push_str(&shelf.label);
+        text.push(':');
+        text.push_str(&shelf.page);
+        text.push(':');
+        append_join_or_none(text, &shelf.entries, " | ");
+    } else {
+        text.push_str("none");
+    }
 }

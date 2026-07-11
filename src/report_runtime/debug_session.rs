@@ -17,9 +17,11 @@ pub(super) fn render_debug_session_outputs(
 fn debug_session_json(outputs: &[(String, ExportBundle)], analyses: &[AnalysisSnapshot]) -> String {
     let indexed = ranked_targets(outputs, analyses);
     let mut json = String::with_capacity(768 + indexed.len() * 768);
-    json.push_str("{\"surface\":\"local_debug_session\",\"scope\":\"cli\",\"target_count\":");
-    json.push_str(&indexed.len().to_string());
-    json.push_str(",\"recommended_focus\":");
+    let _ = write!(
+        json,
+        "{{\"surface\":\"local_debug_session\",\"scope\":\"cli\",\"target_count\":{},\"recommended_focus\":",
+        indexed.len()
+    );
     match indexed.first() {
         Some((name, analysis)) => append_target_json(&mut json, name, analysis),
         None => json.push_str("null"),
@@ -37,7 +39,8 @@ fn debug_session_json(outputs: &[(String, ExportBundle)], analyses: &[AnalysisSn
 
 fn debug_session_text(outputs: &[(String, ExportBundle)], analyses: &[AnalysisSnapshot]) -> String {
     let indexed = ranked_targets(outputs, analyses);
-    let mut text = format!("debug_session: targets={}", indexed.len());
+    let mut text = String::with_capacity(96 + indexed.len() * 224);
+    let _ = write!(text, "debug_session: targets={}", indexed.len());
     if let Some((name, analysis)) = indexed.first() {
         text.push_str("\nfocus: ");
         text.push_str(name);
@@ -68,7 +71,13 @@ fn debug_session_text(outputs: &[(String, ExportBundle)], analyses: &[AnalysisSn
             "false"
         });
         text.push_str(" next=");
-        text.push_str(&next_step_kinds(name, analysis).join(","));
+        let steps = next_step_kinds(name, analysis);
+        for (index, step) in steps.iter().enumerate() {
+            if index > 0 {
+                text.push(',');
+            }
+            text.push_str(step);
+        }
     }
     text
 }
@@ -77,8 +86,7 @@ fn append_target_json(json: &mut String, name: &str, analysis: &AnalysisSnapshot
     json.push('{');
     json.push_str("\"name\":");
     append_json_string(json, name);
-    json.push_str(",\"rank\":");
-    json.push_str(&rank(analysis).to_string());
+    let _ = write!(json, ",\"rank\":{}", rank(analysis));
     json.push_str(",\"status\":");
     append_json_string(json, analysis.target_status.label());
     json.push_str(",\"evidence_posture\":");
@@ -170,19 +178,23 @@ fn append_debugger_posture_json(json: &mut String, analysis: &AnalysisSnapshot) 
 
 fn append_debugger_route_json(json: &mut String, name: &str, analysis: &AnalysisSnapshot) {
     let state = debugger_posture_state(analysis);
+    let primary_step = debugger_route_primary_step(state, name);
+    let fallback_step = debugger_route_fallback_step(state);
+    let primary_command = debugger_route_command(primary_step, name);
+    let fallback_command = debugger_route_command(fallback_step, name);
     json.push('{');
     append_route_step(
         json,
         "primary_step",
-        debugger_route_primary_step(state, name),
-        &debugger_route_command(debugger_route_primary_step(state, name), name),
+        primary_step,
+        &primary_command,
         false,
     );
     append_route_step(
         json,
         "fallback_step",
-        debugger_route_fallback_step(state),
-        &debugger_route_command(debugger_route_fallback_step(state), name),
+        fallback_step,
+        &fallback_command,
         true,
     );
     json.push_str(",\"escalation_allowed\":");
@@ -236,7 +248,10 @@ fn next_step_command(step: &str, name: &str) -> String {
     match step {
         "read_protocol_plan" | "check_protocol_entry" => {
             if let Some((protocol, _)) = scan_target_protocol_entry(name) {
-                format!("cargo run -- --list-entries {protocol}")
+                let mut command = String::with_capacity(32 + protocol.len());
+                command.push_str("cargo run -- --list-entries ");
+                command.push_str(protocol);
+                command
             } else {
                 "cargo run -- --list-protocols".into()
             }
@@ -287,7 +302,10 @@ fn debugger_route_command(step: &str, name: &str) -> String {
         "observe" | "open_summary" => rerun_target_command(name, true),
         "open_protocol_reading" => {
             if let Some((protocol, _)) = scan_target_protocol_entry(name) {
-                format!("cargo run -- --list-entries {protocol}")
+                let mut command = String::with_capacity(32 + protocol.len());
+                command.push_str("cargo run -- --list-entries ");
+                command.push_str(protocol);
+                command
             } else {
                 rerun_target_command(name, false)
             }
@@ -314,7 +332,12 @@ fn rerun_target_findings_command(name: &str) -> String {
 
 fn target_cli_prefix(name: &str) -> String {
     if let Some((protocol, entry)) = scan_target_protocol_entry(name) {
-        format!("cargo run -- --protocol {protocol} --entry {entry}")
+        let mut command = String::with_capacity(40 + protocol.len() + entry.len());
+        command.push_str("cargo run -- --protocol ");
+        command.push_str(protocol);
+        command.push_str(" --entry ");
+        command.push_str(entry);
+        command
     } else {
         "cargo run -- --debug-session".into()
     }

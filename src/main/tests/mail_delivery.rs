@@ -1,5 +1,7 @@
 use super::*;
 
+const SMTP_MAIL_TARGET_NAME: &str = "scan:smtp:mail";
+
 #[test]
 fn summary_json_carries_smtp_rcpt_timeout_detail() {
     let binding = compile_file(&dsl_fixture_path("smtp_rcpt_path.gewy"))
@@ -131,7 +133,7 @@ fn summary_json_carries_smtp_rcpt_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SMTP_MAIL_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
     assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
     assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
@@ -266,7 +268,7 @@ fn summary_json_carries_smtp_rcpt_denied_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SMTP_MAIL_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
     assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));
@@ -455,7 +457,7 @@ fn summary_json_carries_smtp_data_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SMTP_MAIL_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
     assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
     assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));

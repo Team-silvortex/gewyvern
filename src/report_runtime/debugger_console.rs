@@ -17,17 +17,18 @@ pub(super) fn debugger_console_json(
     outputs: &[(String, ExportBundle)],
     analyses: &[AnalysisSnapshot],
 ) -> String {
-    let mut indexed = ranked_targets(outputs, analyses);
+    let indexed = ranked_targets(outputs, analyses);
     let attention_count = indexed
         .iter()
         .filter(|(_, analysis)| rank(analysis) <= 1)
         .count();
     let mut json = String::with_capacity(512 + indexed.len() * 512);
-    json.push_str("{\"surface\":\"local_debugger_console\",\"target_count\":");
-    json.push_str(&indexed.len().to_string());
-    json.push_str(",\"attention_count\":");
-    json.push_str(&attention_count.to_string());
-    json.push_str(",\"recommended_focus\":");
+    let _ = write!(
+        json,
+        "{{\"surface\":\"local_debugger_console\",\"target_count\":{},\"attention_count\":{},\"recommended_focus\":",
+        indexed.len(),
+        attention_count
+    );
     match indexed.first() {
         Some((name, analysis)) => append_target_json(&mut json, name, analysis),
         None => json.push_str("null"),
@@ -45,7 +46,7 @@ pub(super) fn debugger_console_json(
     }
     json.push('}');
     json.push_str(",\"targets\":[");
-    for (index, (name, analysis)) in indexed.drain(..).enumerate() {
+    for (index, (name, analysis)) in indexed.iter().enumerate() {
         if index > 0 {
             json.push(',');
         }
@@ -64,7 +65,9 @@ pub(super) fn debugger_console_text(
         .iter()
         .filter(|(_, analysis)| rank(analysis) <= 1)
         .count();
-    let mut text = format!(
+    let mut text = String::with_capacity(96 + indexed.len() * 160);
+    let _ = write!(
+        text,
         "debugger_console: targets={} attention={}",
         indexed.len(),
         attention_count
@@ -103,8 +106,7 @@ fn append_target_json(json: &mut String, name: &str, analysis: &AnalysisSnapshot
     json.push('{');
     json.push_str("\"name\":");
     append_json_string(json, name);
-    json.push_str(",\"rank\":");
-    json.push_str(&rank(analysis).to_string());
+    let _ = write!(json, ",\"rank\":{}", rank(analysis));
     json.push_str(",\"status\":");
     append_json_string(json, analysis.target_status.label());
     json.push_str(",\"evidence_posture\":");
@@ -135,7 +137,13 @@ fn append_target_json(json: &mut String, name: &str, analysis: &AnalysisSnapshot
 
 fn target_debug_session_command(name: &str) -> String {
     if let Some((protocol, entry)) = scan_target_protocol_entry(name) {
-        format!("cargo run -- --protocol {protocol} --entry {entry} --debug-session --json")
+        let mut command = String::with_capacity(62 + protocol.len() + entry.len());
+        command.push_str("cargo run -- --protocol ");
+        command.push_str(protocol);
+        command.push_str(" --entry ");
+        command.push_str(entry);
+        command.push_str(" --debug-session --json");
+        command
     } else {
         "cargo run -- --debug-session --json".into()
     }

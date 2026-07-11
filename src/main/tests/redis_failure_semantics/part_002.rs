@@ -1,5 +1,11 @@
 use super::*;
 
+const REDIS_MASTERDOWN_TARGET_NAME: &str = "scan:redis:masterdown";
+const REDIS_OOM_TARGET_NAME: &str = "scan:redis:oom";
+const REDIS_BUSY_TARGET_NAME: &str = "scan:redis:busy";
+const REDIS_EXECABORT_TARGET_NAME: &str = "scan:redis:execabort";
+const REDIS_MISCONF_TARGET_NAME: &str = "scan:redis:misconf";
+
 #[test]
 fn summary_json_carries_redis_masterdown_detail() {
     let export = redis_error_export(
@@ -19,7 +25,7 @@ fn summary_json_carries_redis_masterdown_detail() {
             redis_response_fact(6, 94014, &[(0, 0x2d), (1, 0x4d), (2, 0x41), (3, 0x53)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_MASTERDOWN_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_masterdown\"]"),
         "json={}",
@@ -56,7 +62,7 @@ fn summary_json_carries_redis_oom_detail() {
             redis_response_fact(6, 94015, &[(0, 0x2d), (1, 0x4f), (2, 0x4f), (3, 0x4d)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_OOM_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_oom\"]"),
         "json={}",
@@ -93,7 +99,7 @@ fn summary_json_carries_redis_busy_detail() {
             redis_response_fact(6, 94016, &[(0, 0x2d), (1, 0x42), (2, 0x55), (3, 0x53)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_BUSY_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_busy\"]"),
         "json={}",
@@ -130,7 +136,7 @@ fn summary_json_carries_redis_execabort_detail() {
             redis_response_fact(6, 94017, &[(0, 0x2d), (1, 0x45), (2, 0x58), (3, 0x45)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_EXECABORT_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_execabort\"]"),
         "json={}",
@@ -167,7 +173,7 @@ fn summary_json_carries_redis_misconf_detail() {
             redis_response_fact(6, 94018, &[(0, 0x2d), (1, 0x4d), (2, 0x49), (3, 0x53)]),
         ],
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(REDIS_MISCONF_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"redis_misconf\"]"),
         "json={}",

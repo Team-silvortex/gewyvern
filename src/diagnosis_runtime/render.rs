@@ -1,21 +1,13 @@
 use super::{
     AnalysisAugmentation, AnalysisSnapshot, ProcessNetworkProfileSummary,
-    ProtocolFlowAnalysisSummary, external_capability_summary, external_sidecar_consumption_mode,
-    external_sidecar_trust_level, failure_detail_family_label, failure_mode_family_label,
-    stage_family_label,
+    ProtocolFlowAnalysisSummary, external_sidecar_contract_state,
+    failure_detail_family_label, failure_mode_family_label, stage_family_label,
 };
 use crate::UiLocale;
 use crate::render_utils::{
     append_json_string, append_process_json, append_string_list_json, extract_json_string_field,
     push_joined_strings,
 };
-
-pub(crate) fn protocol_flow_summaries_json_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
-    let mut json = String::from("[");
-    append_protocol_flow_summaries_json_from_snapshot(&mut json, snapshot);
-    json.push(']');
-    json
-}
 
 pub(crate) fn append_protocol_flow_summaries_json_from_snapshot(
     json: &mut String,
@@ -91,13 +83,6 @@ pub(crate) fn append_protocol_flow_summaries_text_limited(
     }
 }
 
-pub(crate) fn process_network_profiles_json_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
-    let mut json = String::from("[");
-    append_process_network_profiles_json_from_snapshot(&mut json, snapshot);
-    json.push(']');
-    json
-}
-
 pub(crate) fn append_process_network_profiles_json_from_snapshot(
     json: &mut String,
     snapshot: &AnalysisSnapshot,
@@ -112,7 +97,12 @@ pub(crate) fn append_process_network_profiles_json_from_snapshot(
 
 #[cfg(test)]
 pub(crate) fn process_network_profiles_json(export: &gewyvern::export::ExportBundle) -> String {
-    process_network_profiles_json_from_snapshot(&super::analysis_snapshot(export))
+    let snapshot = super::analysis_snapshot(export);
+    let mut json = String::with_capacity(2 + snapshot.process_profiles.len() * 520);
+    json.push('[');
+    append_process_network_profiles_json_from_snapshot(&mut json, &snapshot);
+    json.push(']');
+    json
 }
 
 pub(crate) fn process_network_profiles_text_from_snapshot(snapshot: &AnalysisSnapshot) -> String {
@@ -129,15 +119,15 @@ pub(crate) fn append_process_network_profiles_text_from_snapshot(
     text: &mut String,
     snapshot: &AnalysisSnapshot,
 ) {
+    use std::fmt::Write;
+
     let locale = UiLocale::detect();
     for (index, profile) in snapshot.process_profiles.iter().enumerate() {
         if index > 0 {
             text.push(',');
         }
         text.push_str(&profile.comm);
-        text.push_str("(pid=");
-        text.push_str(&profile.pid.to_string());
-        text.push_str(")[status=");
+        let _ = write!(text, "(pid={})[status=", profile.pid);
         text.push_str(&profile.status);
         text.push_str(" ambiguous=");
         text.push_str(if profile.ambiguous { "true" } else { "false" });
@@ -165,10 +155,11 @@ pub(crate) fn append_process_network_profiles_text_from_snapshot(
         } else {
             push_joined_strings(text, &profile.module_kinds, "|");
         }
-        text.push_str(" healthy=");
-        text.push_str(&profile.healthy_flows.to_string());
-        text.push_str(" attention=");
-        text.push_str(&profile.attention_flows.to_string());
+        let _ = write!(
+            text,
+            " healthy={} attention={}",
+            profile.healthy_flows, profile.attention_flows
+        );
         text.push_str(" phases=");
         if profile.phases.is_empty() {
             text.push_str(locale.none());
@@ -185,11 +176,16 @@ pub(crate) fn append_process_network_profiles_text_from_snapshot(
 
 pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
     let mut json = String::with_capacity(estimate_analysis_snapshot_json_capacity(snapshot));
+    append_analysis_snapshot_json(&mut json, snapshot);
+    json
+}
+
+pub(crate) fn append_analysis_snapshot_json(json: &mut String, snapshot: &AnalysisSnapshot) {
     json.push_str("{\"target_status\":\"");
     json.push_str(snapshot.target_status.label());
     json.push_str("\",\"primary_process_profile\":");
     if let Some(profile) = snapshot.primary_process_profile.as_ref() {
-        append_process_network_profile_summary_json(&mut json, profile);
+        append_process_network_profile_summary_json(json, profile);
     } else {
         json.push_str("null");
     }
@@ -234,35 +230,34 @@ pub(crate) fn analysis_snapshot_json(snapshot: &AnalysisSnapshot) -> String {
         "false"
     });
     json.push_str(",\"competing_hypotheses\":");
-    append_string_list_json(&mut json, &snapshot.competing_hypotheses);
+    append_string_list_json(json, &snapshot.competing_hypotheses);
     json.push_str(",\"operations\":");
-    append_string_list_json(&mut json, &snapshot.operations);
+    append_string_list_json(json, &snapshot.operations);
     json.push_str(",\"phases\":");
-    append_string_list_json(&mut json, &snapshot.phases);
+    append_string_list_json(json, &snapshot.phases);
     json.push_str(",\"missing_transitions\":");
-    append_string_list_json(&mut json, &snapshot.missing_transitions);
+    append_string_list_json(json, &snapshot.missing_transitions);
     json.push_str(",\"suspect_areas\":");
-    append_string_list_json(&mut json, &snapshot.suspect_areas);
+    append_string_list_json(json, &snapshot.suspect_areas);
     json.push_str(",\"suspect_modules\":");
-    append_string_list_json(&mut json, &snapshot.suspect_modules);
+    append_string_list_json(json, &snapshot.suspect_modules);
     json.push_str(",\"augmentations\":");
-    append_analysis_augmentations_json(&mut json, &snapshot.augmentations);
+    append_analysis_augmentations_json(json, &snapshot.augmentations);
     json.push_str(",\"external_sidecar_context\":");
-    append_external_sidecar_context_json(&mut json, snapshot);
-    append_external_sidecar_contract_json(&mut json, snapshot);
+    append_external_sidecar_context_json(json, snapshot);
+    append_external_sidecar_contract_json(json, snapshot);
     json.push_str(",\"process_network_profiles\":");
     json.push('[');
-    append_process_network_profiles_json_from_snapshot(&mut json, snapshot);
+    append_process_network_profiles_json_from_snapshot(json, snapshot);
     json.push(']');
     json.push_str(",\"protocol_flows\":");
     json.push('[');
-    append_protocol_flow_summaries_json_from_snapshot(&mut json, snapshot);
+    append_protocol_flow_summaries_json_from_snapshot(json, snapshot);
     json.push(']');
     json.push('}');
-    json
 }
 
-fn estimate_analysis_snapshot_json_capacity(snapshot: &AnalysisSnapshot) -> usize {
+pub(crate) fn estimate_analysis_snapshot_json_capacity(snapshot: &AnalysisSnapshot) -> usize {
     512 + snapshot.primary_module_kind.len()
         + snapshot.primary_module_family.len()
         + snapshot.primary_failure_stage.len()
@@ -315,26 +310,24 @@ pub(crate) fn append_external_sidecar_contract_json(
     json: &mut String,
     snapshot: &AnalysisSnapshot,
 ) {
-    let (has_profile, capability_status, hint_status, context_status) =
-        external_capability_summary(snapshot);
-    let consumption_mode = external_sidecar_consumption_mode(snapshot);
-    let trust_level = external_sidecar_trust_level(snapshot);
+    let contract = external_sidecar_contract_state(snapshot);
+    let trust_level = contract.trust_level();
     json.push_str(",\"has_external_capability_profile\":");
-    json.push_str(if has_profile { "true" } else { "false" });
+    json.push_str(if contract.has_profile { "true" } else { "false" });
     json.push_str(",\"external_capability_status\":");
-    if let Some(value) = capability_status.as_deref() {
+    if let Some(value) = contract.capability_status.as_deref() {
         append_json_string(json, value);
     } else {
         json.push_str("null");
     }
     json.push_str(",\"external_hint_status\":");
-    if let Some(value) = hint_status.as_deref() {
+    if let Some(value) = contract.hint_status.as_deref() {
         append_json_string(json, value);
     } else {
         json.push_str("null");
     }
     json.push_str(",\"external_context_status\":");
-    if let Some(value) = context_status.as_deref() {
+    if let Some(value) = contract.context_status.as_deref() {
         append_json_string(json, value);
     } else {
         json.push_str("null");
@@ -346,7 +339,7 @@ pub(crate) fn append_external_sidecar_contract_json(
         json.push_str("null");
     }
     json.push_str(",\"external_sidecar_consumption_mode\":");
-    if let Some(value) = consumption_mode.as_deref() {
+    if let Some(value) = contract.consumption_mode.as_deref() {
         append_json_string(json, value);
     } else {
         json.push_str("null");
@@ -465,8 +458,9 @@ fn append_process_network_profile_summary_json(
     json: &mut String,
     profile: &ProcessNetworkProfileSummary,
 ) {
-    json.push_str("{\"pid\":");
-    json.push_str(&profile.pid.to_string());
+    use std::fmt::Write;
+
+    let _ = write!(json, "{{\"pid\":{}", profile.pid);
     json.push_str(",\"comm\":\"");
     json.push_str(&profile.comm);
     json.push_str("\",\"status\":\"");
@@ -507,16 +501,18 @@ fn append_process_network_profile_summary_json(
     append_string_list_json(json, &profile.suspect_areas);
     json.push_str(",\"suspect_modules\":");
     append_string_list_json(json, &profile.suspect_modules);
-    json.push_str(",\"healthy_flows\":");
-    json.push_str(&profile.healthy_flows.to_string());
-    json.push_str(",\"attention_flows\":");
-    json.push_str(&profile.attention_flows.to_string());
+    let _ = write!(
+        json,
+        ",\"healthy_flows\":{},\"attention_flows\":{}",
+        profile.healthy_flows, profile.attention_flows
+    );
     json.push('}');
 }
 
 fn append_protocol_flow_summary_json(json: &mut String, flow: &ProtocolFlowAnalysisSummary) {
-    json.push_str("{\"program_flow\":");
-    json.push_str(&flow.program_flow.to_string());
+    use std::fmt::Write;
+
+    let _ = write!(json, "{{\"program_flow\":{}", flow.program_flow);
     json.push_str(",\"process\":");
     append_process_json(json, flow.process.as_ref());
     json.push_str(",\"operation\":\"");

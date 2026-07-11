@@ -12,11 +12,16 @@ use std::time::{Duration, SystemTime};
 
 use crate::runtime_events::{EVENT_SOCKET_SESSION_COLLECT_FAILED, EVENT_SOCKET_SESSION_RUN_FAILED};
 use crate::runtime_logging::log_error_event;
-use crate::serve_runtime::serve_socket_sessions;
+use crate::serve_runtime::{
+    SOCKET_SESSION_TARGET_NAME, serve_socket_sessions, single_runtime_target_name,
+};
 use crate::{
     Cli, ScanTarget, SocketTarget, UiLocale, annotate_export_trust, filter_export_by_pid,
     route_fact, run_binding_demo, run_binding_session, run_session, selected_scan_target_for_cli,
 };
+
+const TCP_DEMO_TARGET_NAME: &str = "tcp_demo";
+const UDP_DEMO_TARGET_NAME: &str = "udp_demo";
 
 pub(crate) fn collect_cli_outputs(
     cli: &Cli,
@@ -105,7 +110,7 @@ fn collect_socket_cli_outputs(
     });
     let label = selected_scan_target_for_cli(cli)
         .map(|target| target.label())
-        .unwrap_or_else(|| "socket_session".to_string());
+        .unwrap_or_else(|| SOCKET_SESSION_TARGET_NAME.to_string());
     push_filtered_output(outputs, cli, label, export);
 }
 
@@ -128,24 +133,35 @@ fn collect_non_socket_cli_outputs(
     }
 
     if let Some(binding) = cli.dsl_binding() {
+        let export = run_binding_demo(binding);
         let label = selected_scan_target_for_cli(cli)
             .map(|target| target.label())
-            .unwrap_or_else(|| "dsl_demo".to_string());
+            .unwrap_or_else(|| single_runtime_target_name(&export));
         push_filtered_output(
             outputs,
             cli,
             label,
-            run_binding_demo(binding),
+            export,
         );
         return;
     }
 
     if cli.demo_mode.includes_tcp() {
-        push_filtered_output(outputs, cli, "tcp_demo".to_string(), tcp_demo_export(base));
+        push_filtered_output(
+            outputs,
+            cli,
+            TCP_DEMO_TARGET_NAME.to_string(),
+            tcp_demo_export(base),
+        );
     }
 
     if cli.demo_mode.includes_udp() {
-        push_filtered_output(outputs, cli, "udp_demo".to_string(), udp_demo_export(base));
+        push_filtered_output(
+            outputs,
+            cli,
+            UDP_DEMO_TARGET_NAME.to_string(),
+            udp_demo_export(base),
+        );
     }
 }
 

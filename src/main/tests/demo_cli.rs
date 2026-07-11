@@ -4,6 +4,7 @@ use super::{
     protocol_fixture_path, run_binding_demo, scan_targets_for_cli,
 };
 use crate::helpers::scan_targets_from_set_file;
+use crate::serve_runtime::SOCKET_SESSION_TARGET_NAME;
 use gewyvern::dsl::compile_file;
 use gewyvern::flow::ProgramOperation;
 use std::fs;
@@ -360,6 +361,23 @@ fn protocol_selector_uses_default_entry_in_target_label_when_entry_is_omitted() 
     );
     assert_eq!(outputs.len(), 1);
     assert_eq!(outputs[0].0, "scan:mysql:session");
+}
+
+#[test]
+fn dsl_selector_falls_back_to_runtime_target_name_for_unknown_template() {
+    let cli = Cli::from_args([
+        "--dsl".to_string(),
+        dsl_fixture_path("udp_process_debug.gewy"),
+    ])
+    .unwrap();
+    let outputs = collect_cli_outputs(
+        &cli,
+        SystemTime::UNIX_EPOCH,
+        &[],
+        crate::UiLocale::detect(),
+    );
+    assert_eq!(outputs.len(), 1);
+    assert_eq!(outputs[0].0, SOCKET_SESSION_TARGET_NAME);
 }
 
 #[test]

@@ -1,4 +1,7 @@
 use super::*;
+use crate::serve_runtime::SOCKET_SESSION_TARGET_NAME;
+
+const UNCLUSTERED_TARGET_NAME: &str = SOCKET_SESSION_TARGET_NAME;
 
 #[test]
 fn capabilities_advertise_runtime_cluster_overview_surface() {
@@ -68,7 +71,7 @@ fn runtime_cluster_overview_groups_targets_by_protocol_cluster() {
                 report_html: String::new(),
             },
             ApiRenderedTarget {
-                name: "dsl_demo".into(),
+                name: UNCLUSTERED_TARGET_NAME.into(),
                 primary_module_family: "request-response".into(),
                 evidence_posture: "direct_protocol_signal".into(),
                 automation_outcome: "targeted_escalation".into(),
@@ -111,7 +114,7 @@ fn runtime_cluster_overview_groups_targets_by_protocol_cluster() {
     assert!(body.contains("\"key\":\"cache-queue-stream\""));
     assert!(body.contains("\"name\":\"scan:http:request\""));
     assert!(body.contains("\"name\":\"scan:redis:zadd\""));
-    assert!(body.contains("\"name\":\"dsl_demo\""));
+    assert!(body.contains(format!("\"name\":\"{UNCLUSTERED_TARGET_NAME}\"").as_str()));
     assert!(body.contains("\"sidecar_context_count\":1"));
     assert!(body.contains("\"capability_profile_count\":1"));
     assert!(body.contains("\"external_capability_status\":\"verified\""));
@@ -171,7 +174,7 @@ fn runtime_cluster_attention_rollup_prioritizes_clusters_and_targets() {
                 report_html: String::new(),
             },
             ApiRenderedTarget {
-                name: "dsl_demo".into(),
+                name: UNCLUSTERED_TARGET_NAME.into(),
                 primary_module_family: "request-response".into(),
                 evidence_posture: "direct_protocol_signal".into(),
                 automation_outcome: "targeted_escalation".into(),
@@ -218,7 +221,7 @@ fn runtime_cluster_attention_rollup_prioritizes_clusters_and_targets() {
     assert!(body.contains("\"reason_tags\":[\"automation.manual_review\",\"sidecar.unverified\",\"capability.unavailable\"]"));
     assert!(body.contains("\"runtime_policy_reasons\":["));
     assert!(body.contains("\"reason_catalog\":["));
-    assert!(body.contains("\"name\":\"dsl_demo\""));
+    assert!(body.contains(format!("\"name\":\"{UNCLUSTERED_TARGET_NAME}\"").as_str()));
 }
 
 #[test]
@@ -298,7 +301,7 @@ fn runtime_cluster_attention_summary_compacts_cluster_card_data() {
                 report_html: String::new(),
             },
             ApiRenderedTarget {
-                name: "dsl_demo".into(),
+                name: UNCLUSTERED_TARGET_NAME.into(),
                 primary_module_family: "request-response".into(),
                 evidence_posture: "direct_protocol_signal".into(),
                 automation_outcome: "targeted_escalation".into(),
