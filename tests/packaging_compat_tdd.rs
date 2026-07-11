@@ -32,6 +32,18 @@ fn package_layout_writes_compat_manifest() {
     assert!(build_script.contains("build_rpm \"${version}\" \"${rpm_arch}\" \"${stage_root}\" &"));
     assert!(build_script.contains("local stage_root=\"$3\""));
     assert!(build_script.contains("GEWY_TEMPLATE_STAGE_ROOT=\"${stage_root}\""));
+    assert!(build_script.contains("SOURCE_DATE_EPOCH_VALUE=\"$(resolve_source_date_epoch)\""));
+    assert!(build_script.contains("export SOURCE_DATE_EPOCH=\"${SOURCE_DATE_EPOCH_VALUE}\""));
+    assert!(build_script.contains("normalize_stage_timestamps()"));
+    assert!(build_script.contains("os.utime(path, (epoch, epoch), follow_symlinks=False)"));
+    assert!(build_script.contains("Path(sys.argv[1]).stat().st_mtime"));
+    assert!(build_script.contains("build-cache-key.txt"));
+    assert!(build_script.contains("compute_package_cache_key()"));
+    assert!(build_script.contains("can_reuse_cached_packages()"));
+    assert!(build_script.contains("reusing cached package artifacts..."));
+    assert!(build_script.contains("write_cache_key"));
+    assert!(build_script.contains("--define \"use_source_date_epoch_as_buildtime 1\""));
+    assert!(build_script.contains("--define \"clamp_mtime_to_source_date_epoch 1\""));
 }
 
 #[test]
@@ -90,6 +102,7 @@ fn docs_record_the_install_compatibility_contract() {
     assert!(packaging.contains("GEWY_RELEASE_LINE"));
     assert!(packaging.contains("GEWY_LAYOUT_VERSION"));
     assert!(packaging.contains("GEWY_CONFIG_SCHEMA_VERSION"));
+    assert!(packaging.contains("SOURCE_DATE_EPOCH"));
     assert!(packaging.contains("GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS"));
     assert!(packaging.contains("local `rpm -Uvh` first"));
     assert!(layout.contains("read-only layout marker"));

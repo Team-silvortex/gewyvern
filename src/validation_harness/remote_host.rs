@@ -1,9 +1,13 @@
 use std::env;
+use std::ffi::OsString;
 use std::fs;
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use serde_json::json;
 
@@ -36,6 +40,7 @@ pub fn run_remote_linux_host_validation(
 ) -> Result<ValidationReport, ValidationError> {
     require_cmd("ssh")?;
     require_cmd("rsync")?;
+    ensure_ssh_control_master(&options.host)?;
     let admin_auth = remote_ebpf_admin_auth()?;
 
     let out_dir = default_out_dir("remote-linux-host-validation");
@@ -72,8 +77,14 @@ pub fn run_remote_linux_host_validation(
         fs::write(out_dir.join("remote-preflight.txt"), preflight.render())?;
         let resolved_remote_path = resolve_remote_workspace_path(&remote_path, &preflight.home_dir);
         let remote_source_cache = remote_source_cache_dir(&preflight.home_dir);
+        let validation_workspace = remote_source_cache.clone();
         let remote_source_cache_quoted = shell_single_quote(&remote_source_cache);
-        let remote_path_quoted = shell_single_quote(&resolved_remote_path);
+        let remote_parent_dir = Path::new(&resolved_remote_path)
+            .parent()
+            .and_then(|path| path.to_str())
+            .unwrap_or(&preflight.home_dir)
+            .to_string();
+        let remote_parent_dir_quoted = shell_single_quote(&remote_parent_dir);
         validation_log(format!(
             "[remote-host] resolved remote workspace: {}",
             resolved_remote_path
@@ -92,7 +103,7 @@ pub fn run_remote_linux_host_validation(
         measure_phase(&mut phase_timings, "remote_workspace_create", || {
             run_ssh_command(
                 &options.host,
-                &format!("mkdir -p {remote_source_cache_quoted} {remote_path_quoted}"),
+                &format!("mkdir -p {remote_source_cache_quoted} {remote_parent_dir_quoted}"),
                 "failed to create remote workspace roots",
             )
         })?;
@@ -100,7 +111,8 @@ pub fn run_remote_linux_host_validation(
         validation_log("[remote-host] ----------------------------------------");
         validation_log("[remote-host] syncing current workspace into remote source cache");
         measure_phase(&mut phase_timings, "workspace_sync", || {
-            sync_workspace(&options.host, &remote_source_cache)
+            let workspace_sync_key = compute_local_workspace_sync_key()?;
+            sync_workspace(&options.host, &remote_source_cache, &workspace_sync_key)
         })?;
 
         validation_log("[remote-host] ----------------------------------------");
@@ -121,7 +133,7 @@ pub fn run_remote_linux_host_validation(
                 run_ssh_command(
                     &options.host,
                     &format!(
-                        "mkdir -p {target_dir} && cd {resolved_remote_path} && CARGO_TARGET_DIR={target_dir} ./scripts/packaging/build_packages.sh --format all"
+                        "mkdir -p {target_dir} && cd {validation_workspace} && CARGO_TARGET_DIR={target_dir} ./scripts/packaging/build_packages.sh --format all"
                     ),
                     "remote package build failed",
                 )
@@ -135,12 +147,20 @@ pub fn run_remote_linux_host_validation(
         validation_log("[remote-host] verifying remote package artifacts");
         let artifact_manifest =
             measure_phase(&mut phase_timings, "remote_artifact_verify", || {
-                collect_remote_artifact_manifest(&options.host, &remote_path)
+                collect_remote_artifact_manifest(&options.host, &validation_workspace)
             })?;
         fs::write(
             out_dir.join("remote-artifacts.txt"),
             artifact_manifest.render(),
         )?;
+        if options.build_packages {
+            if let Ok(timings) =
+                collect_remote_package_build_timings(&options.host, &validation_workspace)
+            {
+                fs::write(out_dir.join("remote-package-build-timings.txt"), timings)?;
+                checks.push("remote_package_build_timings".to_string());
+            }
+        }
         checks.push("remote_artifacts_present".to_string());
 
         validation_log("[remote-host] ----------------------------------------");
@@ -148,31 +168,43 @@ pub fn run_remote_linux_host_validation(
         measure_phase(&mut phase_timings, "remote_package_smoke", || {
             run_ssh_script(
                 &options.host,
-                &format!("cd {resolved_remote_path} && bash -s"),
+                &format!("cd {validation_workspace} && bash -s"),
                 &remote_package_smoke_script(&release_line),
                 "remote package smoke failed",
             )
         })?;
         checks.push("remote_package_smoke".to_string());
+        if let Ok(timings) =
+            collect_remote_package_smoke_timings(&options.host, &validation_workspace)
+        {
+            fs::write(out_dir.join("remote-package-smoke-timings.txt"), timings)?;
+            checks.push("remote_package_smoke_timings".to_string());
+        }
 
         validation_log("[remote-host] ----------------------------------------");
         validation_log("[remote-host] running remote runtime smoke");
         measure_phase(&mut phase_timings, "remote_runtime_smoke", || {
             run_ssh_script(
                 &options.host,
-                &format!("cd {resolved_remote_path} && bash -s"),
+                &format!("cd {validation_workspace} && bash -s"),
                 REMOTE_RUNTIME_SMOKE_SCRIPT,
                 "remote runtime smoke failed",
             )
         })?;
         checks.push("remote_runtime_smoke".to_string());
+        if let Ok(timings) =
+            collect_remote_runtime_smoke_timings(&options.host, &validation_workspace)
+        {
+            fs::write(out_dir.join("remote-runtime-smoke-timings.txt"), timings)?;
+            checks.push("remote_runtime_smoke_timings".to_string());
+        }
 
         validation_log("[remote-host] ----------------------------------------");
         validation_log("[remote-host] collecting remote eBPF smoke evidence");
         let ebpf_evidence = measure_phase(&mut phase_timings, "remote_ebpf_smoke", || {
             collect_remote_ebpf_evidence(
                 &options.host,
-                &resolved_remote_path,
+                &validation_workspace,
                 &preflight,
                 admin_auth.as_ref(),
             )
@@ -183,7 +215,7 @@ pub fn run_remote_linux_host_validation(
             measure_phase(&mut phase_timings, "remote_ebpf_evidence_sync", || {
                 sync_remote_ebpf_evidence(
                     &options.host,
-                    &resolved_remote_path,
+                    &validation_workspace,
                     &preflight.home_dir,
                     &out_dir,
                 )
@@ -246,6 +278,14 @@ pub fn run_remote_linux_host_validation(
             checks,
         })
     })();
+
+    let close_master_result = close_ssh_control_master(&options.host);
+    if let Err(err) = &close_master_result {
+        validation_log(format!(
+            "[remote-host] ssh control master cleanup skipped: {}",
+            err
+        ));
+    }
 
     result.map_err(|err: ValidationError| {
         ValidationError::new(format!(
@@ -475,16 +515,139 @@ fn remote_source_cache_dir(home_dir: &str) -> String {
     format!("{home_dir}/.cache/gewyvern/remote-source")
 }
 
-fn sync_workspace(host: &str, remote_path: &str) -> Result<(), ValidationError> {
+fn ssh_control_path_template() -> String {
+    "/tmp/gwy-ssh-%C".to_string()
+}
+
+fn ssh_batch_mode_args() -> Vec<OsString> {
+    vec![
+        OsString::from("-o"),
+        OsString::from("BatchMode=yes"),
+        OsString::from("-o"),
+        OsString::from("ControlMaster=auto"),
+        OsString::from("-o"),
+        OsString::from("ControlPersist=60"),
+        OsString::from("-o"),
+        OsString::from(format!("ControlPath={}", ssh_control_path_template())),
+    ]
+}
+
+fn ssh_password_mode_args() -> Vec<OsString> {
+    vec![
+        OsString::from("-o"),
+        OsString::from("StrictHostKeyChecking=no"),
+        OsString::from("-o"),
+        OsString::from("PreferredAuthentications=password"),
+        OsString::from("-o"),
+        OsString::from("PubkeyAuthentication=no"),
+        OsString::from("-o"),
+        OsString::from("ControlMaster=auto"),
+        OsString::from("-o"),
+        OsString::from("ControlPersist=60"),
+        OsString::from("-o"),
+        OsString::from(format!("ControlPath={}", ssh_control_path_template())),
+    ]
+}
+
+fn rsync_ssh_command() -> String {
+    format!(
+        "ssh -o BatchMode=yes -o ControlMaster=auto -o ControlPersist=60 -o ControlPath={}",
+        ssh_control_path_template()
+    )
+}
+
+fn ensure_ssh_control_master(host: &str) -> Result<(), ValidationError> {
+    let control_path = ssh_control_path_template();
+    let check_status = Command::new("ssh")
+        .arg("-O")
+        .arg("check")
+        .arg("-o")
+        .arg(format!("ControlPath={control_path}"))
+        .arg(host)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    if let Ok(status) = check_status {
+        if status.success() {
+            return Ok(());
+        }
+    }
+
+    let status = Command::new("ssh")
+        .arg("-fN")
+        .arg("-o")
+        .arg("BatchMode=yes")
+        .arg("-o")
+        .arg("ControlMaster=yes")
+        .arg("-o")
+        .arg("ControlPersist=60")
+        .arg("-o")
+        .arg(format!("ControlPath={control_path}"))
+        .arg(host)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit())
+        .status()
+        .map_err(|err| {
+            ValidationError::new(format!("failed to establish ssh control master: {err}"))
+        })?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(ValidationError::new(format!(
+            "failed to establish ssh control master: ssh exited with status {status}"
+        )))
+    }
+}
+
+fn close_ssh_control_master(host: &str) -> Result<(), ValidationError> {
+    let control_path = ssh_control_path_template();
+    let status = Command::new("ssh")
+        .arg("-O")
+        .arg("exit")
+        .arg("-o")
+        .arg(format!("ControlPath={control_path}"))
+        .arg(host)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map_err(|err| {
+            ValidationError::new(format!("failed to close ssh control master: {err}"))
+        })?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(ValidationError::new(format!(
+            "failed to close ssh control master: ssh exited with status {status}"
+        )))
+    }
+}
+
+fn sync_workspace(
+    host: &str,
+    remote_path: &str,
+    workspace_sync_key: &str,
+) -> Result<(), ValidationError> {
+    if remote_workspace_sync_key_matches(host, remote_path, workspace_sync_key)? {
+        validation_log("[remote-host] workspace sync cache hit; skipping rsync");
+        return Ok(());
+    }
+
     let root = repo_root();
     let mut command = Command::new("rsync");
     command
         .arg("-az")
         .arg("--delete")
+        .arg("-e")
+        .arg(rsync_ssh_command())
         .arg("--exclude")
         .arg(".git/")
         .arg("--exclude")
         .arg("target/")
+        .arg("--exclude")
+        .arg(".gewy-workspace-sync-key")
         .arg("--exclude")
         .arg("node_modules/")
         .arg("--exclude")
@@ -507,12 +670,533 @@ fn sync_workspace(host: &str, remote_path: &str) -> Result<(), ValidationError> 
         .status()
         .map_err(|err| ValidationError::new(format!("failed to launch rsync: {err}")))?;
     if status.success() {
-        Ok(())
+        write_remote_workspace_sync_key(host, remote_path, workspace_sync_key)
     } else {
         Err(ValidationError::new(format!(
             "rsync failed with status {status}"
         )))
     }
+}
+
+fn remote_workspace_sync_key_matches(
+    host: &str,
+    remote_path: &str,
+    workspace_sync_key: &str,
+) -> Result<bool, ValidationError> {
+    let remote_path = shell_single_quote(remote_path);
+    let workspace_sync_key = shell_single_quote(workspace_sync_key);
+    let status = Command::new("ssh")
+        .args(ssh_batch_mode_args())
+        .arg(host)
+        .arg(format!(
+            "[ -f {remote_path}/.gewy-workspace-sync-key ] && [ \"$(cat {remote_path}/.gewy-workspace-sync-key)\" = {workspace_sync_key} ]"
+        ))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit())
+        .status()
+        .map_err(|err| {
+            ValidationError::new(format!(
+                "failed to probe remote workspace sync key: {err}"
+            ))
+        })?;
+    Ok(status.success())
+}
+
+fn write_remote_workspace_sync_key(
+    host: &str,
+    remote_path: &str,
+    workspace_sync_key: &str,
+) -> Result<(), ValidationError> {
+    let remote_path = shell_single_quote(remote_path);
+    let workspace_sync_key = shell_single_quote(workspace_sync_key);
+    run_ssh_command(
+        host,
+        &format!("printf '%s\\n' {workspace_sync_key} > {remote_path}/.gewy-workspace-sync-key"),
+        "failed to write remote workspace sync key",
+    )
+}
+
+fn compute_local_workspace_sync_key() -> Result<String, ValidationError> {
+    let root = repo_root();
+    if let Some(git_key) = compute_git_workspace_sync_key(&root)? {
+        return Ok(git_key);
+    }
+
+    let mut child = Command::new("python3")
+        .arg("-")
+        .arg(root.as_os_str())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|err| ValidationError::new(format!("failed to launch python3: {err}")))?;
+
+    {
+        let stdin = child.stdin.as_mut().ok_or_else(|| {
+            ValidationError::new("failed to open python3 stdin for workspace sync key")
+        })?;
+        stdin
+            .write_all(
+                br#"from pathlib import Path
+import hashlib
+import os
+import sys
+
+root = Path(sys.argv[1])
+hash_obj = hashlib.sha256()
+dir_excludes = {".git", "target", "node_modules", "tests", "__pycache__"}
+file_excludes = {".DS_Store", ".gewy-workspace-sync-key"}
+
+for current_root, dir_names, file_names in os.walk(root):
+    rel_root = Path(current_root).relative_to(root)
+    dir_names[:] = sorted(
+        name for name in dir_names
+        if name not in dir_excludes
+        and not (name == "obj" and "apps" in rel_root.parts)
+        and not (name == "bin" and "apps" in rel_root.parts)
+    )
+    for file_name in sorted(file_names):
+        if file_name in file_excludes:
+            continue
+        file_path = Path(current_root) / file_name
+        relative = file_path.relative_to(root)
+        if "__pycache__" in relative.parts:
+            continue
+        if len(relative.parts) >= 3 and relative.parts[0] == "apps" and relative.parts[-2] in {"obj", "bin"}:
+            continue
+        hash_obj.update(str(relative).encode("utf-8"))
+        hash_obj.update(b"\0")
+        stat = file_path.stat()
+        hash_obj.update(oct(stat.st_mode).encode("utf-8"))
+        hash_obj.update(b"\0")
+        with file_path.open("rb") as handle:
+            while True:
+                chunk = handle.read(1024 * 1024)
+                if not chunk:
+                    break
+                hash_obj.update(chunk)
+
+print(hash_obj.hexdigest())
+"#,
+            )
+            .map_err(|err| {
+                ValidationError::new(format!(
+                    "failed to write workspace sync key script to python3: {err}"
+                ))
+            })?;
+    }
+
+    let output = child.wait_with_output().map_err(|err| {
+        ValidationError::new(format!("failed to read workspace sync key output: {err}"))
+    })?;
+    if !output.status.success() {
+        return Err(ValidationError::new(format!(
+            "workspace sync key computation failed with status {}",
+            output.status
+        )));
+    }
+    let key = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if key.is_empty() {
+        return Err(ValidationError::new(
+            "workspace sync key computation returned an empty key",
+        ));
+    }
+    Ok(key)
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct LocalWorkspaceSyncCache {
+    head: String,
+    key: String,
+    changes: Vec<String>,
+    files: BTreeMap<String, LocalWorkspaceSyncCacheFile>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct LocalWorkspaceSyncCacheFile {
+    mode: u32,
+    size: u64,
+    modified_unix_nanos: u128,
+}
+
+fn local_workspace_sync_cache_path() -> PathBuf {
+    repo_root()
+        .join("target")
+        .join("validation")
+        .join("remote-linux-host-validation")
+        .join("local-workspace-sync-key-cache.txt")
+}
+
+fn file_metadata_fingerprint(
+    path: &Path,
+) -> Result<Option<LocalWorkspaceSyncCacheFile>, ValidationError> {
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => {
+            return Err(ValidationError::new(format!(
+                "failed to read workspace sync cache metadata for {}: {err}",
+                path.display()
+            )));
+        }
+    };
+    let modified = metadata.modified().map_err(|err| {
+        ValidationError::new(format!(
+            "failed to read workspace sync cache mtime for {}: {err}",
+            path.display()
+        ))
+    })?;
+    let modified_unix_nanos = modified
+        .duration_since(UNIX_EPOCH)
+        .map_err(|err| {
+            ValidationError::new(format!(
+                "workspace sync cache mtime is before unix epoch for {}: {err}",
+                path.display()
+            ))
+        })?
+        .as_nanos();
+    #[cfg(unix)]
+    let mode = {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode()
+    };
+    #[cfg(not(unix))]
+    let mode = 0;
+    Ok(Some(LocalWorkspaceSyncCacheFile {
+        mode,
+        size: metadata.len(),
+        modified_unix_nanos,
+    }))
+}
+
+fn collect_local_workspace_sync_cache_files(
+    root: &Path,
+    relevant_changes: &[String],
+) -> Result<BTreeMap<String, LocalWorkspaceSyncCacheFile>, ValidationError> {
+    let mut files = BTreeMap::new();
+    for change in relevant_changes {
+        let Some(path) = parse_git_status_path(change) else {
+            continue;
+        };
+        let file_path = root.join(path);
+        if let Some(metadata) = file_metadata_fingerprint(&file_path)? {
+            files.insert(path.to_string(), metadata);
+        }
+    }
+    Ok(files)
+}
+
+fn read_local_workspace_sync_cache() -> Result<Option<LocalWorkspaceSyncCache>, ValidationError> {
+    let path = local_workspace_sync_cache_path();
+    let content = match fs::read_to_string(&path) {
+        Ok(content) => content,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => {
+            return Err(ValidationError::new(format!(
+                "failed to read local workspace sync cache {}: {err}",
+                path.display()
+            )));
+        }
+    };
+
+    let mut head = None;
+    let mut key = None;
+    let mut changes = Vec::new();
+    let mut files = BTreeMap::new();
+    for line in content.lines() {
+        if let Some(value) = line.strip_prefix("head=") {
+            head = Some(value.to_string());
+            continue;
+        }
+        if let Some(value) = line.strip_prefix("key=") {
+            key = Some(value.to_string());
+            continue;
+        }
+        if let Some(value) = line.strip_prefix("change=") {
+            changes.push(value.to_string());
+            continue;
+        }
+        if let Some(value) = line.strip_prefix("file=") {
+            let mut parts = value.splitn(4, '\t');
+            let Some(path) = parts.next() else {
+                continue;
+            };
+            let Some(mode) = parts.next() else {
+                continue;
+            };
+            let Some(size) = parts.next() else {
+                continue;
+            };
+            let Some(modified_unix_nanos) = parts.next() else {
+                continue;
+            };
+            let mode = mode.parse::<u32>().map_err(|err| {
+                ValidationError::new(format!(
+                    "failed to parse workspace sync cache mode for {path}: {err}"
+                ))
+            })?;
+            let size = size.parse::<u64>().map_err(|err| {
+                ValidationError::new(format!(
+                    "failed to parse workspace sync cache size for {path}: {err}"
+                ))
+            })?;
+            let modified_unix_nanos = modified_unix_nanos.parse::<u128>().map_err(|err| {
+                ValidationError::new(format!(
+                    "failed to parse workspace sync cache mtime for {path}: {err}"
+                ))
+            })?;
+            files.insert(
+                path.to_string(),
+                LocalWorkspaceSyncCacheFile {
+                    mode,
+                    size,
+                    modified_unix_nanos,
+                },
+            );
+        }
+    }
+
+    match (head, key) {
+        (Some(head), Some(key)) => Ok(Some(LocalWorkspaceSyncCache {
+            head,
+            key,
+            changes,
+            files,
+        })),
+        _ => Ok(None),
+    }
+}
+
+fn write_local_workspace_sync_cache(
+    cache: &LocalWorkspaceSyncCache,
+) -> Result<(), ValidationError> {
+    let path = local_workspace_sync_cache_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut content = String::new();
+    content.push_str("head=");
+    content.push_str(&cache.head);
+    content.push('\n');
+    content.push_str("key=");
+    content.push_str(&cache.key);
+    content.push('\n');
+    for change in &cache.changes {
+        content.push_str("change=");
+        content.push_str(change);
+        content.push('\n');
+    }
+    for (path, metadata) in &cache.files {
+        content.push_str("file=");
+        content.push_str(path);
+        content.push('\t');
+        content.push_str(&metadata.mode.to_string());
+        content.push('\t');
+        content.push_str(&metadata.size.to_string());
+        content.push('\t');
+        content.push_str(&metadata.modified_unix_nanos.to_string());
+        content.push('\n');
+    }
+    fs::write(&path, content).map_err(|err| {
+        ValidationError::new(format!(
+            "failed to write local workspace sync cache {}: {err}",
+            path.display()
+        ))
+    })
+}
+
+fn try_reuse_dirty_workspace_sync_key_cache(
+    root: &Path,
+    head: &str,
+    relevant_changes: &[String],
+) -> Result<Option<String>, ValidationError> {
+    let Some(cache) = read_local_workspace_sync_cache()? else {
+        return Ok(None);
+    };
+    if cache.head != head || cache.changes != relevant_changes {
+        return Ok(None);
+    }
+    let current_files = collect_local_workspace_sync_cache_files(root, relevant_changes)?;
+    if cache.files != current_files {
+        return Ok(None);
+    }
+    Ok(Some(cache.key))
+}
+
+fn compute_git_workspace_sync_key(root: &Path) -> Result<Option<String>, ValidationError> {
+    let head = Command::new("git")
+        .args(["-C"])
+        .arg(root)
+        .args(["rev-parse", "HEAD"])
+        .output();
+    let Ok(head) = head else {
+        return Ok(None);
+    };
+    if !head.status.success() {
+        return Ok(None);
+    }
+    let head = String::from_utf8_lossy(&head.stdout).trim().to_string();
+    if head.is_empty() {
+        return Ok(None);
+    }
+
+    let status = Command::new("git")
+        .args(["-C"])
+        .arg(root)
+        .args(["status", "--porcelain=v1", "--untracked-files=all"])
+        .output()
+        .map_err(|err| {
+            ValidationError::new(format!("failed to read git workspace status: {err}"))
+        })?;
+    if !status.status.success() {
+        return Ok(None);
+    }
+
+    let relevant_changes = String::from_utf8_lossy(&status.stdout)
+        .lines()
+        .filter(|line| parse_git_status_path(line).is_some_and(is_relevant_workspace_path))
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+    if relevant_changes.is_empty() {
+        Ok(Some(format!("git:{head}")))
+    } else {
+        if let Some(cache_key) =
+            try_reuse_dirty_workspace_sync_key_cache(root, &head, &relevant_changes)?
+        {
+            return Ok(Some(cache_key));
+        }
+        let key = compute_dirty_git_workspace_sync_key(root, &head, &relevant_changes)?;
+        let files = collect_local_workspace_sync_cache_files(root, &relevant_changes)?;
+        write_local_workspace_sync_cache(&LocalWorkspaceSyncCache {
+            head,
+            key: key.clone(),
+            changes: relevant_changes,
+            files,
+        })?;
+        Ok(Some(key))
+    }
+}
+
+fn compute_dirty_git_workspace_sync_key(
+    root: &Path,
+    head: &str,
+    relevant_changes: &[String],
+) -> Result<String, ValidationError> {
+    let mut child = Command::new("python3")
+        .arg("-c")
+        .arg(
+            r#"from pathlib import Path
+import hashlib
+import sys
+
+root = Path(sys.argv[1])
+head = sys.argv[2]
+hash_obj = hashlib.sha256()
+hash_obj.update(f"git:{head}\0".encode("utf-8"))
+
+for raw_line in sys.stdin.read().splitlines():
+    if len(raw_line) < 4:
+        continue
+    status = raw_line[:2]
+    path = raw_line[3:]
+    if " -> " in path:
+        path = path.rsplit(" -> ", 1)[1]
+    file_path = root / path
+    hash_obj.update(status.encode("utf-8"))
+    hash_obj.update(b"\0")
+    hash_obj.update(path.encode("utf-8"))
+    hash_obj.update(b"\0")
+    if file_path.exists():
+        stat = file_path.stat()
+        hash_obj.update(oct(stat.st_mode).encode("utf-8"))
+        hash_obj.update(b"\0")
+        with file_path.open("rb") as handle:
+            while True:
+                chunk = handle.read(1024 * 1024)
+                if not chunk:
+                    break
+                hash_obj.update(chunk)
+
+print("git-dirty:" + hash_obj.hexdigest())
+"#,
+        )
+        .arg(root.as_os_str())
+        .arg(head)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|err| {
+            ValidationError::new(format!(
+                "failed to launch python3 for dirty git workspace sync key: {err}"
+            ))
+        })?;
+
+    {
+        let stdin = child.stdin.as_mut().ok_or_else(|| {
+            ValidationError::new("failed to open python3 stdin for dirty git workspace sync key")
+        })?;
+        stdin
+            .write_all(relevant_changes.join("\n").as_bytes())
+            .map_err(|err| {
+                ValidationError::new(format!(
+                    "failed to write dirty git workspace changes to python3: {err}"
+                ))
+            })?;
+    }
+
+    let output = child.wait_with_output().map_err(|err| {
+        ValidationError::new(format!(
+            "failed to read dirty git workspace sync key output: {err}"
+        ))
+    })?;
+    if !output.status.success() {
+        return Err(ValidationError::new(format!(
+            "dirty git workspace sync key computation failed with status {}",
+            output.status
+        )));
+    }
+    let key = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if key.is_empty() {
+        return Err(ValidationError::new(
+            "dirty git workspace sync key computation returned an empty key",
+        ));
+    }
+    Ok(key)
+}
+
+fn parse_git_status_path(line: &str) -> Option<&str> {
+    if line.len() < 4 {
+        return None;
+    }
+    let path = &line[3..];
+    Some(path.rsplit(" -> ").next().unwrap_or(path))
+}
+
+fn is_relevant_workspace_path(path: &str) -> bool {
+    if path.is_empty() {
+        return false;
+    }
+    if path == ".DS_Store" || path == ".gewy-workspace-sync-key" {
+        return false;
+    }
+    if path == "target" || path.starts_with("target/") {
+        return false;
+    }
+    if path == "tests" || path.starts_with("tests/") {
+        return false;
+    }
+    if path == "node_modules" || path.starts_with("node_modules/") {
+        return false;
+    }
+    if path.ends_with("/__pycache__") || path.contains("/__pycache__/") {
+        return false;
+    }
+    if path.starts_with("apps/") && (path.contains("/obj/") || path.contains("/bin/")) {
+        return false;
+    }
+    true
 }
 
 fn materialize_remote_workspace(
@@ -524,8 +1208,8 @@ fn materialize_remote_workspace(
     let remote_path = shell_single_quote(remote_path);
     run_ssh_command(
         host,
-        &format!("rsync -a --delete {remote_source_cache}/ {remote_path}/"),
-        "failed to materialize remote workspace from source cache",
+        &format!("ln -sfn {remote_source_cache} {remote_path}"),
+        "failed to point remote workspace at source cache",
     )
 }
 
@@ -543,6 +1227,8 @@ fn sync_remote_ebpf_evidence(
     let status = Command::new("rsync")
         .arg("-az")
         .arg("--delete")
+        .arg("-e")
+        .arg(rsync_ssh_command())
         .arg(&remote_evidence_root)
         .arg(format!("{}/", local_evidence_root.display()))
         .stdin(Stdio::null())
@@ -565,7 +1251,9 @@ fn sync_remote_ebpf_evidence(
 
 fn run_ssh_command(host: &str, command: &str, context: &str) -> Result<(), ValidationError> {
     let status = Command::new("ssh")
-        .args(["-o", "BatchMode=yes", host, command])
+        .args(ssh_batch_mode_args())
+        .arg(host)
+        .arg(command)
         .stdin(Stdio::null())
         .stdout(validation_command_stdout())
         .stderr(Stdio::inherit())
@@ -587,7 +1275,9 @@ fn run_ssh_script(
     context: &str,
 ) -> Result<(), ValidationError> {
     let mut child = Command::new("ssh")
-        .args(["-o", "BatchMode=yes", host, command])
+        .args(ssh_batch_mode_args())
+        .arg(host)
+        .arg(command)
         .stdin(Stdio::piped())
         .stdout(validation_command_stdout())
         .stderr(Stdio::inherit())
@@ -877,6 +1567,9 @@ cd {workspace_path}
 mkdir -p target/validation/remote-ebpf
 mkdir -p {target_dir}
 CURRENT_PATH="$PATH"
+if command -v ld.lld >/dev/null 2>&1; then
+  export RUSTFLAGS="${{RUSTFLAGS:-}} -C link-arg=-fuse-ld=lld"
+fi
 if [ ! -x {validate_bin} ]; then
   CARGO_TARGET_DIR={target_dir} cargo build --quiet --release --bin gewyvern_validate
 fi
@@ -902,6 +1595,9 @@ printf '%s\n' {admin_password} | sudo -S -p '' -k bash -lc '
   export HOME="{home_dir}"
   export CARGO_HOME="{home_dir}/.cargo"
   export RUSTUP_HOME="{home_dir}/.rustup"
+  if command -v ld.lld >/dev/null 2>&1; then
+    export RUSTFLAGS="${{RUSTFLAGS:-}} -C link-arg=-fuse-ld=lld"
+  fi
   mkdir -p "{target_dir}"
   export CARGO_TARGET_DIR="{target_dir}"
   cd "'"$WORKDIR"'"
@@ -947,18 +1643,12 @@ fn collect_remote_artifact_manifest(
     let script = format!(
         r#"set -euo pipefail
 cd {remote_path}
-DEB=$(find target/packages -maxdepth 1 -name 'gewyvern_*_amd64.deb' | sort | tail -n 1)
-RPM=$(find target/packages/rpm -maxdepth 1 -name 'gewyvern-*.x86_64.rpm' | sort | tail -n 1)
-[ -n "$DEB" ] || {{
-  echo "missing remote deb artifact under target/packages" >&2
-  exit 21
+MANIFEST=target/packages/build-manifest.txt
+[ -f "$MANIFEST" ] || {{
+  echo "missing remote package manifest under target/packages/build-manifest.txt" >&2
+  exit 20
 }}
-[ -n "$RPM" ] || {{
-  echo "missing remote rpm artifact under target/packages/rpm" >&2
-  exit 22
-}}
-printf 'deb=%s\n' "$DEB"
-printf 'rpm=%s\n' "$RPM"
+cat "$MANIFEST"
 "#
     );
     let output = run_ssh_script_capture(
@@ -968,6 +1658,60 @@ printf 'rpm=%s\n' "$RPM"
         "remote artifact verification failed; rerun without --skip-build or reuse a populated --remote-dir",
     )?;
     parse_remote_artifact_manifest(&output)
+}
+
+fn collect_remote_package_build_timings(
+    host: &str,
+    remote_path: &str,
+) -> Result<String, ValidationError> {
+    let script = format!(
+        r#"set -euo pipefail
+cd {remote_path}
+cat target/packages/build-timings.txt
+"#
+    );
+    run_ssh_script_capture(
+        host,
+        "bash -s",
+        &script,
+        "remote package build timings missing; rerun without --skip-build or inspect target/packages/build-timings.txt on the host",
+    )
+}
+
+fn collect_remote_package_smoke_timings(
+    host: &str,
+    remote_path: &str,
+) -> Result<String, ValidationError> {
+    let script = format!(
+        r#"set -euo pipefail
+cd {remote_path}
+cat target/packages/package-smoke-timings.txt
+"#
+    );
+    run_ssh_script_capture(
+        host,
+        "bash -s",
+        &script,
+        "remote package smoke timings missing; rerun the package smoke or inspect target/packages/package-smoke-timings.txt on the host",
+    )
+}
+
+fn collect_remote_runtime_smoke_timings(
+    host: &str,
+    remote_path: &str,
+) -> Result<String, ValidationError> {
+    let script = format!(
+        r#"set -euo pipefail
+cd {remote_path}
+cat target/packages/runtime-smoke-timings.txt
+"#
+    );
+    run_ssh_script_capture(
+        host,
+        "bash -s",
+        &script,
+        "remote runtime smoke timings missing; rerun the runtime smoke or inspect target/packages/runtime-smoke-timings.txt on the host",
+    )
 }
 
 fn parse_remote_artifact_manifest(output: &str) -> Result<RemoteArtifactManifest, ValidationError> {
@@ -1021,46 +1765,120 @@ fn shell_single_quote(value: &str) -> String {
 fn remote_package_smoke_script(release_line: &str) -> String {
     format!(
         r#"set -euo pipefail
-DEB=$(find target/packages -maxdepth 1 -name 'gewyvern_*_amd64.deb' | sort | tail -n 1)
-RPM=$(find target/packages/rpm -maxdepth 1 -name 'gewyvern-*.x86_64.rpm' | sort | tail -n 1)
+MANIFEST=target/packages/build-manifest.txt
+DEB=$(awk -F= '/^deb=/{{print $2; exit}}' "$MANIFEST")
+RPM=$(awk -F= '/^rpm=/{{print $2; exit}}' "$MANIFEST")
+TIMINGS=target/packages/package-smoke-timings.txt
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-mkdir -p "$TMP/deb" "$TMP/rpm"
+DEB_ROOT="target/packages/.package-smoke/deb/$(basename "$DEB" .deb)"
+DEB_STAMP="$DEB_ROOT/.deb-sha256"
+RPM_ROOT="target/packages/.package-smoke/rpm/$(basename "$RPM" .rpm)"
+RPM_STAMP="$RPM_ROOT/.rpm-sha256"
+now_seconds() {{
+  date +%s.%N
+}}
+duration_seconds() {{
+  awk -v start="$1" -v end="$2" 'BEGIN {{ printf "%.3f", (end - start) }}'
+}}
+record_timing() {{
+  printf '%s=%s\n' "$1" "$2" >>"$TIMINGS"
+}}
+rm -f "$TIMINGS"
+DEB_LIST_STARTED=$(now_seconds)
 dpkg-deb -c "$DEB" > "$TMP/deb-contents.txt"
+record_timing deb_list_contents "$(duration_seconds "$DEB_LIST_STARTED" "$(now_seconds)")"
 grep -q './usr/share/doc/gewyvern/LICENSE' "$TMP/deb-contents.txt"
-dpkg-deb -x "$DEB" "$TMP/deb"
-"$TMP/deb/usr/bin/gewyvern" --list-protocols >/dev/null
-"$TMP/deb/usr/bin/gewyc" "$TMP/deb/usr/share/gewyvern/dsl/http_request_path.gewy" --json >/dev/null
-test -d "$TMP/deb/usr/share/gewyvern/dsl"
-test -d "$TMP/deb/usr/share/gewyvern/protocols"
-test -f "$TMP/deb/usr/share/gewyvern/package-compat.toml"
-grep -q '^schema_version = 1$' "$TMP/deb/usr/share/gewyvern/package-compat.toml"
-grep -q '^release_line = "{release_line}"$' "$TMP/deb/usr/share/gewyvern/package-compat.toml"
-test -f "$TMP/deb/usr/share/gewyvern/examples/gewyvern.toml.example"
+EXPECTED_DEB_SHA=$(sha256sum "$DEB" | awk '{{print $1}}')
+CURRENT_DEB_SHA=""
+if [ -f "$DEB_STAMP" ]; then
+  CURRENT_DEB_SHA=$(cat "$DEB_STAMP")
+fi
+if [ ! -x "$DEB_ROOT/usr/bin/gewyvern" ] || [ ! -x "$DEB_ROOT/usr/bin/gewyc" ] || [ "$CURRENT_DEB_SHA" != "$EXPECTED_DEB_SHA" ]; then
+  rm -rf "$DEB_ROOT"
+  mkdir -p "$DEB_ROOT"
+  DEB_UNPACK_STARTED=$(now_seconds)
+  dpkg-deb -x "$DEB" "$DEB_ROOT"
+  printf '%s\n' "$EXPECTED_DEB_SHA" >"$DEB_STAMP"
+  record_timing deb_unpack_cache_refresh "$(duration_seconds "$DEB_UNPACK_STARTED" "$(now_seconds)")"
+fi
+DEB_VERIFY_STARTED=$(now_seconds)
+"$DEB_ROOT/usr/bin/gewyvern" --list-protocols >/dev/null
+"$DEB_ROOT/usr/bin/gewyc" "$DEB_ROOT/usr/share/gewyvern/dsl/http_request_path.gewy" --json >/dev/null
+test -d "$DEB_ROOT/usr/share/gewyvern/dsl"
+test -d "$DEB_ROOT/usr/share/gewyvern/protocols"
+test -f "$DEB_ROOT/usr/share/gewyvern/package-compat.toml"
+grep -q '^schema_version = 1$' "$DEB_ROOT/usr/share/gewyvern/package-compat.toml"
+grep -q '^release_line = "{release_line}"$' "$DEB_ROOT/usr/share/gewyvern/package-compat.toml"
+test -f "$DEB_ROOT/usr/share/gewyvern/examples/gewyvern.toml.example"
+record_timing deb_verify "$(duration_seconds "$DEB_VERIFY_STARTED" "$(now_seconds)")"
+RPM_LIST_STARTED=$(now_seconds)
 rpm -qpl "$RPM" > "$TMP/rpm-contents.txt"
+record_timing rpm_list_contents "$(duration_seconds "$RPM_LIST_STARTED" "$(now_seconds)")"
 grep -q '/usr/share/doc/gewyvern/LICENSE' "$TMP/rpm-contents.txt"
-rpm2cpio "$RPM" | (cd "$TMP/rpm" && cpio -idmu --quiet)
-"$TMP/rpm/usr/bin/gewyvern" --list-protocols >/dev/null
-"$TMP/rpm/usr/bin/gewyc" "$TMP/rpm/usr/share/gewyvern/dsl/http_request_path.gewy" --json >/dev/null
-test -d "$TMP/rpm/usr/share/gewyvern/dsl"
-test -d "$TMP/rpm/usr/share/gewyvern/protocols"
-test -f "$TMP/rpm/usr/share/gewyvern/package-compat.toml"
-grep -q '^schema_version = 1$' "$TMP/rpm/usr/share/gewyvern/package-compat.toml"
-grep -q '^release_line = "{release_line}"$' "$TMP/rpm/usr/share/gewyvern/package-compat.toml"
-test -f "$TMP/rpm/usr/share/gewyvern/examples/gewyvern.toml.example"
+EXPECTED_RPM_SHA=$(sha256sum "$RPM" | awk '{{print $1}}')
+CURRENT_RPM_SHA=""
+if [ -f "$RPM_STAMP" ]; then
+  CURRENT_RPM_SHA=$(cat "$RPM_STAMP")
+fi
+if [ ! -x "$RPM_ROOT/usr/bin/gewyvern" ] || [ ! -x "$RPM_ROOT/usr/bin/gewyc" ] || [ "$CURRENT_RPM_SHA" != "$EXPECTED_RPM_SHA" ]; then
+  rm -rf "$RPM_ROOT"
+  mkdir -p "$RPM_ROOT"
+  RPM_UNPACK_STARTED=$(now_seconds)
+  rpm2cpio "$RPM" | (cd "$RPM_ROOT" && cpio -idmu --quiet)
+  printf '%s\n' "$EXPECTED_RPM_SHA" >"$RPM_STAMP"
+  record_timing rpm_unpack_cache_refresh "$(duration_seconds "$RPM_UNPACK_STARTED" "$(now_seconds)")"
+fi
+RPM_VERIFY_STARTED=$(now_seconds)
+"$RPM_ROOT/usr/bin/gewyvern" --list-protocols >/dev/null
+"$RPM_ROOT/usr/bin/gewyc" "$RPM_ROOT/usr/share/gewyvern/dsl/http_request_path.gewy" --json >/dev/null
+test -d "$RPM_ROOT/usr/share/gewyvern/dsl"
+test -d "$RPM_ROOT/usr/share/gewyvern/protocols"
+test -f "$RPM_ROOT/usr/share/gewyvern/package-compat.toml"
+grep -q '^schema_version = 1$' "$RPM_ROOT/usr/share/gewyvern/package-compat.toml"
+grep -q '^release_line = "{release_line}"$' "$RPM_ROOT/usr/share/gewyvern/package-compat.toml"
+test -f "$RPM_ROOT/usr/share/gewyvern/examples/gewyvern.toml.example"
+record_timing rpm_verify "$(duration_seconds "$RPM_VERIFY_STARTED" "$(now_seconds)")"
+record_timing total "$(duration_seconds "$DEB_LIST_STARTED" "$(now_seconds)")"
 echo 'remote package smoke: ok'
 "#
     )
 }
 
 const REMOTE_RUNTIME_SMOKE_SCRIPT: &str = r#"set -euo pipefail
-DEB=$(find target/packages -maxdepth 1 -name 'gewyvern_*_amd64.deb' | sort | tail -n 1)
+MANIFEST=target/packages/build-manifest.txt
+DEB=$(awk -F= '/^deb=/{{print $2; exit}}' "$MANIFEST")
+TIMINGS=target/packages/runtime-smoke-timings.txt
 TMP=$(mktemp -d)
 trap 'kill ${TCP_PID:-} ${UDP_PID:-} >/dev/null 2>&1 || true; wait ${TCP_PID:-} ${UDP_PID:-} >/dev/null 2>&1 || true; rm -rf "$TMP"' EXIT
-mkdir -p "$TMP/deb"
-dpkg-deb -x "$DEB" "$TMP/deb"
-GEWY="$TMP/deb/usr/bin/gewyvern"
-SEND="$TMP/deb/usr/bin/gewyvern_socket_send"
+RUNTIME_ROOT="target/packages/.runtime-smoke/$(basename "$DEB" .deb)"
+RUNTIME_STAMP="$RUNTIME_ROOT/.deb-sha256"
+now_seconds() {
+  date +%s.%N
+}
+duration_seconds() {
+  awk -v start="$1" -v end="$2" 'BEGIN { printf "%.3f", (end - start) }'
+}
+record_timing() {
+  printf '%s=%s\n' "$1" "$2" >>"$TIMINGS"
+}
+rm -f "$TIMINGS"
+TOTAL_STARTED=$(now_seconds)
+EXPECTED_DEB_SHA=$(sha256sum "$DEB" | awk '{print $1}')
+CURRENT_DEB_SHA=""
+if [ -f "$RUNTIME_STAMP" ]; then
+  CURRENT_DEB_SHA=$(cat "$RUNTIME_STAMP")
+fi
+if [ ! -x "$RUNTIME_ROOT/usr/bin/gewyvern" ] || [ ! -x "$RUNTIME_ROOT/usr/bin/gewyvern_socket_send" ] || [ "$CURRENT_DEB_SHA" != "$EXPECTED_DEB_SHA" ]; then
+  rm -rf "$RUNTIME_ROOT"
+  mkdir -p "$RUNTIME_ROOT"
+  UNPACK_STARTED=$(now_seconds)
+  dpkg-deb -x "$DEB" "$RUNTIME_ROOT"
+  printf '%s\n' "$EXPECTED_DEB_SHA" >"$RUNTIME_STAMP"
+  record_timing unpack_cache_refresh "$(duration_seconds "$UNPACK_STARTED" "$(now_seconds)")"
+fi
+GEWY="$RUNTIME_ROOT/usr/bin/gewyvern"
+SEND="$RUNTIME_ROOT/usr/bin/gewyvern_socket_send"
 wait_http() {
   local url="$1" out="$2" frag="${3:-}"
   for _ in $(seq 1 120); do
@@ -1078,25 +1896,54 @@ TCP_SOCKET=127.0.0.1:29090
 TCP_API=127.0.0.1:29190
 UDP_SOCKET=127.0.0.1:29091
 UDP_API=127.0.0.1:29191
+TCP_BOOT_STARTED=$(now_seconds)
 "$GEWY" --tcp-socket "$TCP_SOCKET" --template tcp --serve --api-socket "$TCP_API" --json --summary-only >"$TMP/tcp.log" 2>&1 &
 TCP_PID=$!
-wait_http "http://$TCP_API/health" "$TMP/tcp-health.json"
-"$SEND" --tcp-socket "$TCP_SOCKET" --template tcp >/dev/null
-wait_http "http://$TCP_API/v1/latest/summary.json" "$TMP/tcp-summary.json" '"primary_module_kind":"connection_establishment"'
-grep -q '"operator_guidance_action":"avoid_pid_strong_actions"' "$TMP/tcp-summary.json"
-"$SEND" --tcp-socket "$TCP_SOCKET" --raw-line '{"broken":true' >/dev/null || true
-wait_http "http://$TCP_API/health" "$TMP/tcp-health-after.json"
-grep -q '"ok":true' "$TMP/tcp-health-after.json"
-"$SEND" --tcp-socket "$TCP_SOCKET" --template tcp >/dev/null
-wait_http "http://$TCP_API/v1/latest/analysis.json" "$TMP/tcp-analysis.json" '"protocol_flows"'
-kill "$TCP_PID" >/dev/null 2>&1 || true
-wait "$TCP_PID" >/dev/null 2>&1 || true
+UDP_BOOT_STARTED=$(now_seconds)
 "$GEWY" --tcp-socket "$UDP_SOCKET" --template udp --serve --api-socket "$UDP_API" --json --summary-only >"$TMP/udp.log" 2>&1 &
 UDP_PID=$!
+wait_http "http://$TCP_API/health" "$TMP/tcp-health.json"
+record_timing tcp_boot_health "$(duration_seconds "$TCP_BOOT_STARTED" "$(now_seconds)")"
 wait_http "http://$UDP_API/health" "$TMP/udp-health.json"
+record_timing udp_boot_health "$(duration_seconds "$UDP_BOOT_STARTED" "$(now_seconds)")"
+"$SEND" --tcp-socket "$TCP_SOCKET" --template tcp >/dev/null
 "$SEND" --tcp-socket "$UDP_SOCKET" --template udp >/dev/null
-wait_http "http://$UDP_API/v1/latest/summary.json" "$TMP/udp-summary.json" '"primary_module_kind":"datagram_exchange"'
-wait_http "http://$UDP_API/v1/latest/analysis.json" "$TMP/udp-analysis.json" '"primary_failure_mode":"none"'
+TCP_SUMMARY_STARTED=$(now_seconds)
+(
+  wait_http "http://$TCP_API/v1/latest/summary.json" "$TMP/tcp-summary.json" '"primary_module_kind":"connection_establishment"'
+  record_timing tcp_summary "$(duration_seconds "$TCP_SUMMARY_STARTED" "$(now_seconds)")"
+) &
+TCP_SUMMARY_WAIT_PID=$!
+UDP_SUMMARY_STARTED=$(now_seconds)
+(
+  wait_http "http://$UDP_API/v1/latest/summary.json" "$TMP/udp-summary.json" '"primary_module_kind":"datagram_exchange"'
+  record_timing udp_summary "$(duration_seconds "$UDP_SUMMARY_STARTED" "$(now_seconds)")"
+) &
+UDP_SUMMARY_WAIT_PID=$!
+wait "$TCP_SUMMARY_WAIT_PID"
+wait "$UDP_SUMMARY_WAIT_PID"
+grep -q '"operator_guidance_action":"avoid_pid_strong_actions"' "$TMP/tcp-summary.json"
+"$SEND" --tcp-socket "$TCP_SOCKET" --raw-line '{"broken":true' >/dev/null || true
+UDP_ANALYSIS_STARTED=$(now_seconds)
+(
+  wait_http "http://$UDP_API/v1/latest/analysis.json" "$TMP/udp-analysis.json" '"primary_failure_mode":"none"'
+  record_timing udp_analysis "$(duration_seconds "$UDP_ANALYSIS_STARTED" "$(now_seconds)")"
+) &
+UDP_ANALYSIS_WAIT_PID=$!
+TCP_HEALTH_AFTER_BAD_STARTED=$(now_seconds)
+wait_http "http://$TCP_API/health" "$TMP/tcp-health-after.json"
+record_timing tcp_health_after_bad "$(duration_seconds "$TCP_HEALTH_AFTER_BAD_STARTED" "$(now_seconds)")"
+grep -q '"ok":true' "$TMP/tcp-health-after.json"
+"$SEND" --tcp-socket "$TCP_SOCKET" --template tcp >/dev/null
+TCP_ANALYSIS_STARTED=$(now_seconds)
+wait_http "http://$TCP_API/v1/latest/analysis.json" "$TMP/tcp-analysis.json" '"protocol_flows"'
+record_timing tcp_analysis "$(duration_seconds "$TCP_ANALYSIS_STARTED" "$(now_seconds)")"
+wait "$UDP_ANALYSIS_WAIT_PID"
+kill "$TCP_PID" >/dev/null 2>&1 || true
+wait "$TCP_PID" >/dev/null 2>&1 || true
+kill "$UDP_PID" >/dev/null 2>&1 || true
+wait "$UDP_PID" >/dev/null 2>&1 || true
+record_timing total "$(duration_seconds "$TOTAL_STARTED" "$(now_seconds)")"
 echo 'remote runtime smoke: ok'
 "#;
 
@@ -1122,20 +1969,16 @@ fn run_ssh_script_capture_with_auth(
             .arg("-p")
             .arg(&auth.password)
             .arg("ssh")
-            .args([
-                "-o",
-                "StrictHostKeyChecking=no",
-                "-o",
-                "PreferredAuthentications=password",
-                "-o",
-                "PubkeyAuthentication=no",
-                &format!("{}@{}", auth.user, host),
-                command,
-            ]);
+            .args(ssh_password_mode_args())
+            .arg(format!("{}@{}", auth.user, host))
+            .arg(command);
         command_builder
     } else {
         let mut command_builder = Command::new("ssh");
-        command_builder.args(["-o", "BatchMode=yes", host, command]);
+        command_builder
+            .args(ssh_batch_mode_args())
+            .arg(host)
+            .arg(command);
         command_builder
     };
 

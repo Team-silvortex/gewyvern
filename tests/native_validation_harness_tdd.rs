@@ -60,6 +60,7 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("\"preflight\""));
     assert!(binary.contains("\"ebpf\""));
     assert!(binary.contains("\"phase_timings\""));
+    assert!(binary.contains("\"package_build_timings\""));
     assert!(binary.contains("\"total_seconds\""));
     assert!(binary.contains("\"slowest_phase_entries\""));
     assert!(binary.contains("\"budget_warnings\""));
@@ -160,6 +161,31 @@ fn remote_host_validation_records_phase_timings() {
     assert!(remote_host.contains("struct PhaseTiming"));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_preflight\""));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"workspace_sync\""));
+    assert!(remote_host.contains("compute_local_workspace_sync_key()"));
+    assert!(remote_host.contains("compute_git_workspace_sync_key"));
+    assert!(remote_host.contains("compute_dirty_git_workspace_sync_key"));
+    assert!(remote_host.contains("try_reuse_dirty_workspace_sync_key_cache"));
+    assert!(remote_host.contains("local-workspace-sync-key-cache.txt"));
+    assert!(
+        remote_host.contains(".args([\"status\", \"--porcelain=v1\", \"--untracked-files=all\"])")
+    );
+    assert!(remote_host.contains("Ok(Some(format!(\"git:{head}\")))"));
+    assert!(remote_host.contains("git-dirty:"));
+    assert!(remote_host.contains("ssh_control_path_template"));
+    assert!(remote_host.contains("ensure_ssh_control_master"));
+    assert!(remote_host.contains("close_ssh_control_master"));
+    assert!(remote_host.contains("ControlMaster=yes"));
+    assert!(remote_host.contains(".arg(\"-fN\")"));
+    assert!(remote_host.contains(".arg(\"check\")"));
+    assert!(remote_host.contains(".arg(\"exit\")"));
+    assert!(remote_host.contains("ControlMaster=auto"));
+    assert!(remote_host.contains("ControlPersist=60"));
+    assert!(remote_host.contains("ControlPath="));
+    assert!(remote_host.contains("rsync_ssh_command"));
+    assert!(remote_host.contains("remote_workspace_sync_key_matches"));
+    assert!(remote_host.contains("write_remote_workspace_sync_key"));
+    assert!(remote_host.contains(".gewy-workspace-sync-key"));
+    assert!(remote_host.contains("workspace sync cache hit; skipping rsync"));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_package_build\""));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_package_smoke\""));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_runtime_smoke\""));
@@ -184,6 +210,7 @@ fn remote_host_validation_records_phase_timings() {
     assert!(remote_host.contains("remote source cache"));
     assert!(remote_host.contains("remote cargo target cache"));
     assert!(entrypoints.contains("remote-phase-timings.txt"));
+    assert!(entrypoints.contains("workspace sync cache"));
 }
 
 #[test]
@@ -424,6 +451,10 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(build_packages.contains("--bin gewyvern_validate"));
     assert!(build_packages.contains("-p gewyvern"));
     assert!(build_packages.contains("-p gewyc"));
+    assert!(build_packages.contains("command -v ld.lld"));
+    assert!(build_packages.contains("-C link-arg=-fuse-ld=lld"));
+    assert!(build_packages.contains("build-manifest.txt"));
+    assert!(build_packages.contains("record_manifest"));
     assert!(packaging.contains("container runtime validation: ok"));
     assert!(release_gate.contains("run_package_install_smoke(mode)?"));
     assert!(release_gate.contains("run_container_runtime_validation(mode)?"));
@@ -466,14 +497,19 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("build_packages.sh --format all"));
     assert!(remote.contains("remote-preflight.txt"));
     assert!(remote.contains("remote-artifacts.txt"));
+    assert!(remote.contains("remote-package-build-timings.txt"));
     assert!(remote.contains("remote-ebpf.txt"));
+    assert!(remote.contains("build-manifest.txt"));
     assert!(remote.contains("collect_remote_preflight"));
     assert!(remote.contains("collect_remote_artifact_manifest"));
+    assert!(remote.contains("collect_remote_package_build_timings"));
     assert!(remote.contains("collect_remote_ebpf_evidence"));
     assert!(remote.contains("sync_remote_ebpf_evidence"));
     assert!(remote.contains("release/gewyvern_validate"));
     assert!(remote.contains("cargo build --quiet --release --bin gewyvern_validate"));
     assert!(remote.contains("if [ ! -x"));
+    assert!(remote.contains("command -v ld.lld"));
+    assert!(remote.contains("-C link-arg=-fuse-ld=lld"));
     assert!(remote.contains(".arg(\"tests/\")"));
     assert!(remote.contains(".arg(\"apps/**/obj/\")"));
     assert!(remote.contains(".arg(\"apps/**/bin/\")"));
@@ -481,8 +517,10 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains(".arg(\".DS_Store\")"));
     assert!(remote.contains("remote_source_cache_dir"));
     assert!(remote.contains(".cache/gewyvern/remote-source"));
+    assert!(remote.contains("let validation_workspace = remote_source_cache.clone();"));
     assert!(remote.contains("materialize_remote_workspace"));
     assert!(remote.contains("remote_workspace_materialize"));
+    assert!(remote.contains("ln -sfn {remote_source_cache} {remote_path}"));
     assert!(remote.contains("remote_workspace_materialized"));
     assert!(remote.contains("GEWY_REMOTE_EBPF_ADMIN_USER"));
     assert!(remote.contains("GEWY_REMOTE_EBPF_ADMIN_PASSWORD"));
@@ -507,7 +545,35 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("sudo_not_available"));
     assert!(remote.contains("all_smokes_passed_admin_ssh"));
     assert!(remote.contains("remote package smoke: ok"));
+    assert!(remote.contains("remote_package_smoke_timings"));
+    assert!(remote.contains("collect_remote_package_smoke_timings"));
+    assert!(remote.contains("target/packages/package-smoke-timings.txt"));
+    assert!(remote.contains("target/packages/.package-smoke/deb/$(basename \"$DEB\" .deb)"));
+    assert!(remote.contains("target/packages/.package-smoke/rpm/$(basename \"$RPM\" .rpm)"));
+    assert!(remote.contains("DEB_STAMP=\"$DEB_ROOT/.deb-sha256\""));
+    assert!(remote.contains("RPM_STAMP=\"$RPM_ROOT/.rpm-sha256\""));
+    assert!(remote.contains("record_timing deb_unpack_cache_refresh"));
+    assert!(remote.contains("record_timing deb_verify"));
+    assert!(remote.contains("record_timing rpm_unpack_cache_refresh"));
+    assert!(remote.contains("record_timing rpm_verify"));
     assert!(remote.contains("remote runtime smoke: ok"));
+    assert!(remote.contains("remote_runtime_smoke_timings"));
+    assert!(remote.contains("collect_remote_runtime_smoke_timings"));
+    assert!(remote.contains("target/packages/runtime-smoke-timings.txt"));
+    assert!(remote.contains("record_timing tcp_boot_health"));
+    assert!(remote.contains("record_timing tcp_summary"));
+    assert!(remote.contains("record_timing tcp_health_after_bad"));
+    assert!(remote.contains("record_timing tcp_analysis"));
+    assert!(remote.contains("record_timing udp_boot_health"));
+    assert!(remote.contains("record_timing udp_summary"));
+    assert!(remote.contains("record_timing udp_analysis"));
+    assert!(remote.contains("record_timing total"));
+    assert!(remote.contains("awk -F= '/^deb=/{{print $2; exit}}' \"$MANIFEST\""));
+    assert!(remote.contains("awk -F= '/^rpm=/{{print $2; exit}}' \"$MANIFEST\""));
+    assert!(remote.contains("target/packages/.runtime-smoke/$(basename \"$DEB\" .deb)"));
+    assert!(remote.contains("RUNTIME_STAMP=\"$RUNTIME_ROOT/.deb-sha256\""));
+    assert!(remote.contains("EXPECTED_DEB_SHA=$(sha256sum \"$DEB\" | awk '{print $1}')"));
+    assert!(remote.contains("[ \"$CURRENT_DEB_SHA\" != \"$EXPECTED_DEB_SHA\" ]"));
     assert!(remote.contains("rpm2cpio"));
     assert!(remote.contains("x86_64/amd64"));
     assert!(remote.contains("kyuubiki-lab"));
@@ -555,7 +621,7 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(docs.contains("remote-ebpf.txt"));
     assert!(docs.contains("target/validation/remote-linux-host-validation/remote-ebpf"));
     assert!(docs.contains("remote source cache"));
-    assert!(docs.contains("materializes its own working directory"));
+    assert!(docs.contains("repoints its requested remote"));
     assert!(docs.contains("slowest observed phases"));
 }
 
@@ -595,8 +661,13 @@ fn docs_prefer_native_validation_entrypoints() {
     assert!(entrypoints.contains("remote-ebpf-latest.json"));
     assert!(entrypoints.contains("remote-ebpf-recent.txt"));
     assert!(entrypoints.contains("remote-ebpf-status-summary.json"));
+    assert!(entrypoints.contains("remote-package-build-timings.txt"));
+    assert!(entrypoints.contains("remote-package-smoke-timings.txt"));
+    assert!(entrypoints.contains("remote-runtime-smoke-timings.txt"));
     assert!(entrypoints.contains("recent_ebpf_trend"));
     assert!(entrypoints.contains("recent_ebpf_lines"));
+    assert!(entrypoints.contains("package_smoke_timings"));
+    assert!(entrypoints.contains("runtime_smoke_timings"));
     assert!(entrypoints.contains("extra.stages"));
     assert!(entrypoints.contains("--json-out <path>"));
     assert!(entrypoints.contains("Current JSON failure codes"));
@@ -620,6 +691,9 @@ fn docs_prefer_native_validation_entrypoints() {
     assert!(cli_recipes.contains("--json-out /tmp/gewyvern-release-gate.json"));
     assert!(cli_recipes.contains("jq '.extra.stages'"));
     assert!(cli_recipes.contains("jq '.extra.total_seconds'"));
+    assert!(cli_recipes.contains("jq '.extra.package_build_timings'"));
+    assert!(cli_recipes.contains("jq '.extra.package_smoke_timings'"));
+    assert!(cli_recipes.contains("jq '.extra.runtime_smoke_timings'"));
     assert!(cli_recipes.contains("jq '.extra.ebpf.default_route_device'"));
     assert!(cli_recipes.contains("jq '.extra.budget_warnings // []'"));
     assert!(

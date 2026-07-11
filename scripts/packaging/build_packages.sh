@@ -10,6 +10,9 @@ WORK_DIR=""
 KEEP_WORK_DIR=0
 FORMAT="all"
 LAYOUT_ONLY=0
+TIMINGS_FILE=""
+MANIFEST_FILE=""
+CACHE_KEY_FILE=""
 MAINTAINER="${GEWY_PACKAGE_MAINTAINER:-OpenAI Codex <codex@example.invalid>}"
 PACKAGE_NAME="${GEWY_PACKAGE_NAME:-gewyvern}"
 PACKAGE_RELEASE="${GEWY_PACKAGE_RELEASE:-1}"
@@ -17,6 +20,7 @@ RELEASE_LINE="${GEWY_RELEASE_LINE:-v0.20.x}"
 LAYOUT_VERSION="${GEWY_LAYOUT_VERSION:-1}"
 CONFIG_SCHEMA_VERSION="${GEWY_CONFIG_SCHEMA_VERSION:-1}"
 RPM_DIST="${GEWY_RPM_DIST:-}"
+SOURCE_DATE_EPOCH_VALUE=""
 
 usage() {
   cat <<'EOF'
@@ -39,6 +43,66 @@ read_version() {
     /^\[/ { if (in_package) exit }
     in_package && $1 ~ /^version = / { print $2; exit }
   ' "${ROOT}/Cargo.toml"
+}
+
+now_seconds() {
+  python3 - <<'PY'
+import time
+print(f"{time.monotonic():.6f}")
+PY
+}
+
+duration_seconds() {
+  local start="$1"
+  local end="$2"
+  python3 - "$start" "$end" <<'PY'
+import sys
+start = float(sys.argv[1])
+end = float(sys.argv[2])
+print(f"{end - start:.3f}")
+PY
+}
+
+record_timing() {
+  local key="$1"
+  local value="$2"
+  printf '%s=%s\n' "$key" "$value" >>"${TIMINGS_FILE}"
+}
+
+record_manifest() {
+  local key="$1"
+  local value="$2"
+  printf '%s=%s\n' "$key" "$value" >>"${MANIFEST_FILE}"
+}
+
+write_cache_key() {
+  local value="$1"
+  printf '%s\n' "$value" >"${CACHE_KEY_FILE}"
+}
+
+resolve_source_date_epoch() {
+  if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
+    echo "${SOURCE_DATE_EPOCH}"
+    return
+  fi
+
+  if command -v git >/dev/null 2>&1 && git -C "${ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git -C "${ROOT}" log -1 --format=%ct
+    return
+  fi
+
+  python3 - "${ROOT}/Cargo.toml" <<'PY'
+from pathlib import Path
+import sys
+
+print(int(Path(sys.argv[1]).stat().st_mtime))
+PY
+}
+
+configure_rust_build_acceleration() {
+  if command -v ld.lld >/dev/null 2>&1; then
+    export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-fuse-ld=lld"
+  fi
 }
 
 map_deb_arch() {
@@ -125,6 +189,124 @@ upgrade_policy = "copy-forward-without-overwrite"
 EOF
 }
 
+normalize_stage_timestamps() {
+  local stage_root="$1"
+  local epoch="$2"
+
+  python3 - "${stage_root}" "${epoch}" <<'PY'
+from pathlib import Path
+import os
+import sys
+
+root = Path(sys.argv[1])
+epoch = int(sys.argv[2])
+
+for path in sorted(root.rglob("*")):
+    os.utime(path, (epoch, epoch), follow_symlinks=False)
+os.utime(root, (epoch, epoch), follow_symlinks=False)
+PY
+}
+
+compute_package_cache_key() {
+  python3 - \
+    "${ROOT}" \
+    "${RELEASE_BIN_DIR}" \
+    "${PACKAGE_NAME}" \
+    "${PACKAGE_RELEASE}" \
+    "${RELEASE_LINE}" \
+    "${LAYOUT_VERSION}" \
+    "${CONFIG_SCHEMA_VERSION}" \
+    "${MAINTAINER}" \
+    "${RPM_DIST}" <<'PY'
+from pathlib import Path
+import hashlib
+import os
+import sys
+
+root = Path(sys.argv[1])
+release_bin_dir = Path(sys.argv[2])
+config_values = sys.argv[3:]
+
+hash_obj = hashlib.sha256()
+
+for value in config_values:
+    hash_obj.update(value.encode("utf-8"))
+    hash_obj.update(b"\0")
+
+files = [
+    release_bin_dir / "gewyvern",
+    release_bin_dir / "gewyvern_socket_send",
+    release_bin_dir / "gewyc",
+    root / "Cargo.toml",
+    root / "README.md",
+    root / "LICENSE",
+    root / "docs/fixtures/gewyvern.toml.example",
+    root / "packaging/deb/control.in",
+    root / "packaging/rpm/gewyvern.spec.in",
+]
+
+directories = [
+    root / "dsl",
+    root / "protocols",
+    root / "docs",
+]
+
+def update_file(path: Path) -> None:
+    relative = path.relative_to(root) if path.is_relative_to(root) else path
+    stat = path.stat()
+    hash_obj.update(str(relative).encode("utf-8"))
+    hash_obj.update(b"\0")
+    hash_obj.update(oct(stat.st_mode).encode("utf-8"))
+    hash_obj.update(b"\0")
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            hash_obj.update(chunk)
+
+for file_path in files:
+    update_file(file_path)
+
+for directory in directories:
+    for file_path in sorted(path for path in directory.rglob("*") if path.is_file()):
+        update_file(file_path)
+
+print(hash_obj.hexdigest())
+PY
+}
+
+can_reuse_cached_packages() {
+  local cache_key="$1"
+  local manifest_deb="$2"
+  local manifest_rpm="$3"
+
+  [[ -f "${CACHE_KEY_FILE}" ]] || return 1
+  [[ -f "${MANIFEST_FILE}" ]] || return 1
+
+  local current_key
+  current_key="$(cat "${CACHE_KEY_FILE}")"
+  [[ "${current_key}" == "${cache_key}" ]] || return 1
+
+  case "${FORMAT}" in
+    deb)
+      [[ -n "${manifest_deb}" && -f "${manifest_deb}" ]] || return 1
+      ;;
+    rpm)
+      [[ -n "${manifest_rpm}" && -f "${manifest_rpm}" ]] || return 1
+      ;;
+    all)
+      [[ -n "${manifest_deb}" && -f "${manifest_deb}" ]] || return 1
+      [[ -n "${manifest_rpm}" && -f "${manifest_rpm}" ]] || return 1
+      ;;
+  esac
+}
+
+read_manifest_value() {
+  local key="$1"
+  awk -F= -v wanted="${key}" '$1 == wanted { print substr($0, length($1) + 2); exit }' "${MANIFEST_FILE}"
+}
+
 build_release_binaries() {
   cargo build --release \
     -p gewyvern \
@@ -165,6 +347,7 @@ build_deb() {
   fi
 
   dpkg-deb --root-owner-group --build "${deb_root}" "${deb_path}"
+  record_manifest "deb" "${deb_path}"
   echo "built ${deb_path}"
 }
 
@@ -208,8 +391,17 @@ build_rpm() {
     exit 1
   fi
 
-  rpmbuild --define "_topdir ${rpm_topdir}" -bb "${spec_path}"
+  rpmbuild \
+    --define "_topdir ${rpm_topdir}" \
+    --define "use_source_date_epoch_as_buildtime 1" \
+    --define "clamp_mtime_to_source_date_epoch 1" \
+    -bb "${spec_path}"
   find "${rpm_topdir}/RPMS" -type f -name '*.rpm' -exec cp '{}' "${rpm_out_dir}/" ';'
+  local rpm_path
+  rpm_path="$(find "${rpm_out_dir}" -maxdepth 1 -type f -name '*.rpm' | sort | tail -n 1)"
+  if [[ -n "${rpm_path}" ]]; then
+    record_manifest "rpm" "${rpm_path}"
+  fi
   echo "built rpm packages in ${rpm_out_dir}"
 }
 
@@ -271,7 +463,14 @@ VERSION="$(read_version)"
 HOST_ARCH="$(uname -m)"
 DEB_ARCH="$(map_deb_arch "${HOST_ARCH}")"
 RPM_ARCH="$(map_rpm_arch "${HOST_ARCH}")"
+SOURCE_DATE_EPOCH_VALUE="$(resolve_source_date_epoch)"
+export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH_VALUE}"
 mkdir -p "${OUT_DIR}"
+TIMINGS_FILE="${OUT_DIR}/build-timings.txt"
+MANIFEST_FILE="${OUT_DIR}/build-manifest.txt"
+CACHE_KEY_FILE="${OUT_DIR}/build-cache-key.txt"
+rm -f "${TIMINGS_FILE}"
+TOTAL_STARTED="$(now_seconds)"
 
 if [[ "${LAYOUT_ONLY}" -eq 1 ]]; then
   KEEP_WORK_DIR=1
@@ -287,23 +486,68 @@ if [[ "${KEEP_WORK_DIR}" -eq 0 ]]; then
 fi
 
 echo "building release binaries for packaging..."
+configure_rust_build_acceleration
+RELEASE_BUILD_STARTED="$(now_seconds)"
 build_release_binaries
+RELEASE_BUILD_FINISHED="$(now_seconds)"
+record_timing "release_build" "$(duration_seconds "${RELEASE_BUILD_STARTED}" "${RELEASE_BUILD_FINISHED}")"
+
+PACKAGE_CACHE_KEY="$(compute_package_cache_key)"
+MANIFEST_DEB="$(read_manifest_value deb || true)"
+MANIFEST_RPM="$(read_manifest_value rpm || true)"
+if can_reuse_cached_packages "${PACKAGE_CACHE_KEY}" "${MANIFEST_DEB}" "${MANIFEST_RPM}"; then
+  echo "reusing cached package artifacts..."
+  record_timing "stage_layout" "0.000"
+  case "${FORMAT}" in
+    deb)
+      record_timing "package_deb" "0.000"
+      ;;
+    rpm)
+      record_timing "package_rpm" "0.000"
+      ;;
+    all)
+      record_timing "package_all" "0.000"
+      ;;
+  esac
+  TOTAL_FINISHED="$(now_seconds)"
+  record_timing "total" "$(duration_seconds "${TOTAL_STARTED}" "${TOTAL_FINISHED}")"
+  exit 0
+fi
+
+rm -f "${MANIFEST_FILE}"
 
 echo "staging install tree..."
+STAGE_LAYOUT_STARTED="$(now_seconds)"
 stage_layout "${STAGE_ROOT}"
+normalize_stage_timestamps "${STAGE_ROOT}" "${SOURCE_DATE_EPOCH_VALUE}"
 chown -R 0:0 "${STAGE_ROOT}" 2>/dev/null || true
+STAGE_LAYOUT_FINISHED="$(now_seconds)"
+record_timing "stage_layout" "$(duration_seconds "${STAGE_LAYOUT_STARTED}" "${STAGE_LAYOUT_FINISHED}")"
 
 case "${FORMAT}" in
   deb)
+    DEB_BUILD_STARTED="$(now_seconds)"
     build_deb "${VERSION}" "${DEB_ARCH}" "${STAGE_ROOT}"
+    DEB_BUILD_FINISHED="$(now_seconds)"
+    record_timing "package_deb" "$(duration_seconds "${DEB_BUILD_STARTED}" "${DEB_BUILD_FINISHED}")"
     ;;
   rpm)
+    RPM_BUILD_STARTED="$(now_seconds)"
     build_rpm "${VERSION}" "${RPM_ARCH}" "${STAGE_ROOT}"
+    RPM_BUILD_FINISHED="$(now_seconds)"
+    record_timing "package_rpm" "$(duration_seconds "${RPM_BUILD_STARTED}" "${RPM_BUILD_FINISHED}")"
     ;;
   all)
+    PACKAGE_ALL_STARTED="$(now_seconds)"
     build_all_formats "${VERSION}" "${DEB_ARCH}" "${RPM_ARCH}" "${STAGE_ROOT}"
+    PACKAGE_ALL_FINISHED="$(now_seconds)"
+    record_timing "package_all" "$(duration_seconds "${PACKAGE_ALL_STARTED}" "${PACKAGE_ALL_FINISHED}")"
     ;;
 esac
+
+TOTAL_FINISHED="$(now_seconds)"
+record_timing "total" "$(duration_seconds "${TOTAL_STARTED}" "${TOTAL_FINISHED}")"
+write_cache_key "${PACKAGE_CACHE_KEY}"
 
 if [[ "${LAYOUT_ONLY}" -eq 1 ]]; then
   echo "staged layout available at ${STAGE_ROOT}"

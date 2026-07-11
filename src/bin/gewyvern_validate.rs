@@ -1709,6 +1709,12 @@ fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Val
     let preflight = parse_key_value_file(&out_dir.join("remote-preflight.txt"));
     let ebpf = parse_key_value_file(&out_dir.join("remote-ebpf.txt"));
     let timings = parse_phase_timings(&out_dir.join("remote-phase-timings.txt"));
+    let package_build_timings =
+        parse_phase_timings(&out_dir.join("remote-package-build-timings.txt"));
+    let package_smoke_timings =
+        parse_phase_timings(&out_dir.join("remote-package-smoke-timings.txt"));
+    let runtime_smoke_timings =
+        parse_phase_timings(&out_dir.join("remote-runtime-smoke-timings.txt"));
     let mut summary = serde_json::Map::new();
 
     if let Some(remote_dir) = run.get("remote_dir") {
@@ -1814,6 +1820,36 @@ fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Val
         summary.insert(
             "phase_timings".to_string(),
             serde_json::Value::Object(phase_timings),
+        );
+    }
+    if !package_build_timings.is_empty() {
+        let package_phase_timings = package_build_timings
+            .iter()
+            .map(|(name, seconds)| (name.clone(), json!(seconds)))
+            .collect::<serde_json::Map<String, serde_json::Value>>();
+        summary.insert(
+            "package_build_timings".to_string(),
+            serde_json::Value::Object(package_phase_timings),
+        );
+    }
+    if !package_smoke_timings.is_empty() {
+        let package_smoke_phase_timings = package_smoke_timings
+            .iter()
+            .map(|(name, seconds)| (name.clone(), json!(seconds)))
+            .collect::<serde_json::Map<String, serde_json::Value>>();
+        summary.insert(
+            "package_smoke_timings".to_string(),
+            serde_json::Value::Object(package_smoke_phase_timings),
+        );
+    }
+    if !runtime_smoke_timings.is_empty() {
+        let runtime_phase_timings = runtime_smoke_timings
+            .iter()
+            .map(|(name, seconds)| (name.clone(), json!(seconds)))
+            .collect::<serde_json::Map<String, serde_json::Value>>();
+        summary.insert(
+            "runtime_smoke_timings".to_string(),
+            serde_json::Value::Object(runtime_phase_timings),
         );
     }
     if let Some((_, total_seconds)) = timings.iter().find(|(name, _)| name == "total") {

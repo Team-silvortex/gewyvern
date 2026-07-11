@@ -125,6 +125,15 @@ cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation
   | jq '.extra.total_seconds'
 
 cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.package_build_timings'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.package_smoke_timings'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.runtime_smoke_timings'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
   | jq '.extra.ebpf.default_route_device'
 
 cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \

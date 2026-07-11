@@ -176,6 +176,12 @@ When `--format all` is used for a real package build, the script now emits the
 `deb` and `rpm` packages in parallel against the same staged layout so Linux
 release-style runs spend less wall-clock time waiting on serial package
 assembly.
+It also normalizes staged file mtimes with `SOURCE_DATE_EPOCH` or, by default,
+the latest Git commit timestamp so repeated unchanged builds do not drift only
+because packaging ran at a different wall-clock second.
+When the release binaries and packaging inputs are unchanged, the script also
+reuses the existing native package artifacts instead of restaging and
+reassembling them again.
 
 It does not require `dpkg-deb` or `rpmbuild`.
 

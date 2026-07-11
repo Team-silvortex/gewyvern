@@ -161,11 +161,15 @@ Cargo target cache under `~/.cache/gewyvern/remote-target`, so repeated runs do
 not have to cold-rebuild every binary from a brand-new workspace.
 They also reuse a shared remote source cache under
 `~/.cache/gewyvern/remote-source`: the local machine rsyncs incrementally into
-that stable cache first, then each validation run materializes its own working directory from the cache on the remote host itself.
+that stable cache first, then each validation run repoints its requested remote
+workspace path at that cache on the remote host itself instead of copying the
+same tree twice.
 The workspace sync for this command is intentionally narrower than the full
 monorepo: it skips `tests/`, transient `apps/**/bin/` / `apps/**/obj/` outputs,
 `__pycache__`, and similar local-only residue because the remote host package
 and runtime checks do not consume those shelves.
+When that filtered workspace snapshot is unchanged, the command now reuses a
+workspace sync cache marker and skips the rsync phase entirely.
 
 If the SSH user cannot `sudo -n` but you do have a separate admin account,
 export `GEWY_REMOTE_EBPF_ADMIN_USER` and `GEWY_REMOTE_EBPF_ADMIN_PASSWORD`
@@ -189,6 +193,9 @@ Evidence written locally:
 
 - `target/validation/remote-linux-host-validation/remote-preflight.txt`
 - `target/validation/remote-linux-host-validation/remote-artifacts.txt`
+- `target/validation/remote-linux-host-validation/remote-package-build-timings.txt`
+- `target/validation/remote-linux-host-validation/remote-package-smoke-timings.txt`
+- `target/validation/remote-linux-host-validation/remote-runtime-smoke-timings.txt`
 - `target/validation/remote-linux-host-validation/remote-ebpf.txt`
 - `target/validation/remote-linux-host-validation/remote-ebpf/`
 - `target/validation/remote-linux-host-validation/remote-phase-timings.txt`
@@ -202,6 +209,14 @@ The phase-timing file records the observed wall-clock time for each major
 remote validation step so we can tell whether regressions come from sync,
 materialization, build, package smoke, runtime smoke, or the privileged eBPF
 attach path.
+Artifact verification now prefers the package build manifest emitted under
+`target/packages/build-manifest.txt` instead of rescanning the package
+directories on every run.
+The package smoke path now also emits a subphase timing file and uses
+content-stamped unpack caches for both DEB and RPM payloads, so repeated runs
+reuse verified package trees without silently masking changed artifacts.
+The runtime smoke path also emits a subphase timing file so we can distinguish
+package unpack cache refresh from TCP/UDP boot, summary, and analysis waits.
 The eBPF history files keep a bounded local record of the newest remote Linux
 eBPF outcomes so we can tell whether the attach path is consistently `ok`,
 frequently `skipped`, or drifting in total runtime.
@@ -238,6 +253,9 @@ The `extra` object for this command now includes structured fields such as:
 - `preflight`
 - `ebpf`
 - `phase_timings`
+- `package_build_timings`
+- `package_smoke_timings`
+- `runtime_smoke_timings`
 - `total_seconds`
 - `slowest_phase_entries`
 - `budget_warnings`
