@@ -1,14 +1,12 @@
 use super::*;
+use super::debug_targets::{rank, ranked_targets, scan_target_protocol_entry};
 use gewyvern::protocol_profiles::protocol_surface;
 
 pub(super) fn render_debug_session_outputs(
     cli: &Cli,
     outputs: &[(String, ExportBundle)],
 ) -> String {
-    let analyses = outputs
-        .iter()
-        .map(|(_, export)| analysis_snapshot(export))
-        .collect::<Vec<_>>();
+    let analyses = collect_analyses(outputs);
     if cli.json {
         debug_session_json(outputs, &analyses)
     } else {
@@ -73,23 +71,6 @@ fn debug_session_text(outputs: &[(String, ExportBundle)], analyses: &[AnalysisSn
         text.push_str(&next_step_kinds(name, analysis).join(","));
     }
     text
-}
-
-fn ranked_targets<'a>(
-    outputs: &'a [(String, ExportBundle)],
-    analyses: &'a [AnalysisSnapshot],
-) -> Vec<(&'a str, &'a AnalysisSnapshot)> {
-    let mut indexed = outputs
-        .iter()
-        .zip(analyses.iter())
-        .map(|((name, _), analysis)| (name.as_str(), analysis))
-        .collect::<Vec<_>>();
-    indexed.sort_by(|(left_name, left), (right_name, right)| {
-        rank(left)
-            .cmp(&rank(right))
-            .then_with(|| left_name.cmp(right_name))
-    });
-    indexed
 }
 
 fn append_target_json(json: &mut String, name: &str, analysis: &AnalysisSnapshot) {
@@ -397,30 +378,5 @@ fn debugger_posture_reason(analysis: &AnalysisSnapshot) -> &'static str {
         "healthy" => "no debugger action is required for this target",
         "advisory" => "the signal is useful but not strong enough for automation",
         _ => "the debugger cannot narrow the conclusion without operator review",
-    }
-}
-
-fn scan_target_protocol_entry(name: &str) -> Option<(&str, &str)> {
-    let mut parts = name.splitn(3, ':');
-    if parts.next()? != "scan" {
-        return None;
-    }
-    Some((parts.next()?, parts.next()?))
-}
-
-fn rank(analysis: &AnalysisSnapshot) -> usize {
-    match analysis.automation_outcome.as_str() {
-        "targeted_escalation" => 0,
-        "collect_more_evidence" => 1,
-        "multi_hypothesis" => 2,
-        "manual_review" => 3,
-        "advisory_only" => 4,
-        _ => match analysis.evidence_posture.as_str() {
-            "direct_protocol_signal" => 0,
-            "missing_transition" => 1,
-            "ambiguous_multi_hypothesis" => 2,
-            "heuristic_summary" => 3,
-            _ => 5,
-        },
     }
 }

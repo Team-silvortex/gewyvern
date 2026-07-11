@@ -7,6 +7,7 @@ use crate::render_utils::*;
 
 mod debug_session;
 mod debugger_console;
+mod debug_targets;
 mod http_render;
 mod scan;
 mod scan_surface;
@@ -16,6 +17,13 @@ mod training;
 use self::sidecar::{
     append_external_sidecar_context_field, append_external_sidecar_contract_fields,
 };
+
+pub(crate) fn collect_analyses(outputs: &[(String, ExportBundle)]) -> Vec<AnalysisSnapshot> {
+    outputs
+        .iter()
+        .map(|(_, export)| analysis_snapshot(export))
+        .collect()
+}
 
 pub(super) fn summary_line(name: &str, export: &ExportBundle) -> String {
     self::sidecar::summary_line(name, export)

@@ -7,9 +7,10 @@ use super::helpers::process_matches_pid;
 use super::{
     AnalysisAugmenter, AnalysisSnapshot, Cli, IngestMode, ReportFormat, analysis_snapshot,
     analysis_snapshot_json, analysis_snapshot_with_augmenters, annotate_export_trust,
-    filter_export_by_pid, findings_json, findings_json_with_analysis, http_transactions_json,
-    http_transactions_text, list_entries_json, list_entries_text, list_protocols_json,
-    list_protocols_text, protocol_dsl_path, push_analysis_augmentation,
+    collect_analyses, collect_cli_outputs, filter_export_by_pid, findings_json,
+    findings_json_with_analysis, http_transactions_json, http_transactions_text,
+    list_entries_json, list_entries_text, list_protocols_json, list_protocols_text,
+    protocol_dsl_path, push_analysis_augmentation,
     render_debug_session_outputs, render_debugger_console_outputs, render_report_outputs,
     route_fact, run_binding_demo, scan_report_html, scan_report_html_with_analyses,
     scan_report_json, scan_report_json_with_analyses, scan_report_text,

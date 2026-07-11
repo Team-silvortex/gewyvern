@@ -1,5 +1,10 @@
 use super::*;
 
+const NTP_QUERY_TARGET_NAME: &str = "scan:ntp:query";
+const DHCP_CLIENT_TARGET_NAME: &str = "scan:dhcp:client";
+const STUN_BINDING_TARGET_NAME: &str = "scan:stun:binding";
+const STUN_ALLOCATE_TARGET_NAME: &str = "scan:stun:allocate";
+
 fn udp_packet_fact_with_payload_bytes_for_tests(
     id: u64,
     cookie: u64,
@@ -93,7 +98,7 @@ fn ntp_query_response_keeps_management_query_healthy() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(NTP_QUERY_TARGET_NAME, &export);
     assert!(export.program_findings.is_empty());
     assert!(export.module_findings.is_empty());
     assert!(json.contains("\"status\":\"healthy\""), "json={}", json);
@@ -150,7 +155,7 @@ fn dhcp_offer_result_keeps_discover_surface_healthy() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(DHCP_CLIENT_TARGET_NAME, &export);
     assert!(export.program_findings.is_empty());
     assert!(json.contains("\"status\":\"healthy\""), "json={}", json);
     assert!(
@@ -206,7 +211,7 @@ fn dhcp_offer_result_keeps_client_surface_healthy() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(DHCP_CLIENT_TARGET_NAME, &export);
     assert!(export.program_findings.is_empty());
     assert!(json.contains("\"status\":\"healthy\""), "json={}", json);
     assert!(
@@ -262,7 +267,7 @@ fn dhcp_ack_result_keeps_request_surface_healthy() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(DHCP_CLIENT_TARGET_NAME, &export);
     assert!(export.program_findings.is_empty());
     assert!(json.contains("\"status\":\"healthy\""), "json={}", json);
     assert!(
@@ -318,7 +323,7 @@ fn ntp_response_keeps_client_surface_healthy() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(NTP_QUERY_TARGET_NAME, &export);
     assert!(export.program_findings.is_empty());
     assert!(json.contains("\"status\":\"healthy\""), "json={}", json);
     assert!(
@@ -374,7 +379,7 @@ fn stun_binding_response_keeps_surface_healthy() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(STUN_BINDING_TARGET_NAME, &export);
     assert!(export.program_findings.is_empty());
     assert!(json.contains("\"status\":\"healthy\""), "json={}", json);
     assert!(
@@ -430,7 +435,7 @@ fn stun_allocate_response_keeps_relay_surface_healthy() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(STUN_ALLOCATE_TARGET_NAME, &export);
     assert!(export.program_findings.is_empty());
     assert!(json.contains("\"status\":\"healthy\""), "json={}", json);
     assert!(

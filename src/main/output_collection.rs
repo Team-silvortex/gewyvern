@@ -15,7 +15,7 @@ use crate::runtime_logging::log_error_event;
 use crate::serve_runtime::serve_socket_sessions;
 use crate::{
     Cli, ScanTarget, SocketTarget, UiLocale, annotate_export_trust, filter_export_by_pid,
-    route_fact, run_binding_demo, run_binding_session, run_session,
+    route_fact, run_binding_demo, run_binding_session, run_session, selected_scan_target_for_cli,
 };
 
 pub(crate) fn collect_cli_outputs(
@@ -103,7 +103,10 @@ fn collect_socket_cli_outputs(
         );
         std::process::exit(1);
     });
-    push_filtered_output(outputs, cli, "socket_session".to_string(), export);
+    let label = selected_scan_target_for_cli(cli)
+        .map(|target| target.label())
+        .unwrap_or_else(|| "socket_session".to_string());
+    push_filtered_output(outputs, cli, label, export);
 }
 
 fn collect_non_socket_cli_outputs(
@@ -125,10 +128,13 @@ fn collect_non_socket_cli_outputs(
     }
 
     if let Some(binding) = cli.dsl_binding() {
+        let label = selected_scan_target_for_cli(cli)
+            .map(|target| target.label())
+            .unwrap_or_else(|| "dsl_demo".to_string());
         push_filtered_output(
             outputs,
             cli,
-            "dsl_demo".to_string(),
+            label,
             run_binding_demo(binding),
         );
         return;

@@ -1,5 +1,14 @@
 use super::*;
 
+const SNMP_GET_TARGET_NAME: &str = "scan:snmp:get";
+const SNMP_GET_NEXT_TARGET_NAME: &str = "scan:snmp:get-next";
+const SNMP_BULK_TARGET_NAME: &str = "scan:snmp:bulk";
+const SNMP_UNAUTHORIZED_TARGET_NAME: &str = "scan:snmp:unauthorized";
+const SNMP_REPORT_TARGET_NAME: &str = "scan:snmp:report";
+const SNMP_SET_TARGET_NAME: &str = "scan:snmp:set";
+const SNMP_INFORM_TARGET_NAME: &str = "scan:snmp:inform";
+const SNMP_ENGINE_SYNC_TARGET_NAME: &str = "scan:snmp:engine-sync";
+
 fn snmp_udp_packet_fact(
     id: u64,
     cookie: u64,
@@ -100,7 +109,7 @@ fn summary_json_carries_snmp_get_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SNMP_GET_TARGET_NAME, &export);
     assert!(
         json.contains("\"primary_module_kind\":\"management_query\""),
         "json={}",
@@ -171,7 +180,7 @@ fn summary_json_carries_snmp_get_next_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SNMP_GET_NEXT_TARGET_NAME, &export);
     assert!(
         json.contains("\"primary_module_kind\":\"management_query\""),
         "json={}",
@@ -244,7 +253,7 @@ fn summary_json_carries_snmp_bulk_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SNMP_BULK_TARGET_NAME, &export);
     assert!(
         json.contains("\"primary_module_kind\":\"management_query\""),
         "json={}",
@@ -300,7 +309,7 @@ fn summary_json_carries_snmp_unauthorized_denied_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SNMP_UNAUTHORIZED_TARGET_NAME, &export);
     assert!(
         json.contains("\"primary_module_kind\":\"management_query\""),
         "json={}",
@@ -351,7 +360,7 @@ fn summary_json_carries_snmp_report_semantic_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SNMP_REPORT_TARGET_NAME, &export);
     assert!(
         json.contains("\"primary_module_kind\":\"management_query\""),
         "json={}",
@@ -417,7 +426,7 @@ fn summary_json_carries_snmp_set_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SNMP_SET_TARGET_NAME, &export);
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),
         "json={}",
@@ -478,7 +487,7 @@ fn summary_json_carries_snmp_inform_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SNMP_INFORM_TARGET_NAME, &export);
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),
         "json={}",
@@ -541,7 +550,7 @@ fn summary_json_carries_snmp_engine_sync_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SNMP_ENGINE_SYNC_TARGET_NAME, &export);
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),
         "json={}",

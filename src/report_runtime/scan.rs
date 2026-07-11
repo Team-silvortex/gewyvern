@@ -11,10 +11,7 @@ use super::*;
 const SCAN_ALL_PROTOCOL_FLOW_DETAIL_LIMIT: usize = 32;
 
 pub(super) fn scan_report_json(outputs: &[(String, ExportBundle)]) -> String {
-    let analyses = outputs
-        .iter()
-        .map(|(_, export)| analysis_snapshot(export))
-        .collect::<Vec<_>>();
+    let analyses = collect_analyses(outputs);
     scan_report_json_with_analyses(outputs, &analyses)
 }
 
@@ -70,10 +67,7 @@ pub(super) fn single_target_report_json_with_analysis(
 }
 
 pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
-    let analyses = outputs
-        .iter()
-        .map(|(_, export)| analysis_snapshot(export))
-        .collect::<Vec<_>>();
+    let analyses = collect_analyses(outputs);
     scan_report_html_with_analyses(outputs, &analyses)
 }
 
@@ -216,10 +210,7 @@ pub(super) fn single_target_report_html_with_analysis(
 }
 
 pub(super) fn scan_report_text(outputs: &[(String, ExportBundle)]) -> String {
-    let analyses = outputs
-        .iter()
-        .map(|(_, export)| analysis_snapshot(export))
-        .collect::<Vec<_>>();
+    let analyses = collect_analyses(outputs);
     scan_report_text_with_analyses(outputs, &analyses)
 }
 

@@ -4,10 +4,7 @@ fn precomputed_large_scan_inputs(
     target_count: usize,
 ) -> (Vec<(String, ExportBundle)>, Vec<AnalysisSnapshot>) {
     let outputs = synthesize_large_scan_outputs(target_count);
-    let analyses = outputs
-        .iter()
-        .map(|(_, export)| analysis_snapshot(export))
-        .collect::<Vec<_>>();
+    let analyses = collect_analyses(&outputs);
     (outputs, analyses)
 }
 

@@ -15,15 +15,15 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
     update_api_snapshot_for_single(
         &state,
         ApiRenderedTarget {
-            name: "dsl_demo".into(),
+            name: "scan:http:request".into(),
             primary_module_family: analysis.primary_module_family.clone(),
             evidence_posture: analysis.evidence_posture.clone(),
             automation_outcome: analysis.automation_outcome.clone(),
-            summary_text: summary_line("dsl_demo", &export),
-            summary_json: summary_json("dsl_demo", &export),
-            findings_json: findings_json("dsl_demo", &export),
+            summary_text: summary_line("scan:http:request", &export),
+            summary_json: summary_json("scan:http:request", &export),
+            findings_json: findings_json("scan:http:request", &export),
             analysis_json: analysis_snapshot_json(&analysis),
-            training_example_json: training_example_json("dsl_demo", &export),
+            training_example_json: training_example_json("scan:http:request", &export),
             has_external_sidecar_context: false,
             has_external_evidence_chain_enrichment: false,
             has_external_diagnostic_opinion: false,
@@ -34,15 +34,23 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: single_target_report_json_with_analysis("dsl_demo", &export, &analysis),
-            report_html: single_target_report_html_with_analysis("dsl_demo", &export, &analysis),
+            report_json: single_target_report_json_with_analysis(
+                "scan:http:request",
+                &export,
+                &analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:http:request",
+                &export,
+                &analysis,
+            ),
         },
     );
     let snapshot = state.lock().unwrap().clone();
     let meta = api_snapshot_meta_json(&snapshot);
     assert!(meta.contains("\"kind\":\"single\""));
-    assert!(meta.contains("\"name\":\"dsl_demo\""));
-    assert!(meta.contains("\"target_names\":[\"dsl_demo\"]"));
+    assert!(meta.contains("\"name\":\"scan:http:request\""));
+    assert!(meta.contains("\"target_names\":[\"scan:http:request\"]"));
     assert!(meta.contains("\"has_analysis_json\":true"));
     assert!(meta.contains("\"has_training_example_json\":true"));
     assert!(meta.contains("\"has_export_json\":true"));
@@ -53,16 +61,16 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
     assert!(meta.contains("\"external_context_status\":null"));
     assert!(meta.contains("\"external_sidecar_consumption_mode\":null"));
     let (_, _, targets_body) = api_response_for_request("/v1/latest/targets", &snapshot);
-    assert!(targets_body.contains("\"targets\":[\"dsl_demo\"]"));
+    assert!(targets_body.contains("\"targets\":[\"scan:http:request\"]"));
     assert!(targets_body.contains("\"has_external_sidecar_context\":false"));
     assert!(targets_body.contains("\"has_external_evidence_chain_enrichment\":false"));
     assert!(targets_body.contains("\"has_external_diagnostic_opinion\":false"));
     assert!(targets_body.contains("\"external_sidecar_trust_level\":null"));
     assert!(targets_body.contains("\"external_context_status\":null"));
     assert!(targets_body.contains("\"external_sidecar_consumption_mode\":null"));
-    assert!(targets_body.contains("\"has_protocol_surface\":false"));
+    assert!(targets_body.contains("\"has_protocol_surface\":true"));
     let (_, _, summary_body) = api_response_for_request("/v1/latest/summary.json", &snapshot);
-    assert!(summary_body.contains("\"demo\":\"dsl_demo\""));
+    assert!(summary_body.contains("\"demo\":\"scan:http:request\""));
     let (_, _, analysis_body) = api_response_for_request("/v1/latest/analysis.json", &snapshot);
     assert!(analysis_body.contains("\"primary_module_kind\""));
     assert!(analysis_body.contains("\"protocol_flows\""));
@@ -77,23 +85,24 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
     let (_, _, export_body) = api_response_for_request("/v1/latest/export.json", &snapshot);
     assert!(export_body.contains("\"template_id\""));
     let (_, _, target_summary_body) =
-        api_response_for_request("/v1/latest/targets/dsl_demo/summary.json", &snapshot);
-    assert!(target_summary_body.contains("\"demo\":\"dsl_demo\""));
+        api_response_for_request("/v1/latest/targets/scan:http:request/summary.json", &snapshot);
+    assert!(target_summary_body.contains("\"demo\":\"scan:http:request\""));
     let (_, _, target_analysis_body) =
-        api_response_for_request("/v1/latest/targets/dsl_demo/analysis.json", &snapshot);
+        api_response_for_request("/v1/latest/targets/scan:http:request/analysis.json", &snapshot);
     assert!(target_analysis_body.contains("\"primary_failure_mode\""));
     let (surface_status, _, surface_body) = api_response_for_request(
-        "/v1/latest/targets/dsl_demo/protocol-surface.json",
+        "/v1/latest/targets/scan:http:request/protocol-surface.json",
         &snapshot,
     );
-    assert_eq!(surface_status, 404);
-    assert!(surface_body.contains("no protocol surface available"));
+    assert_eq!(surface_status, 200);
+    assert!(surface_body.contains("\"protocol\":\"http\""));
+    assert!(surface_body.contains("\"entry\":\"request\""));
     let (_, _, digest_body) =
         api_response_for_request("/v1/latest/runtime-capability-digest.json", &snapshot);
     assert!(digest_body.contains("\"surface\":\"runtime_capability_digest\""));
-    assert!(digest_body.contains("\"targets_with_protocol_surface\":0"));
-    assert!(digest_body.contains("\"targets_without_protocol_surface\":1"));
-    assert!(digest_body.contains("\"cluster_count\":0"));
+    assert!(digest_body.contains("\"targets_with_protocol_surface\":1"));
+    assert!(digest_body.contains("\"targets_without_protocol_surface\":0"));
+    assert!(digest_body.contains("\"cluster_count\":1"));
 }
 #[test]
 fn api_snapshot_routes_cover_scan_export() {

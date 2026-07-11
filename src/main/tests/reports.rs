@@ -9,6 +9,8 @@ use gewyvern::dsl::compile_file;
 use gewyvern::export::ExportBundle;
 use gewyvern::flow::{ProgramFinding, ProgramFindingCause};
 
+const TARGET_NAME: &str = "scan:http:request";
+
 fn demo_reports_export() -> ExportBundle {
     let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
@@ -28,7 +30,7 @@ fn export_json_carries_ingest_trust_mode() {
 #[test]
 fn summary_json_carries_ingest_trust_mode() {
     let export = demo_reports_export();
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(TARGET_NAME, &export);
     assert!(json.contains("\"ingest_mode\":\"demo\""));
     assert!(json.contains("\"ingest_mode_note\":\"synthetic demo mode: useful for exercising flows and reports, not for real process attribution\""));
     assert!(json.contains("\"ingest_trust_mode\":\"synthetic-demo\""));
@@ -53,16 +55,16 @@ fn summary_json_marks_socket_ingest_as_unverified_local() {
 #[test]
 fn summary_json_exposes_single_object_identity_fields() {
     let export = demo_reports_export();
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(TARGET_NAME, &export);
     assert!(json.contains("\"kind\":\"single\""));
-    assert!(json.contains("\"name\":\"dsl_demo\""));
-    assert!(json.contains("\"demo\":\"dsl_demo\""));
+    assert!(json.contains("\"name\":\"scan:http:request\""));
+    assert!(json.contains("\"demo\":\"scan:http:request\""));
 }
 
 #[test]
 fn summary_json_includes_protocol_flow_progress_for_healthy_export() {
     let export = demo_reports_export();
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(TARGET_NAME, &export);
     assert!(json.contains("\"protocol_flows\":["));
     assert!(json.contains("\"process_network_profiles\":["));
     assert!(json.contains("\"status\":\"healthy\""));
@@ -73,10 +75,10 @@ fn summary_json_includes_protocol_flow_progress_for_healthy_export() {
 #[test]
 fn summary_json_contract_keeps_stable_top_level_fields() {
     let export = demo_reports_export();
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(TARGET_NAME, &export);
 
     assert!(json.contains("\"kind\":\"single\""));
-    assert!(json.contains("\"name\":\"dsl_demo\""));
+    assert!(json.contains("\"name\":\"scan:http:request\""));
     assert!(json.contains("\"primary_module_kind\":"));
     assert!(json.contains("\"primary_failure_stage\":"));
     assert!(json.contains("\"primary_failure_mode\":"));
@@ -100,7 +102,7 @@ fn summary_json_contract_keeps_stable_top_level_fields() {
 #[test]
 fn summary_json_contract_keeps_guidance_and_ambiguity_surface() {
     let export = demo_reports_export();
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(TARGET_NAME, &export);
 
     assert!(json.contains("\"operator_guidance_status\":"));
     assert!(json.contains("\"operator_guidance_action\":"));
@@ -476,7 +478,7 @@ fn summary_json_marks_protocol_flow_attention_and_missing_transition() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(TARGET_NAME, &export);
     assert!(json.contains("\"status\":\"attention\""));
     assert!(json.contains("\"network_module_kind\":\"http_request_response\""));
     assert!(json.contains("\"network_module_kinds\":[\"http_request_response\"]"));
@@ -533,7 +535,7 @@ fn scan_report_json_promotes_top_level_diagnosis_aggregates() {
         "missing_signal:packet_observed",
     );
     let analysis = analysis_snapshot(&export);
-    let json = single_target_report_json_with_analysis("dsl_demo", &export, &analysis);
+    let json = single_target_report_json_with_analysis(TARGET_NAME, &export, &analysis);
     assert!(json.contains("\"primary_module_family\":\"request-response\""));
     assert!(json.contains("\"evidence_posture\":\"missing_transition\""));
     assert!(json.contains("\"automation_outcome\":\"collect_more_evidence\""));

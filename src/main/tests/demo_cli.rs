@@ -1,7 +1,7 @@
 use super::{
-    Cli, IngestMode, ReportFormat, dsl_fixture_path, list_entries_json, list_entries_text,
-    list_protocols_json, list_protocols_text, protocol_dsl_path, protocol_fixture_path,
-    run_binding_demo, scan_targets_for_cli,
+    Cli, IngestMode, ReportFormat, collect_cli_outputs, dsl_fixture_path, list_entries_json,
+    list_entries_text, list_protocols_json, list_protocols_text, protocol_dsl_path,
+    protocol_fixture_path, run_binding_demo, scan_targets_for_cli,
 };
 use crate::helpers::scan_targets_from_set_file;
 use gewyvern::dsl::compile_file;
@@ -328,6 +328,38 @@ fn cli_accepts_protocol_html_report_without_scan_all() {
     .unwrap();
     assert_eq!(cli.report_format, Some(ReportFormat::Html));
     assert_eq!(cli.protocol.as_deref(), Some("mysql"));
+}
+
+#[test]
+fn protocol_selector_uses_scan_style_target_label_for_demo_outputs() {
+    let cli = Cli::from_args([
+        "--protocol".to_string(),
+        "mysql".to_string(),
+        "--entry".to_string(),
+        "session".to_string(),
+    ])
+    .unwrap();
+    let outputs = collect_cli_outputs(
+        &cli,
+        SystemTime::UNIX_EPOCH,
+        &[],
+        crate::UiLocale::detect(),
+    );
+    assert_eq!(outputs.len(), 1);
+    assert_eq!(outputs[0].0, "scan:mysql:session");
+}
+
+#[test]
+fn protocol_selector_uses_default_entry_in_target_label_when_entry_is_omitted() {
+    let cli = Cli::from_args(["--protocol".to_string(), "mysql".to_string()]).unwrap();
+    let outputs = collect_cli_outputs(
+        &cli,
+        SystemTime::UNIX_EPOCH,
+        &[],
+        crate::UiLocale::detect(),
+    );
+    assert_eq!(outputs.len(), 1);
+    assert_eq!(outputs[0].0, "scan:mysql:session");
 }
 
 #[test]

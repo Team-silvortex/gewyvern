@@ -1,5 +1,15 @@
 use super::*;
 
+const NTP_QUERY_TARGET_NAME: &str = "scan:ntp:query";
+const DHCP_CLIENT_TARGET_NAME: &str = "scan:dhcp:client";
+const RIP_REQUEST_TARGET_NAME: &str = "scan:rip:request";
+const BGP_OPEN_TARGET_NAME: &str = "scan:bgp:open";
+const OSPF_HELLO_TARGET_NAME: &str = "scan:ospf:hello";
+const STUN_BINDING_TARGET_NAME: &str = "scan:stun:binding";
+const NTP_SYNC_TARGET_NAME: &str = "scan:ntp:sync";
+const STUN_ALLOCATE_TARGET_NAME: &str = "scan:stun:allocate";
+const STUN_REFRESH_TARGET_NAME: &str = "scan:stun:refresh";
+
 fn udp_packet_fact_with_payload_bytes_for_tests(
     id: u64,
     cookie: u64,
@@ -100,7 +110,7 @@ fn summary_json_carries_ntp_query_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(NTP_QUERY_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"ntp_query\"]"),
         "json={}",
@@ -171,7 +181,7 @@ fn summary_json_carries_dhcp_discover_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(DHCP_CLIENT_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"dhcp_discover\"]"),
         "json={}",
@@ -237,7 +247,7 @@ fn summary_json_carries_dhcp_request_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(DHCP_CLIENT_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"dhcp_request\"]"),
         "json={}",
@@ -303,7 +313,7 @@ fn summary_json_carries_rip_request_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(RIP_REQUEST_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"rip_request\"]"),
         "json={}",
@@ -385,7 +395,7 @@ fn summary_json_carries_bgp_open_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(BGP_OPEN_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"bgp_open\"]"),
         "json={}",
@@ -450,7 +460,7 @@ fn summary_json_carries_ospf_hello_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(OSPF_HELLO_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"ospf_hello\"]"),
         "json={}",
@@ -516,7 +526,7 @@ fn summary_json_carries_stun_binding_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(STUN_BINDING_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"stun_binding\"]"),
         "json={}",
@@ -582,7 +592,7 @@ fn summary_json_carries_ntp_sync_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(NTP_SYNC_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"ntp_sync\"]"),
         "json={}",
@@ -648,7 +658,7 @@ fn summary_json_carries_stun_allocate_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(STUN_ALLOCATE_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"stun_allocate\"]"),
         "json={}",
@@ -716,7 +726,7 @@ fn summary_json_carries_stun_refresh_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(STUN_REFRESH_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"stun_refresh\"]"),
         "json={}",

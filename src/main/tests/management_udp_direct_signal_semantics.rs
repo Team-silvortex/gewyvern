@@ -1,5 +1,8 @@
 use super::*;
 
+const DHCP_CLIENT_TARGET_NAME: &str = "scan:dhcp:client";
+const STUN_BINDING_TARGET_NAME: &str = "scan:stun:binding";
+
 fn udp_packet_fact_with_payload_bytes_for_tests(
     id: u64,
     cookie: u64,
@@ -93,7 +96,7 @@ fn summary_json_carries_dhcp_nak_denied_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(DHCP_CLIENT_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"dhcp_nak\"]"),
         "json={}",
@@ -152,7 +155,7 @@ fn summary_json_carries_stun_binding_error_semantic_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(STUN_BINDING_TARGET_NAME, &export);
     assert!(
         json.contains("\"operations\":[\"stun_binding_error\"]"),
         "json={}",

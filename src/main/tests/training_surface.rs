@@ -3,6 +3,8 @@ use super::*;
 use crate::data_api::training_sample_id;
 use crate::render_utils::extract_json_string_field;
 
+const TARGET_NAME: &str = "scan:http:request";
+
 fn demo_training_export() -> ExportBundle {
     let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
@@ -17,7 +19,7 @@ fn training_example_json_exposes_input_supervision_and_provenance() {
     let _guard = test_guard();
     set_external_analysis_config(None);
     let export = demo_training_export();
-    let body = training_example_json("dsl_demo", &export);
+    let body = training_example_json(TARGET_NAME, &export);
     assert!(body.contains("\"kind\":\"training_example\""));
     assert!(body.contains("\"sample_id\":\"gewy:"));
     assert!(body.contains("\"input\":{"));
@@ -37,10 +39,7 @@ fn training_example_array_supports_scan_level_export() {
     let _guard = test_guard();
     set_external_analysis_config(None);
     let outputs = synthesize_large_scan_outputs(2);
-    let analyses = outputs
-        .iter()
-        .map(|(_, export)| analysis_snapshot(export))
-        .collect::<Vec<_>>();
+    let analyses = collect_analyses(&outputs);
     let body = training_example_json_array(&outputs, &analyses);
     assert!(body.starts_with('['));
     assert!(body.contains("\"kind\":\"training_example\""));
@@ -69,7 +68,7 @@ fn training_example_promotes_top_level_diagnosis_aggregates() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let body = training_example_json("dsl_demo", &export);
+    let body = training_example_json(TARGET_NAME, &export);
     assert!(body.contains("\"primary_module_family\":\"request-response\""));
     assert!(body.contains("\"evidence_posture\":\"missing_transition\""));
     assert!(body.contains("\"automation_outcome\":\"collect_more_evidence\""));
@@ -86,14 +85,14 @@ fn training_example_contract_keeps_stable_top_level_and_input_fields() {
     let _guard = test_guard();
     set_external_analysis_config(None);
     let export = demo_training_export();
-    let body = training_example_json("dsl_demo", &export);
+    let body = training_example_json(TARGET_NAME, &export);
     let sample_id = extract_json_string_field(&body, "sample_id")
         .expect("training example should expose sample_id");
 
     assert!(body.contains("\"kind\":\"training_example\""));
     assert!(body.contains("\"schema_version\":1"));
-    assert!(body.contains("\"name\":\"dsl_demo\""));
-    assert_eq!(sample_id, training_sample_id("dsl_demo"));
+    assert!(body.contains("\"name\":\"scan:http:request\""));
+    assert_eq!(sample_id, training_sample_id(TARGET_NAME));
     assert!(body.contains("\"template_id\":"));
     assert!(body.contains("\"input\":{"));
     assert!(body.contains("\"target_status\":"));
@@ -123,7 +122,7 @@ fn training_example_contract_keeps_supervision_and_provenance_fields() {
     let _guard = test_guard();
     set_external_analysis_config(None);
     let export = demo_training_export();
-    let body = training_example_json("dsl_demo", &export);
+    let body = training_example_json(TARGET_NAME, &export);
 
     assert!(body.contains("\"supervision\":{"));
     assert!(body.contains("\"operator_guidance_status\":"));
@@ -155,16 +154,16 @@ fn api_training_example_routes_cover_single_export() {
     update_api_snapshot_for_single(
         &state,
         ApiRenderedTarget {
-            name: "dsl_demo".into(),
+            name: TARGET_NAME.into(),
             primary_module_family: analysis.primary_module_family.clone(),
             evidence_posture: analysis.evidence_posture.clone(),
             automation_outcome: analysis.automation_outcome.clone(),
-            summary_text: summary_line("dsl_demo", &export),
-            summary_json: summary_json("dsl_demo", &export),
-            findings_json: findings_json("dsl_demo", &export),
+            summary_text: summary_line(TARGET_NAME, &export),
+            summary_json: summary_json(TARGET_NAME, &export),
+            findings_json: findings_json(TARGET_NAME, &export),
             analysis_json: analysis_snapshot_json(&analysis),
             training_example_json: training_example_json_with_analysis(
-                "dsl_demo", &export, &analysis,
+                TARGET_NAME, &export, &analysis,
             ),
             has_external_sidecar_context: false,
             has_external_evidence_chain_enrichment: false,
@@ -176,8 +175,8 @@ fn api_training_example_routes_cover_single_export() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: single_target_report_json_with_analysis("dsl_demo", &export, &analysis),
-            report_html: single_target_report_html_with_analysis("dsl_demo", &export, &analysis),
+            report_json: single_target_report_json_with_analysis(TARGET_NAME, &export, &analysis),
+            report_html: single_target_report_html_with_analysis(TARGET_NAME, &export, &analysis),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -195,20 +194,20 @@ fn api_training_example_routes_cover_single_export() {
     assert!(dataset_body.contains("\"supervision_heads\":{\"diagnosis\""));
     assert!(dataset_body.contains("\"sample_id\":\"gewy:"));
     assert!(dataset_body.contains("\"split_hints\":{\"name_bucket_mod_10\":"));
-    assert!(dataset_body.contains("\"group_key\":\"unknown\""));
+    assert!(dataset_body.contains("\"group_key\":\"http\""));
     let (_, _, target_body) = api_response_for_request(
-        "/v1/latest/targets/dsl_demo/training-example.json",
+        "/v1/latest/targets/scan:http:request/training-example.json",
         &snapshot,
     );
-    assert!(target_body.contains("\"name\":\"dsl_demo\""));
+    assert!(target_body.contains("\"name\":\"scan:http:request\""));
     let (_, _, target_dataset_body) = api_response_for_request(
-        "/v1/latest/targets/dsl_demo/training-dataset.json",
+        "/v1/latest/targets/scan:http:request/training-dataset.json",
         &snapshot,
     );
     assert!(target_dataset_body.contains("\"kind\":\"training_dataset_manifest\""));
     assert!(
         target_dataset_body
-            .contains("\"sample_path\":\"/v1/latest/targets/dsl_demo/training-example.json\"")
+            .contains("\"sample_path\":\"/v1/latest/targets/scan:http:request/training-example.json\"")
     );
     assert!(target_dataset_body.contains("\"sample_id\":\"gewy:"));
     assert!(target_dataset_body.contains("\"split_hints\":{\"name_bucket_mod_10\":"));

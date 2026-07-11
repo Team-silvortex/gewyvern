@@ -1,5 +1,8 @@
 use super::*;
 
+const LDAP_BIND_TARGET_NAME: &str = "scan:ldap:bind";
+const LDAP_MODIFY_TARGET_NAME: &str = "scan:ldap:modify";
+
 #[test]
 fn summary_json_carries_ldap_bind_denied_detail() {
     let binding = compile_file(&dsl_fixture_path("ldap_bind_denied_path.gewy"))
@@ -40,7 +43,7 @@ fn summary_json_carries_ldap_bind_denied_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(LDAP_BIND_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"directory_bind\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"server_denied\""),
@@ -104,7 +107,7 @@ fn summary_json_carries_ldap_modify_denied_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(LDAP_MODIFY_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"directory_write\""));
     assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));
@@ -152,7 +155,7 @@ fn summary_json_carries_ldap_modify_constraint_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(LDAP_MODIFY_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"directory_write\""));
     assert!(json.contains("\"primary_failure_mode\":\"semantic_error\""));
     assert!(json.contains("\"primary_failure_detail\":\"protocol_constraint_violation\""));

@@ -1,5 +1,7 @@
 use super::*;
 
+const HTTP_TARGET_NAME: &str = "scan:http:request";
+
 #[test]
 fn anomaly_flow_route_highlights_missing_transition_breakpoint() {
     let _guard = test_guard();
@@ -90,7 +92,7 @@ fn anomaly_flow_route_returns_404_without_analysis_snapshot() {
     update_api_snapshot_for_single(
         &state,
         ApiRenderedTarget {
-            name: "dsl_demo".into(),
+            name: HTTP_TARGET_NAME.into(),
             primary_module_family: "request-response".into(),
             evidence_posture: "direct_protocol_signal".into(),
             automation_outcome: "targeted_escalation".into(),
@@ -114,8 +116,10 @@ fn anomaly_flow_route_returns_404_without_analysis_snapshot() {
         },
     );
     let snapshot = state.lock().unwrap().clone();
-    let (status, _, body) =
-        api_response_for_request("/v1/latest/targets/dsl_demo/anomaly-flow.json", &snapshot);
+    let (status, _, body) = api_response_for_request(
+        "/v1/latest/targets/scan:http:request/anomaly-flow.json",
+        &snapshot,
+    );
     assert_eq!(status, 404);
     assert!(body.contains("no anomaly flow view available for target"));
 }

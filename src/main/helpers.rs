@@ -415,6 +415,12 @@ pub(crate) fn scan_targets_for_cli(cli: &Cli) -> Result<Vec<ScanTarget>, String>
     }
 }
 
+pub(crate) fn selected_scan_target_for_cli(cli: &Cli) -> Option<ScanTarget> {
+    let protocol = cli.protocol.as_deref()?;
+    let resolved = resolve_protocol_profile(protocol, cli.entry.as_deref())?;
+    Some(ScanTarget::from_resolved(resolved))
+}
+
 pub(crate) fn scan_targets_from_set_file(path: &str) -> Result<Vec<ScanTarget>, String> {
     if Path::new(path).is_dir() {
         return default_protocol_scan_set_from_dir(path)

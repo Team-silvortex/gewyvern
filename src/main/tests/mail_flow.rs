@@ -1,5 +1,10 @@
 use super::*;
 
+const HTTP3_REQUEST_TARGET_NAME: &str = "scan:http3:request";
+const SMTP_AUTH_TARGET_NAME: &str = "scan:smtp:auth";
+const IMAP_AUTH_TARGET_NAME: &str = "scan:imap:auth";
+const SMTP_MAIL_TARGET_NAME: &str = "scan:smtp:mail";
+
 #[test]
 fn summary_json_carries_http3_request_timeout_detail() {
     let binding = compile_file(&dsl_fixture_path("http3_request_path.gewy"))
@@ -23,7 +28,7 @@ fn summary_json_carries_http3_request_timeout_detail() {
         "quic_frame_meta_fragment",
         "missing_signal:quic_frame_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(HTTP3_REQUEST_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"http3_request_response\""));
     assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
     assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
@@ -109,7 +114,7 @@ fn summary_json_carries_smtp_auth_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SMTP_AUTH_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
     assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
     assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
@@ -183,7 +188,7 @@ fn summary_json_carries_imap_auth_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(IMAP_AUTH_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
     assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
     assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
@@ -291,7 +296,7 @@ fn summary_json_carries_smtp_mail_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SMTP_MAIL_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"mail_session\""));
     assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
     assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));

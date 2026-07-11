@@ -1,5 +1,11 @@
 use super::*;
 
+const RTSP_DESCRIBE_TARGET_NAME: &str = "scan:rtsp:describe";
+const HTTP_CONNECT_TARGET_NAME: &str = "scan:http:connect";
+const HTTP3_REQUEST_TARGET_NAME: &str = "scan:http3:request";
+const TLS_CLIENT_TARGET_NAME: &str = "scan:tls:client";
+const HTTP_REQUEST_TARGET_NAME: &str = "scan:http:request";
+
 #[test]
 fn summary_json_carries_rtsp_describe_timeout_detail() {
     let binding = compile_file(&dsl_fixture_path("rtsp_describe_path.gewy"))
@@ -76,7 +82,7 @@ fn summary_json_carries_rtsp_describe_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(RTSP_DESCRIBE_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"signaling_session\""));
     assert!(json.contains("\"primary_failure_mode\":\"no_response\""));
     assert!(json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""));
@@ -131,7 +137,7 @@ fn summary_json_carries_http_connect_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(HTTP_CONNECT_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"proxy_tunnel_establishment\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),
@@ -190,7 +196,7 @@ fn summary_json_carries_http_connect_auth_required_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(HTTP_CONNECT_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"proxy_authentication\""));
     assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(json.contains("\"primary_failure_detail\":\"auth_required\""));
@@ -269,7 +275,7 @@ fn summary_json_carries_http_connect_authenticated_tunnel_pending_auth_detail() 
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(HTTP_CONNECT_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"proxy_authentication\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"server_denied\""),
@@ -306,7 +312,7 @@ fn summary_json_carries_http3_server_timeout_detail() {
         "quic_frame_meta_fragment",
         "missing_signal:quic_frame_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(HTTP3_REQUEST_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"http3_request_response\""));
     assert!(json.contains("\"primary_failure_mode\":\"not_sent\""));
     assert!(json.contains("\"primary_failure_detail\":\"followup_not_sent\""));
@@ -335,7 +341,7 @@ fn summary_json_carries_tls_route_blocked_detail() {
         "route_meta_fragment",
         "missing_signal:route_resolution",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(TLS_CLIENT_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"tls_handshake\""));
     assert!(json.contains("\"primary_failure_mode\":\"setup_incomplete\""));
     assert!(json.contains("\"primary_failure_detail\":\"route_or_connect_blocked\""));
@@ -365,7 +371,7 @@ fn findings_json_carries_network_module_classification() {
         "missing_signal:packet_observed",
     );
 
-    let json = findings_json("dsl_demo", &export);
+    let json = findings_json(HTTP_REQUEST_TARGET_NAME, &export);
     assert!(json.contains("\"module_findings\":["), "json={}", json);
     assert!(json.contains("\"program_findings\":["), "json={}", json);
     assert!(

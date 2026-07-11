@@ -1,13 +1,11 @@
 use super::*;
+use super::debug_targets::{rank, ranked_targets, scan_target_protocol_entry};
 
 pub(super) fn render_debugger_console_outputs(
     cli: &Cli,
     outputs: &[(String, ExportBundle)],
 ) -> String {
-    let analyses = outputs
-        .iter()
-        .map(|(_, export)| analysis_snapshot(export))
-        .collect::<Vec<_>>();
+    let analyses = collect_analyses(outputs);
     if cli.json {
         debugger_console_json(outputs, &analyses)
     } else {
@@ -101,23 +99,6 @@ pub(super) fn debugger_console_text(
     text
 }
 
-fn ranked_targets<'a>(
-    outputs: &'a [(String, ExportBundle)],
-    analyses: &'a [AnalysisSnapshot],
-) -> Vec<(&'a str, &'a AnalysisSnapshot)> {
-    let mut indexed = outputs
-        .iter()
-        .zip(analyses.iter())
-        .map(|((name, _), analysis)| (name.as_str(), analysis))
-        .collect::<Vec<_>>();
-    indexed.sort_by(|(left_name, left), (right_name, right)| {
-        rank(left)
-            .cmp(&rank(right))
-            .then_with(|| left_name.cmp(right_name))
-    });
-    indexed
-}
-
 fn append_target_json(json: &mut String, name: &str, analysis: &AnalysisSnapshot) {
     json.push('{');
     json.push_str("\"name\":");
@@ -152,35 +133,10 @@ fn append_target_json(json: &mut String, name: &str, analysis: &AnalysisSnapshot
     json.push('}');
 }
 
-fn rank(analysis: &AnalysisSnapshot) -> usize {
-    match analysis.automation_outcome.as_str() {
-        "targeted_escalation" => 0,
-        "collect_more_evidence" => 1,
-        "multi_hypothesis" => 2,
-        "manual_review" => 3,
-        "advisory_only" => 4,
-        _ => match analysis.evidence_posture.as_str() {
-            "direct_protocol_signal" => 0,
-            "missing_transition" => 1,
-            "ambiguous_multi_hypothesis" => 2,
-            "heuristic_summary" => 3,
-            _ => 5,
-        },
-    }
-}
-
 fn target_debug_session_command(name: &str) -> String {
     if let Some((protocol, entry)) = scan_target_protocol_entry(name) {
         format!("cargo run -- --protocol {protocol} --entry {entry} --debug-session --json")
     } else {
         "cargo run -- --debug-session --json".into()
     }
-}
-
-fn scan_target_protocol_entry(name: &str) -> Option<(&str, &str)> {
-    let mut parts = name.splitn(3, ':');
-    if parts.next()? != "scan" {
-        return None;
-    }
-    Some((parts.next()?, parts.next()?))
 }

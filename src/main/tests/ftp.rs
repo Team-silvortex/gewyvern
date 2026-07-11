@@ -1,5 +1,7 @@
 use super::*;
 
+const FTP_TARGET_NAME: &str = "scan:ftp:session";
+
 #[test]
 fn summary_json_carries_ftp_banner_timeout_detail() {
     let binding = compile_file(&dsl_fixture_path("ftp_session_path.gewy"))
@@ -36,7 +38,7 @@ fn summary_json_carries_ftp_banner_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(FTP_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"setup_incomplete\""),
@@ -132,7 +134,7 @@ fn summary_json_carries_ftp_auth_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(FTP_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),
@@ -217,7 +219,7 @@ fn summary_json_carries_ftp_auth_followup_missing_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(FTP_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"not_sent\""),
@@ -357,7 +359,7 @@ fn summary_json_carries_ftp_list_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(FTP_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"file_transfer_session\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),
@@ -475,7 +477,7 @@ fn summary_json_carries_ftp_active_port_timeout_detail() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(FTP_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"file_transfer_session\""));
     assert!(
         json.contains("\"primary_failure_mode\":\"no_response\""),
@@ -567,7 +569,7 @@ fn summary_json_carries_ftp_denied_detail() {
         ),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(FTP_TARGET_NAME, &export);
     assert!(json.contains("\"primary_module_kind\":\"authentication_exchange\""));
     assert!(json.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(json.contains("\"primary_failure_detail\":\"access_denied\""));

@@ -79,6 +79,8 @@ pub(crate) use self::diagnostics_mode::render_diagnostics_mode;
 pub(crate) use self::output_collection::collect_cli_outputs;
 pub(crate) use self::preflight::handle_cli_preflight;
 pub(crate) use self::render_dispatch::render_cli_outputs;
+#[cfg(test)]
+pub(crate) use self::report_runtime::collect_analyses;
 pub(crate) use self::ui_locale::UiLocale;
 
 fn main() {
@@ -120,7 +122,7 @@ pub(crate) use self::helpers::{
     ingest_mode_for_export, ingest_mode_note_for_export, list_entries_json, list_entries_text,
     list_protocols_json, list_protocols_text, pid_attribution_note_for_export,
     pid_attribution_status_for_export, route_fact, run_binding_session, run_session,
-    scan_targets_for_cli, socket_target_is_local, write_or_print,
+    scan_targets_for_cli, selected_scan_target_for_cli, socket_target_is_local, write_or_print,
 };
 fn usage() -> &'static str {
     UiLocale::detect().usage()

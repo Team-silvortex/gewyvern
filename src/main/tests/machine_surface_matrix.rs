@@ -65,7 +65,7 @@ fn single_target_snapshot(
 fn machine_surface_roundtrip_keeps_summary_analysis_training_and_export_in_sync() {
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let target_name = "dsl_demo";
+    let target_name = "scan:http:request";
     let (snapshot, _, _, _, _, _, _) = single_target_snapshot(target_name);
 
     let (summary_status, _, summary_body) =
@@ -111,14 +111,14 @@ fn machine_surface_roundtrip_keeps_summary_analysis_training_and_export_in_sync(
     assert!(dataset_body.contains("\"supervision_heads\":{\"diagnosis\""));
     assert!(export_body.contains("\"template_id\""));
     assert!(export_body.contains("\"fragment_inventory\""));
-    assert!(targets_body.contains("\"targets\":[\"dsl_demo\"]"));
+    assert!(targets_body.contains("\"targets\":[\"scan:http:request\"]"));
 }
 
 #[test]
 fn machine_surface_roundtrip_keeps_capabilities_and_runtime_certificate_surfaces_alive() {
     let _guard = test_guard();
     set_external_analysis_config(None);
-    let (snapshot, _, _, _, _, _, _) = single_target_snapshot("dsl_demo");
+    let (snapshot, _, _, _, _, _, _) = single_target_snapshot("scan:http:request");
 
     let (cap_status, _, cap_body) = api_response_for_request("/v1/capabilities", &snapshot);
     let (cert_status, _, cert_body) =
@@ -148,5 +148,6 @@ fn machine_surface_roundtrip_keeps_capabilities_and_runtime_certificate_surfaces
     assert!(state_body.contains("\"surface\":\"runtime_certificate_state\""));
     assert!(state_body.contains("\"summary\":{"));
     assert!(digest_body.contains("\"surface\":\"runtime_capability_digest\""));
-    assert!(digest_body.contains("\"targets_without_protocol_surface\":1"));
+    assert!(digest_body.contains("\"targets_with_protocol_surface\":1"));
+    assert!(digest_body.contains("\"targets_without_protocol_surface\":0"));
 }

@@ -1,5 +1,7 @@
 use super::*;
 
+const HTTP_TARGET_NAME: &str = "scan:http:request";
+
 fn demo_analysis_export() -> ExportBundle {
     let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");
@@ -84,8 +86,8 @@ fn summary_and_findings_json_expose_external_augmentations() {
                 run_binding_demo(binding),
                 &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
             );
-            let summary = summary_json("dsl_demo", &export);
-            let findings = findings_json("dsl_demo", &export);
+            let summary = summary_json(HTTP_TARGET_NAME, &export);
+            let findings = findings_json(HTTP_TARGET_NAME, &export);
             assert!(summary.contains("\"augmentations\":["));
             assert!(summary.contains("\"name\":\"ml_candidate_manual_review\""));
             assert!(summary.contains("\"external_sidecar_context\":{"));
@@ -127,8 +129,9 @@ fn summary_line_and_html_surface_external_sidecar_hints() {
                 snapshot.evidence_posture,
                 snapshot.automation_outcome
             );
-            let summary = summary_line("dsl_demo", &export);
-            let html = single_target_report_html_with_analysis("dsl_demo", &export, &snapshot);
+            let summary = summary_line(HTTP_TARGET_NAME, &export);
+            let html =
+                single_target_report_html_with_analysis(HTTP_TARGET_NAME, &export, &snapshot);
             assert!(summary.contains(
                     "external_enrichment_hint=automation_worthy+augmentations_with_operator_guidance_support"
                 ));
@@ -174,8 +177,9 @@ fn summary_line_and_html_mark_advisory_only_sidecar_context() {
                 snapshot.evidence_posture,
                 snapshot.automation_outcome
             );
-            let summary = summary_line("dsl_demo", &export);
-            let html = single_target_report_html_with_analysis("dsl_demo", &export, &snapshot);
+            let summary = summary_line(HTTP_TARGET_NAME, &export);
+            let html =
+                single_target_report_html_with_analysis(HTTP_TARGET_NAME, &export, &snapshot);
             assert!(summary.contains("external_collaboration_state=advisory_only_sidecar_context"));
             assert!(summary.contains("external_operator_guidance_support=none"));
             assert!(summary.contains(&expected_spine));
@@ -525,7 +529,7 @@ fn summary_json_carries_operator_guidance_for_direct_protocol_signal() {
         ),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(HTTP_TARGET_NAME, &export);
     assert!(json.contains("\"operator_guidance_status\":\"targeted_ready\""));
     assert!(json.contains("\"operator_guidance_action\":\"safe_to_escalate_protocol_signal\""));
     assert!(json.contains("\"operator_guidance_reason\":\"direct_protocol_signal\""));
@@ -541,7 +545,7 @@ fn analysis_and_findings_json_wrap_object_arrays_correctly() {
     );
     let snapshot = analysis_snapshot(&export);
     let analysis = analysis_snapshot_json(&snapshot);
-    let findings = findings_json_with_analysis("dsl_demo", &export, &snapshot);
+    let findings = findings_json_with_analysis(HTTP_TARGET_NAME, &export, &snapshot);
 
     assert!(analysis.contains("\"augmentations\":["));
     assert!(analysis.contains("\"process_network_profiles\":["));

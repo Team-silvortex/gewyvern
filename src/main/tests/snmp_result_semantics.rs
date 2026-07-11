@@ -1,5 +1,10 @@
 use super::*;
 
+const SNMP_V3_AUTH_TARGET_NAME: &str = "scan:snmp:v3-auth";
+const SNMP_V3_PRIV_TARGET_NAME: &str = "scan:snmp:v3-priv";
+const SNMP_TRAP_TARGET_NAME: &str = "scan:snmp:trap";
+const SNMP_TRAP_RECV_TARGET_NAME: &str = "scan:snmp:trap-recv";
+
 fn udp_packet_fact_with_payload_bytes_for_tests(
     id: u64,
     cookie: u64,
@@ -93,7 +98,7 @@ fn snmp_v3_auth_response_keeps_security_surface_healthy() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SNMP_V3_AUTH_TARGET_NAME, &export);
     assert!(
         export.program_findings.is_empty(),
         "json={} findings={:#?}",
@@ -154,7 +159,7 @@ fn snmp_v3_priv_response_keeps_security_surface_healthy() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SNMP_V3_PRIV_TARGET_NAME, &export);
     assert!(
         export.program_findings.is_empty(),
         "json={} findings={:#?}",
@@ -207,7 +212,7 @@ fn snmp_trap_send_keeps_notify_surface_healthy() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SNMP_TRAP_TARGET_NAME, &export);
     assert!(
         export.program_findings.is_empty(),
         "json={} findings={:#?}",
@@ -260,7 +265,7 @@ fn snmp_trap_recv_keeps_manage_surface_healthy() {
         ),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    let json = summary_json("dsl_demo", &export);
+    let json = summary_json(SNMP_TRAP_RECV_TARGET_NAME, &export);
     assert!(
         export.program_findings.is_empty(),
         "json={} findings={:#?}",

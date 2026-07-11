@@ -107,7 +107,7 @@ fn persisted_machine_surfaces_match_live_api_for_core_payloads() {
     let state_root = root.join("state");
     let _state = EnvGuard::set("GEWY_STATE_HOME", state_root.to_string_lossy());
 
-    let target_name = "dsl_demo";
+    let target_name = "scan:http:request";
     let (snapshot, latest_root) = persisted_single_snapshot(&state_root, target_name);
 
     let (_, _, live_summary) = api_response_for_request("/v1/latest/summary.json", &snapshot);
@@ -145,7 +145,7 @@ fn persisted_machine_surfaces_match_live_api_for_core_payloads() {
     );
     assert_eq!(
         api_response_for_request(
-            "/v1/latest/targets/dsl_demo/training-dataset.json",
+            "/v1/latest/targets/scan:http:request/training-dataset.json",
             &snapshot,
         )
         .2
@@ -165,7 +165,7 @@ fn persisted_machine_surfaces_match_live_api_for_runtime_and_capability_routes()
     let state_root = root.join("state");
     let _state = EnvGuard::set("GEWY_STATE_HOME", state_root.to_string_lossy());
 
-    let (snapshot, latest_root) = persisted_single_snapshot(&state_root, "dsl_demo");
+    let (snapshot, latest_root) = persisted_single_snapshot(&state_root, "scan:http:request");
 
     let (_, _, live_targets) = api_response_for_request("/v1/latest/targets", &snapshot);
     let (_, _, live_meta) = api_response_for_request("/v1/latest/meta", &snapshot);
@@ -202,7 +202,7 @@ fn persisted_machine_surfaces_match_live_api_for_runtime_and_capability_routes()
         fs::read_to_string(latest_root.join("runtime-certificate-state.json")).unwrap()
     );
 
-    assert!(live_targets.contains("\"targets\":[\"dsl_demo\"]"));
+    assert!(live_targets.contains("\"targets\":[\"scan:http:request\"]"));
     assert!(live_digest.contains("\"surface\":\"runtime_capability_digest\""));
     assert!(live_certs.contains("\"surface\":\"runtime_certificates\""));
     assert!(live_policy.contains("\"surface\":\"runtime_certificate_policy\""));

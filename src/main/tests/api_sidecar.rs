@@ -1,5 +1,7 @@
 use super::*;
 
+const TARGET_NAME: &str = "scan:http:request";
+
 #[cfg(target_family = "unix")]
 #[test]
 fn api_meta_marks_external_sidecar_context_presence() {
@@ -17,15 +19,15 @@ fn api_meta_marks_external_sidecar_context_presence() {
             update_api_snapshot_for_single(
                 &state,
                 ApiRenderedTarget {
-                    name: "dsl_demo".into(),
+                    name: TARGET_NAME.into(),
                     primary_module_family: analysis.primary_module_family.clone(),
                     evidence_posture: analysis.evidence_posture.clone(),
                     automation_outcome: analysis.automation_outcome.clone(),
-                    summary_text: summary_line("dsl_demo", &export),
-                    summary_json: summary_json("dsl_demo", &export),
-                    findings_json: findings_json("dsl_demo", &export),
+                    summary_text: summary_line(TARGET_NAME, &export),
+                    summary_json: summary_json(TARGET_NAME, &export),
+                    findings_json: findings_json(TARGET_NAME, &export),
                     analysis_json: analysis_snapshot_json(&analysis),
-                    training_example_json: training_example_json("dsl_demo", &export),
+                    training_example_json: training_example_json(TARGET_NAME, &export),
                     has_external_sidecar_context: true,
                     has_external_evidence_chain_enrichment: true,
                     has_external_diagnostic_opinion: true,
@@ -37,12 +39,12 @@ fn api_meta_marks_external_sidecar_context_presence() {
                     external_sidecar_consumption_mode: Some("guidance_candidate".into()),
                     export_json: export.to_json(),
                     report_json: single_target_report_json_with_analysis(
-                        "dsl_demo",
+                        TARGET_NAME,
                         &export,
                         &analysis,
                     ),
                     report_html: single_target_report_html_with_analysis(
-                        "dsl_demo",
+                        TARGET_NAME,
                         &export,
                         &analysis,
                     ),
@@ -109,15 +111,15 @@ fn api_meta_marks_unverified_sidecar_trust_when_capability_profile_is_missing() 
             update_api_snapshot_for_single(
                 &state,
                 ApiRenderedTarget {
-                    name: "dsl_demo".into(),
+                    name: TARGET_NAME.into(),
                     primary_module_family: analysis.primary_module_family.clone(),
                     evidence_posture: analysis.evidence_posture.clone(),
                     automation_outcome: analysis.automation_outcome.clone(),
-                    summary_text: summary_line("dsl_demo", &export),
-                    summary_json: summary_json("dsl_demo", &export),
-                    findings_json: findings_json("dsl_demo", &export),
+                    summary_text: summary_line(TARGET_NAME, &export),
+                    summary_json: summary_json(TARGET_NAME, &export),
+                    findings_json: findings_json(TARGET_NAME, &export),
                     analysis_json: analysis_snapshot_json(&analysis),
-                    training_example_json: training_example_json("dsl_demo", &export),
+                    training_example_json: training_example_json(TARGET_NAME, &export),
                     has_external_sidecar_context,
                     has_external_evidence_chain_enrichment,
                     has_external_diagnostic_opinion,
@@ -131,12 +133,12 @@ fn api_meta_marks_unverified_sidecar_trust_when_capability_profile_is_missing() 
                         crate::diagnosis_runtime::external_sidecar_consumption_mode(&analysis),
                     export_json: export.to_json(),
                     report_json: single_target_report_json_with_analysis(
-                        "dsl_demo",
+                        TARGET_NAME,
                         &export,
                         &analysis,
                     ),
                     report_html: single_target_report_html_with_analysis(
-                        "dsl_demo",
+                        TARGET_NAME,
                         &export,
                         &analysis,
                     ),

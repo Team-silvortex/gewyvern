@@ -18,6 +18,7 @@ use crate::runtime_events::{
     EVENT_UNIX_SERVICE_START, EVENT_WRITE_FAILED,
 };
 use crate::runtime_logging::{log_error_event, log_info_event, log_warn_event};
+use crate::report_runtime::collect_analyses;
 use crate::socket_resilience::{
     SocketLoopHealth, apply_socket_failure_backoff, log_socket_loop_recovered,
     log_socket_session_failure,
@@ -457,10 +458,7 @@ fn emit_scan_outputs(
     append: bool,
     api_state: Option<&ApiState>,
 ) {
-    let analyses = outputs
-        .iter()
-        .map(|(_, export)| analysis_snapshot(export))
-        .collect::<Vec<_>>();
+    let analyses = collect_analyses(outputs);
     let scan_summary_text = scan_report_text_with_analyses(outputs, &analyses);
     let scan_summary_json = scan_report_json_with_analyses(outputs, &analyses);
     let scan_analysis_json = format!(
