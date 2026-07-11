@@ -49,6 +49,14 @@ pub(super) fn scan_report_json_with_analyses(
     self::scan::scan_report_json_with_analyses(outputs, analyses)
 }
 
+pub(super) fn single_target_report_json_with_analysis(
+    name: &str,
+    export: &ExportBundle,
+    analysis: &AnalysisSnapshot,
+) -> String {
+    self::scan::single_target_report_json_with_analysis(name, export, analysis)
+}
+
 #[cfg(test)]
 pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
     self::scan::scan_report_html(outputs)
@@ -59,6 +67,14 @@ pub(super) fn scan_report_html_with_analyses(
     analyses: &[AnalysisSnapshot],
 ) -> String {
     self::scan::scan_report_html_with_analyses(outputs, analyses)
+}
+
+pub(super) fn single_target_report_html_with_analysis(
+    name: &str,
+    export: &ExportBundle,
+    analysis: &AnalysisSnapshot,
+) -> String {
+    self::scan::single_target_report_html_with_analysis(name, export, analysis)
 }
 
 #[cfg(test)]

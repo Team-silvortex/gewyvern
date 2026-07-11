@@ -111,8 +111,8 @@ fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[(target_name.to_string(), export.clone())]),
-            report_html: scan_report_html(&[(target_name.to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(target_name, &export, &analysis),
+            report_html: single_target_report_html_with_analysis(target_name, &export, &analysis),
         },
     );
     persist_api_snapshot(&state).unwrap();
@@ -245,19 +245,20 @@ fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward()
         run_binding_demo(binding),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
+    let analysis = analysis_snapshot(&export);
     let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
 
     update_api_snapshot_for_single(
         &state,
         ApiRenderedTarget {
             name: "scan:http:request".into(),
-            primary_module_family: analysis_snapshot(&export).primary_module_family,
-            evidence_posture: analysis_snapshot(&export).evidence_posture,
-            automation_outcome: analysis_snapshot(&export).automation_outcome,
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
             summary_text: summary_line("scan:http:request", &export),
             summary_json: summary_json("scan:http:request", &export),
             findings_json: findings_json("scan:http:request", &export),
-            analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
+            analysis_json: analysis_snapshot_json(&analysis),
             training_example_json: training_example_json("scan:http:request", &export),
             has_external_sidecar_context: false,
             has_external_evidence_chain_enrichment: false,
@@ -269,8 +270,16 @@ fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward()
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:http:request".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:http:request".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:http:request",
+                &export,
+                &analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:http:request",
+                &export,
+                &analysis,
+            ),
         },
     );
     persist_api_snapshot(&state).unwrap();
@@ -282,13 +291,13 @@ fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward()
         &state,
         ApiRenderedTarget {
             name: "scan:http:response".into(),
-            primary_module_family: analysis_snapshot(&export).primary_module_family,
-            evidence_posture: analysis_snapshot(&export).evidence_posture,
-            automation_outcome: analysis_snapshot(&export).automation_outcome,
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
             summary_text: summary_line("scan:http:response", &export),
             summary_json: summary_json("scan:http:response", &export),
             findings_json: findings_json("scan:http:response", &export),
-            analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
+            analysis_json: analysis_snapshot_json(&analysis),
             training_example_json: training_example_json("scan:http:response", &export),
             has_external_sidecar_context: false,
             has_external_evidence_chain_enrichment: false,
@@ -300,8 +309,16 @@ fn persisted_snapshot_history_keeps_prior_refreshes_while_latest_moves_forward()
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:http:response".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:http:response".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:http:response",
+                &export,
+                &analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:http:response",
+                &export,
+                &analysis,
+            ),
         },
     );
     persist_api_snapshot(&state).unwrap();
@@ -451,18 +468,19 @@ fn persisted_snapshot_history_prunes_older_entries_beyond_retention_limit() {
         run_binding_demo(binding),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
+    let analysis = analysis_snapshot(&export);
     let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
     update_api_snapshot_for_single(
         &state,
         ApiRenderedTarget {
             name: "scan:http:request".into(),
-            primary_module_family: analysis_snapshot(&export).primary_module_family,
-            evidence_posture: analysis_snapshot(&export).evidence_posture,
-            automation_outcome: analysis_snapshot(&export).automation_outcome,
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
             summary_text: summary_line("scan:http:request", &export),
             summary_json: summary_json("scan:http:request", &export),
             findings_json: findings_json("scan:http:request", &export),
-            analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
+            analysis_json: analysis_snapshot_json(&analysis),
             training_example_json: training_example_json("scan:http:request", &export),
             has_external_sidecar_context: false,
             has_external_evidence_chain_enrichment: false,
@@ -474,8 +492,16 @@ fn persisted_snapshot_history_prunes_older_entries_beyond_retention_limit() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:http:request".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:http:request".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:http:request",
+                &export,
+                &analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:http:request",
+                &export,
+                &analysis,
+            ),
         },
     );
     persist_api_snapshot(&state).unwrap();
@@ -551,8 +577,16 @@ fn persisted_snapshot_history_respects_configured_retention_override() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:http:request".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:http:request".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:http:request",
+                &export,
+                &analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:http:request",
+                &export,
+                &analysis,
+            ),
         },
     );
     persist_api_snapshot(&state).unwrap();

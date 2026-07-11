@@ -128,7 +128,7 @@ fn summary_line_and_html_surface_external_sidecar_hints() {
                 snapshot.automation_outcome
             );
             let summary = summary_line("dsl_demo", &export);
-            let html = scan_report_html(&[("dsl_demo".to_string(), export)]);
+            let html = single_target_report_html_with_analysis("dsl_demo", &export, &snapshot);
             assert!(summary.contains(
                     "external_enrichment_hint=automation_worthy+augmentations_with_operator_guidance_support"
                 ));
@@ -175,7 +175,7 @@ fn summary_line_and_html_mark_advisory_only_sidecar_context() {
                 snapshot.automation_outcome
             );
             let summary = summary_line("dsl_demo", &export);
-            let html = scan_report_html(&[("dsl_demo".to_string(), export)]);
+            let html = single_target_report_html_with_analysis("dsl_demo", &export, &snapshot);
             assert!(summary.contains("external_collaboration_state=advisory_only_sidecar_context"));
             assert!(summary.contains("external_operator_guidance_support=none"));
             assert!(summary.contains(&expected_spine));

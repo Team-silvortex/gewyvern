@@ -38,7 +38,6 @@ should treat as the primary contract is:
 - `--entry <name>`
 - `--scan-all`
 - `--protocol-set <path>`
-- `--pid <n>`
 - `--json`
 - `--summary-only`
 - `--report-format html|json`
@@ -71,6 +70,10 @@ The intended direction is:
 
 That preserves old ingest scripts without tying the public `gewyvern` surface
 to one specific external-engine implementation.
+
+`--pid <n>` remains parser-visible for forward compatibility work, but it is not
+part of the current supported operator contract because live PID capture is not
+wired into the active CLI yet.
 
 ## Summary Contract
 

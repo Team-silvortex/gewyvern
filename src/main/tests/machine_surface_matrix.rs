@@ -19,8 +19,8 @@ fn single_target_snapshot(
     let analysis_json = analysis_snapshot_json(&analysis);
     let training = training_example_json_with_analysis(target_name, &export, &analysis);
     let export_json = export.to_json();
-    let report_json = scan_report_json(&[(target_name.to_string(), export.clone())]);
-    let report_html = scan_report_html(&[(target_name.to_string(), export.clone())]);
+    let report_json = single_target_report_json_with_analysis(target_name, &export, &analysis);
+    let report_html = single_target_report_html_with_analysis(target_name, &export, &analysis);
     let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
 
     update_api_snapshot_for_single(

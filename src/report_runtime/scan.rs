@@ -49,6 +49,26 @@ pub(super) fn scan_report_json_with_analyses(
     json
 }
 
+pub(super) fn single_target_report_json_with_analysis(
+    name: &str,
+    export: &ExportBundle,
+    analysis: &AnalysisSnapshot,
+) -> String {
+    let estimated_capacity =
+        160 + estimate_scan_target_json_capacity(name, export, analysis, usize::MAX);
+    let mut json = String::with_capacity(estimated_capacity);
+    let _ = write!(
+        json,
+        "{{\"kind\":\"scan\",\"name\":null,\"target_count\":1,\"scan_all\":true,\"total_targets\":1,\"healthy_targets\":{},\"attention_targets\":{},\"idle_targets\":{},\"targets\":[",
+        matches!(analysis.target_status, ScanTargetStatus::Healthy) as usize,
+        matches!(analysis.target_status, ScanTargetStatus::Attention) as usize,
+        matches!(analysis.target_status, ScanTargetStatus::Idle) as usize,
+    );
+    append_scan_target_json(&mut json, name, export, analysis, usize::MAX);
+    json.push_str("]}");
+    json
+}
+
 pub(super) fn scan_report_html(outputs: &[(String, ExportBundle)]) -> String {
     let analyses = outputs
         .iter()
@@ -144,6 +164,54 @@ pub(super) fn scan_report_html_with_analyses(
     format!(
         "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>gewyvern scan report</title><style>body{{font-family:ui-sans-serif,system-ui,sans-serif;background:#f6f7fb;color:#18202a;margin:0;padding:24px}}h1,h2,h3{{margin:0 0 12px}}.summary{{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 24px}}.summary-note{{margin:-10px 0 24px;color:#475569;font-size:14px}}.pill{{background:#fff;border:1px solid #d8dee9;border-radius:999px;padding:10px 14px;font-size:14px}}.tag{{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}}.family-dns{{background:#dbeafe;color:#1d4ed8}}.family-route{{background:#e0f2fe;color:#0369a1}}.family-connect{{background:#ede9fe;color:#6d28d9}}.family-handshake{{background:#fae8ff;color:#a21caf}}.family-request-response{{background:#dcfce7;color:#166534}}.family-database{{background:#fef3c7;color:#92400e}}.family-auth{{background:#fee2e2;color:#b91c1c}}.family-directory{{background:#ecfccb;color:#3f6212}}.family-messaging{{background:#ffedd5;color:#c2410c}}.family-relay{{background:#d1fae5;color:#047857}}.family-service{{background:#e2e8f0;color:#334155}}.family-general{{background:#f3f4f6;color:#374151}}.stage-dns{{background:#dbeafe;color:#1d4ed8}}.stage-connect{{background:#ede9fe;color:#6d28d9}}.stage-handshake{{background:#fae8ff;color:#a21caf}}.stage-request-response{{background:#dcfce7;color:#166534}}.stage-auth{{background:#fee2e2;color:#b91c1c}}.stage-general{{background:#f3f4f6;color:#374151}}.stage-none{{background:#e5e7eb;color:#6b7280}}.failure-blocked{{background:#fef3c7;color:#92400e}}.failure-timeout{{background:#fee2e2;color:#b91c1c}}.failure-setup{{background:#e0e7ff;color:#4338ca}}.failure-semantic{{background:#ffedd5;color:#c2410c}}.failure-denied{{background:#fce7f3;color:#be185d}}.failure-peer{{background:#d1fae5;color:#047857}}.failure-none{{background:#e5e7eb;color:#6b7280}}.failure-general{{background:#f3f4f6;color:#374151}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}}.card{{background:#fff;border:1px solid #d8dee9;border-radius:16px;padding:0;box-shadow:0 6px 24px rgba(15,23,42,0.06);overflow:hidden}}.card summary{{list-style:none;cursor:pointer;padding:18px}}.card summary::-webkit-details-marker{{display:none}}.card-title p{{margin:0}}.card-body{{padding:0 18px 18px}}.conclusion{{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 0}}.status-attention{{border-color:#f0b429}}.status-healthy{{border-color:#68b984}}.status-idle{{border-color:#cbd5e1}}ul{{padding-left:18px}}li{{margin:6px 0}}</style></head><body><h1>gewyvern Scan Report</h1><div class=\"summary\"><div class=\"pill\">total targets: {}</div><div class=\"pill\">healthy: {}</div><div class=\"pill\">attention: {}</div><div class=\"pill\">idle: {}</div></div><p class=\"summary-note\">attention targets are shown first and expanded by default so the highest-risk paths are easier to inspect.</p><div class=\"summary\">{}</div><div class=\"grid\">{}</div></body></html>",
         total_targets, healthy_targets, attention_targets, idle_targets, family_summary, cards
+    )
+}
+
+pub(super) fn single_target_report_html_with_analysis(
+    name: &str,
+    export: &ExportBundle,
+    analysis: &AnalysisSnapshot,
+) -> String {
+    let family = module_family_label(&analysis.primary_module_kind);
+    let mut family_summary = String::new();
+    let _ = write!(
+        family_summary,
+        "<div class=\"pill\"><span class=\"tag family-{}\">{}</span> 1</div>",
+        family, family
+    );
+    let (mergeable_sidecar_targets, automation_worthy_sidecar_targets, advisory_sidecar_targets) =
+        external_sidecar_rollup_counts(std::slice::from_ref(analysis));
+    if mergeable_sidecar_targets > 0 {
+        let _ = write!(
+            family_summary,
+            "<div class=\"pill\"><strong>mergeable sidecar targets:</strong> {}</div>",
+            mergeable_sidecar_targets
+        );
+    }
+    if automation_worthy_sidecar_targets > 0 {
+        let _ = write!(
+            family_summary,
+            "<div class=\"pill\"><strong>automation-worthy sidecar targets:</strong> {}</div>",
+            automation_worthy_sidecar_targets
+        );
+    }
+    if advisory_sidecar_targets > 0 {
+        let _ = write!(
+            family_summary,
+            "<div class=\"pill\"><strong>advisory-only sidecar targets:</strong> {}</div>",
+            advisory_sidecar_targets
+        );
+    }
+    let mut cards =
+        String::with_capacity(estimate_scan_target_html_capacity(name, export, analysis, usize::MAX));
+    append_scan_target_html_card(&mut cards, name, export, analysis, usize::MAX);
+    format!(
+        "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>gewyvern scan report</title><style>body{{font-family:ui-sans-serif,system-ui,sans-serif;background:#f6f7fb;color:#18202a;margin:0;padding:24px}}h1,h2,h3{{margin:0 0 12px}}.summary{{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 24px}}.summary-note{{margin:-10px 0 24px;color:#475569;font-size:14px}}.pill{{background:#fff;border:1px solid #d8dee9;border-radius:999px;padding:10px 14px;font-size:14px}}.tag{{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}}.family-dns{{background:#dbeafe;color:#1d4ed8}}.family-route{{background:#e0f2fe;color:#0369a1}}.family-connect{{background:#ede9fe;color:#6d28d9}}.family-handshake{{background:#fae8ff;color:#a21caf}}.family-request-response{{background:#dcfce7;color:#166534}}.family-database{{background:#fef3c7;color:#92400e}}.family-auth{{background:#fee2e2;color:#b91c1c}}.family-directory{{background:#ecfccb;color:#3f6212}}.family-messaging{{background:#ffedd5;color:#c2410c}}.family-relay{{background:#d1fae5;color:#047857}}.family-service{{background:#e2e8f0;color:#334155}}.family-general{{background:#f3f4f6;color:#374151}}.stage-dns{{background:#dbeafe;color:#1d4ed8}}.stage-connect{{background:#ede9fe;color:#6d28d9}}.stage-handshake{{background:#fae8ff;color:#a21caf}}.stage-request-response{{background:#dcfce7;color:#166534}}.stage-auth{{background:#fee2e2;color:#b91c1c}}.stage-general{{background:#f3f4f6;color:#374151}}.stage-none{{background:#e5e7eb;color:#6b7280}}.failure-blocked{{background:#fef3c7;color:#92400e}}.failure-timeout{{background:#fee2e2;color:#b91c1c}}.failure-setup{{background:#e0e7ff;color:#4338ca}}.failure-semantic{{background:#ffedd5;color:#c2410c}}.failure-denied{{background:#fce7f3;color:#be185d}}.failure-peer{{background:#d1fae5;color:#047857}}.failure-none{{background:#e5e7eb;color:#6b7280}}.failure-general{{background:#f3f4f6;color:#374151}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}}.card{{background:#fff;border:1px solid #d8dee9;border-radius:16px;padding:0;box-shadow:0 6px 24px rgba(15,23,42,0.06);overflow:hidden}}.card summary{{list-style:none;cursor:pointer;padding:18px}}.card summary::-webkit-details-marker{{display:none}}.card-title p{{margin:0}}.card-body{{padding:0 18px 18px}}.conclusion{{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 0}}.status-attention{{border-color:#f0b429}}.status-healthy{{border-color:#68b984}}.status-idle{{border-color:#cbd5e1}}ul{{padding-left:18px}}li{{margin:6px 0}}</style></head><body><h1>gewyvern Scan Report</h1><div class=\"summary\"><div class=\"pill\">total targets: 1</div><div class=\"pill\">healthy: {}</div><div class=\"pill\">attention: {}</div><div class=\"pill\">idle: {}</div></div><p class=\"summary-note\">attention targets are shown first and expanded by default so the highest-risk paths are easier to inspect.</p><div class=\"summary\">{}</div><div class=\"grid\">{}</div></body></html>",
+        matches!(analysis.target_status, ScanTargetStatus::Healthy) as usize,
+        matches!(analysis.target_status, ScanTargetStatus::Attention) as usize,
+        matches!(analysis.target_status, ScanTargetStatus::Idle) as usize,
+        family_summary,
+        cards
     )
 }
 

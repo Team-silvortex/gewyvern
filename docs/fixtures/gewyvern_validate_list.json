@@ -8,6 +8,7 @@
     "external-engine-roundtrip",
     "field-smoke",
     "high-frequency",
+    "juice-shop-container-validation",
     "linux-attach-smoke",
     "linux-kprobe-smoke",
     "linux-tc-smoke",

@@ -127,6 +127,7 @@ If you want to skip one phase while narrowing a failure, use:
 ```bash
 cargo run --quiet --bin gewyvern_validate -- release-gate --skip-build
 cargo run --quiet --bin gewyvern_validate -- release-gate --skip-stack
+cargo run --quiet --bin gewyvern_validate -- release-gate --skip-debugger-cross
 cargo run --quiet --bin gewyvern_validate -- release-gate --skip-pathology
 cargo run --quiet --bin gewyvern_validate -- release-gate --remote-host-validation
 cargo run --quiet --bin gewyvern_validate -- release-gate --deb
@@ -198,6 +199,8 @@ In JSON mode, the final `release-gate` object now carries:
 
 - top-level `schema_version = 1`
 - `extra.stages.*` booleans for each major gate phase
+- `extra.stages.debugger_cross_validation` for the local debugger readiness
+  stage inside the main release gate
 - `extra.gate_posture`, `extra.ship_signal`, and `extra.next_step` as the
   shortest overall ship/no-ship reading for the whole release gate
 - `extra.remote = null` when the current run skipped remote validation
@@ -209,12 +212,32 @@ In JSON mode, the final `release-gate` object now carries:
 - `extra.remote.budget_warnings` when a keyed remote phase exceeded the current
   soft release budget, including `remote_package_smoke` and
   `remote_runtime_smoke`
+- top-level `extra.ship_signal = "timing_watch"` when remote Linux proof
+  succeeded but the current host run exceeded one of the soft remote timing
+  budgets
 - `extra.remote.validation_posture`, `extra.remote.release_gate_signal`, and
   `extra.remote.next_step` for the quick ship/no-ship reading of the Linux host
   result
 - `extra.remote.linux_proof_complete = false` or
   `extra.remote.requires_followup = true` when the remote stage did not prove
   full Linux attach confidence yet
+
+Keep the practical Linux target-lab shelf as a separate artifact on purpose:
+
+- `juice-shop-container-validation` is a high-signal optional Linux/BPF
+  release-confidence check
+- it is not part of the default `release-gate.extra.stages.*` contract today
+- callers that want it should run it explicitly and preserve its own evidence
+  directory alongside the main release-gate JSON
+
+After a successful `release-gate` run, also preserve:
+
+- `target/validation/release-gate-artifacts.json`
+- `target/validation/release-gate-artifacts.txt`
+
+Those two companion files are the compact release-facing index of which
+evidence shelves were present at the time, including whether the optional
+`juice-shop-container` shelf existed yet.
 
 Practical `jq` examples:
 
@@ -240,6 +263,9 @@ Interpret the remote Linux signal explicitly:
   but Linux eBPF attach confidence was not established on that host because
   privilege or route-device prerequisites were missing. Treat that as an
   environment gap, not as a hidden green light.
+- a same-day `remote_ebpf_smoke_skipped` run followed by an admin-assisted
+  `remote_ebpf_smoke` run is acceptable, but preserve the full-ready evidence
+  shelf for the final ship read.
 
 For the dependency-vulnerability portion of the release gate, the current
 practical commands are:
@@ -355,6 +381,8 @@ For the active `0.20.x` line, a good practical ship read is:
 - full `release_container_check.sh` green in default mode
 - `three_module_stack_smoke.sh` green
 - `pathological_container_validation.sh` green on a Docker-capable host
+- optional but high-signal: `juice-shop-container-validation` green on a Linux
+  host with BPF attach privileges
 - `gewyvern_validate -- debugger-cross` green
 - Rust/.NET/frontend dependency vulnerability checks green
 - no new drift in `field-findings` that would downgrade trust in conservative diagnosis

@@ -34,6 +34,18 @@ pub(super) fn debugger_console_json(
         Some((name, analysis)) => append_target_json(&mut json, name, analysis),
         None => json.push_str("null"),
     }
+    json.push_str(",\"commands\":{");
+    json.push_str("\"rerun_scan\":");
+    append_json_string(
+        &mut json,
+        "cargo run -- --scan-all --debugger-console --json",
+    );
+    json.push_str(",\"focus_debug_session\":");
+    match indexed.first() {
+        Some((name, _)) => append_json_string(&mut json, &target_debug_session_command(name)),
+        None => json.push_str("null"),
+    }
+    json.push('}');
     json.push_str(",\"targets\":[");
     for (index, (name, analysis)) in indexed.drain(..).enumerate() {
         if index > 0 {
@@ -130,6 +142,8 @@ fn append_target_json(json: &mut String, name: &str, analysis: &AnalysisSnapshot
     append_json_string(json, &analysis.operator_guidance_action);
     json.push_str(",\"operator_guidance_summary\":");
     append_json_string(json, &analysis.operator_guidance_summary);
+    json.push_str(",\"debug_session_command\":");
+    append_json_string(json, &target_debug_session_command(name));
     json.push_str(",\"first_missing_transition\":");
     match analysis.missing_transitions.first() {
         Some(value) => append_json_string(json, value),
@@ -153,4 +167,20 @@ fn rank(analysis: &AnalysisSnapshot) -> usize {
             _ => 5,
         },
     }
+}
+
+fn target_debug_session_command(name: &str) -> String {
+    if let Some((protocol, entry)) = scan_target_protocol_entry(name) {
+        format!("cargo run -- --protocol {protocol} --entry {entry} --debug-session --json")
+    } else {
+        "cargo run -- --debug-session --json".into()
+    }
+}
+
+fn scan_target_protocol_entry(name: &str) -> Option<(&str, &str)> {
+    let mut parts = name.splitn(3, ':');
+    if parts.next()? != "scan" {
+        return None;
+    }
+    Some((parts.next()?, parts.next()?))
 }

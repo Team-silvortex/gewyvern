@@ -1,12 +1,16 @@
 use std::env;
 use std::fs::{self, File};
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use serde_json::json;
+
 use super::command::{ValidationError, ValidationReport, default_out_dir, repo_root};
 use super::{
+    run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke,
     run_stack_json_file_validation, run_stack_probe_validation, run_stack_register_runtime_json,
     write_stack_resilience_summary,
 };
@@ -404,6 +408,18 @@ pub fn run_pathological_container_validation(
             cfg.out_dir.display()
         ),
     )?;
+    write_container_validation_evidence_index(
+        &cfg.out_dir,
+        "pathological-container-validation",
+        &[
+            "health-ready.json",
+            "health-degraded.json",
+            "resilience-degraded.json",
+            "meta-after-pathology.json",
+            "runtime.log",
+            "summary.txt",
+        ],
+    )?;
     print!(
         "{}",
         fs::read_to_string(cfg.out_dir.join("summary.txt")).unwrap_or_default()
@@ -420,6 +436,161 @@ pub fn run_pathological_container_validation(
             "log_evidence".to_string(),
         ],
     })
+}
+
+pub fn run_juice_shop_container_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    if !cfg!(target_os = "linux") {
+        return Err(ValidationError::new(
+            "juice-shop container validation requires a Linux host because it bundles same-host eBPF attach proof",
+        ));
+    }
+
+    let cfg = JuiceShopValidationConfig::from_env(out_dir)?;
+    require_cmd("docker")?;
+    require_cmd("curl")?;
+    ensure_docker_reachable()?;
+    ensure_juice_shop_image(&cfg.image)?;
+
+    fs::create_dir_all(&cfg.out_dir)?;
+    let container_name = cfg.container_name.clone();
+    let _cleanup = StackCleanup::new(vec![container_name.clone()], None);
+
+    let _ = Command::new("docker")
+        .args(["rm", "-f", &container_name])
+        .output();
+    run_command(
+        Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .arg("--name")
+            .arg(&container_name)
+            .arg("-p")
+            .arg(format!("127.0.0.1:{}:3000", cfg.host_port))
+            .arg(&cfg.image),
+        "failed to start Juice Shop container",
+    )?;
+
+    wait_http_status_200(
+        &format!("http://127.0.0.1:{}/", cfg.host_port),
+        Duration::from_secs(90),
+    )
+    .map_err(|err| {
+        let logs = docker_logs(&container_name).unwrap_or_default();
+        ValidationError::new(format!("juice shop never became ready: {err}\n{logs}"))
+    })?;
+
+    let root_body = curl_get_http_body(&format!("http://127.0.0.1:{}/", cfg.host_port))?;
+    fs::write(cfg.out_dir.join("root.html"), root_body)?;
+
+    let file_guard_status = curl_capture_http_exchange(
+        &format!("http://127.0.0.1:{}/ftp/acquisitions.md.bak", cfg.host_port),
+        &cfg.out_dir.join("file-guard.headers"),
+        &cfg.out_dir.join("file-guard.body"),
+    )?;
+    let sqli_status = curl_capture_http_exchange(
+        &format!(
+            "http://127.0.0.1:{}/rest/products/search?q=%27%20OR%201%3D1--",
+            cfg.host_port
+        ),
+        &cfg.out_dir.join("sqli.headers"),
+        &cfg.out_dir.join("sqli.body"),
+    )?;
+
+    let target_logs = docker_logs(&container_name)?;
+    fs::write(cfg.out_dir.join("juice-shop.log"), &target_logs)?;
+    let file_guard_body = fs::read_to_string(cfg.out_dir.join("file-guard.body"))?;
+    let sqli_body = fs::read_to_string(cfg.out_dir.join("sqli.body"))?;
+
+    if !target_logs.contains("Only .md and .pdf files are allowed!")
+        && !file_guard_body.contains("Only .md and .pdf files are allowed!")
+    {
+        return Err(ValidationError::new(
+            "juice shop evidence did not preserve the expected file-guard anomaly",
+        ));
+    }
+    if !target_logs.contains("SQLITE_ERROR") && !sqli_body.contains("SQLITE_ERROR") {
+        return Err(ValidationError::new(
+            "juice shop evidence did not preserve the expected SQL anomaly",
+        ));
+    }
+
+    let attach = run_linux_attach_smoke(
+        "syscalls/sys_enter_nanosleep",
+        Some(cfg.out_dir.join("linux-attach-smoke")),
+    )?;
+    let kprobe = run_linux_kprobe_smoke(
+        "ip_route_output_flow",
+        Some(cfg.out_dir.join("linux-kprobe-smoke")),
+    )?;
+    let netdev = detect_default_route_device()?;
+    let tc = run_linux_tc_smoke(&netdev, Some(cfg.out_dir.join("linux-tc-smoke")))?;
+
+    fs::write(
+        cfg.out_dir.join("summary.txt"),
+        format!(
+            "juice shop container validation: ok\nhost_url=http://127.0.0.1:{}\nfile_guard_status={}\nsqli_status={}\ndefault_route_device={}\nchecked=juice_shop_ready,file_guard_evidence,sqli_evidence,linux_attach_smoke,linux_kprobe_smoke,linux_tc_smoke\nattach_evidence={}\nkprobe_evidence={}\ntc_evidence={}\nevidence={}\n",
+            cfg.host_port,
+            file_guard_status,
+            sqli_status,
+            netdev,
+            attach.out_dir.display(),
+            kprobe.out_dir.display(),
+            tc.out_dir.display(),
+            cfg.out_dir.display(),
+        ),
+    )?;
+    write_container_validation_evidence_index(
+        &cfg.out_dir,
+        "juice-shop-container-validation",
+        &[
+            "root.html",
+            "file-guard.headers",
+            "file-guard.body",
+            "sqli.headers",
+            "sqli.body",
+            "juice-shop.log",
+            "summary.txt",
+            "linux-attach-smoke/evidence-index.json",
+            "linux-kprobe-smoke/evidence-index.json",
+            "linux-tc-smoke/evidence-index.json",
+        ],
+    )?;
+    print!(
+        "{}",
+        fs::read_to_string(cfg.out_dir.join("summary.txt")).unwrap_or_default()
+    );
+
+    Ok(ValidationReport {
+        name: "juice shop container validation".to_string(),
+        out_dir: cfg.out_dir,
+        checks: vec![
+            "juice_shop_ready".to_string(),
+            "file_guard_evidence".to_string(),
+            "sqli_evidence".to_string(),
+            "linux_attach_smoke".to_string(),
+            "linux_kprobe_smoke".to_string(),
+            "linux_tc_smoke".to_string(),
+        ],
+    })
+}
+
+fn write_container_validation_evidence_index(
+    out_dir: &Path,
+    command: &str,
+    files: &[&str],
+) -> Result<(), ValidationError> {
+    let index = json!({
+        "schema_version": 1,
+        "command": command,
+        "files": files,
+    });
+    fs::write(
+        out_dir.join("evidence-index.json"),
+        serde_json::to_string_pretty(&index)?,
+    )?;
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -545,6 +716,14 @@ struct PathologyConfig {
     cargo_net_offline: bool,
 }
 
+#[derive(Debug)]
+struct JuiceShopValidationConfig {
+    image: String,
+    container_name: String,
+    host_port: u16,
+    out_dir: PathBuf,
+}
+
 impl PathologyConfig {
     fn from_env(out_dir: Option<PathBuf>) -> Result<Self, ValidationError> {
         let repo = repo_root();
@@ -588,6 +767,23 @@ impl PathologyConfig {
                 }),
             ),
             cargo_net_offline: env_bool("CARGO_NET_OFFLINE", false),
+        })
+    }
+}
+
+impl JuiceShopValidationConfig {
+    fn from_env(out_dir: Option<PathBuf>) -> Result<Self, ValidationError> {
+        let unique = std::process::id();
+        Ok(Self {
+            image: env_string("JUICE_SHOP_IMAGE", "bkimminich/juice-shop:latest"),
+            container_name: env_string("JUICE_SHOP_NAME", &format!("gewyvern-juice-shop-{unique}")),
+            host_port: match env::var("JUICE_SHOP_PORT") {
+                Ok(value) => value.parse::<u16>().map_err(|err| {
+                    ValidationError::new(format!("invalid JUICE_SHOP_PORT value `{value}`: {err}"))
+                })?,
+                Err(_) => find_free_loopback_port()?,
+            },
+            out_dir: out_dir.unwrap_or_else(|| default_out_dir("juice-shop-container")),
         })
     }
 }
@@ -1175,6 +1371,35 @@ fn curl_get_http_body(url: &str) -> Result<String, ValidationError> {
         .map_err(|err| ValidationError::new(format!("curl output was not UTF-8: {err}")))
 }
 
+fn curl_capture_http_exchange(
+    url: &str,
+    headers_path: &Path,
+    body_path: &Path,
+) -> Result<u16, ValidationError> {
+    let output = Command::new("curl")
+        .arg("-sS")
+        .arg("-D")
+        .arg(headers_path)
+        .arg("-o")
+        .arg(body_path)
+        .arg("-w")
+        .arg("%{http_code}")
+        .arg(url)
+        .output()
+        .map_err(|err| ValidationError::new(format!("failed to run curl capture: {err}")))?;
+    if !output.status.success() {
+        return Err(ValidationError::new(format!(
+            "curl capture failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    let rendered = String::from_utf8_lossy(&output.stdout);
+    rendered
+        .trim()
+        .parse::<u16>()
+        .map_err(|err| ValidationError::new(format!("invalid curl status `{rendered}`: {err}")))
+}
+
 fn require_cmd(name: &str) -> Result<(), ValidationError> {
     if has_command(name) {
         Ok(())
@@ -1270,6 +1495,20 @@ fn ensure_docker_reachable() -> Result<(), ValidationError> {
     }
 }
 
+fn ensure_juice_shop_image(name: &str) -> Result<(), ValidationError> {
+    let status = Command::new("docker")
+        .args(["image", "inspect", name])
+        .status()
+        .map_err(|err| ValidationError::new(format!("failed to inspect image `{name}`: {err}")))?;
+    if status.success() {
+        return Ok(());
+    }
+    run_command(
+        Command::new("docker").args(["pull", name]),
+        "failed to pull Juice Shop image",
+    )
+}
+
 fn ensure_docker_image(name: &str) -> Result<(), ValidationError> {
     let status = Command::new("docker")
         .args(["image", "inspect", name])
@@ -1305,6 +1544,29 @@ fn docker_logs(container_name: &str) -> Result<String, ValidationError> {
         text = String::from_utf8_lossy(&output.stderr).to_string();
     }
     Ok(text)
+}
+
+fn detect_default_route_device() -> Result<String, ValidationError> {
+    let output = Command::new("sh")
+        .arg("-lc")
+        .arg("ip route show default | awk 'NR==1 {print $5}'")
+        .output()
+        .map_err(|err| {
+            ValidationError::new(format!("failed to detect default route device: {err}"))
+        })?;
+    if !output.status.success() {
+        return Err(ValidationError::new(format!(
+            "failed to detect default route device: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    let device = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if device.is_empty() {
+        return Err(ValidationError::new(
+            "failed to detect default route device: empty result",
+        ));
+    }
+    Ok(device)
 }
 
 fn read_container_file(container_name: &str, path: &str) -> Result<String, ValidationError> {
@@ -1364,6 +1626,15 @@ fn temp_dir_preview(prefix: &str) -> PathBuf {
         .unwrap_or_default()
         .as_nanos();
     env::temp_dir().join(format!("{prefix}.{now}"))
+}
+
+fn find_free_loopback_port() -> Result<u16, ValidationError> {
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .map_err(|err| ValidationError::new(format!("failed to reserve loopback port: {err}")))?;
+    listener
+        .local_addr()
+        .map(|addr| addr.port())
+        .map_err(|err| ValidationError::new(format!("failed to inspect loopback port: {err}")))
 }
 
 fn env_string(name: &str, default: &str) -> String {

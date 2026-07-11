@@ -206,8 +206,8 @@ fn hy2_tcp_relay_demo_produces_healthy_quic_tcp_path() {
 }
 
 #[test]
-fn cli_accepts_protocol_and_pid_and_resolves_built_in_dsl() {
-    let cli = Cli::from_args([
+fn cli_rejects_pid_until_live_process_capture_is_wired() {
+    let err = Cli::from_args([
         "--protocol".to_string(),
         "mysql".to_string(),
         "--entry".to_string(),
@@ -216,11 +216,9 @@ fn cli_accepts_protocol_and_pid_and_resolves_built_in_dsl() {
         "4242".to_string(),
         "--json".to_string(),
     ])
-    .unwrap();
-    assert_eq!(cli.protocol.as_deref(), Some("mysql"));
-    assert_eq!(cli.entry.as_deref(), Some("session"));
-    assert_eq!(cli.dsl_path, Some(protocol_fixture_path("mysql/session")));
-    assert_eq!(cli.pid, Some(4242));
+    .unwrap_err();
+    assert!(err.contains("--pid"));
+    assert!(err.contains("live process") || err.contains("活进程"));
 }
 
 #[test]
@@ -541,7 +539,7 @@ fn cli_rejects_pid_filter_for_socket_ingest() {
     ])
     .unwrap_err();
     assert!(err.contains("--pid"));
-    assert!(err.contains("socket"));
+    assert!(err.contains("live process") || err.contains("活进程"));
 }
 
 #[test]

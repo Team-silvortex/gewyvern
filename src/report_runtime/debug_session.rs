@@ -165,6 +165,8 @@ fn append_next_steps_json(json: &mut String, name: &str, analysis: &AnalysisSnap
         json.push('{');
         json.push_str("\"kind\":");
         append_json_string(json, step);
+        json.push_str(",\"command\":");
+        append_json_string(json, &next_step_command(step, name));
         json.push_str(",\"reason\":");
         append_json_string(json, next_step_reason(step));
         json.push('}');
@@ -188,10 +190,20 @@ fn append_debugger_posture_json(json: &mut String, analysis: &AnalysisSnapshot) 
 fn append_debugger_route_json(json: &mut String, name: &str, analysis: &AnalysisSnapshot) {
     let state = debugger_posture_state(analysis);
     json.push('{');
-    json.push_str("\"primary_step\":");
-    append_json_string(json, debugger_route_primary_step(state, name));
-    json.push_str(",\"fallback_step\":");
-    append_json_string(json, debugger_route_fallback_step(state));
+    append_route_step(
+        json,
+        "primary_step",
+        debugger_route_primary_step(state, name),
+        &debugger_route_command(debugger_route_primary_step(state, name), name),
+        false,
+    );
+    append_route_step(
+        json,
+        "fallback_step",
+        debugger_route_fallback_step(state),
+        &debugger_route_command(debugger_route_fallback_step(state), name),
+        true,
+    );
     json.push_str(",\"escalation_allowed\":");
     json.push_str(if state == "ready_to_escalate" {
         "true"
@@ -203,13 +215,29 @@ fn append_debugger_route_json(json: &mut String, name: &str, analysis: &Analysis
     json.push('}');
 }
 
+fn append_route_step(json: &mut String, field: &str, kind: &str, command: &str, comma: bool) {
+    if comma {
+        json.push(',');
+    }
+    json.push('"');
+    json.push_str(field);
+    json.push_str("\":{\"kind\":");
+    append_json_string(json, kind);
+    json.push_str(",\"command\":");
+    append_json_string(json, command);
+    json.push('}');
+}
+
 fn next_step_kinds(name: &str, analysis: &AnalysisSnapshot) -> Vec<&'static str> {
     let mut steps = vec!["read_analysis"];
-    if scan_target_protocol_entry(name).is_some() {
+    if has_protocol_surface(name) {
         steps.push("read_protocol_plan");
     }
     if !analysis.missing_transitions.is_empty() {
         steps.push("collect_missing_evidence");
+    }
+    if !has_protocol_surface(name) && name.starts_with("scan:") {
+        steps.push("check_protocol_entry");
     }
     steps
 }
@@ -218,7 +246,22 @@ fn next_step_reason(step: &str) -> &'static str {
     match step {
         "read_protocol_plan" => "follow companion protocol reading order",
         "collect_missing_evidence" => "inspect missing transitions before escalation",
+        "check_protocol_entry" => "target name looks protocol-shaped but no surface resolved",
         _ => "inspect the diagnosis spine",
+    }
+}
+
+fn next_step_command(step: &str, name: &str) -> String {
+    match step {
+        "read_protocol_plan" | "check_protocol_entry" => {
+            if let Some((protocol, _)) = scan_target_protocol_entry(name) {
+                format!("cargo run -- --list-entries {protocol}")
+            } else {
+                "cargo run -- --list-protocols".into()
+            }
+        }
+        "collect_missing_evidence" => rerun_target_command(name, false),
+        _ => rerun_target_command(name, false),
     }
 }
 
@@ -228,7 +271,7 @@ fn debugger_route_primary_step(state: &str, name: &str) -> &'static str {
         "ready_to_escalate" => "open_protocol_reading",
         "needs_evidence" => "open_anomaly_flow",
         "needs_hypothesis_review" => "compare_hypotheses",
-        _ if scan_target_protocol_entry(name).is_some() => "open_protocol_reading",
+        _ if has_protocol_surface(name) => "open_protocol_reading",
         _ => "open_analysis",
     }
 }
@@ -256,6 +299,51 @@ fn debugger_route_reason(state: &str, analysis: &AnalysisSnapshot) -> &'static s
         "needs_hypothesis_review" => "competing hypotheses should be compared before action",
         _ => "analysis is the safest shared starting point",
     }
+}
+
+fn debugger_route_command(step: &str, name: &str) -> String {
+    match step {
+        "observe" | "open_summary" => rerun_target_command(name, true),
+        "open_protocol_reading" => {
+            if let Some((protocol, _)) = scan_target_protocol_entry(name) {
+                format!("cargo run -- --list-entries {protocol}")
+            } else {
+                rerun_target_command(name, false)
+            }
+        }
+        "compare_hypotheses" => rerun_target_findings_command(name),
+        _ => rerun_target_command(name, false),
+    }
+}
+
+fn rerun_target_command(name: &str, summary_only: bool) -> String {
+    let mut command = target_cli_prefix(name);
+    command.push_str(" --json");
+    if summary_only {
+        command.push_str(" --summary-only");
+    }
+    command
+}
+
+fn rerun_target_findings_command(name: &str) -> String {
+    let mut command = target_cli_prefix(name);
+    command.push_str(" --findings --json");
+    command
+}
+
+fn target_cli_prefix(name: &str) -> String {
+    if let Some((protocol, entry)) = scan_target_protocol_entry(name) {
+        format!("cargo run -- --protocol {protocol} --entry {entry}")
+    } else {
+        "cargo run -- --debug-session".into()
+    }
+}
+
+fn has_protocol_surface(name: &str) -> bool {
+    let Some((protocol, entry)) = scan_target_protocol_entry(name) else {
+        return false;
+    };
+    protocol_surface(protocol, entry).is_some()
 }
 
 fn debugger_posture_state(analysis: &AnalysisSnapshot) -> &'static str {

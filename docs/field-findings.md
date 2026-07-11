@@ -58,6 +58,16 @@ That green path includes:
 This is stronger than a collection of isolated green commands because it proves
 the current orchestration order also holds up.
 
+The current release-facing artifact trail is also easier to preserve now
+because each successful `release-gate` run refreshes:
+
+- `target/validation/release-gate-artifacts.json`
+- `target/validation/release-gate-artifacts.txt`
+
+Those two files are the compact index of which release shelves were present at
+the time, including optional high-signal evidence such as
+`target/validation/juice-shop-container`.
+
 ### 2. Packaged Linux Validation Is Green Across Both Package Families
 
 The current packaged release routine is green in default mode through:
@@ -118,6 +128,29 @@ The current release-ready security checks are green for:
 
 That closes one of the last release-checklist items that should not remain
 implicit before a `1.0` push.
+
+### 6. A Practical Linux Target-Lab Shelf Now Exists
+
+The current Linux host validation work now also has one practical target-side
+lab shelf through:
+
+- `cargo run --quiet --bin gewyvern_validate -- juice-shop-container-validation`
+
+The observed green run on `kyuubiki-lab` preserved:
+
+- a file-guard style `403` response carrying
+  `Only .md and .pdf files are allowed!`
+- a SQL-style `500` response carrying `SQLITE_ERROR: incomplete input`
+- same-host `linux-attach-smoke`
+- same-host `linux-kprobe-smoke`
+- same-host `linux-tc-smoke`
+
+This matters because it is stronger than a synthetic protocol demo while still
+being honest about the current product shape:
+
+- `gewyvern` preserved suspicious target evidence
+- Linux attach proof still held on the same host
+- the result is not yet a claim of direct web-vulnerability classification
 
 ## Historical Stable Findings From `0.15.x`
 

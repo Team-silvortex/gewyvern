@@ -35,7 +35,7 @@ Then continue with:
 Use this guide when you are:
 
 - checking whether a checkout is still healthy
-- preparing a `v0.19.x` release judgment call
+- preparing a `v0.20.x` release judgment call
 - validating a branch after runtime, report, or DSL changes
 - trying to narrow "what broke?" before reading code
 
@@ -138,7 +138,7 @@ This check compares:
 
 - runtime summary JSON
 - local debugger-console JSON
-- local debug-session JSON and its `debugger_posture`
+- local debug-session JSON, its `debugger_posture`, and local `command` hints
 - `gewyc` envelope JSON
 
 The harness also writes `evidence-index.json` next to the raw case outputs. Use
@@ -171,6 +171,11 @@ read: whether the target is healthy, ready to escalate, still missing evidence,
 or still ambiguous enough to need hypothesis review. Its `debugger_route`
 object is the UI-friendly route: the primary surface to open first, a fallback
 surface, and whether escalation is currently allowed.
+
+When you are staying in the local CLI instead of the API, `--debug-session
+--json` now carries matching `command` hints on `debugger_route` and
+`next_steps`, so the shell-facing next move is explicit instead of implied.
+The API surface keeps the same route/step idea but uses `path` fields instead.
 
 ## Step 5: Run The Registry Shelf, Not Just One Target
 
@@ -248,6 +253,18 @@ These answer different questions:
 - `three_module_stack_smoke.sh`
   asks whether the current `gewyvern + etragon + leserpent` topology still
   works in Docker
+
+When you want one stronger Linux-only target-side read without claiming that
+`gewyvern` is already a web-vulnerability scanner, add:
+
+```bash
+sudo cargo run --quiet --bin gewyvern_validate -- juice-shop-container-validation
+```
+
+That practical target-lab path preserves suspicious HTTP evidence from a real
+Docker target and then proves the same host can still execute attach, kprobe,
+and tc smoke. Treat it as a high-signal release-confidence check for Linux/BPF
+reliability, not as direct vulnerability classification.
 
 Use them when:
 
@@ -424,6 +441,8 @@ For the current line, the runtime surface is in a good state when:
   envelopes agree without overclaiming negative cases
 - runtime lifecycle validation still proves start, stop, recovery, and cleanup
 - release/container checks still pass when you need stronger confidence
+- the practical Linux target-lab shelf preserves suspicious target evidence
+  without losing same-host eBPF attach proof
 - Rust/.NET/frontend dependency checks stay clean when preparing a release
 
 That is enough to say:

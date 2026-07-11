@@ -84,8 +84,8 @@ fn persisted_single_snapshot(state_home: &PathBuf, target_name: &str) -> (ApiSna
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[(target_name.to_string(), export.clone())]),
-            report_html: scan_report_html(&[(target_name.to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(target_name, &export, &analysis),
+            report_html: single_target_report_html_with_analysis(target_name, &export, &analysis),
         },
     );
     persist_api_snapshot(&state).unwrap();

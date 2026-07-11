@@ -27,8 +27,10 @@ use super::{
     Cli, ReportFormat, SocketTarget, UiLocale, analysis_snapshot, analysis_snapshot_json,
     annotate_export_trust, findings_json_with_analysis, findings_text, render_scan_outputs,
     run_binding_session, scan_report_html_with_analyses, scan_report_json_with_analyses,
-    scan_report_text_with_analyses, scan_targets_for_cli, summary_json_with_analysis,
-    summary_line_with_analysis, training_example_json_array, training_example_json_with_analysis,
+    scan_report_text_with_analyses, scan_targets_for_cli,
+    single_target_report_html_with_analysis, single_target_report_json_with_analysis,
+    summary_json_with_analysis, summary_line_with_analysis, training_example_json_array,
+    training_example_json_with_analysis,
 };
 
 pub(super) fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {
@@ -367,7 +369,6 @@ fn emit_rendered(
     append: bool,
     api_state: Option<&ApiState>,
 ) {
-    let single = vec![(name.to_string(), export.clone())];
     let analysis = analysis_snapshot(export);
     let summary_text = summary_line_with_analysis(name, export, &analysis);
     let summary_json_body = summary_json_with_analysis(name, export, &analysis);
@@ -375,8 +376,8 @@ fn emit_rendered(
     let analysis_json_body = analysis_snapshot_json(&analysis);
     let training_example_json_body = training_example_json_with_analysis(name, export, &analysis);
     let export_json_body = export.to_json();
-    let report_json_body = scan_report_json_with_analyses(&single, std::slice::from_ref(&analysis));
-    let report_html_body = scan_report_html_with_analyses(&single, std::slice::from_ref(&analysis));
+    let report_json_body = single_target_report_json_with_analysis(name, export, &analysis);
+    let report_html_body = single_target_report_html_with_analysis(name, export, &analysis);
     let (
         has_external_sidecar_context,
         has_external_evidence_chain_enrichment,
@@ -517,14 +518,8 @@ fn emit_scan_outputs(
                     external_sidecar_trust_level,
                     external_sidecar_consumption_mode,
                     export_json: export.to_json(),
-                    report_json: scan_report_json_with_analyses(
-                        &[(name.clone(), export.clone())],
-                        std::slice::from_ref(analysis),
-                    ),
-                    report_html: scan_report_html_with_analyses(
-                        &[(name.clone(), export.clone())],
-                        std::slice::from_ref(analysis),
-                    ),
+                    report_json: single_target_report_json_with_analysis(name, export, analysis),
+                    report_html: single_target_report_html_with_analysis(name, export, analysis),
                 }
             })
             .collect::<Vec<_>>();

@@ -17,13 +17,21 @@ pub(crate) fn render_cli_outputs(cli: &Cli, outputs: Vec<(String, ExportBundle)>
 }
 
 fn render_http_transaction_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]) -> String {
-    let transactions = if cli.dsl_path.is_some() {
-        let mut composed_exports = Vec::new();
-        composed_exports.extend(outputs.iter().map(|(_, export)| export.clone()));
-        if outputs
+    let needs_http_response_companions = cli.dsl_path.is_some()
+        && outputs
             .iter()
-            .any(|(_, export)| export_has_operation(export, "http_request"))
-        {
+            .any(|(_, export)| export_has_operation(export, "http_request"));
+    let needs_http3_response_companion = cli.dsl_path.is_some()
+        && outputs
+            .iter()
+            .any(|(_, export)| export_has_operation(export, "http3_request"));
+    let companion_count =
+        (if needs_http_response_companions { 2 } else { 0 }) + usize::from(needs_http3_response_companion);
+    let mut composed_exports = Vec::with_capacity(outputs.len() + companion_count);
+    composed_exports.extend(outputs.iter().map(|(_, export)| export.clone()));
+
+    if cli.dsl_path.is_some() {
+        if needs_http_response_companions {
             let dns_path = resolve_built_in_dsl_path("dsl/dns_udp_process.gewy");
             composed_exports.push(run_binding_demo(
                 compile_file(&dns_path).expect("dns dsl should compile"),
@@ -34,25 +42,16 @@ fn render_http_transaction_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]
                 compile_file(&http_response_path).expect("http server dsl should compile"),
             ));
         }
-        if outputs
-            .iter()
-            .any(|(_, export)| export_has_operation(export, "http3_request"))
-        {
+        if needs_http3_response_companion {
             let http3_response_path =
                 resolve_built_in_dsl_path("dsl/http3_server_response_path.gewy");
             composed_exports.push(run_binding_demo(
                 compile_file(&http3_response_path).expect("http3 server dsl should compile"),
             ));
         }
-        compose_http_transactions(&composed_exports)
-    } else {
-        compose_http_transactions(
-            &outputs
-                .iter()
-                .map(|(_, export)| export.clone())
-                .collect::<Vec<_>>(),
-        )
-    };
+    }
+
+    let transactions = compose_http_transactions(&composed_exports);
 
     if cli.json {
         http_transactions_json(&transactions)

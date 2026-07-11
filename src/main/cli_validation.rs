@@ -138,10 +138,7 @@ pub(crate) fn validate_cli_options(input: CliValidationInput<'_>) -> Result<(), 
         input.list_history && input.list_entries,
         "--list-history cannot be combined with --list-entries"
     );
-    reject!(
-        input.socket_target.is_some() && input.pid,
-        input.locale.msg("pid_socket_conflict")
-    );
+    reject!(input.pid, input.locale.msg("pid_not_yet_supported"));
     reject!(
         input.entry && !input.protocol,
         input.locale.msg("entry_requires_protocol")

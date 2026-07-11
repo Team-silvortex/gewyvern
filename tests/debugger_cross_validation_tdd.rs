@@ -28,6 +28,9 @@ fn cross_validation_script_checks_positive_and_negative_debugger_surfaces() {
     assert!(harness.contains("posture_state"));
     assert!(harness.contains("open_anomaly_flow"));
     assert!(harness.contains("escalation_allowed"));
+    assert!(harness.contains("primary_command"));
+    assert!(harness.contains("fallback_command"));
+    assert!(harness.contains("\"command\""));
     assert!(harness.contains("observe_stable_baseline"));
     assert!(harness.contains("collect_missing_runtime_evidence"));
     assert!(harness.contains("primary_failure_basis"));
@@ -52,6 +55,7 @@ fn cross_validation_is_documented_as_a_debugger_readiness_gate() {
         assert!(doc.contains("debug-session"));
         assert!(doc.contains("debugger_posture"));
         assert!(doc.contains("debugger_route"));
+        assert!(doc.contains("command"));
         assert!(doc.contains("evidence-index.json"));
     }
 }

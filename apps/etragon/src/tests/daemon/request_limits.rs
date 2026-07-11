@@ -8,7 +8,9 @@ fn daemon_request_reader_rejects_oversized_bodies() {
         let (mut stream, _) = listener.accept().expect("client should connect");
         match read_daemon_request(&mut stream).expect("request should read") {
             DaemonRequestRead::TooLarge => {}
-            DaemonRequestRead::Invalid => panic!("oversized request should not be treated as invalid"),
+            DaemonRequestRead::Invalid => {
+                panic!("oversized request should not be treated as invalid")
+            }
             DaemonRequestRead::Complete(_) => panic!("oversized request should be rejected"),
         }
     });

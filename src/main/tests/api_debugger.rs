@@ -49,8 +49,16 @@ fn anomaly_flow_route_highlights_missing_transition_breakpoint() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:http:request".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:http:request".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:http:request",
+                &export,
+                &analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:http:request",
+                &export,
+                &analysis,
+            ),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -161,8 +169,16 @@ fn anomaly_flow_route_uses_tls_specific_phase_hint() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:tls:client".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:tls:client".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:tls:client",
+                &export,
+                &analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:tls:client",
+                &export,
+                &analysis,
+            ),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -228,8 +244,8 @@ fn anomaly_flow_route_uses_dns_tcp_specific_phase_hint() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:dns:tcp".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:dns:tcp".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis("scan:dns:tcp", &export, &analysis),
+            report_html: single_target_report_html_with_analysis("scan:dns:tcp", &export, &analysis),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -297,8 +313,16 @@ fn anomaly_flow_route_uses_dot_and_doh_specific_phase_hints() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: dns_export.to_json(),
-            report_json: scan_report_json(&[("scan:dot:tcp".to_string(), dns_export.clone())]),
-            report_html: scan_report_html(&[("scan:dot:tcp".to_string(), dns_export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:dot:tcp",
+                &dns_export,
+                &dns_analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:dot:tcp",
+                &dns_export,
+                &dns_analysis,
+            ),
         },
     );
     let dot_snapshot = dot_state.lock().unwrap().clone();
@@ -363,8 +387,16 @@ fn anomaly_flow_route_uses_dot_and_doh_specific_phase_hints() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: http_export.to_json(),
-            report_json: scan_report_json(&[("scan:doh:request".to_string(), http_export.clone())]),
-            report_html: scan_report_html(&[("scan:doh:request".to_string(), http_export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:doh:request",
+                &http_export,
+                &http_analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:doh:request",
+                &http_export,
+                &http_analysis,
+            ),
         },
     );
     let doh_snapshot = doh_state.lock().unwrap().clone();
@@ -454,8 +486,16 @@ fn anomaly_flow_route_uses_rip_specific_phase_hints() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:rip:request".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:rip:request".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:rip:request",
+                &export,
+                &analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:rip:request",
+                &export,
+                &analysis,
+            ),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -560,8 +600,8 @@ fn anomaly_flow_route_uses_bgp_specific_phase_hints() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:bgp:open".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:bgp:open".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis("scan:bgp:open", &export, &analysis),
+            report_html: single_target_report_html_with_analysis("scan:bgp:open", &export, &analysis),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -642,8 +682,16 @@ fn anomaly_flow_route_uses_ospf_specific_phase_hints() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:ospf:hello".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:ospf:hello".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:ospf:hello",
+                &export,
+                &analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:ospf:hello",
+                &export,
+                &analysis,
+            ),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -730,8 +778,8 @@ fn anomaly_flow_route_uses_ntp_specific_phase_hints() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:ntp:query".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:ntp:query".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis("scan:ntp:query", &export, &analysis),
+            report_html: single_target_report_html_with_analysis("scan:ntp:query", &export, &analysis),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -818,8 +866,16 @@ fn anomaly_flow_route_uses_dhcp_specific_phase_hints() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:dhcp:client".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:dhcp:client".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:dhcp:client",
+                &export,
+                &analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:dhcp:client",
+                &export,
+                &analysis,
+            ),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -906,8 +962,16 @@ fn anomaly_flow_route_uses_stun_specific_phase_hints() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:stun:binding".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:stun:binding".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:stun:binding",
+                &export,
+                &analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:stun:binding",
+                &export,
+                &analysis,
+            ),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -994,8 +1058,8 @@ fn anomaly_flow_route_uses_snmp_specific_phase_hints() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:snmp:get".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:snmp:get".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis("scan:snmp:get", &export, &analysis),
+            report_html: single_target_report_html_with_analysis("scan:snmp:get", &export, &analysis),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -1082,8 +1146,16 @@ fn anomaly_flow_route_uses_mdns_specific_phase_hints() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:mdns:query".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:mdns:query".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:mdns:query",
+                &export,
+                &analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:mdns:query",
+                &export,
+                &analysis,
+            ),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -1203,8 +1275,8 @@ fn anomaly_flow_route_uses_ssh_specific_phase_hints() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:ssh:auth".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:ssh:auth".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis("scan:ssh:auth", &export, &analysis),
+            report_html: single_target_report_html_with_analysis("scan:ssh:auth", &export, &analysis),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -1328,8 +1400,8 @@ fn anomaly_flow_route_uses_smtp_specific_phase_hints() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:smtp:auth".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:smtp:auth".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis("scan:smtp:auth", &export, &analysis),
+            report_html: single_target_report_html_with_analysis("scan:smtp:auth", &export, &analysis),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -1436,8 +1508,8 @@ fn anomaly_flow_route_uses_redis_specific_phase_hints() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:redis:get".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:redis:get".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis("scan:redis:get", &export, &analysis),
+            report_html: single_target_report_html_with_analysis("scan:redis:get", &export, &analysis),
         },
     );
     let snapshot = state.lock().unwrap().clone();

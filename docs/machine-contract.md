@@ -62,6 +62,25 @@ Use it this way:
 
 ## Preferred Inputs By Use Case
 
+### Release Automation
+
+Prefer:
+
+- `cargo run --quiet --bin gewyvern_validate -- --json release-gate`
+- `cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation`
+
+Use `release-gate` as the stable machine-facing ship/no-ship wrapper for the
+current default release path. Use `remote-linux-host-validation` when the
+caller needs one structured Linux-host proof object instead of only the
+top-level gate result.
+
+Treat
+`sudo cargo run --quiet --bin gewyvern_validate -- --json juice-shop-container-validation`
+as a separate high-signal evidence shelf, not as a default release-gate stage.
+It is intentionally a stronger Linux/BPF target-lab proof that may require
+Docker plus attach privileges and should therefore be consumed explicitly rather
+than assumed by generic CI.
+
 ### Operator Automation
 
 Prefer:
@@ -246,6 +265,77 @@ as the stable core:
 - `pid_attribution_status`
 - `pid_attribution_note`
 - `augmentations`
+
+## Stable Core: Validation Harness JSON
+
+For `gewyvern_validate ... --json`, downstream tools should treat the
+top-level wrapper as the stable core:
+
+- `schema_version`
+- `ok`
+- `command`
+- `name`
+- `checks`
+- `evidence_dir`
+- `extra`
+
+Current version gate:
+
+- `schema_version = 1`
+
+Practical reading rule:
+
+- gate the parser with `schema_version`
+- route follow-up logic by `command`
+- treat `checks` as the compact stage/evidence ledger
+- use `evidence_dir` as the on-disk root for deeper inspection
+- read `extra` only through the documented per-command keys below
+
+### Release Gate JSON
+
+For `gewyvern_validate -- --json release-gate`, the stable `extra` core is:
+
+- `stages.build_packages`
+- `stages.release_container_check`
+- `stages.three_module_stack_smoke`
+- `stages.debugger_cross_validation`
+- `stages.pathological_container_validation`
+- `stages.remote_linux_host_validation`
+- `remote`
+- `gate_posture`
+- `ship_signal`
+- `next_step`
+
+Current interpretation:
+
+- `remote = null`
+  - the current run did not execute the remote Linux stage
+- `remote != null`
+  - the current run executed the remote Linux stage and exposed a structured
+    Linux proof summary for that run
+- `gate_posture`
+  - the shortest overall release-gate reading
+- `ship_signal`
+  - the caller-facing release decision signal
+- `next_step`
+  - the shortest follow-up instruction for the current gate posture
+
+The practical Linux target-lab shelf is intentionally not part of
+`release-gate.extra.stages.*` today. Consumers that want that stronger Linux
+evidence should call `juice-shop-container-validation` explicitly and merge the
+result as an additional release artifact instead of assuming every release-gate
+run performed it.
+
+When a caller wants one directory-level release artifact map instead of only
+the in-band JSON object, `release-gate` also refreshes these companion files
+under `evidence_dir`:
+
+- `release-gate-artifacts.json`
+- `release-gate-artifacts.txt`
+
+Use them as the compact shelf index for which release-facing evidence
+directories and summary files are currently present, including optional
+high-signal artifacts such as `juice-shop-container`.
 
 ### Summary Contract Semantics
 
@@ -518,6 +608,20 @@ reading shortcuts, not as replacements for the diagnosis spine.
 - `fallback_step`
 - `escalation_allowed`
 - `reason`
+
+For the API debug-session surfaces, `primary_step` and `fallback_step` are
+objects with:
+
+- `kind`
+- `path`
+
+For the local CLI `--debug-session --json` surface, the same route shape uses:
+
+- `kind`
+- `command`
+
+`next_steps` is the additive follow-up shelf. API variants carry `path` on each
+step; the local CLI variant carries `command`.
 
 ## Additive Contract: Augmentations
 

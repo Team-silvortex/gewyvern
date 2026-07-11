@@ -176,8 +176,8 @@ fn api_training_example_routes_cover_single_export() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("dsl_demo".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("dsl_demo".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis("dsl_demo", &export, &analysis),
+            report_html: single_target_report_html_with_analysis("dsl_demo", &export, &analysis),
         },
     );
     let snapshot = state.lock().unwrap().clone();

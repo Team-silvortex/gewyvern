@@ -15,7 +15,8 @@ use gewyvern::validation_harness::{
     run_container_runtime_validation, run_container_validation_summary,
     run_debugger_cross_validation, run_external_engine_roundtrip_demo, run_field_smoke_validation,
     run_high_frequency_validation, run_linux_attach_smoke, run_linux_kprobe_smoke,
-    run_linux_tc_smoke, run_package_install_smoke, run_pathological_container_validation,
+    run_linux_tc_smoke, run_juice_shop_container_validation, run_package_install_smoke,
+    run_pathological_container_validation,
     run_registry_validation, run_release_container_check, run_release_gate,
     run_remote_linux_host_validation, run_resilience_bundle_validation,
     run_resilience_drive_bad_json_validation, run_resilience_emit_helper_validation,
@@ -34,6 +35,7 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
     "field-smoke",
     "help",
     "high-frequency",
+    "juice-shop-container-validation",
     "linux-attach-smoke",
     "linux-kprobe-smoke",
     "linux-tc-smoke",
@@ -127,6 +129,22 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
         "high-frequency" => {
             let options = parse_options(rest)?;
             let report = run_high_frequency_validation(options.out_dir)?;
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
+            Ok(())
+        }
+        "juice-shop-container-validation" => {
+            if wants_subcommand_help(&rest) {
+                print_juice_shop_container_validation_help();
+                return Ok(());
+            }
+            let out_dir = parse_optional_out_dir("juice-shop-container-validation", rest)?;
+            let report = run_juice_shop_container_validation(out_dir)?;
             print_validation_report(
                 &command,
                 &report,
@@ -512,7 +530,7 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
                 print_pathological_container_validation_help();
                 return Ok(());
             }
-            let out_dir = parse_optional_out_dir(rest)?;
+            let out_dir = parse_optional_out_dir("pathological-container-validation", rest)?;
             let report = run_pathological_container_validation(out_dir)?;
             print_validation_report(
                 &command,
@@ -830,6 +848,7 @@ fn parse_release_gate_options(args: Vec<String>) -> Result<ReleaseGateOptions, V
             "--skip-build" => options.run_build = false,
             "--skip-release-check" => options.run_release_check = false,
             "--skip-stack" => options.run_stack = false,
+            "--skip-debugger-cross" => options.run_debugger_cross = false,
             "--skip-pathology" => options.run_pathology = false,
             "--remote-host-validation" => options.run_remote_host = true,
             "--keep-remote-dir" => options.keep_remote_dir = true,
@@ -946,7 +965,10 @@ fn parse_linux_ebpf_smoke_options(
     })
 }
 
-fn parse_optional_out_dir(args: Vec<String>) -> Result<Option<PathBuf>, ValidationError> {
+fn parse_optional_out_dir(
+    command_name: &str,
+    args: Vec<String>,
+) -> Result<Option<PathBuf>, ValidationError> {
     let mut out_dir = None;
     let mut iter = args.into_iter();
 
@@ -960,14 +982,14 @@ fn parse_optional_out_dir(args: Vec<String>) -> Result<Option<PathBuf>, Validati
             }
             other if other.starts_with('-') => {
                 return Err(ValidationError::new(format!(
-                    "unknown pathological-container-validation option `{other}`"
+                    "unknown {command_name} option `{other}`"
                 )));
             }
             other => {
                 if out_dir.is_some() {
-                    return Err(ValidationError::new(
-                        "pathological-container-validation accepts at most one output path",
-                    ));
+                    return Err(ValidationError::new(format!(
+                        "{command_name} accepts at most one output path"
+                    )));
                 }
                 out_dir = Some(PathBuf::from(other));
             }
@@ -1016,6 +1038,7 @@ fn print_help() {
         "  external-engine-roundtrip [--ingest-addr <addr>] [--api-addr <addr>] [--template <id>] [--analysis-out <path>] [--engine-out <path>] [--target-path-segment <segment>] [--engine-root <path>] [--engine-cmd <cmd>]"
     );
     println!("  high-frequency [--out-dir <path>]");
+    println!("  juice-shop-container-validation [--out-dir <path>]");
     println!("  linux-attach-smoke [--hookpoint <category/event>] [--out-dir <path>]");
     println!("  linux-kprobe-smoke [--symbol <kernel-symbol>] [--out-dir <path>]");
     println!("  linux-tc-smoke --dev <netdev> [--out-dir <path>]");
@@ -1983,6 +2006,7 @@ fn release_gate_summary_value(
             "build_packages": checks.iter().any(|check| check == "build_packages_in_container"),
             "release_container_check": checks.iter().any(|check| check == "release_container_check"),
             "three_module_stack_smoke": checks.iter().any(|check| check == "three_module_stack_smoke"),
+            "debugger_cross_validation": checks.iter().any(|check| check == "debugger_cross_validation"),
             "pathological_container_validation": checks.iter().any(|check| check == "pathological_container_validation"),
             "remote_linux_host_validation": remote_ran,
         },
@@ -2003,6 +2027,9 @@ fn summarize_release_gate_posture(
     let stack_ready = checks
         .iter()
         .any(|check| check == "three_module_stack_smoke");
+    let debugger_ready = checks
+        .iter()
+        .any(|check| check == "debugger_cross_validation");
     let pathology_ready = checks
         .iter()
         .any(|check| check == "pathological_container_validation");
@@ -2013,20 +2040,30 @@ fn summarize_release_gate_posture(
     let remote_partial = checks
         .iter()
         .any(|check| check == "remote_ebpf_smoke_skipped");
+    let remote_watch = remote
+        .and_then(|remote| remote.get("release_gate_signal"))
+        .and_then(|value| value.as_str())
+        == Some("watch");
 
-    if packaged_ready && stack_ready && pathology_ready && remote_full {
+    if packaged_ready && stack_ready && debugger_ready && pathology_ready && remote_full && remote_watch {
+        (
+            "watch",
+            "timing_watch",
+            "remote Linux proof passed, but warned phases exceeded the current soft budget; inspect the timing drift before treating this run as the freshest release reference",
+        )
+    } else if packaged_ready && stack_ready && debugger_ready && pathology_ready && remote_full {
         (
             "full",
             "ready",
             "hold this release-gate run as the current 1.0 candidate reference and watch later regressions against it",
         )
-    } else if packaged_ready && stack_ready && pathology_ready && remote_partial {
+    } else if packaged_ready && stack_ready && debugger_ready && pathology_ready && remote_partial {
         (
             "partial",
             "followup_required",
             "package and runtime confidence passed, but Linux attach proof is still partial; rerun the remote stage with full eBPF privilege before ship",
         )
-    } else if packaged_ready && stack_ready && pathology_ready && !remote_ran {
+    } else if packaged_ready && stack_ready && debugger_ready && pathology_ready && !remote_ran {
         (
             "local_only",
             "remote_missing",
@@ -2198,20 +2235,22 @@ fn print_container_runtime_validation_help() {
 
 fn print_release_gate_help() {
     println!(
-        "Usage: gewyvern_validate release-gate [--skip-build] [--skip-release-check] [--skip-stack] [--skip-pathology] [--remote-host-validation] [--remote-host <ssh-host>] [--remote-dir <path>] [--skip-remote-build] [--keep-remote-dir] [--deb|--rpm]"
+        "Usage: gewyvern_validate release-gate [--skip-build] [--skip-release-check] [--skip-stack] [--skip-debugger-cross] [--skip-pathology] [--remote-host-validation] [--remote-host <ssh-host>] [--remote-dir <path>] [--skip-remote-build] [--keep-remote-dir] [--deb|--rpm]"
     );
     println!();
     println!("Run the current release gate as one deliberate sequence:");
     println!("1. rebuild fresh native packages in Docker");
     println!("2. run the packaged release validation wrapper");
     println!("3. run the three-module stack smoke");
-    println!("4. run pathological container/runtime-ingest validation");
-    println!("5. optionally run remote Linux host validation over SSH");
+    println!("4. run debugger cross validation");
+    println!("5. run pathological container/runtime-ingest validation");
+    println!("6. optionally run remote Linux host validation over SSH");
     println!();
     println!("Flags:");
     println!("  --skip-build          Reuse current package artifacts instead of rebuilding");
     println!("  --skip-release-check  Skip packaged DEB/RPM validation");
     println!("  --skip-stack          Skip three-module stack smoke");
+    println!("  --skip-debugger-cross Skip debugger cross validation");
     println!("  --skip-pathology      Skip pathological runtime-ingest validation");
     println!("  --remote-host-validation  Run remote Linux host validation after local gates");
     println!("  --remote-host         Override the SSH host used for remote validation");
@@ -2229,6 +2268,17 @@ fn print_three_module_stack_smoke_help() {
         "Run the full gewyvern + etragon + leserpent stack smoke with native Rust orchestration."
     );
     println!("Environment variables from the legacy shell entrypoint are still honored.");
+}
+
+fn print_juice_shop_container_validation_help() {
+    println!("Usage: gewyvern_validate juice-shop-container-validation [--out-dir <path>]");
+    println!();
+    println!(
+        "Run a Linux-only practical lab check against an OWASP Juice Shop container, then preserve target-side anomaly evidence next to native attach/kprobe/tc smoke evidence."
+    );
+    println!(
+        "This validates suspicious target behavior and same-host Linux attach capability; it does not claim direct vulnerability classification by gewyvern itself."
+    );
 }
 
 fn print_pathological_container_validation_help() {

@@ -204,6 +204,9 @@ impl UiLocale {
             (_, "dsl_protocol_conflict") => "--dsl cannot be combined with --protocol",
             (_, "dsl_entry_conflict") => "--dsl cannot be combined with --entry",
             (_, "entry_requires_protocol") => "--entry requires --protocol",
+            (_, "pid_not_yet_supported") => {
+                "--pid is not wired to live process capture yet; the current CLI only supports synthetic demos or socket-ingested sessions, so use those paths instead of expecting direct pid inspection"
+            }
             (_, "pid_socket_conflict") => {
                 "--pid cannot be combined with socket ingest because incoming fact lineage is unverified; run a broader advisory scan first, then narrow down with a verified local source"
             }
@@ -246,6 +249,9 @@ impl UiLocale {
             (Self::Zh, "missing_entry") => "缺少 --entry 的值，期望 gewy 入口模式".into(),
             (Self::Zh, "missing_pid") => "缺少 --pid 的值，期望进程 PID".into(),
             (Self::Zh, "invalid_pid") => "--pid 必须是正整数".into(),
+            (Self::Zh, "pid_not_yet_supported") => {
+                "--pid 还没有接通真实活进程抓取；当前 CLI 只支持 synthetic demo 或 socket 导入的会话，不要把它当成直接进程诊断入口".into()
+            }
             (Self::Zh, "missing_unix_socket") => "缺少 --unix-socket 的值，期望文件路径".into(),
             (Self::Zh, "missing_tcp_socket") => "缺少 --tcp-socket 的值，期望 host:port".into(),
             (Self::Zh, "missing_api_socket") => "缺少 --api-socket 的值，期望 host:port".into(),

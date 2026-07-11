@@ -50,6 +50,9 @@ fn local_debugger_console_renders_machine_and_human_views() {
     let json = render_debugger_console_outputs(&json_cli, &outputs);
     assert!(json.contains("\"surface\":\"local_debugger_console\""));
     assert!(json.contains("\"recommended_focus\":{\"name\":\"scan:http:request\""));
+    assert!(json.contains("\"commands\":{"));
+    assert!(json.contains("\"focus_debug_session\":\"cargo run -- --protocol http --entry request --debug-session --json\""));
+    assert!(json.contains("\"debug_session_command\":\"cargo run -- --protocol http --entry request --debug-session --json\""));
     assert!(json.contains("\"targets\":["));
 
     let text_cli =
@@ -76,10 +79,14 @@ fn local_debug_session_renders_machine_and_human_views() {
     assert!(json.contains("\"debugger_route\":{"));
     assert!(json.contains("\"state\":\"healthy\""));
     assert!(json.contains("\"recommended_action\":\"observe_stable_baseline\""));
-    assert!(json.contains("\"primary_step\":\"observe\""));
+    assert!(json.contains("\"primary_step\":{\"kind\":\"observe\""));
+    assert!(json.contains(
+        "\"command\":\"cargo run -- --protocol http --entry request --json --summary-only\""
+    ));
     assert!(json.contains("\"escalation_allowed\":false"));
     assert!(json.contains("\"next_steps\":["));
     assert!(json.contains("\"kind\":\"read_protocol_plan\""));
+    assert!(json.contains("\"command\":\"cargo run -- --list-entries http\""));
 
     let text_cli =
         Cli::from_args(["--debug-session".to_string()]).expect("text debug session parses");
@@ -89,4 +96,19 @@ fn local_debug_session_renders_machine_and_human_views() {
     assert!(text.contains("posture=healthy"));
     assert!(text.contains("route=observe"));
     assert!(text.contains("escalation=false"));
+}
+
+#[test]
+fn local_debug_session_marks_unresolved_protocol_targets_for_entry_review() {
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
+        .expect("http request dsl should compile");
+    let export = run_binding_demo(binding);
+    let outputs = vec![("scan:notreal:missing".to_string(), export)];
+
+    let json_cli = Cli::from_args(["--debug-session".to_string(), "--json".to_string()])
+        .expect("json debug session should parse");
+    let json = render_debug_session_outputs(&json_cli, &outputs);
+    assert!(json.contains("\"kind\":\"check_protocol_entry\""));
+    assert!(json.contains("\"command\":\"cargo run -- --list-entries notreal\""));
+    assert!(!json.contains("\"kind\":\"read_protocol_plan\""));
 }

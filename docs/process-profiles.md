@@ -16,6 +16,19 @@ The key runtime view is:
 
 That view is the best current compression layer for process-oriented debugging.
 
+## Current Boundary
+
+The active `0.20.x` CLI does not yet support direct live-process inspection via
+`--pid`.
+
+Today, `--pid` is not a usable operator path because:
+
+- non-socket CLI runs are synthetic demos
+- socket-ingested runs are advisory-only and intentionally reject PID filtering
+
+So treat the PID-shaped examples in this page as intended future posture, not a
+currently supported live-debug command path.
+
 ## Companion Shelves
 
 Read this page alongside:
@@ -96,7 +109,7 @@ Typical question:
 
 - "is `apt` stuck in DNS, connect, TLS, or HTTP?"
 
-Recommended command:
+Intended future command shape:
 
 ```bash
 cargo run -- --scan-all --pid <apt-pid> --json --summary-only
@@ -126,7 +139,7 @@ Typical question:
 
 - "did `curl` fail before the request, during handshake, or after sending?"
 
-Recommended commands:
+Intended future command shape:
 
 ```bash
 cargo run -- --protocol http --entry request --pid <curl-pid> --json --summary-only
@@ -148,7 +161,7 @@ Typical question:
 
 - "is the media client stuck in RTSP setup or after setup?"
 
-Recommended commands:
+Intended future command shape:
 
 ```bash
 cargo run -- --protocol rtsp --entry setup --pid <ffmpeg-pid> --json --summary-only
@@ -169,7 +182,7 @@ Typical question:
 
 - "is the proxy failing in auth, connect negotiation, or relay?"
 
-Recommended commands:
+Intended future command shape:
 
 ```bash
 cargo run -- --scan-all --pid <proxy-pid> --json --summary-only
@@ -265,7 +278,7 @@ Typical question:
 
 - "did the client fail in auth or query?"
 
-Recommended commands:
+Intended future command shape:
 
 ```bash
 cargo run -- --protocol postgres --entry auth --pid <pid> --json --summary-only

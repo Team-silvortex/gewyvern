@@ -72,7 +72,7 @@ Use these when you want the shortest runtime proof that:
 - one built-in protocol path still works
 - the current sweep path still renders debug-session, machine, and HTML outputs
 - debug-session includes a conservative `debugger_route` for the next safe
-  surface to open
+  surface to open, plus local `command` hints for the next CLI move
 - the debugger cross-check still agrees across runtime, console, and compiler
   envelope surfaces
 
@@ -100,6 +100,7 @@ Narrow the gate without leaving JSON mode:
 ```bash
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-build
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-stack
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-debugger-cross
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-pathology
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation
 ```
@@ -108,6 +109,12 @@ Remote Linux host evidence as one structured object:
 
 ```bash
 cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation
+```
+
+Practical Linux target-lab evidence as one structured object:
+
+```bash
+sudo cargo run --quiet --bin gewyvern_validate -- --json juice-shop-container-validation
 ```
 
 Current stable top-level fields:
@@ -367,8 +374,14 @@ If the change touches real eBPF attach/runtime behavior, use:
 - `cargo run --quiet --bin gewyvern_validate -- linux-attach-smoke`
 - `cargo run --quiet --bin gewyvern_validate -- linux-kprobe-smoke`
 - `cargo run --quiet --bin gewyvern_validate -- linux-tc-smoke --dev <default-route-device>`
+- `sudo cargo run --quiet --bin gewyvern_validate -- juice-shop-container-validation`
 
 Run these with root/BPF attach privileges, for example through `sudo`, and pass
 the default-route interface to the TC smoke. An unprivileged run may fail during
 libbpf loading with `Operation not permitted`, which is an environment
 permission failure rather than a protocol diagnosis failure.
+
+Use `juice-shop-container-validation` when you want one practical Linux target
+lab that preserves suspicious HTTP evidence and then immediately proves the
+same host can still execute native attach, kprobe, and tc checks. Treat it as a
+Linux/BPF confidence command, not as direct web-vulnerability classification.

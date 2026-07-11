@@ -87,6 +87,7 @@ fn documented_shell_entrypoints_are_executable() {
         "scripts/validation/debugger_cross_validation.sh",
         "scripts/validation/field_validation_smoke.sh",
         "scripts/validation/high_frequency_validation.sh",
+        "scripts/validation/juice_shop_container_validation.sh",
         "scripts/validation/pathological_container_validation.sh",
         "scripts/validation/registry_validation.sh",
         "scripts/validation/runtime_lifecycle_validation.sh",
@@ -159,10 +160,14 @@ fn release_docs_prefer_native_validation_entrypoints() {
         field_findings
             .contains("cargo run --quiet --bin gewyvern_validate -- release-gate --skip-build")
     );
+    assert!(field_findings.contains("target/validation/release-gate-artifacts.json"));
+    assert!(field_findings.contains("target/validation/release-gate-artifacts.txt"));
     assert!(v020.contains("cargo run --quiet --bin gewyvern_validate -- release-container-check"));
     assert!(
         v020.contains("cargo run --quiet --bin gewyvern_validate -- release-gate --skip-build")
     );
+    assert!(v020.contains("target/validation/release-gate-artifacts.json"));
+    assert!(v020.contains("target/validation/release-gate-artifacts.txt"));
 }
 
 fn local_path(parts: &[&str]) -> String {

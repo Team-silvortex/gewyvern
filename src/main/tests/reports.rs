@@ -1,7 +1,8 @@
 use super::{
     Cli, analysis_snapshot, annotate_export_trust, dsl_fixture_path,
     push_synthetic_missing_stage_finding, render_report_outputs, run_binding_demo,
-    scan_report_html, scan_report_json, scan_report_text, summary_json,
+    scan_report_html, scan_report_json, scan_report_text,
+    single_target_report_html_with_analysis, single_target_report_json_with_analysis, summary_json,
     synthesize_large_scan_outputs, with_fake_etragon_hook,
 };
 use gewyvern::dsl::compile_file;
@@ -193,7 +194,9 @@ fn scan_report_html_renders_visual_summary() {
         run_binding_demo(binding),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
-    let report = scan_report_html(&[("scan:http:request".to_string(), export)]);
+    let analysis = analysis_snapshot(&export);
+    let report =
+        single_target_report_html_with_analysis("scan:http:request", &export, &analysis);
     assert!(report.contains("<!DOCTYPE html>"));
     assert!(report.contains("gewyvern Scan Report"));
     assert!(report.contains("scan:http:request"));
@@ -220,6 +223,36 @@ fn scan_report_html_renders_visual_summary() {
     assert!(report.contains("request-response</span> 1"));
     assert!(report.contains("attention targets are shown first"));
     assert!(report.contains("<details class=\"card status-healthy\">"));
+}
+
+#[test]
+fn single_target_report_helpers_match_scan_report_rendering() {
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
+        .expect("http_request_path DSL should compile");
+    let export = annotate_export_trust(
+        run_binding_demo(binding),
+        &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
+    );
+    let analysis = analysis_snapshot(&export);
+    let expected_json = scan_report_json(&[("scan:http:request".to_string(), export.clone())]);
+    let expected_html = scan_report_html(&[("scan:http:request".to_string(), export.clone())]);
+
+    assert_eq!(
+        crate::report_runtime::single_target_report_json_with_analysis(
+            "scan:http:request",
+            &export,
+            &analysis,
+        ),
+        expected_json
+    );
+    assert_eq!(
+        crate::report_runtime::single_target_report_html_with_analysis(
+            "scan:http:request",
+            &export,
+            &analysis,
+        ),
+        expected_html
+    );
 }
 
 #[test]
@@ -269,7 +302,12 @@ fn scan_report_html_expands_attention_targets_by_default() {
         supporting_fragments: vec!["tcp_packet_meta_fragment".into()],
         evidence_trace: vec!["missing_signal:packet_observed".into()],
     });
-    let report = scan_report_html(&[("scan:http:attention".to_string(), attention_export)]);
+    let analysis = analysis_snapshot(&attention_export);
+    let report = single_target_report_html_with_analysis(
+        "scan:http:attention",
+        &attention_export,
+        &analysis,
+    );
     assert!(report.contains("<details class=\"card status-attention\" open>"));
     assert!(report.contains("scan:http:attention"));
 }
@@ -309,7 +347,8 @@ fn scan_report_text_and_html_include_protocol_reading_companions() {
     assert!(text.contains("reading_companions=https:connect@https"));
     assert!(text.contains("dns:tcp@dot"));
 
-    let html = scan_report_html(&[("scan:tls:client".to_string(), export)]);
+    let analysis = analysis_snapshot(&export);
+    let html = single_target_report_html_with_analysis("scan:tls:client", &export, &analysis);
     assert!(html.contains("selected overlay:</strong> none"));
     assert!(html.contains("reading companions:</strong> https:connect via https (HTTPS Over TLS)"));
     assert!(html.contains("dns:tcp via dot (DNS-Over-TLS)"));
@@ -493,7 +532,8 @@ fn scan_report_json_promotes_top_level_diagnosis_aggregates() {
         "tcp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = scan_report_json(&[("dsl_demo".to_string(), export)]);
+    let analysis = analysis_snapshot(&export);
+    let json = single_target_report_json_with_analysis("dsl_demo", &export, &analysis);
     assert!(json.contains("\"primary_module_family\":\"request-response\""));
     assert!(json.contains("\"evidence_posture\":\"missing_transition\""));
     assert!(json.contains("\"automation_outcome\":\"collect_more_evidence\""));

@@ -327,6 +327,7 @@ Or, for narrow debugging:
 ```bash
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-build
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-stack
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-debugger-cross
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-pathology
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation
 ```
@@ -338,7 +339,24 @@ The `extra` object for `release-gate` currently exposes:
 - `stages.three_module_stack_smoke`
 - `stages.pathological_container_validation`
 - `stages.remote_linux_host_validation`
+- top-level `ship_signal = "timing_watch"` when the remote host passed but one
+  of the soft timing budgets regressed
 - `remote`
+
+The practical Linux target-lab command
+`juice-shop-container-validation`
+is intentionally outside that default `release-gate` stage map today. Treat it
+as an explicit high-signal companion artifact when you want stronger Linux/BPF
+evidence, not as a stage that generic CI should silently assume.
+
+Every successful `release-gate` run also refreshes:
+
+- `target/validation/release-gate-artifacts.json`
+- `target/validation/release-gate-artifacts.txt`
+
+Use those two companion files as the compact directory-level index of which
+release-facing evidence shelves are currently present under `target/validation/`,
+including the separate optional `juice-shop-container` shelf when it exists.
 
 `remote` is `null` unless the current run actually executed the remote-host
 stage. This is deliberate so CI cannot accidentally read stale evidence from an
@@ -440,6 +458,48 @@ small archive-friendly text summary for the healthy and degraded phases.
 If you want that file to land somewhere durable instead of under the temporary
 work directory, set `RESILIENCE_SUMMARY_PATH=target/validation/resilience-summary.txt`
 before running the script.
+
+### I want one practical Linux target-lab read
+
+Run:
+
+```bash
+sudo cargo run --quiet --bin gewyvern_validate -- juice-shop-container-validation
+```
+
+Or through the compatibility wrapper:
+
+```bash
+sudo bash scripts/validation/juice_shop_container_validation.sh
+```
+
+Use this when the real question is:
+
+- can `gewyvern` preserve suspicious target-side evidence from a live Docker lab?
+- can the same Linux host still prove tracepoint, kprobe, and tc attach health?
+- do we have one repeatable practical-target shelf that is stronger than a synthetic demo?
+
+What the current check proves:
+
+- an OWASP Juice Shop container becomes reachable on a loopback-bound host port
+- a file-guard style request preserves `Only .md and .pdf files are allowed!`
+- a malformed SQL-style search preserves `SQLITE_ERROR: incomplete input`
+- the same host still passes `linux-attach-smoke`, `linux-kprobe-smoke`, and `linux-tc-smoke`
+
+The evidence shelf now also writes `evidence-index.json` as the compact map of
+the target-side HTTP captures, container log, summary, and nested same-host
+Linux attach evidence. Read that file first before drilling into the raw
+artifacts.
+
+What it does not prove:
+
+- direct vulnerability classification by `gewyvern`
+- complete web attack coverage
+- authenticated or browser-driven exploit workflows
+
+This is intentionally a Linux-only practical lab shelf because the attach proof
+requires BPF attach privileges. Unprivileged runs may fail with `Operation not
+permitted`.
 
 ### I want a narrow consumer roundtrip
 

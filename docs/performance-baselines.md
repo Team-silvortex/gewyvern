@@ -130,18 +130,18 @@ path is getting slower or less reliable as the 1.0 core hardens.
 
 | Phase | Seconds | Notes |
 | --- | ---: | --- |
-| `remote_preflight` | `0.185` | Linux/x86_64 capability and command snapshot |
-| `remote_workspace_create` | `0.046` | creates remote workspace roots |
-| `workspace_sync` | `0.307` | sync-key probe and rsync cache decision |
-| `remote_workspace_materialize` | `0.295` | requested workspace repointed at source cache |
+| `remote_preflight` | `0.557` | Linux/x86_64 capability and command snapshot |
+| `remote_workspace_create` | `0.102` | creates remote workspace roots |
+| `workspace_sync` | `0.324` | sync-key probe and rsync cache decision |
+| `remote_workspace_materialize` | `0.110` | requested workspace repointed at source cache |
 | `remote_package_build` | `0.401` | cached package build wrapper |
-| `remote_artifact_verify` | `0.068` | DEB/RPM discovery |
-| `remote_package_smoke` | `0.270` | packaged install/runtime shell |
-| `remote_runtime_smoke` | `0.484` | host-mode runtime validation |
-| `remote_ebpf_smoke` | `0.485` | tracepoint + kprobe + tc attach evidence |
-| `remote_ebpf_evidence_sync` | `0.182` | syncs remote eBPF shelf back locally |
-| `remote_workspace_cleanup` | `0.063` | removes transient remote workspace |
-| `total` | `2.786` | full remote validation wall-clock time |
+| `remote_artifact_verify` | `0.120` | DEB/RPM discovery |
+| `remote_package_smoke` | `0.264` | packaged install/runtime shell |
+| `remote_runtime_smoke` | `0.698` | host-mode runtime validation |
+| `remote_ebpf_smoke` | `1.414` | tracepoint + kprobe + tc attach evidence |
+| `remote_ebpf_evidence_sync` | `0.496` | syncs remote eBPF shelf back locally |
+| `remote_workspace_cleanup` | `0.114` | removes transient remote workspace |
+| `total` | `4.599` | full remote validation wall-clock time |
 
 The synchronized evidence for this baseline lives under:
 

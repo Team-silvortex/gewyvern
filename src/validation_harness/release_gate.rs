@@ -1,10 +1,12 @@
 use std::process::{Command, Stdio};
 use std::{collections::BTreeMap, fs, path::Path};
 
+use serde_json::json;
+
 use super::command::{ValidationError, ValidationReport, repo_root};
 use super::{
     RemoteLinuxHostOptions, run_container_runtime_validation, run_container_validation_summary,
-    run_package_install_smoke, run_pathological_container_validation,
+    run_debugger_cross_validation, run_package_install_smoke, run_pathological_container_validation,
     run_remote_linux_host_validation, run_three_module_stack_smoke, validation_command_stdout,
     validation_log,
 };
@@ -32,6 +34,7 @@ pub struct ReleaseGateOptions {
     pub run_build: bool,
     pub run_release_check: bool,
     pub run_stack: bool,
+    pub run_debugger_cross: bool,
     pub run_pathology: bool,
     pub run_remote_host: bool,
     pub remote_host: String,
@@ -47,6 +50,7 @@ impl Default for ReleaseGateOptions {
             run_build: true,
             run_release_check: true,
             run_stack: true,
+            run_debugger_cross: true,
             run_pathology: true,
             run_remote_host: false,
             remote_host: std::env::var("GEWY_REMOTE_HOST")
@@ -149,6 +153,15 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
         validation_log("[release-gate] skipping three-module stack smoke");
     }
 
+    if options.run_debugger_cross {
+        validation_log("[release-gate] ----------------------------------------");
+        validation_log("[release-gate] running debugger cross validation");
+        run_debugger_cross_validation(None)?;
+        checks.push("debugger_cross_validation".to_string());
+    } else {
+        validation_log("[release-gate] skipping debugger cross validation");
+    }
+
     if options.run_pathology {
         validation_log("[release-gate] ----------------------------------------");
         validation_log("[release-gate] running pathological container validation");
@@ -196,7 +209,15 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
         validation_log("[release-gate] skipping remote linux host validation");
     }
 
+    write_release_artifact_index(&repo_root().join("target").join("validation"), &checks)?;
+
     validation_log("[release-gate] ----------------------------------------");
+    validation_log(
+        "[release-gate] release artifacts: target/validation/release-gate-artifacts.json",
+    );
+    validation_log(
+        "[release-gate] release artifact summary: target/validation/release-gate-artifacts.txt",
+    );
     validation_log("[release-gate] release gate: ok");
 
     Ok(ValidationReport {
@@ -267,6 +288,8 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
     ));
     validation_log(format!("[release-gate] next-step: {next_step}"));
 
+    let budget_warnings = remote_phase_budget_warnings(&timings);
+
     let mut slowest = timings
         .into_iter()
         .filter(|(name, _)| name != "total")
@@ -281,12 +304,199 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
             .join(", ");
         validation_log(format!("[release-gate] remote slowest phases: {summary}"));
     }
+    for warning in budget_warnings {
+        validation_log(format!("[release-gate] remote budget warning: {warning}"));
+    }
     if let Some(trend) = summarize_recent_ebpf_trend(history_summary.as_ref()) {
         validation_log(format!("[release-gate] remote recent eBPF trend: {trend}"));
     }
     for line in recent.iter().take(3) {
         validation_log(format!("[release-gate] remote recent eBPF: {line}"));
     }
+}
+
+fn write_release_artifact_index(
+    out_dir: &Path,
+    checks: &[String],
+) -> Result<(), ValidationError> {
+    fs::create_dir_all(out_dir)?;
+
+    let artifact_index_path = out_dir.join("release-gate-artifacts.json");
+    let artifact_summary_path = out_dir.join("release-gate-artifacts.txt");
+
+    let entries = vec![
+        release_artifact_entry(
+            "release_gate_root",
+            "directory",
+            out_dir,
+            "required",
+            Some(true),
+            "release-gate",
+            "shared root for release-facing validation evidence",
+        ),
+        release_artifact_entry(
+            "debugger_cross_validation",
+            "directory",
+            &out_dir.join("debugger-cross-validation"),
+            "required",
+            Some(
+                checks
+                    .iter()
+                    .any(|check| check == "debugger_cross_validation"),
+            ),
+            "gewyvern_validate debugger-cross",
+            "cross-surface debugger evidence shelf",
+        ),
+        release_artifact_entry(
+            "pathological_container_validation",
+            "directory",
+            &out_dir.join("pathological-container"),
+            "required",
+            Some(
+                checks
+                    .iter()
+                    .any(|check| check == "pathological_container_validation"),
+            ),
+            "gewyvern_validate pathological-container-validation",
+            "degraded-but-live resilience evidence shelf",
+        ),
+        release_artifact_entry(
+            "three_module_resilience_summary",
+            "file",
+            &out_dir.join("resilience-summary.txt"),
+            "required",
+            Some(
+                checks
+                    .iter()
+                    .any(|check| check == "three_module_stack_smoke"),
+            ),
+            "three_module_stack_smoke.sh",
+            "compact resilience summary from the multi-project Docker smoke",
+        ),
+        release_artifact_entry(
+            "remote_linux_host_validation",
+            "directory",
+            &out_dir.join("remote-linux-host-validation"),
+            "optional",
+            Some(
+                checks
+                    .iter()
+                    .any(|check| check == "remote_linux_host_validation"),
+            ),
+            "gewyvern_validate remote-linux-host-validation",
+            "structured Linux host proof shelf for package, runtime, and eBPF validation",
+        ),
+        release_artifact_entry(
+            "remote_linux_ebpf",
+            "directory",
+            &out_dir.join("remote-linux-host-validation").join("remote-ebpf"),
+            "optional",
+            Some(
+                checks.iter().any(|check| {
+                    check == "remote_ebpf_smoke" || check == "remote_ebpf_smoke_skipped"
+                }),
+            ),
+            "gewyvern_validate remote-linux-host-validation",
+            "nested remote eBPF attach evidence shelf when the remote Linux path runs",
+        ),
+        release_artifact_entry(
+            "juice_shop_container_validation",
+            "directory",
+            &out_dir.join("juice-shop-container"),
+            "optional_high_signal",
+            None,
+            "gewyvern_validate juice-shop-container-validation",
+            "practical Linux target-lab shelf that preserves suspicious target-side HTTP evidence plus same-host attach proof",
+        ),
+        release_artifact_entry(
+            "release_gate_artifact_index",
+            "file",
+            &artifact_index_path,
+            "required",
+            Some(true),
+            "gewyvern_validate release-gate",
+            "machine-readable release artifact index",
+        ),
+        release_artifact_entry(
+            "release_gate_artifact_summary",
+            "file",
+            &artifact_summary_path,
+            "required",
+            Some(true),
+            "gewyvern_validate release-gate",
+            "human-readable release artifact summary",
+        ),
+    ];
+
+    let payload = json!({
+        "schema_version": 1,
+        "kind": "release_artifact_index",
+        "name": "release gate artifacts",
+        "root": out_dir.display().to_string(),
+        "artifacts": entries,
+    });
+    fs::write(&artifact_index_path, serde_json::to_string_pretty(&payload)?)?;
+
+    let summary = payload["artifacts"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|entry| {
+            format!(
+                "{} [{}] {} {}\n  path={}\n  producer={}\n  note={}",
+                entry["key"].as_str().unwrap_or("unknown"),
+                entry["expectation"].as_str().unwrap_or("unknown"),
+                entry["status"].as_str().unwrap_or("unknown"),
+                entry["kind"].as_str().unwrap_or("artifact"),
+                entry["path"].as_str().unwrap_or(""),
+                entry["producer"].as_str().unwrap_or(""),
+                entry["note"].as_str().unwrap_or(""),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(
+        &artifact_summary_path,
+        format!(
+            "release gate artifacts: ok\nroot={}\nindex={}\nsummary={}\n\n{}\n",
+            out_dir.display(),
+            artifact_index_path.display(),
+            artifact_summary_path.display(),
+            summary
+        ),
+    )?;
+
+    Ok(())
+}
+
+fn release_artifact_entry(
+    key: &str,
+    kind: &str,
+    path: &Path,
+    expectation: &str,
+    stage_ran: Option<bool>,
+    producer: &str,
+    note: &str,
+) -> serde_json::Value {
+    let status = if key == "release_gate_artifact_index" || key == "release_gate_artifact_summary" {
+        "present"
+    } else if path.exists() {
+        "present"
+    } else if stage_ran == Some(false) {
+        "not_run"
+    } else {
+        "absent"
+    };
+
+    json!({
+        "key": key,
+        "kind": kind,
+        "path": path.display().to_string(),
+        "status": status,
+        "expectation": expectation,
+        "producer": producer,
+        "note": note,
+    })
 }
 
 fn summarize_remote_release_gate_posture(
@@ -321,6 +531,34 @@ fn summarize_remote_release_gate_posture(
             "inspect the remote evidence shelf before treating this release-gate run as a Linux reference",
         ),
     }
+}
+
+fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
+    const REMOTE_TOTAL_BUDGET_SECONDS: f64 = 45.0;
+    const WORKSPACE_SYNC_BUDGET_SECONDS: f64 = 8.0;
+    const REMOTE_PACKAGE_BUILD_BUDGET_SECONDS: f64 = 20.0;
+    const REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS: f64 = 2.0;
+    const REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS: f64 = 3.0;
+    const REMOTE_EBPF_SMOKE_BUDGET_SECONDS: f64 = 10.0;
+    const REMOTE_EBPF_SYNC_BUDGET_SECONDS: f64 = 5.0;
+
+    timings
+        .iter()
+        .filter_map(|(name, seconds)| {
+            let budget = match name.as_str() {
+                "total" => Some(REMOTE_TOTAL_BUDGET_SECONDS),
+                "workspace_sync" => Some(WORKSPACE_SYNC_BUDGET_SECONDS),
+                "remote_package_build" => Some(REMOTE_PACKAGE_BUILD_BUDGET_SECONDS),
+                "remote_package_smoke" => Some(REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS),
+                "remote_runtime_smoke" => Some(REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS),
+                "remote_ebpf_smoke" => Some(REMOTE_EBPF_SMOKE_BUDGET_SECONDS),
+                "remote_ebpf_evidence_sync" => Some(REMOTE_EBPF_SYNC_BUDGET_SECONDS),
+                _ => None,
+            }?;
+            (seconds > &budget)
+                .then(|| format!("{name} exceeded budget ({seconds:.3}s > {budget:.3}s)"))
+        })
+        .collect()
 }
 
 fn parse_key_value_file(path: &Path) -> BTreeMap<String, String> {

@@ -9,6 +9,7 @@
     "ship_signal": "needs_review",
     "stages": {
       "build_packages": false,
+      "debugger_cross_validation": false,
       "pathological_container_validation": false,
       "release_container_check": false,
       "remote_linux_host_validation": false,

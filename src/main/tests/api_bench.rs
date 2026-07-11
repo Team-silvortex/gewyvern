@@ -10,18 +10,19 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
         run_binding_demo(binding),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
+    let analysis = analysis_snapshot(&export);
     let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
     update_api_snapshot_for_single(
         &state,
         ApiRenderedTarget {
             name: "dsl_demo".into(),
-            primary_module_family: analysis_snapshot(&export).primary_module_family,
-            evidence_posture: analysis_snapshot(&export).evidence_posture,
-            automation_outcome: analysis_snapshot(&export).automation_outcome,
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
             summary_text: summary_line("dsl_demo", &export),
             summary_json: summary_json("dsl_demo", &export),
             findings_json: findings_json("dsl_demo", &export),
-            analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
+            analysis_json: analysis_snapshot_json(&analysis),
             training_example_json: training_example_json("dsl_demo", &export),
             has_external_sidecar_context: false,
             has_external_evidence_chain_enrichment: false,
@@ -33,8 +34,8 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("dsl_demo".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("dsl_demo".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis("dsl_demo", &export, &analysis),
+            report_html: single_target_report_html_with_analysis("dsl_demo", &export, &analysis),
         },
     );
     let snapshot = state.lock().unwrap().clone();
@@ -106,10 +107,14 @@ fn api_snapshot_routes_cover_scan_export() {
     );
     let outputs = vec![("scan:http:request".to_string(), export)];
     let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    let analyses = outputs
+        .iter()
+        .map(|(_, export)| analysis_snapshot(export))
+        .collect::<Vec<_>>();
     let rendered_targets = outputs
         .iter()
-        .map(|(name, export)| {
-            let analysis = analysis_snapshot(export);
+        .zip(analyses.iter())
+        .map(|((name, export), analysis)| {
             let (
                 has_external_sidecar_context,
                 has_external_evidence_chain_enrichment,
@@ -135,8 +140,8 @@ fn api_snapshot_routes_cover_scan_export() {
                 external_sidecar_trust_level: None,
                 external_sidecar_consumption_mode: None,
                 export_json: export.to_json(),
-                report_json: scan_report_json(&[(name.clone(), export.clone())]),
-                report_html: scan_report_html(&[(name.clone(), export.clone())]),
+                report_json: single_target_report_json_with_analysis(name, export, &analysis),
+                report_html: single_target_report_html_with_analysis(name, export, &analysis),
             }
         })
         .collect::<Vec<_>>();
@@ -149,21 +154,16 @@ fn api_snapshot_routes_cover_scan_export() {
             "[{}]",
             outputs
                 .iter()
-                .map(|(name, export)| format!(
+                .zip(analyses.iter())
+                .map(|((name, _export), analysis)| format!(
                     "{{\"target\":\"{}\",\"analysis\":{}}}",
                     name.replace('\\', "\\\\").replace('"', "\\\""),
-                    analysis_snapshot_json(&analysis_snapshot(export)),
+                    analysis_snapshot_json(analysis),
                 ))
                 .collect::<Vec<_>>()
                 .join(",")
         ),
-        training_example_json_array(
-            &outputs,
-            &outputs
-                .iter()
-                .map(|(_, export)| analysis_snapshot(export))
-                .collect::<Vec<_>>(),
-        ),
+        training_example_json_array(&outputs, &analyses),
         scan_report_json(&outputs),
         scan_report_html(&outputs),
     );
@@ -254,18 +254,19 @@ fn api_target_list_exposes_url_safe_path_segments() {
         run_binding_demo(binding),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
+    let analysis = analysis_snapshot(&export);
     let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
     update_api_snapshot_for_single(
         &state,
         ApiRenderedTarget {
             name: "scan:http request/%".into(),
-            primary_module_family: analysis_snapshot(&export).primary_module_family,
-            evidence_posture: analysis_snapshot(&export).evidence_posture,
-            automation_outcome: analysis_snapshot(&export).automation_outcome,
+            primary_module_family: analysis.primary_module_family.clone(),
+            evidence_posture: analysis.evidence_posture.clone(),
+            automation_outcome: analysis.automation_outcome.clone(),
             summary_text: summary_line("scan:http request/%", &export),
             summary_json: summary_json("scan:http request/%", &export),
             findings_json: findings_json("scan:http request/%", &export),
-            analysis_json: analysis_snapshot_json(&analysis_snapshot(&export)),
+            analysis_json: analysis_snapshot_json(&analysis),
             training_example_json: training_example_json("scan:http request/%", &export),
             has_external_sidecar_context: false,
             has_external_evidence_chain_enrichment: false,
@@ -277,8 +278,16 @@ fn api_target_list_exposes_url_safe_path_segments() {
             external_sidecar_trust_level: None,
             external_sidecar_consumption_mode: None,
             export_json: export.to_json(),
-            report_json: scan_report_json(&[("scan:http request/%".to_string(), export.clone())]),
-            report_html: scan_report_html(&[("scan:http request/%".to_string(), export.clone())]),
+            report_json: single_target_report_json_with_analysis(
+                "scan:http request/%",
+                &export,
+                &analysis,
+            ),
+            report_html: single_target_report_html_with_analysis(
+                "scan:http request/%",
+                &export,
+                &analysis,
+            ),
         },
     );
     let snapshot = state.lock().unwrap().clone();

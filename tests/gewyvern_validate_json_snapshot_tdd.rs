@@ -57,12 +57,61 @@ fn minimal_release_gate_json_matches_fixture() {
         "--skip-build",
         "--skip-release-check",
         "--skip-stack",
+        "--skip-debugger-cross",
         "--skip-pathology",
     ]);
 
     assert!(ok, "release-gate should succeed, stderr: {stderr}");
     assert!(stderr.trim().is_empty(), "unexpected stderr: {stderr}");
     assert_eq!(parse_single_json(&stdout), expected);
+}
+
+#[test]
+fn minimal_release_gate_writes_release_artifact_index_files() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("target")
+        .join("validation");
+    let index_path = root.join("release-gate-artifacts.json");
+    let summary_path = root.join("release-gate-artifacts.txt");
+
+    let (ok, _stdout, stderr) = run_validate_json(&[
+        "--json",
+        "release-gate",
+        "--skip-build",
+        "--skip-release-check",
+        "--skip-stack",
+        "--skip-debugger-cross",
+        "--skip-pathology",
+    ]);
+
+    assert!(ok, "release-gate should succeed, stderr: {stderr}");
+    assert!(
+        index_path.is_file(),
+        "expected release artifact index at {}",
+        index_path.display()
+    );
+    assert!(
+        summary_path.is_file(),
+        "expected release artifact summary at {}",
+        summary_path.display()
+    );
+
+    let index = fs::read_to_string(&index_path).unwrap_or_else(|err| {
+        panic!("failed to read {}: {}", index_path.display(), err);
+    });
+    let parsed = parse_single_json(&index);
+    assert_eq!(parsed["kind"], "release_artifact_index");
+    assert_eq!(parsed["schema_version"], 1);
+    assert!(
+        index.contains("\"juice_shop_container_validation\""),
+        "expected optional practical target-lab entry in artifact index"
+    );
+
+    let summary = fs::read_to_string(&summary_path).unwrap_or_else(|err| {
+        panic!("failed to read {}: {}", summary_path.display(), err);
+    });
+    assert!(summary.contains("release gate artifacts: ok"));
+    assert!(summary.contains("juice_shop_container_validation"));
 }
 
 #[test]

@@ -106,8 +106,12 @@ fn check_http_request(out_dir: &std::path::Path) -> Result<(), ValidationError> 
     )?;
     assert_eq_str(
         &session,
-        &["recommended_focus", "debugger_route", "primary_step"],
+        &["recommended_focus", "debugger_route", "primary_step", "kind"],
         "observe",
+    )?;
+    require_non_empty_string(
+        &session,
+        &["recommended_focus", "debugger_route", "primary_step", "command"],
     )?;
     assert_eq_bool(
         &session,
@@ -190,8 +194,12 @@ fn check_http_connect_denied(out_dir: &std::path::Path) -> Result<(), Validation
     )?;
     assert_eq_str(
         &session,
-        &["recommended_focus", "debugger_route", "primary_step"],
+        &["recommended_focus", "debugger_route", "primary_step", "kind"],
         "open_anomaly_flow",
+    )?;
+    require_non_empty_string(
+        &session,
+        &["recommended_focus", "debugger_route", "primary_step", "command"],
     )?;
     assert_eq_bool(
         &session,
@@ -282,8 +290,12 @@ fn check_socks5_auth_connect_denied(out_dir: &std::path::Path) -> Result<(), Val
     )?;
     assert_eq_str(
         &session,
-        &["recommended_focus", "debugger_route", "primary_step"],
+        &["recommended_focus", "debugger_route", "primary_step", "kind"],
         "open_anomaly_flow",
+    )?;
+    require_non_empty_string(
+        &session,
+        &["recommended_focus", "debugger_route", "primary_step", "command"],
     )?;
     assert_eq_bool(
         &session,
@@ -361,6 +373,17 @@ fn assert_fields_match(
     if actual != expected {
         return Err(ValidationError::new(format!(
             "console recommended_focus.{field} `{actual}` did not match summary `{expected}`"
+        )));
+    }
+    Ok(())
+}
+
+fn require_non_empty_string(value: &Value, path: &[&str]) -> Result<(), ValidationError> {
+    let actual = string_at(value, path)?;
+    if actual.trim().is_empty() {
+        return Err(ValidationError::new(format!(
+            "expected non-empty string at `{}`",
+            path.join(".")
         )));
     }
     Ok(())
@@ -469,11 +492,19 @@ fn indexed_runtime_case(
         "debugger_route": {
             "primary_step": optional_string(
                 &session,
-                &["recommended_focus", "debugger_route", "primary_step"],
+                &["recommended_focus", "debugger_route", "primary_step", "kind"],
+            ),
+            "primary_command": optional_string(
+                &session,
+                &["recommended_focus", "debugger_route", "primary_step", "command"],
             ),
             "fallback_step": optional_string(
                 &session,
-                &["recommended_focus", "debugger_route", "fallback_step"],
+                &["recommended_focus", "debugger_route", "fallback_step", "kind"],
+            ),
+            "fallback_command": optional_string(
+                &session,
+                &["recommended_focus", "debugger_route", "fallback_step", "command"],
             ),
             "escalation_allowed": optional_bool(
                 &session,
@@ -484,6 +515,17 @@ fn indexed_runtime_case(
                 &["recommended_focus", "debugger_route", "reason"],
             ),
         },
+        "next_steps": value_at(&session, &["recommended_focus", "next_steps"])?
+            .as_array()
+            .map(|steps| {
+                steps.iter()
+                    .map(|step| json!({
+                        "kind": step.get("kind").and_then(Value::as_str),
+                        "command": step.get("command").and_then(Value::as_str),
+                        "reason": step.get("reason").and_then(Value::as_str),
+                    }))
+                    .collect::<Vec<_>>()
+            }),
         "envelope_status": envelope_status,
     }))
 }
