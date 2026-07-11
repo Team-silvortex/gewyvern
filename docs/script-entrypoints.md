@@ -231,8 +231,8 @@ smoke, and the total observed wall-clock seconds for the full remote run.
 When keyed remote phases materially exceed the current soft baseline budgets,
 the summary also prints `budget-warnings:`.
 That currently includes the full `total`, `workspace_sync`,
-`remote_package_build`, `remote_ebpf_smoke`, and `remote_ebpf_evidence_sync`
-phases.
+`remote_package_build`, `remote_package_smoke`, `remote_runtime_smoke`,
+`remote_ebpf_smoke`, and `remote_ebpf_evidence_sync` phases.
 When local remote-eBPF history exists, the summary also prints a compact recent
 trend line plus the newest recent-history entries.
 
@@ -259,6 +259,11 @@ The `extra` object for this command now includes structured fields such as:
 - `total_seconds`
 - `slowest_phase_entries`
 - `budget_warnings`
+- `validation_posture`
+- `release_gate_signal`
+- `next_step`
+- `linux_proof_complete`
+- `requires_followup`
 - `remote_ebpf_history_entries`
 - `remote_ebpf_status_counts`
 - `remote_ebpf_reason_counts`

@@ -73,6 +73,8 @@ Treat the line as release-ready only when all of the following stay true:
     console JSON, and `gewyc` envelope JSON without overclaiming negative cases
 12. security dependency checks stay clean for Rust, .NET, and frontend package
     manifests
+13. control-plane and sidecar security boundary tests still pass for
+    `leserpent` and `etragon`
 
 This section is intentionally binary and operational. It should stay shorter
 and stricter than the broader validation note.
@@ -196,6 +198,8 @@ In JSON mode, the final `release-gate` object now carries:
 
 - top-level `schema_version = 1`
 - `extra.stages.*` booleans for each major gate phase
+- `extra.gate_posture`, `extra.ship_signal`, and `extra.next_step` as the
+  shortest overall ship/no-ship reading for the whole release gate
 - `extra.remote = null` when the current run skipped remote validation
 - `extra.remote.preflight`, `extra.remote.ebpf`, and
   `extra.remote.phase_timings` when the current run did execute the remote
@@ -203,7 +207,14 @@ In JSON mode, the final `release-gate` object now carries:
 - `extra.remote.total_seconds` as the full remote validation wall-clock total
   for quick regression comparison
 - `extra.remote.budget_warnings` when a keyed remote phase exceeded the current
-  soft release budget
+  soft release budget, including `remote_package_smoke` and
+  `remote_runtime_smoke`
+- `extra.remote.validation_posture`, `extra.remote.release_gate_signal`, and
+  `extra.remote.next_step` for the quick ship/no-ship reading of the Linux host
+  result
+- `extra.remote.linux_proof_complete = false` or
+  `extra.remote.requires_followup = true` when the remote stage did not prove
+  full Linux attach confidence yet
 
 Practical `jq` examples:
 
@@ -349,3 +360,26 @@ For the active `0.20.x` line, a good practical ship read is:
 - no new drift in `field-findings` that would downgrade trust in conservative diagnosis
 
 If all of these are true, the line is in a healthy release posture.
+## Security Shelf
+
+Run the lightweight security shelf before calling the line green:
+
+```bash
+cargo audit
+dotnet list apps/leserpent/src/Leserpent/Leserpent.csproj package --vulnerable
+cd apps/leserpent && npm audit --json
+dotnet test apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj
+cargo test -p etragon tests::daemon::request_limits::daemon_request_reader_rejects_duplicate_content_length_headers --bin etragon -- --exact --nocapture
+cargo test -p etragon tests::daemon::request_limits::daemon_handler_returns_400_for_invalid_request_headers --bin etragon -- --exact --nocapture
+cargo test -p etragon tests::daemon::routes::daemon_remote_token_checks_trim_and_match_headers_case_insensitively --bin etragon -- --exact --nocapture
+```
+
+What this shelf proves:
+
+- dependency advisories are still clean across Rust, NuGet, and frontend
+  packages
+- `leserpent` still rejects remote control-plane access without the right token
+  and still enforces the loopback intent header rules in the real middleware
+  chain
+- `etragon` still rejects duplicate `Content-Length` ambiguity and token-header
+  ambiguity instead of silently accepting a risky request shape

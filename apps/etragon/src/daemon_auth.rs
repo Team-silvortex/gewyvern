@@ -30,12 +30,17 @@ fn token_equals(supplied: &str, expected: &str) -> bool {
 }
 
 fn request_header_value<'a>(request_text: &'a str, header_name: &str) -> Option<&'a str> {
-    request_text.lines().skip(1).find_map(|line| {
-        let (name, value) = line.split_once(':')?;
+    let mut matched = None;
+    for line in request_text.lines().skip(1) {
+        let Some((name, value)) = line.split_once(':') else {
+            continue;
+        };
         if name.trim().eq_ignore_ascii_case(header_name) {
-            Some(value.trim())
-        } else {
-            None
+            if matched.is_some() {
+                return None;
+            }
+            matched = Some(value.trim());
         }
-    })
+    }
+    matched
 }

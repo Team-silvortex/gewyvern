@@ -3,7 +3,10 @@
   "command": "release-gate",
   "evidence_dir": "/Users/Shared/chroot/dev/gewyvern/target/validation",
   "extra": {
+    "gate_posture": "incomplete",
+    "next_step": "inspect the missing release-gate stages and rerun the skipped validation shelves before ship",
     "remote": null,
+    "ship_signal": "needs_review",
     "stages": {
       "build_packages": false,
       "pathological_container_validation": false,

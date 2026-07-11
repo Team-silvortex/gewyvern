@@ -30,6 +30,30 @@ cd apps/leserpent && npm run check:frontend
 dotnet build apps/leserpent/src/Leserpent/Leserpent.csproj
 ```
 
+## Security Checks
+
+Use these when you want the shortest repeatable security shelf for the current
+`0.20.x` line:
+
+```bash
+cargo audit
+dotnet list apps/leserpent/src/Leserpent/Leserpent.csproj package --vulnerable
+cd apps/leserpent && npm audit --json
+dotnet test apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj
+cargo test -p etragon tests::daemon::request_limits::daemon_request_reader_rejects_duplicate_content_length_headers --bin etragon -- --exact --nocapture
+cargo test -p etragon tests::daemon::request_limits::daemon_handler_returns_400_for_invalid_request_headers --bin etragon -- --exact --nocapture
+cargo test -p etragon tests::daemon::routes::daemon_remote_token_checks_trim_and_match_headers_case_insensitively --bin etragon -- --exact --nocapture
+```
+
+This shelf is the practical proof that:
+
+- dependency advisories still come back clean across Rust, .NET, and frontend
+  packages
+- `leserpent` still enforces remote token and loopback mutate-intent
+  boundaries in the real middleware path
+- `etragon` still rejects duplicate `Content-Length` and duplicate
+  admin-token ambiguity instead of accepting an unsafe request shape
+
 ## Fastest Runtime Commands
 
 ```bash
@@ -113,6 +137,9 @@ cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-v
   | jq '.extra.remote.ebpf.status'
 
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation \
+  | jq '{gate_posture: .extra.gate_posture, ship_signal: .extra.ship_signal, next_step: .extra.next_step}'
+
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation \
   | jq '.extra.remote.slowest_phase_entries'
 
 cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
@@ -138,6 +165,9 @@ cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation
 
 cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
   | jq '.extra.budget_warnings // []'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '{posture: .extra.validation_posture, signal: .extra.release_gate_signal, linux_proof_complete: .extra.linux_proof_complete, requires_followup: .extra.requires_followup, next_step: .extra.next_step}'
 
 cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
   | jq '.extra.recent_ebpf_trend, .extra.remote_ebpf_status_counts'

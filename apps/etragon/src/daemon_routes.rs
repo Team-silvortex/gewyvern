@@ -19,6 +19,14 @@ pub(super) fn handle_daemon_client(
                 .map_err(|err| format!("failed to write daemon request limit response: {err}"))?;
             return Ok(());
         }
+        DaemonRequestRead::Invalid => {
+            let response =
+                daemon_error_response("HTTP/1.1 400 Bad Request", "daemon_request_invalid");
+            stream
+                .write_all(response.as_bytes())
+                .map_err(|err| format!("failed to write daemon invalid request response: {err}"))?;
+            return Ok(());
+        }
     };
     let (method, path) = request_text
         .lines()

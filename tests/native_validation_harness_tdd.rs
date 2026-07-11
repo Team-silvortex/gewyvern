@@ -53,6 +53,7 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("JSON_SCHEMA_VERSION"));
     assert!(binary.contains("release_gate_summary_value"));
     assert!(binary.contains("remote_linux_host_summary_value"));
+    assert!(binary.contains("summarize_remote_validation_posture"));
     assert!(binary.contains("parse_bool_string"));
     assert!(binary.contains("\"commands\""));
     assert!(binary.contains("\"evidence_dir\""));
@@ -68,7 +69,21 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("\"recent_ebpf_lines\""));
     assert!(binary.contains("\"remote_ebpf_status_counts\""));
     assert!(binary.contains("\"remote_ebpf_reason_counts\""));
+    assert!(binary.contains("\"validation_posture\""));
+    assert!(binary.contains("\"release_gate_signal\""));
+    assert!(binary.contains("\"next_step\""));
+    assert!(binary.contains("\"linux_proof_complete\""));
+    assert!(binary.contains("\"requires_followup\""));
+    assert!(binary.contains("\"gate_posture\""));
+    assert!(binary.contains("\"ship_signal\""));
+    assert!(binary.contains("summarize_release_gate_posture"));
     assert!(binary.contains("\"workspace_sync\" => Some(WORKSPACE_SYNC_BUDGET_SECONDS)"));
+    assert!(
+        binary.contains("\"remote_package_smoke\" => Some(REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS)")
+    );
+    assert!(
+        binary.contains("\"remote_runtime_smoke\" => Some(REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS)")
+    );
     assert!(binary.contains("\"stages\""));
     assert!(binary.contains("\"remote\""));
     assert!(binary.contains("json_out_missing"));
@@ -195,6 +210,9 @@ fn remote_host_validation_records_phase_timings() {
     );
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_workspace_cleanup\""));
     assert!(remote_host.contains("remote-phase-timings.txt"));
+    assert!(remote_host.contains("fn has_command(name: &str) -> bool"));
+    assert!(remote_host.contains("env::split_paths(&path)"));
+    assert!(!remote_host.contains(".arg(format!(\"command -v {name} >/dev/null 2>&1\"))"));
     assert!(remote_host.contains("checks.push(\"remote_phase_timings\".to_string())"));
     assert!(remote_host.contains("write_remote_ebpf_history"));
     assert!(remote_host.contains("remote-ebpf-history.jsonl"));
@@ -455,6 +473,9 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(build_packages.contains("-C link-arg=-fuse-ld=lld"));
     assert!(build_packages.contains("build-manifest.txt"));
     assert!(build_packages.contains("record_manifest"));
+    assert!(packaging.contains("fn has_command(name: &str) -> bool"));
+    assert!(packaging.contains("env::split_paths(&path)"));
+    assert!(!packaging.contains(".arg(format!(\"command -v {name} >/dev/null 2>&1\"))"));
     assert!(packaging.contains("container runtime validation: ok"));
     assert!(release_gate.contains("run_package_install_smoke(mode)?"));
     assert!(release_gate.contains("run_container_runtime_validation(mode)?"));
@@ -463,6 +484,9 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(release_gate.contains("print_remote_release_gate_summary"));
     assert!(release_gate.contains("remote slowest phases"));
     assert!(release_gate.contains("remote eBPF summary"));
+    assert!(release_gate.contains("validation-posture:"));
+    assert!(release_gate.contains("release-gate-signal:"));
+    assert!(release_gate.contains("remote Linux proof is partial"));
     assert!(release_gate.contains("remote recent eBPF trend"));
     assert!(release_gate.contains("remote recent eBPF:"));
     assert!(release_gate.contains("remote dir:"));
@@ -623,6 +647,15 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(docs.contains("remote source cache"));
     assert!(docs.contains("repoints its requested remote"));
     assert!(docs.contains("slowest observed phases"));
+}
+
+#[test]
+fn stack_command_probes_avoid_shell_wrappers() {
+    let stack = read_repo_file("src/validation_harness/stack_suites.rs");
+
+    assert!(stack.contains("fn has_command(name: &str) -> bool"));
+    assert!(stack.contains("env::split_paths(&path)"));
+    assert!(!stack.contains(".arg(format!(\"command -v {name} >/dev/null 2>&1\"))"));
 }
 
 #[test]

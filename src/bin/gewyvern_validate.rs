@@ -1654,6 +1654,33 @@ fn print_remote_linux_host_validation_summary(out_dir: &std::path::Path) {
     if let Some(remote_ebpf) = summary.get("remote_ebpf").and_then(|value| value.as_str()) {
         println!("remote-ebpf: {remote_ebpf}");
     }
+    if let Some(validation_posture) = summary
+        .get("validation_posture")
+        .and_then(|value| value.as_str())
+    {
+        println!("validation-posture: {validation_posture}");
+    }
+    if let Some(release_gate_signal) = summary
+        .get("release_gate_signal")
+        .and_then(|value| value.as_str())
+    {
+        println!("release-gate-signal: {release_gate_signal}");
+    }
+    if let Some(next_step) = summary.get("next_step").and_then(|value| value.as_str()) {
+        println!("next-step: {next_step}");
+    }
+    if let Some(linux_proof_complete) = summary
+        .get("linux_proof_complete")
+        .and_then(|value| value.as_bool())
+    {
+        println!("linux-proof-complete: {linux_proof_complete}");
+    }
+    if let Some(requires_followup) = summary
+        .get("requires_followup")
+        .and_then(|value| value.as_bool())
+    {
+        println!("requires-followup: {requires_followup}");
+    }
     if let Some(slowest_phases) = summary
         .get("slowest_phases")
         .and_then(|value| value.as_str())
@@ -1889,6 +1916,21 @@ fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Val
     if !budget_warnings.is_empty() {
         summary.insert("budget_warnings".to_string(), json!(budget_warnings));
     }
+    let (validation_posture, release_gate_signal, next_step) =
+        summarize_remote_validation_posture(&ebpf, &summary);
+    let linux_proof_complete = validation_posture == "full";
+    let requires_followup = release_gate_signal != "ready";
+    summary.insert("validation_posture".to_string(), json!(validation_posture));
+    summary.insert(
+        "release_gate_signal".to_string(),
+        json!(release_gate_signal),
+    );
+    summary.insert("next_step".to_string(), json!(next_step));
+    summary.insert(
+        "linux_proof_complete".to_string(),
+        json!(linux_proof_complete),
+    );
+    summary.insert("requires_followup".to_string(), json!(requires_followup));
     serde_json::Value::Object(summary)
 }
 
@@ -1896,6 +1938,8 @@ fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
     const REMOTE_TOTAL_BUDGET_SECONDS: f64 = 45.0;
     const WORKSPACE_SYNC_BUDGET_SECONDS: f64 = 8.0;
     const REMOTE_PACKAGE_BUILD_BUDGET_SECONDS: f64 = 20.0;
+    const REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS: f64 = 2.0;
+    const REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS: f64 = 3.0;
     const REMOTE_EBPF_SMOKE_BUDGET_SECONDS: f64 = 10.0;
     const REMOTE_EBPF_SYNC_BUDGET_SECONDS: f64 = 5.0;
 
@@ -1906,6 +1950,8 @@ fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
                 "total" => Some(REMOTE_TOTAL_BUDGET_SECONDS),
                 "workspace_sync" => Some(WORKSPACE_SYNC_BUDGET_SECONDS),
                 "remote_package_build" => Some(REMOTE_PACKAGE_BUILD_BUDGET_SECONDS),
+                "remote_package_smoke" => Some(REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS),
+                "remote_runtime_smoke" => Some(REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS),
                 "remote_ebpf_smoke" => Some(REMOTE_EBPF_SMOKE_BUDGET_SECONDS),
                 "remote_ebpf_evidence_sync" => Some(REMOTE_EBPF_SYNC_BUDGET_SECONDS),
                 _ => None,
@@ -1924,6 +1970,13 @@ fn release_gate_summary_value(
     let remote_ran = checks
         .iter()
         .any(|check| check == "remote_linux_host_validation");
+    let remote = if remote_ran && remote_out_dir.is_dir() {
+        remote_linux_host_summary_value(&remote_out_dir)
+    } else {
+        serde_json::Value::Null
+    };
+    let (gate_posture, ship_signal, next_step) =
+        summarize_release_gate_posture(checks, remote.as_object());
 
     json!({
         "stages": {
@@ -1933,12 +1986,77 @@ fn release_gate_summary_value(
             "pathological_container_validation": checks.iter().any(|check| check == "pathological_container_validation"),
             "remote_linux_host_validation": remote_ran,
         },
-        "remote": if remote_ran && remote_out_dir.is_dir() {
-            remote_linux_host_summary_value(&remote_out_dir)
-        } else {
-            serde_json::Value::Null
-        }
+        "remote": remote,
+        "gate_posture": gate_posture,
+        "ship_signal": ship_signal,
+        "next_step": next_step
     })
+}
+
+fn summarize_release_gate_posture(
+    checks: &[String],
+    remote: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> (&'static str, &'static str, &'static str) {
+    let packaged_ready = checks
+        .iter()
+        .any(|check| check == "release_container_check");
+    let stack_ready = checks
+        .iter()
+        .any(|check| check == "three_module_stack_smoke");
+    let pathology_ready = checks
+        .iter()
+        .any(|check| check == "pathological_container_validation");
+    let remote_ran = checks
+        .iter()
+        .any(|check| check == "remote_linux_host_validation");
+    let remote_full = checks.iter().any(|check| check == "remote_ebpf_smoke");
+    let remote_partial = checks
+        .iter()
+        .any(|check| check == "remote_ebpf_smoke_skipped");
+
+    if packaged_ready && stack_ready && pathology_ready && remote_full {
+        (
+            "full",
+            "ready",
+            "hold this release-gate run as the current 1.0 candidate reference and watch later regressions against it",
+        )
+    } else if packaged_ready && stack_ready && pathology_ready && remote_partial {
+        (
+            "partial",
+            "followup_required",
+            "package and runtime confidence passed, but Linux attach proof is still partial; rerun the remote stage with full eBPF privilege before ship",
+        )
+    } else if packaged_ready && stack_ready && pathology_ready && !remote_ran {
+        (
+            "local_only",
+            "remote_missing",
+            "the local release gate passed, but remote Linux host evidence did not run; execute --remote-host-validation before treating this as a 1.0 candidate",
+        )
+    } else if let Some(remote) = remote {
+        if remote
+            .get("requires_followup")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+        {
+            (
+                "partial",
+                "followup_required",
+                "inspect the remote Linux summary and clear the reported follow-up item before treating this gate as ship-ready",
+            )
+        } else {
+            (
+                "incomplete",
+                "needs_review",
+                "inspect the missing release-gate stages and rerun the skipped validation shelves before ship",
+            )
+        }
+    } else {
+        (
+            "incomplete",
+            "needs_review",
+            "inspect the missing release-gate stages and rerun the skipped validation shelves before ship",
+        )
+    }
 }
 
 fn parse_key_value_file(path: &std::path::Path) -> BTreeMap<String, String> {
@@ -1996,6 +2114,50 @@ fn summarize_recent_ebpf_trend(history_summary: &serde_json::Value) -> Option<St
     Some(format!(
         "{ok_count}/{entries} ok, {skipped_count}/{entries} skipped"
     ))
+}
+
+fn summarize_remote_validation_posture(
+    ebpf: &BTreeMap<String, String>,
+    summary: &serde_json::Map<String, serde_json::Value>,
+) -> (&'static str, &'static str, &'static str) {
+    let has_budget_warnings = summary
+        .get("budget_warnings")
+        .and_then(|value| value.as_array())
+        .is_some_and(|items| !items.is_empty());
+    match ebpf.get("status").map(String::as_str) {
+        Some("ok") if has_budget_warnings => (
+            "full",
+            "watch",
+            "inspect the warned remote phases before treating this Linux host result as the current release reference",
+        ),
+        Some("ok") => (
+            "full",
+            "ready",
+            "hold this run as the current Linux hot-path reference and watch future remote regressions against it",
+        ),
+        Some("skipped") => match ebpf.get("reason").map(String::as_str) {
+            Some("sudo_not_available") => (
+                "partial",
+                "package_runtime_only",
+                "rerun with sudo or GEWY_REMOTE_EBPF_ADMIN_USER / GEWY_REMOTE_EBPF_ADMIN_PASSWORD to prove native Linux attach confidence",
+            ),
+            Some("default_route_device_not_detected") => (
+                "partial",
+                "route_device_missing",
+                "rerun on a host with a detectable default-route device so the tc smoke can prove attach confidence",
+            ),
+            _ => (
+                "partial",
+                "incomplete_linux_evidence",
+                "inspect the remote eBPF reason and rerun once the missing Linux privilege or routing prerequisite is available",
+            ),
+        },
+        _ => (
+            "unknown",
+            "needs_review",
+            "inspect the remote validation evidence directory before treating this run as a release reference",
+        ),
+    }
 }
 
 fn parse_bool_string(value: Option<&String>) -> Option<bool> {

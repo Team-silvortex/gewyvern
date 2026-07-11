@@ -5,6 +5,7 @@ pub(super) const DAEMON_REQUEST_LIMIT_BYTES: usize = 64 * 1024;
 pub(super) enum DaemonRequestRead {
     Complete(String),
     TooLarge,
+    Invalid,
 }
 
 pub(super) fn read_daemon_request(stream: &mut TcpStream) -> Result<DaemonRequestRead, String> {
@@ -21,6 +22,9 @@ pub(super) fn read_daemon_request(stream: &mut TcpStream) -> Result<DaemonReques
                 request.extend_from_slice(&chunk[..size]);
                 if request.len() > DAEMON_REQUEST_LIMIT_BYTES {
                     return Ok(DaemonRequestRead::TooLarge);
+                }
+                if daemon_request_has_invalid_headers(&request) {
+                    return Ok(DaemonRequestRead::Invalid);
                 }
                 if daemon_request_is_complete(&request) {
                     break;
@@ -47,18 +51,39 @@ fn daemon_request_is_complete(request: &[u8]) -> bool {
     let Some(header_end) = header_end_index(request) else {
         return false;
     };
-    let header_text = String::from_utf8_lossy(&request[..header_end]);
-    let content_length = header_text.lines().find_map(|line| {
-        let (name, value) = line.split_once(':')?;
-        name.trim()
-            .eq_ignore_ascii_case("content-length")
-            .then(|| value.trim().parse::<usize>().ok())
-            .flatten()
-    });
+    let Ok(content_length) = parse_content_length(&request[..header_end]) else {
+        return false;
+    };
     match content_length {
         Some(expected) => request.len().saturating_sub(header_end) >= expected,
         None => true,
     }
+}
+
+fn daemon_request_has_invalid_headers(request: &[u8]) -> bool {
+    let Some(header_end) = header_end_index(request) else {
+        return false;
+    };
+    parse_content_length(&request[..header_end]).is_err()
+}
+
+fn parse_content_length(header_bytes: &[u8]) -> Result<Option<usize>, ()> {
+    let header_text = String::from_utf8_lossy(header_bytes);
+    let mut content_length = None;
+    for line in header_text.lines() {
+        let Some((name, value)) = line.split_once(':') else {
+            continue;
+        };
+        if !name.trim().eq_ignore_ascii_case("content-length") {
+            continue;
+        }
+        let parsed = value.trim().parse::<usize>().map_err(|_| ())?;
+        if content_length.is_some() {
+            return Err(());
+        }
+        content_length = Some(parsed);
+    }
+    Ok(content_length)
 }
 
 fn header_end_index(request: &[u8]) -> Option<usize> {

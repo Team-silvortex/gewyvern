@@ -187,6 +187,9 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
             validation_log(
                 "[release-gate] remote Linux eBPF attach evidence: skipped (see remote-ebpf.txt)",
             );
+            validation_log(
+                "[release-gate] WARNING: remote Linux proof is partial; do not treat package/runtime-only confidence as a hidden green light",
+            );
             checks.push("remote_ebpf_smoke_skipped".to_string());
         }
     } else {
@@ -254,6 +257,15 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
             "[release-gate] remote eBPF summary: {status} ({reason})"
         ));
     }
+    let (validation_posture, release_gate_signal, next_step) =
+        summarize_remote_release_gate_posture(&ebpf);
+    validation_log(format!(
+        "[release-gate] validation-posture: {validation_posture}"
+    ));
+    validation_log(format!(
+        "[release-gate] release-gate-signal: {release_gate_signal}"
+    ));
+    validation_log(format!("[release-gate] next-step: {next_step}"));
 
     let mut slowest = timings
         .into_iter()
@@ -274,6 +286,40 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
     }
     for line in recent.iter().take(3) {
         validation_log(format!("[release-gate] remote recent eBPF: {line}"));
+    }
+}
+
+fn summarize_remote_release_gate_posture(
+    ebpf: &BTreeMap<String, String>,
+) -> (&'static str, &'static str, &'static str) {
+    match ebpf.get("status").map(String::as_str) {
+        Some("ok") => (
+            "full",
+            "ready",
+            "hold this Linux host run as a release reference and watch later regressions against it",
+        ),
+        Some("skipped") => match ebpf.get("reason").map(String::as_str) {
+            Some("sudo_not_available") => (
+                "partial",
+                "package_runtime_only",
+                "rerun with sudo or GEWY_REMOTE_EBPF_ADMIN_USER / GEWY_REMOTE_EBPF_ADMIN_PASSWORD to prove Linux attach confidence before 1.0.0",
+            ),
+            Some("default_route_device_not_detected") => (
+                "partial",
+                "route_device_missing",
+                "rerun on a host with a detectable default-route device so the tc attach proof can complete",
+            ),
+            _ => (
+                "partial",
+                "incomplete_linux_evidence",
+                "inspect the remote eBPF reason and rerun once the missing Linux prerequisite is available",
+            ),
+        },
+        _ => (
+            "unknown",
+            "needs_review",
+            "inspect the remote evidence shelf before treating this release-gate run as a Linux reference",
+        ),
     }
 }
 

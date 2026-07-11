@@ -47,6 +47,68 @@ fn daemon_remote_requests_require_matching_admin_token() {
 }
 
 #[test]
+fn daemon_remote_token_checks_trim_and_match_headers_case_insensitively() {
+    let policy = DaemonAccessPolicy {
+        admin_token: Some("secret-token".to_string()),
+    };
+
+    assert!(daemon_request_is_authorized(
+        IpAddr::from([10, 0, 0, 8]),
+        "GET /health HTTP/1.1\r\nHost: remote\r\nx-etragon-admin-token:   secret-token   \r\n\r\n",
+        &policy,
+    ));
+    assert!(daemon_request_is_authorized(
+        IpAddr::from([10, 0, 0, 8]),
+        "GET /health HTTP/1.1\r\nHost: remote\r\nX-ETRAGON-ADMIN-TOKEN: secret-token\r\n\r\n",
+        &policy,
+    ));
+    assert!(!daemon_request_is_authorized(
+        IpAddr::from([10, 0, 0, 8]),
+        "GET /health HTTP/1.1\r\nHost: remote\r\nX-Etragon-Admin-Token: secret-token \t extra\r\n\r\n",
+        &policy,
+    ));
+    assert!(!daemon_request_is_authorized(
+        IpAddr::from([10, 0, 0, 8]),
+        "GET /health HTTP/1.1\r\nHost: remote\r\nX-Etragon-Admin-Token: secret-token\r\nX-Etragon-Admin-Token: secret-token\r\n\r\n",
+        &policy,
+    ));
+    assert!(!daemon_request_is_authorized(
+        IpAddr::from([10, 0, 0, 8]),
+        "GET /health HTTP/1.1\r\nHost: remote\r\nX-Etragon-Admin-Token: wrong-token\r\nx-etragon-admin-token: secret-token\r\n\r\n",
+        &policy,
+    ));
+}
+
+#[test]
+fn daemon_remote_requests_still_fail_without_token_when_policy_is_local_only() {
+    let policy = DaemonAccessPolicy::default();
+
+    assert!(!daemon_request_is_authorized(
+        IpAddr::from([10, 0, 0, 8]),
+        "GET /health HTTP/1.1\r\nHost: remote\r\nX-Etragon-Admin-Token: anything\r\n\r\n",
+        &policy,
+    ));
+    assert!(daemon_request_is_authorized(
+        IpAddr::from([127, 0, 0, 1]),
+        "GET /health HTTP/1.1\r\nHost: localhost\r\nX-Etragon-Admin-Token: anything\r\n\r\n",
+        &policy,
+    ));
+}
+
+#[test]
+fn daemon_bind_guard_rejects_ipv6_unspecified_without_admin_token() {
+    let local_only = DaemonAccessPolicy::default();
+    let err = validate_daemon_bind_addr("[::]:4321", &local_only)
+        .expect_err("ipv6 unspecified bind should be rejected without remote token");
+    assert!(err.contains("loopback-only"));
+
+    let remote_enabled = DaemonAccessPolicy {
+        admin_token: Some("secret-token".to_string()),
+    };
+    assert!(validate_daemon_bind_addr("[::]:4321", &remote_enabled).is_ok());
+}
+
+#[test]
 fn daemon_serves_latest_python_output_and_meta() {
     let _guard = lock_daemon_test_guard();
     let bind_addr = reserve_bind_addr();

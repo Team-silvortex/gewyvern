@@ -114,13 +114,14 @@ bash scripts/perf/benchmark_summary.sh 3 benchmark_gewyc_
 
 Measurement notes:
 
-- date: `2026-07-10`
+- date: `2026-07-11`
 - host: `kyuubiki-lab`, Ubuntu 24.04, Linux `6.17.0-35-generic`
 - method: `cargo run --quiet --bin gewyvern_validate -- remote-linux-host-validation`
 - admin-assisted eBPF path: `GEWY_REMOTE_EBPF_ADMIN_USER` +
   `GEWY_REMOTE_EBPF_ADMIN_PASSWORD`
 - result: package smoke, runtime smoke, and remote eBPF smoke all passed
 - default-route device for tc smoke: `wlp3s0`
+- mode: warm remote source cache, warm package cache, warm SSH control path
 
 These numbers are the current end-to-end physical-host reference for the
 native remote validation shelf. They are not a substitute for the benchmark
@@ -129,18 +130,18 @@ path is getting slower or less reliable as the 1.0 core hardens.
 
 | Phase | Seconds | Notes |
 | --- | ---: | --- |
-| `remote_preflight` | `2.333` | Linux/x86_64 capability and command snapshot |
-| `remote_workspace_create` | `1.699` | creates remote workspace roots |
-| `workspace_sync` | `1.420` | rsync into shared remote source cache |
-| `remote_workspace_materialize` | `0.957` | working tree materialized from source cache |
-| `remote_package_build` | `17.937` | current dominant cost |
-| `remote_artifact_verify` | `0.894` | DEB/RPM discovery |
-| `remote_package_smoke` | `1.203` | packaged install/runtime shell |
-| `remote_runtime_smoke` | `2.253` | host-mode runtime validation |
-| `remote_ebpf_smoke` | `7.841` | tracepoint + kprobe + tc attach evidence |
-| `remote_ebpf_evidence_sync` | `2.612` | syncs remote eBPF shelf back locally |
-| `remote_workspace_cleanup` | `1.219` | removes transient remote workspace |
-| `total` | `40.367` | full remote validation wall-clock time |
+| `remote_preflight` | `0.185` | Linux/x86_64 capability and command snapshot |
+| `remote_workspace_create` | `0.046` | creates remote workspace roots |
+| `workspace_sync` | `0.307` | sync-key probe and rsync cache decision |
+| `remote_workspace_materialize` | `0.295` | requested workspace repointed at source cache |
+| `remote_package_build` | `0.401` | cached package build wrapper |
+| `remote_artifact_verify` | `0.068` | DEB/RPM discovery |
+| `remote_package_smoke` | `0.270` | packaged install/runtime shell |
+| `remote_runtime_smoke` | `0.484` | host-mode runtime validation |
+| `remote_ebpf_smoke` | `0.485` | tracepoint + kprobe + tc attach evidence |
+| `remote_ebpf_evidence_sync` | `0.182` | syncs remote eBPF shelf back locally |
+| `remote_workspace_cleanup` | `0.063` | removes transient remote workspace |
+| `total` | `2.786` | full remote validation wall-clock time |
 
 The synchronized evidence for this baseline lives under:
 
@@ -150,7 +151,7 @@ The synchronized evidence for this baseline lives under:
 Suggested comparison workflow:
 
 1. Rerun `remote-linux-host-validation` after a core Linux/eBPF change.
-2. Compare `total` first, then `workspace_sync`, `remote_package_build`, and
+2. Compare `total` first, then `workspace_sync`, `remote_runtime_smoke`, and
    `remote_ebpf_smoke`.
 3. If `remote_ebpf_smoke` regresses, inspect `remote-ebpf/*/environment.txt`,
    `run.log`, and `netdev.txt` before blaming the loader itself.
@@ -164,5 +165,7 @@ Current soft warning budgets reflected by the CLI/JSON remote summary:
 - `total <= 45s`
 - `workspace_sync <= 8s`
 - `remote_package_build <= 20s`
+- `remote_package_smoke <= 2s`
+- `remote_runtime_smoke <= 3s`
 - `remote_ebpf_smoke <= 10s`
 - `remote_ebpf_evidence_sync <= 5s`

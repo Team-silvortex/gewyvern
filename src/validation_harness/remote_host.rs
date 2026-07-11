@@ -1307,17 +1307,76 @@ fn run_ssh_script(
 }
 
 fn require_cmd(name: &str) -> Result<(), ValidationError> {
-    let status = Command::new("sh")
-        .arg("-lc")
-        .arg(format!("command -v {name} >/dev/null 2>&1"))
-        .status()
-        .map_err(|err| ValidationError::new(format!("failed to probe command `{name}`: {err}")))?;
-    if status.success() {
+    if has_command(name) {
         Ok(())
     } else {
         Err(ValidationError::new(format!(
             "required command not found: {name}"
         )))
+    }
+}
+
+fn has_command(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    let candidate = Path::new(name);
+    if candidate.components().count() > 1 {
+        return is_executable_file(candidate);
+    }
+    env::var_os("PATH")
+        .map(|path| {
+            env::split_paths(&path).any(|dir| {
+                let base = dir.join(name);
+                command_probe_candidates(&base)
+                    .into_iter()
+                    .any(|candidate| is_executable_file(&candidate))
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn command_probe_candidates(base: &Path) -> Vec<PathBuf> {
+    #[cfg(windows)]
+    {
+        let mut candidates = Vec::new();
+        let has_extension = base.extension().is_some();
+        candidates.push(base.to_path_buf());
+        if !has_extension {
+            if let Some(path_ext) = env::var_os("PATHEXT") {
+                for suffix in path_ext.to_string_lossy().split(';') {
+                    let trimmed = suffix.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    let suffix = trimmed.trim_start_matches('.');
+                    candidates.push(base.with_extension(suffix));
+                }
+            }
+        }
+        candidates
+    }
+    #[cfg(not(windows))]
+    {
+        vec![base.to_path_buf()]
+    }
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    let Ok(metadata) = fs::metadata(path) else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    {
+        true
     }
 }
 
