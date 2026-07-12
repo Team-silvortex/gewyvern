@@ -1,5 +1,9 @@
 # gewyvern Book
 
+<p align="center">
+  <img src="docs/assets/branding/gewyvern-logo-v1.svg" alt="gewyvern logo" width="140">
+</p>
+
 This is the documentation spine for `gewyvern`, `gewylang`, and the nearby
 stack around them.
 

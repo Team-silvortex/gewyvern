@@ -1,5 +1,9 @@
 # Documentation Map
 
+<p align="center">
+  <img src="docs/assets/branding/gewyvern-logo-v1.svg" alt="gewyvern logo" width="160">
+</p>
+
 This page is the single entry point for the `gewyvern` documentation set.
 
 If you are not sure where to start, do not browse `docs/` file by file. Start
@@ -64,6 +68,9 @@ If you want the project-wide dataflow topology first, jump to:
 - runtime exposure and security preflight:
   [docs/book/how-to-security-checklist.md](docs/book/how-to-security-checklist.md)
 - current stable posture and release history:
+  [docs/github-release-v1.0.0.md](github-release-v1.0.0.md),
+  [docs/announcement-v1.0.0.md](announcement-v1.0.0.md),
+  [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md),
   [docs/history/v1.0.0.md](docs/history/v1.0.0.md),
   [docs/history/v0.20.x.md](docs/history/v0.20.x.md),
   [docs/history/v0.19.x.md](docs/history/v0.19.x.md),

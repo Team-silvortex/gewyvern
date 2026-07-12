@@ -1,5 +1,9 @@
 # Stack Applications
 
+<p align="center">
+  <img src="../docs/assets/branding/gewyvern-logo-v1.svg" alt="gewyvern logo" width="140">
+</p>
+
 This repository now carries the nearby application stack in one place so
 `gewyvern`, `leserpent`, and `etragon` can evolve together without losing their
 separate roles.

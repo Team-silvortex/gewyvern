@@ -1,5 +1,9 @@
 # leserpent Design Spec
 
+<p align="center">
+  <img src="../../docs/assets/branding/gewyvern-logo-v1.svg" alt="gewyvern logo" width="120">
+</p>
+
 ### eBPF Control Plane & Visual Orchestration Service
 
 MIT License

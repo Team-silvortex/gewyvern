@@ -1,5 +1,9 @@
 # gewyvern v1.0.0
 
+<p align="center">
+  <img src="docs/assets/branding/gewyvern-logo-v1.svg" alt="gewyvern logo" width="240">
+</p>
+
 Protocol-aware local network debugging runtime driven by eBPF fragments,
 `gewylang` packages, and deterministic runtime surfaces.
 
@@ -117,6 +121,7 @@ clean lifecycle behavior with no mystery leftovers.
 Primary release-line shelves:
 
 - [ROADMAP.md](ROADMAP.md)
+- [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md)
 - [docs/v0.14-posture.md](docs/v0.14-posture.md)
 - [docs/history/index.md](docs/history/index.md)
 - [docs/history/v1.0.0.md](docs/history/v1.0.0.md)

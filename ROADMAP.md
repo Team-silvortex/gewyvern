@@ -1,22 +1,19 @@
 # gewyvern Roadmap
 
-This roadmap now treats `v0.19.x` as the active debugger-integration and
-release-freeze preparation line, and `v0.20.x` as the deliberate final
-pre-`1.0` seal.
+This roadmap now treats `v1.0.0` as the active sealed stable line.
 
-`gewyvern` is no longer trying to justify itself through a vague distant
-milestone. The current question is how to move through `0.19.x` and `0.20.x`
-with enough discipline that `v1.0.0` can come directly after a healthy
-`0.20.x` close.
+`gewyvern` is no longer on the road to `1.0.0`; it has crossed that line.
+The current question is how to keep the first stable release disciplined while
+we extend it through measured post-`1.0.0` reliability, performance, and UX
+work.
 
 ## Current Line
 
 - last fully documented historical validation baseline: `v0.10.0`
-- current release line: `v0.19.x`
-- current documented checkpoint: `v0.19.x` debugger integration and freeze
-  preparation
-- planned final pre-`1.0` line: `v0.20.x`
-- target next major: `v1.0.0`
+- sealed stable release line: `v1.0.0`
+- current documented checkpoint: `v1.0.0` stable release and proof shelf
+- immediate follow-up line: `v1.0.x` stabilization and operating refinement
+- target next major: no deliberate `v2.0` plan exists today
 - later decision point: consider `v2.0` only if the DSL/runtime/report
   contract eventually needs a deliberate breaking reset
 
@@ -25,19 +22,18 @@ For the durable minor-line record, see
 For the explicit `0.15.x -> 0.20.x -> 1.0.0` spine, see
 [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md).
 
-## What `v0.19.x` Means Right Now
+## What `v1.0.0` Means Right Now
 
-At the current `v0.19.x` debugger-integration checkpoint, the active line
+At the current `v1.0.0` stable checkpoint, the active line
 should be interpreted as:
 
-- a usable standalone debugger/runtime
-- a stable-enough `gewylang` and `gewyc` surface for real package authoring
+- a usable standalone Linux-oriented debugger/runtime with a sealed core
+- a stable `gewylang` and `gewyc` surface for real package authoring
 - a predictable JSON/HTML/reporting surface for operators and automation
 - a project that can collaborate with nearby layers like `etragon` and
   `leserpent` without surrendering its own runtime boundaries
-- a system whose protocol clusters, IR surfaces, debugger publication surfaces,
-  lifecycle evidence, and cross-validation paths are being tightened into one
-  coherent local debugging loop
+- a system whose protocol shelves, machine contracts, lifecycle evidence, and
+  Linux-host validation paths now read as one coherent release posture
 
 It should not be interpreted as:
 
@@ -45,43 +41,52 @@ It should not be interpreted as:
 - a generic control plane
 - a promise that every protocol family is fully modeled
 - a license to widen core surfaces without discipline
-- permission to add late-line breadth without evidence, docs, validation, and
-  contract posture
+- permission to blur stable core boundaries just because `1.0.0` is shipped
 
 ## Current Priorities
 
-### 1. `v0.19.x`: Integrated Debugger And Freeze Preparation
+### 1. `v1.0.x`: Stabilization And Operating Confidence
 
-- align docs, CLI, reports, and API wording
-- make protocol breadth feed debugger conclusions instead of only registry
-  coverage
-- preserve cross-validation and negative-validation evidence as ordinary
-  release inputs
+- keep release-gate, remote-Linux, and target-lab validation paths easy to rerun
 - keep startup, stop, logs, persistence, and cleanup predictable under failed
   and pathological inputs
-- reduce duplicated wording, unstable names, and accidental surface area before
-  `v0.20.x`
+- continue simplifying docs, CLI wording, and operator entrypoints without
+  reopening machine-contract drift
+- improve performance and UX where the stable core is already proven
+- keep adjacent apps aligned to the same mainline version and stable boundaries
 
 Execution shelf:
 
-- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
+- [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
+- [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md)
 
-### 2. `v0.20.x`: Final Pre-`1.0` Seal
+### 2. Post-`1.0.0`: Deliberate Extension Only
 
-- final security and boundary review
-- final surface freeze judgment
-- final documentation-book coherence pass
-- final packaged/container/runtime release validation pass
-- no casual widening of core surfaces
+- any new protocol or runtime widening should arrive with clear validation
+- Linux-first debugger value should remain the center of gravity
+- machine-facing changes should be treated as explicit contract management
+- nearby tooling may evolve faster, but core surfaces should stay narrow
 
-### 3. `v1.0.0`: Stable Local Network Debugger Claim
+### 3. `v2.0`: Reserved For Real Contract Pressure
 
-- ship only after `v0.20.x` closes without unresolved core-surface churn
-- treat the narrow machine-facing diagnosis/API contract as stable
-- keep presentation wording and auxiliary decoration explicitly outside the
-  frozen core unless they are intentionally promoted
+- no active `v2.0` roadmap exists today
+- only open a `v2.0` line if the DSL/runtime/report contract truly needs a
+  breaking reset
+- do not invoke a new major just to group ordinary growth work
 
 ## Recently Closed Or Historical Lines
+
+### `v0.20.x`: Final Pre-`1.0` Seal
+
+- froze the core release story
+- established repeatable release-gate entrypoints
+- closed the last broad convergence loop before stable release
+
+### `v0.19.x`: Integrated Debugger And Freeze Preparation
+
+- aligned runtime, docs, and debugger behavior into one integrated story
+- hardened reliability, cross-validation, and lifecycle evidence
+- reduced accidental surface drift before the sealing line
 
 ### `v0.18.x`: Protocol Breadth And Runtime Confidence
 
@@ -134,19 +139,19 @@ snapshot pages rather than only through scattered posture notes. Start with:
 - [docs/history/v0.14.x.md](docs/history/v0.14.x.md)
 - [docs/history/v0.15.x.md](docs/history/v0.15.x.md)
 
-## Exit Criteria For The Road To `v1.0.0`
+## Exit Criteria For The `1.0.x` Era
 
-The remaining `0.x` lines should keep converging toward:
+The current stable era should keep converging toward:
 
 - clearer protocol/module conclusions
 - safer and more explicit extensibility boundaries
 - stronger packaging and container confidence
 - better compiler/package authoring ergonomics
 - cleaner documentation entry points and reference surfaces
-- a stable core that can survive the jump to `v1.0.0`
+- a stable core that survives ordinary growth without losing discipline
 
 If a proposed change does not improve one of those areas, it should face a
-higher bar before entering the remaining pre-`1.0` lines.
+higher bar before entering the stable line.
 
 ## Guiding Principle
 

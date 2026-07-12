@@ -525,6 +525,13 @@ select:focus {
   max-width: none;
 }
 
+.app-brand-mark {
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin: 0 0 8px;
+}
+
 .hero-actions {
   justify-content: flex-start;
   align-self: start;
@@ -1246,6 +1253,11 @@ select:focus {
 .sidebar-head {
   display: grid;
   gap: 6px;
+}
+
+.sidebar-brand-mark {
+  width: 40px;
+  height: 40px;
 }
 
 .sidebar-head h2 {
