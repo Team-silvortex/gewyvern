@@ -1,4 +1,4 @@
-# gewyvern v0.19.0
+# gewyvern v1.0.0
 
 Protocol-aware local network debugging runtime driven by eBPF fragments,
 `gewylang` packages, and deterministic runtime surfaces.
@@ -72,10 +72,10 @@ session data.
 
 ## Status
 
-- project version: `0.19.0`
-- stage: active `0.19.x` line focused on debugger integration, reliability
-  hardening, lifecycle discipline, and real physical-machine validation on top
-  of the broad protocol catalog built during `0.18.x`
+- project version: `1.0.0`
+- stage: first sealed stable line with repeatable release gates, reliability
+  hardening, lifecycle discipline, and real Linux physical-machine validation
+  on top of the broad protocol catalog built during the earlier minor lines
 - transport support: TCP + UDP
 - protocol registry coverage: 70 protocol families and 363 package entries
   under `protocols/`
@@ -437,6 +437,6 @@ The next meaningful step is not only “more protocol branches”.
 It is making the broad protocol shelf feel like one integrated debugger:
 protocol packages should lower toward the same IR vocabulary, runtime exits
 should stay clean, logs and state should explain what happened, and the local
-operator loop should remain predictable as `0.19.x` physical-machine and
+operator loop should remain predictable as post-`1.0.0` physical-machine and
 cross-validation testing expands. The concrete release path is tracked in
 [ROADMAP.md](ROADMAP.md).
