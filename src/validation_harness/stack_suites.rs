@@ -576,6 +576,291 @@ pub fn run_juice_shop_container_validation(
     })
 }
 
+pub fn run_ftp_denied_container_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    if !cfg!(target_os = "linux") {
+        return Err(ValidationError::new(
+            "ftp-denied container validation requires a Linux host because it bundles same-host eBPF attach proof",
+        ));
+    }
+
+    let cfg = FtpDeniedValidationConfig::from_env(out_dir)?;
+    require_cmd("docker")?;
+    require_cmd("curl")?;
+    ensure_docker_reachable()?;
+    ensure_ftp_denied_image(&cfg.image)?;
+
+    fs::create_dir_all(&cfg.out_dir)?;
+    let container_name = cfg.container_name.clone();
+    let _cleanup = StackCleanup::new(vec![container_name.clone()], None);
+
+    let _ = Command::new("docker")
+        .args(["rm", "-f", &container_name])
+        .output();
+    run_command(
+        Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .arg("--name")
+            .arg(&container_name)
+            .arg("-p")
+            .arg(format!("127.0.0.1:{}:21", cfg.host_port))
+            .arg("-e")
+            .arg(format!("FTP_USER={}", cfg.username))
+            .arg("-e")
+            .arg(format!("FTP_PASS={}", cfg.password))
+            .arg("-e")
+            .arg("PASV_ADDRESS=127.0.0.1")
+            .arg(&cfg.image),
+        "failed to start FTP denied container",
+    )?;
+
+    wait_for_ftp_banner(&format!("127.0.0.1:{}", cfg.host_port), Duration::from_secs(45))
+        .map_err(|err| {
+            let logs = docker_logs(&container_name).unwrap_or_default();
+            ValidationError::new(format!("ftp target never became ready: {err}\n{logs}"))
+        })?;
+
+    let denied_exit = curl_capture_ftp_denied_exchange(
+        &format!("ftp://127.0.0.1:{}/", cfg.host_port),
+        &cfg.out_dir.join("ftp-denied.stderr"),
+        &cfg.out_dir.join("ftp-denied.stdout"),
+    )?;
+    let target_logs = docker_logs(&container_name)?;
+    fs::write(cfg.out_dir.join("ftp-target.log"), &target_logs)?;
+    let vsftpd_log =
+        read_container_file(&container_name, "/var/log/vsftpd.log").unwrap_or_default();
+    fs::write(cfg.out_dir.join("ftp-target-vsftpd.log"), &vsftpd_log)?;
+    let denied_stderr = fs::read_to_string(cfg.out_dir.join("ftp-denied.stderr"))?;
+
+    if !denied_stderr.contains("530 Login incorrect.")
+        && !denied_stderr.contains("Access denied: 530")
+    {
+        return Err(ValidationError::new(
+            "ftp denied evidence did not preserve the expected 530 authentication rejection",
+        ));
+    }
+    if !vsftpd_log.contains("FAIL LOGIN") && !vsftpd_log.contains("[bad]") {
+        return Err(ValidationError::new(
+            "ftp target-side evidence did not preserve the expected FAIL LOGIN record",
+        ));
+    }
+
+    let attach = run_linux_attach_smoke(
+        "syscalls/sys_enter_nanosleep",
+        Some(cfg.out_dir.join("linux-attach-smoke")),
+    )?;
+    let kprobe = run_linux_kprobe_smoke(
+        "ip_route_output_flow",
+        Some(cfg.out_dir.join("linux-kprobe-smoke")),
+    )?;
+    let netdev = detect_default_route_device()?;
+    let tc = run_linux_tc_smoke(&netdev, Some(cfg.out_dir.join("linux-tc-smoke")))?;
+
+    fs::write(
+        cfg.out_dir.join("summary.txt"),
+        format!(
+            "ftp denied container validation: ok\nhost_url=ftp://127.0.0.1:{}\ncurl_exit_status={}\ndefault_route_device={}\nchecked=ftp_ready,ftp_denied_evidence,ftp_target_log_evidence,linux_attach_smoke,linux_kprobe_smoke,linux_tc_smoke\nattach_evidence={}\nkprobe_evidence={}\ntc_evidence={}\nevidence={}\n",
+            cfg.host_port,
+            denied_exit,
+            netdev,
+            attach.out_dir.display(),
+            kprobe.out_dir.display(),
+            tc.out_dir.display(),
+            cfg.out_dir.display(),
+        ),
+    )?;
+    write_container_validation_evidence_index(
+        &cfg.out_dir,
+        "ftp-denied-container-validation",
+        &[
+            "ftp-denied.stderr",
+            "ftp-denied.stdout",
+            "ftp-target.log",
+            "ftp-target-vsftpd.log",
+            "summary.txt",
+            "linux-attach-smoke/evidence-index.json",
+            "linux-kprobe-smoke/evidence-index.json",
+            "linux-tc-smoke/evidence-index.json",
+        ],
+    )?;
+    print!(
+        "{}",
+        fs::read_to_string(cfg.out_dir.join("summary.txt")).unwrap_or_default()
+    );
+
+    Ok(ValidationReport {
+        name: "ftp denied container validation".to_string(),
+        out_dir: cfg.out_dir,
+        checks: vec![
+            "ftp_ready".to_string(),
+            "ftp_denied_evidence".to_string(),
+            "ftp_target_log_evidence".to_string(),
+            "linux_attach_smoke".to_string(),
+            "linux_kprobe_smoke".to_string(),
+            "linux_tc_smoke".to_string(),
+        ],
+    })
+}
+
+pub fn run_ldap_bind_denied_container_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    if !cfg!(target_os = "linux") {
+        return Err(ValidationError::new(
+            "ldap-bind-denied container validation requires a Linux host because it bundles same-host eBPF attach proof",
+        ));
+    }
+
+    let cfg = LdapBindDeniedValidationConfig::from_env(out_dir)?;
+    require_cmd("docker")?;
+    require_cmd("ldapsearch")?;
+    ensure_docker_reachable()?;
+    ensure_ldap_bind_denied_image(&cfg.image)?;
+
+    fs::create_dir_all(&cfg.out_dir)?;
+    let container_name = cfg.container_name.clone();
+    let _cleanup = StackCleanup::new(vec![container_name.clone()], None);
+
+    let _ = Command::new("docker")
+        .args(["rm", "-f", &container_name])
+        .output();
+    run_command(
+        Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .arg("--name")
+            .arg(&container_name)
+            .arg("-p")
+            .arg(format!("127.0.0.1:{}:389", cfg.host_port))
+            .arg("-e")
+            .arg("LDAP_ORGANISATION=Example Inc")
+            .arg("-e")
+            .arg("LDAP_DOMAIN=example.org")
+            .arg("-e")
+            .arg("LDAP_LOG_LEVEL=256")
+            .arg("-e")
+            .arg(format!("LDAP_ADMIN_PASSWORD={}", cfg.admin_password))
+            .arg(&cfg.image),
+        "failed to start LDAP bind denied container",
+    )?;
+
+    wait_for_ldap_bind_ready(
+        cfg.host_port,
+        &cfg.admin_dn,
+        &cfg.admin_password,
+        &cfg.search_base,
+        Duration::from_secs(60),
+    )
+    .map_err(|err| {
+        let logs = docker_logs(&container_name).unwrap_or_default();
+        ValidationError::new(format!("ldap target never became ready: {err}\n{logs}"))
+    })?;
+
+    let live_target_log_path = cfg.out_dir.join("ldap-target.live.log");
+    let live_target_log = File::create(&live_target_log_path)?;
+    let live_target_log_err = live_target_log.try_clone()?;
+    let mut live_target_logs = Command::new("docker")
+        .args(["logs", "-f", &container_name])
+        .stdout(Stdio::from(live_target_log))
+        .stderr(Stdio::from(live_target_log_err))
+        .spawn()
+        .map_err(|err| ValidationError::new(format!("failed to follow LDAP target logs: {err}")))?;
+    thread::sleep(Duration::from_millis(500));
+
+    let denied_exit = ldap_capture_bind_denied_exchange(
+        cfg.host_port,
+        &cfg.admin_dn,
+        &cfg.search_base,
+        &cfg.out_dir.join("ldap-bind-denied.stderr"),
+        &cfg.out_dir.join("ldap-bind-denied.stdout"),
+    )?;
+    thread::sleep(Duration::from_secs(1));
+    let _ = live_target_logs.kill();
+    let _ = live_target_logs.wait();
+
+    let mut target_logs = fs::read_to_string(&live_target_log_path).unwrap_or_default();
+    let snapshot_logs = docker_logs(&container_name).unwrap_or_default();
+    if target_logs.trim().is_empty() {
+        target_logs = snapshot_logs;
+    } else if !snapshot_logs.trim().is_empty() {
+        if !target_logs.ends_with('\n') {
+            target_logs.push('\n');
+        }
+        target_logs.push_str(&snapshot_logs);
+    }
+    fs::write(cfg.out_dir.join("ldap-target.log"), &target_logs)?;
+    let denied_stderr = fs::read_to_string(cfg.out_dir.join("ldap-bind-denied.stderr"))?;
+
+    if !denied_stderr.contains("Invalid credentials (49)") {
+        return Err(ValidationError::new(
+            "ldap denied evidence did not preserve the expected invalid-credentials rejection",
+        ));
+    }
+    if !target_logs.contains("BIND dn=") || !target_logs.contains("err=49") {
+        return Err(ValidationError::new(
+            "ldap target-side evidence did not preserve the expected bind err=49 record",
+        ));
+    }
+
+    let attach = run_linux_attach_smoke(
+        "syscalls/sys_enter_nanosleep",
+        Some(cfg.out_dir.join("linux-attach-smoke")),
+    )?;
+    let kprobe = run_linux_kprobe_smoke(
+        "ip_route_output_flow",
+        Some(cfg.out_dir.join("linux-kprobe-smoke")),
+    )?;
+    let netdev = detect_default_route_device()?;
+    let tc = run_linux_tc_smoke(&netdev, Some(cfg.out_dir.join("linux-tc-smoke")))?;
+
+    fs::write(
+        cfg.out_dir.join("summary.txt"),
+        format!(
+            "ldap bind denied container validation: ok\nhost_url=ldap://127.0.0.1:{}\nldap_exit_status={}\ndefault_route_device={}\nchecked=ldap_ready,ldap_bind_denied_evidence,ldap_target_log_evidence,linux_attach_smoke,linux_kprobe_smoke,linux_tc_smoke\nattach_evidence={}\nkprobe_evidence={}\ntc_evidence={}\nevidence={}\n",
+            cfg.host_port,
+            denied_exit,
+            netdev,
+            attach.out_dir.display(),
+            kprobe.out_dir.display(),
+            tc.out_dir.display(),
+            cfg.out_dir.display(),
+        ),
+    )?;
+    write_container_validation_evidence_index(
+        &cfg.out_dir,
+        "ldap-bind-denied-container-validation",
+        &[
+            "ldap-bind-denied.stderr",
+            "ldap-bind-denied.stdout",
+            "ldap-target.live.log",
+            "ldap-target.log",
+            "summary.txt",
+            "linux-attach-smoke/evidence-index.json",
+            "linux-kprobe-smoke/evidence-index.json",
+            "linux-tc-smoke/evidence-index.json",
+        ],
+    )?;
+    print!(
+        "{}",
+        fs::read_to_string(cfg.out_dir.join("summary.txt")).unwrap_or_default()
+    );
+
+    Ok(ValidationReport {
+        name: "ldap bind denied container validation".to_string(),
+        out_dir: cfg.out_dir,
+        checks: vec![
+            "ldap_ready".to_string(),
+            "ldap_bind_denied_evidence".to_string(),
+            "ldap_target_log_evidence".to_string(),
+            "linux_attach_smoke".to_string(),
+            "linux_kprobe_smoke".to_string(),
+            "linux_tc_smoke".to_string(),
+        ],
+    })
+}
+
 fn write_container_validation_evidence_index(
     out_dir: &Path,
     command: &str,
@@ -724,6 +1009,25 @@ struct JuiceShopValidationConfig {
     out_dir: PathBuf,
 }
 
+struct FtpDeniedValidationConfig {
+    image: String,
+    container_name: String,
+    host_port: u16,
+    username: String,
+    password: String,
+    out_dir: PathBuf,
+}
+
+struct LdapBindDeniedValidationConfig {
+    image: String,
+    container_name: String,
+    host_port: u16,
+    admin_dn: String,
+    admin_password: String,
+    search_base: String,
+    out_dir: PathBuf,
+}
+
 impl PathologyConfig {
     fn from_env(out_dir: Option<PathBuf>) -> Result<Self, ValidationError> {
         let repo = repo_root();
@@ -784,6 +1088,56 @@ impl JuiceShopValidationConfig {
                 Err(_) => find_free_loopback_port()?,
             },
             out_dir: out_dir.unwrap_or_else(|| default_out_dir("juice-shop-container")),
+        })
+    }
+}
+
+impl FtpDeniedValidationConfig {
+    fn from_env(out_dir: Option<PathBuf>) -> Result<Self, ValidationError> {
+        let unique = std::process::id();
+        Ok(Self {
+            image: env_string("FTP_DENIED_IMAGE", "fauria/vsftpd:latest"),
+            container_name: env_string(
+                "FTP_DENIED_NAME",
+                &format!("gewyvern-ftp-denied-{unique}"),
+            ),
+            host_port: match env::var("FTP_DENIED_PORT") {
+                Ok(value) => value.parse::<u16>().map_err(|err| {
+                    ValidationError::new(format!("invalid FTP_DENIED_PORT value `{value}`: {err}"))
+                })?,
+                Err(_) => find_free_loopback_port()?,
+            },
+            username: env_string("FTP_DENIED_USER", "demo"),
+            password: env_string("FTP_DENIED_PASS", "demo"),
+            out_dir: out_dir.unwrap_or_else(|| default_out_dir("ftp-denied-container")),
+        })
+    }
+}
+
+impl LdapBindDeniedValidationConfig {
+    fn from_env(out_dir: Option<PathBuf>) -> Result<Self, ValidationError> {
+        let unique = std::process::id();
+        Ok(Self {
+            image: env_string("LDAP_BIND_DENIED_IMAGE", "osixia/openldap:1.5.0"),
+            container_name: env_string(
+                "LDAP_BIND_DENIED_NAME",
+                &format!("gewyvern-ldap-bind-denied-{unique}"),
+            ),
+            host_port: match env::var("LDAP_BIND_DENIED_PORT") {
+                Ok(value) => value.parse::<u16>().map_err(|err| {
+                    ValidationError::new(format!(
+                        "invalid LDAP_BIND_DENIED_PORT value `{value}`: {err}"
+                    ))
+                })?,
+                Err(_) => find_free_loopback_port()?,
+            },
+            admin_dn: env_string(
+                "LDAP_BIND_DENIED_ADMIN_DN",
+                "cn=admin,dc=example,dc=org",
+            ),
+            admin_password: env_string("LDAP_BIND_DENIED_ADMIN_PASSWORD", "admin"),
+            search_base: env_string("LDAP_BIND_DENIED_BASE", "dc=example,dc=org"),
+            out_dir: out_dir.unwrap_or_else(|| default_out_dir("ldap-bind-denied-container")),
         })
     }
 }
@@ -1318,6 +1672,60 @@ fn wait_http_status_200(url: &str, timeout: Duration) -> Result<(), ValidationEr
     )))
 }
 
+fn wait_for_ftp_banner(target: &str, timeout: Duration) -> Result<(), ValidationError> {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if let Ok(output) = Command::new("curl")
+            .arg("-v")
+            .arg("--max-time")
+            .arg("3")
+            .arg(format!("ftp://{target}/"))
+            .output()
+        {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.contains("220 (vsFTPd") || stderr.contains("< 220") {
+                return Ok(());
+            }
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+    Err(ValidationError::new(format!(
+        "timed out waiting for FTP banner from {target}"
+    )))
+}
+
+fn wait_for_ldap_bind_ready(
+    host_port: u16,
+    admin_dn: &str,
+    admin_password: &str,
+    search_base: &str,
+    timeout: Duration,
+) -> Result<(), ValidationError> {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if let Ok(output) = Command::new("ldapsearch")
+            .arg("-x")
+            .arg("-H")
+            .arg(format!("ldap://127.0.0.1:{host_port}"))
+            .arg("-D")
+            .arg(admin_dn)
+            .arg("-w")
+            .arg(admin_password)
+            .arg("-b")
+            .arg(search_base)
+            .output()
+        {
+            if output.status.success() {
+                return Ok(());
+            }
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+    Err(ValidationError::new(format!(
+        "timed out waiting for LDAP bind readiness on 127.0.0.1:{host_port}"
+    )))
+}
+
 fn curl_http_ok(url: &str) -> bool {
     Command::new("curl")
         .arg("-fsS")
@@ -1398,6 +1806,49 @@ fn curl_capture_http_exchange(
         .trim()
         .parse::<u16>()
         .map_err(|err| ValidationError::new(format!("invalid curl status `{rendered}`: {err}")))
+}
+
+fn curl_capture_ftp_denied_exchange(
+    url: &str,
+    stderr_path: &Path,
+    stdout_path: &Path,
+) -> Result<i32, ValidationError> {
+    let output = Command::new("curl")
+        .arg("-v")
+        .arg("--max-time")
+        .arg("10")
+        .arg("--user")
+        .arg("bad:bad")
+        .arg(url)
+        .output()
+        .map_err(|err| ValidationError::new(format!("failed to run FTP curl capture: {err}")))?;
+    fs::write(stderr_path, &output.stderr)?;
+    fs::write(stdout_path, &output.stdout)?;
+    Ok(output.status.code().unwrap_or(-1))
+}
+
+fn ldap_capture_bind_denied_exchange(
+    host_port: u16,
+    admin_dn: &str,
+    search_base: &str,
+    stderr_path: &Path,
+    stdout_path: &Path,
+) -> Result<i32, ValidationError> {
+    let output = Command::new("ldapsearch")
+        .arg("-x")
+        .arg("-H")
+        .arg(format!("ldap://127.0.0.1:{host_port}"))
+        .arg("-D")
+        .arg(admin_dn)
+        .arg("-w")
+        .arg("wrong")
+        .arg("-b")
+        .arg(search_base)
+        .output()
+        .map_err(|err| ValidationError::new(format!("failed to run LDAP denied capture: {err}")))?;
+    fs::write(stderr_path, &output.stderr)?;
+    fs::write(stdout_path, &output.stdout)?;
+    Ok(output.status.code().unwrap_or(-1))
 }
 
 fn require_cmd(name: &str) -> Result<(), ValidationError> {
@@ -1506,6 +1957,34 @@ fn ensure_juice_shop_image(name: &str) -> Result<(), ValidationError> {
     run_command(
         Command::new("docker").args(["pull", name]),
         "failed to pull Juice Shop image",
+    )
+}
+
+fn ensure_ftp_denied_image(name: &str) -> Result<(), ValidationError> {
+    let status = Command::new("docker")
+        .args(["image", "inspect", name])
+        .status()
+        .map_err(|err| ValidationError::new(format!("failed to inspect image `{name}`: {err}")))?;
+    if status.success() {
+        return Ok(());
+    }
+    run_command(
+        Command::new("docker").args(["pull", name]),
+        "failed to pull FTP denied image",
+    )
+}
+
+fn ensure_ldap_bind_denied_image(name: &str) -> Result<(), ValidationError> {
+    let status = Command::new("docker")
+        .args(["image", "inspect", name])
+        .status()
+        .map_err(|err| ValidationError::new(format!("failed to inspect image `{name}`: {err}")))?;
+    if status.success() {
+        return Ok(());
+    }
+    run_command(
+        Command::new("docker").args(["pull", name]),
+        "failed to pull LDAP bind denied image",
     )
 }
 

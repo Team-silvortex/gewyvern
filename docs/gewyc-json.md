@@ -79,7 +79,7 @@ Read the wrapper in this order:
 Wrapper meaning:
 
 - `contract_hint.stability = "candidate"`
-  Stable enough for real consumers in the current line, but still pre-`1.0.0`.
+  Stable enough for real consumers in the sealed `1.0.0` line.
 - `contract_hint.compatibility = "grouped_payload_preferred"`
   New consumers should read grouped objects under `payload` first.
 - `contract_hint.legacy_fields = "retained_in_payload"`

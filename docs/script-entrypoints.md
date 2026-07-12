@@ -349,6 +349,11 @@ is intentionally outside that default `release-gate` stage map today. Treat it
 as an explicit high-signal companion artifact when you want stronger Linux/BPF
 evidence, not as a stage that generic CI should silently assume.
 
+The same companion-artifact pattern also applies to
+`ftp-denied-container-validation` and
+`ldap-bind-denied-container-validation` when you want explicit
+authentication-denial evidence instead of suspicious HTTP target behavior.
+
 Every successful `release-gate` run also refreshes:
 
 - `target/validation/release-gate-artifacts.json`
@@ -478,6 +483,21 @@ Use this when the real question is:
 - can `gewyvern` preserve suspicious target-side evidence from a live Docker lab?
 - can the same Linux host still prove tracepoint, kprobe, and tc attach health?
 - do we have one repeatable practical-target shelf that is stronger than a synthetic demo?
+
+If you want the same style of proof for protocol/authentication denial instead
+of HTTP error evidence, run:
+
+```bash
+sudo cargo run --quiet --bin gewyvern_validate -- ftp-denied-container-validation
+sudo cargo run --quiet --bin gewyvern_validate -- ldap-bind-denied-container-validation
+```
+
+That companion check preserves client-side FTP `530` denial evidence,
+target-side `FAIL LOGIN` server logs, and the same nested Linux attach proof.
+
+The LDAP companion preserves client-side `ldap_bind: Invalid credentials (49)`
+evidence, target-side `BIND ... err=49` logs, and the same nested Linux attach
+proof on the same host.
 
 What the current check proves:
 

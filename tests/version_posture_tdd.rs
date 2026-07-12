@@ -130,7 +130,7 @@ fn docs_describe_one_shared_mainline_version() {
 fn docs_catalog_anchor_matches_packaged_protocol_tree() {
     let (families, entries) = count_protocol_catalog();
     let readme = read_repo_file("README.md");
-    let history = read_repo_file("docs/history/v0.20.x.md");
+    let history = read_repo_file("docs/history/v1.0.0.md");
 
     assert!(
         readme.contains(&format!(
@@ -142,13 +142,13 @@ fn docs_catalog_anchor_matches_packaged_protocol_tree() {
         history.contains(&format!(
             "{families} protocol family directories under `protocols/`"
         )),
-        "v0.20.x history anchor should match protocol family count"
+        "v1.0.0 history anchor should match protocol family count"
     );
     assert!(
         history.contains(&format!(
             "{entries} packaged protocol entries under those family directories"
         )),
-        "v0.20.x history anchor should match protocol entry count"
+        "v1.0.0 history anchor should match protocol entry count"
     );
 }
 

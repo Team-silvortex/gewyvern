@@ -68,5 +68,5 @@ For the current planning posture:
 
 - `blessed` reads should remain dependable through the `0.18.x` line
 - `compat` behaviors should not tighten without an explicit release-line note
-- legacy unversioned acceptance should be reviewed before `1.0.0`, not dropped
-  by surprise
+- legacy unversioned acceptance should remain deliberate in `1.0.0`, not be
+  dropped by surprise

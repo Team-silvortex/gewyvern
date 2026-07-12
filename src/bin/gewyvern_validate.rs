@@ -13,9 +13,11 @@ use gewyvern::validation_harness::{
     ReleaseCheckMode, ReleaseGateOptions, RemoteLinuxHostOptions, ValidationError,
     run_container_operator_path_validation, run_container_protocol_validation,
     run_container_runtime_validation, run_container_validation_summary,
-    run_debugger_cross_validation, run_external_engine_roundtrip_demo, run_field_smoke_validation,
-    run_high_frequency_validation, run_linux_attach_smoke, run_linux_kprobe_smoke,
-    run_linux_tc_smoke, run_juice_shop_container_validation, run_package_install_smoke,
+    run_debugger_cross_validation, run_external_engine_roundtrip_demo,
+    run_field_smoke_validation, run_ftp_denied_container_validation,
+    run_high_frequency_validation, run_ldap_bind_denied_container_validation,
+    run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke,
+    run_juice_shop_container_validation, run_package_install_smoke,
     run_pathological_container_validation,
     run_registry_validation, run_release_container_check, run_release_gate,
     run_remote_linux_host_validation, run_resilience_bundle_validation,
@@ -33,8 +35,10 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
     "debugger-cross",
     "external-engine-roundtrip",
     "field-smoke",
+    "ftp-denied-container-validation",
     "help",
     "high-frequency",
+    "ldap-bind-denied-container-validation",
     "juice-shop-container-validation",
     "linux-attach-smoke",
     "linux-kprobe-smoke",
@@ -58,6 +62,17 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
     "training-roundtrip",
 ];
 const JSON_SCHEMA_VERSION: u32 = 1;
+
+fn listed_commands() -> Vec<&'static str> {
+    let mut commands = TOP_LEVEL_COMMANDS
+        .iter()
+        .filter(|command| !matches!(**command, "help" | "list"))
+        .chain(gewyvern_validate_stack::STACK_COMMANDS.iter())
+        .copied()
+        .collect::<Vec<_>>();
+    commands.sort_unstable();
+    commands
+}
 
 fn main() {
     let raw_args = env::args().skip(1).collect::<Vec<_>>();
@@ -164,6 +179,44 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
                 global_options.json,
                 global_options.json_out.as_deref(),
                 None,
+            );
+            Ok(())
+        }
+        "ftp-denied-container-validation" => {
+            if wants_subcommand_help(&rest) {
+                print_ftp_denied_container_validation_help();
+                return Ok(());
+            }
+            let out_dir = parse_optional_out_dir("ftp-denied-container-validation", rest)?;
+            let report = run_ftp_denied_container_validation(out_dir)?;
+            let extra = json!({
+                "index": report.out_dir.join("evidence-index.json").display().to_string(),
+            });
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                Some(extra),
+            );
+            Ok(())
+        }
+        "ldap-bind-denied-container-validation" => {
+            if wants_subcommand_help(&rest) {
+                print_ldap_bind_denied_container_validation_help();
+                return Ok(());
+            }
+            let out_dir = parse_optional_out_dir("ldap-bind-denied-container-validation", rest)?;
+            let report = run_ldap_bind_denied_container_validation(out_dir)?;
+            let extra = json!({
+                "index": report.out_dir.join("evidence-index.json").display().to_string(),
+            });
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                Some(extra),
             );
             Ok(())
         }
@@ -543,29 +596,19 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
         }
         "list" => {
             if global_options.json {
-                let commands = TOP_LEVEL_COMMANDS
-                    .iter()
-                    .filter(|command| !matches!(**command, "help" | "list"))
-                    .chain(gewyvern_validate_stack::STACK_COMMANDS.iter())
-                    .copied()
-                    .collect::<Vec<_>>();
                 emit_json_payload(
                     &json!({
                         "schema_version": JSON_SCHEMA_VERSION,
                         "ok": true,
-                        "commands": commands,
+                        "commands": listed_commands(),
                     }),
                     global_options.json_out.as_deref(),
                     false,
                 );
             } else {
-                for command in TOP_LEVEL_COMMANDS {
-                    if matches!(*command, "help" | "list") {
-                        continue;
-                    }
+                for command in listed_commands() {
                     println!("{command}");
                 }
-                gewyvern_validate_stack::print_stack_list();
             }
             Ok(())
         }
@@ -1028,6 +1071,7 @@ fn print_help() {
     println!("  container-validation-summary [--deb|--rpm]");
     println!("  debugger-cross [--out-dir <path>]  # writes evidence-index.json");
     println!("  field-smoke [--out-dir <path>] [--socket] [--scan-all]");
+    println!("  ftp-denied-container-validation [--out-dir <path>]");
     println!(
         "  socket-roundtrip [--socket-target <path-or-addr>] [--socket-kind <unix|tcp>] [--template <id>] [--output <path>]"
     );
@@ -1038,6 +1082,7 @@ fn print_help() {
         "  external-engine-roundtrip [--ingest-addr <addr>] [--api-addr <addr>] [--template <id>] [--analysis-out <path>] [--engine-out <path>] [--target-path-segment <segment>] [--engine-root <path>] [--engine-cmd <cmd>]"
     );
     println!("  high-frequency [--out-dir <path>]");
+    println!("  ldap-bind-denied-container-validation [--out-dir <path>]");
     println!("  juice-shop-container-validation [--out-dir <path>]");
     println!("  linux-attach-smoke [--hookpoint <category/event>] [--out-dir <path>]");
     println!("  linux-kprobe-smoke [--symbol <kernel-symbol>] [--out-dir <path>]");
@@ -1066,12 +1111,6 @@ fn print_help() {
 }
 
 fn print_help_json(json_out: Option<&std::path::Path>) {
-    let commands = TOP_LEVEL_COMMANDS
-        .iter()
-        .filter(|command| !matches!(**command, "help" | "list"))
-        .chain(gewyvern_validate_stack::STACK_COMMANDS.iter())
-        .copied()
-        .collect::<Vec<_>>();
     emit_json_payload(
         &json!({
             "schema_version": JSON_SCHEMA_VERSION,
@@ -1092,7 +1131,7 @@ fn print_help_json(json_out: Option<&std::path::Path>) {
                     "description": "Write the final JSON result to a file; place before the command to use the global form",
                 }
             ],
-            "commands": commands,
+            "commands": listed_commands(),
         }),
         json_out,
         false,
@@ -2270,6 +2309,22 @@ fn print_three_module_stack_smoke_help() {
     println!("Environment variables from the legacy shell entrypoint are still honored.");
 }
 
+fn print_ftp_denied_container_validation_help() {
+    println!("Usage: gewyvern_validate ftp-denied-container-validation [--out-dir <path>]");
+    println!();
+    println!(
+        "Run a Linux-only practical lab check against an FTP server that rejects bad credentials, then preserve client-side 530 evidence, target-side FAIL LOGIN logs, and same-host attach/kprobe/tc smoke evidence."
+    );
+}
+
+fn print_ldap_bind_denied_container_validation_help() {
+    println!("Usage: gewyvern_validate ldap-bind-denied-container-validation [--out-dir <path>]");
+    println!();
+    println!(
+        "Run a Linux-only practical lab check against an LDAP server that rejects a bad bind, then preserve client-side err=49 evidence, target-side bind logs, and same-host attach/kprobe/tc smoke evidence."
+    );
+}
+
 fn print_juice_shop_container_validation_help() {
     println!("Usage: gewyvern_validate juice-shop-container-validation [--out-dir <path>]");
     println!();
@@ -2288,4 +2343,163 @@ fn print_pathological_container_validation_help() {
     println!(
         "A single positional output path is also accepted for compatibility with the legacy shell entrypoint."
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn read_fixture(relative: &str) -> serde_json::Value {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
+        let contents = fs::read_to_string(&path).unwrap_or_else(|err| {
+            panic!("failed to read {}: {}", path.display(), err);
+        });
+        serde_json::from_str(&contents).unwrap_or_else(|err| {
+            panic!("failed to parse fixture {}: {}", path.display(), err);
+        })
+    }
+
+    struct TempDirGuard {
+        path: PathBuf,
+    }
+
+    impl TempDirGuard {
+        fn new(prefix: &str) -> Self {
+            let unique = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!("{prefix}-{unique}"));
+            fs::create_dir_all(&path).unwrap_or_else(|err| {
+                panic!("failed to create temp dir {}: {}", path.display(), err);
+            });
+            Self { path }
+        }
+    }
+
+    impl Drop for TempDirGuard {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[test]
+    fn remote_linux_host_summary_value_matches_fixture_shape() {
+        let temp = TempDirGuard::new("gewyvern-remote-summary-shape");
+
+        fs::write(
+            temp.path.join("remote-run.txt"),
+            "remote_dir=/tmp/gewyvern-remote\nbuild_packages=true\nkeep_remote_dir=false\nchecks=remote_preflight,remote_artifacts_present,remote_ebpf_smoke,remote_ebpf_evidence_synced\n",
+        )
+        .unwrap();
+        fs::write(
+            temp.path.join("remote-preflight.txt"),
+            "os=linux\narch=x86_64\nkernel=6.8.0-test\nhome_dir=/home/demo\ncommands=cargo,docker,sshpass\nsudo_available=true\ndefault_route_device=eth0\n",
+        )
+        .unwrap();
+        fs::write(
+            temp.path.join("remote-ebpf.txt"),
+            "status=ok\nreason=all_smokes_passed_admin_ssh\ndefault_route_device=eth0\n",
+        )
+        .unwrap();
+        fs::write(
+            temp.path.join("remote-ebpf-status-summary.json"),
+            r#"{"entries":2,"status_counts":{"ok":2},"reason_counts":{"all_smokes_passed_admin_ssh":2}}"#,
+        )
+        .unwrap();
+        fs::write(
+            temp.path.join("remote-ebpf-recent.txt"),
+            "2026-07-12T09:00:00Z ok all_smokes_passed_admin_ssh 4.000\n2026-07-11T09:00:00Z ok all_smokes_passed_admin_ssh 4.200\n",
+        )
+        .unwrap();
+        fs::write(
+            temp.path.join("remote-phase-timings.txt"),
+            "workspace_sync=1.6\nremote_package_build=12.8\nremote_package_smoke=1.1\nremote_runtime_smoke=2.4\nremote_ebpf_smoke=4.0\nremote_ebpf_evidence_sync=0.9\ntotal=22.8\n",
+        )
+        .unwrap();
+        fs::write(
+            temp.path.join("remote-package-build-timings.txt"),
+            "cargo_build=12.5\npackage_bundle=1.25\n",
+        )
+        .unwrap();
+        fs::write(
+            temp.path.join("remote-package-smoke-timings.txt"),
+            "deb_verify=0.4\nrpm_verify=0.6\n",
+        )
+        .unwrap();
+        fs::write(
+            temp.path.join("remote-runtime-smoke-timings.txt"),
+            "tcp_boot_health=0.7\nudp_analysis=0.5\n",
+        )
+        .unwrap();
+
+        let summary = remote_linux_host_summary_value(&temp.path);
+        let expected = read_fixture("docs/fixtures/gewyvern_validate_remote_linux_host_summary.json");
+        assert_eq!(summary, expected);
+    }
+
+    #[test]
+    fn classify_failure_covers_release_facing_error_shapes() {
+        assert_eq!(
+            classify_failure("docker daemon is not reachable"),
+            Some((FailureClass::Environment, "docker_unreachable"))
+        );
+        assert_eq!(
+            classify_failure("timed out waiting for LDAP bind readiness on 127.0.0.1:389"),
+            Some((FailureClass::Timeout, "validation_timeout"))
+        );
+        assert_eq!(
+            classify_failure("remote host must be x86_64/amd64 for packaged validation, got `arm64`"),
+            Some((FailureClass::Remote, "remote_host_wrong_arch"))
+        );
+        assert_eq!(
+            classify_failure(
+                "GEWY_REMOTE_EBPF_ADMIN_USER is set but GEWY_REMOTE_EBPF_ADMIN_PASSWORD is missing",
+            ),
+            Some((FailureClass::Remote, "remote_admin_credentials_incomplete"))
+        );
+        assert_eq!(
+            classify_failure("required command not found: docker"),
+            Some((FailureClass::Dependency, "missing_system_command"))
+        );
+        assert_eq!(
+            classify_failure("linux eBPF smoke requires a Linux environment"),
+            Some((FailureClass::Privilege, "linux_ebpf_privilege_required"))
+        );
+    }
+
+    #[test]
+    fn failure_guidance_lines_match_release_facing_error_shapes() {
+        assert_eq!(
+            failure_guidance_lines("docker daemon is not reachable"),
+            vec![
+                "next-step: start Docker Desktop or another local daemon, then retry `gewyvern_validate release-container-check` or the narrower packaged command that failed",
+            ]
+        );
+        assert_eq!(
+            failure_guidance_lines("required command not found: docker"),
+            vec![
+                "next-step: install the missing system command and rerun the same validation entrypoint",
+            ]
+        );
+        assert_eq!(
+            failure_guidance_lines(
+                "GEWY_REMOTE_EBPF_ADMIN_PASSWORD is set but GEWY_REMOTE_EBPF_ADMIN_USER is missing",
+            ),
+            vec![
+                "next-step: set both `GEWY_REMOTE_EBPF_ADMIN_USER` and `GEWY_REMOTE_EBPF_ADMIN_PASSWORD`, or unset both to skip the admin-assisted remote eBPF path",
+            ]
+        );
+        assert_eq!(
+            failure_guidance_lines(
+                "remote host must be x86_64/amd64 for packaged validation, got `arm64`",
+            ),
+            vec![
+                "next-step: rerun against a Linux x86_64 host, or disable the remote-host stage while narrowing local packaged validation first",
+            ]
+        );
+    }
 }

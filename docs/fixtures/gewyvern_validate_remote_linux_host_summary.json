@@ -1,0 +1,87 @@
+{
+  "build_packages": "true",
+  "build_packages_enabled": true,
+  "ebpf": {
+    "default_route_device": "eth0",
+    "reason": "all_smokes_passed_admin_ssh",
+    "status": "ok"
+  },
+  "keep_remote_dir": false,
+  "linux_proof_complete": true,
+  "next_step": "hold this run as the current Linux hot-path reference and watch future remote regressions against it",
+  "package_build_timings": {
+    "cargo_build": 12.5,
+    "package_bundle": 1.25
+  },
+  "package_smoke_timings": {
+    "deb_verify": 0.4,
+    "rpm_verify": 0.6
+  },
+  "phase_timings": {
+    "remote_ebpf_evidence_sync": 0.9,
+    "remote_ebpf_smoke": 4.0,
+    "remote_package_build": 12.8,
+    "remote_package_smoke": 1.1,
+    "remote_runtime_smoke": 2.4,
+    "total": 22.8,
+    "workspace_sync": 1.6
+  },
+  "preflight": {
+    "arch": "x86_64",
+    "commands": [
+      "cargo",
+      "docker",
+      "sshpass"
+    ],
+    "default_route_device": "eth0",
+    "home_dir": "/home/demo",
+    "kernel": "6.8.0-test",
+    "os": "linux",
+    "sudo_available": true
+  },
+  "recent_ebpf_lines": [
+    "2026-07-12T09:00:00Z ok all_smokes_passed_admin_ssh 4.000",
+    "2026-07-11T09:00:00Z ok all_smokes_passed_admin_ssh 4.200"
+  ],
+  "recent_ebpf_trend": "2/2 ok, 0/2 skipped",
+  "release_gate_signal": "ready",
+  "remote_checks": [
+    "remote_preflight",
+    "remote_artifacts_present",
+    "remote_ebpf_smoke",
+    "remote_ebpf_evidence_synced"
+  ],
+  "remote_dir": "/tmp/gewyvern-remote",
+  "remote_ebpf": "ok (all_smokes_passed_admin_ssh)",
+  "remote_ebpf_history_entries": 2,
+  "remote_ebpf_reason_counts": {
+    "all_smokes_passed_admin_ssh": 2
+  },
+  "remote_ebpf_status_counts": {
+    "ok": 2
+  },
+  "requires_followup": false,
+  "runtime_smoke_timings": {
+    "tcp_boot_health": 0.7,
+    "udp_analysis": 0.5
+  },
+  "slowest_phase_entries": [
+    {
+      "name": "remote_package_build",
+      "seconds": 12.8
+    },
+    {
+      "name": "remote_ebpf_smoke",
+      "seconds": 4.0
+    },
+    {
+      "name": "remote_runtime_smoke",
+      "seconds": 2.4
+    }
+  ],
+  "slowest_phases": "remote_package_build=12.800s, remote_ebpf_smoke=4.000s, remote_runtime_smoke=2.400s",
+  "source_cache": "/home/demo/.cache/gewyvern/remote-source",
+  "target_cache": "/home/demo/.cache/gewyvern/remote-target",
+  "total_seconds": 22.8,
+  "validation_posture": "full"
+}

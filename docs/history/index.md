@@ -11,6 +11,7 @@ For `gewyvern`, the middle numeric component is treated as the **minor** line:
 - `v0.18.x`
 - `v0.19.x`
 - `v0.20.x`
+- `v1.0.0`
 
 The rule from here forward is simple:
 
@@ -62,8 +63,11 @@ background cleanup.
   Historical integration line focused on integrated debugger behavior,
   reliability hardening, cross-validation, and pre-seal convergence.
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
-  Current active final pre-`1.0` sealing line focused on repeatable release
-  gates, surface freeze judgment, and documentation/system coherence.
+  Final pre-`1.0` sealing line focused on repeatable release gates, surface
+  freeze judgment, and documentation/system coherence.
+- [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
+  Current stable line focused on keeping the sealed core, machine contracts,
+  Linux proof paths, and release evidence coherent.
 - [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md)
   Forward-looking minor-line plan from `0.15.x` through `0.20.x`, intended to
   make `v1.0.0` the direct next step after the final pre-`1.0` seal.
@@ -85,8 +89,9 @@ background cleanup.
 | `v0.17.x` | Protocol-cluster deepening plus compiler/IR maturity with runtime-evidence discipline | historical snapshot | [docs/history/v0.17.x.md](docs/history/v0.17.x.md) |
 | `v0.18.x` | Protocol breadth, packaged/runtime confidence, and physical-host validation | historical snapshot | [docs/history/v0.18.x.md](docs/history/v0.18.x.md) |
 | `v0.19.x` | Integrated debugger behavior, reliability hardening, and pre-seal convergence | historical snapshot | [docs/history/v0.19.x.md](docs/history/v0.19.x.md) |
-| `v0.20.x` | Final pre-`1.0` seal with repeatable release gates and frozen core surfaces | active | [docs/history/v0.20.x.md](docs/history/v0.20.x.md) |
-| `v0.15.x -> v1.0.0` | Forward roadmap through `v0.20.x` with `v1.0.0` as the intended direct successor | active roadmap | [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md) |
+| `v0.20.x` | Final pre-`1.0` seal with repeatable release gates and frozen core surfaces | historical prelude | [docs/history/v0.20.x.md](docs/history/v0.20.x.md) |
+| `v1.0.0` | First sealed stable line with repeatable release gates, Linux proof, and frozen machine-facing shelves | active | [docs/history/v1.0.0.md](docs/history/v1.0.0.md) |
+| `v0.15.x -> v1.0.0` | Forward roadmap through `v0.20.x` with `v1.0.0` as the intended direct successor | completed roadmap | [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md) |
 
 This table is the shortest answer to:
 

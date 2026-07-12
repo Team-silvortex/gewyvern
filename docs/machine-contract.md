@@ -322,9 +322,11 @@ Current interpretation:
 
 The practical Linux target-lab shelf is intentionally not part of
 `release-gate.extra.stages.*` today. Consumers that want that stronger Linux
-evidence should call `juice-shop-container-validation` explicitly and merge the
-result as an additional release artifact instead of assuming every release-gate
-run performed it.
+evidence should call `juice-shop-container-validation`,
+`ftp-denied-container-validation`, or
+`ldap-bind-denied-container-validation` explicitly and merge the result as an
+additional release artifact instead of assuming every release-gate run
+performed it.
 
 When a caller wants one directory-level release artifact map instead of only
 the in-band JSON object, `release-gate` also refreshes these companion files

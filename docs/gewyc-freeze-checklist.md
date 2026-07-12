@@ -29,7 +29,7 @@ It means:
 - `compat` fields do not disappear casually
 - fixtures and docs keep matching the real renderer
 
-## Current `0.19.x -> 0.20.x` Checklist
+## Current `0.19.x -> 1.0.0` Checklist
 
 Treat the compiler surface as ready for the next tightening step only when all
 of the following are true:

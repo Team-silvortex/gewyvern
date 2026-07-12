@@ -47,6 +47,7 @@ pub use stack_probe::{
     write_stack_resilience_summary,
 };
 pub use stack_suites::{
-    run_juice_shop_container_validation, run_pathological_container_validation,
+    run_ftp_denied_container_validation, run_juice_shop_container_validation,
+    run_ldap_bind_denied_container_validation, run_pathological_container_validation,
     run_three_module_stack_smoke,
 };

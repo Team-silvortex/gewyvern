@@ -1,12 +1,12 @@
 # Release Checklist
 
 This page is the shortest practical release checklist for the active
-`0.20.x` line.
+`1.0.0` line.
 
 Use it when the question is not "how does packaging work?" or "what does field
 validation mean?", but simply:
 
-- can we still ship this line with confidence?
+- can we still ship `1.0.0` with confidence?
 - did we exercise the real packaged artifacts?
 - did standalone and multi-project paths both survive?
 
@@ -16,6 +16,7 @@ For deeper background, see:
 - [docs/field-findings.md](docs/field-findings.md)
 - [docs/packaging.md](docs/packaging.md)
 - [docs/script-entrypoints.md](docs/script-entrypoints.md)
+- [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 - [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
 - [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
@@ -33,12 +34,13 @@ Use it when the question is:
 Do not use this page as:
 
 - the full validation philosophy for the line
-- the durable statement of what the current minor line is supposed to mean
+- the durable statement of what the stable line is supposed to mean
 - the evidence log of what already passed over time
 
 For those, use:
 
 - [docs/field-validation.md](docs/field-validation.md)
+- [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 - [docs/field-findings.md](docs/field-findings.md)
 
@@ -54,9 +56,9 @@ For those, use:
   for the protocol-breadth and physical-host validation baseline that this line
   inherits
 
-## Current `0.20.x` Gate
+## Current `1.0.0` Gate
 
-Treat the line as release-ready only when all of the following stay true:
+Treat `1.0.0` as release-ready only when all of the following stay true:
 
 1. current native artifacts are rebuilt from the current source tree
 2. packaged `deb` and `rpm` install smoke both pass
@@ -93,12 +95,12 @@ Expected outputs:
 - `target/packages/rpm/gewyvern-<version>-1.<rpm-arch>.rpm`
 
 The `<version>` value is read from the root `gewyvern` package metadata in
-`Cargo.toml`. For the current tree, that resolves to `0.20.0`, so the
-concrete artifact names should look like `gewyvern_0.20.0-1_<deb-arch>.deb`
-and `gewyvern-0.20.0-1.<rpm-arch>.rpm`.
+`Cargo.toml`. For the current tree, that resolves to `1.0.0`, so the concrete
+artifact names should look like `gewyvern_1.0.0-1_<deb-arch>.deb` and
+`gewyvern-1.0.0-1.<rpm-arch>.rpm`.
 
-The release-line posture can move ahead of that metadata, but the package
-smoke must always verify the artifacts that the tree actually builds today.
+The package smoke must always verify the artifacts that the tree actually
+builds today.
 
 Do not trust an older green run if it was using stale artifacts from another
 version line.
@@ -226,6 +228,10 @@ Keep the practical Linux target-lab shelf as a separate artifact on purpose:
 
 - `juice-shop-container-validation` is a high-signal optional Linux/BPF
   release-confidence check
+- `ftp-denied-container-validation` is a high-signal optional Linux/BPF
+  release-confidence check for rejected FTP authentication
+- `ldap-bind-denied-container-validation` is a high-signal optional Linux/BPF
+  release-confidence check for rejected LDAP binds
 - it is not part of the default `release-gate.extra.stages.*` contract today
 - callers that want it should run it explicitly and preserve its own evidence
   directory alongside the main release-gate JSON
@@ -373,7 +379,7 @@ Use this triage order:
 
 ## Ship Read
 
-For the active `0.20.x` line, a good practical ship read is:
+For the active `1.0.0` line, a good practical ship read is:
 
 - current artifacts rebuilt
 - `release_gate.sh` green, or the equivalent build + packaged release check +

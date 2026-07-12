@@ -1,6 +1,6 @@
 # CLI Recipes
 
-This page keeps the practical command shelf for the active `0.20.x` line.
+This page keeps the practical command shelf for the active `1.0.0` line.
 
 Use it when you already understand the project shape and just want known-good
 commands for the runtime CLI, `gewyc`, socket ingest, and local integration
@@ -33,7 +33,7 @@ dotnet build apps/leserpent/src/Leserpent/Leserpent.csproj
 ## Security Checks
 
 Use these when you want the shortest repeatable security shelf for the current
-`0.20.x` line:
+`1.0.0` line:
 
 ```bash
 cargo audit
@@ -115,6 +115,8 @@ Practical Linux target-lab evidence as one structured object:
 
 ```bash
 sudo cargo run --quiet --bin gewyvern_validate -- --json juice-shop-container-validation
+sudo cargo run --quiet --bin gewyvern_validate -- --json ftp-denied-container-validation
+sudo cargo run --quiet --bin gewyvern_validate -- --json ldap-bind-denied-container-validation
 ```
 
 Current stable top-level fields:

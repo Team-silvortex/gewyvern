@@ -8,7 +8,7 @@ to a narrower question:
 
 - what `gewyvern` is safe to treat as
 - what `gewyvern` is intentionally not trying to be
-- which boundaries matter in the active `0.20.x` line
+- which boundaries matter in the active `1.0.0` line
 
 For long-lived runtime behavior, see
 [docs/service-behavior.md](docs/service-behavior.md).
@@ -161,9 +161,9 @@ If a deployment needs:
 that should live above `gewyvern`, not be inferred from its current local
 service shape.
 
-## Practical `0.20.x` Goal
+## Practical `1.0.0` Goal
 
-For the active `0.20.x` line, the security goal is not “become a control
+For the active `1.0.0` line, the security goal is not “become a control
 plane”.
 
 The goal is narrower:

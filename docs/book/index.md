@@ -100,11 +100,15 @@ use this order:
 
 ## Current Release Line
 
-For the current `0.20.x` final pre-`1.0` posture, see:
+For the current `1.0.0` stable posture, see:
 
+- [docs/release-checklist.md](docs/release-checklist.md)
+- [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 - [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
-- [docs/release-checklist.md](docs/release-checklist.md)
+
+Treat the history pages there as release context, not as the primary current
+contract. The current ship/no-ship shelf is the release checklist above.
 
 For release validation routing, prefer the native `gewyvern_validate`
 entrypoints described in:
@@ -227,7 +231,7 @@ shape and a predictable shelf:
 - reference for exact lookup
 - explanation for deeper mental models
 
-As the `0.20.x` line approaches its final pre-`1.0` seal, new documentation should prefer landing into one of
+As the `1.0.0` line settles into its stable seal, new documentation should prefer landing into one of
 these four tracks instead of growing the top-level `docs/` folder without a
 clear reading mode.
 

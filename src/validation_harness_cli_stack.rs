@@ -28,12 +28,6 @@ pub fn run_stack_command(
     }
 }
 
-pub fn print_stack_list() {
-    for command in STACK_COMMANDS {
-        println!("{command}");
-    }
-}
-
 pub fn print_stack_help() {
     println!("  stack-check-json --input <json> --profile <name>");
     println!(

@@ -1,0 +1,84 @@
+{
+  "artifacts": [
+    {
+      "expectation": "required",
+      "key": "release_gate_root",
+      "kind": "directory",
+      "note": "shared root for release-facing validation evidence",
+      "producer": "release-gate"
+    },
+    {
+      "expectation": "required",
+      "key": "debugger_cross_validation",
+      "kind": "directory",
+      "note": "cross-surface debugger evidence shelf",
+      "producer": "gewyvern_validate debugger-cross"
+    },
+    {
+      "expectation": "required",
+      "key": "pathological_container_validation",
+      "kind": "directory",
+      "note": "degraded-but-live resilience evidence shelf",
+      "producer": "gewyvern_validate pathological-container-validation"
+    },
+    {
+      "expectation": "required",
+      "key": "three_module_resilience_summary",
+      "kind": "file",
+      "note": "compact resilience summary from the multi-project Docker smoke",
+      "producer": "three_module_stack_smoke.sh"
+    },
+    {
+      "expectation": "optional",
+      "key": "remote_linux_host_validation",
+      "kind": "directory",
+      "note": "structured Linux host proof shelf for package, runtime, and eBPF validation",
+      "producer": "gewyvern_validate remote-linux-host-validation"
+    },
+    {
+      "expectation": "optional",
+      "key": "remote_linux_ebpf",
+      "kind": "directory",
+      "note": "nested remote eBPF attach evidence shelf when the remote Linux path runs",
+      "producer": "gewyvern_validate remote-linux-host-validation"
+    },
+    {
+      "expectation": "optional_high_signal",
+      "key": "juice_shop_container_validation",
+      "kind": "directory",
+      "note": "practical Linux target-lab shelf that preserves suspicious target-side HTTP evidence plus same-host attach proof",
+      "producer": "gewyvern_validate juice-shop-container-validation"
+    },
+    {
+      "expectation": "optional_high_signal",
+      "key": "ftp_denied_container_validation",
+      "kind": "directory",
+      "note": "practical Linux target-lab shelf that preserves client-side FTP 530 denial evidence, target-side FAIL LOGIN logs, and same-host attach proof",
+      "producer": "gewyvern_validate ftp-denied-container-validation"
+    },
+    {
+      "expectation": "optional_high_signal",
+      "key": "ldap_bind_denied_container_validation",
+      "kind": "directory",
+      "note": "practical Linux target-lab shelf that preserves client-side LDAP err=49 denial evidence, target-side bind logs, and same-host attach proof",
+      "producer": "gewyvern_validate ldap-bind-denied-container-validation"
+    },
+    {
+      "expectation": "required",
+      "key": "release_gate_artifact_index",
+      "kind": "file",
+      "note": "machine-readable release artifact index",
+      "producer": "gewyvern_validate release-gate"
+    },
+    {
+      "expectation": "required",
+      "key": "release_gate_artifact_summary",
+      "kind": "file",
+      "note": "human-readable release artifact summary",
+      "producer": "gewyvern_validate release-gate"
+    }
+  ],
+  "kind": "release_artifact_index",
+  "name": "release gate artifacts",
+  "schema_version": 1
+}

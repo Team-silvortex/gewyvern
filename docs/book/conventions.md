@@ -145,7 +145,7 @@ Avoid:
 
 ## Release-Line Discipline
 
-During the active `0.20.x` line, documentation changes should bias toward:
+During the active `1.0.0` line, documentation changes should bias toward:
 
 - clarifying current behavior
 - reducing contradiction
@@ -176,7 +176,7 @@ Before adding a new page, ask:
 - does this belong in tutorial, how-to, reference, or explanation?
 - can an existing page be expanded instead?
 - does this introduce a second page that says almost the same thing?
-- does it help the `0.20.x` line feel more whole?
+- does it help the `1.0.0` line feel more whole?
 
 If the answer to the last question is no, it is probably the wrong page for
 this phase.
@@ -189,7 +189,7 @@ For this project, the middle numeric version component is the minor line:
 
 - `v0.13.x`
 - `v0.15.x`
-- current and future lines such as `v0.20.x` when those lines actually begin
+- current and future lines such as `v1.0.0` when those lines actually begin
 
 When a new minor line begins:
 

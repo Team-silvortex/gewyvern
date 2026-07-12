@@ -35,6 +35,22 @@
     "three-module-stack-smoke",
     "training-roundtrip"
   ],
+  "global_flags": [
+    {
+      "description": "Emit machine-readable JSON on success and failure when supported",
+      "name": "--json"
+    },
+    {
+      "description": "Emit machine-readable JSON on failure",
+      "name": "--json-errors"
+    },
+    {
+      "description": "Write the final JSON result to a file; place before the command to use the global form",
+      "name": "--json-out"
+    }
+  ],
+  "name": "gewyvern_validate",
   "ok": true,
-  "schema_version": 1
+  "schema_version": 1,
+  "summary": "Native validation harness for gewyvern release and debugger checks."
 }

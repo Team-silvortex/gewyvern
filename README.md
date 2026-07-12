@@ -103,15 +103,14 @@ session data.
 `gewyvern` is no longer just a convergence story. The current line is:
 
 - historical validation baseline: `v0.10.0`
-- current release line: `v0.19.x`
-- current focus: make the broad protocol catalog act like one integrated local
-  network debugger by tightening startup, stop, logs, recovery, persistence,
-  cross-validation, and physical-host execution paths
-- next likely work line: `v0.20.x`, the final pre-`1.0` sealing line
+- current release line: `v1.0.0`, the first sealed stable line
+- current focus: keep the broad protocol catalog behaving like one integrated
+  local network debugger with stable startup, stop, logs, recovery,
+  persistence, cross-validation, and Linux-host execution paths
 
-The goal is still not “every protocol under the sun”. The `0.19.x` bar is that
-`gewyvern` is trustworthy enough to serve as infra for process-level network
-debugging: stable CLI/runtime behavior, stable DSL/compiler boundaries,
+The goal is still not “every protocol under the sun”. The `1.0.0` bar is that
+`gewyvern` is trustworthy enough to serve as infrastructure for process-level
+network debugging: stable CLI/runtime behavior, stable DSL/compiler boundaries,
 reliable HTML/JSON/API reporting, predictable operational performance, and
 clean lifecycle behavior with no mystery leftovers.
 
@@ -120,6 +119,7 @@ Primary release-line shelves:
 - [ROADMAP.md](ROADMAP.md)
 - [docs/v0.14-posture.md](docs/v0.14-posture.md)
 - [docs/history/index.md](docs/history/index.md)
+- [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
 - [docs/machine-contract.md](docs/machine-contract.md)
 - [docs/security-posture.md](docs/security-posture.md)

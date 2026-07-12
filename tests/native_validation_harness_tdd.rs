@@ -19,6 +19,8 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("\"container-protocol-validation\""));
     assert!(binary.contains("\"container-runtime-validation\""));
     assert!(binary.contains("\"container-validation-summary\""));
+    assert!(binary.contains("\"ftp-denied-container-validation\""));
+    assert!(binary.contains("\"ldap-bind-denied-container-validation\""));
     assert!(binary.contains("\"package-install-smoke\""));
     assert!(binary.contains("\"remote-linux-host-validation\""));
     assert!(binary.contains("\"linux-attach-smoke\""));
@@ -40,7 +42,8 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("\"runtime-lifecycle\""));
     assert!(binary.contains("\"runtime-operator\""));
     assert!(binary.contains("run_stack_command"));
-    assert!(binary.contains("print_stack_list"));
+    assert!(binary.contains("listed_commands"));
+    assert!(binary.contains("STACK_COMMANDS"));
     assert!(binary.contains("--limit"));
     assert!(binary.contains("--json-out"));
     assert!(binary.contains("--json"));
@@ -96,6 +99,8 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("--skip-remote-build"));
     assert!(binary.contains("--keep-remote-dir"));
     assert!(mod_file.contains("run_debugger_cross_validation"));
+    assert!(mod_file.contains("run_ftp_denied_container_validation"));
+    assert!(mod_file.contains("run_ldap_bind_denied_container_validation"));
     assert!(mod_file.contains("run_socket_roundtrip_demo"));
     assert!(mod_file.contains("run_training_dataset_roundtrip_demo"));
     assert!(mod_file.contains("run_external_engine_roundtrip_demo"));
@@ -660,6 +665,50 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(docs.contains("remote source cache"));
     assert!(docs.contains("repoints its requested remote"));
     assert!(docs.contains("slowest observed phases"));
+}
+
+#[test]
+fn ftp_denied_container_validation_is_native_and_linux_only() {
+    let stack = read_repo_file("src/validation_harness/stack_suites.rs");
+    let binary = read_repo_file("src/bin/gewyvern_validate.rs");
+
+    assert!(stack.contains("run_ftp_denied_container_validation"));
+    assert!(stack.contains("ftp-denied container validation requires a Linux host"));
+    assert!(stack.contains("fauria/vsftpd:latest"));
+    assert!(stack.contains("wait_for_ftp_banner"));
+    assert!(stack.contains("curl_capture_ftp_denied_exchange"));
+    assert!(stack.contains("ftp-target-vsftpd.log"));
+    assert!(stack.contains("530 Login incorrect."));
+    assert!(stack.contains("Access denied: 530"));
+    assert!(stack.contains("FAIL LOGIN"));
+    assert!(stack.contains("PASV_ADDRESS=127.0.0.1"));
+    assert!(stack.contains("linux-attach-smoke"));
+    assert!(stack.contains("linux-kprobe-smoke"));
+    assert!(stack.contains("linux-tc-smoke"));
+    assert!(binary.contains("ftp-denied-container-validation"));
+    assert!(binary.contains("print_ftp_denied_container_validation_help"));
+    assert!(binary.contains("Usage: gewyvern_validate ftp-denied-container-validation"));
+}
+
+#[test]
+fn ldap_bind_denied_container_validation_is_native_and_linux_only() {
+    let stack = read_repo_file("src/validation_harness/stack_suites.rs");
+    let binary = read_repo_file("src/bin/gewyvern_validate.rs");
+
+    assert!(stack.contains("run_ldap_bind_denied_container_validation"));
+    assert!(stack.contains("ldap-bind-denied container validation requires a Linux host"));
+    assert!(stack.contains("osixia/openldap:1.5.0"));
+    assert!(stack.contains("wait_for_ldap_bind_ready"));
+    assert!(stack.contains("ldap_capture_bind_denied_exchange"));
+    assert!(stack.contains("Invalid credentials (49)"));
+    assert!(stack.contains("err=49"));
+    assert!(stack.contains("BIND dn="));
+    assert!(stack.contains("linux-attach-smoke"));
+    assert!(stack.contains("linux-kprobe-smoke"));
+    assert!(stack.contains("linux-tc-smoke"));
+    assert!(binary.contains("ldap-bind-denied-container-validation"));
+    assert!(binary.contains("print_ldap_bind_denied_container_validation_help"));
+    assert!(binary.contains("Usage: gewyvern_validate ldap-bind-denied-container-validation"));
 }
 
 #[test]

@@ -146,7 +146,7 @@ fn markdown_docs_do_not_embed_local_checkout_paths() {
 fn release_docs_prefer_native_validation_entrypoints() {
     let field_validation = read_repo_file("docs/field-validation.md");
     let field_findings = read_repo_file("docs/field-findings.md");
-    let v020 = read_repo_file("docs/history/v0.20.x.md");
+    let v100 = read_repo_file("docs/history/v1.0.0.md");
 
     assert!(
         field_validation
@@ -162,12 +162,12 @@ fn release_docs_prefer_native_validation_entrypoints() {
     );
     assert!(field_findings.contains("target/validation/release-gate-artifacts.json"));
     assert!(field_findings.contains("target/validation/release-gate-artifacts.txt"));
-    assert!(v020.contains("cargo run --quiet --bin gewyvern_validate -- release-container-check"));
+    assert!(v100.contains("cargo run --quiet --bin gewyvern_validate -- release-container-check"));
     assert!(
-        v020.contains("cargo run --quiet --bin gewyvern_validate -- release-gate --skip-build")
+        v100.contains("cargo run --quiet --bin gewyvern_validate -- release-gate --skip-build")
     );
-    assert!(v020.contains("target/validation/release-gate-artifacts.json"));
-    assert!(v020.contains("target/validation/release-gate-artifacts.txt"));
+    assert!(v100.contains("target/validation/release-gate-artifacts.json"));
+    assert!(v100.contains("target/validation/release-gate-artifacts.txt"));
 }
 
 fn local_path(parts: &[&str]) -> String {

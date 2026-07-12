@@ -1,7 +1,7 @@
 # Runtime Event Reference
 
 This page is the exact lookup shelf for the runtime event names that are meant
-to stay recognizable in the active `0.20.x` line, while preserving the earlier
+to stay recognizable in the active `1.0.0` line, while preserving the earlier
 event-contract groundwork.
 
 Use it when you need to answer:

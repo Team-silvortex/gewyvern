@@ -180,7 +180,7 @@ contracts, also keep nearby:
 
 ## Future Shape
 
-As the active `0.20.x` line prepares for the direct `1.0.0` seal, new
+As the active `1.0.0` line establishes its sealed contract, new
 exact-lookup material should prefer this shelf instead of adding more ad hoc
 “format note” pages at the top level.
 

@@ -13,7 +13,7 @@ Use it before:
 
 This is not a penetration-test guide.
 
-It is a practical operator checklist for the active `0.20.x` runtime shape.
+It is a practical operator checklist for the active `1.0.0` runtime shape.
 
 For the broader posture statement, see
 [docs/security-posture.md](docs/security-posture.md).
@@ -47,7 +47,7 @@ Ask these questions:
 - are you keeping remote socket ingest explicitly opt-in?
 - are you avoiding PID-trust claims from socket-fed sessions?
 
-Current `0.20.x` expectation:
+Current `1.0.0` expectation:
 
 - socket-fed input is advisory-first
 - remote TCP ingest should be a conscious decision, not a default
@@ -65,7 +65,7 @@ Before enabling the API, confirm:
 - localhost is the default unless you truly need broader reach
 - callers understand the API is read-only and latest-snapshot only
 
-Current `0.20.x` safety behavior:
+Current `1.0.0` safety behavior:
 
 - remote bind is rejected unless explicitly allowed
 - restart clears the live in-memory snapshot
@@ -91,7 +91,7 @@ If you use `--external-engine-bin`, verify:
 - failure of the external engine does not break your core workflow
 - the engine can tolerate timeouts and bounded output expectations
 
-Current `0.20.x` behavior:
+Current `1.0.0` behavior:
 
 - built-in analysis runs first
 - external augmentations are appended
@@ -114,7 +114,7 @@ If you use custom protocol/package roots, verify:
 - your package tree is intentionally small and reviewable
 - you are not accidentally scanning a very large shared filesystem subtree
 
-Current `0.20.x` behavior:
+Current `1.0.0` behavior:
 
 - symlink recursion is skipped
 - repeated-directory loops are avoided
@@ -186,7 +186,7 @@ current line:
 7. verify dependency vulnerability checks and debugger cross-validation stay
    green before release-style automation
 
-If all seven are true, you are aligned with the current `0.20.x` security shape.
+If all seven are true, you are aligned with the current `1.0.0` security shape.
 
 ## 10. Pair The Checklist With Validation
 

@@ -38,12 +38,46 @@ fn parse_single_json(body: &str) -> Value {
     })
 }
 
+fn normalize_release_artifact_shape(index: &Value) -> Value {
+    let artifacts = index["artifacts"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|entry| {
+            serde_json::json!({
+                "expectation": entry["expectation"],
+                "key": entry["key"],
+                "kind": entry["kind"],
+                "note": entry["note"],
+                "producer": entry["producer"],
+            })
+        })
+        .collect::<Vec<_>>();
+
+    serde_json::json!({
+        "schema_version": index["schema_version"],
+        "kind": index["kind"],
+        "name": index["name"],
+        "artifacts": artifacts,
+    })
+}
+
 #[test]
 fn list_json_matches_fixture() {
     let expected = read_fixture("docs/fixtures/gewyvern_validate_list.json");
     let (ok, stdout, stderr) = run_validate_json(&["--json", "list"]);
 
     assert!(ok, "list should succeed, stderr: {stderr}");
+    assert!(stderr.trim().is_empty(), "unexpected stderr: {stderr}");
+    assert_eq!(parse_single_json(&stdout), expected);
+}
+
+#[test]
+fn help_json_matches_fixture() {
+    let expected = read_fixture("docs/fixtures/gewyvern_validate_help.json");
+    let (ok, stdout, stderr) = run_validate_json(&["--json", "help"]);
+
+    assert!(ok, "help should succeed, stderr: {stderr}");
     assert!(stderr.trim().is_empty(), "unexpected stderr: {stderr}");
     assert_eq!(parse_single_json(&stdout), expected);
 }
@@ -68,6 +102,8 @@ fn minimal_release_gate_json_matches_fixture() {
 
 #[test]
 fn minimal_release_gate_writes_release_artifact_index_files() {
+    let expected_shape =
+        read_fixture("docs/fixtures/gewyvern_validate_release_gate_artifact_shape.json");
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("target")
         .join("validation");
@@ -102,9 +138,18 @@ fn minimal_release_gate_writes_release_artifact_index_files() {
     let parsed = parse_single_json(&index);
     assert_eq!(parsed["kind"], "release_artifact_index");
     assert_eq!(parsed["schema_version"], 1);
+    assert_eq!(normalize_release_artifact_shape(&parsed), expected_shape);
     assert!(
         index.contains("\"juice_shop_container_validation\""),
         "expected optional practical target-lab entry in artifact index"
+    );
+    assert!(
+        index.contains("\"ftp_denied_container_validation\""),
+        "expected FTP denied practical target-lab entry in artifact index"
+    );
+    assert!(
+        index.contains("\"ldap_bind_denied_container_validation\""),
+        "expected LDAP denied practical target-lab entry in artifact index"
     );
 
     let summary = fs::read_to_string(&summary_path).unwrap_or_else(|err| {
@@ -112,6 +157,8 @@ fn minimal_release_gate_writes_release_artifact_index_files() {
     });
     assert!(summary.contains("release gate artifacts: ok"));
     assert!(summary.contains("juice_shop_container_validation"));
+    assert!(summary.contains("ftp_denied_container_validation"));
+    assert!(summary.contains("ldap_bind_denied_container_validation"));
 }
 
 #[test]

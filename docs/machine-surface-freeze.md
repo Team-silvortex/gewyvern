@@ -129,7 +129,7 @@ Run freeze work in this order:
 4. confirm a real sample, fixture, or operational validation path exists
 5. update the release-line note if the meaning of the line changes
 
-## Current `0.19.x -> 0.20.x` Reading
+## Current `0.19.x -> 1.0.0` Reading
 
 For the current line, a good practical freeze posture is:
 

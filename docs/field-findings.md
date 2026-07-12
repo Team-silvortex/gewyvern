@@ -1,6 +1,6 @@
 # Field Findings
 
-This note records the highest-signal findings from the active `0.20.x` line
+This note records the highest-signal findings from the active `1.0.0` line
 while preserving a shorter historical tail from the earlier `0.15.x`
 field-validation phase.
 
@@ -9,11 +9,12 @@ It is intentionally short.
 It is not a replacement for:
 
 - [docs/field-validation.md](docs/field-validation.md)
+- [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 - [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
 - [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
 
-Instead, it answers a narrower question:
+Instead, it answers a narrower question for the stable line:
 
 - what has already been observed in real validation work
 - what currently looks stable
@@ -33,15 +34,16 @@ Do not use this page as:
 
 - the validation program definition
 - the shortest release gate
-- the main statement of what the line should mean
+- the main statement of what the stable line should mean
 
 For those, use:
 
 - [docs/field-validation.md](docs/field-validation.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
+- [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 
-## Current `2026-07-10` Findings From `0.20.x`
+## Current `2026-07-10` Findings From `1.0.0`
 
 ### 1. The Default Release Gate Now Passes As One Routine
 
@@ -77,7 +79,7 @@ The current packaged release routine is green in default mode through:
 - packaged protocol validation
 - packaged operator-path validation
 
-That means the active `0.20.0` native artifacts are usable not only as local
+That means the active tree's native artifacts are usable not only as local
 build outputs, but as real installed runtime inputs across both `deb` and
 `rpm` flows.
 
@@ -360,10 +362,10 @@ That is useful and intentional, but it is not the same thing as saying:
 
 ## Practical Read Of The Current Line
 
-The current `0.20.x` line now looks strong in these ways:
+The current `1.0.0` line now looks strong in these ways:
 
 - protocol/package shelf is stable
-- current `0.20.0` native artifacts are the ones being exercised
+- current tree-native artifacts are the ones being exercised
 - packaged standalone runtime works
 - packaged high-frequency protocol families work
 - packaged operator paths stay conservative and coherent

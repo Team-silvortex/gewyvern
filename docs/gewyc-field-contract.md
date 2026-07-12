@@ -44,7 +44,7 @@ This page uses one conservative retirement policy for the `0.x` line:
   May stay useful for a while, but should not become a hard machine contract
   without being promoted later.
 - `evolving`
-  May widen, narrow, or regroup before `1.0.0`.
+  May widen, narrow, or regroup only with deliberate post-`1.0.0` review.
 
 Retirement rule:
 
@@ -56,8 +56,8 @@ For the current `0.19.*` line, the practical reading promise is:
 
 - `blessed` fields are safe to adopt now
 - `compat` fields are safe to keep reading now
-- no field documented as `compat` on this page should be removed before an
-  intentional `0.20.x` freeze or later breaking-change review
+- no field documented as `compat` on this page should be removed without an
+  intentional `1.0.0`-line review or later breaking-change review
 
 That is a planning floor, not a promise that every `compat` field will
 definitely survive all the way to `1.0.0`.
@@ -73,9 +73,9 @@ These top-level wrapper fields are the current contract candidate for every
 | `schema_hint.family` | `blessed` | `1.0.0+` | Current parser family gate. |
 | `schema_hint.surface` | `blessed` | `1.0.0+` | Exact surface selector. |
 | `schema_hint.schema_version` | `blessed` | `1.0.0+` | Parser version gate. |
-| `contract_hint.stability` | `blessed` | `0.20.x review` | Current release-line stability hint. |
-| `contract_hint.compatibility` | `blessed` | `0.20.x review` | Read-strategy hint for consumers. |
-| `contract_hint.legacy_fields` | `blessed` | `0.20.x review` | Legacy-payload presence hint. |
+| `contract_hint.stability` | `blessed` | `1.0.0+` | Current release-line stability hint. |
+| `contract_hint.compatibility` | `blessed` | `1.0.0+` | Read-strategy hint for consumers. |
+| `contract_hint.legacy_fields` | `blessed` | `1.0.0+` | Legacy-payload presence hint. |
 | `payload` | `blessed` | `1.0.0+` | Container for surface-specific shape. |
 
 ## Frontend Surface
@@ -88,14 +88,14 @@ Recommended first reads:
 | `payload.report.authoring` | `blessed` | `1.0.0+` | Preferred grouped authoring shelf. |
 | `payload.report.counts` | `blessed` | `1.0.0+` | Preferred grouped topology/count shelf. |
 | `payload.summary.kind` | `blessed` | `1.0.0+` | Short-form route for pipeline/type posture. |
-| `payload.summary.focus` | `blessed` | `0.20.x review` | Focus routing signal when `--focus` is active. |
-| `payload.focused_report` | `blessed` | `0.20.x review` | Shared focused detail entrypoint. |
+| `payload.summary.focus` | `blessed` | `1.0.0+` | Focus routing signal when `--focus` is active. |
+| `payload.focused_report` | `blessed` | `1.0.0+` | Shared focused detail entrypoint. |
 | `payload.report.module_doc` | `compat` | `0.19.x` | Kept for detail renderers. |
 | `payload.report.template_doc` | `compat` | `0.19.x` | Kept for detail renderers. |
 | `payload.report.function_nodes` | `compat` | `0.19.x` | Exact graph detail, not the first route. |
 | `payload.report.graph_nodes` | `compat` | `0.19.x` | Exact graph detail, not the first route. |
 | `payload.report.graph_edges` | `compat` | `0.19.x` | Exact graph detail, not the first route. |
-| `payload.report.expansion_previews` | `evolving` | `before 0.20.x` | Useful, but still a richer frontend detail shape. |
+| `payload.report.expansion_previews` | `evolving` | `post-1.0.0 review` | Useful, but still a richer frontend detail shape. |
 
 ## Binding Surface
 
@@ -196,8 +196,8 @@ Recommended first reads:
 | `payload.summary.analysis` | `blessed` | `1.0.0+` | Preferred grouped analysis shelf. |
 | `payload.summary.shape_notes` | `blessed` | `1.0.0+` | Preferred grouped shape-note shelf. |
 | `payload.summary.excerpts` | `blessed` | `1.0.0+` | Preferred grouped excerpt shelf. |
-| `payload.summary.next_step` | `blessed` | `0.20.x review` | Preferred operator next-step hint. |
-| `payload.focused_report` | `blessed` | `0.20.x review` | Shared focused drilldown entrypoint. |
+| `payload.summary.next_step` | `blessed` | `1.0.0+` | Preferred operator next-step hint. |
+| `payload.focused_report` | `blessed` | `1.0.0+` | Shared focused drilldown entrypoint. |
 | `payload.frontend` | `compat` | `0.19.x` | Detailed child surface mirror. |
 | `payload.binding` | `compat` | `0.19.x` | Detailed child surface mirror. |
 | `payload.validation` | `compat` | `0.19.x` | Detailed child surface mirror. |
