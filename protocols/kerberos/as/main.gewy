@@ -3,21 +3,21 @@
 fn kerberos_as_rules() =
   let module_name = :kerberos_as_path
   let route_narrative = "static:program resolved an upstream route for this Kerberos AS exchange"
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:kerberos_as)
-  |> reason_model(:kerberos_as_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
-  |> program_rule(predicate: "datagram_observed:udp:remote:kerberos:local_to_remote:byte0_mask:0xff:0x6a", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_as_request)
-  |> program_rule(predicate: "datagram_observed:udp:remote:kerberos:remote_to_local:byte0_mask:0xff:0x6b", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_as_reply)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
-  |> reason_rule(predicate: "datagram_observed:udp:remote:kerberos:local_to_remote:byte0_mask:0xff:0x6a", key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_as_request)
-  |> reason_rule(predicate: "datagram_observed:udp:remote:kerberos:remote_to_local:byte0_mask:0xff:0x6b", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_as_reply)
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :kerberos_as
+  |> reason_model :kerberos_as_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> program_rule pred: "datagram_observed:udp:remote:kerberos:local_to_remote:byte0_mask:0xff:0x6a", stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_as_request
+  |> program_rule pred: "datagram_observed:udp:remote:kerberos:remote_to_local:byte0_mask:0xff:0x6b", stage: :datagram_observed, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_as_reply
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> reason_rule pred: "datagram_observed:udp:remote:kerberos:local_to_remote:byte0_mask:0xff:0x6a", event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_as_request
+  |> reason_rule pred: "datagram_observed:udp:remote:kerberos:remote_to_local:byte0_mask:0xff:0x6b", event: :udp_datagram_seen, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_as_reply
 
-template(:kerberos_as_path)
+template :kerberos_as_path
 |> window(duration_ms: 5000, lateness_ms: 200)
-|> use(:kerberos_as_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+|> use :kerberos_as_rules
+|> param :sock_lineage_fragment.capture_comm, true

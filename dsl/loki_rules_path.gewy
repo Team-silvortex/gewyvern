@@ -3,18 +3,18 @@
 fn loki_rules_rules() =
   let module_name = :loki_rules_path
   let rules_narrative = "static:observed a Loki ruler API request"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> operation(:loki_rules)
-  |> reason_model(:loki_rules_path_reason)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_ruler)
-  |> program_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", stage: :packet_observed, narrative: ${rules_narrative}, dedupe: true, module: ${module_name}, phase: :read_rules)
-  |> program_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x504f5354", stage: :packet_observed, narrative: ${rules_narrative}, dedupe: true, module: ${module_name}, phase: :write_rules)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_ruler)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", key_event: :packet_observed, narrative: ${rules_narrative}, dedupe: true, module: ${module_name}, phase: :read_rules)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x504f5354", key_event: :packet_observed, narrative: ${rules_narrative}, dedupe: true, module: ${module_name}, phase: :write_rules)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> operation :loki_rules
+  |> reason_model :loki_rules_path_reason
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_ruler
+  |> program_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", stage: :packet_observed, narr: $rules_narrative, dedupe: true, mod: $module_name, phase: :read_rules
+  |> program_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x504f5354", stage: :packet_observed, narr: $rules_narrative, dedupe: true, mod: $module_name, phase: :write_rules
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_ruler
+  |> reason_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", event: :packet_observed, narr: $rules_narrative, dedupe: true, mod: $module_name, phase: :read_rules
+  |> reason_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x504f5354", event: :packet_observed, narr: $rules_narrative, dedupe: true, mod: $module_name, phase: :write_rules
 
-template(:loki_rules_path)
-|> window(:default_5s)
-|> use(:loki_rules_rules)
+template :loki_rules_path
+|> window :default_5s
+|> use :loki_rules_rules

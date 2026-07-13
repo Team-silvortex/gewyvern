@@ -1,22 +1,22 @@
 fn http_server_response_rules() = {
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:http_server_response)
-  |> reason_model(:http_server_response_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :http_server_response_path, phase: :bind)
-  |> program_rule(predicate: :socket_state_observed:local:http, stage: :socket_state_transition, narrative: :transport_socket_transition, dedupe: false, module: :http_server_response_path, phase: :accept)
-  |> program_rule(predicate: :socket_state_observed:local:http:established, stage: :socket_state_transition, narrative: :transport_socket_transition, dedupe: true, module: :http_server_response_path, phase: :establish)
-  |> program_rule(predicate: :packet_observed:tcp:remote_to_local, stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :http_server_response_path, phase: :receive_request)
-  |> program_rule(predicate: :packet_observed:tcp:local_to_remote, stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :http_server_response_path, phase: :send_response)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: :http_server_response_path, phase: :bind)
-  |> reason_rule(predicate: :socket_state_observed:local:http, key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: :http_server_response_path, phase: :accept)
-  |> reason_rule(predicate: :socket_state_observed:local:http:established, key_event: :state_change, narrative: :tcp_state_transition, dedupe: true, module: :http_server_response_path, phase: :establish)
-  |> reason_rule(predicate: :packet_observed:tcp:remote_to_local, key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :http_server_response_path, phase: :receive_request)
-  |> reason_rule(predicate: :packet_observed:tcp:local_to_remote, key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :http_server_response_path, phase: :send_response)
+  |> fragment :tcp_state_fragment
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :http_server_response
+  |> reason_model :http_server_response_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: :http_server_response_path, phase: :bind
+  |> program_rule pred: :socket_state_observed:local:http, stage: :socket_state_transition, narr: :transport_socket_transition, dedupe: false, mod: :http_server_response_path, phase: :accept
+  |> program_rule pred: :socket_state_observed:local:http:established, stage: :socket_state_transition, narr: :transport_socket_transition, dedupe: true, mod: :http_server_response_path, phase: :establish
+  |> program_rule pred: :packet_observed:tcp:remote_to_local, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :http_server_response_path, phase: :receive_request
+  |> program_rule pred: :packet_observed:tcp:local_to_remote, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :http_server_response_path, phase: :send_response
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: :http_server_response_path, phase: :bind
+  |> reason_rule pred: :socket_state_observed:local:http, event: :state_change, narr: :tcp_state_transition, dedupe: false, mod: :http_server_response_path, phase: :accept
+  |> reason_rule pred: :socket_state_observed:local:http:established, event: :state_change, narr: :tcp_state_transition, dedupe: true, mod: :http_server_response_path, phase: :establish
+  |> reason_rule pred: :packet_observed:tcp:remote_to_local, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :http_server_response_path, phase: :receive_request
+  |> reason_rule pred: :packet_observed:tcp:local_to_remote, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :http_server_response_path, phase: :send_response
 }
 
-template(:http_server_response_path)
+template :http_server_response_path
 |> window(duration_ms: 5000, lateness_ms: 200)
-|> use(:http_server_response_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+|> use :http_server_response_rules
+|> param :sock_lineage_fragment.capture_comm, true

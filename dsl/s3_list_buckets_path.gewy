@@ -3,22 +3,22 @@
 fn s3_list_buckets_rules() =
   let module_name = :s3_list_buckets_path
   let request_narrative = "static:observed an S3-compatible bucket listing request"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:s3_list_buckets)
-  |> reason_model(:s3_list_buckets_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_endpoint)
-  |> program_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", stage: :packet_observed, narrative: ${request_narrative}, dedupe: true, module: ${module_name}, phase: :send_list_buckets)
-  |> program_rule(predicate: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_response)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_endpoint)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", key_event: :packet_observed, narrative: ${request_narrative}, dedupe: true, module: ${module_name}, phase: :send_list_buckets)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_response)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :s3_list_buckets
+  |> reason_model :s3_list_buckets_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_endpoint
+  |> program_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", stage: :packet_observed, narr: $request_narrative, dedupe: true, mod: $module_name, phase: :send_list_buckets
+  |> program_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_response
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_endpoint
+  |> reason_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", event: :packet_observed, narr: $request_narrative, dedupe: true, mod: $module_name, phase: :send_list_buckets
+  |> reason_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_response
 
-template(:s3_list_buckets_path)
-|> window(:default_5s)
-|> use(:s3_list_buckets_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+template :s3_list_buckets_path
+|> window :default_5s
+|> use :s3_list_buckets_rules
+|> param :sock_lineage_fragment.capture_comm, true

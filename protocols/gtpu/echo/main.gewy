@@ -1,20 +1,20 @@
 fn gtpu_echo_rules() = {
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:gtpu_echo)
-  |> reason_model(:gtpu_echo_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :gtpu_echo_path, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: :gtpu_echo_path, phase: :resolve_upstream)
-  |> program_rule(predicate: :datagram_observed:udp:remote:gtpu:local_to_remote:prefix2:0x3001, stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: :gtpu_echo_path, phase: :send_echo_request)
-  |> program_rule(predicate: :datagram_observed:udp:remote:gtpu:remote_to_local:prefix2:0x3002, stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: :gtpu_echo_path, phase: :receive_echo_response)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: :gtpu_echo_path, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: :gtpu_echo_path, phase: :resolve_upstream)
-  |> reason_rule(predicate: :datagram_observed:udp:remote:gtpu:local_to_remote:prefix2:0x3001, key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: :gtpu_echo_path, phase: :send_echo_request)
-  |> reason_rule(predicate: :datagram_observed:udp:remote:gtpu:remote_to_local:prefix2:0x3002, key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: :gtpu_echo_path, phase: :receive_echo_response)
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :gtpu_echo
+  |> reason_model :gtpu_echo_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: :gtpu_echo_path, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: :gtpu_echo_path, phase: :resolve_upstream
+  |> program_rule pred: :datagram_observed:udp:remote:gtpu:local_to_remote:prefix2:0x3001, stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: :gtpu_echo_path, phase: :send_echo_request
+  |> program_rule pred: :datagram_observed:udp:remote:gtpu:remote_to_local:prefix2:0x3002, stage: :datagram_observed, narr: :udp_datagram_received, dedupe: true, mod: :gtpu_echo_path, phase: :receive_echo_response
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: :gtpu_echo_path, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: :gtpu_echo_path, phase: :resolve_upstream
+  |> reason_rule pred: :datagram_observed:udp:remote:gtpu:local_to_remote:prefix2:0x3001, event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: :gtpu_echo_path, phase: :send_echo_request
+  |> reason_rule pred: :datagram_observed:udp:remote:gtpu:remote_to_local:prefix2:0x3002, event: :udp_datagram_seen, narr: :udp_datagram_received, dedupe: true, mod: :gtpu_echo_path, phase: :receive_echo_response
 }
 
-template(:gtpu_echo_path)
+template :gtpu_echo_path
 |> window(duration_ms: 5000, lateness_ms: 200)
-|> use(:gtpu_echo_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+|> use :gtpu_echo_rules
+|> param :sock_lineage_fragment.capture_comm, true

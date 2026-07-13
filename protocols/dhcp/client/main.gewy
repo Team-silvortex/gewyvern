@@ -1,21 +1,21 @@
 fn dhcp_client_rules() = {
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:dhcp_client)
-  |> reason(:udp_datagram_l1)
-  |> reason_model(:dhcp_client_path_reason)
-  |> program_model(:dhcp_client_path_model)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :dhcp_client_path, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: :dhcp_client_path, phase: :resolve_upstream)
-  |> program_rule(predicate: :datagram_observed:udp:local:dhcp_client:remote:dhcp_server:local_to_remote:byte0_mask:0xff:0x01, stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: :dhcp_client_path, phase: :send_discover)
-  |> program_rule(predicate: :datagram_observed:udp:local:dhcp_client:remote:dhcp_server:remote_to_local:byte0_mask:0xff:0x02, stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: :dhcp_client_path, phase: :receive_offer)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: :dhcp_client_path, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: :dhcp_client_path, phase: :resolve_upstream)
-  |> reason_rule(predicate: :datagram_observed:udp:local:dhcp_client:remote:dhcp_server:local_to_remote:byte0_mask:0xff:0x01, key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: :dhcp_client_path, phase: :send_discover)
-  |> reason_rule(predicate: :datagram_observed:udp:local:dhcp_client:remote:dhcp_server:remote_to_local:byte0_mask:0xff:0x02, key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: :dhcp_client_path, phase: :receive_offer)
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :dhcp_client
+  |> reason :udp_datagram_l1
+  |> reason_model :dhcp_client_path_reason
+  |> program_model :dhcp_client_path_model
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: :dhcp_client_path, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: :dhcp_client_path, phase: :resolve_upstream
+  |> program_rule pred: :datagram_observed:udp:local:dhcp_client:remote:dhcp_server:local_to_remote:byte0_mask:0xff:0x01, stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: :dhcp_client_path, phase: :send_discover
+  |> program_rule pred: :datagram_observed:udp:local:dhcp_client:remote:dhcp_server:remote_to_local:byte0_mask:0xff:0x02, stage: :datagram_observed, narr: :udp_datagram_received, dedupe: true, mod: :dhcp_client_path, phase: :receive_offer
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: :dhcp_client_path, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: :dhcp_client_path, phase: :resolve_upstream
+  |> reason_rule pred: :datagram_observed:udp:local:dhcp_client:remote:dhcp_server:local_to_remote:byte0_mask:0xff:0x01, event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: :dhcp_client_path, phase: :send_discover
+  |> reason_rule pred: :datagram_observed:udp:local:dhcp_client:remote:dhcp_server:remote_to_local:byte0_mask:0xff:0x02, event: :udp_datagram_seen, narr: :udp_datagram_received, dedupe: true, mod: :dhcp_client_path, phase: :receive_offer
 }
 
-template(:dhcp_client_path)
-|> window(:default_5s)
-|> use(:dhcp_client_rules)
+template :dhcp_client_path
+|> window :default_5s
+|> use :dhcp_client_rules

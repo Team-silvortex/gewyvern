@@ -63,22 +63,24 @@ Comments start with `#`.
 Example:
 
 ```text
-template(:structured_udp_process_debug)
-|> window(:default_5s)
-|> reason(:udp_datagram_l1)
-|> fragment(:udp_packet_meta_fragment)
-|> fragment(:route_meta_fragment)
-|> fragment(:sock_lineage_fragment)
-|> operation(:datagram_exchange)
-|> program_model(:structured_udp_process_debug_model)
-|> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :structured_udp_process_debug, phase: :bind)
+template :structured_udp_process_debug
+|> window :default_5s
+|> reason :udp_datagram_l1
+|> fragment :udp_packet_meta_fragment
+|> fragment :route_meta_fragment
+|> fragment :sock_lineage_fragment
+|> operation :datagram_exchange
+|> program_model :structured_udp_process_debug_model
+|> program_rule :process_bound, :process_bound, :process_bound, true, mod: :structured_udp_process_debug, phase: :bind
 ```
 
 The pipeline parser first merges files and function units into a single
 pipeline/front-end IR, then lowers that IR into the current compiler surface.
 
-Function units support both `${name}` and shorthand `$name` placeholders, so
+Function units support both `$name` and shorthand `$name` placeholders, so
 parameterized pipelines can stay concise without changing their lowering model.
+Single-argument pipeline calls now also accept a parenless stable form such as
+`template :demo`, `|> include "./module.gewy"`, and `|> program_model :demo_model`.
 
 ## Durable Source Shelves
 
@@ -115,14 +117,14 @@ Anchor examples:
 
 The current recommended stable subset is:
 
-- one package entry file with exactly one `template(...)` head
+- one package entry file with exactly one `template ...` head
 - one pipeline call per line
 - pure function units declared with `fn ... =`, `fn ... =>`, or block form
 - positional and positional-then-named `use(...)` application
 - trailing default parameters for function units
 - local immutable `let` bindings inside function units
 - `include(...)` for package/file composition
-- keyword-style `program_rule(...)` and `reason_rule(...)`
+- keyword-style or positional-core `program_rule(...)` and `reason_rule(...)`
 
 This is the best target if you want DSLs that are likely to remain stable
 through the current hardening path.

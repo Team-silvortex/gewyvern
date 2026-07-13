@@ -1,27 +1,27 @@
 fn http3_server_close_rules() = {
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:http3_server_close_observation)
-  |> reason_model(:http3_server_close_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :http3_server_close_path, phase: :bind)
-  |> program_rule(predicate: :quic_packet_observed:local:quic:remote_to_local:min_len:1200:long_header:true:type:initial, stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: :http3_server_close_path, phase: :receive_initial)
-  |> program_rule(predicate: :quic_frame_observed:local:quic:remote_to_local:type:initial:frame:crypto, stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :http3_server_close_path, phase: :receive_crypto)
-  |> program_rule(predicate: :quic_packet_observed:local:quic:local_to_remote:long_header:true:type:handshake, stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: :http3_server_close_path, phase: :send_handshake)
-  |> program_rule(predicate: :quic_frame_observed:local:quic:local_to_remote:type:handshake:frame:crypto, stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :http3_server_close_path, phase: :send_crypto)
-  |> program_rule(predicate: :quic_frame_observed:local:quic:remote_to_local:frame:stream, stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :http3_server_close_path, phase: :receive_request_stream)
-  |> program_rule(predicate: :quic_frame_observed:local:quic:local_to_remote:frame:stream, stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :http3_server_close_path, phase: :send_response_stream)
-  |> program_rule(predicate: :quic_frame_observed:local:quic:local_to_remote:frame:connection_close, stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :http3_server_close_path, phase: :send_close)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: :http3_server_close_path, phase: :bind)
-  |> reason_rule(predicate: :quic_packet_observed:local:quic:remote_to_local:min_len:1200:long_header:true:type:initial, key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: :http3_server_close_path, phase: :receive_initial)
-  |> reason_rule(predicate: :quic_frame_observed:local:quic:remote_to_local:type:initial:frame:crypto, key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :http3_server_close_path, phase: :receive_crypto)
-  |> reason_rule(predicate: :quic_packet_observed:local:quic:local_to_remote:long_header:true:type:handshake, key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: :http3_server_close_path, phase: :send_handshake)
-  |> reason_rule(predicate: :quic_frame_observed:local:quic:local_to_remote:type:handshake:frame:crypto, key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :http3_server_close_path, phase: :send_crypto)
-  |> reason_rule(predicate: :quic_frame_observed:local:quic:remote_to_local:frame:stream, key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :http3_server_close_path, phase: :receive_request_stream)
-  |> reason_rule(predicate: :quic_frame_observed:local:quic:local_to_remote:frame:stream, key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :http3_server_close_path, phase: :send_response_stream)
-  |> reason_rule(predicate: :quic_frame_observed:local:quic:local_to_remote:frame:connection_close, key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :http3_server_close_path, phase: :send_close)
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :http3_server_close_observation
+  |> reason_model :http3_server_close_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: :http3_server_close_path, phase: :bind
+  |> program_rule pred: :quic_packet_observed:local:quic:remote_to_local:min_len:1200:long_header:true:type:initial, stage: :datagram_observed, narr: :udp_datagram_received, dedupe: true, mod: :http3_server_close_path, phase: :receive_initial
+  |> program_rule pred: :quic_frame_observed:local:quic:remote_to_local:type:initial:frame:crypto, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :http3_server_close_path, phase: :receive_crypto
+  |> program_rule pred: :quic_packet_observed:local:quic:local_to_remote:long_header:true:type:handshake, stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: :http3_server_close_path, phase: :send_handshake
+  |> program_rule pred: :quic_frame_observed:local:quic:local_to_remote:type:handshake:frame:crypto, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :http3_server_close_path, phase: :send_crypto
+  |> program_rule pred: :quic_frame_observed:local:quic:remote_to_local:frame:stream, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :http3_server_close_path, phase: :receive_request_stream
+  |> program_rule pred: :quic_frame_observed:local:quic:local_to_remote:frame:stream, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :http3_server_close_path, phase: :send_response_stream
+  |> program_rule pred: :quic_frame_observed:local:quic:local_to_remote:frame:connection_close, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :http3_server_close_path, phase: :send_close
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: :http3_server_close_path, phase: :bind
+  |> reason_rule pred: :quic_packet_observed:local:quic:remote_to_local:min_len:1200:long_header:true:type:initial, event: :udp_datagram_seen, narr: :udp_datagram_received, dedupe: true, mod: :http3_server_close_path, phase: :receive_initial
+  |> reason_rule pred: :quic_frame_observed:local:quic:remote_to_local:type:initial:frame:crypto, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :http3_server_close_path, phase: :receive_crypto
+  |> reason_rule pred: :quic_packet_observed:local:quic:local_to_remote:long_header:true:type:handshake, event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: :http3_server_close_path, phase: :send_handshake
+  |> reason_rule pred: :quic_frame_observed:local:quic:local_to_remote:type:handshake:frame:crypto, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :http3_server_close_path, phase: :send_crypto
+  |> reason_rule pred: :quic_frame_observed:local:quic:remote_to_local:frame:stream, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :http3_server_close_path, phase: :receive_request_stream
+  |> reason_rule pred: :quic_frame_observed:local:quic:local_to_remote:frame:stream, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :http3_server_close_path, phase: :send_response_stream
+  |> reason_rule pred: :quic_frame_observed:local:quic:local_to_remote:frame:connection_close, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :http3_server_close_path, phase: :send_close
 }
 
-template(:http3_server_close_path)
+template :http3_server_close_path
 |> window(duration_ms: 5000, lateness_ms: 200)
-|> use(:http3_server_close_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+|> use :http3_server_close_rules
+|> param :sock_lineage_fragment.capture_comm, true

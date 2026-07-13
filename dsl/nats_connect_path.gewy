@@ -3,18 +3,18 @@
 fn nats_connect_rules() =
   let module_name = :nats_connect_path
   let connect_narrative = "static:observed a NATS CONNECT/INFO handshake on TCP port 4222"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> operation(:nats_connect)
-  |> reason_model(:nats_connect_path_reason)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_server)
-  |> program_rule(predicate: "packet_observed:tcp:remote:nats:remote_to_local:prefix4:0x494e464f", stage: :packet_observed, narrative: ${connect_narrative}, dedupe: true, module: ${module_name}, phase: :receive_info)
-  |> program_rule(predicate: "packet_observed:tcp:remote:nats:local_to_remote:prefix4:0x434f4e4e", stage: :packet_observed, narrative: ${connect_narrative}, dedupe: true, module: ${module_name}, phase: :send_connect)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_server)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:nats:remote_to_local:prefix4:0x494e464f", key_event: :packet_observed, narrative: ${connect_narrative}, dedupe: true, module: ${module_name}, phase: :receive_info)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:nats:local_to_remote:prefix4:0x434f4e4e", key_event: :packet_observed, narrative: ${connect_narrative}, dedupe: true, module: ${module_name}, phase: :send_connect)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> operation :nats_connect
+  |> reason_model :nats_connect_path_reason
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_server
+  |> program_rule pred: "packet_observed:tcp:remote:nats:remote_to_local:prefix4:0x494e464f", stage: :packet_observed, narr: $connect_narrative, dedupe: true, mod: $module_name, phase: :receive_info
+  |> program_rule pred: "packet_observed:tcp:remote:nats:local_to_remote:prefix4:0x434f4e4e", stage: :packet_observed, narr: $connect_narrative, dedupe: true, mod: $module_name, phase: :send_connect
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_server
+  |> reason_rule pred: "packet_observed:tcp:remote:nats:remote_to_local:prefix4:0x494e464f", event: :packet_observed, narr: $connect_narrative, dedupe: true, mod: $module_name, phase: :receive_info
+  |> reason_rule pred: "packet_observed:tcp:remote:nats:local_to_remote:prefix4:0x434f4e4e", event: :packet_observed, narr: $connect_narrative, dedupe: true, mod: $module_name, phase: :send_connect
 
-template(:nats_connect_path)
-|> window(:default_5s)
-|> use(:nats_connect_rules)
+template :nats_connect_path
+|> window :default_5s
+|> use :nats_connect_rules

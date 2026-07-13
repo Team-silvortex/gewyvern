@@ -3,18 +3,18 @@
 fn rdp_connect_rules() =
   let module_name = :rdp_connect_path
   let narrative = "static:observed RDP TPKT/X.224 connection traffic on TCP port 3389"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> operation(:rdp_connect)
-  |> reason_model(:rdp_connect_path_reason)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_desktop_host)
-  |> program_rule(predicate: "packet_observed:tcp:remote:rdp:local_to_remote:byte_at:0:0xff:0x03:byte_at:5:0xff:0xe0", stage: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :send_x224_connect)
-  |> program_rule(predicate: "packet_observed:tcp:remote:rdp:remote_to_local:byte_at:0:0xff:0x03", stage: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :receive_x224_confirm)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_desktop_host)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:rdp:local_to_remote:byte_at:0:0xff:0x03:byte_at:5:0xff:0xe0", key_event: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :send_x224_connect)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:rdp:remote_to_local:byte_at:0:0xff:0x03", key_event: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :receive_x224_confirm)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> operation :rdp_connect
+  |> reason_model :rdp_connect_path_reason
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_desktop_host
+  |> program_rule pred: "packet_observed:tcp:remote:rdp:local_to_remote:byte_at:0:0xff:0x03:byte_at:5:0xff:0xe0", stage: :packet_observed, narr: $narrative, dedupe: true, mod: $module_name, phase: :send_x224_connect
+  |> program_rule pred: "packet_observed:tcp:remote:rdp:remote_to_local:byte_at:0:0xff:0x03", stage: :packet_observed, narr: $narrative, dedupe: true, mod: $module_name, phase: :receive_x224_confirm
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_desktop_host
+  |> reason_rule pred: "packet_observed:tcp:remote:rdp:local_to_remote:byte_at:0:0xff:0x03:byte_at:5:0xff:0xe0", event: :packet_observed, narr: $narrative, dedupe: true, mod: $module_name, phase: :send_x224_connect
+  |> reason_rule pred: "packet_observed:tcp:remote:rdp:remote_to_local:byte_at:0:0xff:0x03", event: :packet_observed, narr: $narrative, dedupe: true, mod: $module_name, phase: :receive_x224_confirm
 
-template(:rdp_connect_path)
-|> window(:default_5s)
-|> use(:rdp_connect_rules)
+template :rdp_connect_path
+|> window :default_5s
+|> use :rdp_connect_rules

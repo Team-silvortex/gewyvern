@@ -3,18 +3,18 @@
 fn smb_negotiate_rules() =
   let module_name = :smb_negotiate_path
   let narrative = "static:observed SMB2 negotiate traffic on TCP port 445"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> operation(:smb_negotiate)
-  |> reason_model(:smb_negotiate_path_reason)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_share_host)
-  |> program_rule(predicate: "packet_observed:tcp:remote:smb:local_to_remote:byte_at:4:0xff:0xfe:byte_at:16:0xff:0x00", stage: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :send_negotiate)
-  |> program_rule(predicate: "packet_observed:tcp:remote:smb:remote_to_local:byte_at:4:0xff:0xfe", stage: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :receive_negotiate)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_share_host)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:smb:local_to_remote:byte_at:4:0xff:0xfe:byte_at:16:0xff:0x00", key_event: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :send_negotiate)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:smb:remote_to_local:byte_at:4:0xff:0xfe", key_event: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :receive_negotiate)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> operation :smb_negotiate
+  |> reason_model :smb_negotiate_path_reason
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_share_host
+  |> program_rule pred: "packet_observed:tcp:remote:smb:local_to_remote:byte_at:4:0xff:0xfe:byte_at:16:0xff:0x00", stage: :packet_observed, narr: $narrative, dedupe: true, mod: $module_name, phase: :send_negotiate
+  |> program_rule pred: "packet_observed:tcp:remote:smb:remote_to_local:byte_at:4:0xff:0xfe", stage: :packet_observed, narr: $narrative, dedupe: true, mod: $module_name, phase: :receive_negotiate
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_share_host
+  |> reason_rule pred: "packet_observed:tcp:remote:smb:local_to_remote:byte_at:4:0xff:0xfe:byte_at:16:0xff:0x00", event: :packet_observed, narr: $narrative, dedupe: true, mod: $module_name, phase: :send_negotiate
+  |> reason_rule pred: "packet_observed:tcp:remote:smb:remote_to_local:byte_at:4:0xff:0xfe", event: :packet_observed, narr: $narrative, dedupe: true, mod: $module_name, phase: :receive_negotiate
 
-template(:smb_negotiate_path)
-|> window(:default_5s)
-|> use(:smb_negotiate_rules)
+template :smb_negotiate_path
+|> window :default_5s
+|> use :smb_negotiate_rules

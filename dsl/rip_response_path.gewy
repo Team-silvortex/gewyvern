@@ -3,19 +3,19 @@
 fn rip_response_rules() =
   let module_name = :rip_response_path
   let response_narrative = "static:observed a RIP route update response from a neighbor"
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:rip_response)
-  |> reason_model(:rip_response_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_neighbor)
-  |> program_rule(predicate: "datagram_observed:udp:remote:rip:remote_to_local:byte_at:0:0xff:0x02:byte_at:1:0xff:0x02", stage: :datagram_observed, narrative: ${response_narrative}, dedupe: true, module: ${module_name}, phase: :receive_response)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_neighbor)
-  |> reason_rule(predicate: "datagram_observed:udp:remote:rip:remote_to_local:byte_at:0:0xff:0x02:byte_at:1:0xff:0x02", key_event: :udp_datagram_seen, narrative: ${response_narrative}, dedupe: true, module: ${module_name}, phase: :receive_response)
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :rip_response
+  |> reason_model :rip_response_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_neighbor
+  |> program_rule pred: "datagram_observed:udp:remote:rip:remote_to_local:byte_at:0:0xff:0x02:byte_at:1:0xff:0x02", stage: :datagram_observed, narr: $response_narrative, dedupe: true, mod: $module_name, phase: :receive_response
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_neighbor
+  |> reason_rule pred: "datagram_observed:udp:remote:rip:remote_to_local:byte_at:0:0xff:0x02:byte_at:1:0xff:0x02", event: :udp_datagram_seen, narr: $response_narrative, dedupe: true, mod: $module_name, phase: :receive_response
 
-template(:rip_response_path)
-|> window(:default_5s)
-|> use(:rip_response_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+template :rip_response_path
+|> window :default_5s
+|> use :rip_response_rules
+|> param :sock_lineage_fragment.capture_comm, true

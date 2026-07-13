@@ -1,27 +1,27 @@
 fn amqp_connection_start_rules() = {
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:amqp_connection_start)
-  |> reason_model(:amqp_connection_start_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :amqp_connection_start_path, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: :amqp_connection_start_path, phase: :resolve_upstream)
-  |> program_rule(predicate: :socket_state_observed:remote:amqp, stage: :socket_state_transition, narrative: :transport_socket_transition, dedupe: false, module: :amqp_connection_start_path, phase: :connect)
-  |> program_rule(predicate: :socket_state_observed:remote:amqp:established, stage: :socket_state_transition, narrative: :transport_socket_transition, dedupe: true, module: :amqp_connection_start_path, phase: :establish)
-  |> program_rule(predicate: :packet_observed:tcp:remote:amqp:local_to_remote:prefix4:0x414d5150, stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :amqp_connection_start_path, phase: :send_protocol_header)
-  |> program_rule(predicate: :packet_observed:tcp:remote:amqp:remote_to_local:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0a, stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :amqp_connection_start_path, phase: :receive_start)
-  |> program_rule(predicate: :packet_observed:tcp:remote:amqp:local_to_remote:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0b, stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :amqp_connection_start_path, phase: :send_start_ok)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: :amqp_connection_start_path, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: :amqp_connection_start_path, phase: :resolve_upstream)
-  |> reason_rule(predicate: :socket_state_observed:remote:amqp, key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: :amqp_connection_start_path, phase: :connect)
-  |> reason_rule(predicate: :socket_state_observed:remote:amqp:established, key_event: :state_change, narrative: :tcp_state_transition, dedupe: true, module: :amqp_connection_start_path, phase: :establish)
-  |> reason_rule(predicate: :packet_observed:tcp:remote:amqp:local_to_remote:prefix4:0x414d5150, key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :amqp_connection_start_path, phase: :send_protocol_header)
-  |> reason_rule(predicate: :packet_observed:tcp:remote:amqp:remote_to_local:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0a, key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :amqp_connection_start_path, phase: :receive_start)
-  |> reason_rule(predicate: :packet_observed:tcp:remote:amqp:local_to_remote:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0b, key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :amqp_connection_start_path, phase: :send_start_ok)
+  |> fragment :tcp_state_fragment
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :amqp_connection_start
+  |> reason_model :amqp_connection_start_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: :amqp_connection_start_path, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: :amqp_connection_start_path, phase: :resolve_upstream
+  |> program_rule pred: :socket_state_observed:remote:amqp, stage: :socket_state_transition, narr: :transport_socket_transition, dedupe: false, mod: :amqp_connection_start_path, phase: :connect
+  |> program_rule pred: :socket_state_observed:remote:amqp:established, stage: :socket_state_transition, narr: :transport_socket_transition, dedupe: true, mod: :amqp_connection_start_path, phase: :establish
+  |> program_rule pred: :packet_observed:tcp:remote:amqp:local_to_remote:prefix4:0x414d5150, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :amqp_connection_start_path, phase: :send_protocol_header
+  |> program_rule pred: :packet_observed:tcp:remote:amqp:remote_to_local:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0a, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :amqp_connection_start_path, phase: :receive_start
+  |> program_rule pred: :packet_observed:tcp:remote:amqp:local_to_remote:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0b, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :amqp_connection_start_path, phase: :send_start_ok
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: :amqp_connection_start_path, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: :amqp_connection_start_path, phase: :resolve_upstream
+  |> reason_rule pred: :socket_state_observed:remote:amqp, event: :state_change, narr: :tcp_state_transition, dedupe: false, mod: :amqp_connection_start_path, phase: :connect
+  |> reason_rule pred: :socket_state_observed:remote:amqp:established, event: :state_change, narr: :tcp_state_transition, dedupe: true, mod: :amqp_connection_start_path, phase: :establish
+  |> reason_rule pred: :packet_observed:tcp:remote:amqp:local_to_remote:prefix4:0x414d5150, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :amqp_connection_start_path, phase: :send_protocol_header
+  |> reason_rule pred: :packet_observed:tcp:remote:amqp:remote_to_local:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0a, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :amqp_connection_start_path, phase: :receive_start
+  |> reason_rule pred: :packet_observed:tcp:remote:amqp:local_to_remote:byte0_mask:0xff:0x01:byte_at:10:0xff:0x0b, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :amqp_connection_start_path, phase: :send_start_ok
 }
 
-template(:amqp_connection_start_path)
+template :amqp_connection_start_path
 |> window(duration_ms: 5000, lateness_ms: 200)
-|> use(:amqp_connection_start_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+|> use :amqp_connection_start_rules
+|> param :sock_lineage_fragment.capture_comm, true

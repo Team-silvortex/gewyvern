@@ -3,18 +3,18 @@
 fn grpc_status_rules() =
   let module_name = :grpc_status_path
   let status_narrative = "static:observed gRPC status trailers on an HTTP/2 response"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> operation(:grpc_status)
-  |> reason_model(:grpc_status_path_reason)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_service)
-  |> program_rule(predicate: "packet_observed:tcp:remote:https:remote_to_local:byte_at:3:0xff:0x01", stage: :packet_observed, narrative: ${status_narrative}, dedupe: true, module: ${module_name}, phase: :receive_status)
-  |> program_rule(predicate: "packet_observed:tcp:remote:https:remote_to_local:byte_at:4:0xff:0x05", stage: :packet_observed, narrative: ${status_narrative}, dedupe: false, module: ${module_name}, phase: :receive_end_stream)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_service)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:https:remote_to_local:byte_at:3:0xff:0x01", key_event: :packet_observed, narrative: ${status_narrative}, dedupe: true, module: ${module_name}, phase: :receive_status)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:https:remote_to_local:byte_at:4:0xff:0x05", key_event: :packet_observed, narrative: ${status_narrative}, dedupe: false, module: ${module_name}, phase: :receive_end_stream)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> operation :grpc_status
+  |> reason_model :grpc_status_path_reason
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_service
+  |> program_rule pred: "packet_observed:tcp:remote:https:remote_to_local:byte_at:3:0xff:0x01", stage: :packet_observed, narr: $status_narrative, dedupe: true, mod: $module_name, phase: :receive_status
+  |> program_rule pred: "packet_observed:tcp:remote:https:remote_to_local:byte_at:4:0xff:0x05", stage: :packet_observed, narr: $status_narrative, dedupe: false, mod: $module_name, phase: :receive_end_stream
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_service
+  |> reason_rule pred: "packet_observed:tcp:remote:https:remote_to_local:byte_at:3:0xff:0x01", event: :packet_observed, narr: $status_narrative, dedupe: true, mod: $module_name, phase: :receive_status
+  |> reason_rule pred: "packet_observed:tcp:remote:https:remote_to_local:byte_at:4:0xff:0x05", event: :packet_observed, narr: $status_narrative, dedupe: false, mod: $module_name, phase: :receive_end_stream
 
-template(:grpc_status_path)
-|> window(:default_5s)
-|> use(:grpc_status_rules)
+template :grpc_status_path
+|> window :default_5s
+|> use :grpc_status_rules

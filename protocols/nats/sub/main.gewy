@@ -3,18 +3,18 @@
 fn nats_sub_rules() =
   let module_name = :nats_sub_path
   let sub_narrative = "static:observed a NATS SUB command on TCP port 4222"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> operation(:nats_sub)
-  |> reason_model(:nats_sub_path_reason)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_server)
-  |> program_rule(predicate: "packet_observed:tcp:remote:nats:local_to_remote:prefix4:0x53554220", stage: :packet_observed, narrative: ${sub_narrative}, dedupe: true, module: ${module_name}, phase: :send_subscribe)
-  |> program_rule(predicate: "packet_observed:tcp:remote:nats:remote_to_local:prefix4:0x4d534720", stage: :packet_observed, narrative: ${sub_narrative}, dedupe: true, module: ${module_name}, phase: :receive_message)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_server)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:nats:local_to_remote:prefix4:0x53554220", key_event: :packet_observed, narrative: ${sub_narrative}, dedupe: true, module: ${module_name}, phase: :send_subscribe)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:nats:remote_to_local:prefix4:0x4d534720", key_event: :packet_observed, narrative: ${sub_narrative}, dedupe: true, module: ${module_name}, phase: :receive_message)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> operation :nats_sub
+  |> reason_model :nats_sub_path_reason
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_server
+  |> program_rule pred: "packet_observed:tcp:remote:nats:local_to_remote:prefix4:0x53554220", stage: :packet_observed, narr: $sub_narrative, dedupe: true, mod: $module_name, phase: :send_subscribe
+  |> program_rule pred: "packet_observed:tcp:remote:nats:remote_to_local:prefix4:0x4d534720", stage: :packet_observed, narr: $sub_narrative, dedupe: true, mod: $module_name, phase: :receive_message
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_server
+  |> reason_rule pred: "packet_observed:tcp:remote:nats:local_to_remote:prefix4:0x53554220", event: :packet_observed, narr: $sub_narrative, dedupe: true, mod: $module_name, phase: :send_subscribe
+  |> reason_rule pred: "packet_observed:tcp:remote:nats:remote_to_local:prefix4:0x4d534720", event: :packet_observed, narr: $sub_narrative, dedupe: true, mod: $module_name, phase: :receive_message
 
-template(:nats_sub_path)
-|> window(:default_5s)
-|> use(:nats_sub_rules)
+template :nats_sub_path
+|> window :default_5s
+|> use :nats_sub_rules

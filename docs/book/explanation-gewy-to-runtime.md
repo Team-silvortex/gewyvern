@@ -63,19 +63,19 @@ The example DSL file is:
 fn udp_process_rules() =
   let transport_predicate = "datagram_observed:udp"
   let route_narrative = "static:program resolved a route for this network flow"
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:datagram_exchange)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)
-  |> program_rule(predicate: ${transport_predicate}, stage: :datagram_observed, narrative: "static:program emitted or received a UDP datagram", dedupe: true)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true)
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :datagram_exchange
+  |> program_rule :process_bound, :process_bound, :process_bound, true
+  |> program_rule $transport_predicate, :datagram_observed, "static:program emitted or received a UDP datagram", true
+  |> program_rule :route_resolved, :route_resolved, $route_narrative, true
 
-template(:udp_process_debug)
+template :udp_process_debug
 |> window(duration_ms: 5000, lateness_ms: 200)
-|> reason(:udp_datagram_l1)
-|> use(:udp_process_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+|> reason :udp_datagram_l1
+|> use :udp_process_rules
+|> param :sock_lineage_fragment.capture_comm, true
 ```
 
 What this means:

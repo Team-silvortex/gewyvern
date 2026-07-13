@@ -328,7 +328,8 @@ fn envelope_json_mentions_all_surfaces() {
     ));
     assert!(json.contains("\"binding\":"));
     assert!(json.contains("\"diagnostics\":"));
-    assert!(json.contains("\"findings\":{\"findings\":[]}"));
+    assert!(json.contains("\"findings\":{\"summary\":"));
+    assert!(json.contains("\"findings\":[]"));
     assert!(json.contains("\"stages\":"));
 }
 
@@ -337,13 +338,15 @@ fn init_templates_include_manifest_and_main_entry() {
     assert!(render_init_manifest("demo").contains("# gewylang package manifest"));
     assert!(render_init_manifest("demo").contains("entry=main.gewy"));
     assert!(render_init_entry("demo").contains("# main.gewy is the single package entrypoint."));
-    assert!(render_init_entry("demo").contains("|> include(\"./module.gewy\")"));
-    assert!(render_init_entry("demo").contains("|> use(:network_module)"));
+    assert!(render_init_entry("demo").contains("template :demo"));
+    assert!(render_init_entry("demo").contains("|> include \"./module.gewy\""));
+    assert!(render_init_entry("demo").contains("|> use :network_module"));
     assert!(render_init_module("demo").contains("# module.gewy is for reusable function units."));
     assert!(render_init_module("demo").contains("fn network_module() ="));
     assert!(render_init_module("demo").contains("  let model_name = :demo_model"));
-    assert!(render_init_module("demo").contains("let model_name = :demo_model"));
-    assert!(render_init_module("demo").contains("|> program_model(${model_name})"));
+    assert!(render_init_module("demo").contains("|> fragment :udp_packet_meta_fragment"));
+    assert!(render_init_module("demo").contains("|> operation ${op_name}"));
+    assert!(render_init_module("demo").contains("|> program_model ${model_name}"));
 }
 
 #[test]

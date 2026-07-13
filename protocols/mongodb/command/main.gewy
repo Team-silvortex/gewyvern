@@ -3,22 +3,22 @@
 fn mongodb_command_rules() =
   let module_name = :mongodb_command_path
   let command_narrative = "static:observed a MongoDB OP_MSG command sent to the server"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:mongodb_command)
-  |> reason_model(:mongodb_command_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_server)
-  |> program_rule(predicate: "socket_state_observed:remote:27017", stage: :socket_state_transition, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
-  |> program_rule(predicate: "packet_observed:tcp:remote:27017:local_to_remote:bytes_at:12:0xdd,0x07,0x00,0x00", stage: :packet_observed, narrative: ${command_narrative}, dedupe: true, module: ${module_name}, phase: :send_op_msg)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_server)
-  |> reason_rule(predicate: "socket_state_observed:remote:27017", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:27017:local_to_remote:bytes_at:12:0xdd,0x07,0x00,0x00", key_event: :packet_observed, narrative: ${command_narrative}, dedupe: true, module: ${module_name}, phase: :send_op_msg)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :mongodb_command
+  |> reason_model :mongodb_command_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_server
+  |> program_rule pred: "socket_state_observed:remote:27017", stage: :socket_state_transition, narr: :tcp_state_transition, dedupe: false, mod: $module_name, phase: :connect
+  |> program_rule pred: "packet_observed:tcp:remote:27017:local_to_remote:bytes_at:12:0xdd,0x07,0x00,0x00", stage: :packet_observed, narr: $command_narrative, dedupe: true, mod: $module_name, phase: :send_op_msg
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_server
+  |> reason_rule pred: "socket_state_observed:remote:27017", event: :state_change, narr: :tcp_state_transition, dedupe: false, mod: $module_name, phase: :connect
+  |> reason_rule pred: "packet_observed:tcp:remote:27017:local_to_remote:bytes_at:12:0xdd,0x07,0x00,0x00", event: :packet_observed, narr: $command_narrative, dedupe: true, mod: $module_name, phase: :send_op_msg
 
-template(:mongodb_command_path)
-|> window(:default_5s)
-|> use(:mongodb_command_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+template :mongodb_command_path
+|> window :default_5s
+|> use :mongodb_command_rules
+|> param :sock_lineage_fragment.capture_comm, true

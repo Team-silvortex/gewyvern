@@ -1,34 +1,34 @@
 fn hy2_tcp_close_rules() = {
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:hy2_tcp_close_observation)
-  |> reason_model(:hy2_tcp_close_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :hy2_tcp_close_path, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: :hy2_tcp_close_path, phase: :resolve_upstream)
-  |> program_rule(predicate: :quic_packet_observed:remote:hy2:local_to_remote:min_len:1200:long_header:true:type:initial, stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: :hy2_tcp_close_path, phase: :send_initial)
-  |> program_rule(predicate: :quic_frame_observed:remote:hy2:local_to_remote:type:initial:frame:crypto, stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :hy2_tcp_close_path, phase: :send_crypto)
-  |> program_rule(predicate: :quic_packet_observed:remote:hy2:remote_to_local:long_header:true:type:handshake, stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: :hy2_tcp_close_path, phase: :receive_handshake)
-  |> program_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:type:handshake:frame:crypto, stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :hy2_tcp_close_path, phase: :receive_crypto)
-  |> program_rule(predicate: :quic_frame_observed:remote:hy2:local_to_remote:frame:stream, stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :hy2_tcp_close_path, phase: :send_auth_request_stream)
-  |> program_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:frame:stream, stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :hy2_tcp_close_path, phase: :receive_auth_ok_stream)
-  |> program_rule(predicate: "quic_frame_observed:remote:hy2:local_to_remote:frame:stream:bytes_at:0:0x44,0x01", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :hy2_tcp_close_path, phase: :send_tcp_request_stream)
-  |> program_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:frame:stream:byte_at:0:0xff:0x00, stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :hy2_tcp_close_path, phase: :receive_tcp_response_stream)
-  |> program_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:frame:connection_close, stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :hy2_tcp_close_path, phase: :receive_close)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: :hy2_tcp_close_path, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: :hy2_tcp_close_path, phase: :resolve_upstream)
-  |> reason_rule(predicate: :quic_packet_observed:remote:hy2:local_to_remote:min_len:1200:long_header:true:type:initial, key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: :hy2_tcp_close_path, phase: :send_initial)
-  |> reason_rule(predicate: :quic_frame_observed:remote:hy2:local_to_remote:type:initial:frame:crypto, key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :hy2_tcp_close_path, phase: :send_crypto)
-  |> reason_rule(predicate: :quic_packet_observed:remote:hy2:remote_to_local:long_header:true:type:handshake, key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: :hy2_tcp_close_path, phase: :receive_handshake)
-  |> reason_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:type:handshake:frame:crypto, key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :hy2_tcp_close_path, phase: :receive_crypto)
-  |> reason_rule(predicate: :quic_frame_observed:remote:hy2:local_to_remote:frame:stream, key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :hy2_tcp_close_path, phase: :send_auth_request_stream)
-  |> reason_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:frame:stream, key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :hy2_tcp_close_path, phase: :receive_auth_ok_stream)
-  |> reason_rule(predicate: "quic_frame_observed:remote:hy2:local_to_remote:frame:stream:bytes_at:0:0x44,0x01", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :hy2_tcp_close_path, phase: :send_tcp_request_stream)
-  |> reason_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:frame:stream:byte_at:0:0xff:0x00, key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :hy2_tcp_close_path, phase: :receive_tcp_response_stream)
-  |> reason_rule(predicate: :quic_frame_observed:remote:hy2:remote_to_local:frame:connection_close, key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :hy2_tcp_close_path, phase: :receive_close)
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :hy2_tcp_close_observation
+  |> reason_model :hy2_tcp_close_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: :hy2_tcp_close_path, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: :hy2_tcp_close_path, phase: :resolve_upstream
+  |> program_rule pred: :quic_packet_observed:remote:hy2:local_to_remote:min_len:1200:long_header:true:type:initial, stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: :hy2_tcp_close_path, phase: :send_initial
+  |> program_rule pred: :quic_frame_observed:remote:hy2:local_to_remote:type:initial:frame:crypto, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :hy2_tcp_close_path, phase: :send_crypto
+  |> program_rule pred: :quic_packet_observed:remote:hy2:remote_to_local:long_header:true:type:handshake, stage: :datagram_observed, narr: :udp_datagram_received, dedupe: true, mod: :hy2_tcp_close_path, phase: :receive_handshake
+  |> program_rule pred: :quic_frame_observed:remote:hy2:remote_to_local:type:handshake:frame:crypto, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :hy2_tcp_close_path, phase: :receive_crypto
+  |> program_rule pred: :quic_frame_observed:remote:hy2:local_to_remote:frame:stream, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :hy2_tcp_close_path, phase: :send_auth_request_stream
+  |> program_rule pred: :quic_frame_observed:remote:hy2:remote_to_local:frame:stream, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :hy2_tcp_close_path, phase: :receive_auth_ok_stream
+  |> program_rule pred: "quic_frame_observed:remote:hy2:local_to_remote:frame:stream:bytes_at:0:0x44,0x01", stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :hy2_tcp_close_path, phase: :send_tcp_request_stream
+  |> program_rule pred: :quic_frame_observed:remote:hy2:remote_to_local:frame:stream:byte_at:0:0xff:0x00, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :hy2_tcp_close_path, phase: :receive_tcp_response_stream
+  |> program_rule pred: :quic_frame_observed:remote:hy2:remote_to_local:frame:connection_close, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :hy2_tcp_close_path, phase: :receive_close
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: :hy2_tcp_close_path, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: :hy2_tcp_close_path, phase: :resolve_upstream
+  |> reason_rule pred: :quic_packet_observed:remote:hy2:local_to_remote:min_len:1200:long_header:true:type:initial, event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: :hy2_tcp_close_path, phase: :send_initial
+  |> reason_rule pred: :quic_frame_observed:remote:hy2:local_to_remote:type:initial:frame:crypto, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :hy2_tcp_close_path, phase: :send_crypto
+  |> reason_rule pred: :quic_packet_observed:remote:hy2:remote_to_local:long_header:true:type:handshake, event: :udp_datagram_seen, narr: :udp_datagram_received, dedupe: true, mod: :hy2_tcp_close_path, phase: :receive_handshake
+  |> reason_rule pred: :quic_frame_observed:remote:hy2:remote_to_local:type:handshake:frame:crypto, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :hy2_tcp_close_path, phase: :receive_crypto
+  |> reason_rule pred: :quic_frame_observed:remote:hy2:local_to_remote:frame:stream, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :hy2_tcp_close_path, phase: :send_auth_request_stream
+  |> reason_rule pred: :quic_frame_observed:remote:hy2:remote_to_local:frame:stream, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :hy2_tcp_close_path, phase: :receive_auth_ok_stream
+  |> reason_rule pred: "quic_frame_observed:remote:hy2:local_to_remote:frame:stream:bytes_at:0:0x44,0x01", event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :hy2_tcp_close_path, phase: :send_tcp_request_stream
+  |> reason_rule pred: :quic_frame_observed:remote:hy2:remote_to_local:frame:stream:byte_at:0:0xff:0x00, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :hy2_tcp_close_path, phase: :receive_tcp_response_stream
+  |> reason_rule pred: :quic_frame_observed:remote:hy2:remote_to_local:frame:connection_close, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :hy2_tcp_close_path, phase: :receive_close
 }
 
-template(:hy2_tcp_close_path)
+template :hy2_tcp_close_path
 |> window(duration_ms: 5000, lateness_ms: 200)
-|> use(:hy2_tcp_close_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+|> use :hy2_tcp_close_rules
+|> param :sock_lineage_fragment.capture_comm, true

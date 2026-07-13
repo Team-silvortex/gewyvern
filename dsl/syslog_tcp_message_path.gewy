@@ -3,18 +3,18 @@
 fn syslog_tcp_message_rules() =
   let module_name = :syslog_tcp_message_path
   let message_narrative = "static:program emitted a syslog TCP frame beginning with PRI"
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:syslog_tcp_message)
-  |> reason_model(:syslog_tcp_message_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: "packet_observed:tcp:remote:syslog:local_to_remote:byte0_mask:0xff:0x3c", stage: :packet_observed, narrative: ${message_narrative}, dedupe: true, module: ${module_name}, phase: :send_syslog_frame)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:syslog:local_to_remote:byte0_mask:0xff:0x3c", key_event: :packet_observed, narrative: ${message_narrative}, dedupe: true, module: ${module_name}, phase: :send_syslog_frame)
+  |> fragment :tcp_state_fragment
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :syslog_tcp_message
+  |> reason_model :syslog_tcp_message_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: "packet_observed:tcp:remote:syslog:local_to_remote:byte0_mask:0xff:0x3c", stage: :packet_observed, narr: $message_narrative, dedupe: true, mod: $module_name, phase: :send_syslog_frame
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: "packet_observed:tcp:remote:syslog:local_to_remote:byte0_mask:0xff:0x3c", event: :packet_observed, narr: $message_narrative, dedupe: true, mod: $module_name, phase: :send_syslog_frame
 
-template(:syslog_tcp_message_path)
+template :syslog_tcp_message_path
 |> window(duration_ms: 5000, lateness_ms: 200)
-|> use(:syslog_tcp_message_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+|> use :syslog_tcp_message_rules
+|> param :sock_lineage_fragment.capture_comm, true

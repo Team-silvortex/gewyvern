@@ -325,9 +325,10 @@ fn infer_call_placeholder_kinds(
             }
         }
         "program_rule" | "reason_rule" => {
-            for arg in &call.args {
+            let reason_rule = call.name == "reason_rule";
+            for (index, arg) in call.args.iter().enumerate() {
                 if let Some((name, value)) = split_keyword_arg(arg) {
-                    match name {
+                    match canonical_pipeline_rule_keyword(name, reason_rule) {
                         "predicate" => note_placeholders(
                             function_signature,
                             output,
@@ -372,12 +373,38 @@ fn infer_call_placeholder_kinds(
                         )?,
                         _ => {}
                     }
+                    continue;
+                }
+                match positional_rule_kind(index, reason_rule) {
+                    Some(kind) => note_placeholders(function_signature, output, arg, kind)?,
+                    None => {}
                 }
             }
         }
         _ => {}
     }
     Ok(())
+}
+
+fn canonical_pipeline_rule_keyword<'a>(name: &'a str, reason_rule: bool) -> &'a str {
+    match name {
+        "pred" => "predicate",
+        "event" if reason_rule => "key_event",
+        "narr" => "narrative",
+        "mod" => "module",
+        other => other,
+    }
+}
+
+fn positional_rule_kind(index: usize, reason_rule: bool) -> Option<PipelineValueKind> {
+    match (index, reason_rule) {
+        (0, _) => Some(PipelineValueKind::Predicate),
+        (1, false) => Some(PipelineValueKind::Stage),
+        (1, true) => Some(PipelineValueKind::KeyEvent),
+        (2, _) => Some(PipelineValueKind::Narrative),
+        (3, _) => Some(PipelineValueKind::Bool),
+        _ => None,
+    }
 }
 
 fn note_placeholders(

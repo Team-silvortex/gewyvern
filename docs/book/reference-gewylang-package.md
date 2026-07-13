@@ -81,7 +81,7 @@ Current intended uses:
 Example:
 
 ```text
-|> include("./network_rules.gewy")
+|> include "./network_rules.gewy"
 ```
 
 Meaning:
@@ -93,7 +93,7 @@ Meaning:
 Example:
 
 ```text
-|> include("shared_udp:helpers/network_rules.gewy")
+|> include "shared_udp:helpers/network_rules.gewy"
 ```
 
 Meaning:
@@ -116,18 +116,18 @@ Preferred form:
 
 ```text
 fn udp_process_rules(model_name, op_name = :datagram_exchange) =
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> operation(${op_name})
-  |> program_model(${model_name})
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> operation $op_name
+  |> program_model $model_name
 ```
 
 Accepted alias:
 
 ```text
 fn udp_process_rules(model_name, op_name = :datagram_exchange) =>
-  |> fragment(:udp_packet_meta_fragment)
-  |> operation(${op_name})
+  |> fragment :udp_packet_meta_fragment
+  |> operation $op_name
 ```
 
 Current characteristics:
@@ -144,7 +144,7 @@ Current characteristics:
 ### Positional Arguments
 
 ```text
-|> use(:udp_process_rules, :udp_process_debug_model)
+|> use :udp_process_rules, :udp_process_debug_model
 ```
 
 ### Tail Default Arguments
@@ -153,14 +153,14 @@ Function units may declare trailing defaults:
 
 ```text
 fn udp_process_rules(model_name, op_name = :datagram_exchange) =
-  |> operation(${op_name})
-  |> program_model(${model_name})
+  |> operation $op_name
+  |> program_model $model_name
 ```
 
 Valid call:
 
 ```text
-|> use(:udp_process_rules, :udp_process_debug_model)
+|> use :udp_process_rules, :udp_process_debug_model
 ```
 
 ### Named Arguments
@@ -168,13 +168,13 @@ Valid call:
 Valid named call:
 
 ```text
-|> use(:udp_process_rules, model_name: :udp_process_debug_model, op_name: :custom_exchange)
+|> use :udp_process_rules, model_name: :udp_process_debug_model, op_name: :custom_exchange
 ```
 
 Valid mixed call:
 
 ```text
-|> use(:udp_process_rules, :udp_process_debug_model, op_name: :custom_exchange)
+|> use :udp_process_rules, :udp_process_debug_model, op_name: :custom_exchange
 ```
 
 ### Current Call Rules

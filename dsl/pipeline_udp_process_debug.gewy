@@ -1,17 +1,17 @@
 fn udp_process_core() =
   let module_name = :pipeline_udp_process_debug
   let model_name = :pipeline_udp_process_debug_model
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:datagram_exchange)
-  |> program_model(${model_name})
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: "datagram_observed:udp", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_request)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: "static:program resolved a route for this network flow", dedupe: true, module: ${module_name}, phase: :resolve)
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :datagram_exchange
+  |> program_model $model_name
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: "datagram_observed:udp", stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_request
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: "static:program resolved a route for this network flow", dedupe: true, mod: $module_name, phase: :resolve
 
-template(:pipeline_udp_process_debug)
+template :pipeline_udp_process_debug
 |> window(duration_ms: 5000, lateness_ms: 200)
-|> reason(:udp_datagram_l1)
-|> use(:udp_process_core)
-|> param(:sock_lineage_fragment.capture_comm, true)
+|> reason :udp_datagram_l1
+|> use :udp_process_core
+|> param :sock_lineage_fragment.capture_comm, true

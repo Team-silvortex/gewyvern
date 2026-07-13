@@ -3,17 +3,17 @@
 fn l2tp_session_rules() =
   let module_name = :l2tp_session_path
   let session_narrative = "static:observed an L2TP data session packet on UDP port 1701"
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> operation(:l2tp_session)
-  |> reason_model(:l2tp_session_path_reason)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_tunnel)
-  |> program_rule(predicate: "datagram_observed:udp:remote:l2tp:local_to_remote:byte0_mask:0xc0:0x00", stage: :datagram_observed, narrative: ${session_narrative}, dedupe: true, module: ${module_name}, phase: :send_session_packet)
-  |> program_rule(predicate: "datagram_observed:udp:remote:l2tp:remote_to_local:byte0_mask:0xc0:0x00", stage: :datagram_observed, narrative: ${session_narrative}, dedupe: true, module: ${module_name}, phase: :receive_session_packet)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_tunnel)
-  |> reason_rule(predicate: "datagram_observed:udp:remote:l2tp:local_to_remote:byte0_mask:0xc0:0x00", key_event: :udp_datagram_seen, narrative: ${session_narrative}, dedupe: true, module: ${module_name}, phase: :send_session_packet)
-  |> reason_rule(predicate: "datagram_observed:udp:remote:l2tp:remote_to_local:byte0_mask:0xc0:0x00", key_event: :udp_datagram_seen, narrative: ${session_narrative}, dedupe: true, module: ${module_name}, phase: :receive_session_packet)
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> operation :l2tp_session
+  |> reason_model :l2tp_session_path_reason
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_tunnel
+  |> program_rule pred: "datagram_observed:udp:remote:l2tp:local_to_remote:byte0_mask:0xc0:0x00", stage: :datagram_observed, narr: $session_narrative, dedupe: true, mod: $module_name, phase: :send_session_packet
+  |> program_rule pred: "datagram_observed:udp:remote:l2tp:remote_to_local:byte0_mask:0xc0:0x00", stage: :datagram_observed, narr: $session_narrative, dedupe: true, mod: $module_name, phase: :receive_session_packet
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_tunnel
+  |> reason_rule pred: "datagram_observed:udp:remote:l2tp:local_to_remote:byte0_mask:0xc0:0x00", event: :udp_datagram_seen, narr: $session_narrative, dedupe: true, mod: $module_name, phase: :send_session_packet
+  |> reason_rule pred: "datagram_observed:udp:remote:l2tp:remote_to_local:byte0_mask:0xc0:0x00", event: :udp_datagram_seen, narr: $session_narrative, dedupe: true, mod: $module_name, phase: :receive_session_packet
 
-template(:l2tp_session_path)
-|> window(:default_5s)
-|> use(:l2tp_session_rules)
+template :l2tp_session_path
+|> window :default_5s
+|> use :l2tp_session_rules

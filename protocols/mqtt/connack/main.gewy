@@ -4,20 +4,20 @@ fn mqtt_connack_rules() =
   let module_name = :mqtt_connack_path
   let route_narrative = "static:program resolved an upstream route for this MQTT CONNACK path"
   let connack_narrative = "static:observed an MQTT broker CONNACK response"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> program_model(:mqtt_connack_path_model)
-  |> operation(:mqtt_connack)
-  |> reason_model(:mqtt_connack_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
-  |> program_rule(predicate: "packet_observed:tcp:remote:mqtt:remote_to_local:byte0_mask:0xf0:0x20:byte_at:1:0xff:0x02", stage: :packet_observed, narrative: ${connack_narrative}, dedupe: true, module: ${module_name}, phase: :receive_connack)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:mqtt:remote_to_local:byte0_mask:0xf0:0x20:byte_at:1:0xff:0x02", key_event: :packet_observed, narrative: ${connack_narrative}, dedupe: true, module: ${module_name}, phase: :receive_connack)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> program_model :mqtt_connack_path_model
+  |> operation :mqtt_connack
+  |> reason_model :mqtt_connack_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> program_rule pred: "packet_observed:tcp:remote:mqtt:remote_to_local:byte0_mask:0xf0:0x20:byte_at:1:0xff:0x02", stage: :packet_observed, narr: $connack_narrative, dedupe: true, mod: $module_name, phase: :receive_connack
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> reason_rule pred: "packet_observed:tcp:remote:mqtt:remote_to_local:byte0_mask:0xf0:0x20:byte_at:1:0xff:0x02", event: :packet_observed, narr: $connack_narrative, dedupe: true, mod: $module_name, phase: :receive_connack
 
-template(:mqtt_connack_path)
-|> window(:default_5s)
-|> use(:mqtt_connack_rules)
+template :mqtt_connack_path
+|> window :default_5s
+|> use :mqtt_connack_rules

@@ -3,22 +3,22 @@
 fn prometheus_alertmanager_rules() =
   let module_name = :prometheus_alertmanager_path
   let alert_narrative = "static:observed a Prometheus Alertmanager API request"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:prometheus_alertmanager)
-  |> reason_model(:prometheus_alertmanager_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_alertmanager)
-  |> program_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x504f5354", stage: :packet_observed, narrative: ${alert_narrative}, dedupe: true, module: ${module_name}, phase: :send_alerts)
-  |> program_rule(predicate: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_alert_response)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_alertmanager)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x504f5354", key_event: :packet_observed, narrative: ${alert_narrative}, dedupe: true, module: ${module_name}, phase: :send_alerts)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_alert_response)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :prometheus_alertmanager
+  |> reason_model :prometheus_alertmanager_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_alertmanager
+  |> program_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x504f5354", stage: :packet_observed, narr: $alert_narrative, dedupe: true, mod: $module_name, phase: :send_alerts
+  |> program_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_alert_response
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_alertmanager
+  |> reason_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x504f5354", event: :packet_observed, narr: $alert_narrative, dedupe: true, mod: $module_name, phase: :send_alerts
+  |> reason_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_alert_response
 
-template(:prometheus_alertmanager_path)
-|> window(:default_5s)
-|> use(:prometheus_alertmanager_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+template :prometheus_alertmanager_path
+|> window :default_5s
+|> use :prometheus_alertmanager_rules
+|> param :sock_lineage_fragment.capture_comm, true

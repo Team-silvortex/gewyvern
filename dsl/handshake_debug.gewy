@@ -2,15 +2,15 @@
 
 fn handshake_rules() =
   let route_narrative = "static:program resolved a route for this network flow"
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> operation(:connect_flow)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)
-  |> program_rule(predicate: :socket_state_observed, stage: :socket_state_transition, narrative: :none, dedupe: false)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true)
+  |> fragment :tcp_state_fragment
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> operation :connect_flow
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true
+  |> program_rule pred: :socket_state_observed, stage: :socket_state_transition, narr: :none, dedupe: false
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true
 
-template(:handshake_debug)
+template :handshake_debug
 |> window(duration_ms: 5000, lateness_ms: 200)
-|> reason(:handshake_l1)
-|> use(:handshake_rules)
+|> reason :handshake_l1
+|> use :handshake_rules

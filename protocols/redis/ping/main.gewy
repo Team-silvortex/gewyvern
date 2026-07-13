@@ -3,22 +3,22 @@
 fn redis_ping_rules() =
   let module_name = :redis_ping_path
   let route_narrative = "static:program resolved an upstream route for this Redis path"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> program_model(:redis_ping_path_model)
-  |> operation(:redis_ping)
-  |> reason_model(:redis_ping_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
-  |> program_rule(predicate: "packet_observed:tcp:remote:redis:local_to_remote:byte0_mask:0xff:0x2a", stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_ping)
-  |> program_rule(predicate: "packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_pong)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:redis:local_to_remote:byte0_mask:0xff:0x2a", key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: ${module_name}, phase: :send_ping)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_pong)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> program_model :redis_ping_path_model
+  |> operation :redis_ping
+  |> reason_model :redis_ping_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> program_rule pred: "packet_observed:tcp:remote:redis:local_to_remote:byte0_mask:0xff:0x2a", stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_ping
+  |> program_rule pred: "packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_pong
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> reason_rule pred: "packet_observed:tcp:remote:redis:local_to_remote:byte0_mask:0xff:0x2a", event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_ping
+  |> reason_rule pred: "packet_observed:tcp:remote:redis:remote_to_local:prefix4:0x2b504f4e", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_pong
 
-template(:redis_ping_path)
-|> window(:default_5s)
-|> use(:redis_ping_rules)
+template :redis_ping_path
+|> window :default_5s
+|> use :redis_ping_rules

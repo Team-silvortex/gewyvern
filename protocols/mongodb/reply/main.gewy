@@ -4,22 +4,22 @@ fn mongodb_reply_rules() =
   let module_name = :mongodb_reply_path
   let opmsg_reply_narrative = "static:observed a MongoDB OP_MSG reply from the server"
   let legacy_reply_narrative = "static:observed a legacy MongoDB OP_REPLY response from the server"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:mongodb_reply)
-  |> reason_model(:mongodb_reply_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_server)
-  |> program_rule(predicate: "packet_observed:tcp:remote:27017:remote_to_local:bytes_at:12:0xdd,0x07,0x00,0x00", stage: :packet_observed, narrative: ${opmsg_reply_narrative}, dedupe: true, module: ${module_name}, phase: :receive_op_msg)
-  |> program_rule(predicate: "packet_observed:tcp:remote:27017:remote_to_local:bytes_at:12:0x01,0x00,0x00,0x00", stage: :packet_observed, narrative: ${legacy_reply_narrative}, dedupe: true, module: ${module_name}, phase: :receive_op_reply)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_server)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:27017:remote_to_local:bytes_at:12:0xdd,0x07,0x00,0x00", key_event: :packet_observed, narrative: ${opmsg_reply_narrative}, dedupe: true, module: ${module_name}, phase: :receive_op_msg)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:27017:remote_to_local:bytes_at:12:0x01,0x00,0x00,0x00", key_event: :packet_observed, narrative: ${legacy_reply_narrative}, dedupe: true, module: ${module_name}, phase: :receive_op_reply)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :mongodb_reply
+  |> reason_model :mongodb_reply_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_server
+  |> program_rule pred: "packet_observed:tcp:remote:27017:remote_to_local:bytes_at:12:0xdd,0x07,0x00,0x00", stage: :packet_observed, narr: $opmsg_reply_narrative, dedupe: true, mod: $module_name, phase: :receive_op_msg
+  |> program_rule pred: "packet_observed:tcp:remote:27017:remote_to_local:bytes_at:12:0x01,0x00,0x00,0x00", stage: :packet_observed, narr: $legacy_reply_narrative, dedupe: true, mod: $module_name, phase: :receive_op_reply
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_server
+  |> reason_rule pred: "packet_observed:tcp:remote:27017:remote_to_local:bytes_at:12:0xdd,0x07,0x00,0x00", event: :packet_observed, narr: $opmsg_reply_narrative, dedupe: true, mod: $module_name, phase: :receive_op_msg
+  |> reason_rule pred: "packet_observed:tcp:remote:27017:remote_to_local:bytes_at:12:0x01,0x00,0x00,0x00", event: :packet_observed, narr: $legacy_reply_narrative, dedupe: true, mod: $module_name, phase: :receive_op_reply
 
-template(:mongodb_reply_path)
-|> window(:default_5s)
-|> use(:mongodb_reply_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+template :mongodb_reply_path
+|> window :default_5s
+|> use :mongodb_reply_rules
+|> param :sock_lineage_fragment.capture_comm, true

@@ -42,6 +42,46 @@ template(:frontend_defaults)
 }
 
 #[test]
+fn explain_report_rejects_key_event_alias_inference_mismatches_for_pipeline_arguments() {
+    let report = compile_explain_report_str(
+        r#"
+fn reason_module(event_value = :process_identified) =
+  |> reason_model(:reason_model)
+  |> reason_rule(pred: :process_bound, event: ${event_value}, narr: :process_bound, dedupe: true, mod: :reason_module, phase: :bind)
+
+template(:frontend_defaults)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:reason_module, event_value: :not_a_real_event)
+"#,
+    );
+    assert!(!report.ok);
+    let text = render_explain_report(&report, RenderFormat::Text);
+    assert!(text.contains("expects key_event-compatible value"));
+    assert!(text.contains("event_value"));
+}
+
+#[test]
+fn explain_report_rejects_reason_rule_positional_key_event_inference_mismatches() {
+    let report = compile_explain_report_str(
+        r#"
+fn reason_module(event_value = :process_identified) =
+  |> reason_model(:reason_model)
+  |> reason_rule :process_bound, ${event_value}, :process_bound, true, mod: :reason_module, phase: :bind
+
+template(:frontend_defaults)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:reason_module, event_value: :not_a_real_event)
+"#,
+    );
+    assert!(!report.ok);
+    let text = render_explain_report(&report, RenderFormat::Text);
+    assert!(text.contains("expects key_event-compatible value"));
+    assert!(text.contains("event_value"));
+}
+
+#[test]
 fn explain_report_rejects_phase_inference_mismatches_for_pipeline_arguments() {
     let report = compile_explain_report_str(
         r#"

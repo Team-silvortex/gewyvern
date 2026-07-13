@@ -222,6 +222,7 @@ fn udp_core() {
   |> program_model(:frontend_summary_pkg_model)
   |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :frontend_summary_pkg, phase: :bind)
 }
+
 "#,
     )
     .unwrap();
@@ -287,6 +288,121 @@ fn udp_core() {
             .iter()
             .any(|edge| edge.kind == "include" && edge.line == 5)
     );
+}
+
+#[test]
+fn pipeline_single_arg_calls_accept_parenless_shorthand() {
+    let report = compile_stages_report_str(
+        r#"
+fn udp_rules() =
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :datagram_exchange
+  |> program_model :shorthand_demo_model
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :shorthand_demo, phase: :bind)
+
+template :shorthand_demo
+|> window :default_5s
+|> reason :udp_datagram_l1
+|> use :udp_rules
+|> param :sock_lineage_fragment.capture_comm, true
+"#,
+    );
+    assert!(report.parse.ok);
+    assert!(report.validation.ok);
+    assert!(report.diagnostics.ok);
+    assert_eq!(
+        report
+            .parse
+            .report
+            .as_ref()
+            .map(|binding| binding.template_id.as_str()),
+        Some("shorthand_demo")
+    );
+    assert_eq!(
+        report
+            .diagnostics
+            .report
+            .as_ref()
+            .and_then(|diagnostics| diagnostics.program_model.as_ref())
+            .map(|model| model.model.as_str()),
+        Some("shorthand_demo_model")
+    );
+}
+
+#[test]
+fn pipeline_parenless_calls_accept_multi_arg_and_named_forms() {
+    let report = compile_stages_report_str(
+        r#"
+fn udp_rules(model_name, op_name = :datagram_exchange) =
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation $op_name
+  |> program_model $model_name
+  |> evidence :sock_lineage, :core_requirement
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :shorthand_multi, phase: :bind)
+
+template :shorthand_multi
+|> window :default_5s
+|> reason :udp_datagram_l1
+|> use :udp_rules, :shorthand_multi_model, op_name: :stream_exchange
+|> param :sock_lineage_fragment.capture_comm, true
+"#,
+    );
+    assert!(report.parse.ok);
+    assert!(report.validation.ok);
+    assert!(report.diagnostics.ok);
+    let binding = report.parse.report.as_ref().unwrap();
+    let model = binding.program_model.as_ref().unwrap();
+    assert_eq!(model.id, "shorthand_multi_model");
+    assert_eq!(model.operation, "stream_exchange");
+}
+
+#[test]
+fn pipeline_rule_aliases_accept_compact_keyword_names() {
+    let report = compile_stages_report_str(
+        r#"
+fn udp_rules() =
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :datagram_exchange
+  |> program_model :rule_alias_model
+  |> program_rule(pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: :rule_alias_demo, phase: :bind)
+
+template :rule_alias_demo
+|> window :default_5s
+|> reason :udp_datagram_l1
+|> use :udp_rules
+"#,
+    );
+    assert!(report.parse.ok);
+    assert!(report.validation.ok);
+    assert!(report.diagnostics.ok);
+}
+
+#[test]
+fn pipeline_rule_positional_shorthand_accepts_core_fields_with_named_tail() {
+    let report = compile_stages_report_str(
+        r#"
+fn udp_rules() =
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :datagram_exchange
+  |> program_model :rule_positional_model
+  |> program_rule :process_bound, :process_bound, :process_bound, true, mod: :rule_positional_demo, phase: :bind
+
+template :rule_positional_demo
+|> window :default_5s
+|> reason :udp_datagram_l1
+|> use :udp_rules
+"#,
+    );
+    assert!(report.parse.ok);
+    assert!(report.validation.ok);
+    assert!(report.diagnostics.ok);
 }
 
 #[test]

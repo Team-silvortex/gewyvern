@@ -3,14 +3,14 @@
 fn udp_debug_rules() =
   let transport_predicate = "datagram_observed:udp"
   let route_narrative = "static:program resolved a route for this network flow"
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> operation(:datagram_exchange)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true)
-  |> program_rule(predicate: ${transport_predicate}, stage: :datagram_observed, narrative: "static:program emitted or received a UDP datagram", dedupe: true)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true)
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> operation :datagram_exchange
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true
+  |> program_rule pred: $transport_predicate, stage: :datagram_observed, narr: "static:program emitted or received a UDP datagram", dedupe: true
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true
 
-template(:udp_debug)
+template :udp_debug
 |> window(duration_ms: 5000, lateness_ms: 200)
-|> reason(:udp_datagram_l1)
-|> use(:udp_debug_rules)
+|> reason :udp_datagram_l1
+|> use :udp_debug_rules

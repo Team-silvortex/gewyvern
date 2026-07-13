@@ -3,22 +3,22 @@
 fn tls_certificate_rules() =
   let module_name = :tls_certificate_path
   let cert_narrative = "static:observed a plaintext TLS certificate handshake message"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:tls_certificate)
-  |> reason_model(:tls_certificate_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_peer)
-  |> program_rule(predicate: "packet_observed:tcp:remote:https:remote_to_local:byte0_mask:0xff:0x16:byte_at:5:0xff:0x0b", stage: :packet_observed, narrative: ${cert_narrative}, dedupe: true, module: ${module_name}, phase: :receive_certificate)
-  |> program_rule(predicate: "packet_observed:tcp:remote:https:local_to_remote:byte0_mask:0xff:0x16:byte_at:5:0xff:0x0b", stage: :packet_observed, narrative: ${cert_narrative}, dedupe: true, module: ${module_name}, phase: :send_certificate)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_peer)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:https:remote_to_local:byte0_mask:0xff:0x16:byte_at:5:0xff:0x0b", key_event: :packet_observed, narrative: ${cert_narrative}, dedupe: true, module: ${module_name}, phase: :receive_certificate)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:https:local_to_remote:byte0_mask:0xff:0x16:byte_at:5:0xff:0x0b", key_event: :packet_observed, narrative: ${cert_narrative}, dedupe: true, module: ${module_name}, phase: :send_certificate)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :tls_certificate
+  |> reason_model :tls_certificate_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_peer
+  |> program_rule pred: "packet_observed:tcp:remote:https:remote_to_local:byte0_mask:0xff:0x16:byte_at:5:0xff:0x0b", stage: :packet_observed, narr: $cert_narrative, dedupe: true, mod: $module_name, phase: :receive_certificate
+  |> program_rule pred: "packet_observed:tcp:remote:https:local_to_remote:byte0_mask:0xff:0x16:byte_at:5:0xff:0x0b", stage: :packet_observed, narr: $cert_narrative, dedupe: true, mod: $module_name, phase: :send_certificate
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_peer
+  |> reason_rule pred: "packet_observed:tcp:remote:https:remote_to_local:byte0_mask:0xff:0x16:byte_at:5:0xff:0x0b", event: :packet_observed, narr: $cert_narrative, dedupe: true, mod: $module_name, phase: :receive_certificate
+  |> reason_rule pred: "packet_observed:tcp:remote:https:local_to_remote:byte0_mask:0xff:0x16:byte_at:5:0xff:0x0b", event: :packet_observed, narr: $cert_narrative, dedupe: true, mod: $module_name, phase: :send_certificate
 
-template(:tls_certificate_path)
-|> window(:default_5s)
-|> use(:tls_certificate_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+template :tls_certificate_path
+|> window :default_5s
+|> use :tls_certificate_rules
+|> param :sock_lineage_fragment.capture_comm, true

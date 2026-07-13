@@ -4,24 +4,24 @@ fn websocket_upgrade_rules() =
   let module_name = :websocket_upgrade_path
   let upgrade_narrative = "static:program requested an HTTP Upgrade path for a WebSocket session"
   let accepted_narrative = "static:peer accepted the WebSocket upgrade with an HTTP 101 response"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:websocket_upgrade)
-  |> reason_model(:websocket_upgrade_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_endpoint)
-  |> program_rule(predicate: "socket_state_observed:remote:http", stage: :socket_state_transition, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
-  |> program_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", stage: :packet_observed, narrative: ${upgrade_narrative}, dedupe: true, module: ${module_name}, phase: :send_upgrade_request)
-  |> program_rule(predicate: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450:byte_at:9:0xff:0x31:byte_at:10:0xff:0x30:byte_at:11:0xff:0x31", stage: :packet_observed, narrative: ${accepted_narrative}, dedupe: true, module: ${module_name}, phase: :receive_switching_protocols)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_endpoint)
-  |> reason_rule(predicate: "socket_state_observed:remote:http", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", key_event: :packet_observed, narrative: ${upgrade_narrative}, dedupe: true, module: ${module_name}, phase: :send_upgrade_request)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450:byte_at:9:0xff:0x31:byte_at:10:0xff:0x30:byte_at:11:0xff:0x31", key_event: :packet_observed, narrative: ${accepted_narrative}, dedupe: true, module: ${module_name}, phase: :receive_switching_protocols)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :websocket_upgrade
+  |> reason_model :websocket_upgrade_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_endpoint
+  |> program_rule pred: "socket_state_observed:remote:http", stage: :socket_state_transition, narr: :tcp_state_transition, dedupe: false, mod: $module_name, phase: :connect
+  |> program_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", stage: :packet_observed, narr: $upgrade_narrative, dedupe: true, mod: $module_name, phase: :send_upgrade_request
+  |> program_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450:byte_at:9:0xff:0x31:byte_at:10:0xff:0x30:byte_at:11:0xff:0x31", stage: :packet_observed, narr: $accepted_narrative, dedupe: true, mod: $module_name, phase: :receive_switching_protocols
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_endpoint
+  |> reason_rule pred: "socket_state_observed:remote:http", event: :state_change, narr: :tcp_state_transition, dedupe: false, mod: $module_name, phase: :connect
+  |> reason_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", event: :packet_observed, narr: $upgrade_narrative, dedupe: true, mod: $module_name, phase: :send_upgrade_request
+  |> reason_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450:byte_at:9:0xff:0x31:byte_at:10:0xff:0x30:byte_at:11:0xff:0x31", event: :packet_observed, narr: $accepted_narrative, dedupe: true, mod: $module_name, phase: :receive_switching_protocols
 
-template(:websocket_upgrade_path)
-|> window(:default_5s)
-|> use(:websocket_upgrade_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+template :websocket_upgrade_path
+|> window :default_5s
+|> use :websocket_upgrade_rules
+|> param :sock_lineage_fragment.capture_comm, true

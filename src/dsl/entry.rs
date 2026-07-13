@@ -103,10 +103,14 @@ pub(super) fn looks_like_pipeline_dsl(input: &str) -> bool {
                 && !line.starts_with("//!")
         })
         .next()
-        .is_some_and(|line| {
-            (line.starts_with("template(") && line.ends_with(')'))
-                || parse_pipeline_function_head(line).is_some()
-        })
+        .is_some_and(|line| is_pipeline_template_head(line) || parse_pipeline_function_head(line).is_some())
+}
+
+fn is_pipeline_template_head(line: &str) -> bool {
+    (line.starts_with("template(") && line.ends_with(')'))
+        || line
+            .strip_prefix("template ")
+            .is_some_and(|value| !value.trim().is_empty())
 }
 
 fn pipeline_to_legacy(input: &str, package: Option<&PackageContext>) -> Result<String, DslError> {

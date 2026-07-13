@@ -3,21 +3,21 @@
 fn snmp_inform_rules() =
   let module_name = :snmp_inform_path
   let route_narrative = "static:program resolved an upstream route for this SNMP inform path"
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:snmp_inform)
-  |> reason_model(:snmp_inform_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
-  |> program_rule(predicate: "datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa6", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_inform_notification)
-  |> program_rule(predicate: "datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa2", stage: :datagram_observed, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_inform_response)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_upstream)
-  |> reason_rule(predicate: "datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa6", key_event: :udp_datagram_seen, narrative: :udp_datagram_sent, dedupe: true, module: ${module_name}, phase: :send_inform_notification)
-  |> reason_rule(predicate: "datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa2", key_event: :udp_datagram_seen, narrative: :udp_datagram_received, dedupe: true, module: ${module_name}, phase: :receive_inform_response)
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :snmp_inform
+  |> reason_model :snmp_inform_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> program_rule pred: "datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa6", stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_inform_notification
+  |> program_rule pred: "datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa2", stage: :datagram_observed, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_inform_response
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> reason_rule pred: "datagram_observed:udp:remote:snmp:local_to_remote:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa6", event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_inform_notification
+  |> reason_rule pred: "datagram_observed:udp:remote:snmp:remote_to_local:byte0_mask:0xff:0x30:byte_at:13:0xff:0xa2", event: :udp_datagram_seen, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_inform_response
 
-template(:snmp_inform_path)
+template :snmp_inform_path
 |> window(duration_ms: 5000, lateness_ms: 200)
-|> use(:snmp_inform_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+|> use :snmp_inform_rules
+|> param :sock_lineage_fragment.capture_comm, true

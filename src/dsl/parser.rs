@@ -47,7 +47,7 @@ pub(super) fn parse_pipeline_module(
 
     if allow_template_head && module.template.is_none() {
         return Err(DslError::InvalidValue(
-            "pipeline DSL must start with template(...)".into(),
+            "pipeline DSL must start with template(...) or template :name".into(),
         ));
     }
 
@@ -225,7 +225,7 @@ fn parse_pipeline_module_into(
                 }
                 if module.template.is_some() || !allow_template_head {
                     return Err(DslError::InvalidValue(
-                        "pipeline DSL supports exactly one template() head".into(),
+                        "pipeline DSL supports exactly one template head".into(),
                     )
                     .at_line(line_no));
                 }

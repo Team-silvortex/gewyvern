@@ -3,20 +3,20 @@
 fn pptp_control_rules() =
   let module_name = :pptp_control_path
   let control_narrative = "static:observed a PPTP control channel packet on TCP port 1723"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> operation(:pptp_control)
-  |> reason_model(:pptp_control_path_reason)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_tunnel)
-  |> program_rule(predicate: "socket_state_observed:remote:pptp", stage: :socket_state_transition, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect_control_channel)
-  |> program_rule(predicate: "packet_observed:tcp:remote:pptp:local_to_remote:bytes_at:4:0x1a,0x2b,0x3c,0x4d", stage: :packet_observed, narrative: ${control_narrative}, dedupe: true, module: ${module_name}, phase: :send_control_message)
-  |> program_rule(predicate: "packet_observed:tcp:remote:pptp:remote_to_local:bytes_at:4:0x1a,0x2b,0x3c,0x4d", stage: :packet_observed, narrative: ${control_narrative}, dedupe: true, module: ${module_name}, phase: :receive_control_message)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_tunnel)
-  |> reason_rule(predicate: "socket_state_observed:remote:pptp", key_event: :state_change, narrative: :tcp_state_transition, dedupe: false, module: ${module_name}, phase: :connect_control_channel)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:pptp:local_to_remote:bytes_at:4:0x1a,0x2b,0x3c,0x4d", key_event: :packet_observed, narrative: ${control_narrative}, dedupe: true, module: ${module_name}, phase: :send_control_message)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:pptp:remote_to_local:bytes_at:4:0x1a,0x2b,0x3c,0x4d", key_event: :packet_observed, narrative: ${control_narrative}, dedupe: true, module: ${module_name}, phase: :receive_control_message)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> operation :pptp_control
+  |> reason_model :pptp_control_path_reason
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_tunnel
+  |> program_rule pred: "socket_state_observed:remote:pptp", stage: :socket_state_transition, narr: :tcp_state_transition, dedupe: false, mod: $module_name, phase: :connect_control_channel
+  |> program_rule pred: "packet_observed:tcp:remote:pptp:local_to_remote:bytes_at:4:0x1a,0x2b,0x3c,0x4d", stage: :packet_observed, narr: $control_narrative, dedupe: true, mod: $module_name, phase: :send_control_message
+  |> program_rule pred: "packet_observed:tcp:remote:pptp:remote_to_local:bytes_at:4:0x1a,0x2b,0x3c,0x4d", stage: :packet_observed, narr: $control_narrative, dedupe: true, mod: $module_name, phase: :receive_control_message
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_tunnel
+  |> reason_rule pred: "socket_state_observed:remote:pptp", event: :state_change, narr: :tcp_state_transition, dedupe: false, mod: $module_name, phase: :connect_control_channel
+  |> reason_rule pred: "packet_observed:tcp:remote:pptp:local_to_remote:bytes_at:4:0x1a,0x2b,0x3c,0x4d", event: :packet_observed, narr: $control_narrative, dedupe: true, mod: $module_name, phase: :send_control_message
+  |> reason_rule pred: "packet_observed:tcp:remote:pptp:remote_to_local:bytes_at:4:0x1a,0x2b,0x3c,0x4d", event: :packet_observed, narr: $control_narrative, dedupe: true, mod: $module_name, phase: :receive_control_message
 
-template(:pptp_control_path)
-|> window(:default_5s)
-|> use(:pptp_control_rules)
+template :pptp_control_path
+|> window :default_5s
+|> use :pptp_control_rules

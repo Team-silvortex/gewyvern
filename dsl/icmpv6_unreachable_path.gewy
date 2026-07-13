@@ -3,19 +3,19 @@
 fn icmpv6_unreachable_rules() =
   let module_name = :icmpv6_unreachable_path
   let route_narrative = "static:program resolved a route before receiving an ICMPv6 unreachable signal"
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:icmpv6_unreachable)
-  |> reason_model(:icmpv6_unreachable_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: ${route_narrative}, dedupe: true, module: ${module_name}, phase: :resolve_peer)
-  |> program_rule(predicate: "packet_observed:58:remote_to_local:byte0_mask:0xff:0x01", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_unreachable)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_peer)
-  |> reason_rule(predicate: "packet_observed:58:remote_to_local:byte0_mask:0xff:0x01", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_unreachable)
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :icmpv6_unreachable
+  |> reason_model :icmpv6_unreachable_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_peer
+  |> program_rule pred: "packet_observed:58:remote_to_local:byte0_mask:0xff:0x01", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_unreachable
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_peer
+  |> reason_rule pred: "packet_observed:58:remote_to_local:byte0_mask:0xff:0x01", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_unreachable
 
-template(:icmpv6_unreachable_path)
+template :icmpv6_unreachable_path
 |> window(duration_ms: 5000, lateness_ms: 200)
-|> use(:icmpv6_unreachable_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+|> use :icmpv6_unreachable_rules
+|> param :sock_lineage_fragment.capture_comm, true

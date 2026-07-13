@@ -1,21 +1,21 @@
 fn dns_tcp_query_rules() = {
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:dns_tcp_query)
-  |> reason_model(:dns_tcp_query_path_reason)
-  |> program_model(:dns_tcp_query_path_model)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :dns_tcp_query_path, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: :dns_tcp_query_path, phase: :resolve_upstream)
-  |> program_rule(predicate: :packet_observed:tcp:remote:53:local_to_remote:byte4_mask:0x80:0x00, stage: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :dns_tcp_query_path, phase: :send_query)
-  |> program_rule(predicate: :packet_observed:tcp:remote:53:remote_to_local:byte4_mask:0x80:0x80, stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :dns_tcp_query_path, phase: :receive_response)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: :dns_tcp_query_path, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: :dns_tcp_query_path, phase: :resolve_upstream)
-  |> reason_rule(predicate: :packet_observed:tcp:remote:53:local_to_remote:byte4_mask:0x80:0x00, key_event: :packet_observed, narrative: :transport_payload_sent, dedupe: true, module: :dns_tcp_query_path, phase: :send_query)
-  |> reason_rule(predicate: :packet_observed:tcp:remote:53:remote_to_local:byte4_mask:0x80:0x80, key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: :dns_tcp_query_path, phase: :receive_response)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :dns_tcp_query
+  |> reason_model :dns_tcp_query_path_reason
+  |> program_model :dns_tcp_query_path_model
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: :dns_tcp_query_path, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: :dns_tcp_query_path, phase: :resolve_upstream
+  |> program_rule pred: :packet_observed:tcp:remote:53:local_to_remote:byte4_mask:0x80:0x00, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :dns_tcp_query_path, phase: :send_query
+  |> program_rule pred: :packet_observed:tcp:remote:53:remote_to_local:byte4_mask:0x80:0x80, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :dns_tcp_query_path, phase: :receive_response
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: :dns_tcp_query_path, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: :dns_tcp_query_path, phase: :resolve_upstream
+  |> reason_rule pred: :packet_observed:tcp:remote:53:local_to_remote:byte4_mask:0x80:0x00, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :dns_tcp_query_path, phase: :send_query
+  |> reason_rule pred: :packet_observed:tcp:remote:53:remote_to_local:byte4_mask:0x80:0x80, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :dns_tcp_query_path, phase: :receive_response
 }
 
-template(:dns_tcp_query_path)
-|> window(:default_5s)
-|> use(:dns_tcp_query_rules)
+template :dns_tcp_query_path
+|> window :default_5s
+|> use :dns_tcp_query_rules

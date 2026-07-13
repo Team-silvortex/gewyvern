@@ -24,7 +24,7 @@ pub(crate) fn lower_pipeline_module_to_legacy(
         ));
     } else if allow_template_head {
         return Err(DslError::InvalidValue(
-            "pipeline DSL must start with template(...)".into(),
+            "pipeline DSL must start with template(...) or template :name".into(),
         ));
     }
 
@@ -85,7 +85,7 @@ fn lower_pipeline_call(
         "template" => {
             if !allow_template_head {
                 return Err(DslError::InvalidValue(
-                    "pipeline DSL supports exactly one template() head".into(),
+                    "pipeline DSL supports exactly one template head".into(),
                 )
                 .at_line(line_no));
             }
@@ -458,6 +458,120 @@ fn parse_pipeline_keywords_with_columns(
     Ok(keywords)
 }
 
+fn canonicalize_pipeline_rule_keywords(
+    keywords: BTreeMap<String, PipelineKeywordArg>,
+    reason_rule: bool,
+    call_column: usize,
+) -> Result<BTreeMap<String, PipelineKeywordArg>, DslError> {
+    let mut canonical = BTreeMap::new();
+    for (key, value) in keywords {
+        let normalized = match key.as_str() {
+            "predicate" | "pred" => "predicate",
+            "stage" => "stage",
+            "key_event" | "event" if reason_rule => "key_event",
+            "narrative" | "narr" => "narrative",
+            "dedupe" => "dedupe",
+            "module" | "mod" => "module",
+            "phase" => "phase",
+            _ => key.as_str(),
+        };
+        if canonical.insert(normalized.to_string(), value).is_some() {
+            return Err(DslError::InvalidValue(format!(
+                "pipeline rule received duplicate field '{normalized}'"
+            ))
+            .at_line_column(0, Some(call_column)));
+        }
+    }
+    Ok(canonical)
+}
+
+fn normalize_pipeline_rule_args(
+    args: &[String],
+    arg_columns: &[usize],
+    reason_rule: bool,
+    call_column: usize,
+) -> Result<BTreeMap<String, PipelineKeywordArg>, DslError> {
+    let signal_key = if reason_rule { "key_event" } else { "stage" };
+    let step = if reason_rule {
+        "reason_rule"
+    } else {
+        "program_rule"
+    };
+    let positional_limit = 4usize;
+    let has_keywords = args.iter().any(|arg| looks_like_pipeline_keyword_arg(arg));
+    if !has_keywords {
+        if args.len() != positional_limit {
+            return Err(DslError::InvalidValue(format!(
+                "pipeline step '{step}' positional shorthand expects exactly 4 arguments"
+            ))
+            .at_line_column(0, Some(call_column)));
+        }
+        let mut keywords = BTreeMap::new();
+        let fields = ["predicate", signal_key, "narrative", "dedupe"];
+        for ((field, arg), arg_column) in fields.iter().zip(args.iter()).zip(arg_columns.iter()) {
+            keywords.insert(
+                (*field).to_string(),
+                PipelineKeywordArg {
+                    value: parse_pipeline_literal(arg),
+                    value_column: *arg_column,
+                },
+            );
+        }
+        return Ok(keywords);
+    }
+
+    let positional_count = args
+        .iter()
+        .take_while(|arg| !looks_like_pipeline_keyword_arg(arg))
+        .count();
+    if positional_count > positional_limit {
+        return Err(DslError::InvalidValue(format!(
+            "pipeline step '{step}' positional shorthand accepts at most 4 leading arguments"
+        ))
+        .at_line_column(0, Some(call_column)));
+    }
+    if args
+        .iter()
+        .skip(positional_count)
+        .any(|arg| !looks_like_pipeline_keyword_arg(arg))
+    {
+        return Err(DslError::InvalidValue(format!(
+            "pipeline step '{step}' cannot place positional arguments after named arguments"
+        ))
+        .at_line_column(0, Some(call_column)));
+    }
+
+    let mut keywords = BTreeMap::new();
+    let fields = ["predicate", signal_key, "narrative", "dedupe"];
+    for ((field, arg), arg_column) in fields
+        .iter()
+        .zip(args.iter().take(positional_count))
+        .zip(arg_columns.iter().take(positional_count))
+    {
+        keywords.insert(
+            (*field).to_string(),
+            PipelineKeywordArg {
+                value: parse_pipeline_literal(arg),
+                value_column: *arg_column,
+            },
+        );
+    }
+    let remaining_keywords = parse_pipeline_keywords_with_columns(
+        &args[positional_count..],
+        &arg_columns[positional_count..],
+        step,
+    )?;
+    for (key, value) in remaining_keywords {
+        if keywords.insert(key, value).is_some() {
+            return Err(DslError::InvalidValue(
+                format!("pipeline step '{step}' received duplicate rule field")
+            )
+            .at_line_column(0, Some(call_column)));
+        }
+    }
+    canonicalize_pipeline_rule_keywords(keywords, reason_rule, call_column)
+}
+
 pub(crate) fn lower_pipeline_window(
     args: &[String],
     arg_columns: &[usize],
@@ -514,15 +628,7 @@ pub(crate) fn lower_pipeline_rule(
     call_column: usize,
     reason_rule: bool,
 ) -> Result<String, DslError> {
-    let keywords = parse_pipeline_keywords_with_columns(
-        args,
-        arg_columns,
-        if reason_rule {
-            "reason_rule"
-        } else {
-            "program_rule"
-        },
-    )?;
+    let keywords = normalize_pipeline_rule_args(args, arg_columns, reason_rule, call_column)?;
     let predicate = keywords
         .get("predicate")
         .ok_or(DslError::MissingField("predicate").at_line_column(0, Some(call_column)))?;

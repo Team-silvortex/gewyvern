@@ -342,11 +342,16 @@ fn read_template_id_from_dsl(path: &Path) -> Option<String> {
 
 fn extract_template_id(input: &str) -> Option<String> {
     input.lines().find_map(|line| {
-        let start = line.find("template(:")?;
-        let tail = &line[start + "template(:".len()..];
-        let end = tail.find(')')?;
-        let template_id = tail[..end].trim();
-        (!template_id.is_empty()).then(|| template_id.to_string())
+        let line = line.trim();
+        if let Some(tail) = line.strip_prefix("template(:") {
+            let end = tail.find(')')?;
+            let template_id = tail[..end].trim();
+            return (!template_id.is_empty()).then(|| template_id.to_string());
+        }
+        line.strip_prefix("template ")
+            .map(str::trim)
+            .filter(|template_id| !template_id.is_empty())
+            .map(ToString::to_string)
     })
 }
 

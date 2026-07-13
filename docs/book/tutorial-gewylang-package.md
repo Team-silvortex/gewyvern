@@ -71,11 +71,11 @@ Example:
 
 ```text
 fn udp_process_rules(model_name, op_name = :datagram_exchange) =
-  |> fragment(:udp_packet_meta_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(${op_name})
-  |> program_model(${model_name})
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation $op_name
+  |> program_model $model_name
 ```
 
 Important characteristics:
@@ -89,16 +89,16 @@ Important characteristics:
 The entry file can then compose it:
 
 ```text
-template(:udp_process_debug)
-|> window(:default_5s)
-|> reason(:udp_datagram_l1)
-|> use(:udp_process_rules, :udp_process_debug_model)
-|> param(:sock_lineage_fragment.capture_comm, true)
+template :udp_process_debug
+|> window :default_5s
+|> reason :udp_datagram_l1
+|> use :udp_process_rules, :udp_process_debug_model
+|> param :sock_lineage_fragment.capture_comm, true
 ```
 
 This is the modern `gewylang` shape:
 
-- `template(...)`
+- `template ...`
 - piped calls
 - `use(...)` for function reuse
 - `include(...)` for file expansion

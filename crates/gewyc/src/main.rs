@@ -491,11 +491,11 @@ fn render_init_entry(package_name: &str) -> String {
     format!(
         "# main.gewy is the single package entrypoint.\n\
          # keep this file short and move reusable helpers into module.gewy.\n\
-         template(:{package_name})\n\
-         |> window(:default_5s)\n\
-         |> reason(:udp_datagram_l1)\n\
-         |> include(\"./module.gewy\")\n\
-         |> use(:network_module)\n"
+         template :{package_name}\n\
+         |> window :default_5s\n\
+         |> reason :udp_datagram_l1\n\
+         |> include \"./module.gewy\"\n\
+         |> use :network_module\n"
     )
 }
 
@@ -508,11 +508,11 @@ fn render_init_module(package_name: &str) -> String {
             "  let model_name = :{package_name}_model\n",
             "  let module_name = :{package_name}\n",
             "  let op_name = :datagram_exchange\n",
-            "  |> fragment(:udp_packet_meta_fragment)\n",
-            "  |> fragment(:route_meta_fragment)\n",
-            "  |> fragment(:sock_lineage_fragment)\n",
-            "  |> operation(${{op_name}})\n",
-            "  |> program_model(${{model_name}})\n",
+            "  |> fragment :udp_packet_meta_fragment\n",
+            "  |> fragment :route_meta_fragment\n",
+            "  |> fragment :sock_lineage_fragment\n",
+            "  |> operation ${{op_name}}\n",
+            "  |> program_model ${{model_name}}\n",
             "  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${{module_name}}, phase: :bind)\n",
             "  |> program_rule(predicate: \"datagram_observed:udp\", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${{module_name}}, phase: :send_request)\n",
             "  |> param(:sock_lineage_fragment.capture_comm, true)\n",

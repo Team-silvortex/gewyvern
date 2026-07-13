@@ -75,6 +75,9 @@ pub(crate) fn parse_pipeline_let_binding(
 pub(crate) fn parse_pipeline_call(
     line: &str,
 ) -> Result<(String, Vec<String>, Vec<usize>), DslError> {
+    if !line.contains('(') {
+        return parse_pipeline_parenless_call(line);
+    }
     let open = line.find('(').ok_or_else(|| {
         DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
             .at_line_column(0, Some(line.len() + 1))
@@ -91,6 +94,43 @@ pub(crate) fn parse_pipeline_call(
         );
     }
     let args_with_columns = split_pipeline_args_with_columns(inner, open + 2);
+    Ok((
+        name.to_string(),
+        args_with_columns
+            .iter()
+            .map(|(_, value)| value.clone())
+            .collect(),
+        args_with_columns
+            .into_iter()
+            .map(|(column, _)| column)
+            .collect(),
+    ))
+}
+
+fn parse_pipeline_parenless_call(
+    line: &str,
+) -> Result<(String, Vec<String>, Vec<usize>), DslError> {
+    let line = line.trim();
+    let split_at = line.find(char::is_whitespace).ok_or_else(|| {
+        DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
+            .at_line_column(0, Some(line.len() + 1))
+    })?;
+    let name = line[..split_at].trim();
+    let arg = line[split_at..].trim();
+    if name.is_empty() || arg.is_empty() {
+        return Err(
+            DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
+                .at_line_column(0, Some(line.len() + 1)),
+        );
+    }
+    let arg_column = split_at + line[split_at..].find(arg).unwrap_or(0) + 1;
+    let args_with_columns = split_pipeline_args_with_columns(arg, arg_column);
+    if args_with_columns.is_empty() {
+        return Err(
+            DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
+                .at_line_column(0, Some(line.len() + 1)),
+        );
+    }
     Ok((
         name.to_string(),
         args_with_columns

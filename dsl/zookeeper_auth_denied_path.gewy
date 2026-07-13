@@ -3,22 +3,22 @@
 fn zookeeper_auth_denied_rules() =
   let module_name = :zookeeper_auth_denied_path
   let narrative = "static:observed a ZooKeeper auth or ACL denial path"
-  |> fragment(:tcp_packet_meta_fragment)
-  |> fragment(:tcp_state_fragment)
-  |> fragment(:route_meta_fragment)
-  |> fragment(:sock_lineage_fragment)
-  |> operation(:zookeeper_auth_denied)
-  |> reason_model(:zookeeper_auth_denied_path_reason)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> program_rule(predicate: :route_resolved, stage: :route_resolved, narrative: :route_resolved, dedupe: true, module: ${module_name}, phase: :resolve_ensemble)
-  |> program_rule(predicate: "packet_observed:tcp:remote:2181:local_to_remote", stage: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :send_auth_or_acl_request)
-  |> program_rule(predicate: "packet_observed:tcp:remote:2181:remote_to_local", stage: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_denial)
-  |> reason_rule(predicate: :process_bound, key_event: :process_identified, narrative: :process_bound, dedupe: true, module: ${module_name}, phase: :bind)
-  |> reason_rule(predicate: :route_resolved, key_event: :route_changed, narrative: :route_changed, dedupe: true, module: ${module_name}, phase: :resolve_ensemble)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:2181:local_to_remote", key_event: :packet_observed, narrative: ${narrative}, dedupe: true, module: ${module_name}, phase: :send_auth_or_acl_request)
-  |> reason_rule(predicate: "packet_observed:tcp:remote:2181:remote_to_local", key_event: :packet_observed, narrative: :transport_payload_received, dedupe: true, module: ${module_name}, phase: :receive_denial)
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :zookeeper_auth_denied
+  |> reason_model :zookeeper_auth_denied_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_ensemble
+  |> program_rule pred: "packet_observed:tcp:remote:2181:local_to_remote", stage: :packet_observed, narr: $narrative, dedupe: true, mod: $module_name, phase: :send_auth_or_acl_request
+  |> program_rule pred: "packet_observed:tcp:remote:2181:remote_to_local", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_denial
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_ensemble
+  |> reason_rule pred: "packet_observed:tcp:remote:2181:local_to_remote", event: :packet_observed, narr: $narrative, dedupe: true, mod: $module_name, phase: :send_auth_or_acl_request
+  |> reason_rule pred: "packet_observed:tcp:remote:2181:remote_to_local", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_denial
 
-template(:zookeeper_auth_denied_path)
-|> window(:default_5s)
-|> use(:zookeeper_auth_denied_rules)
-|> param(:sock_lineage_fragment.capture_comm, true)
+template :zookeeper_auth_denied_path
+|> window :default_5s
+|> use :zookeeper_auth_denied_rules
+|> param :sock_lineage_fragment.capture_comm, true
