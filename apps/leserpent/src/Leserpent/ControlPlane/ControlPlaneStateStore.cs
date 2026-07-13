@@ -13,6 +13,7 @@ public sealed class ControlPlaneStateStore
     {
         WriteIndented = true,
     };
+    private readonly LeserpentJsonContext jsonContext;
 
     public ControlPlaneStateStore(IConfiguration configuration, IHostEnvironment environment, ILogger<ControlPlaneStateStore> logger)
     {
@@ -20,6 +21,7 @@ public sealed class ControlPlaneStateStore
             ?? DefaultStatePath(environment);
         backupStatePath = $"{statePath}.bak";
         this.logger = logger;
+        jsonContext = new LeserpentJsonContext(serializerOptions);
     }
 
     public string StatePath => statePath;
@@ -42,7 +44,7 @@ public sealed class ControlPlaneStateStore
         try
         {
             using var stream = File.OpenRead(statePath);
-            var state = JsonSerializer.Deserialize<PersistedControlPlaneState>(stream, serializerOptions);
+            var state = JsonSerializer.Deserialize(stream, jsonContext.PersistedControlPlaneState);
             if (state is null)
             {
                 IsDirty = false;
@@ -110,7 +112,7 @@ public sealed class ControlPlaneStateStore
             var tempPath = $"{statePath}.tmp";
             using (var stream = File.Create(tempPath))
             {
-                JsonSerializer.Serialize(stream, state, serializerOptions);
+                JsonSerializer.Serialize(stream, state, jsonContext.PersistedControlPlaneState);
             }
 
             if (File.Exists(statePath))
@@ -140,7 +142,7 @@ public sealed class ControlPlaneStateStore
         try
         {
             using var stream = File.OpenRead(backupStatePath);
-            var state = JsonSerializer.Deserialize<PersistedControlPlaneState>(stream, serializerOptions);
+            var state = JsonSerializer.Deserialize(stream, jsonContext.PersistedControlPlaneState);
             if (state is null || state.SchemaVersion != CurrentSchemaVersion)
             {
                 logger.LogWarning(

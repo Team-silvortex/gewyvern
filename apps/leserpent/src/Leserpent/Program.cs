@@ -1,5 +1,7 @@
+using System.IO.Compression;
 using System.Text.Json;
 using Leserpent.ControlPlane;
+using Microsoft.AspNetCore.ResponseCompression;
 
 namespace Leserpent;
 
@@ -7,10 +9,32 @@ public partial class Program
 {
     public static void Main(string[] args)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            Args = args,
+            ContentRootPath = AppContext.BaseDirectory,
+        });
 
         builder.Services.AddAuthorization();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolverChain.Insert(0, LeserpentJsonContext.Default));
         builder.Services.AddOpenApi();
+        builder.Services.AddResponseCompression(options =>
+        {
+            options.EnableForHttps = true;
+            options.Providers.Add<BrotliCompressionProvider>();
+            options.Providers.Add<GzipCompressionProvider>();
+            options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[]
+            {
+                "application/javascript",
+                "application/json",
+                "image/svg+xml",
+            });
+        });
+        builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+            options.Level = CompressionLevel.Fastest);
+        builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+            options.Level = CompressionLevel.Fastest);
         builder.Services.AddSingleton<ControlPlaneSecurityPolicy>();
         builder.Services.AddSingleton<ControlPlaneStateStore>();
         builder.Services.AddSingleton<IOrchestraRunStore, SqliteOrchestraRunStore>();
@@ -26,8 +50,33 @@ public partial class Program
             app.MapOpenApi();
         }
 
+        app.UseResponseCompression();
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Path == "/")
+            {
+                context.Response.Headers.CacheControl = "no-cache";
+            }
+            await next();
+        });
         app.UseDefaultFiles();
-        app.UseStaticFiles();
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            OnPrepareResponse = context =>
+            {
+                var isHtml = string.Equals(
+                    Path.GetExtension(context.File.Name),
+                    ".html",
+                    StringComparison.OrdinalIgnoreCase)
+                    || context.Context.Request.Path == "/"
+                    || context.Context.Response.ContentType?.StartsWith(
+                        "text/html",
+                        StringComparison.OrdinalIgnoreCase) == true;
+                context.Context.Response.Headers.CacheControl = isHtml
+                    ? "no-cache"
+                    : "public, max-age=300, must-revalidate";
+            },
+        });
         app.UseHttpsRedirection();
         app.Use(async (context, next) =>
         {
@@ -35,7 +84,9 @@ public partial class Program
             if (!security.TryAuthorize(context, out var statusCode, out var payload))
             {
                 context.Response.StatusCode = statusCode;
-                await context.Response.WriteAsJsonAsync(payload);
+                await context.Response.WriteAsJsonAsync(
+                    payload,
+                    LeserpentJsonContext.Default.ApiErrorResponse);
                 return;
             }
 
@@ -174,14 +225,9 @@ public partial class Program
 
 internal static class ResultExtensions
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        WriteIndented = true,
-    };
-
-    public static IResult FileDownloadJson<T>(T payload, string fileName) =>
+    public static IResult FileDownloadJson(PersistedControlPlaneState payload, string fileName) =>
         Results.File(
-            JsonSerializer.SerializeToUtf8Bytes(payload, SerializerOptions),
+            JsonSerializer.SerializeToUtf8Bytes(payload, LeserpentJsonContext.Default.PersistedControlPlaneState),
             "application/json",
             fileName);
 }

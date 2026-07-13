@@ -1,5 +1,3 @@
-// @ts-nocheck
-// Translation catalog base and merge helper split by locale to keep files small.
 const translations = {};
 function mergeTranslations(base, patch) {
     const result = Array.isArray(base) ? [...base] : { ...base };
@@ -18,8 +16,6 @@ function mergeTranslations(base, patch) {
     }
     return result;
 }
-// @ts-nocheck
-// English translation catalog split from the monolithic i18n file.
 translations.en = {
     hero: {
         title: "Control Plane Dashboard",
@@ -479,8 +475,6 @@ translations.en = {
         badgeUpdated: "updated",
     },
 };
-// @ts-nocheck
-// Simplified Chinese translation catalog split from the monolithic i18n file.
 translations["zh-CN"] = {
     hero: {
         title: "控制平面面板",
@@ -940,8 +934,6 @@ translations["zh-CN"] = {
         badgeUpdated: "已更新",
     },
 };
-// @ts-nocheck
-// Traditional Chinese locale patch split from the monolithic i18n file.
 translations["zh-TW"] = mergeTranslations(translations.en, {
     hero: {
         title: "控制平面面板",
@@ -1317,8 +1309,6 @@ translations["zh-TW"] = mergeTranslations(translations.en, {
         badgeUpdated: "已更新",
     },
 });
-// @ts-nocheck
-// German locale patch split from the monolithic i18n file.
 translations.de = mergeTranslations(translations.en, {
     hero: {
         title: "Control Plane Dashboard",
@@ -1647,8 +1637,6 @@ translations.de = mergeTranslations(translations.en, {
         badgeUpdated: "aktualisiert",
     },
 });
-// @ts-nocheck
-// French locale patch split from the monolithic i18n file.
 translations.fr = mergeTranslations(translations.en, {
     hero: {
         title: "Tableau de bord du plan de contrôle",
@@ -1977,8 +1965,6 @@ translations.fr = mergeTranslations(translations.en, {
         badgeUpdated: "mis à jour",
     },
 });
-// @ts-nocheck
-// Preference storage, shared translation lookup, and bootstrap wiring split from app.ts.
 function t(key, params = {}) {
     const parts = key.split(".");
     const localeTree = translations[state.language] || translations.en;
@@ -2012,7 +1998,6 @@ function setStoredLanguagePreference(value) {
         window.localStorage.setItem(storageKeys.languagePreference, value);
     }
     catch {
-        // ignore storage failures
     }
 }
 function getStoredThemePreference() {
@@ -2032,21 +2017,32 @@ function setStoredThemePreference(value) {
         window.localStorage.setItem(storageKeys.themePreference, value);
     }
     catch {
-        // ignore storage failures
     }
 }
 function activateTab(tab) {
     state.activeTab = tab;
+    if (tab !== "orchestra") {
+        clearOrchestraPollTimers();
+    }
     applyTabShell();
+    renderDashboardFromCache();
+    if (tab === "runtimes") {
+        syncCleanupMenuState();
+        if (state.activeRuntimeMainTab === "detail" && state.selectedRuntimeId) {
+            void loadRuntimeAttention(state.selectedRuntimeId);
+        }
+    }
     syncLocation();
     if (tab === "orchestra") {
-        void loadOrchestraPlan();
+        ensureRuntimeSelectionFromCache();
+        void loadOrchestraPlan(state.selectedRuntimeId);
         void loadOrchestraFleetBoard();
     }
 }
 function activateOverviewSubtab(tab) {
     state.activeOverviewTab = tab;
     applyTabShell();
+    renderDashboardFromCache();
     syncLocation();
 }
 function activateRuntimeMainTab(tab) {
@@ -2054,6 +2050,14 @@ function activateRuntimeMainTab(tab) {
     state.activeRuntimeSideTab = state.activeRuntimeMainTab === "panel" ? "panel" : "detail";
     state.activeTab = "runtimes";
     applyTabShell();
+    renderDashboardFromCache();
+    syncCleanupMenuState();
+    if (state.activeRuntimeMainTab === "register") {
+        renderRegisterPreview();
+    }
+    else if (state.activeRuntimeMainTab === "detail" && state.selectedRuntimeId) {
+        void loadRuntimeAttention(state.selectedRuntimeId);
+    }
     syncLocation();
 }
 function activateRuntimeDetailTab(tab) {
@@ -2154,7 +2158,7 @@ function bootstrapDashboard() {
     });
     nodes.runtimeSearch.addEventListener("input", () => {
         state.runtimeSearch = nodes.runtimeSearch.value.trim();
-        renderRuntimeSliceFromCache();
+        scheduleRuntimeSliceRender();
         syncLocation();
     });
     nodes.runtimeSort.addEventListener("change", () => {
@@ -2184,8 +2188,6 @@ function bootstrapDashboard() {
         state.selectedRuntimeId = row.dataset.runtimeId;
         renderRuntimeSliceFromCache();
         syncLocation();
-        void loadRuntimeAttention(state.selectedRuntimeId);
-        void loadOrchestraPlan(state.selectedRuntimeId);
     });
     nodes.runtimeDetailAttention.addEventListener("click", async (event) => {
         const target = event.target;
@@ -2308,7 +2310,23 @@ function bootstrapDashboard() {
         applyTheme();
     });
     window.addEventListener("resize", () => {
-        applyLayoutMode();
+        if (state.pendingLayoutFrame) {
+            return;
+        }
+        state.pendingLayoutFrame = window.requestAnimationFrame(() => {
+            state.pendingLayoutFrame = 0;
+            applyLayoutMode();
+        });
+    });
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+            clearOrchestraPollTimers();
+            return;
+        }
+        if (state.activeTab === "orchestra") {
+            void loadOrchestraFleetBoard();
+            void loadOrchestraHistory();
+        }
     });
     hydrateStateFromLocation();
     applyTheme();
@@ -2318,8 +2336,6 @@ function bootstrapDashboard() {
     clearRegisterForm();
     loadDashboard();
 }
-// @ts-nocheck
-// Korean locale patch split from the monolithic i18n file.
 translations.ko = mergeTranslations(translations.en, {
     hero: {
         title: "컨트롤 플레인 대시보드",
@@ -2648,8 +2664,6 @@ translations.ko = mergeTranslations(translations.en, {
         badgeUpdated: "업데이트됨",
     },
 });
-// @ts-nocheck
-// Japanese locale patch split from the monolithic i18n file.
 translations.ja = mergeTranslations(translations.en, {
     hero: {
         title: "コントロールプレーン ダッシュボード",
@@ -3025,8 +3039,6 @@ translations.ja = mergeTranslations(translations.en, {
         badgeUpdated: "更新済み",
     },
 });
-// @ts-nocheck
-// Spanish locale patch split from the monolithic i18n file.
 translations.es = mergeTranslations(translations.en, {
     hero: {
         title: "Panel de Control",
@@ -3402,8 +3414,6 @@ translations.es = mergeTranslations(translations.en, {
         badgeUpdated: "actualizado",
     },
 });
-// @ts-nocheck
-// Security, token, and transport helpers split from app.ts during the TypeScript migration.
 function getStoredAdminToken() {
     try {
         window.localStorage.removeItem(storageKeys.adminToken);
@@ -3424,7 +3434,6 @@ function setStoredAdminToken(value) {
         window.sessionStorage.setItem(storageKeys.adminToken, normalized);
     }
     catch {
-        // ignore storage failures
     }
 }
 function getStoredAdminTokenTestState() {
@@ -3458,7 +3467,6 @@ function setStoredAdminTokenTest(stateValue, atValue) {
         }
     }
     catch {
-        // ignore storage failures
     }
 }
 function updateAdminTokenVisibilityButton() {
@@ -3839,8 +3847,8 @@ function apiHeaders({ contentType = null, intent = null } = {}) {
     }
     return headers;
 }
-async function getJson(path) {
-    const response = await fetch(path, { headers: apiHeaders() });
+async function getJson(path, signal = null) {
+    const response = await fetch(path, { headers: apiHeaders(), signal: signal || undefined });
     if (!response.ok) {
         throw new Error(await decodeApiError(response, path));
     }
@@ -3869,8 +3877,6 @@ async function postJsonBody(path, body) {
     }
     return payload;
 }
-// @ts-nocheck
-// Runtime panel navigation and trust helpers split from security/transport helpers.
 function isSidecarView(view = state.runtimePanelView) {
     return typeof view === "string" && view.startsWith("sidecar-");
 }
@@ -4187,8 +4193,6 @@ function runtimePanelTrustState(runtime, view = state.runtimePanelView) {
         refreshKind: null,
     };
 }
-// @ts-nocheck
-// Compact protocol reading strip for runtime child panels.
 function protocolReadingStore() {
     state.cache.protocolReadingByRuntimeId ||= {};
     state.cache.protocolReadingPendingByRuntimeId ||= {};
@@ -4302,8 +4306,6 @@ function ensureRuntimeProtocolReading(runtime) {
     clearRuntimeProtocolReading();
     void loadRuntimeProtocolReading(runtime.runtimeId);
 }
-// @ts-nocheck
-// Runtime detail, recovery, and child-panel rendering split from app.ts.
 function refreshLabel(kind) {
     return kind === "all"
         ? t("notifications.runtimeRefreshAll")
@@ -4769,8 +4771,6 @@ async function copySelectedRuntimeLink() {
         nodes.statusLine.textContent = t("notifications.runtimeLinkFailed", { message: error.message });
     }
 }
-// @ts-nocheck
-// Split from app.ts to keep the control-plane shell maintainable.
 function renderMetricCards(target, items, signatureKey = "") {
     const signature = [state.language, ...items.map(([label, value]) => `${label}:${value}`)].join("::");
     if (signatureKey && state.renderSignatures[signatureKey] === signature) {
@@ -4961,6 +4961,24 @@ function renderRuntimeSliceFromCache() {
     }
     renderRuntimes(state.cache.runtimes, attentionMapFromCache());
 }
+function ensureRuntimeSelectionFromCache() {
+    const runtimes = state.cache.runtimes?.runtimes || [];
+    if (runtimes.some((runtime) => runtime.runtimeId === state.selectedRuntimeId)) {
+        return;
+    }
+    state.selectedRuntimeId = runtimes[0]?.runtimeId || null;
+}
+function scheduleRuntimeSliceRender() {
+    if (state.pendingRuntimeRender) {
+        return;
+    }
+    state.pendingRuntimeRender = window.requestAnimationFrame(() => {
+        state.pendingRuntimeRender = 0;
+        if (state.activeTab === "runtimes") {
+            renderRuntimeSliceFromCache();
+        }
+    });
+}
 function isIdleReadyStatus(status) {
     return !!status
         && status.resilienceStatus === "idle_ready"
@@ -5020,8 +5038,6 @@ function runtimeStatusHint(status) {
     }
     return t("statuses.observed");
 }
-// @ts-nocheck
-// Split from app.ts to keep the control-plane shell maintainable.
 function findDuplicateRuntime(name, endpoint) {
     const normalizedName = name.trim().toLowerCase();
     const normalizedEndpoint = endpoint.trim().toLowerCase();
@@ -5158,8 +5174,6 @@ function renderRegisterPreview() {
     </div>
   `;
 }
-// @ts-nocheck
-// Split from app.ts to keep the control-plane shell maintainable.
 function runtimeTableSignature(items, attentionMap) {
     return [
         state.language,
@@ -5217,60 +5231,74 @@ function updateRuntimeTableSelection(selectedRuntimeId) {
 function renderRuntimes(payload, attentionMap) {
     const allItems = payload.runtimes || [];
     state.latestRuntimes = allItems;
-    const query = state.runtimeSearch.trim().toLowerCase();
+    if (state.activeRuntimeMainTab === "register") {
+        return;
+    }
+    const listVisible = state.activeRuntimeMainTab === "select";
+    const query = listVisible ? state.runtimeSearch.trim().toLowerCase() : "";
     const filteredItems = query
         ? allItems.filter((runtime) => runtime.name.toLowerCase().includes(query) ||
             runtime.endpoint.toLowerCase().includes(query))
         : allItems;
-    const items = [...filteredItems].sort((left, right) => {
-        if (state.runtimeSort === "status") {
-            return (left.status.statusSource || "").localeCompare(right.status.statusSource || "") ||
-                left.name.localeCompare(right.name);
-        }
-        if (state.runtimeSort === "snapshot") {
-            return (left.status.snapshotKind || "").localeCompare(right.status.snapshotKind || "") ||
-                left.name.localeCompare(right.name);
-        }
-        return left.name.localeCompare(right.name);
-    });
-    nodes.runtimeCount.textContent = `${items.length} ${t("metrics.runtimes")}`;
+    const items = listVisible
+        ? [...filteredItems].sort((left, right) => {
+            if (state.runtimeSort === "status") {
+                return (left.status.statusSource || "").localeCompare(right.status.statusSource || "") ||
+                    left.name.localeCompare(right.name);
+            }
+            if (state.runtimeSort === "snapshot") {
+                return (left.status.snapshotKind || "").localeCompare(right.status.snapshotKind || "") ||
+                    left.name.localeCompare(right.name);
+            }
+            return left.name.localeCompare(right.name);
+        })
+        : allItems;
+    if (listVisible) {
+        nodes.runtimeCount.textContent = `${items.length} ${t("metrics.runtimes")}`;
+    }
     if (!items.length) {
         state.selectedRuntimeId = null;
-        const emptySignature = `empty::${state.language}::${state.runtimeSearch.trim().toLowerCase()}::${state.runtimeSort}`;
-        if (state.renderSignatures.runtimeTable !== emptySignature) {
-            state.renderSignatures.runtimeTable = emptySignature;
-            nodes.runtimeTableBody.innerHTML = `<tr><td colspan="7">${escapeHtml(t("runtimes.noMatch"))}</td></tr>`;
+        if (listVisible) {
+            const emptySignature = `empty::${state.language}::${state.runtimeSearch.trim().toLowerCase()}::${state.runtimeSort}`;
+            if (state.renderSignatures.runtimeTable !== emptySignature) {
+                state.renderSignatures.runtimeTable = emptySignature;
+                nodes.runtimeTableBody.innerHTML = `<tr><td colspan="7">${escapeHtml(t("runtimes.noMatch"))}</td></tr>`;
+            }
         }
-        renderRuntimeDetail(null, null);
-        renderRuntimePanel(null);
-        renderOrchestraPlan(null);
+        if (state.activeRuntimeMainTab === "detail") {
+            renderRuntimeDetail(null, null);
+        }
+        else if (state.activeRuntimeMainTab === "panel") {
+            renderRuntimePanel(null);
+        }
         return;
     }
     if (!items.some((item) => item.runtimeId === state.selectedRuntimeId)) {
         state.selectedRuntimeId = items[0].runtimeId;
     }
-    const tableSignature = runtimeTableSignature(items, attentionMap);
-    if (state.renderSignatures.runtimeTable !== tableSignature) {
-        state.renderSignatures.runtimeTable = tableSignature;
-        nodes.runtimeTableBody.innerHTML = items.map((runtime) => {
-            const badge = statusBadge(runtime.status);
-            const attention = attentionMap.get(runtime.runtimeId);
-            const capabilityKeys = (runtime.capabilities || [])
-                .filter((item) => item.support === "fully_supported")
-                .map((item) => item.key);
-            const compactCapabilitySummary = capabilityKeys.length
-                ? t("runtimes.states.capabilitiesCount", { count: capabilityKeys.length })
-                : t("runtimes.states.noCapabilities");
-            const sidecarBits = [
-                runtime.sidecarEndpoint ? "paired" : null,
-                runtime.hasSidecarAdminToken ? t("runtimes.states.protected") : null,
-                runtime.sidecarStatus?.Healthy ? "healthy" : null,
-                runtime.sidecarStatus?.HasEvidenceChainEnrichment ? "enrichment" : null,
-                runtime.sidecarStatus?.HasDiagnosticOpinion ? "opinion" : null,
-                runtime.status.hasExternalSidecarContext ? "context" : null,
-                runtime.status.hasExternalDiagnosticOpinion ? "merged-opinion" : null,
-            ].filter(Boolean);
-            return `
+    if (listVisible) {
+        const tableSignature = runtimeTableSignature(items, attentionMap);
+        if (state.renderSignatures.runtimeTable !== tableSignature) {
+            state.renderSignatures.runtimeTable = tableSignature;
+            nodes.runtimeTableBody.innerHTML = items.map((runtime) => {
+                const badge = statusBadge(runtime.status);
+                const attention = attentionMap.get(runtime.runtimeId);
+                const capabilityKeys = (runtime.capabilities || [])
+                    .filter((item) => item.support === "fully_supported")
+                    .map((item) => item.key);
+                const compactCapabilitySummary = capabilityKeys.length
+                    ? t("runtimes.states.capabilitiesCount", { count: capabilityKeys.length })
+                    : t("runtimes.states.noCapabilities");
+                const sidecarBits = [
+                    runtime.sidecarEndpoint ? "paired" : null,
+                    runtime.hasSidecarAdminToken ? t("runtimes.states.protected") : null,
+                    runtime.sidecarStatus?.Healthy ? "healthy" : null,
+                    runtime.sidecarStatus?.HasEvidenceChainEnrichment ? "enrichment" : null,
+                    runtime.sidecarStatus?.HasDiagnosticOpinion ? "opinion" : null,
+                    runtime.status.hasExternalSidecarContext ? "context" : null,
+                    runtime.status.hasExternalDiagnosticOpinion ? "merged-opinion" : null,
+                ].filter(Boolean);
+                return `
         <tr class="${runtime.runtimeId === state.selectedRuntimeId ? "selected" : ""}" data-runtime-id="${escapeHtml(runtime.runtimeId)}">
           <td>
             <strong>${escapeHtml(runtime.name)}</strong>
@@ -5304,9 +5332,9 @@ function renderRuntimes(payload, attentionMap) {
           <td>
             <div class="runtime-attention">
               ${attention
-                ? `<span class="runtime-state ${attention.severity === "critical" ? "bad" : "warn"}">${escapeHtml(t(`attention.${attention.severity}`))}</span>
+                    ? `<span class="runtime-state ${attention.severity === "critical" ? "bad" : "warn"}">${escapeHtml(t(`attention.${attention.severity}`))}</span>
                    ${(attention.reasons || []).map((reason) => `<span class="tag-pill">${escapeHtml(t(`attention.${reason}`) || reason)}</span>`).join("")}`
-                : `<span class="runtime-state good">${escapeHtml(t("runtimes.states.clear"))}</span>`}
+                    : `<span class="runtime-state good">${escapeHtml(t("runtimes.states.clear"))}</span>`}
             </div>
           </td>
           <td>
@@ -5330,23 +5358,23 @@ function renderRuntimes(payload, attentionMap) {
           </td>
         </tr>
       `;
-        }).join("");
-    }
-    else {
-        updateRuntimeTableSelection(state.selectedRuntimeId);
+            }).join("");
+        }
+        else {
+            updateRuntimeTableSelection(state.selectedRuntimeId);
+        }
     }
     const selectedRuntime = items.find((runtime) => runtime.runtimeId === state.selectedRuntimeId) || null;
     const selectedAttention = selectedRuntime
         ? state.runtimeAttentionById.get(selectedRuntime.runtimeId) || attentionMap.get(selectedRuntime.runtimeId) || null
         : null;
-    renderRuntimeDetail(selectedRuntime, selectedAttention);
-    renderRuntimePanel(selectedRuntime);
-    if (state.activeTab === "orchestra") {
-        void loadOrchestraPlan(selectedRuntime?.runtimeId || null);
+    if (state.activeRuntimeMainTab === "detail") {
+        renderRuntimeDetail(selectedRuntime, selectedAttention);
+    }
+    else if (state.activeRuntimeMainTab === "panel") {
+        renderRuntimePanel(selectedRuntime);
     }
 }
-// @ts-nocheck
-// Orchestra plan loading and rendering.
 function orchestraReasonLabel(reason) {
     if (!reason) {
         return "clear";
@@ -5584,12 +5612,12 @@ function scheduleOrchestraFleetPoll(payload) {
         window.clearTimeout(state.orchestraFleetPollTimer);
         state.orchestraFleetPollTimer = 0;
     }
-    if (!payload.activeCount || state.activeTab !== "orchestra") {
+    if (!payload.activeCount || state.activeTab !== "orchestra" || document.hidden) {
         return;
     }
     state.orchestraFleetPollTimer = window.setTimeout(() => {
         state.orchestraFleetPollTimer = 0;
-        if (state.activeTab === "orchestra") {
+        if (state.activeTab === "orchestra" && !document.hidden) {
             void loadOrchestraFleetBoard();
         }
     }, 1000);
@@ -5610,15 +5638,27 @@ function scheduleOrchestraHistoryPoll(runtimeId, runs) {
         window.clearTimeout(state.orchestraPollTimer);
         state.orchestraPollTimer = 0;
     }
-    if (!runs.some((run) => ["queued", "running"].includes(run.outcome))) {
+    if (state.activeTab !== "orchestra"
+        || document.hidden
+        || !runs.some((run) => ["queued", "running"].includes(run.outcome))) {
         return;
     }
     state.orchestraPollTimer = window.setTimeout(() => {
         state.orchestraPollTimer = 0;
-        if (runtimeId === state.selectedRuntimeId) {
+        if (state.activeTab === "orchestra" && !document.hidden && runtimeId === state.selectedRuntimeId) {
             void loadOrchestraHistory(runtimeId);
         }
     }, 1000);
+}
+function clearOrchestraPollTimers() {
+    if (state.orchestraPollTimer) {
+        window.clearTimeout(state.orchestraPollTimer);
+        state.orchestraPollTimer = 0;
+    }
+    if (state.orchestraFleetPollTimer) {
+        window.clearTimeout(state.orchestraFleetPollTimer);
+        state.orchestraFleetPollTimer = 0;
+    }
 }
 async function loadOrchestraHistory(runtimeId = state.selectedRuntimeId) {
     if (!runtimeId) {
@@ -5805,8 +5845,6 @@ async function loadOrchestraPlan(runtimeId = state.selectedRuntimeId) {
     `;
     }
 }
-// @ts-nocheck
-// Dashboard loading, persistence, and registration workflows split from app.ts.
 function syncFilterInputs() {
     nodes.environmentInput.value = state.filter.environment;
     nodes.clusterInput.value = state.filter.cluster;
@@ -5815,7 +5853,9 @@ function syncFilterInputs() {
     nodes.runtimeSort.value = state.runtimeSort;
     const parts = [state.filter.environment, state.filter.cluster, state.filter.role].filter(Boolean);
     nodes.fleetFilterChip.textContent = parts.length ? parts.join(" / ") : t("filters.allRuntimes");
-    renderRegisterPreview();
+    if (state.activeTab === "runtimes" && state.activeRuntimeMainTab === "register") {
+        renderRegisterPreview();
+    }
 }
 function clearRegisterForm() {
     state.registerNameTouched = false;
@@ -5924,36 +5964,55 @@ function renderDashboardFromCache() {
     if (!capabilities || !fleetSummary || !attentionSummary || !attentionList || !runtimes || !sessions) {
         return;
     }
-    renderMetricCards(nodes.fleetSummaryCards, [
-        [t("metrics.runtimes"), fleetSummary.summary.runtimeCount],
-        [t("metrics.latestSnapshots"), fleetSummary.summary.runtimesWithLatestSnapshot],
-        [t("metrics.summaryJson"), fleetSummary.summary.runtimesWithSummaryJson],
-        [t("metrics.analysisJson"), fleetSummary.summary.runtimesWithAnalysisJson],
-        [t("metrics.pairedSidecars"), fleetSummary.summary.runtimesWithPairedSidecar],
-        [t("metrics.healthySidecars"), fleetSummary.summary.runtimesWithHealthySidecar],
-        [t("metrics.sidecarContext"), fleetSummary.summary.runtimesWithExternalSidecarContext],
-        [t("metrics.diagnosticOpinions"), fleetSummary.summary.runtimesWithExternalDiagnosticOpinion],
-    ], "fleetSummaryCards");
-    renderPersistence(capabilities);
-    renderGroupCards(nodes.fleetSummaryGroups, {
-        [t("groups.snapshotKinds")]: fleetSummary.summary.snapshotKindCounts,
-        [t("groups.statusSources")]: fleetSummary.summary.statusSourceCounts,
-        [t("groups.sidecarStatusSources")]: fleetSummary.summary.sidecarStatusSourceCounts,
-        [t("groups.environments")]: fleetSummary.summary.environmentCounts,
-        [t("groups.clusters")]: fleetSummary.summary.clusterCounts,
-        [t("groups.roles")]: fleetSummary.summary.roleCounts,
-    }, "fleetSummaryGroups");
-    renderMetricCards(nodes.attentionSummaryCards, [
-        [t("metrics.critical"), attentionSummary.summary.criticalCount],
-        [t("metrics.warning"), attentionSummary.summary.warningCount],
-    ], "attentionSummaryCards");
-    renderAttentionReasons(attentionSummary.summary);
-    renderAttentionList(attentionList);
-    renderSessions(sessions);
-    const attentionMap = new Map((attentionList.runtimes || []).map((item) => [item.runtimeId, item]));
-    renderRuntimes(runtimes, attentionMap);
+    if (state.activeTab === "overview") {
+        if (state.activeOverviewTab === "summary") {
+            renderMetricCards(nodes.fleetSummaryCards, [
+                [t("metrics.runtimes"), fleetSummary.summary.runtimeCount],
+                [t("metrics.latestSnapshots"), fleetSummary.summary.runtimesWithLatestSnapshot],
+                [t("metrics.summaryJson"), fleetSummary.summary.runtimesWithSummaryJson],
+                [t("metrics.analysisJson"), fleetSummary.summary.runtimesWithAnalysisJson],
+                [t("metrics.pairedSidecars"), fleetSummary.summary.runtimesWithPairedSidecar],
+                [t("metrics.healthySidecars"), fleetSummary.summary.runtimesWithHealthySidecar],
+                [t("metrics.sidecarContext"), fleetSummary.summary.runtimesWithExternalSidecarContext],
+                [t("metrics.diagnosticOpinions"), fleetSummary.summary.runtimesWithExternalDiagnosticOpinion],
+            ], "fleetSummaryCards");
+            renderGroupCards(nodes.fleetSummaryGroups, {
+                [t("groups.snapshotKinds")]: fleetSummary.summary.snapshotKindCounts,
+                [t("groups.statusSources")]: fleetSummary.summary.statusSourceCounts,
+                [t("groups.sidecarStatusSources")]: fleetSummary.summary.sidecarStatusSourceCounts,
+                [t("groups.environments")]: fleetSummary.summary.environmentCounts,
+                [t("groups.clusters")]: fleetSummary.summary.clusterCounts,
+                [t("groups.roles")]: fleetSummary.summary.roleCounts,
+            }, "fleetSummaryGroups");
+        }
+        else if (state.activeOverviewTab === "attention") {
+            renderMetricCards(nodes.attentionSummaryCards, [
+                [t("metrics.critical"), attentionSummary.summary.criticalCount],
+                [t("metrics.warning"), attentionSummary.summary.warningCount],
+            ], "attentionSummaryCards");
+            renderAttentionReasons(attentionSummary.summary);
+        }
+        else {
+            renderAttentionList(attentionList);
+        }
+        return;
+    }
+    if (state.activeTab === "persistence") {
+        renderPersistence(capabilities);
+        return;
+    }
+    if (state.activeTab === "sessions") {
+        renderSessions(sessions);
+        return;
+    }
+    if (state.activeTab === "runtimes") {
+        renderRuntimes(runtimes, state.runtimeAttentionById);
+    }
 }
 async function loadDashboard() {
+    state.dashboardAbortController?.abort();
+    const abortController = new AbortController();
+    state.dashboardAbortController = abortController;
     const requestId = ++state.dashboardRequestSeq;
     syncLocation();
     syncFilterInputs();
@@ -5962,12 +6021,12 @@ async function loadDashboard() {
     nodes.statusLine.textContent = t("notifications.loading");
     try {
         const [capabilities, fleetSummary, attentionSummary, attentionList, runtimes, sessions] = await Promise.all([
-            getJson("/v1/capabilities"),
-            getJson(`/v1/fleet/summary${query}`),
-            getJson(`/v1/fleet/attention-summary${query}`),
-            getJson(`/v1/fleet/runtimes-needing-attention${query}`),
-            getJson(`/v1/runtimes${query}`),
-            getJson("/v1/sessions"),
+            getJson("/v1/capabilities", abortController.signal),
+            getJson(`/v1/fleet/summary${query}`, abortController.signal),
+            getJson(`/v1/fleet/attention-summary${query}`, abortController.signal),
+            getJson(`/v1/fleet/runtimes-needing-attention${query}`, abortController.signal),
+            getJson(`/v1/runtimes${query}`, abortController.signal),
+            getJson("/v1/sessions", abortController.signal),
         ]);
         if (requestId !== state.dashboardRequestSeq) {
             return;
@@ -5981,21 +6040,25 @@ async function loadDashboard() {
             sessions,
         };
         state.runtimeAttentionById = new Map((attentionList.runtimes || []).map((item) => [item.runtimeId, item]));
+        state.latestRuntimes = runtimes.runtimes || [];
         renderDashboardFromCache();
-        syncCleanupMenuState();
-        if (state.selectedRuntimeId) {
-            void loadRuntimeAttention(state.selectedRuntimeId);
-            void loadOrchestraPlan(state.selectedRuntimeId);
+        if (state.activeTab === "runtimes") {
+            syncCleanupMenuState();
         }
-        else {
-            renderOrchestraPlan(null);
+        if (state.activeTab === "runtimes" && state.selectedRuntimeId) {
+            void loadRuntimeAttention(state.selectedRuntimeId);
         }
         if (state.activeTab === "orchestra") {
+            ensureRuntimeSelectionFromCache();
+            void loadOrchestraPlan(state.selectedRuntimeId);
             void loadOrchestraFleetBoard();
         }
         nodes.statusLine.textContent = t("notifications.loaded", { count: runtimes.runtimes.length });
     }
     catch (error) {
+        if (error?.name === "AbortError") {
+            return;
+        }
         if (requestId !== state.dashboardRequestSeq) {
             return;
         }
@@ -6005,6 +6068,11 @@ async function loadDashboard() {
             renderSecurityState(null);
             nodes.adminTokenState.textContent = t("security.tokenRequired");
             nodes.securityDetails?.setAttribute("open", "open");
+        }
+    }
+    finally {
+        if (state.dashboardAbortController === abortController) {
+            state.dashboardAbortController = null;
         }
     }
 }
@@ -6274,8 +6342,6 @@ async function submitRegisterForm(event) {
         applyTabShell();
     }
 }
-// @ts-nocheck
-// Transitional TypeScript source: keep runtime behavior stable first, then tighten types incrementally.
 const state = {
     filter: {
         environment: "",
@@ -6302,9 +6368,12 @@ const state = {
     orchestraFleetPollTimer: 0,
     orchestraRequestIds: {},
     dashboardRequestSeq: 0,
+    dashboardAbortController: null,
     pendingLocationSync: 0,
+    pendingLayoutFrame: 0,
     lastSyncedLocation: "",
     pendingRegisterPreview: 0,
+    pendingRuntimeRender: 0,
     runtimeAttentionById: new Map(),
     recentBadgeRefresh: {
         runtime: null,

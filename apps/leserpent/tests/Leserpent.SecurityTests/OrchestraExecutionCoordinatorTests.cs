@@ -155,6 +155,123 @@ public sealed class OrchestraExecutionCoordinatorTests
         DeleteStateFiles(statePath);
     }
 
+    [Fact]
+    public void GuidedRunIsNotPublishedWhenPersistenceFails()
+    {
+        var (registry, statePath) = CreateRegistry(new FailingRunStore());
+        var runtime = RegisterRuntime(registry);
+
+        Assert.Throws<OrchestraPersistenceException>(() => registry.RecordOrchestraRun(
+            runtime.RuntimeId,
+            "session_preparation",
+            "ok",
+            Array.Empty<OrchestraExecutionStepResult>()));
+
+        Assert.Empty(registry.ListOrchestraRuns(runtime.RuntimeId));
+        DeleteStateFiles(statePath);
+    }
+
+    [Fact]
+    public void ImportRestoresPreviousRegistryWhenOrchestraReplacementFails()
+    {
+        var (registry, statePath) = CreateRegistry(new FailingRunStore());
+        var runtime = RegisterRuntime(registry);
+        var current = registry.ExportState();
+        var replacement = current with
+        {
+            Runtimes = current.Runtimes
+                .Select(item => item with { Name = "replacement-runtime" })
+                .ToArray(),
+        };
+
+        Assert.Throws<OrchestraPersistenceException>(() => registry.ImportState(replacement));
+
+        Assert.Equal("runtime", registry.GetRuntime(runtime.RuntimeId)?.Name);
+        DeleteStateFiles(statePath);
+    }
+
+    [Fact]
+    public void RuntimeDeleteKeepsRegistryIntactWhenAuditCleanupFails()
+    {
+        var (registry, statePath) = CreateRegistry(new DeleteFailingRunStore());
+        var runtime = RegisterRuntime(registry);
+        var session = registry.CreateSession(new SessionCreateRequest(
+            runtime.RuntimeId,
+            "diagnostic",
+            "operator",
+            Array.Empty<SessionCapabilityRequirement>())).Session;
+        var run = registry.RecordOrchestraRun(
+            runtime.RuntimeId,
+            "session_preparation",
+            "ok",
+            Array.Empty<OrchestraExecutionStepResult>());
+
+        Assert.Throws<OrchestraPersistenceException>(() => registry.DeleteRuntime(runtime.RuntimeId));
+
+        Assert.NotNull(registry.GetRuntime(runtime.RuntimeId));
+        Assert.NotNull(registry.GetSession(session!.SessionId));
+        Assert.NotNull(registry.GetOrchestraRun(runtime.RuntimeId, run.RunId));
+        DeleteStateFiles(statePath);
+    }
+
+    [Fact]
+    public async Task RuntimeDeleteRejectsActiveOrchestraRun()
+    {
+        var (registry, statePath) = CreateRegistry();
+        var runtime = RegisterRuntime(registry);
+        var executor = new BlockingExecutor();
+        using var coordinator = new OrchestraExecutionCoordinator(
+            registry,
+            executor,
+            NullLogger<OrchestraExecutionCoordinator>.Instance);
+        var started = coordinator.TryStart(
+            runtime,
+            "runtime_triage",
+            "revision-1",
+            "automatic",
+            null,
+            "request-delete-active-1");
+        await executor.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var conflict = Assert.Throws<OrchestraRuntimeBusyException>(() =>
+            registry.DeleteRuntime(runtime.RuntimeId));
+
+        Assert.Contains(conflict.ActiveRuns, item => item.RunId == started.Run!.RunId);
+        Assert.NotNull(registry.GetRuntime(runtime.RuntimeId));
+        coordinator.Cancel(runtime.RuntimeId, started.Run!.RunId);
+        await WaitForTerminalRunAsync(registry, runtime.RuntimeId, started.Run.RunId);
+        DeleteStateFiles(statePath);
+    }
+
+    [Fact]
+    public async Task BatchDeleteIsAtomicWhenSelectionContainsActiveRun()
+    {
+        var (registry, statePath) = CreateRegistry();
+        var activeRuntime = RegisterRuntime(registry);
+        var idleRuntime = RegisterRuntime(registry);
+        var executor = new BlockingExecutor();
+        using var coordinator = new OrchestraExecutionCoordinator(
+            registry,
+            executor,
+            NullLogger<OrchestraExecutionCoordinator>.Instance);
+        var started = coordinator.TryStart(
+            activeRuntime,
+            "runtime_triage",
+            "revision-1",
+            "automatic",
+            null,
+            "request-batch-delete-active-1");
+        await executor.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Throws<OrchestraRuntimeBusyException>(() => registry.DeleteRuntimes());
+
+        Assert.NotNull(registry.GetRuntime(activeRuntime.RuntimeId));
+        Assert.NotNull(registry.GetRuntime(idleRuntime.RuntimeId));
+        coordinator.Cancel(activeRuntime.RuntimeId, started.Run!.RunId);
+        await WaitForTerminalRunAsync(registry, activeRuntime.RuntimeId, started.Run.RunId);
+        DeleteStateFiles(statePath);
+    }
+
     private static async Task<OrchestraRunSummary> WaitForTerminalRunAsync(
         RegistryService registry,
         string runtimeId,
@@ -254,8 +371,8 @@ public sealed class OrchestraExecutionCoordinatorTests
         public IReadOnlyList<OrchestraRunSummary> LoadAll() => Array.Empty<OrchestraRunSummary>();
         public IReadOnlyList<OrchestraRunEvent> LoadEvents(string runtimeId, string runId) => Array.Empty<OrchestraRunEvent>();
         public bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null) => false;
-        public void ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs) { }
-        public void DeleteRuntime(string runtimeId) { }
+        public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs) => false;
+        public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds) => false;
     }
 
     private sealed class TransitionFailingRunStore : IOrchestraRunStore
@@ -271,8 +388,23 @@ public sealed class OrchestraExecutionCoordinatorTests
         public IReadOnlyList<OrchestraRunEvent> LoadEvents(string runtimeId, string runId) => inner.LoadEvents(runtimeId, runId);
         public bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null) =>
             Interlocked.Increment(ref writeCount) == 1 && inner.Upsert(run, eventRecord);
-        public void ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs) => inner.ReplaceAll(runs);
-        public void DeleteRuntime(string runtimeId) => inner.DeleteRuntime(runtimeId);
+        public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs) => inner.ReplaceAll(runs);
+        public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds) => inner.DeleteRuntimes(runtimeIds);
+    }
+
+    private sealed class DeleteFailingRunStore : IOrchestraRunStore
+    {
+        private readonly InMemoryOrchestraRunStore inner = new();
+
+        public string Provider => "delete-failing-test";
+        public string Location => "test";
+        public int SchemaVersion => 0;
+        public string? LastError => "delete failed";
+        public IReadOnlyList<OrchestraRunSummary> LoadAll() => inner.LoadAll();
+        public IReadOnlyList<OrchestraRunEvent> LoadEvents(string runtimeId, string runId) => inner.LoadEvents(runtimeId, runId);
+        public bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null) => inner.Upsert(run, eventRecord);
+        public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs) => inner.ReplaceAll(runs);
+        public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds) => false;
     }
 
     private sealed class TestHostEnvironment : IHostEnvironment

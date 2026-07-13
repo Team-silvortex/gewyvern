@@ -18,8 +18,9 @@ public sealed partial class CapabilityDiscoveryService
 
         try
         {
-            return await GetFromJsonAsync<GewyvernRuntimeResiliencePayload>(
+            return await GetFromJsonAsync(
                 resiliencePlanResult.Plan!,
+                DiscoveryJsonContext.Default.GewyvernRuntimeResiliencePayload,
                 cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

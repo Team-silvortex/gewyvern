@@ -1,5 +1,15 @@
 namespace Leserpent.ControlPlane;
 
+public sealed class OrchestraPersistenceException(string message) : InvalidOperationException(message);
+
+public sealed record OrchestraActiveRunConflict(string RuntimeId, string RunId, string Outcome);
+
+public sealed class OrchestraRuntimeBusyException(IReadOnlyList<OrchestraActiveRunConflict> activeRuns)
+    : InvalidOperationException("one or more runtimes have active Orchestra runs")
+{
+    public IReadOnlyList<OrchestraActiveRunConflict> ActiveRuns { get; } = activeRuns;
+}
+
 public interface IOrchestraRunStore
 {
     string Provider { get; }
@@ -9,8 +19,8 @@ public interface IOrchestraRunStore
     IReadOnlyList<OrchestraRunSummary> LoadAll();
     IReadOnlyList<OrchestraRunEvent> LoadEvents(string runtimeId, string runId);
     bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null);
-    void ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs);
-    void DeleteRuntime(string runtimeId);
+    bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs);
+    bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds);
 }
 
 public sealed class InMemoryOrchestraRunStore : IOrchestraRunStore
@@ -44,7 +54,7 @@ public sealed class InMemoryOrchestraRunStore : IOrchestraRunStore
         return true;
     }
 
-    public void ReplaceAll(IReadOnlyList<OrchestraRunSummary> replacement)
+    public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> replacement)
     {
         runs.Clear();
         events.Clear();
@@ -52,17 +62,20 @@ public sealed class InMemoryOrchestraRunStore : IOrchestraRunStore
         {
             runs[run.RunId] = run;
         }
+        return true;
     }
 
-    public void DeleteRuntime(string runtimeId)
+    public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds)
     {
+        var runtimeIdSet = runtimeIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var runId in runs.Values
-            .Where(run => string.Equals(run.RuntimeId, runtimeId, StringComparison.OrdinalIgnoreCase))
+            .Where(run => runtimeIdSet.Contains(run.RuntimeId))
             .Select(run => run.RunId)
             .ToArray())
         {
             runs.Remove(runId);
         }
-        events.RemoveAll(item => string.Equals(item.RuntimeId, runtimeId, StringComparison.OrdinalIgnoreCase));
+        events.RemoveAll(item => runtimeIdSet.Contains(item.RuntimeId));
+        return true;
     }
 }

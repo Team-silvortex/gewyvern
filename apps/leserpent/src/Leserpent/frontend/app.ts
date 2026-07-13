@@ -26,9 +26,12 @@ const state = {
   orchestraFleetPollTimer: 0,
   orchestraRequestIds: {},
   dashboardRequestSeq: 0,
+  dashboardAbortController: null,
   pendingLocationSync: 0,
+  pendingLayoutFrame: 0,
   lastSyncedLocation: "",
   pendingRegisterPreview: 0,
+  pendingRuntimeRender: 0,
   runtimeAttentionById: new Map(),
   recentBadgeRefresh: {
     runtime: null,

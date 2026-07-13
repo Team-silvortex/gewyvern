@@ -87,7 +87,7 @@ public sealed class SqliteOrchestraRunStoreTests
         var run = CreateRun("run-delete", "request-delete", "queued");
         store.Upsert(run, CreateEvent(run, null, "queued"));
 
-        store.DeleteRuntime("runtime-1");
+        store.DeleteRuntimes(new[] { "runtime-1" });
 
         Assert.Empty(store.LoadAll());
         Assert.Empty(store.LoadEvents("runtime-1", "run-delete"));
@@ -122,6 +122,32 @@ public sealed class SqliteOrchestraRunStoreTests
         Assert.Single(migrated);
         Assert.Equal("request-migrate-1", migrated[0].RequestId);
         Assert.Single(sqlite.LoadAll());
+        DeleteState(statePath);
+        DeleteDatabase(databasePath);
+    }
+
+    [Fact]
+    public void RegistrySingleRuntimeDeleteRemovesSqliteRunsAndEvents()
+    {
+        var statePath = TemporaryPath("json");
+        var databasePath = TemporaryPath("db");
+        var sqlite = CreateSqliteStore(databasePath);
+        var registry = new RegistryService(CreateStateStore(statePath), sqlite);
+        var registered = registry.RegisterRuntime(new RuntimeRegistrationRequest(
+            "runtime",
+            "http://127.0.0.1:49152",
+            "pairing-token"));
+        var run = registry.RecordOrchestraRun(
+            registered.RuntimeId,
+            "session_preparation",
+            "ok",
+            Array.Empty<OrchestraExecutionStepResult>());
+
+        var deleted = registry.DeleteRuntime(registered.RuntimeId);
+
+        Assert.NotNull(deleted.RemovedRuntime);
+        Assert.Empty(sqlite.LoadAll());
+        Assert.Empty(sqlite.LoadEvents(registered.RuntimeId, run.RunId));
         DeleteState(statePath);
         DeleteDatabase(databasePath);
     }

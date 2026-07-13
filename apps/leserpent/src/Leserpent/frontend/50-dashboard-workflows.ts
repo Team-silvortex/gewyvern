@@ -9,7 +9,9 @@ function syncFilterInputs() {
   nodes.runtimeSort.value = state.runtimeSort;
   const parts = [state.filter.environment, state.filter.cluster, state.filter.role].filter(Boolean);
   nodes.fleetFilterChip.textContent = parts.length ? parts.join(" / ") : t("filters.allRuntimes");
-  renderRegisterPreview();
+  if (state.activeTab === "runtimes" && state.activeRuntimeMainTab === "register") {
+    renderRegisterPreview();
+  }
 }
 
 function clearRegisterForm() {
@@ -139,41 +141,57 @@ function renderDashboardFromCache() {
     return;
   }
 
-  renderMetricCards(nodes.fleetSummaryCards, [
-    [t("metrics.runtimes"), fleetSummary.summary.runtimeCount],
-    [t("metrics.latestSnapshots"), fleetSummary.summary.runtimesWithLatestSnapshot],
-    [t("metrics.summaryJson"), fleetSummary.summary.runtimesWithSummaryJson],
-    [t("metrics.analysisJson"), fleetSummary.summary.runtimesWithAnalysisJson],
-    [t("metrics.pairedSidecars"), fleetSummary.summary.runtimesWithPairedSidecar],
-    [t("metrics.healthySidecars"), fleetSummary.summary.runtimesWithHealthySidecar],
-    [t("metrics.sidecarContext"), fleetSummary.summary.runtimesWithExternalSidecarContext],
-    [t("metrics.diagnosticOpinions"), fleetSummary.summary.runtimesWithExternalDiagnosticOpinion],
-  ], "fleetSummaryCards");
+  if (state.activeTab === "overview") {
+    if (state.activeOverviewTab === "summary") {
+      renderMetricCards(nodes.fleetSummaryCards, [
+        [t("metrics.runtimes"), fleetSummary.summary.runtimeCount],
+        [t("metrics.latestSnapshots"), fleetSummary.summary.runtimesWithLatestSnapshot],
+        [t("metrics.summaryJson"), fleetSummary.summary.runtimesWithSummaryJson],
+        [t("metrics.analysisJson"), fleetSummary.summary.runtimesWithAnalysisJson],
+        [t("metrics.pairedSidecars"), fleetSummary.summary.runtimesWithPairedSidecar],
+        [t("metrics.healthySidecars"), fleetSummary.summary.runtimesWithHealthySidecar],
+        [t("metrics.sidecarContext"), fleetSummary.summary.runtimesWithExternalSidecarContext],
+        [t("metrics.diagnosticOpinions"), fleetSummary.summary.runtimesWithExternalDiagnosticOpinion],
+      ], "fleetSummaryCards");
+      renderGroupCards(nodes.fleetSummaryGroups, {
+        [t("groups.snapshotKinds")]: fleetSummary.summary.snapshotKindCounts,
+        [t("groups.statusSources")]: fleetSummary.summary.statusSourceCounts,
+        [t("groups.sidecarStatusSources")]: fleetSummary.summary.sidecarStatusSourceCounts,
+        [t("groups.environments")]: fleetSummary.summary.environmentCounts,
+        [t("groups.clusters")]: fleetSummary.summary.clusterCounts,
+        [t("groups.roles")]: fleetSummary.summary.roleCounts,
+      }, "fleetSummaryGroups");
+    } else if (state.activeOverviewTab === "attention") {
+      renderMetricCards(nodes.attentionSummaryCards, [
+        [t("metrics.critical"), attentionSummary.summary.criticalCount],
+        [t("metrics.warning"), attentionSummary.summary.warningCount],
+      ], "attentionSummaryCards");
+      renderAttentionReasons(attentionSummary.summary);
+    } else {
+      renderAttentionList(attentionList);
+    }
+    return;
+  }
 
-  renderPersistence(capabilities);
+  if (state.activeTab === "persistence") {
+    renderPersistence(capabilities);
+    return;
+  }
 
-  renderGroupCards(nodes.fleetSummaryGroups, {
-    [t("groups.snapshotKinds")]: fleetSummary.summary.snapshotKindCounts,
-    [t("groups.statusSources")]: fleetSummary.summary.statusSourceCounts,
-    [t("groups.sidecarStatusSources")]: fleetSummary.summary.sidecarStatusSourceCounts,
-    [t("groups.environments")]: fleetSummary.summary.environmentCounts,
-    [t("groups.clusters")]: fleetSummary.summary.clusterCounts,
-    [t("groups.roles")]: fleetSummary.summary.roleCounts,
-  }, "fleetSummaryGroups");
+  if (state.activeTab === "sessions") {
+    renderSessions(sessions);
+    return;
+  }
 
-  renderMetricCards(nodes.attentionSummaryCards, [
-    [t("metrics.critical"), attentionSummary.summary.criticalCount],
-    [t("metrics.warning"), attentionSummary.summary.warningCount],
-  ], "attentionSummaryCards");
-  renderAttentionReasons(attentionSummary.summary);
-  renderAttentionList(attentionList);
-  renderSessions(sessions);
-
-  const attentionMap = new Map((attentionList.runtimes || []).map((item) => [item.runtimeId, item]));
-  renderRuntimes(runtimes, attentionMap);
+  if (state.activeTab === "runtimes") {
+    renderRuntimes(runtimes, state.runtimeAttentionById);
+  }
 }
 
 async function loadDashboard() {
+  state.dashboardAbortController?.abort();
+  const abortController = new AbortController();
+  state.dashboardAbortController = abortController;
   const requestId = ++state.dashboardRequestSeq;
   syncLocation();
   syncFilterInputs();
@@ -183,12 +201,12 @@ async function loadDashboard() {
 
   try {
     const [capabilities, fleetSummary, attentionSummary, attentionList, runtimes, sessions] = await Promise.all([
-      getJson("/v1/capabilities"),
-      getJson(`/v1/fleet/summary${query}`),
-      getJson(`/v1/fleet/attention-summary${query}`),
-      getJson(`/v1/fleet/runtimes-needing-attention${query}`),
-      getJson(`/v1/runtimes${query}`),
-      getJson("/v1/sessions"),
+      getJson("/v1/capabilities", abortController.signal),
+      getJson(`/v1/fleet/summary${query}`, abortController.signal),
+      getJson(`/v1/fleet/attention-summary${query}`, abortController.signal),
+      getJson(`/v1/fleet/runtimes-needing-attention${query}`, abortController.signal),
+      getJson(`/v1/runtimes${query}`, abortController.signal),
+      getJson("/v1/sessions", abortController.signal),
     ]);
 
     if (requestId !== state.dashboardRequestSeq) {
@@ -204,20 +222,25 @@ async function loadDashboard() {
       sessions,
     };
     state.runtimeAttentionById = new Map((attentionList.runtimes || []).map((item) => [item.runtimeId, item]));
+    state.latestRuntimes = runtimes.runtimes || [];
 
     renderDashboardFromCache();
-    syncCleanupMenuState();
-    if (state.selectedRuntimeId) {
+    if (state.activeTab === "runtimes") {
+      syncCleanupMenuState();
+    }
+    if (state.activeTab === "runtimes" && state.selectedRuntimeId) {
       void loadRuntimeAttention(state.selectedRuntimeId);
-      void loadOrchestraPlan(state.selectedRuntimeId);
-    } else {
-      renderOrchestraPlan(null);
     }
     if (state.activeTab === "orchestra") {
+      ensureRuntimeSelectionFromCache();
+      void loadOrchestraPlan(state.selectedRuntimeId);
       void loadOrchestraFleetBoard();
     }
     nodes.statusLine.textContent = t("notifications.loaded", { count: runtimes.runtimes.length });
   } catch (error) {
+    if (error?.name === "AbortError") {
+      return;
+    }
     if (requestId !== state.dashboardRequestSeq) {
       return;
     }
@@ -227,6 +250,10 @@ async function loadDashboard() {
       renderSecurityState(null);
       nodes.adminTokenState.textContent = t("security.tokenRequired");
       nodes.securityDetails?.setAttribute("open", "open");
+    }
+  } finally {
+    if (state.dashboardAbortController === abortController) {
+      state.dashboardAbortController = null;
     }
   }
 }

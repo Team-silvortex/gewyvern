@@ -59,10 +59,21 @@ function setStoredThemePreference(value) {
 
 function activateTab(tab) {
   state.activeTab = tab;
+  if (tab !== "orchestra") {
+    clearOrchestraPollTimers();
+  }
   applyTabShell();
+  renderDashboardFromCache();
+  if (tab === "runtimes") {
+    syncCleanupMenuState();
+    if (state.activeRuntimeMainTab === "detail" && state.selectedRuntimeId) {
+      void loadRuntimeAttention(state.selectedRuntimeId);
+    }
+  }
   syncLocation();
   if (tab === "orchestra") {
-    void loadOrchestraPlan();
+    ensureRuntimeSelectionFromCache();
+    void loadOrchestraPlan(state.selectedRuntimeId);
     void loadOrchestraFleetBoard();
   }
 }
@@ -70,6 +81,7 @@ function activateTab(tab) {
 function activateOverviewSubtab(tab) {
   state.activeOverviewTab = tab;
   applyTabShell();
+  renderDashboardFromCache();
   syncLocation();
 }
 
@@ -78,6 +90,13 @@ function activateRuntimeMainTab(tab) {
   state.activeRuntimeSideTab = state.activeRuntimeMainTab === "panel" ? "panel" : "detail";
   state.activeTab = "runtimes";
   applyTabShell();
+  renderDashboardFromCache();
+  syncCleanupMenuState();
+  if (state.activeRuntimeMainTab === "register") {
+    renderRegisterPreview();
+  } else if (state.activeRuntimeMainTab === "detail" && state.selectedRuntimeId) {
+    void loadRuntimeAttention(state.selectedRuntimeId);
+  }
   syncLocation();
 }
 
@@ -196,7 +215,7 @@ function bootstrapDashboard() {
 
   nodes.runtimeSearch.addEventListener("input", () => {
     state.runtimeSearch = nodes.runtimeSearch.value.trim();
-    renderRuntimeSliceFromCache();
+    scheduleRuntimeSliceRender();
     syncLocation();
   });
 
@@ -232,8 +251,6 @@ function bootstrapDashboard() {
     state.selectedRuntimeId = row.dataset.runtimeId;
     renderRuntimeSliceFromCache();
     syncLocation();
-    void loadRuntimeAttention(state.selectedRuntimeId);
-    void loadOrchestraPlan(state.selectedRuntimeId);
   });
 
   nodes.runtimeDetailAttention.addEventListener("click", async (event) => {
@@ -372,7 +389,24 @@ function bootstrapDashboard() {
   });
 
   window.addEventListener("resize", () => {
-    applyLayoutMode();
+    if (state.pendingLayoutFrame) {
+      return;
+    }
+    state.pendingLayoutFrame = window.requestAnimationFrame(() => {
+      state.pendingLayoutFrame = 0;
+      applyLayoutMode();
+    });
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      clearOrchestraPollTimers();
+      return;
+    }
+    if (state.activeTab === "orchestra") {
+      void loadOrchestraFleetBoard();
+      void loadOrchestraHistory();
+    }
   });
 
   hydrateStateFromLocation();

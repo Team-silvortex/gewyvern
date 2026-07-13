@@ -8,23 +8,21 @@ public partial class Program
     private static void MapRuntimeEndpoints(WebApplication app)
     {
         app.MapGet("/v1/runtimes", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
-            Results.Ok(new
-            {
-                filter = new RuntimeListFilter(environmentTag, cluster, role),
-                runtimes = registry.ListRuntimes(new RuntimeListFilter(environmentTag, cluster, role)),
-            }));
+            Results.Ok(new RuntimeCollectionResponse(
+                new RuntimeListFilter(environmentTag, cluster, role),
+                registry.ListRuntimes(new RuntimeListFilter(environmentTag, cluster, role)))));
 
         app.MapGet("/v1/runtimes/{id}", (string id, RegistryService registry) =>
         {
             var runtime = registry.GetRuntime(id);
-            return runtime is null ? Results.NotFound(new { error = "runtime_not_found", runtimeId = id }) : Results.Ok(runtime);
+            return runtime is null ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id)) : Results.Ok(runtime);
         });
 
         app.MapGet("/v1/runtimes/{id}/attention", (string id, RegistryService registry) =>
         {
             var attention = registry.GetRuntimeAttention(id);
             return attention is null
-                ? Results.NotFound(new { error = "runtime_not_found", runtimeId = id })
+                ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
                 : Results.Ok(attention);
         });
 
@@ -32,7 +30,7 @@ public partial class Program
         {
             var runtime = registry.GetRuntime(id);
             return runtime is null
-                ? Results.NotFound(new { error = "runtime_not_found", runtimeId = id })
+                ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
                 : Results.Ok(new RuntimeStatusRefreshResponse(runtime.RuntimeId, runtime.Name, runtime.Endpoint, runtime.Status));
         });
 
@@ -40,7 +38,7 @@ public partial class Program
         {
             var runtime = registry.GetRuntime(id);
             return runtime is null
-                ? Results.NotFound(new { error = "runtime_not_found", runtimeId = id })
+                ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
                 : Results.Ok(new RuntimeSidecarRefreshResponse(
                     runtime.RuntimeId,
                     runtime.Name,
@@ -55,7 +53,7 @@ public partial class Program
             var runtime = registry.GetRuntime(id);
             if (runtime is null)
             {
-                return Results.NotFound(new { error = "runtime_not_found", runtimeId = id });
+                return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
 
             try
@@ -66,12 +64,12 @@ public partial class Program
                     runtime.Endpoint,
                     cancellationToken);
                 return reading is null
-                    ? Results.NotFound(new { error = "protocol_reading_unavailable", runtimeId = id })
+                    ? Results.NotFound(new ApiErrorResponse("protocol_reading_unavailable", RuntimeId: id))
                     : Results.Ok(reading);
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { error = "protocol_reading_unavailable", runtimeId = id, reason = ex.Message });
+                return Results.BadRequest(new ApiErrorResponse("protocol_reading_unavailable", ex.Message, RuntimeId: id));
             }
         });
 
@@ -79,21 +77,15 @@ public partial class Program
         {
             if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Endpoint))
             {
-                return Results.BadRequest(new
-                {
-                    error = "invalid_runtime_registration",
-                    reason = "name and endpoint are required",
-                });
+                return Results.BadRequest(new ApiErrorResponse(
+                    "invalid_runtime_registration",
+                    "name and endpoint are required"));
             }
 
             var registrationValidation = await security.ValidateRegistrationAsync(request, cancellationToken);
             if (registrationValidation is not null)
             {
-                return Results.BadRequest(new
-                {
-                    error = "invalid_runtime_registration",
-                    reason = registrationValidation,
-                });
+                return Results.BadRequest(new ApiErrorResponse("invalid_runtime_registration", registrationValidation));
             }
 
             if (request.FetchCapabilities)
@@ -130,14 +122,14 @@ public partial class Program
             var runtime = registry.GetRuntime(id);
             if (runtime is null)
             {
-                return Results.NotFound(new { error = "runtime_not_found", runtimeId = id });
+                return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
 
             var refreshed = registry.RefreshRuntimeCapabilities(
                 id,
                 await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken));
             return refreshed is null
-                ? Results.NotFound(new { error = "runtime_not_found", runtimeId = id })
+                ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
                 : Results.Ok(refreshed);
         });
 
@@ -146,7 +138,7 @@ public partial class Program
             var runtime = registry.GetRuntime(id);
             if (runtime is null)
             {
-                return Results.NotFound(new { error = "runtime_not_found", runtimeId = id });
+                return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
 
             var refreshed = registry.RefreshRuntimeStatus(
@@ -169,7 +161,7 @@ public partial class Program
                         null));
             }
             return refreshed is null
-                ? Results.NotFound(new { error = "runtime_not_found", runtimeId = id })
+                ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
                 : Results.Ok(refreshed);
         });
 
@@ -178,13 +170,13 @@ public partial class Program
             var runtime = registry.GetRuntime(id);
             if (runtime is null)
             {
-                return Results.NotFound(new { error = "runtime_not_found", runtimeId = id });
+                return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
 
             var sidecarAccess = registry.GetRuntimeSidecarAccess(id);
             if (sidecarAccess is null)
             {
-                return Results.BadRequest(new { error = "runtime_has_no_sidecar_endpoint", runtimeId = id });
+                return Results.BadRequest(new ApiErrorResponse("runtime_has_no_sidecar_endpoint", RuntimeId: id));
             }
 
             var refreshed = registry.RefreshRuntimeSidecar(
@@ -211,65 +203,120 @@ public partial class Program
                         refreshed.SidecarStatus?.StatusFetchError));
             }
             return refreshed is null
-                ? Results.NotFound(new { error = "runtime_not_found", runtimeId = id })
+                ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
                 : Results.Ok(refreshed);
         });
 
         app.MapPost("/v1/runtimes/{id}/delete", (string id, RegistryService registry) =>
         {
-            var deleted = registry.DeleteRuntime(id);
+            (RuntimeSummary? RemovedRuntime, int RemovedSessionCount) deleted;
+            try
+            {
+                deleted = registry.DeleteRuntime(id);
+            }
+            catch (OrchestraRuntimeBusyException ex)
+            {
+                return Results.Conflict(new ApiErrorResponse(
+                    "runtime_delete_orchestra_active",
+                    RuntimeId: id,
+                    ActiveRuns: ex.ActiveRuns));
+            }
+            catch (OrchestraPersistenceException ex)
+            {
+                return Results.Json(
+                    new ApiErrorResponse("runtime_delete_persistence_unavailable", ex.Message, RuntimeId: id),
+                    LeserpentJsonContext.Default.ApiErrorResponse,
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
             return deleted.RemovedRuntime is null
-                ? Results.NotFound(new { error = "runtime_not_found", runtimeId = id })
-                : Results.Ok(new
-                {
-                    deleted = true,
-                    runtimeId = deleted.RemovedRuntime.RuntimeId,
-                    name = deleted.RemovedRuntime.Name,
-                    endpoint = deleted.RemovedRuntime.Endpoint,
-                    removedSessionCount = deleted.RemovedSessionCount,
-                });
+                ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
+                : Results.Ok(new RuntimeDeleteResponse(
+                    true,
+                    deleted.RemovedRuntime.RuntimeId,
+                    deleted.RemovedRuntime.Name,
+                    deleted.RemovedRuntime.Endpoint,
+                    deleted.RemovedSessionCount));
         });
 
         app.MapPost("/v1/runtimes/delete-failed", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
-            var deleted = registry.DeleteFailedRuntimes(filter);
-            return Results.Ok(new
+            (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames) deleted;
+            try
             {
-                deleted = true,
+                deleted = registry.DeleteFailedRuntimes(filter);
+            }
+            catch (OrchestraRuntimeBusyException ex)
+            {
+                return Results.Conflict(new ApiErrorResponse("runtime_delete_orchestra_active", ActiveRuns: ex.ActiveRuns));
+            }
+            catch (OrchestraPersistenceException ex)
+            {
+                return Results.Json(
+                    new ApiErrorResponse("runtime_delete_persistence_unavailable", ex.Message),
+                    LeserpentJsonContext.Default.ApiErrorResponse,
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+            return Results.Ok(new RuntimeBulkDeleteResponse(
+                true,
                 filter,
-                removedRuntimeCount = deleted.RemovedRuntimeCount,
-                removedSessionCount = deleted.RemovedSessionCount,
-                removedRuntimeNames = deleted.RemovedRuntimeNames,
-            });
+                deleted.RemovedRuntimeCount,
+                deleted.RemovedSessionCount,
+                deleted.RemovedRuntimeNames));
         });
 
         app.MapPost("/v1/runtimes/delete-unobserved", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
-            var deleted = registry.DeleteUnobservedRuntimes(filter);
-            return Results.Ok(new
+            (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames) deleted;
+            try
             {
-                deleted = true,
+                deleted = registry.DeleteUnobservedRuntimes(filter);
+            }
+            catch (OrchestraRuntimeBusyException ex)
+            {
+                return Results.Conflict(new ApiErrorResponse("runtime_delete_orchestra_active", ActiveRuns: ex.ActiveRuns));
+            }
+            catch (OrchestraPersistenceException ex)
+            {
+                return Results.Json(
+                    new ApiErrorResponse("runtime_delete_persistence_unavailable", ex.Message),
+                    LeserpentJsonContext.Default.ApiErrorResponse,
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+            return Results.Ok(new RuntimeBulkDeleteResponse(
+                true,
                 filter,
-                removedRuntimeCount = deleted.RemovedRuntimeCount,
-                removedSessionCount = deleted.RemovedSessionCount,
-                removedRuntimeNames = deleted.RemovedRuntimeNames,
-            });
+                deleted.RemovedRuntimeCount,
+                deleted.RemovedSessionCount,
+                deleted.RemovedRuntimeNames));
         });
 
         app.MapPost("/v1/runtimes/delete-slice", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
-            var deleted = registry.DeleteRuntimes(filter);
-            return Results.Ok(new
+            (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames) deleted;
+            try
             {
-                deleted = true,
+                deleted = registry.DeleteRuntimes(filter);
+            }
+            catch (OrchestraRuntimeBusyException ex)
+            {
+                return Results.Conflict(new ApiErrorResponse("runtime_delete_orchestra_active", ActiveRuns: ex.ActiveRuns));
+            }
+            catch (OrchestraPersistenceException ex)
+            {
+                return Results.Json(
+                    new ApiErrorResponse("runtime_delete_persistence_unavailable", ex.Message),
+                    LeserpentJsonContext.Default.ApiErrorResponse,
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+            return Results.Ok(new RuntimeBulkDeleteResponse(
+                true,
                 filter,
-                removedRuntimeCount = deleted.RemovedRuntimeCount,
-                removedSessionCount = deleted.RemovedSessionCount,
-                removedRuntimeNames = deleted.RemovedRuntimeNames,
-            });
+                deleted.RemovedRuntimeCount,
+                deleted.RemovedSessionCount,
+                deleted.RemovedRuntimeNames));
         });
     }
 }

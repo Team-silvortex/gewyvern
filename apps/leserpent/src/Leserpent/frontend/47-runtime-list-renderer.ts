@@ -62,34 +62,47 @@ function updateRuntimeTableSelection(selectedRuntimeId) {
 function renderRuntimes(payload, attentionMap) {
   const allItems = payload.runtimes || [];
   state.latestRuntimes = allItems;
-  const query = state.runtimeSearch.trim().toLowerCase();
+  if (state.activeRuntimeMainTab === "register") {
+    return;
+  }
+
+  const listVisible = state.activeRuntimeMainTab === "select";
+  const query = listVisible ? state.runtimeSearch.trim().toLowerCase() : "";
   const filteredItems = query
     ? allItems.filter((runtime) =>
       runtime.name.toLowerCase().includes(query) ||
       runtime.endpoint.toLowerCase().includes(query))
     : allItems;
-  const items = [...filteredItems].sort((left, right) => {
-    if (state.runtimeSort === "status") {
-      return (left.status.statusSource || "").localeCompare(right.status.statusSource || "") ||
-        left.name.localeCompare(right.name);
-    }
-    if (state.runtimeSort === "snapshot") {
-      return (left.status.snapshotKind || "").localeCompare(right.status.snapshotKind || "") ||
-        left.name.localeCompare(right.name);
-    }
-    return left.name.localeCompare(right.name);
-  });
-  nodes.runtimeCount.textContent = `${items.length} ${t("metrics.runtimes")}`;
+  const items = listVisible
+    ? [...filteredItems].sort((left, right) => {
+      if (state.runtimeSort === "status") {
+        return (left.status.statusSource || "").localeCompare(right.status.statusSource || "") ||
+          left.name.localeCompare(right.name);
+      }
+      if (state.runtimeSort === "snapshot") {
+        return (left.status.snapshotKind || "").localeCompare(right.status.snapshotKind || "") ||
+          left.name.localeCompare(right.name);
+      }
+      return left.name.localeCompare(right.name);
+    })
+    : allItems;
+  if (listVisible) {
+    nodes.runtimeCount.textContent = `${items.length} ${t("metrics.runtimes")}`;
+  }
   if (!items.length) {
     state.selectedRuntimeId = null;
-    const emptySignature = `empty::${state.language}::${state.runtimeSearch.trim().toLowerCase()}::${state.runtimeSort}`;
-    if (state.renderSignatures.runtimeTable !== emptySignature) {
-      state.renderSignatures.runtimeTable = emptySignature;
-      nodes.runtimeTableBody.innerHTML = `<tr><td colspan="7">${escapeHtml(t("runtimes.noMatch"))}</td></tr>`;
+    if (listVisible) {
+      const emptySignature = `empty::${state.language}::${state.runtimeSearch.trim().toLowerCase()}::${state.runtimeSort}`;
+      if (state.renderSignatures.runtimeTable !== emptySignature) {
+        state.renderSignatures.runtimeTable = emptySignature;
+        nodes.runtimeTableBody.innerHTML = `<tr><td colspan="7">${escapeHtml(t("runtimes.noMatch"))}</td></tr>`;
+      }
     }
-    renderRuntimeDetail(null, null);
-    renderRuntimePanel(null);
-    renderOrchestraPlan(null);
+    if (state.activeRuntimeMainTab === "detail") {
+      renderRuntimeDetail(null, null);
+    } else if (state.activeRuntimeMainTab === "panel") {
+      renderRuntimePanel(null);
+    }
     return;
   }
 
@@ -97,10 +110,11 @@ function renderRuntimes(payload, attentionMap) {
     state.selectedRuntimeId = items[0].runtimeId;
   }
 
-  const tableSignature = runtimeTableSignature(items, attentionMap);
-  if (state.renderSignatures.runtimeTable !== tableSignature) {
-    state.renderSignatures.runtimeTable = tableSignature;
-    nodes.runtimeTableBody.innerHTML = items.map((runtime) => {
+  if (listVisible) {
+    const tableSignature = runtimeTableSignature(items, attentionMap);
+    if (state.renderSignatures.runtimeTable !== tableSignature) {
+      state.renderSignatures.runtimeTable = tableSignature;
+      nodes.runtimeTableBody.innerHTML = items.map((runtime) => {
       const badge = statusBadge(runtime.status);
       const attention = attentionMap.get(runtime.runtimeId);
       const capabilityKeys = (runtime.capabilities || [])
@@ -179,18 +193,19 @@ function renderRuntimes(payload, attentionMap) {
           </td>
         </tr>
       `;
-    }).join("");
-  } else {
-    updateRuntimeTableSelection(state.selectedRuntimeId);
+      }).join("");
+    } else {
+      updateRuntimeTableSelection(state.selectedRuntimeId);
+    }
   }
 
   const selectedRuntime = items.find((runtime) => runtime.runtimeId === state.selectedRuntimeId) || null;
   const selectedAttention = selectedRuntime
     ? state.runtimeAttentionById.get(selectedRuntime.runtimeId) || attentionMap.get(selectedRuntime.runtimeId) || null
     : null;
-  renderRuntimeDetail(selectedRuntime, selectedAttention);
-  renderRuntimePanel(selectedRuntime);
-  if (state.activeTab === "orchestra") {
-    void loadOrchestraPlan(selectedRuntime?.runtimeId || null);
+  if (state.activeRuntimeMainTab === "detail") {
+    renderRuntimeDetail(selectedRuntime, selectedAttention);
+  } else if (state.activeRuntimeMainTab === "panel") {
+    renderRuntimePanel(selectedRuntime);
   }
 }

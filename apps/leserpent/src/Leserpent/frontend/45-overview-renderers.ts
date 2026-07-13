@@ -212,6 +212,28 @@ function renderRuntimeSliceFromCache() {
   renderRuntimes(state.cache.runtimes, attentionMapFromCache());
 }
 
+function ensureRuntimeSelectionFromCache() {
+  const runtimes = state.cache.runtimes?.runtimes || [];
+  if (runtimes.some((runtime) => runtime.runtimeId === state.selectedRuntimeId)) {
+    return;
+  }
+
+  state.selectedRuntimeId = runtimes[0]?.runtimeId || null;
+}
+
+function scheduleRuntimeSliceRender() {
+  if (state.pendingRuntimeRender) {
+    return;
+  }
+
+  state.pendingRuntimeRender = window.requestAnimationFrame(() => {
+    state.pendingRuntimeRender = 0;
+    if (state.activeTab === "runtimes") {
+      renderRuntimeSliceFromCache();
+    }
+  });
+}
+
 function isIdleReadyStatus(status) {
   return !!status
     && status.resilienceStatus === "idle_ready"

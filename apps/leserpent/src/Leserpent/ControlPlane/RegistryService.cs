@@ -236,11 +236,19 @@ public sealed partial class RegistryService
                 $"imported state schema {state.SchemaVersion} is not compatible with schema {stateStore.SchemaVersion}");
         }
 
+        var previousState = ExportState();
         runtimes.Clear();
         sessions.Clear();
         orchestraRuns.Clear();
         var (runtimeCount, sessionCount) = RestorePersistedState(state);
-        orchestraRunStore.ReplaceAll(orchestraRuns.Values.SelectMany(static queue => queue).ToArray());
+        if (!orchestraRunStore.ReplaceAll(orchestraRuns.Values.SelectMany(static queue => queue).ToArray()))
+        {
+            runtimes.Clear();
+            sessions.Clear();
+            orchestraRuns.Clear();
+            RestorePersistedState(previousState);
+            throw new OrchestraPersistenceException("failed to replace Orchestra database during state import");
+        }
         PersistState();
         return new PersistenceImportResponse(
             true,
@@ -340,9 +348,24 @@ public sealed partial class RegistryService
 
     public (RuntimeSummary? RemovedRuntime, int RemovedSessionCount) DeleteRuntime(string runtimeId)
     {
-        if (!runtimes.TryRemove(runtimeId, out var runtime))
+        if (!runtimes.TryGetValue(runtimeId, out var runtime))
         {
             return (null, 0);
+        }
+
+        lock (orchestraRunSync)
+        {
+            var activeRuns = FindActiveOrchestraRuns(new[] { runtimeId });
+            if (activeRuns.Count > 0)
+            {
+                throw new OrchestraRuntimeBusyException(activeRuns);
+            }
+            if (!orchestraRunStore.DeleteRuntimes(new[] { runtimeId }))
+            {
+                throw new OrchestraPersistenceException($"failed to delete Orchestra history for runtime {runtimeId}");
+            }
+            runtimes.TryRemove(runtimeId, out _);
+            orchestraRuns.TryRemove(runtimeId, out _);
         }
 
         var removedSessionIds = sessions.Values

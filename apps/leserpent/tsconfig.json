@@ -8,7 +8,7 @@
     "allowJs": false,
     "checkJs": false,
     "skipLibCheck": true,
-    "removeComments": false,
+    "removeComments": true,
     "sourceMap": false,
     "outFile": "src/Leserpent/wwwroot/app.js"
   },

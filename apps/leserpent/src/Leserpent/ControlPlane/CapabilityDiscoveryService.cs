@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Leserpent.ControlPlane;
 
@@ -19,7 +20,10 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
 
         try
         {
-            var payload = await GetFromJsonAsync<GewyvernCapabilityPayload>(capabilityPlan, cancellationToken);
+            var payload = await GetFromJsonAsync(
+                capabilityPlan,
+                DiscoveryJsonContext.Default.GewyvernCapabilityPayload,
+                cancellationToken);
             if (payload is null)
             {
                 return CapabilityDiscoveryResult.Failed(capabilityUrl, "failed to decode gewyvern capability payload");
@@ -70,7 +74,10 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
 
         try
         {
-            var payload = await GetFromJsonAsync<GewyvernLatestMetaPayload>(statusPlan, cancellationToken);
+            var payload = await GetFromJsonAsync(
+                statusPlan,
+                DiscoveryJsonContext.Default.GewyvernLatestMetaPayload,
+                cancellationToken);
             if (payload is null)
             {
                 return RuntimeStatusDiscoveryResult.Failed(statusUrl, "failed to decode gewyvern latest-meta payload");
@@ -162,13 +169,21 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
 
         try
         {
-            var healthPayload = await GetFromJsonAsync<EtragonHealthPayload>(healthPlan, cancellationToken, sidecarAdminToken);
+            var healthPayload = await GetFromJsonAsync(
+                healthPlan,
+                DiscoveryJsonContext.Default.EtragonHealthPayload,
+                cancellationToken,
+                sidecarAdminToken);
             if (healthPayload is null || !string.Equals(healthPayload.Status, "ok", StringComparison.OrdinalIgnoreCase))
             {
                 return RuntimeSidecarDiscoveryResult.Failed(statusUrl, "failed to decode etragon health payload");
             }
 
-            var statusPayload = await GetFromJsonAsync<EtragonLatestStatusPayload>(statusPlan, cancellationToken, sidecarAdminToken);
+            var statusPayload = await GetFromJsonAsync(
+                statusPlan,
+                DiscoveryJsonContext.Default.EtragonLatestStatusPayload,
+                cancellationToken,
+                sidecarAdminToken);
             if (statusPayload is null)
             {
                 return RuntimeSidecarDiscoveryResult.Failed(statusUrl, "failed to decode etragon latest-status payload");
@@ -217,7 +232,10 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
             throw new InvalidOperationException(targetsPlanResult.Error);
         }
 
-        var targetsPayload = await GetFromJsonAsync<GewyvernLatestTargetsPayload>(targetsPlanResult.Plan!, cancellationToken);
+        var targetsPayload = await GetFromJsonAsync(
+            targetsPlanResult.Plan!,
+            DiscoveryJsonContext.Default.GewyvernLatestTargetsPayload,
+            cancellationToken);
         var target = targetsPayload?.TargetRefs?
             .FirstOrDefault(item => item.HasProtocolSurface && !string.IsNullOrWhiteSpace(item.PathSegment));
         if (target is null)
@@ -233,7 +251,10 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
             throw new InvalidOperationException(surfacePlanResult.Error);
         }
 
-        var surfacePayload = await GetFromJsonAsync<GewyvernProtocolSurfacePayload>(surfacePlanResult.Plan!, cancellationToken);
+        var surfacePayload = await GetFromJsonAsync(
+            surfacePlanResult.Plan!,
+            DiscoveryJsonContext.Default.GewyvernProtocolSurfacePayload,
+            cancellationToken);
         if (surfacePayload is null
             || string.IsNullOrWhiteSpace(surfacePayload.Protocol)
             || string.IsNullOrWhiteSpace(surfacePayload.Entry))
@@ -390,7 +411,9 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                     return new RuntimeSidecarMemorySnapshot(false, 0, 0, null, null, null, Array.Empty<RuntimeSidecarMemorySlotSummary>(), $"{(int)response.StatusCode} {response.ReasonPhrase}".Trim());
                 }
 
-                var payload = await response.Content.ReadFromJsonAsync<EtragonMemoryVersionsPayload>(cancellationToken);
+                var payload = await response.Content.ReadFromJsonAsync(
+                    DiscoveryJsonContext.Default.EtragonMemoryVersionsPayload,
+                    cancellationToken);
                 if (payload is null)
                 {
                     return new RuntimeSidecarMemorySnapshot(false, 0, 0, null, null, null, Array.Empty<RuntimeSidecarMemorySlotSummary>(), "failed to decode etragon memory-versions payload");
@@ -406,7 +429,9 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                 return new RuntimeSidecarMemorySnapshot(false, 0, 0, null, null, null, Array.Empty<RuntimeSidecarMemorySlotSummary>(), $"{(int)pinnedResponse.StatusCode} {pinnedResponse.ReasonPhrase}".Trim());
             }
 
-            var pinnedPayload = await pinnedResponse.Content.ReadFromJsonAsync<EtragonMemoryVersionsPayload>(cancellationToken);
+            var pinnedPayload = await pinnedResponse.Content.ReadFromJsonAsync(
+                DiscoveryJsonContext.Default.EtragonMemoryVersionsPayload,
+                cancellationToken);
             if (pinnedPayload is null)
             {
                 return new RuntimeSidecarMemorySnapshot(false, 0, 0, null, null, null, Array.Empty<RuntimeSidecarMemorySlotSummary>(), "failed to decode etragon memory-versions payload");
@@ -424,19 +449,23 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
         }
     }
 
-    private async Task<T?> GetFromJsonAsync<T>(EndpointAccessPlan plan, CancellationToken cancellationToken, string? sidecarAdminToken = null)
+    private async Task<T?> GetFromJsonAsync<T>(
+        EndpointAccessPlan plan,
+        JsonTypeInfo<T> jsonTypeInfo,
+        CancellationToken cancellationToken,
+        string? sidecarAdminToken = null)
     {
         if (plan.PinnedAddress is null)
         {
             using var response = await SendAsync(httpClient, plan.RequestUri, cancellationToken, sidecarAdminToken);
             response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken);
+            return await response.Content.ReadFromJsonAsync(jsonTypeInfo, cancellationToken);
         }
 
         using var client = CreatePinnedHttpClient(plan);
         using var pinnedResponse = await SendAsync(client, plan.RequestUri, cancellationToken, sidecarAdminToken);
         pinnedResponse.EnsureSuccessStatusCode();
-        return await pinnedResponse.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken);
+        return await pinnedResponse.Content.ReadFromJsonAsync(jsonTypeInfo, cancellationToken);
     }
 
     private static async Task<HttpResponseMessage> SendAsync(HttpClient client, Uri requestUri, CancellationToken cancellationToken, string? sidecarAdminToken)

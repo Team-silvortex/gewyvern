@@ -5,6 +5,17 @@ namespace Leserpent.ControlPlane;
 
 public sealed partial class CapabilityDiscoveryService
 {
+    [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+    [JsonSerializable(typeof(GewyvernCapabilityPayload))]
+    [JsonSerializable(typeof(GewyvernLatestMetaPayload))]
+    [JsonSerializable(typeof(GewyvernRuntimeResiliencePayload))]
+    [JsonSerializable(typeof(GewyvernLatestTargetsPayload))]
+    [JsonSerializable(typeof(GewyvernProtocolSurfacePayload))]
+    [JsonSerializable(typeof(EtragonHealthPayload))]
+    [JsonSerializable(typeof(EtragonLatestStatusPayload))]
+    [JsonSerializable(typeof(EtragonMemoryVersionsPayload))]
+    private sealed partial class DiscoveryJsonContext : JsonSerializerContext;
+
     private sealed record GewyvernCapabilityPayload(
         [property: JsonPropertyName("service")] string Service,
         [property: JsonPropertyName("version")] string Version,

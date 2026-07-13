@@ -279,6 +279,11 @@ JSON state 默认路径：
 - SQLite 使用 WAL、`synchronous=NORMAL` 和 5 秒 busy timeout
 - SQLite schema v2 同时保存最新 run 快照和 append-only 状态事件；v1 数据库会在启动时原地升级
 - `GET /v1/orchestra/runtimes/{id}/runs/{runId}/events` 按顺序返回单次运行的审计时间线；旧数据在首次新状态转换前可能没有事件
+- Orchestra 状态转换只有在 SQLite 快照与事件同时提交后才会发布到内存；数据库拒写时不会启动自动执行
+- state import 的 Orchestra 批量替换失败会返回 `503 persistence_import_unavailable` 并恢复导入前的内存 registry
+- guided session 已创建但审计写入失败时返回 `503 orchestra_persistence_unavailable`，响应携带 `sessionId`，调用方不应盲目重试创建
+- runtime 单删和批量清理会先在一个 SQLite 事务中删除对应 run/event；失败时返回 `503 runtime_delete_persistence_unavailable`，registry 和 session 保持不变
+- runtime 存在 `queued`/`running` Orchestra run 时，单删和批量删除会返回 `409 runtime_delete_orchestra_active` 及 `activeRuns`；批量操作不会部分删除其他 idle runtime
 - 仓库只保留 `src/Leserpent/data/control-plane-state.sample.json`，真实运行态 state 不应该提交。
 
 当前会恢复和保存：
@@ -546,6 +551,35 @@ dotnet run
   - `/`
 - control-plane API:
   - `/v1/...`
+
+#### Native AOT self-host
+
+Leserpent 提供独立的 Native AOT 发布 profile。发布时必须指定目标 RID，产物为不依赖目标机器安装 .NET runtime 的 self-contained 原生服务：
+
+```bash
+dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj \
+  -p:PublishProfile=native-aot \
+  -r linux-x64 \
+  -o artifacts/leserpent/linux-x64
+```
+
+ARM64 Linux 使用 `-r linux-arm64`。Native AOT 不支持从 macOS 直接交叉编译 Linux 产物，因此 Linux 发布应在对应 Linux 构建机或 CI runner 上执行。
+
+发布目录会自动包含 Linux 安装器、systemd unit 和环境模板。首次安装与后续原子升级使用同一条命令：
+
+```bash
+sudo artifacts/leserpent/linux-x64/deploy/install.sh
+```
+
+默认安装布局：
+
+- 只读版本：`/opt/leserpent/releases/<release-id>`
+- 当前版本：`/opt/leserpent/current`
+- 配置与管理员 token：`/etc/leserpent/leserpent.env`
+- 状态与 SQLite：`/var/lib/leserpent`
+- systemd：`leserpent.service`
+
+安装器会执行健康检查，失败时自动切回上一版本。完整的部署、升级、staging 和卸载说明见 [docs/deployment.md](docs/deployment.md)。
 
 当前 dashboard 已经支持：
 

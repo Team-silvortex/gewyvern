@@ -9,7 +9,6 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
     private const int MaxRunsPerRuntime = 32;
     private readonly string connectionString;
     private readonly ILogger<SqliteOrchestraRunStore> logger;
-    private readonly JsonSerializerOptions jsonOptions = new();
 
     public SqliteOrchestraRunStore(
         IConfiguration configuration,
@@ -129,7 +128,7 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
         }
     }
 
-    public void ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs)
+    public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs)
     {
         try
         {
@@ -147,33 +146,44 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
             }
             transaction.Commit();
             LastError = null;
+            return true;
         }
         catch (Exception ex)
         {
             RecordError(ex, "replace Orchestra runs");
+            return false;
         }
     }
 
-    public void DeleteRuntime(string runtimeId)
+    public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds)
     {
+        if (runtimeIds.Count == 0)
+        {
+            return true;
+        }
         try
         {
             using var connection = OpenConnection();
             using var transaction = connection.BeginTransaction();
-            using var command = connection.CreateCommand();
-            command.Transaction = transaction;
-            command.CommandText = """
-                DELETE FROM orchestra_run_events WHERE runtime_id = $runtime_id;
-                DELETE FROM orchestra_runs WHERE runtime_id = $runtime_id;
-                """;
-            command.Parameters.AddWithValue("$runtime_id", runtimeId);
-            command.ExecuteNonQuery();
+            foreach (var runtimeId in runtimeIds.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = """
+                    DELETE FROM orchestra_run_events WHERE runtime_id = $runtime_id;
+                    DELETE FROM orchestra_runs WHERE runtime_id = $runtime_id;
+                    """;
+                command.Parameters.AddWithValue("$runtime_id", runtimeId);
+                command.ExecuteNonQuery();
+            }
             transaction.Commit();
             LastError = null;
+            return true;
         }
         catch (Exception ex)
         {
-            RecordError(ex, $"delete Orchestra runs for runtime {runtimeId}");
+            RecordError(ex, $"delete Orchestra runs for {runtimeIds.Count} runtime(s)");
+            return false;
         }
     }
 
@@ -272,7 +282,9 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
         command.Parameters.AddWithValue("$plan_id", run.PlanId);
         command.Parameters.AddWithValue("$outcome", run.Outcome);
         command.Parameters.AddWithValue("$executed_at", run.ExecutedAt.ToString("O"));
-        command.Parameters.AddWithValue("$steps_json", JsonSerializer.Serialize(run.Steps, jsonOptions));
+        command.Parameters.AddWithValue(
+            "$steps_json",
+            JsonSerializer.Serialize(run.Steps.ToArray(), LeserpentJsonContext.Default.OrchestraExecutionStepResultArray));
         command.Parameters.AddWithValue("$completed_at", DbValue(run.CompletedAt?.ToString("O")));
         command.Parameters.AddWithValue("$attempt", run.Attempt);
         command.Parameters.AddWithValue("$retried_from_run_id", DbValue(run.RetriedFromRunId));
@@ -344,7 +356,7 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
             reader.GetString(2),
             reader.GetString(3),
             DateTimeOffset.Parse(reader.GetString(4)),
-            JsonSerializer.Deserialize<OrchestraExecutionStepResult[]>(reader.GetString(5), jsonOptions)
+            JsonSerializer.Deserialize(reader.GetString(5), LeserpentJsonContext.Default.OrchestraExecutionStepResultArray)
                 ?? Array.Empty<OrchestraExecutionStepResult>(),
             reader.IsDBNull(6) ? null : DateTimeOffset.Parse(reader.GetString(6)),
             reader.GetInt32(7),

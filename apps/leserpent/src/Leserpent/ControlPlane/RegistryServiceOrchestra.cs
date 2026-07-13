@@ -131,34 +131,51 @@ public sealed partial class RegistryService
             approvalNote,
             planRevision,
             requestId);
-        orchestraRuns.AddOrUpdate(
-            runtimeId,
-            _ => ImmutableQueue<OrchestraRunSummary>.Empty.Enqueue(run),
-            (_, queue) => TrimOrchestraRuns(queue.Enqueue(run)));
-        orchestraRunStore.Upsert(run, CreateRunEvent(
-            run,
-            "guided_completion",
-            null,
-            RunEventSummary(null, outcome, steps)));
-        PersistState();
+        lock (orchestraRunSync)
+        {
+            if (!runtimes.ContainsKey(runtimeId))
+            {
+                throw new InvalidOperationException($"runtime {runtimeId} no longer exists");
+            }
+            if (!orchestraRunStore.Upsert(run, CreateRunEvent(
+                run,
+                "guided_completion",
+                null,
+                RunEventSummary(null, outcome, steps))))
+            {
+                throw new OrchestraPersistenceException("failed to persist guided Orchestra run");
+            }
+            orchestraRuns.AddOrUpdate(
+                runtimeId,
+                _ => ImmutableQueue<OrchestraRunSummary>.Empty.Enqueue(run),
+                (_, queue) => TrimOrchestraRuns(queue.Enqueue(run)));
+            PersistState();
+        }
         return run;
     }
 
     private void AppendOrchestraRun(string runtimeId, OrchestraRunSummary run)
     {
-        if (!orchestraRunStore.Upsert(run, CreateRunEvent(
-            run,
-            "run_queued",
-            null,
-            run.RetriedFromRunId is null ? "Orchestra run queued" : $"Retry queued from {run.RetriedFromRunId}")))
+        lock (orchestraRunSync)
         {
-            throw new InvalidOperationException("failed to persist queued Orchestra run");
+            if (!runtimes.ContainsKey(runtimeId))
+            {
+                throw new InvalidOperationException($"runtime {runtimeId} no longer exists");
+            }
+            if (!orchestraRunStore.Upsert(run, CreateRunEvent(
+                run,
+                "run_queued",
+                null,
+                run.RetriedFromRunId is null ? "Orchestra run queued" : $"Retry queued from {run.RetriedFromRunId}")))
+            {
+                throw new OrchestraPersistenceException("failed to persist queued Orchestra run");
+            }
+            orchestraRuns.AddOrUpdate(
+                runtimeId,
+                _ => ImmutableQueue<OrchestraRunSummary>.Empty.Enqueue(run),
+                (_, queue) => TrimOrchestraRuns(queue.Enqueue(run)));
+            PersistState();
         }
-        orchestraRuns.AddOrUpdate(
-            runtimeId,
-            _ => ImmutableQueue<OrchestraRunSummary>.Empty.Enqueue(run),
-            (_, queue) => TrimOrchestraRuns(queue.Enqueue(run)));
-        PersistState();
     }
 
     private static OrchestraRunEvent CreateRunEvent(
@@ -189,6 +206,20 @@ public sealed partial class RegistryService
         return fromOutcome is null
             ? $"Orchestra run recorded as {toOutcome}"
             : $"Orchestra run transitioned from {fromOutcome} to {toOutcome}";
+    }
+
+    private IReadOnlyList<OrchestraActiveRunConflict> FindActiveOrchestraRuns(
+        IReadOnlyCollection<string> runtimeIds)
+    {
+        var runtimeIdSet = runtimeIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return orchestraRuns
+            .Where(item => runtimeIdSet.Contains(item.Key))
+            .SelectMany(item => item.Value
+                .Where(run => IsActiveOrchestraOutcome(run.Outcome))
+                .Select(run => new OrchestraActiveRunConflict(item.Key, run.RunId, run.Outcome)))
+            .OrderBy(item => item.RuntimeId, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.RunId, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     internal static bool IsTerminalOrchestraOutcome(string outcome) =>

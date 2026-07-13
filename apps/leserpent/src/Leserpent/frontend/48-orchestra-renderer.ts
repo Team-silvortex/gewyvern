@@ -251,12 +251,12 @@ function scheduleOrchestraFleetPoll(payload) {
     window.clearTimeout(state.orchestraFleetPollTimer);
     state.orchestraFleetPollTimer = 0;
   }
-  if (!payload.activeCount || state.activeTab !== "orchestra") {
+  if (!payload.activeCount || state.activeTab !== "orchestra" || document.hidden) {
     return;
   }
   state.orchestraFleetPollTimer = window.setTimeout(() => {
     state.orchestraFleetPollTimer = 0;
-    if (state.activeTab === "orchestra") {
+    if (state.activeTab === "orchestra" && !document.hidden) {
       void loadOrchestraFleetBoard();
     }
   }, 1000);
@@ -278,15 +278,28 @@ function scheduleOrchestraHistoryPoll(runtimeId, runs) {
     window.clearTimeout(state.orchestraPollTimer);
     state.orchestraPollTimer = 0;
   }
-  if (!runs.some((run) => ["queued", "running"].includes(run.outcome))) {
+  if (state.activeTab !== "orchestra"
+      || document.hidden
+      || !runs.some((run) => ["queued", "running"].includes(run.outcome))) {
     return;
   }
   state.orchestraPollTimer = window.setTimeout(() => {
     state.orchestraPollTimer = 0;
-    if (runtimeId === state.selectedRuntimeId) {
+    if (state.activeTab === "orchestra" && !document.hidden && runtimeId === state.selectedRuntimeId) {
       void loadOrchestraHistory(runtimeId);
     }
   }, 1000);
+}
+
+function clearOrchestraPollTimers() {
+  if (state.orchestraPollTimer) {
+    window.clearTimeout(state.orchestraPollTimer);
+    state.orchestraPollTimer = 0;
+  }
+  if (state.orchestraFleetPollTimer) {
+    window.clearTimeout(state.orchestraFleetPollTimer);
+    state.orchestraFleetPollTimer = 0;
+  }
 }
 
 async function loadOrchestraHistory(runtimeId = state.selectedRuntimeId) {

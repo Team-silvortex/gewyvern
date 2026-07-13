@@ -6,40 +6,33 @@ public partial class Program
 {
     private static void MapHealthEndpoints(WebApplication app)
     {
-        app.MapGet("/health", (ControlPlaneStateStore stateStore, IOrchestraRunStore orchestraRunStore, RegistryService registry, ControlPlaneSecurityPolicy security) => Results.Ok(new
-        {
-            ok = true,
-            service = "leserpent",
-            role = "control-plane",
-            version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "dev",
-            security = new
-            {
-                apiMode = security.ApiMode,
-                adminTokenConfigured = security.AdminTokenConfigured,
-                publicEndpointDiscoveryAllowed = security.PublicEndpointDiscoveryAllowed,
-            },
-            runtimePosture = BuildRuntimePosture(stateStore, orchestraRunStore),
-            persistence = new
-            {
-                statePath = stateStore.StatePath,
-                backupStatePath = stateStore.BackupStatePath,
-                lastSavedAt = stateStore.LastSavedAt,
-                schemaVersion = stateStore.SchemaVersion,
-                isDirty = stateStore.IsDirty,
-                lastSaveError = stateStore.LastSaveError,
-                restoredRuntimeCount = registry.RestoredRuntimeCount,
-                restoredSessionCount = registry.RestoredSessionCount,
-                restoredFromSavedAt = registry.RestoredFromSavedAt,
-            },
-            orchestraPersistence = new
-            {
-                provider = orchestraRunStore.Provider,
-                location = orchestraRunStore.Location,
-                schemaVersion = orchestraRunStore.SchemaVersion,
-                lastError = orchestraRunStore.LastError,
-                ready = string.IsNullOrWhiteSpace(orchestraRunStore.LastError),
-            },
-        }));
+        app.MapGet("/health", (ControlPlaneStateStore stateStore, IOrchestraRunStore orchestraRunStore, RegistryService registry, ControlPlaneSecurityPolicy security) =>
+            Results.Ok(new HealthResponse(
+                true,
+                "leserpent",
+                "control-plane",
+                typeof(Program).Assembly.GetName().Version?.ToString() ?? "dev",
+                new HealthSecurityResponse(
+                    security.ApiMode,
+                    security.AdminTokenConfigured,
+                    security.PublicEndpointDiscoveryAllowed),
+                BuildRuntimePosture(stateStore, orchestraRunStore),
+                new HealthPersistenceResponse(
+                    stateStore.StatePath,
+                    stateStore.BackupStatePath,
+                    stateStore.LastSavedAt,
+                    stateStore.SchemaVersion,
+                    stateStore.IsDirty,
+                    stateStore.LastSaveError,
+                    registry.RestoredRuntimeCount,
+                    registry.RestoredSessionCount,
+                    registry.RestoredFromSavedAt),
+                new HealthOrchestraPersistenceResponse(
+                    orchestraRunStore.Provider,
+                    orchestraRunStore.Location,
+                    orchestraRunStore.SchemaVersion,
+                    orchestraRunStore.LastError,
+                    string.IsNullOrWhiteSpace(orchestraRunStore.LastError)))));
 
         app.MapGet("/v1/capabilities", (ControlPlaneStateStore stateStore, IOrchestraRunStore orchestraRunStore, RegistryService registry, ControlPlaneSecurityPolicy security) =>
             Results.Ok(new ServiceCapabilities(

@@ -33,10 +33,10 @@ public sealed class ControlPlaneSecurityPolicy
 
     public string ApiMode => AdminTokenConfigured ? "loopback_or_token" : "loopback_only";
 
-    public bool TryAuthorize(HttpContext context, out int statusCode, out object payload)
+    public bool TryAuthorize(HttpContext context, out int statusCode, out ApiErrorResponse payload)
     {
         statusCode = StatusCodes.Status200OK;
-        payload = new { ok = true };
+        payload = new ApiErrorResponse("none");
 
         var path = context.Request.Path;
         if (!path.StartsWithSegments("/v1") && !path.StartsWithSegments("/health"))
@@ -50,11 +50,9 @@ public sealed class ControlPlaneSecurityPolicy
             if (context.Request.ContentLength > PersistenceImportBodyLimitBytes)
             {
                 statusCode = StatusCodes.Status413PayloadTooLarge;
-                payload = new
-                {
-                    error = "persistence_import_too_large",
-                    maxBytes = PersistenceImportBodyLimitBytes,
-                };
+                payload = new ApiErrorResponse(
+                    "persistence_import_too_large",
+                    MaxBytes: PersistenceImportBodyLimitBytes);
                 return false;
             }
         }
@@ -64,11 +62,9 @@ public sealed class ControlPlaneSecurityPolicy
         if (!isLoopback && !hasValidToken)
         {
             statusCode = StatusCodes.Status403Forbidden;
-            payload = new
-            {
-                error = "api_access_denied",
-                reason = "leserpent API access is limited to loopback clients unless a valid admin token is supplied",
-            };
+            payload = new ApiErrorResponse(
+                "api_access_denied",
+                "leserpent API access is limited to loopback clients unless a valid admin token is supplied");
             return false;
         }
 
@@ -85,11 +81,9 @@ public sealed class ControlPlaneSecurityPolicy
         if (!isLoopback || !HasIntent(context.Request, expectedIntent))
         {
             statusCode = StatusCodes.Status400BadRequest;
-            payload = new
-            {
-                error = "missing_control_plane_intent",
-                reason = $"{IntentHeader}: {expectedIntent} is required for this operation when no admin token is supplied",
-            };
+            payload = new ApiErrorResponse(
+                "missing_control_plane_intent",
+                $"{IntentHeader}: {expectedIntent} is required for this operation when no admin token is supplied");
             return false;
         }
 

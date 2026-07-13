@@ -447,8 +447,8 @@ function apiHeaders({ contentType = null, intent = null } = {}) {
   return headers;
 }
 
-async function getJson(path) {
-  const response = await fetch(path, { headers: apiHeaders() });
+async function getJson(path, signal = null) {
+  const response = await fetch(path, { headers: apiHeaders(), signal: signal || undefined });
   if (!response.ok) {
     throw new Error(await decodeApiError(response, path));
   }

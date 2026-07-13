@@ -71,7 +71,10 @@ public sealed partial class RegistryService
             var legacyRuns = orchestraRuns.Values.SelectMany(static queue => queue).ToArray();
             if (legacyRuns.Length > 0)
             {
-                orchestraRunStore.ReplaceAll(legacyRuns);
+                if (!orchestraRunStore.ReplaceAll(legacyRuns))
+                {
+                    throw new OrchestraPersistenceException("failed to migrate legacy Orchestra runs into the database");
+                }
             }
             return;
         }
@@ -104,7 +107,10 @@ public sealed partial class RegistryService
                         run.Outcome,
                         "Service restart interrupted execution; retry explicitly if the plan is still applicable",
                         run.CompletedAt ?? DateTimeOffset.UtcNow);
-                orchestraRunStore.Upsert(run, recoveryEvent);
+                if (!orchestraRunStore.Upsert(run, recoveryEvent))
+                {
+                    throw new OrchestraPersistenceException($"failed to persist restored Orchestra run {run.RunId}");
+                }
             }
         }
     }
@@ -125,11 +131,24 @@ public sealed partial class RegistryService
 
         var runtimeIdSet = runtimeIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var removedRuntimeNames = new List<string>(runtimeIds.Length);
-        foreach (var runtimeId in runtimeIds)
+        lock (orchestraRunSync)
         {
-            if (runtimes.TryRemove(runtimeId, out var runtime))
+            var activeRuns = FindActiveOrchestraRuns(runtimeIds);
+            if (activeRuns.Count > 0)
             {
-                removedRuntimeNames.Add(runtime.Name);
+                throw new OrchestraRuntimeBusyException(activeRuns);
+            }
+            if (!orchestraRunStore.DeleteRuntimes(runtimeIds))
+            {
+                throw new OrchestraPersistenceException("failed to delete Orchestra history for selected runtimes");
+            }
+            foreach (var runtimeId in runtimeIds)
+            {
+                if (runtimes.TryRemove(runtimeId, out var runtime))
+                {
+                    removedRuntimeNames.Add(runtime.Name);
+                }
+                orchestraRuns.TryRemove(runtimeId, out _);
             }
         }
 
@@ -146,8 +165,6 @@ public sealed partial class RegistryService
         foreach (var runtimeId in runtimeIdSet)
         {
             recoveryActivities.TryRemove(runtimeId, out _);
-            orchestraRuns.TryRemove(runtimeId, out _);
-            orchestraRunStore.DeleteRuntime(runtimeId);
         }
 
         if (removedRuntimeNames.Count > 0 || removedSessionIds.Length > 0)

@@ -3646,3 +3646,224 @@ td strong {
 :root[data-theme="dark"] .security-token-state[data-state="stored"] {
   color: #c8f8df;
 }
+
+/* Control guard rails: keep interactive surfaces readable under narrow or hostile content. */
+button,
+input,
+select,
+textarea,
+.chip,
+.tag-pill,
+.reason-pill,
+.severity,
+.runtime-state,
+.item-meta,
+.hint-line {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+button,
+summary,
+select,
+input,
+textarea {
+  max-width: 100%;
+}
+
+button:focus-visible,
+summary:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 48%, transparent);
+  outline-offset: 2px;
+}
+
+.hero-actions,
+.filter-actions,
+.runtime-inline-actions,
+.runtime-panel-actions,
+.security-token-actions,
+.detail-actions,
+.register-actions,
+.inline-actions {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.card-head > *,
+.item-head > *,
+.runtime-toolbar > *,
+.runtime-panel-breadcrumb > *,
+.orchestra-run > * {
+  min-width: 0;
+}
+
+details:not([open]) > :not(summary) {
+  display: none;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (max-width: 920px) {
+  :root[data-layout-mode] .workspace-shell,
+  :root[data-layout-mode="compact"] .workspace-shell,
+  :root[data-layout-mode="safe-compact"] .workspace-shell,
+  :root[data-layout-mode="emergency"] .workspace-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :root[data-layout-mode] .app-chrome-main,
+  :root[data-layout-mode] .app-toolbar,
+  :root[data-layout-mode] .compact-filter-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :root[data-layout-mode] .hero-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    overflow: visible;
+  }
+
+  :root[data-layout-mode] .hero-actions button {
+    width: 100%;
+    white-space: normal;
+  }
+
+  :root[data-layout-mode] .sidebar-shell {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+    align-items: start;
+    overflow: hidden;
+  }
+
+  :root[data-layout-mode] .tab-shell {
+    flex-flow: row nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+
+  :root[data-layout-mode] .tab-button {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: max-content;
+    white-space: nowrap;
+  }
+
+  .security-details-body {
+    right: 0;
+    width: min(30rem, calc(100vw - 2rem));
+    min-width: 0;
+  }
+
+  .runtime-table-wrap table {
+    min-width: 920px;
+  }
+}
+
+@media (max-width: 520px) {
+  :root[data-layout-mode] .shell {
+    padding-inline: 8px;
+  }
+
+  :root[data-layout-mode] .app-chrome,
+  :root[data-layout-mode] .card,
+  :root[data-layout-mode] .tab-shell {
+    border-radius: 16px;
+  }
+
+  :root[data-layout-mode] .hero-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :root[data-layout-mode] .app-security-tools {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+
+  :root[data-layout-mode] .app-security-tools .security-details {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+
+  :root[data-layout-mode] .security-details summary {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  :root[data-layout-mode] .sidebar-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :root[data-layout-mode] .sidebar-head {
+    display: none;
+  }
+
+  :root[data-layout-mode] .tab-shell {
+    width: 100%;
+  }
+
+  .card-head,
+  .item-head,
+  .runtime-toolbar,
+  .orchestra-history-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .card-head .chip,
+  .item-head .severity {
+    align-self: flex-start;
+  }
+
+  .security-details-body {
+    position: fixed;
+    inset: auto 8px 8px;
+    width: auto;
+    max-height: min(72dvh, 560px);
+    z-index: 40;
+  }
+
+  .runtime-cleanup-panel,
+  .runtime-row-menu-panel,
+  .detail-actions-overflow-menu,
+  .runtime-panel-overflow-menu {
+    position: fixed;
+    inset: auto 8px 8px;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    max-height: min(72dvh, 560px);
+    overflow: auto;
+    z-index: 40;
+  }
+}
+
+.attention-item,
+.session-item,
+.orchestra-run,
+.orchestra-plan-card,
+.orchestra-fleet-run {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 112px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .security-details-body {
+    backdrop-filter: none;
+  }
+}

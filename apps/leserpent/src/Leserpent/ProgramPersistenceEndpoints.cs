@@ -22,47 +22,47 @@ public partial class Program
             PersistedControlPlaneState? imported;
             try
             {
-                imported = await request.ReadFromJsonAsync<PersistedControlPlaneState>(cancellationToken: cancellationToken);
+                imported = await request.ReadFromJsonAsync(
+                    LeserpentJsonContext.Default.PersistedControlPlaneState,
+                    cancellationToken);
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new
-                {
-                    error = "invalid_persistence_import",
-                    reason = ex.Message,
-                });
+                return Results.BadRequest(new ApiErrorResponse("invalid_persistence_import", ex.Message));
             }
 
             if (imported is null)
             {
-                return Results.BadRequest(new
-                {
-                    error = "invalid_persistence_import",
-                    reason = "request body did not contain a control-plane state document",
-                });
+                return Results.BadRequest(new ApiErrorResponse(
+                    "invalid_persistence_import",
+                    "request body did not contain a control-plane state document"));
             }
 
             if (!stateStore.IsCompatible(imported))
             {
-                return Results.BadRequest(new
-                {
-                    error = "incompatible_persistence_import",
-                    schemaVersion = imported.SchemaVersion,
-                    expectedSchemaVersion = stateStore.SchemaVersion,
-                });
+                return Results.BadRequest(new ApiErrorResponse(
+                    "incompatible_persistence_import",
+                    SchemaVersion: imported.SchemaVersion,
+                    ExpectedSchemaVersion: stateStore.SchemaVersion));
             }
 
             var importValidation = await security.ValidateImportAsync(imported, cancellationToken);
             if (importValidation is not null)
             {
-                return Results.BadRequest(new
-                {
-                    error = "invalid_persistence_import",
-                    reason = importValidation,
-                });
+                return Results.BadRequest(new ApiErrorResponse("invalid_persistence_import", importValidation));
             }
 
-            return Results.Ok(registry.ImportState(imported));
+            try
+            {
+                return Results.Ok(registry.ImportState(imported));
+            }
+            catch (OrchestraPersistenceException ex)
+            {
+                return Results.Json(
+                    new ApiErrorResponse("persistence_import_unavailable", ex.Message),
+                    LeserpentJsonContext.Default.ApiErrorResponse,
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
         });
     }
 }
