@@ -17,6 +17,9 @@ const state = {
   activeRuntimeSideTab: "detail",
   activeRuntimeDetailTab: "identity",
   runtimePanelView: "root",
+  runtimeWindowIds: [],
+  activeRuntimeWindowId: null,
+  runtimeWindowViews: {},
   runtimeSearch: "",
   runtimeSort: "name",
   selectedRuntimeId: null,
@@ -76,6 +79,7 @@ const storageKeys = {
   adminToken: "leserpent.adminToken",
   adminTokenTestState: "leserpent.adminTokenTestState",
   adminTokenTestAt: "leserpent.adminTokenTestAt",
+  runtimeWindows: "leserpent.runtimeWindows",
 };
 
 const nodes = {
@@ -149,6 +153,12 @@ const nodes = {
   runtimePanelUrl: document.getElementById("runtime-panel-url"),
   runtimePanelTabs: Array.from(document.querySelectorAll(".runtime-panel-tab")),
   runtimePanelOpenExternal: document.getElementById("runtime-panel-open-external"),
+  runtimeWindowToolbar: document.getElementById("runtime-window-toolbar"),
+  runtimeWindowOpenSelected: document.getElementById("runtime-window-open-selected"),
+  runtimeWindowOpenAll: document.getElementById("runtime-window-open-all"),
+  runtimeWindowCloseAll: document.getElementById("runtime-window-close-all"),
+  runtimeWindowCount: document.getElementById("runtime-window-count"),
+  runtimeWindowGrid: document.getElementById("runtime-window-grid"),
   statusLine: document.getElementById("status-line"),
   environmentInput: document.getElementById("filter-environment"),
   clusterInput: document.getElementById("filter-cluster"),

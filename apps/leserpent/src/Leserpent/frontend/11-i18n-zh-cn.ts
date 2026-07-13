@@ -124,6 +124,7 @@ translations["zh-CN"] = {
         snapshot: "快照类型",
       },
       actions: {
+        openPanel: "打开子窗口",
         attention: "查看关注",
         status: "刷新状态",
         all: "全部刷新",
@@ -191,6 +192,16 @@ translations["zh-CN"] = {
       na: "暂无",
     },
     runtimePanel: {
+      windows: {
+        openSelected: "打开所选实例",
+        openAll: "全部打开",
+        closeAll: "全部关闭",
+        close: "关闭",
+        activate: "激活",
+        external: "新标签页",
+        count: "{count} 个窗口",
+        one: "1 个窗口",
+      },
       title: "Runtime 子面板",
       notReady: "尚未选择 runtime",
       empty: "选择一个 runtime 后，就能加载它的子控制页面。",

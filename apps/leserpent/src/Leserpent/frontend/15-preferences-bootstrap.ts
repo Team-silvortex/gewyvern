@@ -96,6 +96,8 @@ function activateRuntimeMainTab(tab) {
     renderRegisterPreview();
   } else if (state.activeRuntimeMainTab === "detail" && state.selectedRuntimeId) {
     void loadRuntimeAttention(state.selectedRuntimeId);
+  } else if (state.activeRuntimeMainTab === "panel" && state.selectedRuntimeId) {
+    openRuntimeWindow(state.selectedRuntimeId);
   }
   syncLocation();
 }
@@ -123,6 +125,14 @@ async function handleRuntimeTableAction(button) {
     return;
   }
 
+  if (button.dataset.action === "open-panel") {
+    state.activeTab = "runtimes";
+    state.activeRuntimeMainTab = "panel";
+    openRuntimeWindow(runtimeId);
+    applyTabShell();
+    return;
+  }
+
   if (button.dataset.action === "delete-runtime") {
     await deleteRuntime(runtimeId, button.dataset.runtimeName || runtimeId);
     return;
@@ -137,6 +147,7 @@ async function handleRuntimeTableAction(button) {
 }
 
 function bootstrapDashboard() {
+  restoreRuntimeWindows();
   nodes.tabButtons.forEach((button) => {
     button.addEventListener("click", () => activateTab(button.dataset.tab));
   });
@@ -156,6 +167,10 @@ function bootstrapDashboard() {
   nodes.runtimePanelTabs.forEach((button) => {
     button.addEventListener("click", () => {
       state.runtimePanelView = button.dataset.runtimePanelView;
+      if (state.activeRuntimeWindowId) {
+        state.runtimeWindowViews[state.activeRuntimeWindowId] = state.runtimePanelView;
+        persistRuntimeWindows();
+      }
       const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === state.selectedRuntimeId) || null;
       renderRuntimePanel(selectedRuntime);
       syncLocation();
@@ -179,6 +194,15 @@ function bootstrapDashboard() {
 
     window.open(targetUrl, "_blank", "noopener,noreferrer");
   });
+
+  nodes.runtimeWindowOpenSelected?.addEventListener("click", () => {
+    if (state.selectedRuntimeId) {
+      openRuntimeWindow(state.selectedRuntimeId);
+    }
+  });
+  nodes.runtimeWindowOpenAll?.addEventListener("click", openAllRuntimeWindows);
+  nodes.runtimeWindowCloseAll?.addEventListener("click", closeAllRuntimeWindows);
+  nodes.runtimeWindowGrid?.addEventListener("click", handleRuntimeWindowGridClick);
 
   nodes.languageSelect.addEventListener("change", () => {
     state.languagePreference = nodes.languageSelect.value;

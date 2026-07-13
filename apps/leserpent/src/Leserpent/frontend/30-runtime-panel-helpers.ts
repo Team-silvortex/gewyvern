@@ -25,7 +25,7 @@ function shouldRenderRuntimePanelBlank(runtime, trust, view = state.runtimePanel
     || runtime.status.snapshotKind === "none";
 }
 
-function renderRuntimePanelBlank(runtime, trust, url, view = state.runtimePanelView) {
+function runtimePanelBlankMarkup(runtime, trust, url, view = state.runtimePanelView) {
   const source = runtimePanelSource(view);
   const isFetchFailed = trust.source === "fetch_failed";
   const title = isFetchFailed
@@ -52,8 +52,7 @@ function renderRuntimePanelBlank(runtime, trust, url, view = state.runtimePanelV
       ? t("statuses.unobserved")
       : t("statuses.observed");
 
-  nodes.runtimePanelBlank.classList.remove("hidden");
-  nodes.runtimePanelBlank.innerHTML = `
+  return `
     <div class="runtime-panel-console-head">
       <span class="runtime-panel-console-badge">${escapeHtml(sourceLabel)}</span>
       <span class="runtime-panel-console-sep">/</span>
@@ -70,6 +69,11 @@ function renderRuntimePanelBlank(runtime, trust, url, view = state.runtimePanelV
       </div>
     </div>
   `;
+}
+
+function renderRuntimePanelBlank(runtime, trust, url, view = state.runtimePanelView) {
+  nodes.runtimePanelBlank.classList.remove("hidden");
+  nodes.runtimePanelBlank.innerHTML = runtimePanelBlankMarkup(runtime, trust, url, view);
 }
 
 function compactTrustMessage(trust, view = state.runtimePanelView) {
@@ -109,6 +113,10 @@ function switchRuntimePanelSource(source, runtime) {
   }
 
   state.runtimePanelView = defaultRuntimePanelViewForSource(source);
+  if (state.activeRuntimeWindowId) {
+    state.runtimeWindowViews[state.activeRuntimeWindowId] = state.runtimePanelView;
+    persistRuntimeWindows();
+  }
   renderRuntimePanel(runtime);
   syncLocation();
 }

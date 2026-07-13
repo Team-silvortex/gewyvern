@@ -124,6 +124,7 @@ translations.en = {
         snapshot: "Snapshot Kind",
       },
       actions: {
+        openPanel: "Open Panel",
         attention: "Attention",
         status: "Status",
         all: "All",
@@ -191,6 +192,16 @@ translations.en = {
       na: "n/a",
     },
     runtimePanel: {
+      windows: {
+        openSelected: "Open Selected",
+        openAll: "Open All",
+        closeAll: "Close All",
+        close: "Close",
+        activate: "Activate",
+        external: "New Tab",
+        count: "{count} windows",
+        one: "1 window",
+      },
       title: "Runtime Child Panel",
       notReady: "no runtime selected",
       empty: "Select a runtime to load its child control panel.",

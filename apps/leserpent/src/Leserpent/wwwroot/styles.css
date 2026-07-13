@@ -2786,6 +2786,135 @@ td strong {
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
 }
 
+.runtime-window-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-2) 76%, var(--accent-soft) 24%);
+}
+
+.runtime-window-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.runtime-window-toolbar button {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+}
+
+.runtime-window-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(430px, 100%), 1fr));
+  align-items: start;
+  gap: 12px;
+  min-height: 0;
+}
+
+.runtime-window-grid:has(.runtime-child-window:nth-child(2)) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.runtime-child-window {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--panel);
+  box-shadow: 0 12px 28px rgba(20, 44, 83, 0.1);
+  content-visibility: auto;
+  contain-intrinsic-size: 460px;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.runtime-child-window.is-active {
+  border-color: var(--accent-strong);
+  box-shadow: 0 16px 34px rgba(31, 95, 168, 0.18), 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+  transform: translateY(-1px);
+}
+
+.runtime-child-window-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-2) 88%, white 12%), color-mix(in srgb, var(--accent-soft) 36%, var(--panel) 64%));
+}
+
+.runtime-child-window-head > button:not(.runtime-child-window-identity) {
+  padding: 5px 8px;
+  font-size: 0.72rem;
+}
+
+.runtime-child-window-identity {
+  display: grid;
+  justify-items: start;
+  gap: 1px;
+  min-width: 0;
+  padding: 4px 7px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.runtime-child-window-identity strong,
+.runtime-child-window-identity span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-child-window-identity span {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.runtime-child-window-target {
+  min-height: 28px;
+  padding: 6px 10px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-child-window-body {
+  min-height: 320px;
+  height: clamp(320px, 42vh, 520px);
+  padding: 8px;
+  background: color-mix(in srgb, var(--panel-2) 72%, var(--bg-deep) 28%);
+}
+
+.runtime-child-window-body > iframe {
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.runtime-child-window-body > .runtime-panel-blank {
+  height: 100%;
+  align-content: start;
+}
+
 .runtime-frame-url {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -3149,6 +3278,34 @@ td strong {
   .runtime-panel-url,
   .runtime-panel-blank {
     padding: 8px 10px;
+  }
+
+  .runtime-window-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .runtime-window-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .runtime-window-grid:has(.runtime-child-window:nth-child(2)) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .runtime-child-window-head {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .runtime-child-window-head .runtime-state {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .runtime-child-window-body {
+    height: min(58vh, 460px);
+    min-height: 280px;
   }
 
   .runtime-panel-actions,

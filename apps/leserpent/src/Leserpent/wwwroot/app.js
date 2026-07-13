@@ -139,6 +139,7 @@ translations.en = {
             snapshot: "Snapshot Kind",
         },
         actions: {
+            openPanel: "Open Panel",
             attention: "Attention",
             status: "Status",
             all: "All",
@@ -206,6 +207,16 @@ translations.en = {
         na: "n/a",
     },
     runtimePanel: {
+        windows: {
+            openSelected: "Open Selected",
+            openAll: "Open All",
+            closeAll: "Close All",
+            close: "Close",
+            activate: "Activate",
+            external: "New Tab",
+            count: "{count} windows",
+            one: "1 window",
+        },
         title: "Runtime Child Panel",
         notReady: "no runtime selected",
         empty: "Select a runtime to load its child control panel.",
@@ -598,6 +609,7 @@ translations["zh-CN"] = {
             snapshot: "快照类型",
         },
         actions: {
+            openPanel: "打开子窗口",
             attention: "查看关注",
             status: "刷新状态",
             all: "全部刷新",
@@ -665,6 +677,16 @@ translations["zh-CN"] = {
         na: "暂无",
     },
     runtimePanel: {
+        windows: {
+            openSelected: "打开所选实例",
+            openAll: "全部打开",
+            closeAll: "全部关闭",
+            close: "关闭",
+            activate: "激活",
+            external: "新标签页",
+            count: "{count} 个窗口",
+            one: "1 个窗口",
+        },
         title: "Runtime 子面板",
         notReady: "尚未选择 runtime",
         empty: "选择一个 runtime 后，就能加载它的子控制页面。",
@@ -2058,6 +2080,9 @@ function activateRuntimeMainTab(tab) {
     else if (state.activeRuntimeMainTab === "detail" && state.selectedRuntimeId) {
         void loadRuntimeAttention(state.selectedRuntimeId);
     }
+    else if (state.activeRuntimeMainTab === "panel" && state.selectedRuntimeId) {
+        openRuntimeWindow(state.selectedRuntimeId);
+    }
     syncLocation();
 }
 function activateRuntimeDetailTab(tab) {
@@ -2080,6 +2105,13 @@ async function handleRuntimeTableAction(button) {
         nodes.runtimeDetailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
         return;
     }
+    if (button.dataset.action === "open-panel") {
+        state.activeTab = "runtimes";
+        state.activeRuntimeMainTab = "panel";
+        openRuntimeWindow(runtimeId);
+        applyTabShell();
+        return;
+    }
     if (button.dataset.action === "delete-runtime") {
         await deleteRuntime(runtimeId, button.dataset.runtimeName || runtimeId);
         return;
@@ -2092,6 +2124,7 @@ async function handleRuntimeTableAction(button) {
     await refreshRuntimeById(runtimeId, kind);
 }
 function bootstrapDashboard() {
+    restoreRuntimeWindows();
     nodes.tabButtons.forEach((button) => {
         button.addEventListener("click", () => activateTab(button.dataset.tab));
     });
@@ -2107,6 +2140,10 @@ function bootstrapDashboard() {
     nodes.runtimePanelTabs.forEach((button) => {
         button.addEventListener("click", () => {
             state.runtimePanelView = button.dataset.runtimePanelView;
+            if (state.activeRuntimeWindowId) {
+                state.runtimeWindowViews[state.activeRuntimeWindowId] = state.runtimePanelView;
+                persistRuntimeWindows();
+            }
             const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === state.selectedRuntimeId) || null;
             renderRuntimePanel(selectedRuntime);
             syncLocation();
@@ -2127,6 +2164,14 @@ function bootstrapDashboard() {
         }
         window.open(targetUrl, "_blank", "noopener,noreferrer");
     });
+    nodes.runtimeWindowOpenSelected?.addEventListener("click", () => {
+        if (state.selectedRuntimeId) {
+            openRuntimeWindow(state.selectedRuntimeId);
+        }
+    });
+    nodes.runtimeWindowOpenAll?.addEventListener("click", openAllRuntimeWindows);
+    nodes.runtimeWindowCloseAll?.addEventListener("click", closeAllRuntimeWindows);
+    nodes.runtimeWindowGrid?.addEventListener("click", handleRuntimeWindowGridClick);
     nodes.languageSelect.addEventListener("change", () => {
         state.languagePreference = nodes.languageSelect.value;
         state.language = resolveLanguage(state.languagePreference);
@@ -3896,7 +3941,7 @@ function shouldRenderRuntimePanelBlank(runtime, trust, view = state.runtimePanel
         || !runtime.status.hasLatestSnapshot
         || runtime.status.snapshotKind === "none";
 }
-function renderRuntimePanelBlank(runtime, trust, url, view = state.runtimePanelView) {
+function runtimePanelBlankMarkup(runtime, trust, url, view = state.runtimePanelView) {
     const source = runtimePanelSource(view);
     const isFetchFailed = trust.source === "fetch_failed";
     const title = isFetchFailed
@@ -3922,8 +3967,7 @@ function renderRuntimePanelBlank(runtime, trust, url, view = state.runtimePanelV
         : trust.source === "unobserved"
             ? t("statuses.unobserved")
             : t("statuses.observed");
-    nodes.runtimePanelBlank.classList.remove("hidden");
-    nodes.runtimePanelBlank.innerHTML = `
+    return `
     <div class="runtime-panel-console-head">
       <span class="runtime-panel-console-badge">${escapeHtml(sourceLabel)}</span>
       <span class="runtime-panel-console-sep">/</span>
@@ -3940,6 +3984,10 @@ function renderRuntimePanelBlank(runtime, trust, url, view = state.runtimePanelV
       </div>
     </div>
   `;
+}
+function renderRuntimePanelBlank(runtime, trust, url, view = state.runtimePanelView) {
+    nodes.runtimePanelBlank.classList.remove("hidden");
+    nodes.runtimePanelBlank.innerHTML = runtimePanelBlankMarkup(runtime, trust, url, view);
 }
 function compactTrustMessage(trust, view = state.runtimePanelView) {
     const source = runtimePanelSource(view);
@@ -3978,6 +4026,10 @@ function switchRuntimePanelSource(source, runtime) {
         return;
     }
     state.runtimePanelView = defaultRuntimePanelViewForSource(source);
+    if (state.activeRuntimeWindowId) {
+        state.runtimeWindowViews[state.activeRuntimeWindowId] = state.runtimePanelView;
+        persistRuntimeWindows();
+    }
     renderRuntimePanel(runtime);
     syncLocation();
 }
@@ -4419,9 +4471,134 @@ function runtimeDetailSignature(runtime, attention) {
         recoveryHistory,
     ].join("::");
 }
+function persistRuntimeWindows() {
+    try {
+        window.localStorage.setItem(storageKeys.runtimeWindows, JSON.stringify({
+            ids: state.runtimeWindowIds,
+            activeId: state.activeRuntimeWindowId,
+            views: state.runtimeWindowViews,
+        }));
+    }
+    catch {
+    }
+}
+function restoreRuntimeWindows() {
+    try {
+        const value = JSON.parse(window.localStorage.getItem(storageKeys.runtimeWindows) || "null");
+        state.runtimeWindowIds = Array.isArray(value?.ids)
+            ? value.ids.filter((id) => typeof id === "string" && id)
+            : [];
+        state.activeRuntimeWindowId = typeof value?.activeId === "string" ? value.activeId : null;
+        state.runtimeWindowViews = value?.views && typeof value.views === "object" ? value.views : {};
+    }
+    catch {
+        state.runtimeWindowIds = [];
+        state.activeRuntimeWindowId = null;
+        state.runtimeWindowViews = {};
+    }
+}
+function reconcileRuntimeWindows() {
+    const available = new Set(state.latestRuntimes.map((runtime) => runtime.runtimeId));
+    state.runtimeWindowIds = state.runtimeWindowIds.filter((id) => available.has(id));
+    if (!state.runtimeWindowIds.includes(state.activeRuntimeWindowId)) {
+        state.activeRuntimeWindowId = state.runtimeWindowIds[0] || null;
+    }
+    for (const id of Object.keys(state.runtimeWindowViews)) {
+        if (!available.has(id))
+            delete state.runtimeWindowViews[id];
+    }
+}
+function openRuntimeWindow(runtimeId) {
+    if (!runtimeId)
+        return;
+    if (!state.runtimeWindowIds.includes(runtimeId)) {
+        state.runtimeWindowIds.push(runtimeId);
+    }
+    state.activeRuntimeWindowId = runtimeId;
+    state.selectedRuntimeId = runtimeId;
+    state.runtimePanelView = state.runtimeWindowViews[runtimeId] || state.runtimePanelView || "root";
+    state.runtimeWindowViews[runtimeId] = state.runtimePanelView;
+    state.renderSignatures.runtimePanel = "";
+    persistRuntimeWindows();
+    renderRuntimeSliceFromCache();
+    syncLocation();
+}
+function openAllRuntimeWindows() {
+    for (const runtime of state.latestRuntimes) {
+        if (!state.runtimeWindowIds.includes(runtime.runtimeId)) {
+            state.runtimeWindowIds.push(runtime.runtimeId);
+        }
+        state.runtimeWindowViews[runtime.runtimeId] ||= "root";
+    }
+    state.activeRuntimeWindowId ||= state.runtimeWindowIds[0] || null;
+    if (state.activeRuntimeWindowId)
+        state.selectedRuntimeId = state.activeRuntimeWindowId;
+    state.renderSignatures.runtimePanel = "";
+    persistRuntimeWindows();
+    renderRuntimeSliceFromCache();
+}
+function closeRuntimeWindow(runtimeId) {
+    state.runtimeWindowIds = state.runtimeWindowIds.filter((id) => id !== runtimeId);
+    delete state.runtimeWindowViews[runtimeId];
+    if (state.activeRuntimeWindowId === runtimeId) {
+        state.activeRuntimeWindowId = state.runtimeWindowIds[0] || null;
+    }
+    if (state.activeRuntimeWindowId) {
+        state.selectedRuntimeId = state.activeRuntimeWindowId;
+        state.runtimePanelView = state.runtimeWindowViews[state.activeRuntimeWindowId] || "root";
+    }
+    state.renderSignatures.runtimePanel = "";
+    persistRuntimeWindows();
+    renderRuntimeSliceFromCache();
+    syncLocation();
+}
+function closeAllRuntimeWindows() {
+    state.runtimeWindowIds = [];
+    state.activeRuntimeWindowId = null;
+    state.runtimeWindowViews = {};
+    state.renderSignatures.runtimePanel = "";
+    persistRuntimeWindows();
+    renderRuntimeSliceFromCache();
+}
+function activateRuntimeWindow(runtimeId) {
+    if (!state.runtimeWindowIds.includes(runtimeId))
+        return;
+    state.activeRuntimeWindowId = runtimeId;
+    state.selectedRuntimeId = runtimeId;
+    state.runtimePanelView = state.runtimeWindowViews[runtimeId] || "root";
+    state.renderSignatures.runtimePanel = "";
+    persistRuntimeWindows();
+    renderRuntimeSliceFromCache();
+    syncLocation();
+}
+function handleRuntimeWindowGridClick(event) {
+    const button = event.target.closest("[data-runtime-window-action][data-runtime-id]");
+    if (!(button instanceof HTMLElement))
+        return;
+    const runtimeId = button.dataset.runtimeId;
+    const action = button.dataset.runtimeWindowAction;
+    if (action === "close") {
+        closeRuntimeWindow(runtimeId);
+    }
+    else if (action === "external") {
+        const runtime = state.latestRuntimes.find((item) => item.runtimeId === runtimeId);
+        const url = runtimePanelUrl(runtime, state.runtimeWindowViews[runtimeId] || "root");
+        if (url)
+            window.open(url, "_blank", "noopener,noreferrer");
+    }
+    else {
+        activateRuntimeWindow(runtimeId);
+    }
+}
 function runtimePanelSignature(runtime) {
+    const windowBits = state.runtimeWindowIds.map((id) => {
+        const item = state.latestRuntimes.find((candidate) => candidate.runtimeId === id);
+        return item
+            ? `${id}:${state.runtimeWindowViews[id] || "root"}:${item.updatedAt}:${item.status?.statusSource}:${item.status?.snapshotKind || ""}`
+            : id;
+    }).join("|");
     if (!runtime) {
-        return `empty:${state.language}:${state.runtimePanelView}`;
+        return `empty:${state.language}:${state.runtimePanelView}:${state.activeRuntimeWindowId || ""}:${windowBits}`;
     }
     const trust = runtimePanelTrustState(runtime, state.runtimePanelView);
     const source = runtimePanelSource(state.runtimePanelView);
@@ -4441,7 +4618,88 @@ function runtimePanelSignature(runtime) {
         runtime.status.statusSource,
         runtime.status.snapshotKind || "",
         runtime.sidecarStatus?.statusSource || "",
+        state.activeRuntimeWindowId || "",
+        windowBits,
     ].join("::");
+}
+function renderRuntimeWindowGrid() {
+    const wanted = new Set(state.runtimeWindowIds);
+    for (const card of nodes.runtimeWindowGrid.querySelectorAll("[data-runtime-window-id]")) {
+        if (!wanted.has(card.dataset.runtimeWindowId))
+            card.remove();
+    }
+    for (const runtimeId of state.runtimeWindowIds) {
+        const runtime = state.latestRuntimes.find((item) => item.runtimeId === runtimeId);
+        if (!runtime)
+            continue;
+        const view = state.runtimeWindowViews[runtimeId] || "root";
+        const trust = runtimePanelTrustState(runtime, view);
+        const url = runtimePanelUrl(runtime, view) || "";
+        const blank = shouldRenderRuntimePanelBlank(runtime, trust, view);
+        let card = nodes.runtimeWindowGrid.querySelector(`[data-runtime-window-id="${CSS.escape(runtimeId)}"]`);
+        if (!card) {
+            card = document.createElement("article");
+            card.className = "runtime-child-window";
+            card.dataset.runtimeWindowId = runtimeId;
+            card.innerHTML = `
+        <header class="runtime-child-window-head">
+          <button type="button" class="runtime-child-window-identity" data-runtime-window-action="activate" data-runtime-id="${escapeHtml(runtimeId)}">
+            <strong data-runtime-window-name></strong>
+            <span data-runtime-window-view></span>
+          </button>
+          <span class="runtime-state" data-runtime-window-status></span>
+          <button type="button" class="quiet" data-runtime-window-action="external" data-runtime-id="${escapeHtml(runtimeId)}"></button>
+          <button type="button" class="quiet" data-runtime-window-action="close" data-runtime-id="${escapeHtml(runtimeId)}"></button>
+        </header>
+        <div class="runtime-child-window-target" data-runtime-window-target></div>
+        <div class="runtime-child-window-body">
+          <div class="runtime-panel-blank hidden" data-runtime-window-blank></div>
+          <iframe loading="lazy" referrerpolicy="no-referrer" data-runtime-window-frame></iframe>
+        </div>`;
+        }
+        card.classList.toggle("is-active", runtimeId === state.activeRuntimeWindowId);
+        card.querySelector("[data-runtime-window-name]").textContent = runtime.name;
+        card.querySelector("[data-runtime-window-view]").textContent = t(`runtimePanel.views.${view}`);
+        const status = card.querySelector("[data-runtime-window-status]");
+        status.className = `runtime-state ${trust.tone}`;
+        status.textContent = trust.label;
+        card.querySelector('[data-runtime-window-action="external"]').textContent = t("runtimePanel.windows.external");
+        card.querySelector('[data-runtime-window-action="close"]').textContent = t("runtimePanel.windows.close");
+        card.querySelector("[data-runtime-window-target]").textContent = url || runtime.endpoint;
+        const blankNode = card.querySelector("[data-runtime-window-blank]");
+        const frame = card.querySelector("[data-runtime-window-frame]");
+        if (blank) {
+            blankNode.innerHTML = runtimePanelBlankMarkup(runtime, trust, url, view);
+            blankNode.classList.remove("hidden");
+            frame.classList.add("hidden");
+            if (frame.dataset.src) {
+                frame.src = "about:blank";
+                delete frame.dataset.src;
+            }
+        }
+        else {
+            blankNode.classList.add("hidden");
+            frame.classList.remove("hidden");
+            frame.title = `${runtime.name} ${t(`runtimePanel.views.${view}`)}`;
+            if (url && frame.dataset.src !== url) {
+                frame.src = url;
+                frame.dataset.src = url;
+            }
+        }
+        nodes.runtimeWindowGrid.appendChild(card);
+    }
+    const count = state.runtimeWindowIds.length;
+    nodes.runtimeWindowCount.textContent = count === 1
+        ? t("runtimePanel.windows.one")
+        : t("runtimePanel.windows.count", { count });
+    nodes.runtimeWindowToolbar.classList.remove("hidden");
+    nodes.runtimeWindowCloseAll.disabled = count === 0;
+    nodes.runtimeWindowGrid.classList.toggle("hidden", count === 0);
+}
+function finalizeRuntimeWindowWorkspace() {
+    nodes.runtimePanelFrameWrap.classList.add("hidden");
+    nodes.runtimePanelFrame.src = "about:blank";
+    renderRuntimeWindowGrid();
 }
 function renderRuntimeDetail(runtime, attention) {
     const signature = runtimeDetailSignature(runtime, attention);
@@ -4552,6 +4810,11 @@ function renderRuntimeDetail(runtime, attention) {
   `;
 }
 function renderRuntimePanel(runtime) {
+    reconcileRuntimeWindows();
+    runtime = state.latestRuntimes.find((item) => item.runtimeId === state.activeRuntimeWindowId) || null;
+    if (runtime) {
+        state.runtimePanelView = state.runtimeWindowViews[runtime.runtimeId] || "root";
+    }
     const signature = runtimePanelSignature(runtime);
     if (state.renderSignatures.runtimePanel === signature) {
         return;
@@ -4575,10 +4838,13 @@ function renderRuntimePanel(runtime) {
         nodes.runtimePanelUrl.textContent = "";
         nodes.runtimePanelOpenExternal.removeAttribute("href");
         clearRuntimeProtocolReading();
+        finalizeRuntimeWindowWorkspace();
         return;
     }
     if (!runtimeSupportsPanelView(runtime, state.runtimePanelView)) {
         state.runtimePanelView = isSidecarView(state.runtimePanelView) ? "sidecar-root" : "root";
+        state.runtimeWindowViews[runtime.runtimeId] = state.runtimePanelView;
+        persistRuntimeWindows();
     }
     const url = runtimePanelUrl(runtime);
     const viewLabel = t(`runtimePanel.views.${state.runtimePanelView}`);
@@ -4649,6 +4915,7 @@ function renderRuntimePanel(runtime) {
             nodes.runtimePanelUrl.classList.add("hidden");
         }
         nodes.runtimePanelOpenExternal.removeAttribute("href");
+        finalizeRuntimeWindowWorkspace();
         return;
     }
     const useBlankShell = shouldRenderRuntimePanelBlank(runtime, trust, state.runtimePanelView);
@@ -4685,6 +4952,7 @@ function renderRuntimePanel(runtime) {
     for (const tab of nodes.runtimePanelTabs) {
         tab.classList.toggle("is-active", tab.dataset.runtimePanelView === state.runtimePanelView);
     }
+    finalizeRuntimeWindowWorkspace();
 }
 async function refreshRuntimeById(runtimeId, kind) {
     if (!runtimeId) {
@@ -5339,6 +5607,7 @@ function renderRuntimes(payload, attentionMap) {
           </td>
           <td>
             <div class="inline-actions">
+              <button type="button" data-action="open-panel" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.openPanel"))}</button>
               <button type="button" data-action="show-attention" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.attention"))}</button>
               <button type="button" data-action="refresh-status" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.status"))}</button>
               ${runtime.sidecarEndpoint ? `<button type="button" data-action="refresh-sidecar" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimeDetail.refreshSidecar"))}</button>` : ""}
@@ -5348,6 +5617,7 @@ function renderRuntimes(payload, attentionMap) {
             <details class="runtime-row-menu">
               <summary class="quiet">${escapeHtml(t("runtimes.actions.menu"))}</summary>
               <div class="runtime-row-menu-panel">
+                <button type="button" data-action="open-panel" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.openPanel"))}</button>
                 <button type="button" data-action="show-attention" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.attention"))}</button>
                 <button type="button" data-action="refresh-status" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimes.actions.status"))}</button>
                 ${runtime.sidecarEndpoint ? `<button type="button" data-action="refresh-sidecar" data-runtime-id="${escapeHtml(runtime.runtimeId)}">${escapeHtml(t("runtimeDetail.refreshSidecar"))}</button>` : ""}
@@ -6359,6 +6629,9 @@ const state = {
     activeRuntimeSideTab: "detail",
     activeRuntimeDetailTab: "identity",
     runtimePanelView: "root",
+    runtimeWindowIds: [],
+    activeRuntimeWindowId: null,
+    runtimeWindowViews: {},
     runtimeSearch: "",
     runtimeSort: "name",
     selectedRuntimeId: null,
@@ -6417,6 +6690,7 @@ const storageKeys = {
     adminToken: "leserpent.adminToken",
     adminTokenTestState: "leserpent.adminTokenTestState",
     adminTokenTestAt: "leserpent.adminTokenTestAt",
+    runtimeWindows: "leserpent.runtimeWindows",
 };
 const nodes = {
     fleetSummaryCards: document.getElementById("fleet-summary-cards"),
@@ -6489,6 +6763,12 @@ const nodes = {
     runtimePanelUrl: document.getElementById("runtime-panel-url"),
     runtimePanelTabs: Array.from(document.querySelectorAll(".runtime-panel-tab")),
     runtimePanelOpenExternal: document.getElementById("runtime-panel-open-external"),
+    runtimeWindowToolbar: document.getElementById("runtime-window-toolbar"),
+    runtimeWindowOpenSelected: document.getElementById("runtime-window-open-selected"),
+    runtimeWindowOpenAll: document.getElementById("runtime-window-open-all"),
+    runtimeWindowCloseAll: document.getElementById("runtime-window-close-all"),
+    runtimeWindowCount: document.getElementById("runtime-window-count"),
+    runtimeWindowGrid: document.getElementById("runtime-window-grid"),
     statusLine: document.getElementById("status-line"),
     environmentInput: document.getElementById("filter-environment"),
     clusterInput: document.getElementById("filter-cluster"),

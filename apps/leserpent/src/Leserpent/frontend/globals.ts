@@ -15,6 +15,9 @@ interface DashboardState {
   activeRuntimeSideTab: string;
   activeRuntimeDetailTab: string;
   runtimePanelView: string;
+  runtimeWindowIds: string[];
+  activeRuntimeWindowId: string | null;
+  runtimeWindowViews: Record<string, string>;
   runtimeSearch: string;
   runtimeSort: string;
   selectedRuntimeId: string | null;

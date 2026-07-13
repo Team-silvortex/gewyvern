@@ -422,7 +422,16 @@
                 </details>
                 <button type="button" id="runtime-panel-open-external" data-i18n="runtimePanel.openExternal">Open in New Tab</button>
               </div>
+              <div id="runtime-window-toolbar" class="runtime-window-toolbar hidden">
+                <div class="runtime-window-toolbar-actions">
+                  <button id="runtime-window-open-selected" type="button" data-i18n="runtimePanel.windows.openSelected">Open Selected</button>
+                  <button id="runtime-window-open-all" type="button" data-i18n="runtimePanel.windows.openAll">Open All</button>
+                  <button id="runtime-window-close-all" type="button" class="quiet" data-i18n="runtimePanel.windows.closeAll">Close All</button>
+                </div>
+                <span id="runtime-window-count" class="chip">0 windows</span>
+              </div>
               <div id="runtime-panel-empty" class="form-result" data-i18n="runtimePanel.empty">Select a runtime to load its child control panel.</div>
+              <div id="runtime-window-grid" class="runtime-window-grid hidden" aria-live="polite"></div>
               <div id="runtime-panel-frame-wrap" class="runtime-frame-wrap hidden">
                 <div id="runtime-panel-url" class="runtime-frame-url"></div>
                 <div id="runtime-panel-blank" class="runtime-panel-blank hidden"></div>
