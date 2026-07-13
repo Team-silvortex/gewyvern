@@ -132,3 +132,56 @@ interface RuntimeProtocolReadingSummary {
   selectedOverlay?: string | null;
   readingCompanions: RuntimeProtocolReadingCompanion[];
 }
+
+interface OrchestraPlanStep {
+  key: string;
+  title: string;
+  detail: string;
+  kind: string;
+}
+
+interface OrchestraSuggestedSurface {
+  label: string;
+  path: string;
+}
+
+interface OrchestraPlan {
+  planId: string;
+  intent: string;
+  title: string;
+  summary: string;
+  riskLevel: string;
+  executionReadiness: string;
+  executionMode: string;
+  reasons: string[];
+  requiredCapabilities: string[];
+  steps: OrchestraPlanStep[];
+  suggestedSurfaces: OrchestraSuggestedSurface[];
+}
+
+interface OrchestraRuntimePlanResponse {
+  runtimeId: string;
+  name: string;
+  endpoint: string;
+  tags: RuntimeTags;
+  statusSource: string;
+  attentionSeverity: string;
+  needsAttention: boolean;
+  attentionReasons: string[];
+  plans: OrchestraPlan[];
+}
+
+interface OrchestraExecutionStepResult {
+  step: string;
+  outcome: string;
+  summary: string;
+}
+
+interface OrchestraRunSummary {
+  runId: string;
+  runtimeId: string;
+  planId: string;
+  outcome: string;
+  executedAt: string;
+  steps: OrchestraExecutionStepResult[];
+}

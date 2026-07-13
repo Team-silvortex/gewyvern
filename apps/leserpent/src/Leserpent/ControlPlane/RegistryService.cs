@@ -6,6 +6,7 @@ namespace Leserpent.ControlPlane;
 public sealed partial class RegistryService
 {
     private const int MaxRecoveryActivitiesPerRuntime = 8;
+    private const int MaxOrchestraRunsPerRuntime = 32;
     private static readonly TimeSpan GenericFailedRecoveryCooldown = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan AuthFailedRecoveryCooldown = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan NetworkFailedRecoveryCooldown = TimeSpan.FromSeconds(20);
@@ -13,6 +14,7 @@ public sealed partial class RegistryService
     private readonly ConcurrentDictionary<string, RuntimeRecord> runtimes = new();
     private readonly ConcurrentDictionary<string, SessionRecord> sessions = new();
     private readonly ConcurrentDictionary<string, ImmutableQueue<RuntimeRecoveryActivity>> recoveryActivities = new();
+    private readonly ConcurrentDictionary<string, ImmutableQueue<OrchestraRunSummary>> orchestraRuns = new();
     private readonly ControlPlaneStateStore stateStore;
     private readonly DateTimeOffset? restoredFromSavedAt;
 
@@ -211,6 +213,10 @@ public sealed partial class RegistryService
             sessions.Values
                 .OrderByDescending(session => session.CreatedAt)
                 .Select(session => session.ToPersistedState())
+                .ToArray(),
+            orchestraRuns.Values
+                .SelectMany(static queue => queue)
+                .OrderByDescending(static run => run.ExecutedAt)
                 .ToArray());
 
     public PersistenceImportResponse ImportState(PersistedControlPlaneState state)
@@ -223,6 +229,7 @@ public sealed partial class RegistryService
 
         runtimes.Clear();
         sessions.Clear();
+        orchestraRuns.Clear();
         var (runtimeCount, sessionCount) = RestorePersistedState(state);
         PersistState();
         return new PersistenceImportResponse(

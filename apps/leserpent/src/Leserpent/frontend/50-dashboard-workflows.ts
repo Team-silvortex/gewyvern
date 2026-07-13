@@ -209,6 +209,9 @@ async function loadDashboard() {
     syncCleanupMenuState();
     if (state.selectedRuntimeId) {
       void loadRuntimeAttention(state.selectedRuntimeId);
+      void loadOrchestraPlan(state.selectedRuntimeId);
+    } else {
+      renderOrchestraPlan(null);
     }
     nodes.statusLine.textContent = t("notifications.loaded", { count: runtimes.runtimes.length });
   } catch (error) {

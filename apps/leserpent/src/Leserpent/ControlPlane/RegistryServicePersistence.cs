@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Leserpent.ControlPlane;
 
 public sealed partial class RegistryService
@@ -47,6 +49,16 @@ public sealed partial class RegistryService
             restoredSessionCount += 1;
         }
 
+        foreach (var group in (state.OrchestraRuns ?? Array.Empty<OrchestraRunSummary>())
+            .Where(run => runtimes.ContainsKey(run.RuntimeId))
+            .OrderBy(run => run.ExecutedAt)
+            .GroupBy(run => run.RuntimeId, StringComparer.OrdinalIgnoreCase))
+        {
+            orchestraRuns[group.Key] = group
+                .TakeLast(MaxOrchestraRunsPerRuntime)
+                .Aggregate(ImmutableQueue<OrchestraRunSummary>.Empty, static (queue, run) => queue.Enqueue(run));
+        }
+
         return (restoredRuntimeCount, restoredSessionCount);
     }
 
@@ -87,6 +99,7 @@ public sealed partial class RegistryService
         foreach (var runtimeId in runtimeIdSet)
         {
             recoveryActivities.TryRemove(runtimeId, out _);
+            orchestraRuns.TryRemove(runtimeId, out _);
         }
 
         if (removedRuntimeNames.Count > 0 || removedSessionIds.Length > 0)
@@ -101,6 +114,6 @@ public sealed partial class RegistryService
     private void PersistState()
     {
         var state = ExportState();
-        stateStore.Save(state.Runtimes, state.Sessions);
+        stateStore.Save(state.Runtimes, state.Sessions, state.OrchestraRuns);
     }
 }

@@ -18,6 +18,8 @@ interface DashboardState {
   runtimeSearch: string;
   runtimeSort: string;
   selectedRuntimeId: string | null;
+  orchestraPlan?: OrchestraRuntimePlanResponse | null;
+  orchestraRequestSeq?: number;
   runtimeAttentionById: Map<string, RuntimeAttentionView>;
   recentBadgeRefresh: {
     runtime: Nullable<number>;

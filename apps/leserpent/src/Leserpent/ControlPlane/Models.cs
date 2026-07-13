@@ -165,6 +165,73 @@ public sealed record CapabilityRejection(
     string Reason
 );
 
+public sealed record OrchestraPlanStep(
+    string Key,
+    string Title,
+    string Detail,
+    string Kind
+);
+
+public sealed record OrchestraSuggestedSurface(
+    string Label,
+    string Path
+);
+
+public sealed record OrchestraPlan(
+    string PlanId,
+    string Intent,
+    string Title,
+    string Summary,
+    string RiskLevel,
+    string ExecutionReadiness,
+    string ExecutionMode,
+    IReadOnlyList<string> Reasons,
+    IReadOnlyList<string> RequiredCapabilities,
+    IReadOnlyList<OrchestraPlanStep> Steps,
+    IReadOnlyList<OrchestraSuggestedSurface> SuggestedSurfaces
+);
+
+public sealed record OrchestraExecutionStepResult(string Step, string Outcome, string Summary);
+
+public sealed record OrchestraExecutionResponse(
+    string RunId,
+    string RuntimeId,
+    string PlanId,
+    string Outcome,
+    DateTimeOffset ExecutedAt,
+    IReadOnlyList<OrchestraExecutionStepResult> Steps,
+    OrchestraRuntimePlanResponse CurrentPlan
+);
+
+public sealed record OrchestraRunSummary(
+    string RunId,
+    string RuntimeId,
+    string PlanId,
+    string Outcome,
+    DateTimeOffset ExecutedAt,
+    IReadOnlyList<OrchestraExecutionStepResult> Steps
+);
+
+public sealed record OrchestraSessionHandoffRequest(string PipelineKind, string RequestedBy);
+
+public sealed record OrchestraSessionHandoffResponse(
+    OrchestraRunSummary Run,
+    SessionSummary Session,
+    OrchestraRuntimePlanResponse CurrentPlan
+);
+
+public sealed record OrchestraRuntimePlanResponse(
+    string RuntimeId,
+    string Name,
+    string Endpoint,
+    RuntimeTags Tags,
+    string StatusSource,
+    string AttentionSeverity,
+    bool NeedsAttention,
+    IReadOnlyList<string> AttentionReasons,
+    IReadOnlyList<OrchestraPlan> Plans
+);
+
 public sealed record ServiceCapabilities(
     string Service,
     string Version,
@@ -433,5 +500,6 @@ public sealed record PersistedControlPlaneState(
     int SchemaVersion,
     DateTimeOffset SavedAt,
     IReadOnlyList<PersistedRuntimeState> Runtimes,
-    IReadOnlyList<PersistedSessionState> Sessions
+    IReadOnlyList<PersistedSessionState> Sessions,
+    IReadOnlyList<OrchestraRunSummary>? OrchestraRuns = null
 );

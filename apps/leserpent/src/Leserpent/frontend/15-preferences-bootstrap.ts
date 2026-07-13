@@ -61,6 +61,9 @@ function activateTab(tab) {
   state.activeTab = tab;
   applyTabShell();
   syncLocation();
+  if (tab === "orchestra") {
+    void loadOrchestraPlan();
+  }
 }
 
 function activateOverviewSubtab(tab) {
@@ -229,6 +232,7 @@ function bootstrapDashboard() {
     renderRuntimeSliceFromCache();
     syncLocation();
     void loadRuntimeAttention(state.selectedRuntimeId);
+    void loadOrchestraPlan(state.selectedRuntimeId);
   });
 
   nodes.runtimeDetailAttention.addEventListener("click", async (event) => {
@@ -252,6 +256,18 @@ function bootstrapDashboard() {
   nodes.refreshAllButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-all", t("notifications.fleetRefreshAll")));
   nodes.refreshStatusButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-status", t("notifications.fleetStatusRefresh")));
   nodes.refreshCapabilitiesButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-capabilities", t("notifications.fleetCapabilityRefresh")));
+  nodes.orchestraRefresh?.addEventListener("click", () => loadOrchestraPlan());
+  nodes.orchestraPlans?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-orchestra-execute]");
+    if (button) {
+      void executeOrchestraPlan(button.dataset.orchestraExecute);
+      return;
+    }
+    const sessionButton = event.target.closest("[data-orchestra-create-session]");
+    if (sessionButton) {
+      void createOrchestraSession(sessionButton);
+    }
+  });
   nodes.persistenceSaveNow.addEventListener("click", savePersistenceNow);
   nodes.persistenceExportState.addEventListener("click", exportPersistenceState);
   nodes.persistenceImportState.addEventListener("click", triggerPersistenceImportPicker);

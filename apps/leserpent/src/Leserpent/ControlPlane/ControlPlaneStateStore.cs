@@ -79,20 +79,25 @@ public sealed class ControlPlaneStateStore
 
     public PersistedControlPlaneState CreateState(
         IReadOnlyList<PersistedRuntimeState> runtimes,
-        IReadOnlyList<PersistedSessionState> sessions) =>
+        IReadOnlyList<PersistedSessionState> sessions,
+        IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null) =>
         new(
             CurrentSchemaVersion,
             DateTimeOffset.UtcNow,
             runtimes,
-            sessions);
+            sessions,
+            orchestraRuns ?? Array.Empty<OrchestraRunSummary>());
 
     public bool IsCompatible(PersistedControlPlaneState? state) =>
         state is not null && state.SchemaVersion == CurrentSchemaVersion;
 
-    public void Save(IReadOnlyList<PersistedRuntimeState> runtimes, IReadOnlyList<PersistedSessionState> sessions)
+    public void Save(
+        IReadOnlyList<PersistedRuntimeState> runtimes,
+        IReadOnlyList<PersistedSessionState> sessions,
+        IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null)
     {
         IsDirty = true;
-        var state = CreateState(runtimes, sessions);
+        var state = CreateState(runtimes, sessions, orchestraRuns);
 
         try
         {

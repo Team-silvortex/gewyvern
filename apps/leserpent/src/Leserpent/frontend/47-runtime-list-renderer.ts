@@ -89,6 +89,7 @@ function renderRuntimes(payload, attentionMap) {
     }
     renderRuntimeDetail(null, null);
     renderRuntimePanel(null);
+    renderOrchestraPlan(null);
     return;
   }
 
@@ -189,4 +190,7 @@ function renderRuntimes(payload, attentionMap) {
     : null;
   renderRuntimeDetail(selectedRuntime, selectedAttention);
   renderRuntimePanel(selectedRuntime);
+  if (state.activeTab === "orchestra") {
+    void loadOrchestraPlan(selectedRuntime?.runtimeId || null);
+  }
 }

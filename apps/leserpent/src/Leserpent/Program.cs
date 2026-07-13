@@ -44,6 +44,7 @@ public partial class Program
         MapPersistenceEndpoints(app);
         MapFleetEndpoints(app);
         MapRuntimeEndpoints(app);
+        MapOrchestraEndpoints(app);
         MapSessionEndpoints(app);
 
         app.MapFallbackToFile("index.html");

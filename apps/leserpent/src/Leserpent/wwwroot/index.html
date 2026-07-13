@@ -120,6 +120,10 @@
             <span class="tab-icon" aria-hidden="true">▣</span>
             <span data-i18n="tabs.runtimes">Runtimes</span>
           </button>
+          <button class="tab-button" data-tab="orchestra">
+            <span class="tab-icon" aria-hidden="true">◌</span>
+            <span>Orchestra</span>
+          </button>
           <button class="tab-button" data-tab="persistence">
             <span class="tab-icon" aria-hidden="true">◈</span>
             <span data-i18n="tabs.persistence">Persistence</span>
@@ -184,6 +188,24 @@
             <div id="attention-list" class="list-stack"></div>
           </article>
         </div>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="orchestra">
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <h2>Orchestra Plans</h2>
+              <div id="orchestra-summary" class="item-meta">Select a runtime to build an operator-facing orchestration plan.</div>
+            </div>
+            <button id="orchestra-refresh" type="button" class="quiet">Refresh Plan</button>
+          </div>
+          <div id="orchestra-plans" class="stack"></div>
+          <div class="orchestra-history-head">
+            <h3>Run History</h3>
+            <span id="orchestra-history-summary" class="item-meta">No runs recorded.</span>
+          </div>
+          <div id="orchestra-history" class="stack orchestra-history"></div>
+        </article>
       </section>
 
       <section class="tab-panel" data-tab-panel="runtimes">
