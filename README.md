@@ -96,8 +96,9 @@ session data.
   standard state root
 - config and state layout: documented standard paths with env overrides and
   legacy fallback behavior
-- security posture: loopback-first local runtime, admin-token support for
-  protected remote API use, and certificate policy/state surfaces
+- security posture: loopback-first local runtime, protected remote API use
+  only when explicit remote bind and runtime admin-token requirements are both
+  satisfied, plus certificate policy/state surfaces
 - workspace shape: `gewyvern` runtime crate, `gewyc` compiler CLI crate,
   `apps/etragon`, and `apps/leserpent`
 - protocol registry shape: scanned gewy project packages under `protocols/`

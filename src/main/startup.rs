@@ -28,10 +28,21 @@ pub(crate) fn bootstrap_cli(args: Vec<String>) -> Cli {
             std::process::exit(2);
         },
     );
+    apply_runtime_api_security_defaults(&cli);
     initialize_runtime_logging(&cli);
     log_runtime_bootstrap(&runtime_config, &migration_report);
     set_external_analysis_config(cli.external_analysis_config());
     cli
+}
+
+fn apply_runtime_api_security_defaults(cli: &Cli) {
+    if let Some(token) = cli.api_admin_token.as_deref() {
+        if std::env::var_os("GEWY_API_ADMIN_TOKEN").is_none() {
+            unsafe {
+                std::env::set_var("GEWY_API_ADMIN_TOKEN", token);
+            }
+        }
+    }
 }
 
 fn initialize_runtime_logging(cli: &Cli) {

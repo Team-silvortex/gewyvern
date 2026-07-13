@@ -19,6 +19,7 @@ const CERTIFICATE_STATE_ROOT_ENV: &str = "GEWY_CERTIFICATE_STATE_ROOT";
 const REQUIRE_EXPLICIT_REMOTE_TRUST_ENV: &str = "GEWY_REQUIRE_EXPLICIT_REMOTE_TRUST";
 const SOCKET_FAILURE_BACKOFF_BASE_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_BASE_MS";
 const SOCKET_FAILURE_BACKOFF_CAP_ENV: &str = "GEWY_SOCKET_FAILURE_BACKOFF_CAP_MS";
+const API_ADMIN_TOKEN_ENV: &str = "GEWY_API_ADMIN_TOKEN";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RuntimeConfigFile {
@@ -135,6 +136,7 @@ pub(crate) fn apply_runtime_path_overrides(config: &RuntimeConfigFile) {
         SOCKET_FAILURE_BACKOFF_CAP_ENV,
         config.socket_failure_backoff_cap_ms,
     );
+    apply_env_string_override(API_ADMIN_TOKEN_ENV, config.defaults.api_admin_token.as_deref());
 }
 
 fn apply_env_string_override(key: &str, value: Option<&str>) {
@@ -294,6 +296,7 @@ fn apply_runtime_section(
                 config.defaults.allow_remote_api =
                     Some(parse_bool(value, "runtime.allow_remote_api")?)
             }
+            "api_admin_token" => config.defaults.api_admin_token = Some(parse_string(value)),
             "ingest_mode" => {
                 config.defaults.ingest_mode = Some(
                     IngestMode::from_str(&parse_string(value))

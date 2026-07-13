@@ -123,6 +123,7 @@ Current expectations:
 
 - `--api-socket` requires `--serve`
 - remote API bind is rejected unless `--allow-remote-api` is explicitly set
+- remote API bind is rejected unless a runtime admin token is also configured
 - each API client is handled independently so one slow client should not block
   the whole listener
 - API client reads and writes are both bounded by timeout behavior

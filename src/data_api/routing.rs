@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::net::{IpAddr, TcpStream};
 
 use super::anomaly_flow_view::api_target_anomaly_flow_json;
 use super::certificate_inventory::api_runtime_certificates_json;
@@ -25,8 +25,9 @@ use super::training_manifest::{
     target_training_dataset_manifest_json, training_dataset_manifest_json,
 };
 use super::{
-    API_CLIENT_READ_TIMEOUT, API_ENDPOINTS_JSON, API_MAX_RESPONSE_BODY_BYTES, API_VERSION,
-    ApiSnapshot, ApiState,
+    API_ADMIN_TOKEN_HEADER, API_CLIENT_READ_TIMEOUT, API_ENDPOINTS_JSON,
+    API_MAX_RESPONSE_BODY_BYTES, API_VERSION, ApiAccessPolicy, ApiSnapshot, ApiState,
+    api_client_is_loopback,
 };
 
 pub(crate) fn api_response_for_request<'a>(
@@ -504,7 +505,12 @@ fn protocol_cluster_response<'a>(rest: &str) -> (u16, &'static str, Cow<'a, str>
     }
 }
 
-pub(super) fn handle_api_client(mut stream: TcpStream, state: ApiState) {
+pub(super) fn handle_api_client(
+    mut stream: TcpStream,
+    remote_ip: IpAddr,
+    state: ApiState,
+    access_policy: ApiAccessPolicy,
+) {
     let _ = stream.set_read_timeout(Some(API_CLIENT_READ_TIMEOUT));
     let _ = stream.set_write_timeout(Some(super::API_CLIENT_WRITE_TIMEOUT));
     let mut buffer = [0u8; 2048];
@@ -513,6 +519,15 @@ pub(super) fn handle_api_client(mut stream: TcpStream, state: ApiState) {
         _ => return,
     };
     let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+    if !request_is_authorized(remote_ip, &request, &access_policy) {
+        let _ = write_http_response(
+            &mut stream,
+            403,
+            "application/json; charset=utf-8",
+            "{\"error\":\"api_access_denied\",\"reason\":\"gewyvern runtime API requires loopback access or a valid admin token\"}",
+        );
+        return;
+    }
     let first_line = request.lines().next().unwrap_or_default();
     let mut parts = first_line.split_whitespace();
     let method = parts.next().unwrap_or_default();
@@ -532,6 +547,51 @@ pub(super) fn handle_api_client(mut stream: TcpStream, state: ApiState) {
     };
     let (status, content_type, body) = api_response_for_request(path, &snapshot);
     let _ = write_http_response(&mut stream, status, content_type, body.as_ref());
+}
+
+fn request_is_authorized(
+    remote_ip: IpAddr,
+    request_text: &str,
+    access_policy: &ApiAccessPolicy,
+) -> bool {
+    if api_client_is_loopback(remote_ip) {
+        return true;
+    }
+    let Some(expected_token) = access_policy.admin_token.as_deref() else {
+        return false;
+    };
+    request_header_value(request_text, API_ADMIN_TOKEN_HEADER)
+        .map(|value| token_equals(value, expected_token))
+        .unwrap_or(false)
+}
+
+fn token_equals(supplied: &str, expected: &str) -> bool {
+    let supplied = supplied.as_bytes();
+    let expected = expected.as_bytes();
+    let max_len = supplied.len().max(expected.len());
+    let mut diff = supplied.len() ^ expected.len();
+    for index in 0..max_len {
+        let left = supplied.get(index).copied().unwrap_or(0);
+        let right = expected.get(index).copied().unwrap_or(0);
+        diff |= (left ^ right) as usize;
+    }
+    diff == 0
+}
+
+fn request_header_value<'a>(request_text: &'a str, header_name: &str) -> Option<&'a str> {
+    let mut matched = None;
+    for line in request_text.lines().skip(1) {
+        let Some((name, value)) = line.split_once(':') else {
+            continue;
+        };
+        if name.trim().eq_ignore_ascii_case(header_name) {
+            if matched.is_some() {
+                return None;
+            }
+            matched = Some(value.trim());
+        }
+    }
+    matched
 }
 
 fn write_http_response(
@@ -556,4 +616,63 @@ fn write_http_response(
         body.len(),
         body
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn remote_requests_require_matching_admin_token() {
+        let policy = ApiAccessPolicy {
+            allow_remote_bind: true,
+            admin_token: Some("secret-token".into()),
+        };
+        assert!(!request_is_authorized(
+            "10.0.0.5".parse().unwrap(),
+            "GET /health HTTP/1.1\r\nHost: remote\r\n\r\n",
+            &policy,
+        ));
+        assert!(request_is_authorized(
+            "10.0.0.5".parse().unwrap(),
+            "GET /health HTTP/1.1\r\nHost: remote\r\nX-Gewyvern-Admin-Token: secret-token\r\n\r\n",
+            &policy,
+        ));
+        assert!(!request_is_authorized(
+            "10.0.0.5".parse().unwrap(),
+            "GET /health HTTP/1.1\r\nHost: remote\r\nX-Gewyvern-Admin-Token: wrong-token\r\n\r\n",
+            &policy,
+        ));
+    }
+
+    #[test]
+    fn remote_token_checks_trim_match_case_insensitively_and_reject_duplicates() {
+        let policy = ApiAccessPolicy {
+            allow_remote_bind: true,
+            admin_token: Some("secret-token".into()),
+        };
+        assert!(request_is_authorized(
+            "10.0.0.5".parse().unwrap(),
+            "GET /health HTTP/1.1\r\nHost: remote\r\nx-gewyvern-admin-token:   secret-token   \r\n\r\n",
+            &policy,
+        ));
+        assert!(!request_is_authorized(
+            "10.0.0.5".parse().unwrap(),
+            "GET /health HTTP/1.1\r\nHost: remote\r\nX-Gewyvern-Admin-Token: secret-token\r\nX-Gewyvern-Admin-Token: secret-token\r\n\r\n",
+            &policy,
+        ));
+    }
+
+    #[test]
+    fn loopback_requests_are_allowed_without_token() {
+        let policy = ApiAccessPolicy {
+            allow_remote_bind: false,
+            admin_token: None,
+        };
+        assert!(request_is_authorized(
+            "127.0.0.1".parse().unwrap(),
+            "GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            &policy,
+        ));
+    }
 }

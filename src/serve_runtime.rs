@@ -44,7 +44,7 @@ pub(super) fn serve_socket_sessions(cli: &Cli, socket_target: &SocketTarget) {
             &[("socket", addr.to_string())],
             "starting api service",
         );
-        start_api_service(addr)
+        start_api_service(addr, cli.allow_remote_api)
     });
     match socket_target {
         SocketTarget::Unix(path) => serve_unix_socket_sessions(cli, path, api_service),

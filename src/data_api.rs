@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net::IpAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -38,7 +39,31 @@ const API_CLIENT_WRITE_TIMEOUT: Duration = Duration::from_secs(3);
 const API_MAX_CONCURRENT_CLIENTS: usize = 128;
 const API_MAX_RESPONSE_BODY_BYTES: usize = 512 * 1024;
 const API_VERSION: &str = env!("CARGO_PKG_VERSION");
+const API_ADMIN_TOKEN_ENV: &str = "GEWY_API_ADMIN_TOKEN";
+const API_ADMIN_TOKEN_HEADER: &str = "X-Gewyvern-Admin-Token";
 const API_ENDPOINTS_JSON: &str = "[\"/health\",\"/v1/capabilities\",\"/v1/runtime/resilience.json\",\"/v1/runtime/certificates.json\",\"/v1/runtime/certificate-policy.json\",\"/v1/runtime/certificate-state.json\",\"/v1/protocols\",\"/v1/protocols/<protocol>\",\"/v1/protocols/<protocol>/entries/<entry>/surface.json\",\"/v1/protocol-clusters\",\"/v1/protocol-clusters/<cluster>\",\"/v1/latest/meta\",\"/v1/latest/runtime-capability-digest.json\",\"/v1/latest/runtime-cluster-overview.json\",\"/v1/latest/runtime-cluster-attention.json\",\"/v1/latest/runtime-cluster-attention-reasons.json\",\"/v1/latest/runtime-cluster-attention-summary.json\",\"/v1/latest/debugger-console.json\",\"/v1/latest/debug-session.json\",\"/v1/latest/targets\",\"/v1/latest/summary.txt\",\"/v1/latest/summary.json\",\"/v1/latest/findings.json\",\"/v1/latest/analysis.json\",\"/v1/latest/training-example.json\",\"/v1/latest/training-dataset.json\",\"/v1/latest/export.json\",\"/v1/latest/report.json\",\"/v1/latest/report.html\",\"/v1/latest/targets/<name>/summary.txt\",\"/v1/latest/targets/<name>/summary.json\",\"/v1/latest/targets/<name>/findings.json\",\"/v1/latest/targets/<name>/analysis.json\",\"/v1/latest/targets/<name>/anomaly-flow.json\",\"/v1/latest/targets/<name>/training-example.json\",\"/v1/latest/targets/<name>/training-dataset.json\",\"/v1/latest/targets/<name>/export.json\",\"/v1/latest/targets/<name>/report.json\",\"/v1/latest/targets/<name>/report.html\",\"/v1/latest/targets/<name>/protocol-surface.json\",\"/v1/latest/targets/<name>/protocol-reading.json\",\"/v1/latest/targets/<name>/debug-session.json\"]";
+
+#[derive(Clone, Debug, Default)]
+pub struct ApiAccessPolicy {
+    pub allow_remote_bind: bool,
+    pub admin_token: Option<String>,
+}
+
+impl ApiAccessPolicy {
+    pub fn from_env(allow_remote_bind: bool) -> Self {
+        Self {
+            allow_remote_bind,
+            admin_token: std::env::var(API_ADMIN_TOKEN_ENV)
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
+        }
+    }
+}
+
+pub(crate) fn api_client_is_loopback(address: IpAddr) -> bool {
+    address.is_loopback()
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct ApiSnapshot {

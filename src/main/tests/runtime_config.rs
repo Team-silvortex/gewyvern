@@ -74,6 +74,7 @@ serve = true
 socket = "unix:/tmp/gewyvern.sock"
 api_socket = "127.0.0.1:9910"
 allow_remote_api = false
+api_admin_token = "runtime-api-token"
 ingest_mode = "local-advisory"
 max_sessions = 32
 history_retention = 12
@@ -125,6 +126,7 @@ socket_failure_backoff_cap_ms = 2500
     let _external_cooldown = EnvGuard::remove("GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS");
     let _socket_backoff_base = EnvGuard::remove("GEWY_SOCKET_FAILURE_BACKOFF_BASE_MS");
     let _socket_backoff_cap = EnvGuard::remove("GEWY_SOCKET_FAILURE_BACKOFF_CAP_MS");
+    let _api_admin_token = EnvGuard::remove("GEWY_API_ADMIN_TOKEN");
 
     let config = load_runtime_config().unwrap();
     assert_eq!(config.schema_version, 1);
@@ -139,6 +141,10 @@ socket_failure_backoff_cap_ms = 2500
         Some("127.0.0.1:9910")
     );
     assert_eq!(config.defaults.allow_remote_api, Some(false));
+    assert_eq!(
+        config.defaults.api_admin_token.as_deref(),
+        Some("runtime-api-token")
+    );
     assert_eq!(config.defaults.ingest_mode, Some(IngestMode::LocalAdvisory));
     assert_eq!(config.defaults.max_sessions, Some(32));
     assert_eq!(config.history_retention, Some(12));
@@ -219,6 +225,10 @@ socket_failure_backoff_cap_ms = 2500
             .ok()
             .as_deref(),
         Some("true")
+    );
+    assert_eq!(
+        std::env::var("GEWY_API_ADMIN_TOKEN").ok().as_deref(),
+        Some("runtime-api-token")
     );
     assert_eq!(
         std::env::var("GEWY_HISTORY_RETENTION").ok().as_deref(),

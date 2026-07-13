@@ -35,6 +35,8 @@ pub(crate) struct Cli {
     pub(crate) api_socket: Option<String>,
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) allow_remote_api: bool,
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) api_admin_token: Option<String>,
     pub(crate) max_sessions: Option<usize>,
     pub(crate) json: bool,
     pub(crate) report_format: Option<ReportFormat>,
@@ -56,6 +58,7 @@ pub(crate) struct CliDefaults {
     pub(crate) serve: Option<bool>,
     pub(crate) api_socket: Option<String>,
     pub(crate) allow_remote_api: Option<bool>,
+    pub(crate) api_admin_token: Option<String>,
     pub(crate) max_sessions: Option<usize>,
     pub(crate) ingest_mode: Option<IngestMode>,
     pub(crate) socket_target: Option<SocketTarget>,
@@ -253,6 +256,7 @@ impl Cli {
         let mut serve = defaults.serve.unwrap_or(false);
         let mut api_socket = defaults.api_socket;
         let mut allow_remote_api = defaults.allow_remote_api.unwrap_or(false);
+        let mut api_admin_token = defaults.api_admin_token;
         let mut max_sessions = defaults.max_sessions;
         let mut json = false;
         let mut report_format = None;
@@ -287,6 +291,12 @@ impl Cli {
                 }
                 "--serve" => serve = true,
                 "--allow-remote-api" => allow_remote_api = true,
+                "--api-admin-token" => {
+                    api_admin_token = Some(
+                        args.next()
+                            .ok_or_else(|| "missing --api-admin-token value".to_string())?,
+                    );
+                }
                 "--api-socket" => {
                     api_socket = Some(
                         args.next()
@@ -454,6 +464,7 @@ impl Cli {
             demo_mode,
             api_socket: api_socket.as_deref(),
             allow_remote_api,
+            api_admin_token: api_admin_token.as_deref(),
             ingest_mode,
             external_engine_bin: external_engine_bin.is_some(),
             external_engine_worker: external_engine_worker.is_some(),
@@ -488,6 +499,7 @@ impl Cli {
             serve,
             api_socket,
             allow_remote_api,
+            api_admin_token,
             max_sessions,
             json,
             report_format,

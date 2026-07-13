@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::net::{TcpListener, TcpStream};
+use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
@@ -7,9 +7,10 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use super::{
-    API_CLIENT_WRITE_TIMEOUT, API_MAX_CONCURRENT_CLIENTS, ApiSnapshot, ApiState,
+    API_CLIENT_WRITE_TIMEOUT, API_MAX_CONCURRENT_CLIENTS, ApiAccessPolicy, ApiSnapshot, ApiState,
     EVENT_API_CLIENT_ACCEPT_FAILED, EVENT_API_CLIENT_OVERLOAD_REJECTED,
-    EVENT_API_LISTENER_BIND_FAILED, handle_api_client, log_error_event, log_warn_event,
+    EVENT_API_LISTENER_BIND_FAILED, api_client_is_loopback, handle_api_client, log_error_event,
+    log_warn_event,
 };
 
 pub struct ApiService {
@@ -37,7 +38,18 @@ impl Drop for ApiService {
     }
 }
 
-pub fn start_api_service(addr: &str) -> ApiService {
+pub fn start_api_service(addr: &str, allow_remote_bind: bool) -> ApiService {
+    let access_policy = ApiAccessPolicy::from_env(allow_remote_bind);
+    validate_api_bind_addr(addr, &access_policy).unwrap_or_else(|message| {
+        log_error_event(
+            "api",
+            EVENT_API_LISTENER_BIND_FAILED,
+            &[("socket", addr.to_string()), ("error", message.clone())],
+            "refused unsafe api listener bind",
+        );
+        eprintln!("{message}");
+        std::process::exit(1);
+    });
     let listener = TcpListener::bind(addr).unwrap_or_else(|err| {
         log_error_event(
             "api",
@@ -63,11 +75,11 @@ pub fn start_api_service(addr: &str) -> ApiService {
     let active_clients = Arc::new(AtomicUsize::new(0));
     let shutdown = Arc::new(AtomicBool::new(false));
     let thread_shutdown = Arc::clone(&shutdown);
+    let thread_access_policy = access_policy.clone();
     let handle = thread::spawn(move || {
         while !thread_shutdown.load(Ordering::Acquire) {
             match listener.accept() {
-                Ok(stream) => {
-                    let stream = stream.0;
+                Ok((stream, remote_addr)) => {
                     let previous = active_clients.fetch_add(1, Ordering::AcqRel);
                     if previous >= API_MAX_CONCURRENT_CLIENTS {
                         active_clients.fetch_sub(1, Ordering::AcqRel);
@@ -85,9 +97,15 @@ pub fn start_api_service(addr: &str) -> ApiService {
                     }
                     let client_state = Arc::clone(&thread_state);
                     let client_counter = Arc::clone(&active_clients);
+                    let client_access_policy = thread_access_policy.clone();
                     thread::spawn(move || {
                         let _guard = ActiveApiClientGuard(client_counter);
-                        handle_api_client(stream, client_state);
+                        handle_api_client(
+                            stream,
+                            remote_addr.ip(),
+                            client_state,
+                            client_access_policy,
+                        );
                     });
                 }
                 Err(err) => {
@@ -110,6 +128,34 @@ pub fn start_api_service(addr: &str) -> ApiService {
         shutdown,
         handle: Some(handle),
     }
+}
+
+fn validate_api_bind_addr(bind_addr: &str, access_policy: &ApiAccessPolicy) -> Result<(), String> {
+    let resolved = bind_addr
+        .to_socket_addrs()
+        .map_err(|err| format!("failed to resolve api bind address '{bind_addr}': {err}"))?
+        .collect::<Vec<_>>();
+    if resolved.is_empty() {
+        return Err(format!(
+            "api bind address '{bind_addr}' did not resolve to any socket addresses"
+        ));
+    }
+    if resolved
+        .iter()
+        .any(|socket_addr| !api_client_is_loopback(socket_addr.ip()))
+    {
+        if !access_policy.allow_remote_bind {
+            return Err(format!(
+                "api bind address '{bind_addr}' is not loopback-only; pass --allow-remote-api for explicit remote exposure"
+            ));
+        }
+        if access_policy.admin_token.is_none() {
+            return Err(format!(
+                "api bind address '{bind_addr}' is remote; set GEWY_API_ADMIN_TOKEN, runtime.api_admin_token, or pass --api-admin-token before exposing the runtime API"
+            ));
+        }
+    }
+    Ok(())
 }
 
 struct ActiveApiClientGuard(Arc<AtomicUsize>);
@@ -149,5 +195,43 @@ mod tests {
         assert!(response.starts_with("HTTP/1.1 503 Service Unavailable"));
         assert!(response.contains("\"error\":\"service_busy\""));
         assert!(response.contains("\"retry_after\":\"short_backoff\""));
+    }
+
+    #[test]
+    fn api_bind_guard_rejects_remote_bind_without_explicit_flag() {
+        let err = validate_api_bind_addr(
+            "0.0.0.0:9100",
+            &ApiAccessPolicy {
+                allow_remote_bind: false,
+                admin_token: Some("secret-token".into()),
+            },
+        )
+        .expect_err("remote bind should require explicit flag");
+        assert!(err.contains("--allow-remote-api"));
+    }
+
+    #[test]
+    fn api_bind_guard_rejects_remote_bind_without_token() {
+        let err = validate_api_bind_addr(
+            "0.0.0.0:9100",
+            &ApiAccessPolicy {
+                allow_remote_bind: true,
+                admin_token: None,
+            },
+        )
+        .expect_err("remote bind should require admin token");
+        assert!(err.contains("GEWY_API_ADMIN_TOKEN"));
+    }
+
+    #[test]
+    fn api_bind_guard_accepts_remote_bind_with_explicit_flag_and_token() {
+        validate_api_bind_addr(
+            "0.0.0.0:9100",
+            &ApiAccessPolicy {
+                allow_remote_bind: true,
+                admin_token: Some("secret-token".into()),
+            },
+        )
+        .expect("remote bind should succeed with explicit flag and token");
     }
 }

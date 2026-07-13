@@ -74,12 +74,15 @@ Important consequence:
 
 ## API Exposure Boundary
 
-The API is a read-only latest-snapshot surface, not a trust boundary.
+The API is a read-only latest-snapshot surface with a narrow operator-facing
+access boundary.
 
 Current posture:
 
 - `--api-socket` requires `--serve`
 - remote API bind requires explicit operator opt-in
+- remote API bind also requires a configured runtime admin token
+- loopback callers remain the only zero-friction default
 - live API state is in-memory first
 - the latest served snapshot is also mirrored into the standard state root
 - each successful refresh also leaves a structured on-disk history snapshot
@@ -95,7 +98,8 @@ This API is suitable for:
 - nearby sidecars
 - lightweight automation
 
-It is not equivalent to an authenticated fleet service.
+It is not equivalent to a multi-tenant or fleet-grade authenticated control
+plane.
 
 ## External Engine Boundary
 
@@ -146,7 +150,8 @@ that keep standalone use from drifting into obviously unsafe territory.
 Before exposing or automating `gewyvern`, assume:
 
 1. socket ingest is advisory unless proven otherwise
-2. the API is a convenience surface, not an auth system
+2. the API is locally safe by default and remotely readable only through an
+   explicit token-protected exposure choice
 3. external engines can enrich results, but should not become truth authority
 4. exported bundles and JSON reports are useful artifacts, not access-control
    boundaries

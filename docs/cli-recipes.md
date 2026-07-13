@@ -281,6 +281,35 @@ Live `--serve` plus API:
 cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --serve --api-socket 127.0.0.1:9100 --json --summary-only
 ```
 
+Protected local-first API patterns:
+
+```bash
+# local-only API, no token required for loopback callers
+cargo run -- --scan-all \
+  --tcp-socket 127.0.0.1:9000 \
+  --serve \
+  --api-socket 127.0.0.1:9100 \
+  --json --summary-only
+
+# remote API, explicit exposure plus runtime admin token
+GEWY_API_ADMIN_TOKEN='replace-me' \
+cargo run -- --scan-all \
+  --tcp-socket 127.0.0.1:9000 \
+  --serve \
+  --api-socket 0.0.0.0:9100 \
+  --allow-remote-api \
+  --json --summary-only
+
+# equivalent remote API launch with CLI token injection
+cargo run -- --scan-all \
+  --tcp-socket 127.0.0.1:9000 \
+  --serve \
+  --api-socket 0.0.0.0:9100 \
+  --allow-remote-api \
+  --api-admin-token replace-me \
+  --json --summary-only
+```
+
 Human-facing ingest mode examples:
 
 ```bash
@@ -295,6 +324,19 @@ For the behavioral contract behind these commands, see:
 - [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
 
 ## Read-Only API Endpoints
+
+When the API stays on loopback, ordinary local reads need no extra header.
+
+For explicit remote API exposure, callers must send:
+
+- `X-Gewyvern-Admin-Token: <token>`
+
+Example:
+
+```bash
+curl -H 'X-Gewyvern-Admin-Token: replace-me' \
+  http://127.0.0.1:9100/v1/latest/summary.json
+```
 
 High-value endpoints during `--serve`:
 

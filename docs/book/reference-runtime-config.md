@@ -128,6 +128,7 @@ where `schema_status` is currently either:
 - `socket = "unix:/path.sock"` or `socket = "tcp:127.0.0.1:9000"`
 - `api_socket = "127.0.0.1:9910"`
 - `allow_remote_api = true|false`
+- `api_admin_token = "strong-token"`
 - `ingest_mode = "local-advisory"` or `"remote-advisory"`
 - `max_sessions = 32`
 - `history_retention = 32`
@@ -277,6 +278,7 @@ serve = true
 socket = "unix:/tmp/gewyvern.sock"
 api_socket = "127.0.0.1:9910"
 allow_remote_api = false
+api_admin_token = "replace-me-for-remote-api-use"
 ingest_mode = "local-advisory"
 max_sessions = 64
 history_retention = 48

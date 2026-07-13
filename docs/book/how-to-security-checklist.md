@@ -62,12 +62,15 @@ Before enabling the API, confirm:
 
 - `--api-socket` is only used together with `--serve`
 - remote API bind is only used with explicit `--allow-remote-api`
+- remote API bind is only used when a runtime admin token is configured
 - localhost is the default unless you truly need broader reach
 - callers understand the API is read-only and latest-snapshot only
 
 Current `1.0.0` safety behavior:
 
 - remote bind is rejected unless explicitly allowed
+- remote bind is rejected unless a runtime admin token is also configured
+- remote callers must present `X-Gewyvern-Admin-Token`
 - restart clears the live in-memory snapshot
 - the most recent served snapshot may still remain mirrored under the standard
   state root for operator inspection
@@ -179,14 +182,15 @@ current line:
 
 1. verify ingest mode matches trust intent
 2. verify API exposure is local by default or explicitly opted in
-3. verify external engine paths are intentional and bounded
-4. verify custom registry roots are trusted and scoped
-5. verify automation handles `404`, `503`, and restart-cleared state
-6. verify operators know the API is read-only and latest-snapshot only
-7. verify dependency vulnerability checks and debugger cross-validation stay
+3. verify any remote API exposure also has an intentional runtime admin token
+4. verify external engine paths are intentional and bounded
+5. verify custom registry roots are trusted and scoped
+6. verify automation handles `404`, `503`, and restart-cleared state
+7. verify operators know the API is read-only and latest-snapshot only
+8. verify dependency vulnerability checks and debugger cross-validation stay
    green before release-style automation
 
-If all seven are true, you are aligned with the current `1.0.0` security shape.
+If all eight are true, you are aligned with the current `1.0.0` security shape.
 
 ## 10. Pair The Checklist With Validation
 

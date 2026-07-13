@@ -27,6 +27,7 @@ pub(crate) struct CliValidationInput<'a> {
     pub(crate) demo_mode: DemoMode,
     pub(crate) api_socket: Option<&'a str>,
     pub(crate) allow_remote_api: bool,
+    pub(crate) api_admin_token: Option<&'a str>,
     pub(crate) ingest_mode: IngestMode,
     pub(crate) external_engine_bin: bool,
     pub(crate) external_engine_worker: bool,
@@ -165,6 +166,15 @@ pub(crate) fn validate_cli_options(input: CliValidationInput<'_>) -> Result<(), 
             .api_socket
             .is_some_and(|addr| !input.allow_remote_api && !api_socket_addr_is_local(addr)),
         input.locale.msg("remote_api_requires_flag")
+    );
+    reject!(
+        input
+            .api_socket
+            .is_some_and(|addr| !api_socket_addr_is_local(addr))
+            && input
+                .api_admin_token
+                .is_none_or(|token| token.trim().is_empty()),
+        "remote API listeners require an admin token; set runtime.api_admin_token, GEWY_API_ADMIN_TOKEN, or pass --api-admin-token"
     );
     reject!(
         remote_socket_requires_flag(input.socket_target, input.ingest_mode),

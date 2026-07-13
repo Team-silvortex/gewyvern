@@ -626,10 +626,26 @@ fn cli_accepts_remote_api_socket_with_explicit_flag() {
         "--serve".to_string(),
         "--api-socket".to_string(),
         "0.0.0.0:9100".to_string(),
+        "--api-admin-token".to_string(),
+        "secret-token".to_string(),
         "--allow-remote-api".to_string(),
     ])
     .unwrap();
     assert!(cli.serve);
     assert_eq!(cli.api_socket.as_deref(), Some("0.0.0.0:9100"));
     assert!(cli.allow_remote_api);
+}
+
+#[test]
+fn cli_rejects_remote_api_socket_without_admin_token() {
+    let err = Cli::from_args([
+        "--tcp-socket".to_string(),
+        "127.0.0.1:9000".to_string(),
+        "--serve".to_string(),
+        "--api-socket".to_string(),
+        "0.0.0.0:9100".to_string(),
+        "--allow-remote-api".to_string(),
+    ])
+    .unwrap_err();
+    assert!(err.contains("admin token") || err.contains("GEWY_API_ADMIN_TOKEN"));
 }
