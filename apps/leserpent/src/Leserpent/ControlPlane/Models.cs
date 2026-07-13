@@ -101,6 +101,14 @@ public sealed record RuntimeSidecarAccess(
     RuntimeTags Tags
 );
 
+public sealed record RuntimeControlAccess(
+    string RuntimeId,
+    string Name,
+    string Endpoint,
+    string? AdminToken,
+    RuntimeTags Tags
+);
+
 public sealed record RuntimeRegistrationResponse(
     string RuntimeId,
     string Name,
@@ -114,7 +122,8 @@ public sealed record RuntimeRegistrationResponse(
     string? CapabilityFetchError,
     RuntimeTags Tags,
     RuntimeStatusSnapshot Status,
-    RuntimeSidecarStatusSnapshot? SidecarStatus
+    RuntimeSidecarStatusSnapshot? SidecarStatus,
+    bool HasRuntimeAdminToken = false
 );
 
 public sealed record RuntimeSummary(
@@ -131,7 +140,28 @@ public sealed record RuntimeSummary(
     string? CapabilityFetchError,
     RuntimeTags Tags,
     RuntimeStatusSnapshot Status,
-    RuntimeSidecarStatusSnapshot? SidecarStatus
+    RuntimeSidecarStatusSnapshot? SidecarStatus,
+    bool HasRuntimeAdminToken = false
+);
+
+public sealed record RuntimeDeploymentRequest(
+    string PipelineKind,
+    string RequestedBy,
+    bool Confirmed,
+    string RequestId,
+    string? Target = null
+);
+
+public sealed record RuntimeDeploymentResponse(
+    string DeploymentId,
+    string RequestId,
+    string RuntimeId,
+    string PipelineKind,
+    string RequestedBy,
+    string Status,
+    DateTimeOffset AcceptedAt,
+    string? Target = null,
+    bool Replayed = false
 );
 
 public sealed record SessionCapabilityRequirement(

@@ -96,6 +96,16 @@ public sealed partial class RegistryService
     public RuntimeSummary? GetRuntime(string runtimeId) =>
         runtimes.TryGetValue(runtimeId, out var runtime) ? runtime.ToSummary() : null;
 
+    public RuntimeControlAccess? GetRuntimeControlAccess(string runtimeId) =>
+        runtimes.TryGetValue(runtimeId, out var runtime)
+            ? new RuntimeControlAccess(
+                runtime.RuntimeId,
+                runtime.Name,
+                runtime.Endpoint,
+                runtime.RuntimeAdminToken,
+                runtime.Tags)
+            : null;
+
     public RuntimeAttentionView? GetRuntimeAttention(string runtimeId)
     {
         if (!runtimes.TryGetValue(runtimeId, out var runtime))
@@ -487,6 +497,7 @@ public sealed partial class RegistryService
             var updated = existing with
             {
                 Endpoint = request.Endpoint.Trim(),
+                RuntimeAdminToken = NormalizeOptionalSecret(request.PairingToken),
                 SidecarEndpoint = NormalizeOptionalEndpoint(request.SidecarEndpoint),
                 SidecarAdminToken = NormalizeOptionalSecret(request.SidecarAdminToken),
                 Capabilities = capabilities,
@@ -507,6 +518,7 @@ public sealed partial class RegistryService
             Guid.NewGuid().ToString("n"),
             request.Name.Trim(),
             request.Endpoint.Trim(),
+            NormalizeOptionalSecret(request.PairingToken),
             NormalizeOptionalEndpoint(request.SidecarEndpoint),
             NormalizeOptionalSecret(request.SidecarAdminToken),
             now,

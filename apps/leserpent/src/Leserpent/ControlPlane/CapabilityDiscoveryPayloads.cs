@@ -11,6 +11,8 @@ public sealed partial class CapabilityDiscoveryService
     [JsonSerializable(typeof(GewyvernRuntimeResiliencePayload))]
     [JsonSerializable(typeof(GewyvernLatestTargetsPayload))]
     [JsonSerializable(typeof(GewyvernProtocolSurfacePayload))]
+    [JsonSerializable(typeof(GewyvernDeploymentRequestPayload))]
+    [JsonSerializable(typeof(GewyvernDeploymentResponsePayload))]
     [JsonSerializable(typeof(EtragonHealthPayload))]
     [JsonSerializable(typeof(EtragonLatestStatusPayload))]
     [JsonSerializable(typeof(EtragonMemoryVersionsPayload))]
@@ -20,6 +22,7 @@ public sealed partial class CapabilityDiscoveryService
         [property: JsonPropertyName("service")] string Service,
         [property: JsonPropertyName("version")] string Version,
         [property: JsonPropertyName("latest_snapshot")] bool LatestSnapshot,
+        [property: JsonPropertyName("authenticated_deployment")] bool AuthenticatedDeployment,
         [property: JsonPropertyName("serve_required")] bool ServeRequired,
         [property: JsonPropertyName("external_sidecar_context")] bool ExternalSidecarContext,
         [property: JsonPropertyName("target_path_segment_encoding")] string TargetPathSegmentEncoding,
@@ -78,6 +81,25 @@ public sealed partial class CapabilityDiscoveryService
         [property: JsonPropertyName("protocol")] string? Protocol,
         [property: JsonPropertyName("entry")] string? Entry,
         [property: JsonPropertyName("via_overlay")] string? ViaOverlay
+    );
+
+    private sealed record GewyvernDeploymentRequestPayload(
+        [property: JsonPropertyName("request_id")] string RequestId,
+        [property: JsonPropertyName("pipeline_kind")] string PipelineKind,
+        [property: JsonPropertyName("requested_by")] string RequestedBy,
+        [property: JsonPropertyName("confirmed")] bool Confirmed,
+        [property: JsonPropertyName("target")] string? Target
+    );
+
+    private sealed record GewyvernDeploymentResponsePayload(
+        [property: JsonPropertyName("deployment_id")] string DeploymentId,
+        [property: JsonPropertyName("request_id")] string RequestId,
+        [property: JsonPropertyName("pipeline_kind")] string PipelineKind,
+        [property: JsonPropertyName("requested_by")] string RequestedBy,
+        [property: JsonPropertyName("status")] string Status,
+        [property: JsonPropertyName("accepted_unix_ms")] long AcceptedUnixMs,
+        [property: JsonPropertyName("target")] string? Target,
+        [property: JsonPropertyName("replayed")] bool Replayed
     );
 
     private sealed record EtragonHealthPayload(

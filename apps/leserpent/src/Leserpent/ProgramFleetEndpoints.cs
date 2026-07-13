@@ -28,12 +28,13 @@ public partial class Program
             var refreshed = new List<FleetRefreshAllItem>();
             foreach (var runtime in registry.ListRuntimes(filter))
             {
+                var runtimeAdminToken = registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken;
                 var capabilityResult = registry.RefreshRuntimeCapabilities(
                     runtime.RuntimeId,
-                    await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken));
+                    await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken, runtimeAdminToken));
                 var statusResult = registry.RefreshRuntimeStatus(
                     runtime.RuntimeId,
-                    await discovery.DiscoverStatusAsync(runtime.Endpoint, null, cancellationToken));
+                    await discovery.DiscoverStatusAsync(runtime.Endpoint, null, cancellationToken, runtimeAdminToken));
 
                 if (capabilityResult is not null && statusResult is not null)
                 {
@@ -91,7 +92,7 @@ public partial class Program
             {
                 var result = registry.RefreshRuntimeCapabilities(
                     runtime.RuntimeId,
-                    await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken));
+                    await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken, registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken));
                 if (result is not null)
                 {
                     refreshed.Add(new FleetCapabilityRefreshItem(
@@ -168,7 +169,7 @@ public partial class Program
             {
                 var result = registry.RefreshRuntimeStatus(
                     runtime.RuntimeId,
-                    await discovery.DiscoverStatusAsync(runtime.Endpoint, null, cancellationToken));
+                    await discovery.DiscoverStatusAsync(runtime.Endpoint, null, cancellationToken, registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken));
                 if (result is not null)
                 {
                     registry.RecordRecoveryActivity(

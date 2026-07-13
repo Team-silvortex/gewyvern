@@ -1,5 +1,7 @@
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
 namespace Leserpent.ControlPlane;
@@ -7,8 +9,9 @@ namespace Leserpent.ControlPlane;
 public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, ControlPlaneSecurityPolicy securityPolicy)
 {
     private const string EtragonAdminTokenHeader = "X-Etragon-Admin-Token";
+    public const string GewyvernAdminTokenHeader = "X-Gewyvern-Admin-Token";
 
-    public async Task<CapabilityDiscoveryResult> DiscoverAsync(string endpoint, string? capabilityEndpoint, CancellationToken cancellationToken)
+    public async Task<CapabilityDiscoveryResult> DiscoverAsync(string endpoint, string? capabilityEndpoint, CancellationToken cancellationToken, string? runtimeAdminToken = null)
     {
         var capabilityUrl = BuildCapabilityUrl(endpoint, capabilityEndpoint);
         var capabilityPlanResult = await securityPolicy.BuildEndpointAccessPlanAsync(capabilityUrl, "capability endpoint", cancellationToken);
@@ -23,7 +26,9 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
             var payload = await GetFromJsonAsync(
                 capabilityPlan,
                 DiscoveryJsonContext.Default.GewyvernCapabilityPayload,
-                cancellationToken);
+                cancellationToken,
+                runtimeAdminToken,
+                GewyvernAdminTokenHeader);
             if (payload is null)
             {
                 return CapabilityDiscoveryResult.Failed(capabilityUrl, "failed to decode gewyvern capability payload");
@@ -32,6 +37,7 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
             var capabilities = new List<RuntimeCapability>
             {
                 new("api.latest_snapshot", payload.LatestSnapshot ? "fully_supported" : "not_supported", "runtime publishes latest snapshot metadata and JSON surfaces"),
+                new("control.authenticated_deployment", payload.AuthenticatedDeployment ? "fully_supported" : "not_supported", "runtime accepts typed, token-authenticated deployment requests"),
                 new("api.target_routing", "fully_supported", $"target routing uses {payload.TargetPathSegmentEncoding} path encoding"),
                 new("api.external_sidecar_context", payload.ExternalSidecarContext ? "fully_supported" : "not_supported", "runtime can expose additive nearby sidecar collaboration context"),
                 new("runtime.serve_required", payload.ServeRequired ? "fully_supported" : "not_supported", "runtime requires standalone serve mode for latest-snapshot API access")
@@ -62,7 +68,7 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
         }
     }
 
-    public async Task<RuntimeStatusDiscoveryResult> DiscoverStatusAsync(string endpoint, string? statusEndpoint, CancellationToken cancellationToken)
+    public async Task<RuntimeStatusDiscoveryResult> DiscoverStatusAsync(string endpoint, string? statusEndpoint, CancellationToken cancellationToken, string? runtimeAdminToken = null)
     {
         var statusUrl = BuildStatusUrl(endpoint, statusEndpoint);
         var statusPlanResult = await securityPolicy.BuildEndpointAccessPlanAsync(statusUrl, "status endpoint", cancellationToken);
@@ -77,13 +83,15 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
             var payload = await GetFromJsonAsync(
                 statusPlan,
                 DiscoveryJsonContext.Default.GewyvernLatestMetaPayload,
-                cancellationToken);
+                cancellationToken,
+                runtimeAdminToken,
+                GewyvernAdminTokenHeader);
             if (payload is null)
             {
                 return RuntimeStatusDiscoveryResult.Failed(statusUrl, "failed to decode gewyvern latest-meta payload");
             }
 
-            var resilience = await TryDiscoverResilienceAsync(endpoint, cancellationToken);
+            var resilience = await TryDiscoverResilienceAsync(endpoint, cancellationToken, runtimeAdminToken);
 
             return RuntimeStatusDiscoveryResult.Succeeded(
                 statusUrl,
@@ -219,11 +227,58 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
         }
     }
 
+    public async Task<RuntimeDeploymentResponse> DeployAsync(
+        RuntimeControlAccess runtime,
+        RuntimeDeploymentRequest request,
+        CancellationToken cancellationToken)
+    {
+        var deploymentUrl = runtime.Endpoint.TrimEnd('/') + "/v1/deployments";
+        var planResult = await securityPolicy.BuildEndpointAccessPlanAsync(
+            deploymentUrl,
+            "runtime deployment endpoint",
+            cancellationToken);
+        if (planResult.Error is not null)
+        {
+            throw new InvalidOperationException(planResult.Error);
+        }
+
+        var payload = new GewyvernDeploymentRequestPayload(
+            request.RequestId.Trim(),
+            request.PipelineKind.Trim(),
+            request.RequestedBy.Trim(),
+            request.Confirmed,
+            string.IsNullOrWhiteSpace(request.Target) ? null : request.Target.Trim());
+        var plan = planResult.Plan!;
+        using var response = plan.PinnedAddress is null
+            ? await SendDeploymentAsync(httpClient, plan.RequestUri, payload, runtime.AdminToken, cancellationToken)
+            : await SendPinnedDeploymentAsync(plan, payload, runtime.AdminToken, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync(
+            DiscoveryJsonContext.Default.GewyvernDeploymentResponsePayload,
+            cancellationToken);
+        if (result is null)
+        {
+            throw new InvalidOperationException("failed to decode gewyvern deployment response");
+        }
+
+        return new RuntimeDeploymentResponse(
+            result.DeploymentId,
+            result.RequestId,
+            runtime.RuntimeId,
+            result.PipelineKind,
+            result.RequestedBy,
+            result.Status,
+            DateTimeOffset.FromUnixTimeMilliseconds(result.AcceptedUnixMs),
+            result.Target,
+            result.Replayed);
+    }
+
     public async Task<RuntimeProtocolReadingSummary?> DiscoverProtocolReadingAsync(
         string runtimeId,
         string runtimeName,
         string endpoint,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? runtimeAdminToken = null)
     {
         var targetsUrl = endpoint.TrimEnd('/') + "/v1/latest/targets";
         var targetsPlanResult = await securityPolicy.BuildEndpointAccessPlanAsync(targetsUrl, "latest target index endpoint", cancellationToken);
@@ -235,7 +290,9 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
         var targetsPayload = await GetFromJsonAsync(
             targetsPlanResult.Plan!,
             DiscoveryJsonContext.Default.GewyvernLatestTargetsPayload,
-            cancellationToken);
+            cancellationToken,
+            runtimeAdminToken,
+            GewyvernAdminTokenHeader);
         var target = targetsPayload?.TargetRefs?
             .FirstOrDefault(item => item.HasProtocolSurface && !string.IsNullOrWhiteSpace(item.PathSegment));
         if (target is null)
@@ -254,7 +311,9 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
         var surfacePayload = await GetFromJsonAsync(
             surfacePlanResult.Plan!,
             DiscoveryJsonContext.Default.GewyvernProtocolSurfacePayload,
-            cancellationToken);
+            cancellationToken,
+            runtimeAdminToken,
+            GewyvernAdminTokenHeader);
         if (surfacePayload is null
             || string.IsNullOrWhiteSpace(surfacePayload.Protocol)
             || string.IsNullOrWhiteSpace(surfacePayload.Entry))
@@ -453,30 +512,62 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
         EndpointAccessPlan plan,
         JsonTypeInfo<T> jsonTypeInfo,
         CancellationToken cancellationToken,
-        string? sidecarAdminToken = null)
+        string? adminToken = null,
+        string adminTokenHeader = EtragonAdminTokenHeader)
     {
         if (plan.PinnedAddress is null)
         {
-            using var response = await SendAsync(httpClient, plan.RequestUri, cancellationToken, sidecarAdminToken);
+            using var response = await SendAsync(httpClient, plan.RequestUri, cancellationToken, adminToken, adminTokenHeader);
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadFromJsonAsync(jsonTypeInfo, cancellationToken);
         }
 
         using var client = CreatePinnedHttpClient(plan);
-        using var pinnedResponse = await SendAsync(client, plan.RequestUri, cancellationToken, sidecarAdminToken);
+        using var pinnedResponse = await SendAsync(client, plan.RequestUri, cancellationToken, adminToken, adminTokenHeader);
         pinnedResponse.EnsureSuccessStatusCode();
         return await pinnedResponse.Content.ReadFromJsonAsync(jsonTypeInfo, cancellationToken);
     }
 
-    private static async Task<HttpResponseMessage> SendAsync(HttpClient client, Uri requestUri, CancellationToken cancellationToken, string? sidecarAdminToken)
+    private static async Task<HttpResponseMessage> SendAsync(HttpClient client, Uri requestUri, CancellationToken cancellationToken, string? adminToken, string adminTokenHeader = EtragonAdminTokenHeader)
     {
-        if (string.IsNullOrWhiteSpace(sidecarAdminToken))
+        if (string.IsNullOrWhiteSpace(adminToken))
         {
             return await client.GetAsync(requestUri, cancellationToken);
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
-        request.Headers.TryAddWithoutValidation(EtragonAdminTokenHeader, sidecarAdminToken.Trim());
+        request.Headers.TryAddWithoutValidation(adminTokenHeader, adminToken.Trim());
+        return await client.SendAsync(request, cancellationToken);
+    }
+
+    private async Task<HttpResponseMessage> SendPinnedDeploymentAsync(
+        EndpointAccessPlan plan,
+        GewyvernDeploymentRequestPayload payload,
+        string? adminToken,
+        CancellationToken cancellationToken)
+    {
+        using var client = CreatePinnedHttpClient(plan);
+        return await SendDeploymentAsync(client, plan.RequestUri, payload, adminToken, cancellationToken);
+    }
+
+    private static async Task<HttpResponseMessage> SendDeploymentAsync(
+        HttpClient client,
+        Uri requestUri,
+        GewyvernDeploymentRequestPayload payload,
+        string? adminToken,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, requestUri)
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(payload, DiscoveryJsonContext.Default.GewyvernDeploymentRequestPayload),
+                Encoding.UTF8,
+                "application/json"),
+        };
+        if (!string.IsNullOrWhiteSpace(adminToken))
+        {
+            request.Headers.TryAddWithoutValidation(GewyvernAdminTokenHeader, adminToken.Trim());
+        }
         return await client.SendAsync(request, cancellationToken);
     }
 

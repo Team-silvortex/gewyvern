@@ -8,6 +8,7 @@ use super::certificate_policy::api_runtime_certificate_policy_json;
 use super::certificate_state::api_runtime_certificate_state_json;
 use super::debug_session::{api_debug_session_json, api_target_debug_session_json};
 use super::debugger_console::api_debugger_console_json;
+use super::deployment::{accept_deployment, deployment_list_json};
 use super::json::{api_target_list_json, decode_api_target_path_segment, json_string};
 use super::protocol_catalog::{
     api_protocol_catalog_json, api_protocol_cluster_json, api_protocol_clusters_json,
@@ -25,9 +26,9 @@ use super::training_manifest::{
     target_training_dataset_manifest_json, training_dataset_manifest_json,
 };
 use super::{
+    api_client_is_loopback, ApiAccessPolicy, ApiDeploymentState, ApiSnapshot, ApiState,
     API_ADMIN_TOKEN_HEADER, API_CLIENT_READ_TIMEOUT, API_ENDPOINTS_JSON,
-    API_MAX_RESPONSE_BODY_BYTES, API_VERSION, ApiAccessPolicy, ApiSnapshot, ApiState,
-    api_client_is_loopback,
+    API_MAX_RESPONSE_BODY_BYTES, API_VERSION,
 };
 
 pub(crate) fn api_response_for_request<'a>(
@@ -287,7 +288,14 @@ fn api_response_for_request_uncapped<'a>(
             Cow::Owned(format!(
                 "{{\"service\":\"gewyvern-api\",\"version\":{},\"latest_snapshot\":true,\"serve_required\":true,\"training_example\":true,\"training_dataset_manifest\":true,\"protocol_catalog\":true,\"protocol_cluster_catalog\":true,\"protocol_surface_catalog\":true,\"target_protocol_reading\":true,\"debug_session\":true,\"runtime_capability_digest\":true,\"runtime_cluster_overview\":true,\"runtime_cluster_attention\":true,\"runtime_cluster_attention_reasons\":true,\"runtime_cluster_attention_summary\":true,\"debugger_console\":true,\"runtime_certificates\":true,\"runtime_certificate_policy\":true,\"runtime_certificate_state\":true,\"external_sidecar_context\":true,\"external_capability_profile\":true,\"external_context_status\":true,\"external_sidecar_trust_level\":true,\"external_sidecar_consumption_mode\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":{}}}",
                 json_string(API_VERSION),
-                API_ENDPOINTS_JSON,
+                format!(
+                    "[\"/v1/deployments\",{}",
+                    API_ENDPOINTS_JSON.strip_prefix('[').unwrap_or(API_ENDPOINTS_JSON),
+                ),
+            )
+            .replace(
+                "\"latest_snapshot\":true",
+                "\"latest_snapshot\":true,\"authenticated_deployment\":true",
             )),
         ),
         "/v1/latest/summary.txt" => match snapshot.summary_text.as_ref() {
@@ -509,16 +517,19 @@ pub(super) fn handle_api_client(
     mut stream: TcpStream,
     remote_ip: IpAddr,
     state: ApiState,
+    deployments: ApiDeploymentState,
     access_policy: ApiAccessPolicy,
 ) {
     let _ = stream.set_read_timeout(Some(API_CLIENT_READ_TIMEOUT));
     let _ = stream.set_write_timeout(Some(super::API_CLIENT_WRITE_TIMEOUT));
-    let mut buffer = [0u8; 2048];
-    let bytes_read = match stream.read(&mut buffer) {
-        Ok(bytes) if bytes > 0 => bytes,
-        _ => return,
+    let request = match read_http_request(&mut stream) {
+        Ok(request) => request,
+        Err((status, body)) => {
+            let _ =
+                write_http_response(&mut stream, status, "application/json; charset=utf-8", body);
+            return;
+        }
     };
-    let request = String::from_utf8_lossy(&buffer[..bytes_read]);
     if !request_is_authorized(remote_ip, &request, &access_policy) {
         let _ = write_http_response(
             &mut stream,
@@ -532,12 +543,57 @@ pub(super) fn handle_api_client(
     let mut parts = first_line.split_whitespace();
     let method = parts.next().unwrap_or_default();
     let path = parts.next().unwrap_or("/health");
+    if path == "/v1/deployments" && !request_has_valid_admin_token(&request, &access_policy) {
+        let _ = write_http_response(
+            &mut stream,
+            403,
+            "application/json; charset=utf-8",
+            "{\"error\":\"deployment_auth_required\",\"reason\":\"deployment control always requires a valid gewyvern admin token\"}",
+        );
+        return;
+    }
+    if method == "POST" && path == "/v1/deployments" {
+        let body = request
+            .split_once("\r\n\r\n")
+            .map(|(_, body)| body)
+            .unwrap_or_default();
+        let (status, response) = match deployments.lock() {
+            Ok(mut store) => accept_deployment(body, &mut store),
+            Err(_) => (
+                500,
+                "{\"error\":\"deployment_state_unavailable\"}".to_string(),
+            ),
+        };
+        let _ = write_http_response(
+            &mut stream,
+            status,
+            "application/json; charset=utf-8",
+            &response,
+        );
+        return;
+    }
+    if method == "GET" && path == "/v1/deployments" {
+        let (status, response) = match deployments.lock() {
+            Ok(store) => (200, deployment_list_json(&store)),
+            Err(_) => (
+                500,
+                "{\"error\":\"deployment_state_unavailable\"}".to_string(),
+            ),
+        };
+        let _ = write_http_response(
+            &mut stream,
+            status,
+            "application/json; charset=utf-8",
+            &response,
+        );
+        return;
+    }
     if method != "GET" {
         let _ = write_http_response(
             &mut stream,
             405,
             "application/json; charset=utf-8",
-            "{\"error\":\"method_not_allowed\",\"allowed\":\"GET\"}",
+            "{\"error\":\"method_not_allowed\",\"allowed\":\"GET; POST /v1/deployments\"}",
         );
         return;
     }
@@ -549,6 +605,53 @@ pub(super) fn handle_api_client(
     let _ = write_http_response(&mut stream, status, content_type, body.as_ref());
 }
 
+fn read_http_request(stream: &mut TcpStream) -> Result<String, (u16, &'static str)> {
+    const MAX_HEADER_BYTES: usize = 8 * 1024;
+    const MAX_BODY_BYTES: usize = 16 * 1024;
+    let mut request = Vec::with_capacity(2048);
+    let mut chunk = [0u8; 2048];
+    let mut expected_len = None;
+    loop {
+        let bytes_read = stream
+            .read(&mut chunk)
+            .map_err(|_| (400, "{\"error\":\"invalid_http_request\"}"))?;
+        if bytes_read == 0 {
+            break;
+        }
+        request.extend_from_slice(&chunk[..bytes_read]);
+        if request.len() > MAX_HEADER_BYTES + MAX_BODY_BYTES {
+            return Err((413, "{\"error\":\"request_too_large\"}"));
+        }
+
+        if expected_len.is_none() {
+            if let Some(header_end) = request.windows(4).position(|window| window == b"\r\n\r\n") {
+                if header_end > MAX_HEADER_BYTES {
+                    return Err((413, "{\"error\":\"request_headers_too_large\"}"));
+                }
+                let headers = std::str::from_utf8(&request[..header_end])
+                    .map_err(|_| (400, "{\"error\":\"invalid_http_request\"}"))?;
+                if request_header_value(headers, "Transfer-Encoding").is_some() {
+                    return Err((400, "{\"error\":\"chunked_requests_not_supported\"}"));
+                }
+                let body_len = request_header_value(headers, "Content-Length")
+                    .map(|value| value.parse::<usize>())
+                    .transpose()
+                    .map_err(|_| (400, "{\"error\":\"invalid_content_length\"}"))?
+                    .unwrap_or(0);
+                if body_len > MAX_BODY_BYTES {
+                    return Err((413, "{\"error\":\"request_body_too_large\"}"));
+                }
+                expected_len = Some(header_end + 4 + body_len);
+            }
+        }
+        if expected_len.is_some_and(|length| request.len() >= length) {
+            request.truncate(expected_len.unwrap());
+            break;
+        }
+    }
+    String::from_utf8(request).map_err(|_| (400, "{\"error\":\"invalid_http_request\"}"))
+}
+
 fn request_is_authorized(
     remote_ip: IpAddr,
     request_text: &str,
@@ -557,6 +660,10 @@ fn request_is_authorized(
     if api_client_is_loopback(remote_ip) {
         return true;
     }
+    request_has_valid_admin_token(request_text, access_policy)
+}
+
+fn request_has_valid_admin_token(request_text: &str, access_policy: &ApiAccessPolicy) -> bool {
     let Some(expected_token) = access_policy.admin_token.as_deref() else {
         return false;
     };
@@ -602,10 +709,16 @@ fn write_http_response(
 ) -> std::io::Result<()> {
     let reason = match status {
         200 => "OK",
+        202 => "Accepted",
         400 => "Bad Request",
+        403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
-        _ => "OK",
+        409 => "Conflict",
+        413 => "Payload Too Large",
+        500 => "Internal Server Error",
+        503 => "Service Unavailable",
+        _ => "Unknown",
     };
     write!(
         stream,
@@ -674,5 +787,30 @@ mod tests {
             "GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n",
             &policy,
         ));
+    }
+
+    #[test]
+    fn deployment_control_requires_token_even_for_loopback_clients() {
+        let policy = ApiAccessPolicy {
+            allow_remote_bind: false,
+            admin_token: Some("secret-token".into()),
+        };
+        assert!(!request_has_valid_admin_token(
+            "POST /v1/deployments HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            &policy,
+        ));
+        assert!(request_has_valid_admin_token(
+            "POST /v1/deployments HTTP/1.1\r\nHost: localhost\r\nX-Gewyvern-Admin-Token: secret-token\r\n\r\n",
+            &policy,
+        ));
+    }
+
+    #[test]
+    fn capabilities_advertise_authenticated_deployment_control() {
+        let snapshot = ApiSnapshot::default();
+        let (status, _, body) = api_response_for_request("/v1/capabilities", &snapshot);
+        assert_eq!(status, 200);
+        assert!(body.contains("\"authenticated_deployment\":true"));
+        assert!(body.contains("\"/v1/deployments\""));
     }
 }

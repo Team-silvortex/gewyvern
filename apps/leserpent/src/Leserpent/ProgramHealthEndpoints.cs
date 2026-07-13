@@ -64,6 +64,7 @@ public partial class Program
                     "/v1/runtimes",
                     "/v1/runtimes/{id}",
                     "/v1/runtimes/{id}/attention",
+                    "/v1/runtimes/{id}/deployments",
                     "/v1/runtimes/{id}/sidecar",
                     "/v1/runtimes/{id}/refresh-sidecar",
                     "/v1/runtimes/{id}/status",

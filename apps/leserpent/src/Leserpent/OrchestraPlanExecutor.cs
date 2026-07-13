@@ -25,7 +25,7 @@ public sealed class OrchestraPlanExecutor(
         {
             var capabilities = registry.RefreshRuntimeCapabilities(
                 runtime.RuntimeId,
-                await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken));
+                await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken, registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken));
             results.Add(new OrchestraExecutionStepResult(
                 "refresh_capabilities",
                 capabilities is not null && capabilities.CapabilityFetchError is null ? "ok" : "degraded",
@@ -37,7 +37,7 @@ public sealed class OrchestraPlanExecutor(
         {
             var status = registry.RefreshRuntimeStatus(
                 runtime.RuntimeId,
-                await discovery.DiscoverStatusAsync(runtime.Endpoint, null, cancellationToken));
+                await discovery.DiscoverStatusAsync(runtime.Endpoint, null, cancellationToken, registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken));
             var error = status?.Status.StatusFetchError;
             var outcome = status is null
                 ? "degraded"

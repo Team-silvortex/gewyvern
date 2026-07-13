@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 ROUNDS="${1:-5}"
 FILTER="${2:-benchmark_}"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gewyvern-bench.XXXXXX")"
@@ -24,10 +24,10 @@ run_bench_round() {
   echo "== round $round/$ROUNDS =="
   (
     cd "$ROOT_DIR"
-    cargo test "$FILTER" -- --ignored --nocapture
+    cargo test --workspace "$FILTER" -- --ignored --nocapture --test-threads=1
   ) 2>&1 | tee "$output_file"
 
-  grep '^benchmark_[^:]*:.*elapsed_ms=' "$output_file" | while IFS= read -r line; do
+  grep -o 'benchmark_[^:[:space:]]*:[^[:cntrl:]]*elapsed_ms=[0-9.]*' "$output_file" | while IFS= read -r line; do
     name="${line%%:*}"
     value="${line##*elapsed_ms=}"
     printf '%s\n' "$value" >> "$TMP_DIR/$name.values"

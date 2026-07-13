@@ -4,7 +4,8 @@ public sealed partial class CapabilityDiscoveryService
 {
     private async Task<GewyvernRuntimeResiliencePayload?> TryDiscoverResilienceAsync(
         string endpoint,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? runtimeAdminToken)
     {
         var resilienceUrl = BuildResilienceUrl(endpoint);
         var resiliencePlanResult = await securityPolicy.BuildEndpointAccessPlanAsync(
@@ -21,7 +22,9 @@ public sealed partial class CapabilityDiscoveryService
             return await GetFromJsonAsync(
                 resiliencePlanResult.Plan!,
                 DiscoveryJsonContext.Default.GewyvernRuntimeResiliencePayload,
-                cancellationToken);
+                cancellationToken,
+                runtimeAdminToken,
+                GewyvernAdminTokenHeader);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

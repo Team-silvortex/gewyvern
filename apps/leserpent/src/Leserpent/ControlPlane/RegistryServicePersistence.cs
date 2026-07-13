@@ -18,6 +18,7 @@ public sealed partial class RegistryService
                 runtime.RuntimeId,
                 runtime.Name.Trim(),
                 runtime.Endpoint.Trim(),
+                null,
                 NormalizeOptionalEndpoint(runtime.SidecarEndpoint),
                 null,
                 runtime.RegisteredAt,

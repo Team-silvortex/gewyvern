@@ -6,6 +6,7 @@ public sealed partial class RegistryService
         string RuntimeId,
         string Name,
         string Endpoint,
+        string? RuntimeAdminToken,
         string? SidecarEndpoint,
         string? SidecarAdminToken,
         DateTimeOffset RegisteredAt,
@@ -32,7 +33,8 @@ public sealed partial class RegistryService
                 CapabilityFetchError,
                 Tags,
                 Status,
-                SidecarStatus);
+                SidecarStatus,
+                !string.IsNullOrWhiteSpace(RuntimeAdminToken));
 
         public RuntimeSummary ToSummary() =>
             new(
@@ -49,7 +51,8 @@ public sealed partial class RegistryService
                 CapabilityFetchError,
                 Tags,
                 Status,
-                SidecarStatus);
+                SidecarStatus,
+                !string.IsNullOrWhiteSpace(RuntimeAdminToken));
 
         public PersistedRuntimeState ToPersistedState() =>
             new(RuntimeId, Name, Endpoint, SidecarEndpoint, RegisteredAt, UpdatedAt, Capabilities, CapabilitySource, CapabilityFetchedAt, CapabilityFetchError, Tags, Status, SidecarStatus);

@@ -7,6 +7,8 @@ namespace Leserpent;
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     GenerationMode = JsonSourceGenerationMode.Metadata)]
 [JsonSerializable(typeof(RuntimeRegistrationRequest))]
+[JsonSerializable(typeof(RuntimeDeploymentRequest))]
+[JsonSerializable(typeof(RuntimeDeploymentResponse))]
 [JsonSerializable(typeof(SessionCreateRequest))]
 [JsonSerializable(typeof(SessionStopRequest))]
 [JsonSerializable(typeof(OrchestraExecuteRequest))]

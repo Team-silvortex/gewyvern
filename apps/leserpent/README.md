@@ -581,6 +581,8 @@ sudo artifacts/leserpent/linux-x64/deploy/install.sh
 
 安装器会执行健康检查，失败时自动切回上一版本。完整的部署、升级、staging 和卸载说明见 [docs/deployment.md](docs/deployment.md)。
 
+已配对的 gewyvern runtime 还支持结构化的认证直部署入口：Leserpent 使用内存中的 runtime token 提交幂等 deployment intent，并将结果写入 Orchestra 审计。当前状态边界、请求格式与安全约束见 [docs/remote-deployment.md](docs/remote-deployment.md)。
+
 当前 dashboard 已经支持：
 
 - tab-shell single-page layout

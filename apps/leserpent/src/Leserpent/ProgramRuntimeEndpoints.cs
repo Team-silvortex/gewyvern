@@ -1,3 +1,4 @@
+using System.Net;
 using Leserpent.ControlPlane;
 using Microsoft.AspNetCore.Mvc;
 
@@ -62,7 +63,8 @@ public partial class Program
                     runtime.RuntimeId,
                     runtime.Name,
                     runtime.Endpoint,
-                    cancellationToken);
+                    cancellationToken,
+                    registry.GetRuntimeControlAccess(id)?.AdminToken);
                 return reading is null
                     ? Results.NotFound(new ApiErrorResponse("protocol_reading_unavailable", RuntimeId: id))
                     : Results.Ok(reading);
@@ -90,8 +92,8 @@ public partial class Program
 
             if (request.FetchCapabilities)
             {
-                var capabilityDiscovery = await discovery.DiscoverAsync(request.Endpoint, request.CapabilityEndpoint, cancellationToken);
-                var statusDiscovery = await discovery.DiscoverStatusAsync(request.Endpoint, request.StatusEndpoint, cancellationToken);
+                var capabilityDiscovery = await discovery.DiscoverAsync(request.Endpoint, request.CapabilityEndpoint, cancellationToken, request.PairingToken);
+                var statusDiscovery = await discovery.DiscoverStatusAsync(request.Endpoint, request.StatusEndpoint, cancellationToken, request.PairingToken);
                 var sidecarDiscovery = string.IsNullOrWhiteSpace(request.SidecarEndpoint)
                     ? null
                     : await discovery.DiscoverSidecarStatusAsync(request.SidecarEndpoint!, request.SidecarStatusEndpoint, request.SidecarAdminToken, cancellationToken);
@@ -117,6 +119,97 @@ public partial class Program
             return Results.Ok(manualRegistered);
         });
 
+        app.MapPost("/v1/runtimes/{id}/deployments", async Task<IResult> (
+            string id,
+            RuntimeDeploymentRequest request,
+            RegistryService registry,
+            CapabilityDiscoveryService discovery,
+            CancellationToken cancellationToken) =>
+        {
+            var validationError = ValidateRuntimeDeployment(request);
+            if (validationError is not null)
+            {
+                return Results.BadRequest(new ApiErrorResponse("invalid_runtime_deployment", validationError, RuntimeId: id, RequestId: request.RequestId));
+            }
+
+            var runtime = registry.GetRuntime(id);
+            var access = registry.GetRuntimeControlAccess(id);
+            if (runtime is null || access is null)
+            {
+                return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
+            }
+            if (string.IsNullOrWhiteSpace(access.AdminToken))
+            {
+                return Results.Conflict(new ApiErrorResponse(
+                    "runtime_not_authenticated",
+                    "register the runtime with its gewyvern admin token before direct deployment",
+                    RuntimeId: id));
+            }
+            var deploymentCapability = runtime.Capabilities.FirstOrDefault(capability =>
+                string.Equals(capability.Key, "control.authenticated_deployment", StringComparison.OrdinalIgnoreCase));
+            if (!string.Equals(deploymentCapability?.Support, "fully_supported", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.Conflict(new ApiErrorResponse(
+                    "runtime_deployment_not_supported",
+                    "refresh capabilities against a gewyvern runtime that advertises authenticated deployment control",
+                    RuntimeId: id));
+            }
+
+            try
+            {
+                var deployed = await discovery.DeployAsync(access, request, cancellationToken);
+                if (!deployed.Replayed || registry.GetOrchestraRunByRequestId(id, request.RequestId.Trim()) is null)
+                {
+                    registry.RecordOrchestraRun(
+                        id,
+                        "direct_deployment",
+                        "ok",
+                        new[]
+                        {
+                            new OrchestraExecutionStepResult(
+                                "authenticated_deploy",
+                                "ok",
+                                $"runtime accepted deployment {deployed.DeploymentId} for {deployed.PipelineKind}"),
+                        },
+                        request.RequestedBy.Trim(),
+                        "authenticated direct deployment",
+                        requestId: request.RequestId.Trim());
+                }
+                registry.RecordRecoveryActivity(
+                    id,
+                    "direct_deployment",
+                    "ok",
+                    $"deployment {deployed.DeploymentId} accepted by authenticated runtime");
+                return Results.Accepted($"/v1/orchestra/runtimes/{id}/runs", deployed);
+            }
+            catch (OrchestraPersistenceException ex)
+            {
+                return Results.Json(
+                    new ApiErrorResponse("orchestra_persistence_unavailable", ex.Message, RuntimeId: id, RequestId: request.RequestId),
+                    LeserpentJsonContext.Default.ApiErrorResponse,
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+            catch (HttpRequestException ex)
+            {
+                if (ex.StatusCode == HttpStatusCode.Conflict)
+                {
+                    return Results.Conflict(new ApiErrorResponse(
+                        "runtime_deployment_request_conflict",
+                        "the runtime has already used this requestId for a different deployment",
+                        RuntimeId: id,
+                        RequestId: request.RequestId));
+                }
+                return Results.Json(
+                    new ApiErrorResponse("runtime_deployment_rejected", ex.Message, RuntimeId: id, RequestId: request.RequestId),
+                    LeserpentJsonContext.Default.ApiErrorResponse,
+                    statusCode: StatusCodes.Status502BadGateway);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return Results.BadRequest(new ApiErrorResponse("runtime_deployment_failed", ex.Message, RuntimeId: id, RequestId: request.RequestId));
+            }
+        });
+
         app.MapPost("/v1/runtimes/{id}/refresh-capabilities", async (string id, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
         {
             var runtime = registry.GetRuntime(id);
@@ -127,7 +220,7 @@ public partial class Program
 
             var refreshed = registry.RefreshRuntimeCapabilities(
                 id,
-                await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken));
+                await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken, registry.GetRuntimeControlAccess(id)?.AdminToken));
             return refreshed is null
                 ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
                 : Results.Ok(refreshed);
@@ -143,7 +236,7 @@ public partial class Program
 
             var refreshed = registry.RefreshRuntimeStatus(
                 id,
-                await discovery.DiscoverStatusAsync(runtime.Endpoint, null, cancellationToken));
+                await discovery.DiscoverStatusAsync(runtime.Endpoint, null, cancellationToken, registry.GetRuntimeControlAccess(id)?.AdminToken));
             if (refreshed is not null)
             {
                 registry.RecordRecoveryActivity(
@@ -318,5 +411,32 @@ public partial class Program
                 deleted.RemovedSessionCount,
                 deleted.RemovedRuntimeNames));
         });
+    }
+
+    private static string? ValidateRuntimeDeployment(RuntimeDeploymentRequest request)
+    {
+        if (!request.Confirmed)
+        {
+            return "confirmed=true is required for remote deployment";
+        }
+        if (string.IsNullOrWhiteSpace(request.PipelineKind) || request.PipelineKind.Trim().Length > 128)
+        {
+            return "pipelineKind is required and must not exceed 128 characters";
+        }
+        if (string.IsNullOrWhiteSpace(request.RequestedBy) || request.RequestedBy.Trim().Length > 128)
+        {
+            return "requestedBy is required and must not exceed 128 characters";
+        }
+        if (string.IsNullOrWhiteSpace(request.RequestId)
+            || request.RequestId.Trim().Length > 128
+            || request.RequestId.Trim().Any(character => !char.IsAsciiLetterOrDigit(character) && character is not '-' and not '_' and not '.'))
+        {
+            return "requestId must contain 1-128 ASCII letters, digits, dots, dashes, or underscores";
+        }
+        if (request.Target?.Trim().Length > 256)
+        {
+            return "target must not exceed 256 characters";
+        }
+        return null;
     }
 }

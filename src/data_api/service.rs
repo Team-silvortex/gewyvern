@@ -1,16 +1,16 @@
 use std::io::Write;
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
 use super::{
-    API_CLIENT_WRITE_TIMEOUT, API_MAX_CONCURRENT_CLIENTS, ApiAccessPolicy, ApiSnapshot, ApiState,
+    api_client_is_loopback, handle_api_client, log_error_event, log_warn_event, ApiAccessPolicy,
+    ApiSnapshot, ApiState, API_CLIENT_WRITE_TIMEOUT, API_MAX_CONCURRENT_CLIENTS,
     EVENT_API_CLIENT_ACCEPT_FAILED, EVENT_API_CLIENT_OVERLOAD_REJECTED,
-    EVENT_API_LISTENER_BIND_FAILED, api_client_is_loopback, handle_api_client, log_error_event,
-    log_warn_event,
+    EVENT_API_LISTENER_BIND_FAILED,
 };
 
 pub struct ApiService {
@@ -71,7 +71,9 @@ pub fn start_api_service(addr: &str, allow_remote_bind: bool) -> ApiService {
         std::process::exit(1);
     });
     let state = Arc::new(std::sync::Mutex::new(Arc::new(ApiSnapshot::default())));
+    let deployments = Arc::new(std::sync::Mutex::new(Default::default()));
     let thread_state = Arc::clone(&state);
+    let thread_deployments = Arc::clone(&deployments);
     let active_clients = Arc::new(AtomicUsize::new(0));
     let shutdown = Arc::new(AtomicBool::new(false));
     let thread_shutdown = Arc::clone(&shutdown);
@@ -96,6 +98,7 @@ pub fn start_api_service(addr: &str, allow_remote_bind: bool) -> ApiService {
                         continue;
                     }
                     let client_state = Arc::clone(&thread_state);
+                    let client_deployments = Arc::clone(&thread_deployments);
                     let client_counter = Arc::clone(&active_clients);
                     let client_access_policy = thread_access_policy.clone();
                     thread::spawn(move || {
@@ -104,6 +107,7 @@ pub fn start_api_service(addr: &str, allow_remote_bind: bool) -> ApiService {
                             stream,
                             remote_addr.ip(),
                             client_state,
+                            client_deployments,
                             client_access_policy,
                         );
                     });

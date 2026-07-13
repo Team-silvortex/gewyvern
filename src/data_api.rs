@@ -17,6 +17,7 @@ mod certificate_policy;
 mod certificate_state;
 mod debug_session;
 mod debugger_console;
+mod deployment;
 mod json;
 mod persistence;
 mod protocol_catalog;
@@ -28,11 +29,13 @@ mod runtime_cluster_overview;
 mod service;
 mod training_manifest;
 
+use self::deployment::ApiDeploymentStore;
 use self::routing::handle_api_client;
 pub use self::service::{ApiService, start_api_service};
 pub(crate) use self::training_manifest::training_sample_id;
 
 pub type ApiState = Arc<Mutex<Arc<ApiSnapshot>>>;
+type ApiDeploymentState = Arc<Mutex<ApiDeploymentStore>>;
 
 const API_CLIENT_READ_TIMEOUT: Duration = Duration::from_secs(3);
 const API_CLIENT_WRITE_TIMEOUT: Duration = Duration::from_secs(3);
