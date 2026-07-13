@@ -40,8 +40,8 @@ pub fn run_remote_linux_host_validation(
 ) -> Result<ValidationReport, ValidationError> {
     require_cmd("ssh")?;
     require_cmd("rsync")?;
-    ensure_ssh_control_master(&options.host)?;
     let admin_auth = remote_ebpf_admin_auth()?;
+    ensure_ssh_control_master(&options.host, admin_auth.as_ref())?;
 
     let out_dir = default_out_dir("remote-linux-host-validation");
     fs::create_dir_all(&out_dir)?;
@@ -72,10 +72,11 @@ pub fn run_remote_linux_host_validation(
         validation_log("[remote-host] ----------------------------------------");
         validation_log("[remote-host] collecting remote preflight");
         let preflight = measure_phase(&mut phase_timings, "remote_preflight", || {
-            collect_remote_preflight(&options.host, options.build_packages)
+            collect_remote_preflight(admin_auth.as_ref(), &options.host, options.build_packages)
         })?;
         fs::write(out_dir.join("remote-preflight.txt"), preflight.render())?;
-        let resolved_remote_path = resolve_remote_workspace_path(&remote_path, &preflight.home_dir);
+        let resolved_remote_path =
+            resolve_remote_workspace_path(&remote_path, &preflight.home_dir)?;
         let remote_source_cache = remote_source_cache_dir(&preflight.home_dir);
         let validation_workspace = remote_source_cache.clone();
         let remote_source_cache_quoted = shell_single_quote(&remote_source_cache);
@@ -102,6 +103,7 @@ pub fn run_remote_linux_host_validation(
         validation_log("[remote-host] creating remote workspace roots");
         measure_phase(&mut phase_timings, "remote_workspace_create", || {
             run_ssh_command(
+                admin_auth.as_ref(),
                 &options.host,
                 &format!("mkdir -p {remote_source_cache_quoted} {remote_parent_dir_quoted}"),
                 "failed to create remote workspace roots",
@@ -112,13 +114,23 @@ pub fn run_remote_linux_host_validation(
         validation_log("[remote-host] syncing current workspace into remote source cache");
         measure_phase(&mut phase_timings, "workspace_sync", || {
             let workspace_sync_key = compute_local_workspace_sync_key()?;
-            sync_workspace(&options.host, &remote_source_cache, &workspace_sync_key)
+            sync_workspace(
+                admin_auth.as_ref(),
+                &options.host,
+                &remote_source_cache,
+                &workspace_sync_key,
+            )
         })?;
 
         validation_log("[remote-host] ----------------------------------------");
         validation_log("[remote-host] materializing remote workspace from source cache");
         measure_phase(&mut phase_timings, "remote_workspace_materialize", || {
-            materialize_remote_workspace(&options.host, &remote_source_cache, &resolved_remote_path)
+            materialize_remote_workspace(
+                admin_auth.as_ref(),
+                &options.host,
+                &remote_source_cache,
+                &resolved_remote_path,
+            )
         })?;
 
         let mut checks = vec!["workspace_synced".to_string()];
@@ -131,6 +143,7 @@ pub fn run_remote_linux_host_validation(
             measure_phase(&mut phase_timings, "remote_package_build", || {
                 let target_dir = shell_single_quote(&remote_cargo_target_dir(&preflight.home_dir));
                 run_ssh_command(
+                    admin_auth.as_ref(),
                     &options.host,
                     &format!(
                         "mkdir -p {target_dir} && cd {validation_workspace} && CARGO_TARGET_DIR={target_dir} ./scripts/packaging/build_packages.sh --format all"
@@ -147,7 +160,11 @@ pub fn run_remote_linux_host_validation(
         validation_log("[remote-host] verifying remote package artifacts");
         let artifact_manifest =
             measure_phase(&mut phase_timings, "remote_artifact_verify", || {
-                collect_remote_artifact_manifest(&options.host, &validation_workspace)
+                collect_remote_artifact_manifest(
+                    admin_auth.as_ref(),
+                    &options.host,
+                    &validation_workspace,
+                )
             })?;
         fs::write(
             out_dir.join("remote-artifacts.txt"),
@@ -155,7 +172,11 @@ pub fn run_remote_linux_host_validation(
         )?;
         if options.build_packages {
             if let Ok(timings) =
-                collect_remote_package_build_timings(&options.host, &validation_workspace)
+                collect_remote_package_build_timings(
+                    admin_auth.as_ref(),
+                    &options.host,
+                    &validation_workspace,
+                )
             {
                 fs::write(out_dir.join("remote-package-build-timings.txt"), timings)?;
                 checks.push("remote_package_build_timings".to_string());
@@ -167,6 +188,7 @@ pub fn run_remote_linux_host_validation(
         validation_log("[remote-host] running remote package smoke");
         measure_phase(&mut phase_timings, "remote_package_smoke", || {
             run_ssh_script(
+                admin_auth.as_ref(),
                 &options.host,
                 &format!("cd {validation_workspace} && bash -s"),
                 &remote_package_smoke_script(&release_line),
@@ -175,7 +197,11 @@ pub fn run_remote_linux_host_validation(
         })?;
         checks.push("remote_package_smoke".to_string());
         if let Ok(timings) =
-            collect_remote_package_smoke_timings(&options.host, &validation_workspace)
+            collect_remote_package_smoke_timings(
+                admin_auth.as_ref(),
+                &options.host,
+                &validation_workspace,
+            )
         {
             fs::write(out_dir.join("remote-package-smoke-timings.txt"), timings)?;
             checks.push("remote_package_smoke_timings".to_string());
@@ -185,6 +211,7 @@ pub fn run_remote_linux_host_validation(
         validation_log("[remote-host] running remote runtime smoke");
         measure_phase(&mut phase_timings, "remote_runtime_smoke", || {
             run_ssh_script(
+                admin_auth.as_ref(),
                 &options.host,
                 &format!("cd {validation_workspace} && bash -s"),
                 REMOTE_RUNTIME_SMOKE_SCRIPT,
@@ -193,7 +220,11 @@ pub fn run_remote_linux_host_validation(
         })?;
         checks.push("remote_runtime_smoke".to_string());
         if let Ok(timings) =
-            collect_remote_runtime_smoke_timings(&options.host, &validation_workspace)
+            collect_remote_runtime_smoke_timings(
+                admin_auth.as_ref(),
+                &options.host,
+                &validation_workspace,
+            )
         {
             fs::write(out_dir.join("remote-runtime-smoke-timings.txt"), timings)?;
             checks.push("remote_runtime_smoke_timings".to_string());
@@ -214,6 +245,7 @@ pub fn run_remote_linux_host_validation(
             validation_log("[remote-host] syncing remote eBPF evidence");
             measure_phase(&mut phase_timings, "remote_ebpf_evidence_sync", || {
                 sync_remote_ebpf_evidence(
+                    admin_auth.as_ref(),
                     &options.host,
                     &validation_workspace,
                     &preflight.home_dir,
@@ -279,7 +311,7 @@ pub fn run_remote_linux_host_validation(
         })
     })();
 
-    let close_master_result = close_ssh_control_master(&options.host);
+    let close_master_result = close_ssh_control_master(&options.host, admin_auth.as_ref());
     if let Err(err) = &close_master_result {
         validation_log(format!(
             "[remote-host] ssh control master cleanup skipped: {}",
@@ -549,21 +581,28 @@ fn ssh_password_mode_args() -> Vec<OsString> {
     ]
 }
 
-fn rsync_ssh_command() -> String {
-    format!(
-        "ssh -o BatchMode=yes -o ControlMaster=auto -o ControlPersist=60 -o ControlPath={}",
-        ssh_control_path_template()
-    )
+fn rsync_ssh_command(auth: Option<&RemoteAdminAuth>) -> String {
+    let control_path = ssh_control_path_template();
+    match auth {
+        Some(_) => format!(
+            "sshpass -e ssh -o StrictHostKeyChecking=no -o PreferredAuthentications=password -o PubkeyAuthentication=no -o ControlMaster=auto -o ControlPersist=60 -o ControlPath={control_path}"
+        ),
+        None => format!(
+            "ssh -o BatchMode=yes -o ControlMaster=auto -o ControlPersist=60 -o ControlPath={control_path}"
+        ),
+    }
 }
 
-fn ensure_ssh_control_master(host: &str) -> Result<(), ValidationError> {
+fn ensure_ssh_control_master(
+    host: &str,
+    auth: Option<&RemoteAdminAuth>,
+) -> Result<(), ValidationError> {
     let control_path = ssh_control_path_template();
-    let check_status = Command::new("ssh")
+    let check_status = start_ssh_command(auth, host, None)
         .arg("-O")
         .arg("check")
         .arg("-o")
         .arg(format!("ControlPath={control_path}"))
-        .arg(host)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -574,17 +613,14 @@ fn ensure_ssh_control_master(host: &str) -> Result<(), ValidationError> {
         }
     }
 
-    let status = Command::new("ssh")
+    let status = start_ssh_command(auth, host, None)
         .arg("-fN")
-        .arg("-o")
-        .arg("BatchMode=yes")
         .arg("-o")
         .arg("ControlMaster=yes")
         .arg("-o")
         .arg("ControlPersist=60")
         .arg("-o")
         .arg(format!("ControlPath={control_path}"))
-        .arg(host)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit())
@@ -601,14 +637,16 @@ fn ensure_ssh_control_master(host: &str) -> Result<(), ValidationError> {
     }
 }
 
-fn close_ssh_control_master(host: &str) -> Result<(), ValidationError> {
+fn close_ssh_control_master(
+    host: &str,
+    auth: Option<&RemoteAdminAuth>,
+) -> Result<(), ValidationError> {
     let control_path = ssh_control_path_template();
-    let status = Command::new("ssh")
+    let status = start_ssh_command(auth, host, None)
         .arg("-O")
         .arg("exit")
         .arg("-o")
         .arg(format!("ControlPath={control_path}"))
-        .arg(host)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -626,22 +664,26 @@ fn close_ssh_control_master(host: &str) -> Result<(), ValidationError> {
 }
 
 fn sync_workspace(
+    auth: Option<&RemoteAdminAuth>,
     host: &str,
     remote_path: &str,
     workspace_sync_key: &str,
 ) -> Result<(), ValidationError> {
-    if remote_workspace_sync_key_matches(host, remote_path, workspace_sync_key)? {
+    if remote_workspace_sync_key_matches(auth, host, remote_path, workspace_sync_key)? {
         validation_log("[remote-host] workspace sync cache hit; skipping rsync");
         return Ok(());
     }
 
     let root = repo_root();
     let mut command = Command::new("rsync");
+    if let Some(auth) = auth {
+        command.env("SSHPASS", &auth.password);
+    }
     command
         .arg("-az")
         .arg("--delete")
         .arg("-e")
-        .arg(rsync_ssh_command())
+        .arg(rsync_ssh_command(auth))
         .arg("--exclude")
         .arg(".git/")
         .arg("--exclude")
@@ -670,7 +712,7 @@ fn sync_workspace(
         .status()
         .map_err(|err| ValidationError::new(format!("failed to launch rsync: {err}")))?;
     if status.success() {
-        write_remote_workspace_sync_key(host, remote_path, workspace_sync_key)
+        write_remote_workspace_sync_key(auth, host, remote_path, workspace_sync_key)
     } else {
         Err(ValidationError::new(format!(
             "rsync failed with status {status}"
@@ -679,18 +721,20 @@ fn sync_workspace(
 }
 
 fn remote_workspace_sync_key_matches(
+    auth: Option<&RemoteAdminAuth>,
     host: &str,
     remote_path: &str,
     workspace_sync_key: &str,
 ) -> Result<bool, ValidationError> {
     let remote_path = shell_single_quote(remote_path);
     let workspace_sync_key = shell_single_quote(workspace_sync_key);
-    let status = Command::new("ssh")
-        .args(ssh_batch_mode_args())
-        .arg(host)
-        .arg(format!(
+    let status = start_ssh_command(
+        auth,
+        host,
+        Some(format!(
             "[ -f {remote_path}/.gewy-workspace-sync-key ] && [ \"$(cat {remote_path}/.gewy-workspace-sync-key)\" = {workspace_sync_key} ]"
-        ))
+        )),
+    )
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit())
@@ -704,6 +748,7 @@ fn remote_workspace_sync_key_matches(
 }
 
 fn write_remote_workspace_sync_key(
+    auth: Option<&RemoteAdminAuth>,
     host: &str,
     remote_path: &str,
     workspace_sync_key: &str,
@@ -711,6 +756,7 @@ fn write_remote_workspace_sync_key(
     let remote_path = shell_single_quote(remote_path);
     let workspace_sync_key = shell_single_quote(workspace_sync_key);
     run_ssh_command(
+        auth,
         host,
         &format!("printf '%s\\n' {workspace_sync_key} > {remote_path}/.gewy-workspace-sync-key"),
         "failed to write remote workspace sync key",
@@ -1200,6 +1246,7 @@ fn is_relevant_workspace_path(path: &str) -> bool {
 }
 
 fn materialize_remote_workspace(
+    auth: Option<&RemoteAdminAuth>,
     host: &str,
     remote_source_cache: &str,
     remote_path: &str,
@@ -1207,6 +1254,7 @@ fn materialize_remote_workspace(
     let remote_source_cache = shell_single_quote(remote_source_cache);
     let remote_path = shell_single_quote(remote_path);
     run_ssh_command(
+        auth,
         host,
         &format!("ln -sfn {remote_source_cache} {remote_path}"),
         "failed to point remote workspace at source cache",
@@ -1214,21 +1262,27 @@ fn materialize_remote_workspace(
 }
 
 fn sync_remote_ebpf_evidence(
+    auth: Option<&RemoteAdminAuth>,
     host: &str,
     remote_path: &str,
     home_dir: &str,
     out_dir: &std::path::Path,
 ) -> Result<(), ValidationError> {
-    let remote_workspace = resolve_remote_workspace_path(remote_path, home_dir);
+    let remote_workspace = resolve_remote_execution_path(remote_path, home_dir)?;
     let remote_evidence_root = format!("{host}:{remote_workspace}/target/validation/remote-ebpf/");
     let local_evidence_root = out_dir.join("remote-ebpf");
     fs::create_dir_all(&local_evidence_root)?;
 
     let status = Command::new("rsync")
+        .envs(
+            auth.map(|auth| [("SSHPASS", auth.password.as_str())])
+                .into_iter()
+                .flatten(),
+        )
         .arg("-az")
         .arg("--delete")
         .arg("-e")
-        .arg(rsync_ssh_command())
+        .arg(rsync_ssh_command(auth))
         .arg(&remote_evidence_root)
         .arg(format!("{}/", local_evidence_root.display()))
         .stdin(Stdio::null())
@@ -1249,11 +1303,43 @@ fn sync_remote_ebpf_evidence(
     }
 }
 
-fn run_ssh_command(host: &str, command: &str, context: &str) -> Result<(), ValidationError> {
-    let status = Command::new("ssh")
-        .args(ssh_batch_mode_args())
-        .arg(host)
-        .arg(command)
+fn start_ssh_command(
+    auth: Option<&RemoteAdminAuth>,
+    host: &str,
+    remote_command: Option<String>,
+) -> Command {
+    match auth {
+        Some(auth) => {
+            let mut command = Command::new("sshpass");
+            command
+                .env("SSHPASS", &auth.password)
+                .arg("-e")
+                .arg("ssh")
+                .args(ssh_password_mode_args())
+                .arg(ssh_auth_target(host, &auth.user));
+            if let Some(remote_command) = remote_command {
+                command.arg(remote_command);
+            }
+            command
+        }
+        None => {
+            let mut command = Command::new("ssh");
+            command.args(ssh_batch_mode_args()).arg(host);
+            if let Some(remote_command) = remote_command {
+                command.arg(remote_command);
+            }
+            command
+        }
+    }
+}
+
+fn run_ssh_command(
+    auth: Option<&RemoteAdminAuth>,
+    host: &str,
+    command: &str,
+    context: &str,
+) -> Result<(), ValidationError> {
+    let status = start_ssh_command(auth, host, Some(command.to_string()))
         .stdin(Stdio::null())
         .stdout(validation_command_stdout())
         .stderr(Stdio::inherit())
@@ -1269,15 +1355,13 @@ fn run_ssh_command(host: &str, command: &str, context: &str) -> Result<(), Valid
 }
 
 fn run_ssh_script(
+    auth: Option<&RemoteAdminAuth>,
     host: &str,
     command: &str,
     script: &str,
     context: &str,
 ) -> Result<(), ValidationError> {
-    let mut child = Command::new("ssh")
-        .args(ssh_batch_mode_args())
-        .arg(host)
-        .arg(command)
+    let mut child = start_ssh_command(auth, host, Some(command.to_string()))
         .stdin(Stdio::piped())
         .stdout(validation_command_stdout())
         .stderr(Stdio::inherit())
@@ -1405,24 +1489,24 @@ fn remove_remote_workspace(
     home_dir: &str,
     admin_auth: Option<&RemoteAdminAuth>,
 ) -> Result<(), ValidationError> {
-    let workspace_path = resolve_remote_workspace_path(remote_path, home_dir);
+    let workspace_path = resolve_remote_workspace_path(remote_path, home_dir)?;
     if let Some(admin_auth) = admin_auth {
         let script = format!(
             r#"set -euo pipefail
-printf '%s\n' {password} | sudo -S -p '' -k rm -rf {workspace_path}
+printf '%s\n' "$GEWY_REMOTE_SUDO_PASSWORD" | sudo -S -p '' -k rm -rf {workspace_path}
 "#,
-            password = shell_single_quote(&admin_auth.password),
         );
         run_ssh_script_capture_with_auth(
             Some(admin_auth),
             host,
-            "bash -s",
+            remote_sudo_script_command(),
             &script,
             "failed to remove remote workspace",
         )
         .map(|_| ())
     } else {
         run_ssh_command(
+            None,
             host,
             &format!("rm -rf {workspace_path}"),
             "failed to remove remote workspace",
@@ -1493,6 +1577,7 @@ struct RemoteAdminAuth {
 }
 
 fn collect_remote_preflight(
+    auth: Option<&RemoteAdminAuth>,
     host: &str,
     build_packages: bool,
 ) -> Result<RemotePreflight, ValidationError> {
@@ -1526,7 +1611,13 @@ printf 'default_route_device=%s\n' "$DEFAULT_DEV"
 printf 'commands=%s\n' "{commands}"
 "#
     );
-    let output = run_ssh_script_capture(host, "bash -s", &script, "remote preflight failed")?;
+    let output = run_ssh_script_capture_with_auth(
+        auth,
+        host,
+        "bash -s",
+        &script,
+        "remote preflight failed",
+    )?;
     let preflight = parse_remote_preflight(&output)?;
 
     if preflight.os != "Linux" {
@@ -1615,7 +1706,7 @@ fn collect_remote_ebpf_evidence(
             default_route_device: None,
         });
     };
-    let workspace_path = resolve_remote_workspace_path(remote_path, &preflight.home_dir);
+    let workspace_path = resolve_remote_execution_path(remote_path, &preflight.home_dir)?;
     let target_dir = remote_cargo_target_dir(&preflight.home_dir);
     let validate_bin = format!("{target_dir}/release/gewyvern_validate");
 
@@ -1643,12 +1734,11 @@ printf 'default_route_device=%s\n' "{default_route_device}"
             validate_bin = shell_single_quote(&validate_bin),
         )
     } else {
-        let admin_password = shell_single_quote(&admin_auth.expect("admin auth required").password);
         format!(
             r#"set -euo pipefail
 CURRENT_PATH="$PATH"
 WORKDIR={workspace_path}
-printf '%s\n' {admin_password} | sudo -S -p '' -k bash -lc '
+printf '%s\n' "$GEWY_REMOTE_SUDO_PASSWORD" | sudo -S -p '' -k bash -lc '
   set -euo pipefail
   export PATH="'"$CURRENT_PATH"'"
   export HOME="{home_dir}"
@@ -1680,22 +1770,90 @@ printf 'default_route_device=%s\n' "{default_route_device}"
     let output = run_ssh_script_capture_with_auth(
         admin_auth,
         host,
-        "bash -s",
+        if admin_auth.is_some() {
+            remote_sudo_script_command()
+        } else {
+            "bash -s"
+        },
         &script,
         "remote eBPF smoke failed",
     )?;
     parse_remote_ebpf_evidence(&output)
 }
 
-fn resolve_remote_workspace_path(remote_path: &str, home_dir: &str) -> String {
+fn resolve_remote_workspace_path(
+    remote_path: &str,
+    home_dir: &str,
+) -> Result<String, ValidationError> {
+    let expanded = expand_remote_path(remote_path, home_dir);
+    validate_remote_workspace_path(&expanded, home_dir)
+}
+
+fn resolve_remote_execution_path(
+    remote_path: &str,
+    home_dir: &str,
+) -> Result<String, ValidationError> {
+    let expanded = expand_remote_path(remote_path, home_dir);
+    normalize_remote_workspace_path(&expanded)
+}
+
+fn expand_remote_path(remote_path: &str, home_dir: &str) -> String {
     if let Some(rest) = remote_path.strip_prefix("~/") {
         format!("{home_dir}/{rest}")
-    } else {
+    } else if remote_path.starts_with('/') {
         remote_path.to_string()
+    } else {
+        format!("{home_dir}/{remote_path}")
     }
 }
 
+fn validate_remote_workspace_path(path: &str, home_dir: &str) -> Result<String, ValidationError> {
+    let normalized_home = normalize_remote_workspace_path(home_dir)?;
+    let allowed_root =
+        normalize_remote_workspace_path(&format!("{normalized_home}/.kyuubiki-remote-runs"))?;
+    let normalized_path = normalize_remote_workspace_path(path)?;
+    let candidate = Path::new(&normalized_path);
+    let root = Path::new(&allowed_root);
+    if normalized_path == allowed_root || !candidate.starts_with(root) {
+        return Err(ValidationError::new(format!(
+            "remote workspace path '{path}' must stay under {allowed_root}"
+        )));
+    }
+    Ok(normalized_path)
+}
+
+fn normalize_remote_workspace_path(path: &str) -> Result<String, ValidationError> {
+    let candidate = Path::new(path);
+    if !candidate.is_absolute() {
+        return Err(ValidationError::new(format!(
+            "remote workspace path '{path}' must be absolute after expansion"
+        )));
+    }
+    let mut normalized = PathBuf::new();
+    for component in candidate.components() {
+        match component {
+            std::path::Component::RootDir => normalized.push(component.as_os_str()),
+            std::path::Component::CurDir => {}
+            std::path::Component::Normal(value) => normalized.push(value),
+            std::path::Component::ParentDir => {
+                if !normalized.pop() {
+                    return Err(ValidationError::new(format!(
+                        "remote workspace path '{path}' escapes root"
+                    )));
+                }
+            }
+            std::path::Component::Prefix(_) => {
+                return Err(ValidationError::new(format!(
+                    "remote workspace path '{path}' uses unsupported prefix"
+                )));
+            }
+        }
+    }
+    Ok(normalized.to_string_lossy().into_owned())
+}
+
 fn collect_remote_artifact_manifest(
+    auth: Option<&RemoteAdminAuth>,
     host: &str,
     remote_path: &str,
 ) -> Result<RemoteArtifactManifest, ValidationError> {
@@ -1710,7 +1868,8 @@ MANIFEST=target/packages/build-manifest.txt
 cat "$MANIFEST"
 "#
     );
-    let output = run_ssh_script_capture(
+    let output = run_ssh_script_capture_with_auth(
+        auth,
         host,
         "bash -s",
         &script,
@@ -1720,6 +1879,7 @@ cat "$MANIFEST"
 }
 
 fn collect_remote_package_build_timings(
+    auth: Option<&RemoteAdminAuth>,
     host: &str,
     remote_path: &str,
 ) -> Result<String, ValidationError> {
@@ -1729,7 +1889,8 @@ cd {remote_path}
 cat target/packages/build-timings.txt
 "#
     );
-    run_ssh_script_capture(
+    run_ssh_script_capture_with_auth(
+        auth,
         host,
         "bash -s",
         &script,
@@ -1738,6 +1899,7 @@ cat target/packages/build-timings.txt
 }
 
 fn collect_remote_package_smoke_timings(
+    auth: Option<&RemoteAdminAuth>,
     host: &str,
     remote_path: &str,
 ) -> Result<String, ValidationError> {
@@ -1747,7 +1909,8 @@ cd {remote_path}
 cat target/packages/package-smoke-timings.txt
 "#
     );
-    run_ssh_script_capture(
+    run_ssh_script_capture_with_auth(
+        auth,
         host,
         "bash -s",
         &script,
@@ -1756,6 +1919,7 @@ cat target/packages/package-smoke-timings.txt
 }
 
 fn collect_remote_runtime_smoke_timings(
+    auth: Option<&RemoteAdminAuth>,
     host: &str,
     remote_path: &str,
 ) -> Result<String, ValidationError> {
@@ -1765,7 +1929,8 @@ cd {remote_path}
 cat target/packages/runtime-smoke-timings.txt
 "#
     );
-    run_ssh_script_capture(
+    run_ssh_script_capture_with_auth(
+        auth,
         host,
         "bash -s",
         &script,
@@ -2006,15 +2171,6 @@ record_timing total "$(duration_seconds "$TOTAL_STARTED" "$(now_seconds)")"
 echo 'remote runtime smoke: ok'
 "#;
 
-fn run_ssh_script_capture(
-    host: &str,
-    command: &str,
-    script: &str,
-    context: &str,
-) -> Result<String, ValidationError> {
-    run_ssh_script_capture_with_auth(None, host, command, script, context)
-}
-
 fn run_ssh_script_capture_with_auth(
     auth: Option<&RemoteAdminAuth>,
     host: &str,
@@ -2025,8 +2181,8 @@ fn run_ssh_script_capture_with_auth(
     let mut ssh_command = if let Some(auth) = auth {
         let mut command_builder = Command::new("sshpass");
         command_builder
-            .arg("-p")
-            .arg(&auth.password)
+            .env("SSHPASS", &auth.password)
+            .arg("-e")
             .arg("ssh")
             .args(ssh_password_mode_args())
             .arg(ssh_auth_target(host, &auth.user))
@@ -2053,6 +2209,12 @@ fn run_ssh_script_capture_with_auth(
             .stdin
             .as_mut()
             .ok_or_else(|| ValidationError::new(format!("{context}: missing ssh stdin")))?;
+        if let Some(auth) = auth.filter(|_| command == remote_sudo_script_command()) {
+            stdin
+                .write_all(auth.password.as_bytes())
+                .and_then(|_| stdin.write_all(b"\n"))
+                .map_err(|err| ValidationError::new(format!("{context}: {err}")))?;
+        }
         stdin
             .write_all(script.as_bytes())
             .map_err(|err| ValidationError::new(format!("{context}: {err}")))?;
@@ -2073,6 +2235,10 @@ fn run_ssh_script_capture_with_auth(
     })
 }
 
+fn remote_sudo_script_command() -> &'static str {
+    "bash -lc 'IFS= read -r GEWY_REMOTE_SUDO_PASSWORD; export GEWY_REMOTE_SUDO_PASSWORD; bash -s'"
+}
+
 fn ssh_auth_target(host: &str, user: &str) -> String {
     let remote_host = host.rsplit_once('@').map(|(_, host)| host).unwrap_or(host);
     format!("{user}@{remote_host}")
@@ -2082,7 +2248,7 @@ fn ssh_auth_target(host: &str, user: &str) -> String {
 mod tests {
     use super::{
         parse_remote_artifact_manifest, parse_remote_ebpf_evidence, parse_remote_preflight,
-        ssh_auth_target,
+        resolve_remote_execution_path, resolve_remote_workspace_path, ssh_auth_target,
     };
 
     #[test]
@@ -2138,5 +2304,38 @@ mod tests {
         assert_eq!(evidence.status, "ok");
         assert_eq!(evidence.reason, "all_smokes_passed");
         assert_eq!(evidence.default_route_device.as_deref(), Some("ens5"));
+    }
+
+    #[test]
+    fn resolve_remote_workspace_path_keeps_default_rooted_workspace() {
+        let resolved = resolve_remote_workspace_path(
+            "~/.kyuubiki-remote-runs/gewyvern-remote-123",
+            "/home/kyuubiki-dev",
+        )
+        .unwrap();
+        assert_eq!(
+            resolved,
+            "/home/kyuubiki-dev/.kyuubiki-remote-runs/gewyvern-remote-123"
+        );
+    }
+
+    #[test]
+    fn resolve_remote_workspace_path_rejects_escape_outside_allowed_root() {
+        let err = resolve_remote_workspace_path(
+            "/home/kyuubiki-dev/../../etc",
+            "/home/kyuubiki-dev",
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("must stay under"));
+    }
+
+    #[test]
+    fn resolve_remote_execution_path_allows_internal_cache_root() {
+        let resolved = resolve_remote_execution_path(
+            "/home/kyuubiki-dev/.cache/gewyvern/remote-source",
+            "/home/kyuubiki-dev",
+        )
+        .unwrap();
+        assert_eq!(resolved, "/home/kyuubiki-dev/.cache/gewyvern/remote-source");
     }
 }
