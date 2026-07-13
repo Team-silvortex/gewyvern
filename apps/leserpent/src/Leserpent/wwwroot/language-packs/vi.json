@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "vi",
+  "name": "Vietnamese",
+  "nativeName": "Tiếng Việt",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Bảng điều khiển mặt phẳng điều khiển",
+      "subcopy": "Chế độ xem đội nhẹ cho nhiều runtime gewyvern ở gần."
+    },
+    "language": {
+      "label": "Ngôn ngữ"
+    },
+    "languagePacks": {
+      "title": "Gói ngôn ngữ",
+      "install": "Cài đặt",
+      "installedLabel": "Cài đặt",
+      "download": "Tải xuống",
+      "remove": "Gỡ bỏ"
+    },
+    "theme": {
+      "label": "Chủ đề"
+    },
+    "tabs": {
+      "overview": "Tổng quan",
+      "runtimes": "Runtime",
+      "register": "Đăng ký",
+      "persistence": "Lưu trữ",
+      "sessions": "Phiên"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Bảng con"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Mở tất cả",
+        "closeAll": "Đóng tất cả"
+      }
+    }
+  }
+}

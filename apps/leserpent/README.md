@@ -97,6 +97,8 @@ leserpent 是：
 维护这部分时，优先参考：
 
 * `docs/frontend-layout-maintenance.md`
+* `docs/runtime-window-workspace.md`
+* `docs/language-packs.md`
 
 ---
 
@@ -586,19 +588,26 @@ sudo artifacts/leserpent/linux-x64/deploy/install.sh
 当前 dashboard 已经支持：
 
 - tab-shell single-page layout
-- bilingual UI (`English` / `简体中文`)
+- 30 officially maintained locales: 8 built in and 22 downloadable `core-ui` packs
+- downloadable/importable `leserpent.language-pack/v1` locales with same-origin catalog, SHA-256 verification, English fallback, and RTL support
 - auto-follow browser language with manual override
 - very-light runtime registration
 - fleet summary / attention summary
 - runtime list / attention list
-- per-runtime child panel with embedded gewyvern views
+- multi-runtime child-window workspace with one independently stateful window per gewyvern instance
+- open-selected / open-all / close-one / close-all window lifecycle
+- keyed iframe rendering and lazy loading so one runtime update does not reload sibling windows
 - optional paired `etragon` sidecar child views
-- runtime/sidecar source switch shell inside the child panel
-- child-panel view state persisted in URL
+- runtime/sidecar source switch shell for the active child window
+- active deep-link state persisted in URL and the full window set persisted in browser-local storage
 - fleet refresh actions
 - single-runtime detail inspection
 - single-runtime refresh actions
 - persistence export / import / save controls
+
+多实例子窗口的操作方式、状态优先级、性能边界与维护入口见 [docs/runtime-window-workspace.md](docs/runtime-window-workspace.md)。
+
+附加语言包的格式、安装边界、安全限制和发布流程见 [docs/language-packs.md](docs/language-packs.md)。
 
 ### 当前 runtime discovery 语义
 

@@ -22,7 +22,7 @@ usable as a system:
 - `gewyvern`: Linux/eBPF-oriented runtime, compiler front end, protocol
   registry, persistence, config, logging, certificates, and runtime API
 - `etragon`: local learning/diagnosis sidecar that can enrich gewyvern output
-- `leserpent`: cross-platform control-plane shell for coordinating instances
+- `leserpent`: cross-platform control-plane shell with Orchestra and independent child UI windows for coordinating multiple gewyvern instances
 
 The long-term direction is:
 

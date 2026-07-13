@@ -39,6 +39,31 @@
                 <option value="ko">한국어</option>
               </select>
             </label>
+            <details id="language-pack-details" class="language-pack-details">
+              <summary data-i18n="languagePacks.title">Language Packs</summary>
+              <div class="language-pack-panel">
+                <div class="language-pack-head">
+                  <div>
+                    <strong data-i18n="languagePacks.title">Language Packs</strong>
+                    <span data-i18n="languagePacks.subcopy">Install verified same-origin packs or import a local JSON pack.</span>
+                  </div>
+                  <div class="language-pack-head-actions">
+                    <button id="language-pack-refresh" type="button" data-i18n="languagePacks.refresh">Refresh Catalog</button>
+                    <button id="language-pack-import" type="button" class="quiet" data-i18n="languagePacks.import">Import JSON</button>
+                    <input id="language-pack-file" class="hidden" type="file" accept="application/json,.json" />
+                  </div>
+                </div>
+                <section class="language-pack-section">
+                  <h3 data-i18n="languagePacks.installedTitle">Installed</h3>
+                  <div id="language-pack-installed" class="language-pack-list"></div>
+                </section>
+                <section class="language-pack-section">
+                  <h3 data-i18n="languagePacks.catalogTitle">Available Downloads</h3>
+                  <div id="language-pack-catalog" class="language-pack-list"></div>
+                </section>
+                <div id="language-pack-status" class="language-pack-status" data-i18n="languagePacks.ready">Open the catalog to discover language packs.</div>
+              </div>
+            </details>
             <label class="theme-picker compact-field">
               <span data-i18n="theme.label">Theme</span>
               <select id="theme-select">

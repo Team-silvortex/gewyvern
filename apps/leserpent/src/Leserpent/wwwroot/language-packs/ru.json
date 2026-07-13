@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "ru",
+  "name": "Russian",
+  "nativeName": "Русский",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Панель управления",
+      "subcopy": "Лёгкое представление флота для нескольких ближайших runtime gewyvern."
+    },
+    "language": {
+      "label": "Язык"
+    },
+    "languagePacks": {
+      "title": "Языковые пакеты",
+      "install": "Установить",
+      "installedLabel": "Установить",
+      "download": "Скачать",
+      "remove": "Удалить"
+    },
+    "theme": {
+      "label": "Тема"
+    },
+    "tabs": {
+      "overview": "Обзор",
+      "runtimes": "Runtime",
+      "register": "Регистрация",
+      "persistence": "Хранилище",
+      "sessions": "Сеансы"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Дочерняя панель"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Открыть все",
+        "closeAll": "Закрыть все"
+      }
+    }
+  }
+}

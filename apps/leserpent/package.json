@@ -3,7 +3,8 @@
   "private": true,
   "description": "TypeScript build pipeline for leserpent wwwroot assets",
   "scripts": {
-    "build:frontend": "tsc -p tsconfig.json",
+    "build:frontend": "npm run build:language-packs && tsc -p tsconfig.json",
+    "build:language-packs": "node scripts/build-language-packs.mjs",
     "check:frontend": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

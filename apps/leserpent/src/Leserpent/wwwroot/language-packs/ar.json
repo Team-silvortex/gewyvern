@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "ar",
+  "name": "Arabic",
+  "nativeName": "العربية",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "rtl",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "لوحة مستوى التحكم",
+      "subcopy": "عرض خفيف للأسطول لعدة بيئات تشغيل gewyvern قريبة."
+    },
+    "language": {
+      "label": "اللغة"
+    },
+    "languagePacks": {
+      "title": "حزم اللغات",
+      "install": "تثبيت",
+      "installedLabel": "تثبيت",
+      "download": "تنزيل",
+      "remove": "إزالة"
+    },
+    "theme": {
+      "label": "السمة"
+    },
+    "tabs": {
+      "overview": "نظرة عامة",
+      "runtimes": "بيئات التشغيل",
+      "register": "تسجيل",
+      "persistence": "الاستمرارية",
+      "sessions": "الجلسات"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "اللوحة الفرعية"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "فتح الكل",
+        "closeAll": "إغلاق الكل"
+      }
+    }
+  }
+}

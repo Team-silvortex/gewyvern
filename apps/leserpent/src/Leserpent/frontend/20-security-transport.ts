@@ -162,6 +162,11 @@ async function decodeApiError(response, path) {
 function browserPreferredLanguage() {
   const browserLanguage = navigator.language || navigator.languages?.[0] || "en";
   const normalized = browserLanguage.toLowerCase();
+  const installedMatch = Object.keys(state.installedLanguagePacks || {}).find((locale) => {
+    const candidate = locale.toLowerCase();
+    return normalized === candidate || normalized.startsWith(`${candidate}-`) || candidate.startsWith(`${normalized}-`);
+  });
+  if (installedMatch) return installedMatch;
   if (normalized.startsWith("zh")) {
     if (
       normalized.includes("hant")
@@ -278,6 +283,14 @@ function hydrateStateFromLocation() {
   state.activeRuntimeSideTab = state.activeRuntimeMainTab === "panel" ? "panel" : "detail";
   state.activeRuntimeDetailTab = params.get("runtimeDetail") || "identity";
   state.runtimePanelView = params.get("runtimeView") || "root";
+  if (state.activeRuntimeMainTab === "panel" && state.selectedRuntimeId) {
+    if (!state.runtimeWindowIds.includes(state.selectedRuntimeId)) {
+      state.runtimeWindowIds.push(state.selectedRuntimeId);
+    }
+    state.activeRuntimeWindowId = state.selectedRuntimeId;
+    state.runtimeWindowViews[state.selectedRuntimeId] = state.runtimePanelView;
+    persistRuntimeWindows();
+  }
   state.filter.environment = params.get("environment") || "";
   state.filter.cluster = params.get("cluster") || "";
   state.filter.role = params.get("role") || "";
@@ -317,7 +330,9 @@ function escapeHtml(value) {
 }
 
 function applyTranslations() {
+  syncLanguageOptions();
   document.documentElement.lang = state.language;
+  document.documentElement.dir = state.installedLanguagePacks[state.language]?.direction === "rtl" ? "rtl" : "ltr";
   document.title = `leserpent · ${t("hero.title")}`;
   nodes.languageSelect.value = state.languagePreference;
   if (nodes.themeSelect) {
@@ -359,6 +374,9 @@ function applyTranslations() {
         option.textContent = t("theme.dark");
       }
     }
+  }
+  if (nodes.languagePackInstalled && nodes.languagePackCatalog) {
+    renderLanguagePackCenter();
   }
 }
 

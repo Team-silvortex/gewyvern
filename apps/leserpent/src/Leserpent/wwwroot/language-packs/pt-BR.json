@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "pt-BR",
+  "name": "Portuguese (Brazil)",
+  "nativeName": "Português (Brasil)",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Painel do plano de controle",
+      "subcopy": "Uma visão leve da frota para vários runtimes gewyvern próximos."
+    },
+    "language": {
+      "label": "Idioma"
+    },
+    "languagePacks": {
+      "title": "Pacotes de idioma",
+      "install": "Instalar",
+      "installedLabel": "Instalar",
+      "download": "Baixar",
+      "remove": "Remover"
+    },
+    "theme": {
+      "label": "Tema"
+    },
+    "tabs": {
+      "overview": "Visão geral",
+      "runtimes": "Runtimes",
+      "register": "Registrar",
+      "persistence": "Persistência",
+      "sessions": "Sessões"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Painel filho"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Abrir todos",
+        "closeAll": "Fechar todos"
+      }
+    }
+  }
+}

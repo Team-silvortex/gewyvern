@@ -147,6 +147,7 @@ async function handleRuntimeTableAction(button) {
 }
 
 function bootstrapDashboard() {
+  restoreLanguagePacks();
   restoreRuntimeWindows();
   nodes.tabButtons.forEach((button) => {
     button.addEventListener("click", () => activateTab(button.dataset.tab));
@@ -211,6 +212,21 @@ function bootstrapDashboard() {
     applyTranslations();
     renderDashboardFromCache();
     syncLocation();
+  });
+
+  nodes.languagePackDetails?.addEventListener("toggle", () => {
+    if (nodes.languagePackDetails.open) {
+      nodes.securityDetails?.removeAttribute("open");
+      renderLanguagePackCenter();
+      if (!state.languagePackCatalog.length) void loadLanguagePackCatalog();
+    }
+  });
+  nodes.languagePackRefresh?.addEventListener("click", loadLanguagePackCatalog);
+  nodes.languagePackImport?.addEventListener("click", () => nodes.languagePackFile.click());
+  nodes.languagePackFile?.addEventListener("change", (event) => importLanguagePackFile(event.target.files?.[0]));
+  nodes.languagePackDetails?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-language-pack-action][data-locale]");
+    if (button) void handleLanguagePackAction(button);
   });
 
   nodes.themeSelect.addEventListener("change", () => {
@@ -375,26 +391,28 @@ function bootstrapDashboard() {
         nodes.runtimeCleanupMenu.open = false;
       }
     }
-    if (!nodes.securityDetails?.open) {
-      return;
-    }
     if (!(event.target instanceof Node)) {
       return;
     }
-    if (!nodes.securityDetails.contains(event.target)) {
+    if (nodes.securityDetails?.open && !nodes.securityDetails.contains(event.target)) {
       closeSecurityDetails();
+    }
+    if (nodes.languagePackDetails?.open && !nodes.languagePackDetails.contains(event.target)) {
+      nodes.languagePackDetails.open = false;
     }
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && nodes.securityDetails?.open) {
-      closeSecurityDetails();
+    if (event.key === "Escape") {
+      if (nodes.securityDetails?.open) closeSecurityDetails();
+      if (nodes.languagePackDetails?.open) nodes.languagePackDetails.open = false;
     }
   });
 
   nodes.securityDetails?.addEventListener("toggle", () => {
     syncSecurityDetailsState();
     if (nodes.securityDetails.open) {
+      nodes.languagePackDetails?.removeAttribute("open");
       window.setTimeout(() => {
         nodes.adminTokenInput?.focus();
         nodes.adminTokenInput?.select();

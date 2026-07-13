@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "ms",
+  "name": "Malay",
+  "nativeName": "Bahasa Melayu",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Papan pemuka satah kawalan",
+      "subcopy": "Paparan armada ringan untuk beberapa runtime gewyvern berdekatan."
+    },
+    "language": {
+      "label": "Bahasa"
+    },
+    "languagePacks": {
+      "title": "Pek bahasa",
+      "install": "Pasang",
+      "installedLabel": "Pasang",
+      "download": "Muat turun",
+      "remove": "Buang"
+    },
+    "theme": {
+      "label": "Tema"
+    },
+    "tabs": {
+      "overview": "Gambaran keseluruhan",
+      "runtimes": "Runtime",
+      "register": "Daftar",
+      "persistence": "Kekekalan",
+      "sessions": "Sesi"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Panel anak"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Buka semua",
+        "closeAll": "Tutup semua"
+      }
+    }
+  }
+}

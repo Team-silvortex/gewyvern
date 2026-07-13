@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "el",
+  "name": "Greek",
+  "nativeName": "Ελληνικά",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Πίνακας επιπέδου ελέγχου",
+      "subcopy": "Μια ελαφριά προβολή στόλου για πολλά κοντινά runtime gewyvern."
+    },
+    "language": {
+      "label": "Γλώσσα"
+    },
+    "languagePacks": {
+      "title": "Πακέτα γλώσσας",
+      "install": "Εγκατάσταση",
+      "installedLabel": "Εγκατάσταση",
+      "download": "Λήψη",
+      "remove": "Κατάργηση"
+    },
+    "theme": {
+      "label": "Θέμα"
+    },
+    "tabs": {
+      "overview": "Επισκόπηση",
+      "runtimes": "Runtime",
+      "register": "Εγγραφή",
+      "persistence": "Μονιμότητα",
+      "sessions": "Συνεδρίες"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Θυγατρικός πίνακας"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Άνοιγμα όλων",
+        "closeAll": "Κλείσιμο όλων"
+      }
+    }
+  }
+}

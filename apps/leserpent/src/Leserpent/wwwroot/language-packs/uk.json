@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "uk",
+  "name": "Ukrainian",
+  "nativeName": "Українська",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Панель площини керування",
+      "subcopy": "Легкий огляд флоту для кількох сусідніх runtime gewyvern."
+    },
+    "language": {
+      "label": "Мова"
+    },
+    "languagePacks": {
+      "title": "Мовні пакети",
+      "install": "Установити",
+      "installedLabel": "Установити",
+      "download": "Завантажити",
+      "remove": "Видалити"
+    },
+    "theme": {
+      "label": "Тема"
+    },
+    "tabs": {
+      "overview": "Огляд",
+      "runtimes": "Runtime",
+      "register": "Реєстрація",
+      "persistence": "Сховище",
+      "sessions": "Сеанси"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Дочірня панель"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Відкрити всі",
+        "closeAll": "Закрити всі"
+      }
+    }
+  }
+}

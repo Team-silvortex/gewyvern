@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "da",
+  "name": "Danish",
+  "nativeName": "Dansk",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Kontrolplanspanel",
+      "subcopy": "En let flådevisning til flere nærliggende gewyvern-kørsler."
+    },
+    "language": {
+      "label": "Sprog"
+    },
+    "languagePacks": {
+      "title": "Sprogpakker",
+      "install": "Installer",
+      "installedLabel": "Installer",
+      "download": "Download",
+      "remove": "Fjern"
+    },
+    "theme": {
+      "label": "Tema"
+    },
+    "tabs": {
+      "overview": "Oversigt",
+      "runtimes": "Kørsler",
+      "register": "Registrer",
+      "persistence": "Persistens",
+      "sessions": "Sessioner"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Underpanel"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Åbn alle",
+        "closeAll": "Luk alle"
+      }
+    }
+  }
+}

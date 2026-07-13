@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "bn",
+  "name": "Bengali",
+  "nativeName": "বাংলা",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "কন্ট্রোল প্লেন ড্যাশবোর্ড",
+      "subcopy": "একাধিক কাছাকাছি gewyvern রানটাইমের জন্য হালকা ফ্লিট ভিউ।"
+    },
+    "language": {
+      "label": "ভাষা"
+    },
+    "languagePacks": {
+      "title": "ভাষা প্যাক",
+      "install": "ইনস্টল",
+      "installedLabel": "ইনস্টল",
+      "download": "ডাউনলোড",
+      "remove": "সরান"
+    },
+    "theme": {
+      "label": "থিম"
+    },
+    "tabs": {
+      "overview": "সারসংক্ষেপ",
+      "runtimes": "রানটাইম",
+      "register": "নিবন্ধন",
+      "persistence": "স্থায়িত্ব",
+      "sessions": "সেশন"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "চাইল্ড প্যানেল"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "সব খুলুন",
+        "closeAll": "সব বন্ধ করুন"
+      }
+    }
+  }
+}

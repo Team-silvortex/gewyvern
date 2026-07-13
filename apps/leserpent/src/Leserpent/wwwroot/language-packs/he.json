@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "he",
+  "name": "Hebrew",
+  "nativeName": "עברית",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "rtl",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "לוח מישור הבקרה",
+      "subcopy": "תצוגת צי קלה עבור מספר סביבות gewyvern קרובות."
+    },
+    "language": {
+      "label": "שפה"
+    },
+    "languagePacks": {
+      "title": "חבילות שפה",
+      "install": "התקנה",
+      "installedLabel": "התקנה",
+      "download": "הורדה",
+      "remove": "הסרה"
+    },
+    "theme": {
+      "label": "ערכת נושא"
+    },
+    "tabs": {
+      "overview": "סקירה",
+      "runtimes": "סביבות ריצה",
+      "register": "רישום",
+      "persistence": "התמדה",
+      "sessions": "הפעלות"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "לוח משנה"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "פתיחת הכול",
+        "closeAll": "סגירת הכול"
+      }
+    }
+  }
+}

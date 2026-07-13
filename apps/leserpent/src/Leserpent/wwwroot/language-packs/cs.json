@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "cs",
+  "name": "Czech",
+  "nativeName": "Čeština",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Řídicí panel",
+      "subcopy": "Lehký pohled na flotilu několika blízkých runtime gewyvern."
+    },
+    "language": {
+      "label": "Jazyk"
+    },
+    "languagePacks": {
+      "title": "Jazykové balíčky",
+      "install": "Nainstalovat",
+      "installedLabel": "Nainstalovat",
+      "download": "Stáhnout",
+      "remove": "Odebrat"
+    },
+    "theme": {
+      "label": "Motiv"
+    },
+    "tabs": {
+      "overview": "Přehled",
+      "runtimes": "Runtime",
+      "register": "Registrovat",
+      "persistence": "Perzistence",
+      "sessions": "Relace"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Podřízený panel"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Otevřít vše",
+        "closeAll": "Zavřít vše"
+      }
+    }
+  }
+}

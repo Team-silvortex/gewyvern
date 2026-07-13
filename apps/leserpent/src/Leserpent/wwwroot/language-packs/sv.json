@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "sv",
+  "name": "Swedish",
+  "nativeName": "Svenska",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Kontrollplanspanel",
+      "subcopy": "En lätt flottvy för flera närliggande gewyvern-körmiljöer."
+    },
+    "language": {
+      "label": "Språk"
+    },
+    "languagePacks": {
+      "title": "Språkpaket",
+      "install": "Installera",
+      "installedLabel": "Installera",
+      "download": "Hämta",
+      "remove": "Ta bort"
+    },
+    "theme": {
+      "label": "Tema"
+    },
+    "tabs": {
+      "overview": "Översikt",
+      "runtimes": "Körmiljöer",
+      "register": "Registrera",
+      "persistence": "Beständighet",
+      "sessions": "Sessioner"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Underpanel"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Öppna alla",
+        "closeAll": "Stäng alla"
+      }
+    }
+  }
+}

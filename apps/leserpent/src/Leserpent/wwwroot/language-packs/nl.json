@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "nl",
+  "name": "Dutch",
+  "nativeName": "Nederlands",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Dashboard voor het besturingsvlak",
+      "subcopy": "Een lichte vlootweergave voor meerdere gewyvern-runtimes in de buurt."
+    },
+    "language": {
+      "label": "Taal"
+    },
+    "languagePacks": {
+      "title": "Taalpakketten",
+      "install": "Installeren",
+      "installedLabel": "Installeren",
+      "download": "Downloaden",
+      "remove": "Verwijderen"
+    },
+    "theme": {
+      "label": "Thema"
+    },
+    "tabs": {
+      "overview": "Overzicht",
+      "runtimes": "Runtimes",
+      "register": "Registreren",
+      "persistence": "Persistentie",
+      "sessions": "Sessies"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Onderliggend paneel"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Alles openen",
+        "closeAll": "Alles sluiten"
+      }
+    }
+  }
+}

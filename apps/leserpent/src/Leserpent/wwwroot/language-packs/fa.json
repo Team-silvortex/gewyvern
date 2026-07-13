@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "fa",
+  "name": "Persian",
+  "nativeName": "فارسی",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "rtl",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "داشبورد صفحه کنترل",
+      "subcopy": "نمای سبک ناوگان برای چند محیط اجرای نزدیک gewyvern."
+    },
+    "language": {
+      "label": "زبان"
+    },
+    "languagePacks": {
+      "title": "بسته‌های زبان",
+      "install": "نصب",
+      "installedLabel": "نصب",
+      "download": "دانلود",
+      "remove": "حذف"
+    },
+    "theme": {
+      "label": "پوسته"
+    },
+    "tabs": {
+      "overview": "نمای کلی",
+      "runtimes": "محیط‌های اجرا",
+      "register": "ثبت",
+      "persistence": "ماندگاری",
+      "sessions": "نشست‌ها"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "پنل فرزند"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "باز کردن همه",
+        "closeAll": "بستن همه"
+      }
+    }
+  }
+}

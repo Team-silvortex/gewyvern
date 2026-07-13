@@ -8,6 +8,9 @@ const state = {
   },
   languagePreference: "auto",
   language: "en",
+  installedLanguagePacks: {},
+  languagePackCatalog: [],
+  languagePackCatalogMeta: { official: 8, builtin: 8 },
   themePreference: "auto",
   theme: "light",
   layoutMode: "default",
@@ -80,6 +83,7 @@ const storageKeys = {
   adminTokenTestState: "leserpent.adminTokenTestState",
   adminTokenTestAt: "leserpent.adminTokenTestAt",
   runtimeWindows: "leserpent.runtimeWindows",
+  languagePacks: "leserpent.languagePacks",
 };
 
 const nodes = {
@@ -182,6 +186,13 @@ const nodes = {
   registerPreview: document.getElementById("register-preview"),
   registerResult: document.getElementById("register-result"),
   languageSelect: document.getElementById("language-select"),
+  languagePackDetails: document.getElementById("language-pack-details"),
+  languagePackRefresh: document.getElementById("language-pack-refresh"),
+  languagePackImport: document.getElementById("language-pack-import"),
+  languagePackFile: document.getElementById("language-pack-file"),
+  languagePackInstalled: document.getElementById("language-pack-installed"),
+  languagePackCatalog: document.getElementById("language-pack-catalog"),
+  languagePackStatus: document.getElementById("language-pack-status"),
   themeSelect: document.getElementById("theme-select"),
   securityDetails: document.getElementById("security-details"),
   securityPanelBadge: document.getElementById("security-panel-badge"),

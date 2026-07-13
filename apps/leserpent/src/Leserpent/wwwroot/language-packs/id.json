@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "id",
+  "name": "Indonesian",
+  "nativeName": "Bahasa Indonesia",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Dasbor bidang kontrol",
+      "subcopy": "Tampilan armada ringan untuk beberapa runtime gewyvern terdekat."
+    },
+    "language": {
+      "label": "Bahasa"
+    },
+    "languagePacks": {
+      "title": "Paket bahasa",
+      "install": "Pasang",
+      "installedLabel": "Pasang",
+      "download": "Unduh",
+      "remove": "Hapus"
+    },
+    "theme": {
+      "label": "Tema"
+    },
+    "tabs": {
+      "overview": "Ringkasan",
+      "runtimes": "Runtime",
+      "register": "Daftarkan",
+      "persistence": "Persistensi",
+      "sessions": "Sesi"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Panel anak"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Buka semua",
+        "closeAll": "Tutup semua"
+      }
+    }
+  }
+}

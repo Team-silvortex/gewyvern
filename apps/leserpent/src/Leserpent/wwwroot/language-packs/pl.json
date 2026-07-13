@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "pl",
+  "name": "Polish",
+  "nativeName": "Polski",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Panel płaszczyzny sterowania",
+      "subcopy": "Lekki widok floty dla wielu pobliskich środowisk wykonawczych gewyvern."
+    },
+    "language": {
+      "label": "Język"
+    },
+    "languagePacks": {
+      "title": "Pakiety językowe",
+      "install": "Zainstaluj",
+      "installedLabel": "Zainstaluj",
+      "download": "Pobierz",
+      "remove": "Usuń"
+    },
+    "theme": {
+      "label": "Motyw"
+    },
+    "tabs": {
+      "overview": "Przegląd",
+      "runtimes": "Runtime",
+      "register": "Zarejestruj",
+      "persistence": "Trwałość",
+      "sessions": "Sesje"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Panel podrzędny"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Otwórz wszystkie",
+        "closeAll": "Zamknij wszystkie"
+      }
+    }
+  }
+}

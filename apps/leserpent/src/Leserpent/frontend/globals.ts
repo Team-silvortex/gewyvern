@@ -6,6 +6,9 @@ interface DashboardState {
   };
   languagePreference: string;
   language: string;
+  installedLanguagePacks: Record<string, any>;
+  languagePackCatalog: any[];
+  languagePackCatalogMeta: { official: number; builtin: number };
   themePreference: string;
   theme: string;
   layoutMode: string;

@@ -33,6 +33,30 @@ translations.en = {
         french: "Français",
         korean: "한국어",
     },
+    languagePacks: {
+        title: "Language Packs",
+        subcopy: "Install verified same-origin packs or import a local JSON pack.",
+        refresh: "Refresh Catalog",
+        import: "Import JSON",
+        installedTitle: "Installed",
+        catalogTitle: "Available Downloads",
+        ready: "Open the catalog to discover language packs.",
+        loading: "Loading language-pack catalog...",
+        catalogReady: "{official} official locales: {builtin} built-in and {count} downloadable.",
+        catalogFailed: "Catalog unavailable: {message}",
+        catalogEmpty: "No downloadable packs are currently published.",
+        noneInstalled: "No additional language packs installed.",
+        install: "Install",
+        installedLabel: "Installed",
+        download: "Download",
+        export: "Export",
+        remove: "Remove",
+        installed: "Installed {name}.",
+        downloaded: "Downloaded {name}.",
+        removed: "Language pack removed.",
+        operationFailed: "Language-pack operation failed: {message}",
+        coverageCore: "core UI",
+    },
     theme: {
         label: "Theme",
         auto: "Follow System",
@@ -502,6 +526,30 @@ translations["zh-CN"] = {
         german: "Deutsch",
         french: "Français",
         korean: "한국어",
+    },
+    languagePacks: {
+        title: "语言包",
+        subcopy: "安装经过校验的同源语言包，或导入本地 JSON 语言包。",
+        refresh: "刷新目录",
+        import: "导入 JSON",
+        installedTitle: "已安装",
+        catalogTitle: "可下载语言包",
+        ready: "打开目录以发现可用语言包。",
+        loading: "正在加载语言包目录...",
+        catalogReady: "官方支持 {official} 种语言：内置 {builtin} 种，可下载 {count} 种。",
+        catalogFailed: "语言包目录不可用：{message}",
+        catalogEmpty: "当前没有已发布的可下载语言包。",
+        noneInstalled: "尚未安装附加语言包。",
+        install: "安装",
+        installedLabel: "已安装",
+        download: "下载",
+        export: "导出",
+        remove: "卸载",
+        installed: "已安装 {name}。",
+        downloaded: "已下载 {name}。",
+        removed: "语言包已卸载。",
+        operationFailed: "语言包操作失败：{message}",
+        coverageCore: "核心界面",
     },
     theme: {
         label: "主题",
@@ -2124,6 +2172,7 @@ async function handleRuntimeTableAction(button) {
     await refreshRuntimeById(runtimeId, kind);
 }
 function bootstrapDashboard() {
+    restoreLanguagePacks();
     restoreRuntimeWindows();
     nodes.tabButtons.forEach((button) => {
         button.addEventListener("click", () => activateTab(button.dataset.tab));
@@ -2179,6 +2228,22 @@ function bootstrapDashboard() {
         applyTranslations();
         renderDashboardFromCache();
         syncLocation();
+    });
+    nodes.languagePackDetails?.addEventListener("toggle", () => {
+        if (nodes.languagePackDetails.open) {
+            nodes.securityDetails?.removeAttribute("open");
+            renderLanguagePackCenter();
+            if (!state.languagePackCatalog.length)
+                void loadLanguagePackCatalog();
+        }
+    });
+    nodes.languagePackRefresh?.addEventListener("click", loadLanguagePackCatalog);
+    nodes.languagePackImport?.addEventListener("click", () => nodes.languagePackFile.click());
+    nodes.languagePackFile?.addEventListener("change", (event) => importLanguagePackFile(event.target.files?.[0]));
+    nodes.languagePackDetails?.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-language-pack-action][data-locale]");
+        if (button)
+            void handleLanguagePackAction(button);
     });
     nodes.themeSelect.addEventListener("change", () => {
         state.themePreference = nodes.themeSelect.value;
@@ -2322,24 +2387,28 @@ function bootstrapDashboard() {
                 nodes.runtimeCleanupMenu.open = false;
             }
         }
-        if (!nodes.securityDetails?.open) {
-            return;
-        }
         if (!(event.target instanceof Node)) {
             return;
         }
-        if (!nodes.securityDetails.contains(event.target)) {
+        if (nodes.securityDetails?.open && !nodes.securityDetails.contains(event.target)) {
             closeSecurityDetails();
+        }
+        if (nodes.languagePackDetails?.open && !nodes.languagePackDetails.contains(event.target)) {
+            nodes.languagePackDetails.open = false;
         }
     });
     document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && nodes.securityDetails?.open) {
-            closeSecurityDetails();
+        if (event.key === "Escape") {
+            if (nodes.securityDetails?.open)
+                closeSecurityDetails();
+            if (nodes.languagePackDetails?.open)
+                nodes.languagePackDetails.open = false;
         }
     });
     nodes.securityDetails?.addEventListener("toggle", () => {
         syncSecurityDetailsState();
         if (nodes.securityDetails.open) {
+            nodes.languagePackDetails?.removeAttribute("open");
             window.setTimeout(() => {
                 nodes.adminTokenInput?.focus();
                 nodes.adminTokenInput?.select();
@@ -3459,6 +3528,305 @@ translations.es = mergeTranslations(translations.en, {
         badgeUpdated: "actualizado",
     },
 });
+const languagePackSchema = "leserpent.language-pack/v1";
+const languagePackCatalogUrl = "/language-packs/catalog.json";
+const builtinLanguageLocales = new Set(["en", "zh-CN", "zh-TW", "ja", "es", "de", "fr", "ko"]);
+const languagePackLimits = {
+    bytes: 256 * 1024,
+    installedBytes: 512 * 1024,
+    packs: 12,
+    depth: 12,
+    nodes: 2000,
+    stringLength: 4000,
+};
+function languagePackError(message) {
+    throw new Error(message);
+}
+function validLanguagePackText(value, field, maxLength = 120) {
+    if (typeof value !== "string" || !value.trim() || value.length > maxLength || /[\u0000-\u001f\u007f]/.test(value)) {
+        languagePackError(`${field} is invalid`);
+    }
+    return value.trim();
+}
+function validateLanguagePackTranslations(value, depth = 0, budget = { nodes: 0 }) {
+    if (!value || typeof value !== "object" || Array.isArray(value) || depth > languagePackLimits.depth) {
+        languagePackError("translations must be a bounded object tree");
+    }
+    const result = {};
+    for (const [key, item] of Object.entries(value)) {
+        budget.nodes += 1;
+        if (budget.nodes > languagePackLimits.nodes || !/^[A-Za-z0-9_-]+$/.test(key) || ["__proto__", "prototype", "constructor"].includes(key)) {
+            languagePackError("translations contains an invalid key or too many entries");
+        }
+        if (typeof item === "string") {
+            if (item.length > languagePackLimits.stringLength || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(item)) {
+                languagePackError(`translation '${key}' is invalid`);
+            }
+            result[key] = item;
+        }
+        else {
+            result[key] = validateLanguagePackTranslations(item, depth + 1, budget);
+        }
+    }
+    return result;
+}
+function validateLanguagePack(pack, { allowBuiltin = false } = {}) {
+    if (!pack || typeof pack !== "object" || Array.isArray(pack) || pack.schema !== languagePackSchema) {
+        languagePackError(`schema must be '${languagePackSchema}'`);
+    }
+    const locale = validLanguagePackText(pack.locale, "locale", 35);
+    if (!/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(locale)) {
+        languagePackError("locale must be a BCP 47-style language tag");
+    }
+    if (!allowBuiltin && builtinLanguageLocales.has(locale)) {
+        languagePackError("built-in locales cannot be replaced by downloadable packs");
+    }
+    return {
+        schema: languagePackSchema,
+        locale,
+        name: validLanguagePackText(pack.name, "name"),
+        nativeName: validLanguagePackText(pack.nativeName, "nativeName"),
+        version: validLanguagePackText(pack.version, "version", 40),
+        author: pack.author ? validLanguagePackText(pack.author, "author") : "Leserpent community",
+        direction: pack.direction === "rtl" ? "rtl" : "ltr",
+        coverage: pack.coverage === "core-ui" ? "core-ui" : "partial",
+        translations: validateLanguagePackTranslations(pack.translations),
+    };
+}
+function serializeLanguagePack(pack) {
+    return `${JSON.stringify(pack, null, 2)}\n`;
+}
+async function sha256Hex(text) {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+function registerInstalledLanguagePack(pack) {
+    translations[pack.locale] = mergeTranslations(translations.en, pack.translations);
+}
+function persistLanguagePacks() {
+    const serialized = JSON.stringify(state.installedLanguagePacks);
+    if (new TextEncoder().encode(serialized).byteLength > languagePackLimits.installedBytes) {
+        languagePackError("installed language packs exceed the browser storage limit");
+    }
+    window.localStorage.setItem(storageKeys.languagePacks, serialized);
+}
+function safeCatalogPackUrl(value) {
+    try {
+        const url = new URL(value, window.location.origin);
+        return url.origin === window.location.origin && url.pathname.startsWith("/language-packs/") && url.pathname !== "/language-packs/catalog.json"
+            ? `${url.pathname}${url.search}`
+            : null;
+    }
+    catch {
+        return null;
+    }
+}
+function restoreLanguagePacks() {
+    state.installedLanguagePacks = {};
+    try {
+        const stored = JSON.parse(window.localStorage.getItem(storageKeys.languagePacks) || "{}");
+        if (!stored || typeof stored !== "object" || Array.isArray(stored))
+            return;
+        for (const value of Object.values(stored).slice(0, languagePackLimits.packs)) {
+            try {
+                const pack = validateLanguagePack(value);
+                state.installedLanguagePacks[pack.locale] = pack;
+                registerInstalledLanguagePack(pack);
+            }
+            catch {
+            }
+        }
+    }
+    catch {
+        state.installedLanguagePacks = {};
+    }
+}
+function syncLanguageOptions() {
+    const selected = state.languagePreference;
+    for (const option of Array.from(nodes.languageSelect.options)) {
+        if (option.dataset.languagePack === "true")
+            option.remove();
+    }
+    for (const pack of Object.values(state.installedLanguagePacks).sort((a, b) => a.nativeName.localeCompare(b.nativeName))) {
+        const option = document.createElement("option");
+        option.value = pack.locale;
+        option.textContent = pack.nativeName;
+        option.dataset.languagePack = "true";
+        nodes.languageSelect.appendChild(option);
+    }
+    nodes.languageSelect.value = selected;
+}
+function setLanguagePackStatus(message, tone = "") {
+    nodes.languagePackStatus.textContent = message;
+    nodes.languagePackStatus.dataset.tone = tone;
+}
+async function fetchLanguagePackText(url) {
+    const response = await fetch(url, { credentials: "same-origin", cache: "no-cache" });
+    if (!response.ok)
+        languagePackError(`${url} -> ${response.status}`);
+    const text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > languagePackLimits.bytes) {
+        languagePackError("language pack exceeds 256 KiB");
+    }
+    return text;
+}
+async function loadLanguagePackCatalog() {
+    setLanguagePackStatus(t("languagePacks.loading"));
+    try {
+        const response = await fetch(languagePackCatalogUrl, { credentials: "same-origin", cache: "no-cache" });
+        if (!response.ok)
+            languagePackError(`${languagePackCatalogUrl} -> ${response.status}`);
+        const catalog = await response.json();
+        if (catalog?.schema !== "leserpent.language-pack-catalog/v1" || !Array.isArray(catalog.packs)) {
+            languagePackError("language-pack catalog schema is invalid");
+        }
+        state.languagePackCatalog = catalog.packs.flatMap((entry) => {
+            const safeUrl = safeCatalogPackUrl(entry?.url);
+            return entry
+                && typeof entry.locale === "string"
+                && typeof entry.version === "string"
+                && typeof entry.nativeName === "string"
+                && (entry.direction === "ltr" || entry.direction === "rtl")
+                && entry.coverage === "core-ui"
+                && safeUrl
+                && /^[a-f0-9]{64}$/.test(entry.sha256)
+                ? [{ ...entry, url: safeUrl }]
+                : [];
+        });
+        state.languagePackCatalogMeta = {
+            official: Number(catalog.officialLocaleCount) || builtinLanguageLocales.size + state.languagePackCatalog.length,
+            builtin: Number(catalog.builtinLocaleCount) || builtinLanguageLocales.size,
+        };
+        renderLanguagePackCenter();
+        setLanguagePackStatus(t("languagePacks.catalogReady", {
+            official: state.languagePackCatalogMeta.official,
+            builtin: state.languagePackCatalogMeta.builtin,
+            count: state.languagePackCatalog.length,
+        }), "good");
+    }
+    catch (error) {
+        console.error(error);
+        state.languagePackCatalog = [];
+        renderLanguagePackCenter();
+        setLanguagePackStatus(t("languagePacks.catalogFailed", { message: error.message }), "bad");
+    }
+}
+async function verifiedCatalogPack(entry) {
+    const text = await fetchLanguagePackText(entry.url);
+    const digest = await sha256Hex(text);
+    if (digest !== entry.sha256)
+        languagePackError("language-pack SHA-256 verification failed");
+    const pack = validateLanguagePack(JSON.parse(text));
+    if (pack.locale !== entry.locale || pack.version !== entry.version) {
+        languagePackError("language-pack metadata does not match its catalog entry");
+    }
+    return pack;
+}
+async function installLanguagePack(pack) {
+    const validated = validateLanguagePack(pack);
+    const previous = state.installedLanguagePacks;
+    const next = { ...state.installedLanguagePacks, [validated.locale]: validated };
+    if (Object.keys(next).length > languagePackLimits.packs)
+        languagePackError("at most 12 language packs can be installed");
+    try {
+        state.installedLanguagePacks = next;
+        persistLanguagePacks();
+        registerInstalledLanguagePack(validated);
+    }
+    catch (error) {
+        state.installedLanguagePacks = previous;
+        if (previous[validated.locale]) {
+            registerInstalledLanguagePack(previous[validated.locale]);
+        }
+        else {
+            delete translations[validated.locale];
+        }
+        throw error;
+    }
+    syncLanguageOptions();
+    renderLanguagePackCenter();
+    setLanguagePackStatus(t("languagePacks.installed", { name: validated.nativeName }), "good");
+}
+function downloadLanguagePack(pack) {
+    const blob = new Blob([serializeLanguagePack(pack)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `leserpent-language-${pack.locale}-${pack.version}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+}
+async function handleLanguagePackAction(button) {
+    const locale = button.dataset.locale;
+    const action = button.dataset.languagePackAction;
+    try {
+        if (action === "remove") {
+            delete state.installedLanguagePacks[locale];
+            delete translations[locale];
+            persistLanguagePacks();
+            if (state.languagePreference === locale) {
+                state.languagePreference = "auto";
+                state.language = resolveLanguage("auto");
+                setStoredLanguagePreference("auto");
+            }
+            syncLanguageOptions();
+            applyTranslations();
+            renderDashboardFromCache();
+            renderLanguagePackCenter();
+            setLanguagePackStatus(t("languagePacks.removed"), "good");
+            return;
+        }
+        if (action === "export") {
+            downloadLanguagePack(state.installedLanguagePacks[locale]);
+            return;
+        }
+        const entry = state.languagePackCatalog.find((item) => item.locale === locale);
+        if (!entry)
+            languagePackError("catalog entry not found");
+        const pack = await verifiedCatalogPack(entry);
+        if (action === "download") {
+            downloadLanguagePack(pack);
+            setLanguagePackStatus(t("languagePacks.downloaded", { name: pack.nativeName }), "good");
+        }
+        else {
+            await installLanguagePack(pack);
+        }
+    }
+    catch (error) {
+        console.error(error);
+        setLanguagePackStatus(t("languagePacks.operationFailed", { message: error.message }), "bad");
+    }
+}
+async function importLanguagePackFile(file) {
+    if (!file)
+        return;
+    try {
+        if (file.size > languagePackLimits.bytes)
+            languagePackError("language pack exceeds 256 KiB");
+        await installLanguagePack(JSON.parse(await file.text()));
+    }
+    catch (error) {
+        console.error(error);
+        setLanguagePackStatus(t("languagePacks.operationFailed", { message: error.message }), "bad");
+    }
+    finally {
+        nodes.languagePackFile.value = "";
+    }
+}
+function renderLanguagePackCenter() {
+    const installed = Object.values(state.installedLanguagePacks);
+    nodes.languagePackInstalled.innerHTML = installed.length
+        ? installed.map((pack) => `<div class="language-pack-row"><div><strong>${escapeHtml(pack.nativeName)}</strong><span>${escapeHtml(pack.locale)} · ${escapeHtml(pack.version)}</span></div><div><button type="button" data-language-pack-action="export" data-locale="${escapeHtml(pack.locale)}">${escapeHtml(t("languagePacks.export"))}</button><button type="button" class="quiet" data-language-pack-action="remove" data-locale="${escapeHtml(pack.locale)}">${escapeHtml(t("languagePacks.remove"))}</button></div></div>`).join("")
+        : `<div class="hint-line">${escapeHtml(t("languagePacks.noneInstalled"))}</div>`;
+    nodes.languagePackCatalog.innerHTML = state.languagePackCatalog.length
+        ? state.languagePackCatalog.map((entry) => {
+            const present = !!state.installedLanguagePacks[entry.locale];
+            return `<div class="language-pack-row"><div><strong>${escapeHtml(entry.nativeName)}</strong><span>${escapeHtml(entry.locale)} · ${escapeHtml(entry.version)} · ${escapeHtml(t("languagePacks.coverageCore"))}</span></div><div><button type="button" data-language-pack-action="install" data-locale="${escapeHtml(entry.locale)}" ${present ? "disabled" : ""}>${escapeHtml(present ? t("languagePacks.installedLabel") : t("languagePacks.install"))}</button><button type="button" class="quiet" data-language-pack-action="download" data-locale="${escapeHtml(entry.locale)}">${escapeHtml(t("languagePacks.download"))}</button></div></div>`;
+        }).join("")
+        : `<div class="hint-line">${escapeHtml(t("languagePacks.catalogEmpty"))}</div>`;
+}
 function getStoredAdminToken() {
     try {
         window.localStorage.removeItem(storageKeys.adminToken);
@@ -3610,6 +3978,12 @@ async function decodeApiError(response, path) {
 function browserPreferredLanguage() {
     const browserLanguage = navigator.language || navigator.languages?.[0] || "en";
     const normalized = browserLanguage.toLowerCase();
+    const installedMatch = Object.keys(state.installedLanguagePacks || {}).find((locale) => {
+        const candidate = locale.toLowerCase();
+        return normalized === candidate || normalized.startsWith(`${candidate}-`) || candidate.startsWith(`${normalized}-`);
+    });
+    if (installedMatch)
+        return installedMatch;
     if (normalized.startsWith("zh")) {
         if (normalized.includes("hant")
             || normalized.includes("tw")
@@ -3734,6 +4108,14 @@ function hydrateStateFromLocation() {
     state.activeRuntimeSideTab = state.activeRuntimeMainTab === "panel" ? "panel" : "detail";
     state.activeRuntimeDetailTab = params.get("runtimeDetail") || "identity";
     state.runtimePanelView = params.get("runtimeView") || "root";
+    if (state.activeRuntimeMainTab === "panel" && state.selectedRuntimeId) {
+        if (!state.runtimeWindowIds.includes(state.selectedRuntimeId)) {
+            state.runtimeWindowIds.push(state.selectedRuntimeId);
+        }
+        state.activeRuntimeWindowId = state.selectedRuntimeId;
+        state.runtimeWindowViews[state.selectedRuntimeId] = state.runtimePanelView;
+        persistRuntimeWindows();
+    }
     state.filter.environment = params.get("environment") || "";
     state.filter.cluster = params.get("cluster") || "";
     state.filter.role = params.get("role") || "";
@@ -3768,7 +4150,9 @@ function escapeHtml(value) {
         .replaceAll("'", "&#39;");
 }
 function applyTranslations() {
+    syncLanguageOptions();
     document.documentElement.lang = state.language;
+    document.documentElement.dir = state.installedLanguagePacks[state.language]?.direction === "rtl" ? "rtl" : "ltr";
     document.title = `leserpent · ${t("hero.title")}`;
     nodes.languageSelect.value = state.languagePreference;
     if (nodes.themeSelect) {
@@ -3808,6 +4192,9 @@ function applyTranslations() {
                 option.textContent = t("theme.dark");
             }
         }
+    }
+    if (nodes.languagePackInstalled && nodes.languagePackCatalog) {
+        renderLanguagePackCenter();
     }
 }
 function applyTabShell() {
@@ -6620,6 +7007,9 @@ const state = {
     },
     languagePreference: "auto",
     language: "en",
+    installedLanguagePacks: {},
+    languagePackCatalog: [],
+    languagePackCatalogMeta: { official: 8, builtin: 8 },
     themePreference: "auto",
     theme: "light",
     layoutMode: "default",
@@ -6691,6 +7081,7 @@ const storageKeys = {
     adminTokenTestState: "leserpent.adminTokenTestState",
     adminTokenTestAt: "leserpent.adminTokenTestAt",
     runtimeWindows: "leserpent.runtimeWindows",
+    languagePacks: "leserpent.languagePacks",
 };
 const nodes = {
     fleetSummaryCards: document.getElementById("fleet-summary-cards"),
@@ -6792,6 +7183,13 @@ const nodes = {
     registerPreview: document.getElementById("register-preview"),
     registerResult: document.getElementById("register-result"),
     languageSelect: document.getElementById("language-select"),
+    languagePackDetails: document.getElementById("language-pack-details"),
+    languagePackRefresh: document.getElementById("language-pack-refresh"),
+    languagePackImport: document.getElementById("language-pack-import"),
+    languagePackFile: document.getElementById("language-pack-file"),
+    languagePackInstalled: document.getElementById("language-pack-installed"),
+    languagePackCatalog: document.getElementById("language-pack-catalog"),
+    languagePackStatus: document.getElementById("language-pack-status"),
     themeSelect: document.getElementById("theme-select"),
     securityDetails: document.getElementById("security-details"),
     securityPanelBadge: document.getElementById("security-panel-badge"),

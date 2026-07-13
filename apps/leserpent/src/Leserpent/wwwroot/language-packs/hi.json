@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "hi",
+  "name": "Hindi",
+  "nativeName": "हिन्दी",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "कंट्रोल प्लेन डैशबोर्ड",
+      "subcopy": "कई निकटवर्ती gewyvern रनटाइम के लिए हल्का फ़्लीट दृश्य।"
+    },
+    "language": {
+      "label": "भाषा"
+    },
+    "languagePacks": {
+      "title": "भाषा पैक",
+      "install": "इंस्टॉल",
+      "installedLabel": "इंस्टॉल",
+      "download": "डाउनलोड",
+      "remove": "हटाएँ"
+    },
+    "theme": {
+      "label": "थीम"
+    },
+    "tabs": {
+      "overview": "अवलोकन",
+      "runtimes": "रनटाइम",
+      "register": "पंजीकरण",
+      "persistence": "स्थायित्व",
+      "sessions": "सत्र"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "चाइल्ड पैनल"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "सभी खोलें",
+        "closeAll": "सभी बंद करें"
+      }
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "fi",
+  "name": "Finnish",
+  "nativeName": "Suomi",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Ohjaustason koontinäyttö",
+      "subcopy": "Kevyt laivastonäkymä useille lähellä oleville gewyvern-ajoympäristöille."
+    },
+    "language": {
+      "label": "Kieli"
+    },
+    "languagePacks": {
+      "title": "Kielipaketit",
+      "install": "Asenna",
+      "installedLabel": "Asenna",
+      "download": "Lataa",
+      "remove": "Poista"
+    },
+    "theme": {
+      "label": "Teema"
+    },
+    "tabs": {
+      "overview": "Yleiskatsaus",
+      "runtimes": "Ajoympäristöt",
+      "register": "Rekisteröi",
+      "persistence": "Pysyvyys",
+      "sessions": "Istunnot"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Alipaneeli"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Avaa kaikki",
+        "closeAll": "Sulje kaikki"
+      }
+    }
+  }
+}

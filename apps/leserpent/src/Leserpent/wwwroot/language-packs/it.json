@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "it",
+  "name": "Italian",
+  "nativeName": "Italiano",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Dashboard del piano di controllo",
+      "subcopy": "Una vista leggera della flotta per più runtime gewyvern vicini."
+    },
+    "language": {
+      "label": "Lingua"
+    },
+    "languagePacks": {
+      "title": "Pacchetti lingua",
+      "install": "Installa",
+      "installedLabel": "Installa",
+      "download": "Scarica",
+      "remove": "Rimuovi"
+    },
+    "theme": {
+      "label": "Tema"
+    },
+    "tabs": {
+      "overview": "Panoramica",
+      "runtimes": "Runtime",
+      "register": "Registra",
+      "persistence": "Persistenza",
+      "sessions": "Sessioni"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Pannello figlio"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Apri tutti",
+        "closeAll": "Chiudi tutti"
+      }
+    }
+  }
+}

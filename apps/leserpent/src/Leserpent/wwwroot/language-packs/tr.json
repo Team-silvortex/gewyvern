@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "tr",
+  "name": "Turkish",
+  "nativeName": "Türkçe",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Kontrol düzlemi panosu",
+      "subcopy": "Yakındaki birden çok gewyvern çalışma zamanı için hafif filo görünümü."
+    },
+    "language": {
+      "label": "Dil"
+    },
+    "languagePacks": {
+      "title": "Dil paketleri",
+      "install": "Yükle",
+      "installedLabel": "Yükle",
+      "download": "İndir",
+      "remove": "Kaldır"
+    },
+    "theme": {
+      "label": "Tema"
+    },
+    "tabs": {
+      "overview": "Genel bakış",
+      "runtimes": "Çalışma zamanları",
+      "register": "Kaydet",
+      "persistence": "Kalıcılık",
+      "sessions": "Oturumlar"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Alt panel"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Tümünü aç",
+        "closeAll": "Tümünü kapat"
+      }
+    }
+  }
+}

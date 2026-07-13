@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "no",
+  "name": "Norwegian",
+  "nativeName": "Norsk",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "Kontrollplandashboard",
+      "subcopy": "En lett flåtevisning for flere gewyvern-kjøretider i nærheten."
+    },
+    "language": {
+      "label": "Språk"
+    },
+    "languagePacks": {
+      "title": "Språkpakker",
+      "install": "Installer",
+      "installedLabel": "Installer",
+      "download": "Last ned",
+      "remove": "Fjern"
+    },
+    "theme": {
+      "label": "Tema"
+    },
+    "tabs": {
+      "overview": "Oversikt",
+      "runtimes": "Kjøretider",
+      "register": "Registrer",
+      "persistence": "Persistens",
+      "sessions": "Økter"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "Underpanel"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "Åpne alle",
+        "closeAll": "Lukk alle"
+      }
+    }
+  }
+}

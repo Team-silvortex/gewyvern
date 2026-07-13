@@ -22,8 +22,12 @@ The layout system is split across a few clear files:
   - bootstraps preference and resize behavior
 - `src/Leserpent/frontend/20-security-transport.ts`
   - resolves layout mode and restores URL-driven state
+- `src/Leserpent/frontend/40-runtime-inspector.ts`
+  - owns runtime child-window lifecycle and keyed window rendering
+- `src/Leserpent/frontend/47-runtime-list-renderer.ts`
+  - renders the runtime list and child-window entry action
 - `src/Leserpent/frontend/app.ts`
-  - renders shell regions, tabs, panes, and preview surfaces
+  - owns shared state and DOM references
 - `src/Leserpent/wwwroot/styles.css`
   - owns almost all density, spacing, and anti-overlap rules
 
@@ -126,6 +130,30 @@ rather than fighting for space with sibling panes.
 This is especially important because the dashboard is designed around
 full-screen desktop use where overgrown stacked blocks quickly become unusable.
 
+### Child-window workspace
+
+`Child Panel` is a multi-window workspace rather than a single replaceable
+iframe. Each open runtime owns its current view and embedded frame. The shared
+source/view toolbar controls only the active window.
+
+Layout rules:
+
+- two or more windows use a two-column desktop grid when the viewport permits
+- `920px` and below always use one column
+- window bodies keep bounded heights instead of growing with embedded content
+- title-bar actions must remain visible without overlapping status chips
+- keyed updates must preserve sibling iframe DOM and browsing state
+- off-screen windows should retain lazy-loading and rendering containment
+
+State rules:
+
+- URL `runtimeId` and `runtimeView` win for the active deep-linked window
+- `leserpent.runtimeWindows` restores the wider browser-local window set
+- deleted or filtered-out runtime IDs must not leave orphan window DOM
+
+The detailed behavior contract is in
+`docs/runtime-window-workspace.md`.
+
 ## Compact Blank States
 
 When no runtime panel or embedded child content can be shown, blank states
@@ -155,6 +183,7 @@ Useful audit routes are usually of the form:
 - `/?tab=runtimes`
 - `/?tab=runtimes&runtimePane=detail&runtimeId=...`
 - `/?tab=runtimes&runtimePane=panel&runtimeId=...`
+- `/?tab=runtimes&runtimePane=panel&runtimeId=...&runtimeView=health`
 - `/?tab=runtimes&runtimePane=register`
 
 Suggested spot checks:
@@ -165,6 +194,8 @@ Suggested spot checks:
 - one degraded runtime
 - register form with preview visible
 - child panel with no embedded content available
+- two or more child windows with different active views
+- reload restoration and URL-over-local active-window precedence
 
 ## Editing Checklist
 
@@ -176,6 +207,8 @@ Use this checklist whenever the dashboard starts feeling crowded again:
 - Are action rows scrollable instead of colliding?
 - Do dark-mode text and chip contrasts still pass a basic visual check?
 - Is the degraded or blank state compact enough to stay out of the way?
+- Does changing one runtime window leave sibling iframe nodes intact?
+- Does the multi-window grid collapse to one column without horizontal overflow?
 
 If the answer to any of these is no, adjust layout-mode rules before adding
 more structure.

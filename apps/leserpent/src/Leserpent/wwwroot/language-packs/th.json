@@ -1,0 +1,47 @@
+{
+  "schema": "leserpent.language-pack/v1",
+  "locale": "th",
+  "name": "Thai",
+  "nativeName": "ไทย",
+  "version": "1.0.0",
+  "author": "Leserpent maintainers",
+  "direction": "ltr",
+  "coverage": "core-ui",
+  "translations": {
+    "hero": {
+      "title": "แดชบอร์ดระนาบควบคุม",
+      "subcopy": "มุมมองฟลีตแบบเบาสำหรับ gewyvern runtime หลายตัวที่อยู่ใกล้กัน"
+    },
+    "language": {
+      "label": "ภาษา"
+    },
+    "languagePacks": {
+      "title": "แพ็กภาษา",
+      "install": "ติดตั้ง",
+      "installedLabel": "ติดตั้ง",
+      "download": "ดาวน์โหลด",
+      "remove": "นำออก"
+    },
+    "theme": {
+      "label": "ธีม"
+    },
+    "tabs": {
+      "overview": "ภาพรวม",
+      "runtimes": "รันไทม์",
+      "register": "ลงทะเบียน",
+      "persistence": "การคงอยู่",
+      "sessions": "เซสชัน"
+    },
+    "runtimes": {
+      "workspaceTabs": {
+        "panel": "แผงย่อย"
+      }
+    },
+    "runtimePanel": {
+      "windows": {
+        "openAll": "เปิดทั้งหมด",
+        "closeAll": "ปิดทั้งหมด"
+      }
+    }
+  }
+}
