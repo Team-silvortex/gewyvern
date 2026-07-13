@@ -13,6 +13,13 @@ public sealed partial class RegistryService
         ListOrchestraRuns(runtimeId).FirstOrDefault(run =>
             string.Equals(run.RunId, runId, StringComparison.OrdinalIgnoreCase));
 
+    public OrchestraRunSummary? GetOrchestraRunByRequestId(string runtimeId, string requestId) =>
+        ListOrchestraRuns(runtimeId).FirstOrDefault(run =>
+            string.Equals(run.RequestId, requestId, StringComparison.Ordinal));
+
+    public IReadOnlyList<OrchestraRunEvent> ListOrchestraRunEvents(string runtimeId, string runId) =>
+        orchestraRunStore.LoadEvents(runtimeId, runId);
+
     public OrchestraFleetBoardResponse GetOrchestraFleetBoard()
     {
         var items = runtimes.Values
@@ -38,7 +45,8 @@ public sealed partial class RegistryService
         string? retriedFromRunId = null,
         string? approvedBy = null,
         string? approvalNote = null,
-        string? planRevision = null)
+        string? planRevision = null,
+        string? requestId = null)
     {
         var now = DateTimeOffset.UtcNow;
         var run = new OrchestraRunSummary(
@@ -53,7 +61,8 @@ public sealed partial class RegistryService
             retriedFromRunId,
             approvedBy,
             approvalNote,
-            planRevision);
+            planRevision,
+            requestId);
         AppendOrchestraRun(runtimeId, run);
         return run;
     }
@@ -64,35 +73,37 @@ public sealed partial class RegistryService
         string outcome,
         IReadOnlyList<OrchestraExecutionStepResult>? steps = null)
     {
-        OrchestraRunSummary? updated = null;
-        orchestraRuns.AddOrUpdate(
-            runtimeId,
-            _ => ImmutableQueue<OrchestraRunSummary>.Empty,
-            (_, queue) => ImmutableQueue.CreateRange(queue.Select(run =>
-            {
-                if (!string.Equals(run.RunId, runId, StringComparison.OrdinalIgnoreCase))
-                {
-                    return run;
-                }
-
-                if (!CanTransitionOrchestraOutcome(run.Outcome, outcome))
-                {
-                    return run;
-                }
-
-                updated = run with
-                {
-                    Outcome = outcome,
-                    Steps = steps ?? run.Steps,
-                    CompletedAt = IsTerminalOrchestraOutcome(outcome) ? DateTimeOffset.UtcNow : null,
-                };
-                return updated;
-            })));
-        if (updated is not null)
+        lock (orchestraRunSync)
         {
+            if (!orchestraRuns.TryGetValue(runtimeId, out var queue))
+            {
+                return null;
+            }
+            var previous = queue.FirstOrDefault(run =>
+                string.Equals(run.RunId, runId, StringComparison.OrdinalIgnoreCase));
+            if (previous is null || !CanTransitionOrchestraOutcome(previous.Outcome, outcome))
+            {
+                return null;
+            }
+            var updated = previous with
+            {
+                Outcome = outcome,
+                Steps = steps ?? previous.Steps,
+                CompletedAt = IsTerminalOrchestraOutcome(outcome) ? DateTimeOffset.UtcNow : null,
+            };
+            if (!orchestraRunStore.Upsert(updated, CreateRunEvent(
+                updated,
+                "state_transition",
+                previous.Outcome,
+                RunEventSummary(previous.Outcome, outcome, steps))))
+            {
+                return null;
+            }
+            orchestraRuns[runtimeId] = ImmutableQueue.CreateRange(queue.Select(run =>
+                string.Equals(run.RunId, runId, StringComparison.OrdinalIgnoreCase) ? updated : run));
             PersistState();
+            return updated;
         }
-        return updated;
     }
 
     public OrchestraRunSummary RecordOrchestraRun(
@@ -102,7 +113,8 @@ public sealed partial class RegistryService
         IReadOnlyList<OrchestraExecutionStepResult> steps,
         string? approvedBy = null,
         string? approvalNote = null,
-        string? planRevision = null)
+        string? planRevision = null,
+        string? requestId = null)
     {
         var now = DateTimeOffset.UtcNow;
         var run = new OrchestraRunSummary(
@@ -117,22 +129,66 @@ public sealed partial class RegistryService
             null,
             approvedBy,
             approvalNote,
-            planRevision);
+            planRevision,
+            requestId);
         orchestraRuns.AddOrUpdate(
             runtimeId,
             _ => ImmutableQueue<OrchestraRunSummary>.Empty.Enqueue(run),
             (_, queue) => TrimOrchestraRuns(queue.Enqueue(run)));
+        orchestraRunStore.Upsert(run, CreateRunEvent(
+            run,
+            "guided_completion",
+            null,
+            RunEventSummary(null, outcome, steps)));
         PersistState();
         return run;
     }
 
     private void AppendOrchestraRun(string runtimeId, OrchestraRunSummary run)
     {
+        if (!orchestraRunStore.Upsert(run, CreateRunEvent(
+            run,
+            "run_queued",
+            null,
+            run.RetriedFromRunId is null ? "Orchestra run queued" : $"Retry queued from {run.RetriedFromRunId}")))
+        {
+            throw new InvalidOperationException("failed to persist queued Orchestra run");
+        }
         orchestraRuns.AddOrUpdate(
             runtimeId,
             _ => ImmutableQueue<OrchestraRunSummary>.Empty.Enqueue(run),
             (_, queue) => TrimOrchestraRuns(queue.Enqueue(run)));
         PersistState();
+    }
+
+    private static OrchestraRunEvent CreateRunEvent(
+        OrchestraRunSummary run,
+        string eventType,
+        string? fromOutcome,
+        string summary) =>
+        new(
+            0,
+            run.RunId,
+            run.RuntimeId,
+            eventType,
+            fromOutcome,
+            run.Outcome,
+            summary,
+            DateTimeOffset.UtcNow);
+
+    private static string RunEventSummary(
+        string? fromOutcome,
+        string toOutcome,
+        IReadOnlyList<OrchestraExecutionStepResult>? steps)
+    {
+        var latestSummary = steps?.LastOrDefault()?.Summary;
+        if (!string.IsNullOrWhiteSpace(latestSummary))
+        {
+            return latestSummary;
+        }
+        return fromOutcome is null
+            ? $"Orchestra run recorded as {toOutcome}"
+            : $"Orchestra run transitioned from {fromOutcome} to {toOutcome}";
     }
 
     internal static bool IsTerminalOrchestraOutcome(string outcome) =>

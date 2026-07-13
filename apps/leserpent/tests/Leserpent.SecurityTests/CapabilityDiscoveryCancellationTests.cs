@@ -9,7 +9,13 @@ public sealed class CapabilityDiscoveryCancellationTests
     [Fact]
     public async Task DiscoverAsyncPropagatesOperatorCancellation()
     {
-        var configuration = new ConfigurationBuilder().Build();
+        // Disable address pinning so this test exercises the injected blocking handler.
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["LESERPENT_ALLOW_PUBLIC_ENDPOINTS"] = "true",
+            })
+            .Build();
         var security = new ControlPlaneSecurityPolicy(configuration);
         using var client = new HttpClient(new BlockingHandler());
         var discovery = new CapabilityDiscoveryService(client, security);

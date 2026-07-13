@@ -84,6 +84,7 @@ public sealed class OrchestraPlannerTests
         Assert.Null(run.ApprovedBy);
         Assert.Null(run.ApprovalNote);
         Assert.Null(run.PlanRevision);
+        Assert.Null(run.RequestId);
     }
 
     [Fact]
@@ -189,6 +190,16 @@ public sealed class OrchestraPlannerTests
         Assert.Null(Program.ValidateOrchestraApproval(plan, "operator", "fresh evidence required"));
         Assert.Contains("80", Program.ValidateOrchestraApproval(plan, new string('a', 81), "needed"));
         Assert.Contains("500", Program.ValidateOrchestraApproval(plan, "operator", new string('n', 501)));
+    }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("short", false)]
+    [InlineData("valid-request-1", true)]
+    [InlineData("valid request 1", false)]
+    public void OrchestraRequestIdValidationIsStrict(string? requestId, bool valid)
+    {
+        Assert.Equal(valid, Program.ValidateOrchestraRequestId(requestId) is null);
     }
 
     private static RuntimeSummary CreateRuntime(string? sidecarEndpoint, bool sidecarHealthy)

@@ -13,8 +13,10 @@ public partial class Program
         builder.Services.AddOpenApi();
         builder.Services.AddSingleton<ControlPlaneSecurityPolicy>();
         builder.Services.AddSingleton<ControlPlaneStateStore>();
+        builder.Services.AddSingleton<IOrchestraRunStore, SqliteOrchestraRunStore>();
         builder.Services.AddSingleton<RegistryService>();
         builder.Services.AddHttpClient<CapabilityDiscoveryService>();
+        builder.Services.AddSingleton<IOrchestraPlanExecutor, OrchestraPlanExecutor>();
         builder.Services.AddSingleton<OrchestraExecutionCoordinator>();
 
         var app = builder.Build();
@@ -53,9 +55,12 @@ public partial class Program
         app.Run();
     }
 
-    private static ServiceRuntimePosture BuildRuntimePosture(ControlPlaneStateStore stateStore)
+    private static ServiceRuntimePosture BuildRuntimePosture(
+        ControlPlaneStateStore stateStore,
+        IOrchestraRunStore orchestraRunStore)
     {
-        var persistenceReady = string.IsNullOrWhiteSpace(stateStore.LastSaveError);
+        var persistenceReady = string.IsNullOrWhiteSpace(stateStore.LastSaveError)
+            && string.IsNullOrWhiteSpace(orchestraRunStore.LastError);
         return new ServiceRuntimePosture(
             CoreReady: true,
             PersistenceReady: persistenceReady,
@@ -81,7 +86,7 @@ public partial class Program
             });
     }
 
-    private static string DetermineRefreshOutcome(
+    internal static string DetermineRefreshOutcome(
         string? runtimeStatusSource,
         string? runtimeStatusError,
         string? sidecarStatusSource,

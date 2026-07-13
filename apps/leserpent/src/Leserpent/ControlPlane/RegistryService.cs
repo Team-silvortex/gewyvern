@@ -15,7 +15,9 @@ public sealed partial class RegistryService
     private readonly ConcurrentDictionary<string, SessionRecord> sessions = new();
     private readonly ConcurrentDictionary<string, ImmutableQueue<RuntimeRecoveryActivity>> recoveryActivities = new();
     private readonly ConcurrentDictionary<string, ImmutableQueue<OrchestraRunSummary>> orchestraRuns = new();
+    private readonly object orchestraRunSync = new();
     private readonly ControlPlaneStateStore stateStore;
+    private readonly IOrchestraRunStore orchestraRunStore;
     private readonly DateTimeOffset? restoredFromSavedAt;
 
     public int RestoredRuntimeCount { get; }
@@ -23,11 +25,18 @@ public sealed partial class RegistryService
     public DateTimeOffset? RestoredFromSavedAt => restoredFromSavedAt;
 
     public RegistryService(ControlPlaneStateStore stateStore)
+        : this(stateStore, new InMemoryOrchestraRunStore())
+    {
+    }
+
+    public RegistryService(ControlPlaneStateStore stateStore, IOrchestraRunStore orchestraRunStore)
     {
         this.stateStore = stateStore;
+        this.orchestraRunStore = orchestraRunStore;
         var loaded = stateStore.Load();
         restoredFromSavedAt = loaded?.SavedAt;
         (RestoredRuntimeCount, RestoredSessionCount) = RestorePersistedState(loaded);
+        RestoreOrMigrateOrchestraRuns();
     }
 
     public RuntimeRegistrationResponse RegisterRuntime(RuntimeRegistrationRequest request)
@@ -231,6 +240,7 @@ public sealed partial class RegistryService
         sessions.Clear();
         orchestraRuns.Clear();
         var (runtimeCount, sessionCount) = RestorePersistedState(state);
+        orchestraRunStore.ReplaceAll(orchestraRuns.Values.SelectMany(static queue => queue).ToArray());
         PersistState();
         return new PersistenceImportResponse(
             true,

@@ -192,6 +192,7 @@ interface OrchestraRunSummary {
   approvedBy?: string | null;
   approvalNote?: string | null;
   planRevision?: string | null;
+  requestId?: string | null;
 }
 
 interface OrchestraFleetRunItem {

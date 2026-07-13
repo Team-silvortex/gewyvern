@@ -63,6 +63,52 @@ public sealed partial class RegistryService
         return (restoredRuntimeCount, restoredSessionCount);
     }
 
+    private void RestoreOrMigrateOrchestraRuns()
+    {
+        var databaseRuns = orchestraRunStore.LoadAll();
+        if (databaseRuns.Count == 0)
+        {
+            var legacyRuns = orchestraRuns.Values.SelectMany(static queue => queue).ToArray();
+            if (legacyRuns.Length > 0)
+            {
+                orchestraRunStore.ReplaceAll(legacyRuns);
+            }
+            return;
+        }
+
+        orchestraRuns.Clear();
+        foreach (var group in databaseRuns
+            .Where(run => runtimes.ContainsKey(run.RuntimeId))
+            .OrderBy(run => run.ExecutedAt)
+            .GroupBy(run => run.RuntimeId, StringComparer.OrdinalIgnoreCase))
+        {
+            var restored = group
+                .TakeLast(MaxOrchestraRunsPerRuntime)
+                .ToArray();
+            var normalized = restored.Select(NormalizeRestoredOrchestraRun).ToArray();
+            orchestraRuns[group.Key] = normalized.Aggregate(
+                ImmutableQueue<OrchestraRunSummary>.Empty,
+                static (queue, run) => queue.Enqueue(run));
+            for (var index = 0; index < normalized.Length; index += 1)
+            {
+                var run = normalized[index];
+                var previous = restored[index];
+                var recoveryEvent = string.Equals(previous.Outcome, run.Outcome, StringComparison.OrdinalIgnoreCase)
+                    ? null
+                    : new OrchestraRunEvent(
+                        0,
+                        run.RunId,
+                        run.RuntimeId,
+                        "service_restart_recovery",
+                        previous.Outcome,
+                        run.Outcome,
+                        "Service restart interrupted execution; retry explicitly if the plan is still applicable",
+                        run.CompletedAt ?? DateTimeOffset.UtcNow);
+                orchestraRunStore.Upsert(run, recoveryEvent);
+            }
+        }
+    }
+
     private (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames)
         DeleteRuntimesWhere(Func<RuntimeRecord, bool> predicate)
     {
@@ -101,6 +147,7 @@ public sealed partial class RegistryService
         {
             recoveryActivities.TryRemove(runtimeId, out _);
             orchestraRuns.TryRemove(runtimeId, out _);
+            orchestraRunStore.DeleteRuntime(runtimeId);
         }
 
         if (removedRuntimeNames.Count > 0 || removedSessionIds.Length > 0)

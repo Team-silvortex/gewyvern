@@ -277,6 +277,11 @@ function bootstrapDashboard() {
     }
   });
   nodes.orchestraHistory?.addEventListener("click", (event) => {
+    const eventsButton = event.target.closest("[data-orchestra-load-events]");
+    if (eventsButton) {
+      void loadOrchestraRunEvents(eventsButton.dataset.orchestraLoadEvents, eventsButton);
+      return;
+    }
     const cancelButton = event.target.closest("[data-orchestra-cancel-run]");
     if (cancelButton) {
       void mutateOrchestraRun(cancelButton.dataset.orchestraCancelRun, "cancel", cancelButton);

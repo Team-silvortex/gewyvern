@@ -197,13 +197,15 @@ public sealed record OrchestraExecuteRequest(
     bool Confirmed,
     string? ExpectedRevision,
     string? ApprovedBy = null,
-    string? ApprovalNote = null
+    string? ApprovalNote = null,
+    string? RequestId = null
 );
 
 public sealed record OrchestraRetryRequest(
     bool Confirmed,
     string? ApprovedBy = null,
-    string? ApprovalNote = null
+    string? ApprovalNote = null,
+    string? RequestId = null
 );
 
 public sealed record OrchestraExecutionStepResult(string Step, string Outcome, string Summary);
@@ -230,7 +232,19 @@ public sealed record OrchestraRunSummary(
     string? RetriedFromRunId = null,
     string? ApprovedBy = null,
     string? ApprovalNote = null,
-    string? PlanRevision = null
+    string? PlanRevision = null,
+    string? RequestId = null
+);
+
+public sealed record OrchestraRunEvent(
+    long EventId,
+    string RunId,
+    string RuntimeId,
+    string EventType,
+    string? FromOutcome,
+    string ToOutcome,
+    string Summary,
+    DateTimeOffset RecordedAt
 );
 
 public sealed record OrchestraSessionHandoffRequest(string PipelineKind, string RequestedBy);
@@ -290,7 +304,11 @@ public sealed record ServicePersistenceCapabilities(
     string? LastSaveError = null,
     int RestoredRuntimeCount = 0,
     int RestoredSessionCount = 0,
-    DateTimeOffset? RestoredFromSavedAt = null
+    DateTimeOffset? RestoredFromSavedAt = null,
+    string? OrchestraStoreProvider = null,
+    string? OrchestraStoreLocation = null,
+    string? OrchestraStoreLastError = null,
+    int? OrchestraStoreSchemaVersion = null
 );
 
 public sealed record ServiceSecurityCapabilities(

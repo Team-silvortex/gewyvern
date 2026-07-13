@@ -255,11 +255,16 @@ runtime：
 - runtime registry / session state 现在会持久化到本地 state file
 - 还没有真实 gRPC runtime client
 - 还没有 pairing / signing
-- 还没有 RBAC / audit persistence
+- 还没有 RBAC；Orchestra audit persistence 已使用 SQLite 落地
 
 ### 当前持久化行为
 
-当前 `leserpent` 会把 control-plane 状态持久化到本地 JSON 文件：
+当前 `leserpent` 使用双层持久化：
+
+- JSON 保存 runtime/session 控制状态，并继续作为导入、导出和灾难恢复格式
+- SQLite 保存 Orchestra run、审批、状态迁移结果和幂等 request ID
+
+JSON state 默认路径：
 
 - 默认路径：
   - OS local application data 下的 `leserpent/control-plane-state.json`
@@ -267,6 +272,13 @@ runtime：
   - 同目录的 `control-plane-state.json.bak`
 - 可用环境变量覆盖：
   - `LESERPENT_STATE_PATH=target/leserpent/control-plane-state.json`
+- SQLite 默认路径：
+  - OS local application data 下的 `leserpent/control-plane.db`
+- 可用环境变量覆盖：
+  - `LESERPENT_DATABASE_PATH=target/leserpent/control-plane.db`
+- SQLite 使用 WAL、`synchronous=NORMAL` 和 5 秒 busy timeout
+- SQLite schema v2 同时保存最新 run 快照和 append-only 状态事件；v1 数据库会在启动时原地升级
+- `GET /v1/orchestra/runtimes/{id}/runs/{runId}/events` 按顺序返回单次运行的审计时间线；旧数据在首次新状态转换前可能没有事件
 - 仓库只保留 `src/Leserpent/data/control-plane-state.sample.json`，真实运行态 state 不应该提交。
 
 当前会恢复和保存：
@@ -275,8 +287,13 @@ runtime：
 - discovered capabilities
 - latest runtime status snapshots
 - created sessions
+- Orchestra runs、审批归属、状态和 request ID（SQLite 为运行历史来源，JSON 保留灾备副本）
 
 也就是说，重启 `leserpent` 后，runtime registry 和 session 列表不会重新变成空白。
+
+如果 SQLite 数据库为空、但旧 JSON 中存在 `orchestraRuns`，启动时会自动执行一次 JSON → SQLite 迁移。数据库已有数据时不会用 JSON 覆盖。
+
+SQLite 不存储原始抓包、大型 eBPF 事件流或分析产物；这些内容仍应放在文件/对象存储中，数据库只保存编排审计和后续 artifact 索引。
 
 ### 当前 API 安全边界
 
@@ -329,6 +346,11 @@ runtime：
   - `persistence.restoredRuntimeCount`
   - `persistence.restoredSessionCount`
   - `persistence.restoredFromSavedAt`
+  - `orchestraPersistence.provider`
+  - `orchestraPersistence.location`
+  - `orchestraPersistence.schemaVersion`
+  - `orchestraPersistence.lastError`
+  - `orchestraPersistence.ready`
 - `GET /v1/capabilities`
   - `persistence.enabled`
   - `persistence.statePath`
@@ -340,6 +362,10 @@ runtime：
   - `persistence.restoredRuntimeCount`
   - `persistence.restoredSessionCount`
   - `persistence.restoredFromSavedAt`
+  - `persistence.orchestraStoreProvider`
+  - `persistence.orchestraStoreLocation`
+  - `persistence.orchestraStoreLastError`
+  - `persistence.orchestraStoreSchemaVersion`
 - `GET /v1/persistence/export`
   - downloads the current control-plane state as JSON
 - `POST /v1/persistence/import`

@@ -2219,6 +2219,11 @@ function bootstrapDashboard() {
         }
     });
     nodes.orchestraHistory?.addEventListener("click", (event) => {
+        const eventsButton = event.target.closest("[data-orchestra-load-events]");
+        if (eventsButton) {
+            void loadOrchestraRunEvents(eventsButton.dataset.orchestraLoadEvents, eventsButton);
+            return;
+        }
         const cancelButton = event.target.closest("[data-orchestra-cancel-run]");
         if (cancelButton) {
             void mutateOrchestraRun(cancelButton.dataset.orchestraCancelRun, "cancel", cancelButton);
@@ -5357,6 +5362,14 @@ function orchestraTimestamp(value) {
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? `${value || "unknown"}` : parsed.toLocaleString();
 }
+function orchestraRequestId(key) {
+    if (!state.orchestraRequestIds[key]) {
+        const random = globalThis.crypto?.randomUUID?.()
+            || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+        state.orchestraRequestIds[key] = `ui:${random}`;
+    }
+    return state.orchestraRequestIds[key];
+}
 function renderOrchestraPlan(payload) {
     state.orchestraPlan = payload;
     if (!payload) {
@@ -5465,6 +5478,7 @@ function renderOrchestraHistory(runs) {
         </div>
         <div class="item-meta">${escapeHtml(run.runId)} · attempt ${escapeHtml(run.attempt || 1)} · ${escapeHtml(orchestraTimestamp(run.executedAt))}</div>
         <div class="item-meta">actor: ${escapeHtml(run.approvedBy || "unattributed")} · revision: ${escapeHtml(run.planRevision || "legacy")}</div>
+        <div class="item-meta">request: ${escapeHtml(run.requestId || "legacy")}</div>
         ${run.approvalNote ? `<div class="orchestra-approval-note">${escapeHtml(run.approvalNote)}</div>` : ""}
         <div class="orchestra-run-steps">
           ${(run.steps || []).map((step) => `
@@ -5476,6 +5490,7 @@ function renderOrchestraHistory(runs) {
           `).join("")}
         </div>
         <div class="runtime-inline-actions orchestra-run-actions">
+          <button type="button" class="quiet" data-orchestra-load-events="${escapeHtml(run.runId)}">Timeline</button>
           ${["queued", "running"].includes(run.outcome) ? `
             <button type="button" class="quiet" data-orchestra-cancel-run="${escapeHtml(run.runId)}">Cancel</button>
           ` : ""}
@@ -5483,9 +5498,51 @@ function renderOrchestraHistory(runs) {
             <button type="button" class="quiet" data-orchestra-retry-run="${escapeHtml(run.runId)}">Retry</button>
           ` : ""}
         </div>
+        <div class="orchestra-run-events" data-orchestra-run-events="${escapeHtml(run.runId)}" hidden></div>
       </article>
     `).join("")
         : `<div class="hint-line">Executed automatic plans will appear here.</div>`;
+}
+async function loadOrchestraRunEvents(runId, button) {
+    const runtimeId = state.selectedRuntimeId;
+    const container = button?.closest(".orchestra-run")?.querySelector("[data-orchestra-run-events]");
+    if (!runtimeId || !runId || !container) {
+        return;
+    }
+    if (container.dataset.loaded === "true") {
+        container.hidden = !container.hidden;
+        button.textContent = container.hidden ? "Timeline" : "Hide timeline";
+        return;
+    }
+    button.disabled = true;
+    button.textContent = "Loading...";
+    try {
+        const payload = await getJson(`/v1/orchestra/runtimes/${encodeURIComponent(runtimeId)}/runs/${encodeURIComponent(runId)}/events`);
+        const events = Array.isArray(payload.events) ? payload.events : [];
+        container.innerHTML = events.length
+            ? `<ol class="orchestra-event-list">${events.map((item) => `
+          <li class="orchestra-event">
+            <span class="orchestra-event-marker" aria-hidden="true"></span>
+            <div>
+              <strong>${escapeHtml(item.fromOutcome ? `${item.fromOutcome} → ${item.toOutcome}` : item.toOutcome)}</strong>
+              <span class="item-meta">${escapeHtml(item.eventType)} · ${escapeHtml(orchestraTimestamp(item.recordedAt))}</span>
+              <div class="hint-line">${escapeHtml(item.summary)}</div>
+            </div>
+          </li>
+        `).join("")}</ol>`
+            : `<div class="hint-line">No append-only events were recorded for this legacy run.</div>`;
+        container.dataset.loaded = "true";
+        container.hidden = false;
+        button.textContent = "Hide timeline";
+    }
+    catch (error) {
+        console.error(error);
+        nodes.statusLine.textContent = `Run timeline failed: ${error.message}`;
+        button.textContent = "Retry timeline";
+    }
+    finally {
+        button.disabled = false;
+    }
 }
 function renderOrchestraFleetBoard(payload) {
     const signature = JSON.stringify(payload);
@@ -5601,17 +5658,21 @@ async function executeOrchestraPlan(planId, revision, approvalMode, approvedBy, 
         button.textContent = "Running...";
     }
     nodes.statusLine.textContent = `Running orchestra plan ${planId}...`;
+    const requestKey = `${runtimeId}:${planId}:execute`;
+    const requestId = orchestraRequestId(requestKey);
     try {
         const result = await postJsonBody(`/v1/orchestra/plans/${encodeURIComponent(runtimeId)}/${encodeURIComponent(planId)}/execute`, {
             confirmed,
             expectedRevision: revision,
             approvedBy: approvalMode === "operator_confirmation" ? approvedBy : "automatic",
             approvalNote: approvalMode === "operator_confirmation" ? approvalNote : null,
+            requestId,
         });
         if (runtimeId !== state.selectedRuntimeId) {
             return;
         }
         await loadOrchestraHistory(runtimeId);
+        delete state.orchestraRequestIds[requestKey];
         void loadOrchestraFleetBoard();
         nodes.statusLine.textContent = `Orchestra plan ${planId} started as ${result.run.runId}.`;
     }
@@ -5662,11 +5723,14 @@ async function mutateOrchestraRun(runId, action, button) {
             return;
         }
         const path = `/v1/orchestra/runtimes/${encodeURIComponent(runtimeId)}/runs/${encodeURIComponent(runId)}/${action}`;
+        const requestKey = `${runtimeId}:${runId}:${action}`;
+        const requestId = orchestraRequestId(requestKey);
         const result = action === "retry"
-            ? await postJsonBody(path, { confirmed, approvedBy, approvalNote })
+            ? await postJsonBody(path, { confirmed, approvedBy, approvalNote, requestId })
             : await postJson(path);
         if (runtimeId === state.selectedRuntimeId) {
             await loadOrchestraHistory(runtimeId);
+            delete state.orchestraRequestIds[requestKey];
             void loadOrchestraFleetBoard();
             nodes.statusLine.textContent = action === "cancel"
                 ? `Cancellation requested for ${runId}.`
@@ -6236,6 +6300,7 @@ const state = {
     orchestraRequestSeq: 0,
     orchestraPollTimer: 0,
     orchestraFleetPollTimer: 0,
+    orchestraRequestIds: {},
     dashboardRequestSeq: 0,
     pendingLocationSync: 0,
     lastSyncedLocation: "",

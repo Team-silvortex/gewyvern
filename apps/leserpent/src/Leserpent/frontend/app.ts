@@ -24,6 +24,7 @@ const state = {
   orchestraRequestSeq: 0,
   orchestraPollTimer: 0,
   orchestraFleetPollTimer: 0,
+  orchestraRequestIds: {},
   dashboardRequestSeq: 0,
   pendingLocationSync: 0,
   lastSyncedLocation: "",

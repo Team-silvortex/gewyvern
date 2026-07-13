@@ -6,7 +6,7 @@ public partial class Program
 {
     private static void MapHealthEndpoints(WebApplication app)
     {
-        app.MapGet("/health", (ControlPlaneStateStore stateStore, RegistryService registry, ControlPlaneSecurityPolicy security) => Results.Ok(new
+        app.MapGet("/health", (ControlPlaneStateStore stateStore, IOrchestraRunStore orchestraRunStore, RegistryService registry, ControlPlaneSecurityPolicy security) => Results.Ok(new
         {
             ok = true,
             service = "leserpent",
@@ -18,7 +18,7 @@ public partial class Program
                 adminTokenConfigured = security.AdminTokenConfigured,
                 publicEndpointDiscoveryAllowed = security.PublicEndpointDiscoveryAllowed,
             },
-            runtimePosture = BuildRuntimePosture(stateStore),
+            runtimePosture = BuildRuntimePosture(stateStore, orchestraRunStore),
             persistence = new
             {
                 statePath = stateStore.StatePath,
@@ -31,9 +31,17 @@ public partial class Program
                 restoredSessionCount = registry.RestoredSessionCount,
                 restoredFromSavedAt = registry.RestoredFromSavedAt,
             },
+            orchestraPersistence = new
+            {
+                provider = orchestraRunStore.Provider,
+                location = orchestraRunStore.Location,
+                schemaVersion = orchestraRunStore.SchemaVersion,
+                lastError = orchestraRunStore.LastError,
+                ready = string.IsNullOrWhiteSpace(orchestraRunStore.LastError),
+            },
         }));
 
-        app.MapGet("/v1/capabilities", (ControlPlaneStateStore stateStore, RegistryService registry, ControlPlaneSecurityPolicy security) =>
+        app.MapGet("/v1/capabilities", (ControlPlaneStateStore stateStore, IOrchestraRunStore orchestraRunStore, RegistryService registry, ControlPlaneSecurityPolicy security) =>
             Results.Ok(new ServiceCapabilities(
                 "leserpent",
                 typeof(Program).Assembly.GetName().Version?.ToString() ?? "dev",
@@ -56,6 +64,7 @@ public partial class Program
                     "/v1/orchestra/plans/{id}/{planId}/execute",
                     "/v1/orchestra/plans/{id}/session",
                     "/v1/orchestra/runtimes/{id}/runs",
+                    "/v1/orchestra/runtimes/{id}/runs/{runId}/events",
                     "/v1/orchestra/runs",
                     "/v1/orchestra/runtimes/{id}/runs/{runId}/cancel",
                     "/v1/orchestra/runtimes/{id}/runs/{runId}/retry",
@@ -86,11 +95,15 @@ public partial class Program
                     stateStore.LastSaveError,
                     registry.RestoredRuntimeCount,
                     registry.RestoredSessionCount,
-                    registry.RestoredFromSavedAt),
+                    registry.RestoredFromSavedAt,
+                    orchestraRunStore.Provider,
+                    orchestraRunStore.Location,
+                    orchestraRunStore.LastError,
+                    orchestraRunStore.SchemaVersion),
                 new ServiceSecurityCapabilities(
                     security.ApiMode,
                     security.AdminTokenConfigured,
                     security.PublicEndpointDiscoveryAllowed),
-                BuildRuntimePosture(stateStore))));
+                BuildRuntimePosture(stateStore, orchestraRunStore))));
     }
 }

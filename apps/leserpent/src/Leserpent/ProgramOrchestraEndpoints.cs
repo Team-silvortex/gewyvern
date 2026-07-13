@@ -16,7 +16,6 @@ public partial class Program
             {
                 return Results.NotFound(new { error = "runtime_not_found", runtimeId = id });
             }
-
             var attention = registry.GetRuntimeAttention(id);
             var reasons = attention?.Reasons ?? Array.Empty<string>();
             var severity = attention?.Severity ?? "none";
@@ -45,6 +44,28 @@ public partial class Program
             return Results.Ok(new { runtimeId = id, runs = registry.ListOrchestraRuns(id) });
         });
 
+        app.MapGet("/v1/orchestra/runtimes/{id}/runs/{runId}/events", (
+            string id,
+            string runId,
+            RegistryService registry) =>
+        {
+            if (registry.GetRuntime(id) is null)
+            {
+                return Results.NotFound(new { error = "runtime_not_found", runtimeId = id });
+            }
+            if (registry.GetOrchestraRun(id, runId) is null)
+            {
+                return Results.NotFound(new { error = "orchestra_run_not_found", runtimeId = id, runId });
+            }
+
+            return Results.Ok(new
+            {
+                runtimeId = id,
+                runId,
+                events = registry.ListOrchestraRunEvents(id, runId),
+            });
+        });
+
         app.MapGet("/v1/orchestra/runs", (RegistryService registry) =>
             Results.Ok(registry.GetOrchestraFleetBoard()));
 
@@ -55,10 +76,22 @@ public partial class Program
             RegistryService registry,
             OrchestraExecutionCoordinator coordinator) =>
         {
+            var requestIdError = ValidateOrchestraRequestId(request.RequestId);
+            if (requestIdError is not null)
+            {
+                return Results.BadRequest(new { error = "invalid_orchestra_request_id", reason = requestIdError });
+            }
             var runtime = registry.GetRuntime(id);
             if (runtime is null)
             {
                 return Results.NotFound(new { error = "runtime_not_found", runtimeId = id });
+            }
+            var replay = registry.GetOrchestraRunByRequestId(id, request.RequestId!.Trim());
+            if (replay is not null)
+            {
+                return string.Equals(replay.PlanId, planId, StringComparison.OrdinalIgnoreCase)
+                    ? Results.Accepted($"/v1/orchestra/runtimes/{id}/runs", new { run = replay, replayed = true })
+                    : Results.Conflict(new { error = "orchestra_request_id_reused_for_different_plan", runtimeId = id, planId, requestId = request.RequestId });
             }
 
             var attention = registry.GetRuntimeAttention(id);
@@ -109,10 +142,19 @@ public partial class Program
                 selectedPlan.PlanId,
                 selectedPlan.Revision,
                 NormalizeApprovalActor(selectedPlan, request.ApprovedBy),
-                NormalizeApprovalNote(request.ApprovalNote));
+                NormalizeApprovalNote(request.ApprovalNote),
+                request.RequestId!.Trim());
+            if (started.RequestConflict)
+            {
+                return Results.Conflict(new { error = "orchestra_request_id_reused_for_different_plan", runtimeId = id, planId, requestId = request.RequestId });
+            }
+            if (started.PersistenceFailed)
+            {
+                return Results.Json(new { error = "orchestra_persistence_unavailable", runtimeId = id, planId }, statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
             return started.Run is null
                 ? Results.Conflict(new { error = "orchestra_runtime_busy", runtimeId = id, activeRun = started.ActiveRun })
-                : Results.Accepted($"/v1/orchestra/runtimes/{id}/runs", new { run = started.Run });
+                : Results.Accepted($"/v1/orchestra/runtimes/{id}/runs", new { run = started.Run, replayed = started.Replayed });
         });
 
         app.MapPost("/v1/orchestra/runtimes/{id}/runs/{runId}/cancel", (
@@ -144,6 +186,18 @@ public partial class Program
             RegistryService registry,
             OrchestraExecutionCoordinator coordinator) =>
         {
+            var requestIdError = ValidateOrchestraRequestId(request.RequestId);
+            if (requestIdError is not null)
+            {
+                return Results.BadRequest(new { error = "invalid_orchestra_request_id", reason = requestIdError });
+            }
+            var replay = registry.GetOrchestraRunByRequestId(id, request.RequestId!.Trim());
+            if (replay is not null)
+            {
+                return string.Equals(replay.RetriedFromRunId, runId, StringComparison.OrdinalIgnoreCase)
+                    ? Results.Accepted($"/v1/orchestra/runtimes/{id}/runs", new { run = replay, replayed = true })
+                    : Results.Conflict(new { error = "orchestra_request_id_reused_for_different_retry", runtimeId = id, runId, requestId = request.RequestId });
+            }
             var previous = registry.GetOrchestraRun(id, runId);
             if (previous is null)
             {
@@ -187,10 +241,19 @@ public partial class Program
                 plan.Revision,
                 NormalizeApprovalActor(plan, request.ApprovedBy),
                 NormalizeApprovalNote(request.ApprovalNote),
+                request.RequestId!.Trim(),
                 previous);
+            if (started.RequestConflict)
+            {
+                return Results.Conflict(new { error = "orchestra_request_id_reused_for_different_plan", runtimeId = id, planId = plan.PlanId, requestId = request.RequestId });
+            }
+            if (started.PersistenceFailed)
+            {
+                return Results.Json(new { error = "orchestra_persistence_unavailable", runtimeId = id, planId = plan.PlanId }, statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
             return started.Run is null
                 ? Results.Conflict(new { error = "orchestra_runtime_busy", runtimeId = id, activeRun = started.ActiveRun })
-                : Results.Accepted($"/v1/orchestra/runtimes/{id}/runs", new { run = started.Run });
+                : Results.Accepted($"/v1/orchestra/runtimes/{id}/runs", new { run = started.Run, replayed = started.Replayed });
         });
 
         app.MapPost("/v1/orchestra/plans/{id}/session", (
@@ -316,6 +379,22 @@ public partial class Program
             : null;
     }
 
+    internal static string? ValidateOrchestraRequestId(string? requestId)
+    {
+        if (string.IsNullOrWhiteSpace(requestId))
+        {
+            return "requestId is required";
+        }
+        var normalized = requestId.Trim();
+        if (normalized.Length is < 8 or > 128)
+        {
+            return "requestId must contain between 8 and 128 characters";
+        }
+        return normalized.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.' or ':')
+            ? null
+            : "requestId contains unsupported characters";
+    }
+
     private static string NormalizeApprovalActor(OrchestraPlan plan, string? approvedBy) =>
         string.Equals(plan.ApprovalMode, "operator_confirmation", StringComparison.OrdinalIgnoreCase)
             ? approvedBy!.Trim()
@@ -324,69 +403,6 @@ public partial class Program
     private static string? NormalizeApprovalNote(string? approvalNote) =>
         string.IsNullOrWhiteSpace(approvalNote) ? null : approvalNote.Trim();
 
-    internal static async Task<IReadOnlyList<OrchestraExecutionStepResult>> ExecuteOrchestraPlanAsync(
-        string planId,
-        RuntimeSummary runtime,
-        RegistryService registry,
-        CapabilityDiscoveryService discovery,
-        CancellationToken cancellationToken)
-    {
-        var results = new List<OrchestraExecutionStepResult>();
-
-        if (string.Equals(planId, "analysis_recovery", StringComparison.OrdinalIgnoreCase))
-        {
-            var capabilities = registry.RefreshRuntimeCapabilities(
-                runtime.RuntimeId,
-                await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken));
-            results.Add(new OrchestraExecutionStepResult(
-                "refresh_capabilities",
-                capabilities is not null && capabilities.CapabilityFetchError is null ? "ok" : "degraded",
-                capabilities?.CapabilityFetchError ?? (capabilities is null ? "runtime unavailable during capability refresh" : "capabilities refreshed")));
-        }
-
-        if (string.Equals(planId, "runtime_triage", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(planId, "analysis_recovery", StringComparison.OrdinalIgnoreCase))
-        {
-            var status = registry.RefreshRuntimeStatus(
-                runtime.RuntimeId,
-                await discovery.DiscoverStatusAsync(runtime.Endpoint, null, cancellationToken));
-            var error = status?.Status.StatusFetchError;
-            var outcome = status is null
-                ? "degraded"
-                : DetermineRefreshOutcome(status.Status.StatusSource, error, null, null);
-            results.Add(new OrchestraExecutionStepResult(
-                "refresh_status",
-                outcome,
-                error ?? (status is null ? "runtime unavailable during status refresh" : "runtime status refreshed")));
-        }
-
-        if (string.Equals(planId, "sidecar_coordination", StringComparison.OrdinalIgnoreCase)
-            || (string.Equals(planId, "analysis_recovery", StringComparison.OrdinalIgnoreCase)
-                && !string.IsNullOrWhiteSpace(runtime.SidecarEndpoint)))
-        {
-            var sidecarAccess = registry.GetRuntimeSidecarAccess(runtime.RuntimeId);
-            if (sidecarAccess is not null)
-            {
-                var sidecar = registry.RefreshRuntimeSidecar(
-                    runtime.RuntimeId,
-                    await discovery.DiscoverSidecarStatusAsync(
-                        sidecarAccess.SidecarEndpoint,
-                        null,
-                        sidecarAccess.SidecarAdminToken,
-                        cancellationToken));
-                var error = sidecar?.SidecarStatus?.StatusFetchError;
-                var outcome = sidecar is null
-                    ? "degraded"
-                    : DetermineRefreshOutcome(null, null, sidecar.SidecarStatus?.StatusSource, error);
-                results.Add(new OrchestraExecutionStepResult(
-                    "refresh_sidecar",
-                    outcome,
-                    error ?? (sidecar is null ? "runtime unavailable during sidecar refresh" : "sidecar status refreshed")));
-            }
-        }
-
-        return results;
-    }
 }
 
 internal static class OrchestraPlanner

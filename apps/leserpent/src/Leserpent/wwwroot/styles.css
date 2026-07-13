@@ -2224,6 +2224,40 @@ select:focus {
   margin: 2px 0 0;
 }
 
+.orchestra-run-events {
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.orchestra-event-list {
+  display: grid;
+  gap: 0;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.orchestra-event {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.orchestra-event-marker {
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--panel);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.orchestra-event .item-meta {
+  margin-left: 8px;
+}
+
 .orchestra-run-step {
   display: grid;
   grid-template-columns: minmax(120px, 0.7fr) auto minmax(180px, 1.5fr);
