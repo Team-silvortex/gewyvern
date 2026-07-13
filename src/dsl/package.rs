@@ -4,11 +4,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct PackageContext {
-    pub(super) package_scope: String,
-    pub(super) root_dir: PathBuf,
-    pub(super) entry_file: String,
-    pub(super) dependencies: BTreeMap<String, PathBuf>,
+pub(crate) struct PackageContext {
+    pub(crate) package_scope: String,
+    pub(crate) root_dir: PathBuf,
+    pub(crate) entry_file: String,
+    pub(crate) dependencies: BTreeMap<String, PathBuf>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

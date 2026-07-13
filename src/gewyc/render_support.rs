@@ -88,6 +88,61 @@ pub(super) fn finding_json_record(finding: &CompilerFinding) -> String {
     }
 }
 
+pub(super) fn findings_next_step_hint(report: &CompilerFindingsReport) -> &'static str {
+    match report.findings.first().map(|finding| finding.stage) {
+        Some(CompilerFindingStage::Parse) => {
+            "fix the parse finding first, then rerun `gewyc findings` or `gewyc explain`"
+        }
+        Some(CompilerFindingStage::Validation) => {
+            "inspect fragment coverage, rule evidence, or payload offsets, then rerun"
+        }
+        Some(CompilerFindingStage::Diagnostics) => {
+            "inspect unsupported rules and missing facts in `gewyc diagnostics`, then rerun"
+        }
+        None => "findings are clear; continue with `gewyc explain` or runtime verification",
+    }
+}
+
+pub(super) fn stages_finding_count(report: &CompilerStagesReport) -> usize {
+    usize::from(report.parse.finding.is_some())
+        + usize::from(report.validation.finding.is_some())
+        + usize::from(report.diagnostics.finding.is_some())
+}
+
+pub(super) fn stages_next_step_hint(report: &CompilerStagesReport) -> &'static str {
+    if report.parse.finding.is_some() {
+        "fix the parse finding first, then rerun `gewyc stages` or `gewyc explain`"
+    } else if report.validation.finding.is_some() {
+        "inspect fragment coverage, rule evidence, or payload offsets, then rerun"
+    } else if report.diagnostics.finding.is_some() {
+        "inspect unsupported rules and missing facts in `gewyc diagnostics`, then rerun"
+    } else {
+        "parse, validation, and diagnostics are healthy; continue with `gewyc explain` or runtime verification"
+    }
+}
+
+pub(super) fn envelope_next_step_hint(report: &CompilerEnvelope) -> &'static str {
+    if !report.findings.findings.is_empty() {
+        findings_next_step_hint(&report.findings)
+    } else {
+        stages_next_step_hint(&report.stages)
+    }
+}
+
+pub(super) fn model_rule_support_counts(
+    model: Option<&ModelDiagnosticsReport>,
+) -> (usize, usize, usize) {
+    match model {
+        Some(model) => {
+            let total = model.rules.len();
+            let supported = model.rules.iter().filter(|rule| rule.supported).count();
+            let unsupported = total.saturating_sub(supported);
+            (total, supported, unsupported)
+        }
+        None => (0, 0, 0),
+    }
+}
+
 pub(super) fn reason_profile_report(profile: &ReasonProfile) -> ReasonProfileReport {
     match profile {
         ReasonProfile::HandshakeL1 | ReasonProfile::UdpDatagramL1 => ReasonProfileReport::Builtin {

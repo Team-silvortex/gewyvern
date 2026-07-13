@@ -23,6 +23,8 @@ Read these companion pages beside it:
 
 Representative fixture snapshots for this page:
 
+- [docs/fixtures/gewyc_envelope_udp_process_debug.json](docs/fixtures/gewyc_envelope_udp_process_debug.json)
+- [docs/fixtures/gewyc_findings_parse_failure.json](docs/fixtures/gewyc_findings_parse_failure.json)
 - [docs/fixtures/gewyc_frontend_udp_process_debug.json](docs/fixtures/gewyc_frontend_udp_process_debug.json)
 - [docs/fixtures/gewyc_stages_udp_process_debug.json](docs/fixtures/gewyc_stages_udp_process_debug.json)
 - [docs/fixtures/gewyc_explain_validation_udp_process_debug.json](docs/fixtures/gewyc_explain_validation_udp_process_debug.json)
@@ -103,12 +105,13 @@ For most surfaces, read in this order:
 1. `surface_id`
 2. `schema_hint`
 3. `contract_hint`
-4. `payload.status`
-5. `payload.counts`
-6. `payload.analysis`
-7. `payload.shape_notes`
-8. `payload.excerpts`
-9. `payload.report` or legacy flat fields
+4. `payload.summary`
+5. `payload.status`
+6. `payload.counts`
+7. `payload.analysis`
+8. `payload.shape_notes`
+9. `payload.excerpts`
+10. `payload.report` or legacy flat fields
 
 This keeps scripts resilient even when detail payloads widen.
 
@@ -236,6 +239,10 @@ Command example:
 cargo run -p gewyc -- findings dsl/udp_process_debug.gewy --json
 ```
 
+Representative parse-failure fixture:
+
+- [docs/fixtures/gewyc_findings_parse_failure.json](docs/fixtures/gewyc_findings_parse_failure.json)
+
 Current shape:
 
 ```json
@@ -247,14 +254,21 @@ Current shape:
     "schema_version": 1
   },
   "payload": {
+    "summary": {
+      "finding_count": 0,
+      "next_step": "findings are clear; continue with `gewyc explain` or runtime verification"
+    },
     "findings": []
   }
 }
 ```
 
-This is intentionally narrow.
+Prefer these grouped fields first:
 
-Treat `payload.findings[]` as the stable contract.
+- `payload.summary.finding_count`
+- `payload.summary.next_step`
+
+Treat `payload.findings[]` as the stable detailed contract.
 
 ## Stages Surface
 
@@ -270,6 +284,8 @@ Full fixture:
 
 Grouped fields to prefer:
 
+- `payload.summary.finding_count`
+- `payload.summary.next_step`
 - `payload.status.parse_ok`
 - `payload.status.validation_ok`
 - `payload.status.diagnostics_ok`
@@ -296,8 +312,14 @@ Command example:
 cargo run -p gewyc -- envelope dsl/udp_process_debug.gewy --json
 ```
 
+Representative success fixture:
+
+- [docs/fixtures/gewyc_envelope_udp_process_debug.json](docs/fixtures/gewyc_envelope_udp_process_debug.json)
+
 Grouped fields to prefer:
 
+- `payload.summary.finding_count`
+- `payload.summary.next_step`
 - `payload.status.has_binding`
 - `payload.status.has_diagnostics`
 - `payload.status.finding_count`
@@ -314,6 +336,13 @@ Compatibility fields remain at top level:
 - `payload.stages`
 
 The `surfaces` object is the preferred grouped entry point for new consumers.
+
+When you only need one compact route before opening nested surfaces, read:
+
+1. `payload.summary.finding_count`
+2. `payload.summary.next_step`
+3. `payload.surfaces.stages`
+4. `payload.surfaces.findings`
 
 ## IR Surface
 
@@ -464,6 +493,22 @@ Typical read pattern:
 2. if `validation == false`, inspect validation-focused output
 3. if `diagnostics == false`, inspect diagnostics-focused output
 4. otherwise continue into binding, IR, or runtime validation
+
+### `jq`: read the envelope summary first
+
+Use this when you want one compact machine-facing posture answer before opening
+nested surfaces.
+
+```bash
+cargo run -p gewyc -- envelope dsl/udp_process_debug.gewy --json \
+  | jq '.payload.summary'
+```
+
+Preferred read:
+
+- `payload.summary.finding_count`
+- `payload.summary.next_step`
+- `payload.status`
 
 ### `jq`: pull the first parse excerpt
 

@@ -4,19 +4,24 @@ use super::*;
 fn envelope_json_contains_all_frontend_surfaces() {
     let input = crate::dsl::read_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let envelope = compile_envelope_str(&input);
+    let text = render_envelope_report(&envelope, RenderFormat::Text);
     let json = render_envelope_report(&envelope, RenderFormat::Json);
+    assert!(text.contains("summary finding_count=0"));
+    assert!(text.contains("next_step=parse, validation, and diagnostics are healthy"));
     assert!(json.contains("\"surface_id\":\"gewyc.envelope\""));
     assert!(json.contains(
         "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"envelope\",\"schema_version\":1}"
     ));
     assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
+    assert!(json.contains("\"summary\":{\"finding_count\":0"));
+    assert!(json.contains("\"next_step\":\"parse, validation, and diagnostics are healthy"));
     assert!(json.contains(
         "\"status\":{\"has_binding\":true,\"has_diagnostics\":true,\"finding_count\":0}"
     ));
     assert!(json.contains("\"surfaces\":{\"binding\":"));
     assert!(json.contains("\"binding\":"));
     assert!(json.contains("\"diagnostics\":"));
-    assert!(json.contains("\"findings\":{\"findings\":[]}"));
+    assert!(json.contains("\"findings\":{\"summary\":{\"finding_count\":0"));
     assert!(json.contains("\"stages\":"));
     assert!(json.contains("\"template_id\":\"udp_process_debug\""));
 }
@@ -47,6 +52,8 @@ fn stages_json_includes_parse_and_diagnostics_sections() {
         "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"stages\",\"schema_version\":1}"
     ));
     assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
+    assert!(json.contains("\"summary\":{\"finding_count\":0"));
+    assert!(json.contains("\"next_step\":\"parse, validation, and diagnostics are healthy"));
     assert!(
         json.contains(
             "\"status\":{\"parse_ok\":true,\"validation_ok\":true,\"diagnostics_ok\":true}"

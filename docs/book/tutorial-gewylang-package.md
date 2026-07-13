@@ -111,6 +111,12 @@ Inspect the lowered result:
 cargo run -p gewyc -- /tmp/my_gewy_app/main.gewy --json
 ```
 
+If you want the shortest aggregated troubleshooting view first:
+
+```bash
+cargo run -p gewyc -- envelope /tmp/my_gewy_app/main.gewy --json
+```
+
 If you want a more frontend-oriented view:
 
 ```bash
@@ -128,6 +134,13 @@ This is one of the best ways to confirm that:
 - includes resolved where you expected
 - function units were found
 - `use(...)` edges point where you think they do
+
+For the current `1.0.0`-line compiler surfaces, a practical read order is:
+
+1. check `envelope.payload.summary.finding_count`
+2. read `envelope.payload.summary.next_step`
+3. if needed, open `stages` or `findings`
+4. only then drill into `frontend` or `binding` detail
 
 ## Step 6: Inspect The Frontend Graph
 
@@ -148,6 +161,17 @@ Look for:
 This is where the newer module provenance work starts to pay off: you can see
 not just that something was used, but where it came from and how it was
 expanded.
+
+If compilation posture looks off, use the umbrella troubleshooting view:
+
+```bash
+cargo run -p gewyc -- explain /tmp/my_gewy_app/main.gewy --json
+```
+
+Start with:
+
+- `payload.summary.stage_status`
+- `payload.summary.next_step`
 
 ## Step 7: Know The Current Safe Subset
 

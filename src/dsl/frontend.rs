@@ -110,6 +110,13 @@ pub fn summarize_frontend_str(input: &str) -> Result<FrontendModuleSummary, DslE
     summary::summarize_frontend_str(input)
 }
 
+pub(crate) fn summarize_frontend_str_with_package(
+    input: &str,
+    package: &super::PackageContext,
+) -> Result<FrontendModuleSummary, DslError> {
+    summary::summarize_frontend_str_with_package(input, package)
+}
+
 pub(super) fn summarize_pipeline_module(module: PipelineModule) -> FrontendModuleSummary {
     summary::summarize_pipeline_module(module)
 }

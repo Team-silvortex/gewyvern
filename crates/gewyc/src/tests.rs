@@ -5,7 +5,8 @@ use gewyvern::gewyc::{
     render_explain_report, render_explain_report_with_focus, render_explain_report_with_options,
     render_frontend_report, render_frontend_report_with_focus, render_frontend_report_with_options,
 };
-use std::time::Instant;
+use std::fs;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 fn dsl_fixture_path(name: &str) -> String {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -27,6 +28,19 @@ fn protocol_fixture_path(relative: &str) -> String {
         .join(relative)
         .to_string_lossy()
         .into_owned()
+}
+
+fn temp_test_dir(prefix: &str) -> std::path::PathBuf {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time before unix epoch")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!(
+        "gewyc-{prefix}-{}-{nonce}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&root).expect("create temp test dir");
+    root
 }
 #[test]
 fn parse_cli_defaults_to_compile_command() {
@@ -320,12 +334,61 @@ fn envelope_json_mentions_all_surfaces() {
 
 #[test]
 fn init_templates_include_manifest_and_main_entry() {
+    assert!(render_init_manifest("demo").contains("# gewylang package manifest"));
     assert!(render_init_manifest("demo").contains("entry=main.gewy"));
+    assert!(render_init_entry("demo").contains("# main.gewy is the single package entrypoint."));
     assert!(render_init_entry("demo").contains("|> include(\"./module.gewy\")"));
     assert!(render_init_entry("demo").contains("|> use(:network_module)"));
+    assert!(render_init_module("demo").contains("# module.gewy is for reusable function units."));
     assert!(render_init_module("demo").contains("fn network_module() ="));
+    assert!(render_init_module("demo").contains("  let model_name = :demo_model"));
     assert!(render_init_module("demo").contains("let model_name = :demo_model"));
     assert!(render_init_module("demo").contains("|> program_model(${model_name})"));
+}
+
+#[test]
+fn init_normalizes_package_name_for_generated_template_ids() {
+    assert_eq!(normalize_package_name("My Demo-App"), "my_demo_app");
+    assert_eq!(normalize_package_name("2026 proto"), "gewy_2026_proto");
+    assert_eq!(normalize_package_name("___"), "");
+}
+
+#[test]
+fn initialize_package_creates_compilable_scaffold() {
+    let root = temp_test_dir("init-compile").join("My Demo-App");
+    initialize_package(root.to_str().unwrap()).unwrap();
+
+    let envelope = compile_envelope_file(root.join("main.gewy").to_str().unwrap()).unwrap();
+    assert_eq!(
+        envelope
+            .binding
+            .as_ref()
+            .map(|binding| binding.template_id.as_str()),
+        Some("my_demo_app")
+    );
+    assert!(envelope.stages.parse.ok);
+    assert!(envelope.stages.validation.ok);
+    assert!(envelope.stages.diagnostics.ok);
+}
+
+#[test]
+fn initialize_package_preserves_existing_files() {
+    let root = temp_test_dir("init-preserve");
+    let manifest = root.join("gewy.pkg");
+    let entry = root.join("main.gewy");
+    let module = root.join("module.gewy");
+    fs::write(&manifest, "name=custom\nentry=main.gewy\n").unwrap();
+    fs::write(&entry, "template(:custom)\n").unwrap();
+    fs::write(&module, "fn custom() =\n  |> fragment(:udp_packet_meta_fragment)\n").unwrap();
+
+    initialize_package(root.to_str().unwrap()).unwrap();
+
+    assert_eq!(fs::read_to_string(&manifest).unwrap(), "name=custom\nentry=main.gewy\n");
+    assert_eq!(fs::read_to_string(&entry).unwrap(), "template(:custom)\n");
+    assert_eq!(
+        fs::read_to_string(&module).unwrap(),
+        "fn custom() =\n  |> fragment(:udp_packet_meta_fragment)\n"
+    );
 }
 
 #[test]

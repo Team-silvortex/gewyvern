@@ -11,6 +11,10 @@
     "legacy_fields": "retained_in_payload"
   },
   "payload": {
+    "summary": {
+      "finding_count": 0,
+      "next_step": "parse, validation, and diagnostics are healthy; continue with `gewyc explain` or runtime verification"
+    },
     "status": {
       "parse_ok": true,
       "validation_ok": true,

@@ -1,6 +1,7 @@
 use crate::dsl::{
-    DslError, compile_file, parse_file_with_frontend_unvalidated,
-    parse_str_with_frontend_unvalidated, summarize_frontend_file, summarize_frontend_str,
+    DslError, compile_file, load_file_with_package_context,
+    parse_str_with_frontend_unvalidated, parse_str_with_frontend_unvalidated_with_package,
+    summarize_frontend_file, summarize_frontend_str, summarize_frontend_str_with_package,
     validate_compiled_binding,
 };
 use crate::flow::ProgramOperation;
@@ -108,8 +109,8 @@ pub fn compile_findings_report_str(input: &str) -> CompilerFindingsReport {
 }
 
 pub fn compile_explain_report_file(path: &str) -> Result<ExplainReport, DslError> {
-    let source = std::fs::read_to_string(path).ok();
-    compile_envelope_file(path).map(|envelope| explain_report(envelope, source.as_deref()))
+    let (envelope, source) = compile_envelope_file_with_source(path)?;
+    Ok(explain_report(envelope, Some(source.as_str())))
 }
 
 pub fn compile_explain_report_str(input: &str) -> ExplainReport {
@@ -117,16 +118,24 @@ pub fn compile_explain_report_str(input: &str) -> ExplainReport {
 }
 
 pub fn compile_envelope_file(path: &str) -> Result<CompilerEnvelope, DslError> {
-    let envelope = match parse_file_with_frontend_unvalidated(path) {
+    let (envelope, _) = compile_envelope_file_with_source(path)?;
+    Ok(envelope)
+}
+
+fn compile_envelope_file_with_source(path: &str) -> Result<(CompilerEnvelope, String), DslError> {
+    let (input, package) = load_file_with_package_context(path)?;
+    let envelope = match parse_str_with_frontend_unvalidated_with_package(&input, &package) {
         Ok((binding, frontend)) => {
             compile_envelope_from_parts(Ok(binding), Some(frontend_report(frontend)))
         }
         Err(err) => {
-            let frontend = summarize_frontend_file(path).ok().map(frontend_report);
+            let frontend = summarize_frontend_str_with_package(&input, &package)
+                .ok()
+                .map(frontend_report);
             compile_envelope_from_parts(Err(err), frontend)
         }
     };
-    Ok(envelope)
+    Ok((envelope, input))
 }
 
 pub fn compile_envelope_str(input: &str) -> CompilerEnvelope {

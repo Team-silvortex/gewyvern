@@ -134,13 +134,28 @@ pub(super) fn binding_json(report: &BindingReport) -> String {
 }
 
 pub(super) fn diagnostics_text(report: &DiagnosticsReport) -> String {
+    let (program_total, program_supported, program_unsupported) =
+        model_rule_support_counts(report.program_model.as_ref());
+    let (reason_total, reason_supported, reason_unsupported) =
+        model_rule_support_counts(report.reason_model.as_ref());
     let mut lines = vec![
         format!("template={}", report.template_id),
         format!("fragments={}", report.fragments.join(",")),
+        format!(
+            "summary program_rules={}/{} reason_rules={}/{} unsupported_rules={}",
+            program_supported,
+            program_total,
+            reason_supported,
+            reason_total,
+            program_unsupported + reason_unsupported
+        ),
     ];
 
     if let Some(model) = &report.program_model {
-        lines.push(format!("program_model={}", model.model));
+        lines.push(format!(
+            "program_model={} supported_rules={}/{}",
+            model.model, program_supported, program_total
+        ));
         for rule in &model.rules {
             lines.push(format!(
                 "  program_rule[{}]: tier={} supported={} required={:?} supporting={:?} missing={:?} unsupported_offsets={:?}",
@@ -156,7 +171,10 @@ pub(super) fn diagnostics_text(report: &DiagnosticsReport) -> String {
     }
 
     if let Some(model) = &report.reason_model {
-        lines.push(format!("reason_model={}", model.model));
+        lines.push(format!(
+            "reason_model={} supported_rules={}/{}",
+            model.model, reason_supported, reason_total
+        ));
         for rule in &model.rules {
             lines.push(format!(
                 "  reason_rule[{}]: tier={} supported={} required={:?} supporting={:?} missing={:?} unsupported_offsets={:?}",
@@ -214,21 +232,32 @@ pub(super) fn diagnostics_json(report: &DiagnosticsReport) -> String {
 
 pub(super) fn findings_text(report: &CompilerFindingsReport) -> String {
     if report.findings.is_empty() {
-        return "findings=none".into();
+        return format!(
+            "finding_count=0\nfindings=none\nnext_step={}",
+            findings_next_step_hint(report)
+        );
     }
 
-    report
-        .findings
-        .iter()
-        .map(finding_text_record)
-        .map(|finding| format!("finding {finding}"))
-        .collect::<Vec<_>>()
-        .join("\n")
+    let mut lines = vec![
+        format!("finding_count={}", report.findings.len()),
+        format!("next_step={}", findings_next_step_hint(report)),
+        "findings:".into(),
+    ];
+    lines.extend(
+        report
+            .findings
+            .iter()
+            .map(finding_text_record)
+            .map(|finding| format!("- {finding}")),
+    );
+    lines.join("\n")
 }
 
 pub(super) fn findings_json(report: &CompilerFindingsReport) -> String {
     format!(
-        "{{\"findings\":[{}]}}",
+        "{{\"summary\":{{\"finding_count\":{},\"next_step\":{}}},\"findings\":[{}]}}",
+        report.findings.len(),
+        json_string(findings_next_step_hint(report)),
         report
             .findings
             .iter()
@@ -240,6 +269,11 @@ pub(super) fn findings_json(report: &CompilerFindingsReport) -> String {
 
 pub(super) fn envelope_text(report: &CompilerEnvelope) -> String {
     let mut sections = Vec::new();
+    sections.push(format!(
+        "summary finding_count={} next_step={}",
+        report.findings.findings.len(),
+        envelope_next_step_hint(report)
+    ));
     sections.push("surface=binding".to_string());
     sections.push(
         report
@@ -263,7 +297,9 @@ pub(super) fn envelope_text(report: &CompilerEnvelope) -> String {
 
 pub(super) fn envelope_json(report: &CompilerEnvelope) -> String {
     format!(
-        "{{\"status\":{{\"has_binding\":{},\"has_diagnostics\":{},\"finding_count\":{}}},\"surfaces\":{{\"binding\":{},\"diagnostics\":{},\"findings\":{},\"stages\":{}}},\"binding\":{},\"diagnostics\":{},\"findings\":{},\"stages\":{}}}",
+        "{{\"summary\":{{\"finding_count\":{},\"next_step\":{}}},\"status\":{{\"has_binding\":{},\"has_diagnostics\":{},\"finding_count\":{}}},\"surfaces\":{{\"binding\":{},\"diagnostics\":{},\"findings\":{},\"stages\":{}}},\"binding\":{},\"diagnostics\":{},\"findings\":{},\"stages\":{}}}",
+        report.findings.findings.len(),
+        json_string(envelope_next_step_hint(report)),
         report.binding.is_some(),
         report.diagnostics.is_some(),
         report.findings.findings.len(),
@@ -292,7 +328,9 @@ pub(super) fn envelope_json(report: &CompilerEnvelope) -> String {
 
 pub(super) fn stages_text(report: &CompilerStagesReport) -> String {
     format!(
-        "stage=parse\nok={}\nfrontend={}\nparse_finding={}\n{}\nstage=validation\nok={}\nregistry={}\nfragments={}\nprogram_rules={}\nreason_rules={}\nchecks={}\nsampled_payload_offsets={:?}\nrequired_payload_offsets={:?}\nunsupported_payload_offsets={:?}\nvalidation_finding={}\nstage=diagnostics\nok={}\ndiagnostics_finding={}\n{}",
+        "finding_count={}\nnext_step={}\nstage=parse\nok={}\nfrontend={}\nparse_finding={}\n{}\nstage=validation\nok={}\nregistry={}\nfragments={}\nprogram_rules={}\nreason_rules={}\nchecks={}\nsampled_payload_offsets={:?}\nrequired_payload_offsets={:?}\nunsupported_payload_offsets={:?}\nvalidation_finding={}\nstage=diagnostics\nok={}\ndiagnostics_finding={}\n{}",
+        stages_finding_count(report),
+        stages_next_step_hint(report),
         report.parse.ok,
         frontend_text(report.parse.frontend.as_ref()),
         finding_text(report.parse.finding.as_ref()),
@@ -323,7 +361,9 @@ pub(super) fn stages_text(report: &CompilerStagesReport) -> String {
 
 pub(super) fn stages_json(report: &CompilerStagesReport) -> String {
     format!(
-        "{{\"status\":{{\"parse_ok\":{},\"validation_ok\":{},\"diagnostics_ok\":{}}},\"counts\":{{\"validation_fragments\":{},\"validation_program_rules\":{},\"validation_reason_rules\":{},\"sampled_payload_offsets\":{},\"required_payload_offsets\":{},\"unsupported_payload_offsets\":{}}},\"parse\":{{\"ok\":{},\"frontend\":{},\"finding\":{},\"report\":{}}},\"validation\":{{\"ok\":{},\"registry\":\"{}\",\"fragment_count\":{},\"program_rule_count\":{},\"reason_rule_count\":{},\"checks\":[{}],\"sampled_payload_offsets\":[{}],\"required_payload_offsets\":[{}],\"unsupported_payload_offsets\":[{}],\"finding\":{}}},\"diagnostics\":{{\"ok\":{},\"finding\":{},\"report\":{}}}}}",
+        "{{\"summary\":{{\"finding_count\":{},\"next_step\":{}}},\"status\":{{\"parse_ok\":{},\"validation_ok\":{},\"diagnostics_ok\":{}}},\"counts\":{{\"validation_fragments\":{},\"validation_program_rules\":{},\"validation_reason_rules\":{},\"sampled_payload_offsets\":{},\"required_payload_offsets\":{},\"unsupported_payload_offsets\":{}}},\"parse\":{{\"ok\":{},\"frontend\":{},\"finding\":{},\"report\":{}}},\"validation\":{{\"ok\":{},\"registry\":\"{}\",\"fragment_count\":{},\"program_rule_count\":{},\"reason_rule_count\":{},\"checks\":[{}],\"sampled_payload_offsets\":[{}],\"required_payload_offsets\":[{}],\"unsupported_payload_offsets\":[{}],\"finding\":{}}},\"diagnostics\":{{\"ok\":{},\"finding\":{},\"report\":{}}}}}",
+        stages_finding_count(report),
+        json_string(stages_next_step_hint(report)),
         report.parse.ok,
         report.validation.ok,
         report.diagnostics.ok,

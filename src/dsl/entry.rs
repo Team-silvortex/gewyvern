@@ -7,18 +7,14 @@ use super::{
 };
 
 pub fn parse_file_unvalidated(path: &str) -> Result<TemplateBinding, DslError> {
-    let package = package::resolve_package_context(path)?;
-    let resolved = package.entry_file.clone();
-    let input = read_file(&resolved)?;
+    let (input, package) = load_file_with_package_context(path)?;
     parse_str_unvalidated_with_base(&input, Some(&package))
 }
 
 pub fn parse_file_with_frontend_unvalidated(
     path: &str,
 ) -> Result<(TemplateBinding, FrontendModuleSummary), DslError> {
-    let package = package::resolve_package_context(path)?;
-    let resolved = package.entry_file.clone();
-    let input = read_file(&resolved)?;
+    let (input, package) = load_file_with_package_context(path)?;
     parse_str_with_frontend_unvalidated_with_base(&input, Some(&package))
 }
 
@@ -36,6 +32,20 @@ pub fn parse_str_with_frontend_unvalidated(
     input: &str,
 ) -> Result<(TemplateBinding, FrontendModuleSummary), DslError> {
     parse_str_with_frontend_unvalidated_with_base(input, None)
+}
+
+pub(crate) fn load_file_with_package_context(path: &str) -> Result<(String, PackageContext), DslError> {
+    let package = package::resolve_package_context(path)?;
+    let resolved = package.entry_file.clone();
+    let input = read_file(&resolved)?;
+    Ok((input, package))
+}
+
+pub(crate) fn parse_str_with_frontend_unvalidated_with_package(
+    input: &str,
+    package: &PackageContext,
+) -> Result<(TemplateBinding, FrontendModuleSummary), DslError> {
+    parse_str_with_frontend_unvalidated_with_base(input, Some(package))
 }
 
 fn parse_str_unvalidated_with_base(

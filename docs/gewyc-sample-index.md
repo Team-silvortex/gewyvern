@@ -57,10 +57,26 @@ Choose samples in this order:
 - input:
   [dsl/udp_process_debug.gewy](dsl/udp_process_debug.gewy)
 - meaning:
-  Healthy phase spine with grouped `status` / `counts` plus full `parse`,
-  `validation`, and `diagnostics` sections.
+  Healthy phase spine with grouped `summary` / `status` / `counts` plus full
+  `parse`, `validation`, and `diagnostics` sections.
 - use this when:
   You want a phase-gating view before opening `explain`.
+
+### Envelope Success
+
+- file:
+  [docs/fixtures/gewyc_envelope_udp_process_debug.json](docs/fixtures/gewyc_envelope_udp_process_debug.json)
+- command:
+  `cargo run -p gewyc -- envelope dsl/udp_process_debug.gewy --json`
+- input:
+  [dsl/udp_process_debug.gewy](dsl/udp_process_debug.gewy)
+- meaning:
+  Healthy aggregate compiler view with grouped `summary`, grouped nested
+  `surfaces`, and compatibility mirrors for `binding`, `diagnostics`,
+  `findings`, and `stages`.
+- use this when:
+  You want one top-level routing sample before deciding which nested surface to
+  open.
 
 ### Explain Validation Focus Success
 
@@ -93,6 +109,21 @@ Choose samples in this order:
   You are building editor diagnostics, parse failure banners, or pre-commit
   DSL checks.
 
+### Findings Parse Failure
+
+- file:
+  [docs/fixtures/gewyc_findings_parse_failure.json](docs/fixtures/gewyc_findings_parse_failure.json)
+- source shape:
+  Minimal malformed pipeline with `|> oops(:true)`
+- command family:
+  `cargo run -p gewyc -- findings <bad.gewy> --json`
+- meaning:
+  Standalone findings failure with grouped `summary.finding_count`,
+  grouped `summary.next_step`, and one exact parse finding record.
+- use this when:
+  You want the smallest machine-facing finding sample without the larger
+  `explain` shell.
+
 ### Explain Validation Failure
 
 - file:
@@ -117,13 +148,17 @@ Choose samples in this order:
 
 Start with:
 
+- envelope success
 - stages success
+- findings parse failure
 - explain parse failure
 - explain validation failure
 
 These three give the smallest reliable set for:
 
+- aggregate routing
 - phase gating
+- standalone findings routing
 - source-local parse diagnostics
 - payload coverage diagnostics
 
@@ -142,12 +177,13 @@ sample, and one healthy authoring/graph sample.
 
 Start with:
 
+- envelope success
 - explain validation focus success
 - stages success
 - frontend success
 
-This gives one umbrella summary shape, one phase spine, and one detailed
-authoring graph shape.
+This gives one aggregate summary shape, one umbrella summary shape, one phase
+spine, and one detailed authoring graph shape.
 
 ## Maintenance Rule
 

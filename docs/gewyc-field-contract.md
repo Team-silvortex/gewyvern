@@ -139,6 +139,8 @@ Recommended first reads:
 
 | Field | Status | Earliest tightening | Notes |
 | --- | --- | --- | --- |
+| `payload.summary.finding_count` | `blessed` | `1.0.0+` | Fast summary gate for standalone findings. |
+| `payload.summary.next_step` | `blessed` | `1.0.0+` | Preferred follow-up hint for standalone findings. |
 | `payload.findings` | `blessed` | `1.0.0+` | Stable narrow contract for standalone findings. |
 | `payload.findings[].stage` | `blessed` | `1.0.0+` | Stage classifier. |
 | `payload.findings[].severity` | `blessed` | `1.0.0+` | Severity classifier. |
@@ -153,6 +155,8 @@ Recommended first reads:
 
 | Field | Status | Earliest tightening | Notes |
 | --- | --- | --- | --- |
+| `payload.summary.finding_count` | `blessed` | `1.0.0+` | Fast phase-summary gate. |
+| `payload.summary.next_step` | `blessed` | `1.0.0+` | Preferred follow-up hint before drilling into phase detail. |
 | `payload.status.parse_ok` | `blessed` | `1.0.0+` | Phase gate. |
 | `payload.status.validation_ok` | `blessed` | `1.0.0+` | Phase gate. |
 | `payload.status.diagnostics_ok` | `blessed` | `1.0.0+` | Phase gate. |
@@ -173,6 +177,8 @@ Recommended first reads:
 
 | Field | Status | Earliest tightening | Notes |
 | --- | --- | --- | --- |
+| `payload.summary.finding_count` | `blessed` | `1.0.0+` | Fast aggregate gate before nested surface reads. |
+| `payload.summary.next_step` | `blessed` | `1.0.0+` | Preferred aggregate follow-up hint. |
 | `payload.status.has_binding` | `blessed` | `1.0.0+` | Summary posture gate. |
 | `payload.status.has_diagnostics` | `blessed` | `1.0.0+` | Summary posture gate. |
 | `payload.status.finding_count` | `blessed` | `1.0.0+` | Summary posture gate. |

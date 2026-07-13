@@ -17,12 +17,16 @@ pub use self::entry::{
     compile_file, parse_file_unvalidated, parse_file_with_frontend_unvalidated,
     parse_str_unvalidated, parse_str_with_frontend_unvalidated,
 };
+pub(crate) use self::entry::{
+    load_file_with_package_context, parse_str_with_frontend_unvalidated_with_package,
+};
 pub use self::frontend::{
     FrontendDslKind, FrontendExpansionPreview, FrontendFunctionNode, FrontendFunctionParam,
     FrontendGraphEdge, FrontendGraphEdgeKind, FrontendGraphNode, FrontendGraphNodeKind,
     FrontendIncludeSource, FrontendIncludeSourceKind, FrontendModuleSummary, FrontendUseEdge,
     summarize_frontend_file, summarize_frontend_str,
 };
+pub(crate) use self::frontend::summarize_frontend_str_with_package;
 use self::function_types::PipelineValueKind;
 use self::package::PackageContext;
 pub use self::package::build_lockfile;

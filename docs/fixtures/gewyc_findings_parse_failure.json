@@ -1,0 +1,29 @@
+{
+  "surface_id": "gewyc.findings",
+  "schema_hint": {
+    "family": "gewyc",
+    "surface": "findings",
+    "schema_version": 1
+  },
+  "contract_hint": {
+    "stability": "candidate",
+    "compatibility": "grouped_payload_preferred",
+    "legacy_fields": "retained_in_payload"
+  },
+  "payload": {
+    "summary": {
+      "finding_count": 1,
+      "next_step": "fix the parse finding first, then rerun `gewyc findings` or `gewyc explain`"
+    },
+    "findings": [
+      {
+        "stage": "parse",
+        "severity": "error",
+        "code": "GEWYC-PARSE-INVALID-VALUE",
+        "line": 5,
+        "column": null,
+        "message": "unknown pipeline DSL step 'oops'. Available pipeline steps: template, window, reason, reason_model, fragment, operation, program_model, param, evidence, program_rule, reason_rule, include, use."
+      }
+    ]
+  }
+}

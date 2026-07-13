@@ -415,47 +415,109 @@ fn run_init(cli: Cli, locale: UiLocale) {
 
 fn initialize_package(dir: &str) -> Result<(), String> {
     let root = std::path::Path::new(dir);
+    if root.exists() && !root.is_dir() {
+        return Err(format!(
+            "init target '{}' exists but is not a directory",
+            root.display()
+        ));
+    }
     fs::create_dir_all(root).map_err(|err| err.to_string())?;
     let package_name = root
         .file_name()
         .and_then(|name| name.to_str())
         .filter(|name| !name.is_empty() && *name != ".")
-        .unwrap_or("gewy_app");
+        .map(normalize_package_name)
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "gewy_app".to_string());
 
     let manifest_path = root.join("gewy.pkg");
     if !manifest_path.exists() {
-        fs::write(&manifest_path, render_init_manifest(package_name))
+        fs::write(&manifest_path, render_init_manifest(&package_name))
             .map_err(|err| err.to_string())?;
     }
 
     let entry_path = root.join("main.gewy");
     if !entry_path.exists() {
-        fs::write(&entry_path, render_init_entry(package_name)).map_err(|err| err.to_string())?;
+        fs::write(&entry_path, render_init_entry(&package_name))
+            .map_err(|err| err.to_string())?;
     }
 
     let module_path = root.join("module.gewy");
     if !module_path.exists() {
-        fs::write(&module_path, render_init_module(package_name)).map_err(|err| err.to_string())?;
+        fs::write(&module_path, render_init_module(&package_name))
+            .map_err(|err| err.to_string())?;
     }
 
     Ok(())
 }
 
+fn normalize_package_name(input: &str) -> String {
+    let mut normalized = String::with_capacity(input.len());
+    let mut previous_was_separator = false;
+    for ch in input.chars() {
+        let lowered = ch.to_ascii_lowercase();
+        if lowered.is_ascii_alphanumeric() {
+            normalized.push(lowered);
+            previous_was_separator = false;
+        } else if !previous_was_separator {
+            normalized.push('_');
+            previous_was_separator = true;
+        }
+    }
+    let normalized = normalized.trim_matches('_').to_string();
+    if normalized
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_digit())
+    {
+        format!("gewy_{normalized}")
+    } else {
+        normalized
+    }
+}
+
 fn render_init_manifest(package_name: &str) -> String {
     format!(
-        "name={package_name}\nversion=0.1.0\nentry=main.gewy\n# local deps: dep.std=../stdlib\n"
+        "# gewylang package manifest\n\
+         # update name/version when the package gains a clearer identity\n\
+         name={package_name}\n\
+         version=0.1.0\n\
+         entry=main.gewy\n\
+         # local deps: dep.std=../stdlib\n"
     )
 }
 
 fn render_init_entry(package_name: &str) -> String {
     format!(
-        "template(:{package_name})\n|> window(:default_5s)\n|> reason(:udp_datagram_l1)\n|> include(\"./module.gewy\")\n|> use(:network_module)\n"
+        "# main.gewy is the single package entrypoint.\n\
+         # keep this file short and move reusable helpers into module.gewy.\n\
+         template(:{package_name})\n\
+         |> window(:default_5s)\n\
+         |> reason(:udp_datagram_l1)\n\
+         |> include(\"./module.gewy\")\n\
+         |> use(:network_module)\n"
     )
 }
 
 fn render_init_module(package_name: &str) -> String {
     format!(
-        "fn network_module() =\n  let model_name = :{package_name}_model\n  let module_name = :{package_name}\n  let op_name = :datagram_exchange\n  |> fragment(:udp_packet_meta_fragment)\n  |> fragment(:route_meta_fragment)\n  |> fragment(:sock_lineage_fragment)\n  |> operation(${{op_name}})\n  |> program_model(${{model_name}})\n  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${{module_name}}, phase: :bind)\n  |> program_rule(predicate: \"datagram_observed:udp\", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${{module_name}}, phase: :send_request)\n  |> param(:sock_lineage_fragment.capture_comm, true)\n"
+        concat!(
+            "# module.gewy is for reusable function units.\n",
+            "# rename network_module once the package tells a more specific story.\n",
+            "fn network_module() =\n",
+            "  let model_name = :{package_name}_model\n",
+            "  let module_name = :{package_name}\n",
+            "  let op_name = :datagram_exchange\n",
+            "  |> fragment(:udp_packet_meta_fragment)\n",
+            "  |> fragment(:route_meta_fragment)\n",
+            "  |> fragment(:sock_lineage_fragment)\n",
+            "  |> operation(${{op_name}})\n",
+            "  |> program_model(${{model_name}})\n",
+            "  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${{module_name}}, phase: :bind)\n",
+            "  |> program_rule(predicate: \"datagram_observed:udp\", stage: :datagram_observed, narrative: :udp_datagram_sent, dedupe: true, module: ${{module_name}}, phase: :send_request)\n",
+            "  |> param(:sock_lineage_fragment.capture_comm, true)\n",
+        ),
+        package_name = package_name,
     )
 }
 

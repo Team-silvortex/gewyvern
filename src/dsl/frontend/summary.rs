@@ -17,6 +17,13 @@ pub(super) fn summarize_frontend_str(input: &str) -> Result<FrontendModuleSummar
     summarize_frontend_str_with_base(input, None)
 }
 
+pub(crate) fn summarize_frontend_str_with_package(
+    input: &str,
+    package: &PackageContext,
+) -> Result<FrontendModuleSummary, DslError> {
+    summarize_frontend_str_with_base(input, Some(package))
+}
+
 fn summarize_frontend_str_with_base(
     input: &str,
     package: Option<&PackageContext>,

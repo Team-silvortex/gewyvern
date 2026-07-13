@@ -210,9 +210,40 @@ template(:broken)
         "\"schema_hint\":{\"family\":\"gewyc\",\"surface\":\"findings\",\"schema_version\":1}"
     ));
     assert!(json.contains("\"contract_hint\":{\"stability\":\"candidate\",\"compatibility\":\"grouped_payload_preferred\",\"legacy_fields\":\"retained_in_payload\"}"));
+    assert!(json.contains("\"summary\":{\"finding_count\":1"));
+    assert!(json.contains("\"next_step\":\"fix the parse finding first"));
     assert!(json.contains("\"code\":\"GEWYC-PARSE-INVALID-VALUE\""));
     assert!(json.contains("\"severity\":\"error\""));
     assert!(json.contains("\"line\":6"));
+}
+
+#[test]
+fn findings_text_includes_count_and_next_step_hint() {
+    let report = compile_findings_report_str(
+        r#"
+template(:broken)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> fragment(:udp_packet_meta_fragment)
+|> oops(:true)
+"#,
+    );
+    let text = render_findings_report(&report, RenderFormat::Text);
+    assert!(text.contains("finding_count=1"));
+    assert!(text.contains("next_step=fix the parse finding first"));
+    assert!(text.contains("findings:"));
+    assert!(text.contains("- stage=parse severity=error"));
+}
+
+#[test]
+fn findings_text_empty_surface_keeps_guidance() {
+    let report = compile_findings_report_str(
+        &crate::dsl::read_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap(),
+    );
+    let text = render_findings_report(&report, RenderFormat::Text);
+    assert!(text.contains("finding_count=0"));
+    assert!(text.contains("findings=none"));
+    assert!(text.contains("next_step=findings are clear"));
 }
 
 #[test]

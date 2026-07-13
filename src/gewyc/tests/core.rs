@@ -18,7 +18,9 @@ fn diagnostics_text_mentions_program_rule() {
     let binding = compile_binding_file(&dsl_fixture_path("udp_process_debug.gewy")).unwrap();
     let diagnostics = collect_binding_diagnostics(&binding).unwrap();
     let text = render_diagnostics(&binding, &diagnostics, RenderFormat::Text);
+    assert!(text.contains("summary program_rules="));
     assert!(text.contains("program_model="));
+    assert!(text.contains("supported_rules="));
     assert!(text.contains("program_rule["));
 }
 
@@ -168,6 +170,11 @@ template(:broken)
     assert!(report.validation.finding.is_none());
     assert!(!report.diagnostics.ok);
     assert!(report.diagnostics.finding.is_none());
+
+    let text = render_stages_report(&report, RenderFormat::Text);
+    assert!(text.contains("finding_count=1"));
+    assert!(text.contains("next_step=fix the parse finding first"));
+    assert!(text.contains("parse_finding=stage=parse severity=error"));
 }
 
 #[test]
