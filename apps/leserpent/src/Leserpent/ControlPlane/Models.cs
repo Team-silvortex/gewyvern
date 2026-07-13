@@ -188,7 +188,22 @@ public sealed record OrchestraPlan(
     IReadOnlyList<string> Reasons,
     IReadOnlyList<string> RequiredCapabilities,
     IReadOnlyList<OrchestraPlanStep> Steps,
-    IReadOnlyList<OrchestraSuggestedSurface> SuggestedSurfaces
+    IReadOnlyList<OrchestraSuggestedSurface> SuggestedSurfaces,
+    string ApprovalMode = "none",
+    string Revision = ""
+);
+
+public sealed record OrchestraExecuteRequest(
+    bool Confirmed,
+    string? ExpectedRevision,
+    string? ApprovedBy = null,
+    string? ApprovalNote = null
+);
+
+public sealed record OrchestraRetryRequest(
+    bool Confirmed,
+    string? ApprovedBy = null,
+    string? ApprovalNote = null
 );
 
 public sealed record OrchestraExecutionStepResult(string Step, string Outcome, string Summary);
@@ -209,7 +224,13 @@ public sealed record OrchestraRunSummary(
     string PlanId,
     string Outcome,
     DateTimeOffset ExecutedAt,
-    IReadOnlyList<OrchestraExecutionStepResult> Steps
+    IReadOnlyList<OrchestraExecutionStepResult> Steps,
+    DateTimeOffset? CompletedAt = null,
+    int Attempt = 1,
+    string? RetriedFromRunId = null,
+    string? ApprovedBy = null,
+    string? ApprovalNote = null,
+    string? PlanRevision = null
 );
 
 public sealed record OrchestraSessionHandoffRequest(string PipelineKind, string RequestedBy);
@@ -218,6 +239,23 @@ public sealed record OrchestraSessionHandoffResponse(
     OrchestraRunSummary Run,
     SessionSummary Session,
     OrchestraRuntimePlanResponse CurrentPlan
+);
+
+public sealed record OrchestraFleetRunItem(
+    string RuntimeId,
+    string RuntimeName,
+    RuntimeTags Tags,
+    OrchestraRunSummary Run
+);
+
+public sealed record OrchestraFleetBoardResponse(
+    int RuntimeCount,
+    int RunCount,
+    int ActiveCount,
+    int FailedCount,
+    int DegradedCount,
+    int RetryableCount,
+    IReadOnlyList<OrchestraFleetRunItem> Runs
 );
 
 public sealed record OrchestraRuntimePlanResponse(

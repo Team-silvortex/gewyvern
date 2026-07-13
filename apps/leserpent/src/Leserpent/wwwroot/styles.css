@@ -1992,6 +1992,69 @@ select:focus {
   border-left: 4px solid var(--accent);
 }
 
+.orchestra-fleet-card {
+  margin-bottom: 14px;
+}
+
+.orchestra-fleet-runs {
+  display: grid;
+  gap: 6px;
+}
+
+.orchestra-fleet-run {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.2fr) minmax(130px, 1fr) auto minmax(140px, 0.8fr);
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--muted);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 94%, var(--accent-soft) 6%);
+  color: var(--ink);
+  text-align: left;
+}
+
+.orchestra-fleet-run:hover {
+  border-color: var(--accent);
+  transform: none;
+}
+
+.orchestra-fleet-run[data-outcome="queued"],
+.orchestra-fleet-run[data-outcome="running"] {
+  border-left-color: var(--accent);
+}
+
+.orchestra-fleet-run[data-outcome="succeeded"],
+.orchestra-fleet-run[data-outcome="ok"] {
+  border-left-color: var(--success, #277a55);
+}
+
+.orchestra-fleet-run[data-outcome="degraded"] {
+  border-left-color: var(--warn);
+}
+
+.orchestra-fleet-run[data-outcome="failed"],
+.orchestra-fleet-run[data-outcome="cancelled"] {
+  border-left-color: var(--danger);
+}
+
+.orchestra-fleet-runtime {
+  display: grid;
+  gap: 2px;
+}
+
+.orchestra-fleet-runtime small {
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .orchestra-fleet-run {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
 .orchestra-plan-card .group-title {
   color: var(--ink);
   font-size: 1rem;
@@ -2046,6 +2109,41 @@ select:focus {
   background: color-mix(in srgb, var(--accent-soft) 20%, var(--panel));
 }
 
+.orchestra-approval-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(260px, 1.3fr);
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--warn-soft) 28%, var(--panel));
+}
+
+.orchestra-approval-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.orchestra-approval-form small {
+  font-weight: 500;
+}
+
+.orchestra-approval-form input,
+.orchestra-approval-form textarea {
+  width: 100%;
+}
+
+.orchestra-approval-note {
+  padding: 8px 10px;
+  border-left: 3px solid var(--warn);
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--warn-soft) 22%, transparent);
+  font-size: 0.8rem;
+}
+
 .orchestra-guided-form label {
   display: grid;
   gap: 5px;
@@ -2060,6 +2158,10 @@ select:focus {
 
 @media (max-width: 720px) {
   .orchestra-guided-form {
+    grid-template-columns: 1fr;
+  }
+
+  .orchestra-approval-form {
     grid-template-columns: 1fr;
   }
 }
@@ -2095,6 +2197,20 @@ select:focus {
   border-left: 4px solid var(--success, #277a55);
 }
 
+.orchestra-run[data-outcome="succeeded"] {
+  border-left: 4px solid var(--success, #277a55);
+}
+
+.orchestra-run[data-outcome="queued"],
+.orchestra-run[data-outcome="running"] {
+  border-left: 4px solid var(--accent);
+}
+
+.orchestra-run[data-outcome="failed"],
+.orchestra-run[data-outcome="cancelled"] {
+  border-left: 4px solid var(--danger);
+}
+
 .orchestra-run[data-outcome="degraded"] {
   border-left: 4px solid var(--warn);
 }
@@ -2102,6 +2218,10 @@ select:focus {
 .orchestra-run-steps {
   display: grid;
   gap: 6px;
+}
+
+.orchestra-run-actions {
+  margin: 2px 0 0;
 }
 
 .orchestra-run-step {

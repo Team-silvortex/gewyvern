@@ -48,6 +48,10 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                 capabilityUrl,
                 capabilities.OrderBy(capability => capability.Key, StringComparer.OrdinalIgnoreCase).ToArray());
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             return CapabilityDiscoveryResult.Failed(capabilityUrl, ex.Message);
@@ -99,6 +103,10 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                     string.IsNullOrWhiteSpace(resilience?.SocketService?.Status) ? null : resilience!.SocketService!.Status!.Trim(),
                     resilience?.SocketService?.ConsecutiveIdleTimeouts,
                     resilience?.SocketService?.TotalIdleTimeouts));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -185,6 +193,10 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                     hasOpinion,
                     statusPayload.LastError,
                     memorySnapshot));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -340,6 +352,10 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                 && !string.Equals(pinnedBody, "null", StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(pinnedBody, "{}", StringComparison.OrdinalIgnoreCase);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch
         {
             return false;
@@ -397,6 +413,10 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
             }
 
             return BuildMemorySnapshot(pinnedPayload);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

@@ -63,6 +63,7 @@ function activateTab(tab) {
   syncLocation();
   if (tab === "orchestra") {
     void loadOrchestraPlan();
+    void loadOrchestraFleetBoard();
   }
 }
 
@@ -260,13 +261,41 @@ function bootstrapDashboard() {
   nodes.orchestraPlans?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-orchestra-execute]");
     if (button) {
-      void executeOrchestraPlan(button.dataset.orchestraExecute);
+      const card = button.closest(".orchestra-plan-card");
+      void executeOrchestraPlan(
+        button.dataset.orchestraExecute,
+        button.dataset.orchestraRevision,
+        button.dataset.orchestraApproval,
+        card?.querySelector("[data-orchestra-approved-by]")?.value?.trim(),
+        card?.querySelector("[data-orchestra-approval-note]")?.value?.trim(),
+      );
       return;
     }
     const sessionButton = event.target.closest("[data-orchestra-create-session]");
     if (sessionButton) {
       void createOrchestraSession(sessionButton);
     }
+  });
+  nodes.orchestraHistory?.addEventListener("click", (event) => {
+    const cancelButton = event.target.closest("[data-orchestra-cancel-run]");
+    if (cancelButton) {
+      void mutateOrchestraRun(cancelButton.dataset.orchestraCancelRun, "cancel", cancelButton);
+      return;
+    }
+    const retryButton = event.target.closest("[data-orchestra-retry-run]");
+    if (retryButton) {
+      void mutateOrchestraRun(retryButton.dataset.orchestraRetryRun, "retry", retryButton);
+    }
+  });
+  nodes.orchestraFleetRuns?.addEventListener("click", (event) => {
+    const target = event.target.closest("[data-orchestra-runtime-id]");
+    if (!target) {
+      return;
+    }
+    state.selectedRuntimeId = target.dataset.orchestraRuntimeId;
+    renderRuntimeSliceFromCache();
+    syncLocation();
+    void loadOrchestraPlan(state.selectedRuntimeId);
   });
   nodes.persistenceSaveNow.addEventListener("click", savePersistenceNow);
   nodes.persistenceExportState.addEventListener("click", exportPersistenceState);

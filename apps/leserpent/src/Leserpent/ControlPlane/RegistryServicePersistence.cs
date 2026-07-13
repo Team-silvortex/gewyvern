@@ -56,6 +56,7 @@ public sealed partial class RegistryService
         {
             orchestraRuns[group.Key] = group
                 .TakeLast(MaxOrchestraRunsPerRuntime)
+                .Select(NormalizeRestoredOrchestraRun)
                 .Aggregate(ImmutableQueue<OrchestraRunSummary>.Empty, static (queue, run) => queue.Enqueue(run));
         }
 

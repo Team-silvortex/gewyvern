@@ -157,6 +157,8 @@ interface OrchestraPlan {
   requiredCapabilities: string[];
   steps: OrchestraPlanStep[];
   suggestedSurfaces: OrchestraSuggestedSurface[];
+  approvalMode: string;
+  revision: string;
 }
 
 interface OrchestraRuntimePlanResponse {
@@ -184,4 +186,27 @@ interface OrchestraRunSummary {
   outcome: string;
   executedAt: string;
   steps: OrchestraExecutionStepResult[];
+  completedAt?: string | null;
+  attempt?: number;
+  retriedFromRunId?: string | null;
+  approvedBy?: string | null;
+  approvalNote?: string | null;
+  planRevision?: string | null;
+}
+
+interface OrchestraFleetRunItem {
+  runtimeId: string;
+  runtimeName: string;
+  tags: RuntimeTags;
+  run: OrchestraRunSummary;
+}
+
+interface OrchestraFleetBoardResponse {
+  runtimeCount: number;
+  runCount: number;
+  activeCount: number;
+  failedCount: number;
+  degradedCount: number;
+  retryableCount: number;
+  runs: OrchestraFleetRunItem[];
 }

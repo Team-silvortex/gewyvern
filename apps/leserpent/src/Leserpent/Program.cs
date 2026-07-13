@@ -15,6 +15,7 @@ public partial class Program
         builder.Services.AddSingleton<ControlPlaneStateStore>();
         builder.Services.AddSingleton<RegistryService>();
         builder.Services.AddHttpClient<CapabilityDiscoveryService>();
+        builder.Services.AddSingleton<OrchestraExecutionCoordinator>();
 
         var app = builder.Build();
 

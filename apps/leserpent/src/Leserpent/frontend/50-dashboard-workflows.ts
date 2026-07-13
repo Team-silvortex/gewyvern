@@ -213,6 +213,9 @@ async function loadDashboard() {
     } else {
       renderOrchestraPlan(null);
     }
+    if (state.activeTab === "orchestra") {
+      void loadOrchestraFleetBoard();
+    }
     nodes.statusLine.textContent = t("notifications.loaded", { count: runtimes.runtimes.length });
   } catch (error) {
     if (requestId !== state.dashboardRequestSeq) {

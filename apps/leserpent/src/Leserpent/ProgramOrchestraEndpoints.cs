@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Leserpent.ControlPlane;
 
 namespace Leserpent;
@@ -42,12 +45,15 @@ public partial class Program
             return Results.Ok(new { runtimeId = id, runs = registry.ListOrchestraRuns(id) });
         });
 
-        app.MapPost("/v1/orchestra/plans/{id}/{planId}/execute", async Task<IResult> (
+        app.MapGet("/v1/orchestra/runs", (RegistryService registry) =>
+            Results.Ok(registry.GetOrchestraFleetBoard()));
+
+        app.MapPost("/v1/orchestra/plans/{id}/{planId}/execute", (
             string id,
             string planId,
+            OrchestraExecuteRequest request,
             RegistryService registry,
-            CapabilityDiscoveryService discovery,
-            CancellationToken cancellationToken) =>
+            OrchestraExecutionCoordinator coordinator) =>
         {
             var runtime = registry.GetRuntime(id);
             if (runtime is null)
@@ -76,33 +82,115 @@ public partial class Program
                 });
             }
 
-            var steps = await ExecuteOrchestraPlanAsync(planId, runtime, registry, discovery, cancellationToken);
-            var currentRuntime = registry.GetRuntime(id);
-            if (currentRuntime is null)
+            if (string.IsNullOrWhiteSpace(request.ExpectedRevision)
+                || !string.Equals(request.ExpectedRevision, selectedPlan.Revision, StringComparison.Ordinal))
             {
-                return Results.Conflict(new { error = "runtime_removed_during_orchestra_execution", runtimeId = id, planId });
+                return Results.Conflict(new
+                {
+                    error = "orchestra_plan_revision_changed",
+                    runtimeId = id,
+                    planId,
+                    currentPlan = selectedPlan,
+                });
             }
-            var currentAttention = registry.GetRuntimeAttention(id);
-            var currentReasons = currentAttention?.Reasons ?? Array.Empty<string>();
-            var currentPlans = OrchestraPlanner.Build(
-                currentRuntime,
-                currentReasons,
-                currentAttention?.Severity ?? "none",
-                currentAttention?.NeedsAttention ?? false);
-            var outcome = steps.All(step => string.Equals(step.Outcome, "ok", StringComparison.OrdinalIgnoreCase))
-                ? "ok"
-                : "degraded";
+            if (string.Equals(selectedPlan.ApprovalMode, "operator_confirmation", StringComparison.OrdinalIgnoreCase)
+                && !request.Confirmed)
+            {
+                return Results.Conflict(new { error = "orchestra_plan_confirmation_required", runtimeId = id, planId });
+            }
+            var approvalError = ValidateOrchestraApproval(selectedPlan, request.ApprovedBy, request.ApprovalNote);
+            if (approvalError is not null)
+            {
+                return Results.BadRequest(new { error = "invalid_orchestra_approval", reason = approvalError, runtimeId = id, planId });
+            }
 
-            registry.RecordRecoveryActivity(id, $"orchestra:{planId}", outcome, string.Join("; ", steps.Select(step => step.Summary)));
-            var run = registry.RecordOrchestraRun(id, planId, outcome, steps);
-            return Results.Ok(new OrchestraExecutionResponse(
-                run.RunId,
-                id,
-                planId,
-                outcome,
-                run.ExecutedAt,
-                steps,
-                BuildOrchestraResponse(currentRuntime, currentAttention, currentReasons, currentPlans)));
+            var started = coordinator.TryStart(
+                runtime,
+                selectedPlan.PlanId,
+                selectedPlan.Revision,
+                NormalizeApprovalActor(selectedPlan, request.ApprovedBy),
+                NormalizeApprovalNote(request.ApprovalNote));
+            return started.Run is null
+                ? Results.Conflict(new { error = "orchestra_runtime_busy", runtimeId = id, activeRun = started.ActiveRun })
+                : Results.Accepted($"/v1/orchestra/runtimes/{id}/runs", new { run = started.Run });
+        });
+
+        app.MapPost("/v1/orchestra/runtimes/{id}/runs/{runId}/cancel", (
+            string id,
+            string runId,
+            RegistryService registry,
+            OrchestraExecutionCoordinator coordinator) =>
+        {
+            var run = registry.GetOrchestraRun(id, runId);
+            if (run is null)
+            {
+                return Results.NotFound(new { error = "orchestra_run_not_found", runtimeId = id, runId });
+            }
+            if (RegistryService.IsTerminalOrchestraOutcome(run.Outcome))
+            {
+                return Results.Conflict(new { error = "orchestra_run_already_terminal", runtimeId = id, runId, outcome = run.Outcome });
+            }
+
+            var cancelling = coordinator.Cancel(id, runId);
+            return cancelling is null
+                ? Results.Conflict(new { error = "orchestra_run_not_active", runtimeId = id, runId })
+                : Results.Accepted($"/v1/orchestra/runtimes/{id}/runs", new { run = cancelling });
+        });
+
+        app.MapPost("/v1/orchestra/runtimes/{id}/runs/{runId}/retry", (
+            string id,
+            string runId,
+            OrchestraRetryRequest request,
+            RegistryService registry,
+            OrchestraExecutionCoordinator coordinator) =>
+        {
+            var previous = registry.GetOrchestraRun(id, runId);
+            if (previous is null)
+            {
+                return Results.NotFound(new { error = "orchestra_run_not_found", runtimeId = id, runId });
+            }
+            if (!RegistryService.IsTerminalOrchestraOutcome(previous.Outcome))
+            {
+                return Results.Conflict(new { error = "orchestra_run_not_terminal", runtimeId = id, runId, outcome = previous.Outcome });
+            }
+
+            var runtime = registry.GetRuntime(id);
+            if (runtime is null)
+            {
+                return Results.NotFound(new { error = "runtime_not_found", runtimeId = id });
+            }
+            var attention = registry.GetRuntimeAttention(id);
+            var plans = OrchestraPlanner.Build(
+                runtime,
+                attention?.Reasons ?? Array.Empty<string>(),
+                attention?.Severity ?? "none",
+                attention?.NeedsAttention ?? false);
+            var plan = plans.FirstOrDefault(candidate => string.Equals(candidate.PlanId, previous.PlanId, StringComparison.OrdinalIgnoreCase));
+            if (plan is null || !string.Equals(plan.ExecutionMode, "automatic", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.Conflict(new { error = "orchestra_run_not_retryable", runtimeId = id, runId, planId = previous.PlanId });
+            }
+            if (string.Equals(plan.ApprovalMode, "operator_confirmation", StringComparison.OrdinalIgnoreCase)
+                && !request.Confirmed)
+            {
+                return Results.Conflict(new { error = "orchestra_plan_confirmation_required", runtimeId = id, planId = plan.PlanId });
+            }
+            var approvalError = ValidateOrchestraApproval(plan, request.ApprovedBy, request.ApprovalNote);
+            if (approvalError is not null)
+            {
+                return Results.BadRequest(new { error = "invalid_orchestra_approval", reason = approvalError, runtimeId = id, planId = plan.PlanId });
+            }
+
+            var started = coordinator.TryStart(
+                runtime,
+                plan.PlanId,
+                plan.Revision,
+                NormalizeApprovalActor(plan, request.ApprovedBy),
+                NormalizeApprovalNote(request.ApprovalNote),
+                previous);
+            return started.Run is null
+                ? Results.Conflict(new { error = "orchestra_runtime_busy", runtimeId = id, activeRun = started.ActiveRun })
+                : Results.Accepted($"/v1/orchestra/runtimes/{id}/runs", new { run = started.Run });
         });
 
         app.MapPost("/v1/orchestra/plans/{id}/session", (
@@ -167,7 +255,14 @@ public partial class Program
             {
                 return Results.Conflict(new { error = "runtime_removed_during_orchestra_handoff", runtimeId = id });
             }
-            var run = registry.RecordOrchestraRun(id, "session_preparation", "ok", steps);
+            var run = registry.RecordOrchestraRun(
+                id,
+                "session_preparation",
+                "ok",
+                steps,
+                request.RequestedBy.Trim(),
+                "guided session handoff",
+                sessionPlan.Revision);
             var currentAttention = registry.GetRuntimeAttention(id);
             var currentReasons = currentAttention?.Reasons ?? Array.Empty<string>();
             var currentPlans = OrchestraPlanner.Build(
@@ -198,7 +293,38 @@ public partial class Program
             reasons,
             plans);
 
-    private static async Task<IReadOnlyList<OrchestraExecutionStepResult>> ExecuteOrchestraPlanAsync(
+    internal static string? ValidateOrchestraApproval(OrchestraPlan plan, string? approvedBy, string? approvalNote)
+    {
+        if (!string.IsNullOrWhiteSpace(approvedBy) && approvedBy.Trim().Length > 80)
+        {
+            return "approvedBy must not exceed 80 characters";
+        }
+        if (!string.IsNullOrWhiteSpace(approvalNote) && approvalNote.Trim().Length > 500)
+        {
+            return "approvalNote must not exceed 500 characters";
+        }
+        if (!string.Equals(plan.ApprovalMode, "operator_confirmation", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        if (string.IsNullOrWhiteSpace(approvedBy))
+        {
+            return "approvedBy is required for operator-confirmed plans";
+        }
+        return string.IsNullOrWhiteSpace(approvalNote)
+            ? "approvalNote is required for operator-confirmed plans"
+            : null;
+    }
+
+    private static string NormalizeApprovalActor(OrchestraPlan plan, string? approvedBy) =>
+        string.Equals(plan.ApprovalMode, "operator_confirmation", StringComparison.OrdinalIgnoreCase)
+            ? approvedBy!.Trim()
+            : string.IsNullOrWhiteSpace(approvedBy) ? "automatic" : approvedBy.Trim();
+
+    private static string? NormalizeApprovalNote(string? approvalNote) =>
+        string.IsNullOrWhiteSpace(approvalNote) ? null : approvalNote.Trim();
+
+    internal static async Task<IReadOnlyList<OrchestraExecutionStepResult>> ExecuteOrchestraPlanAsync(
         string planId,
         RuntimeSummary runtime,
         RegistryService registry,
@@ -283,7 +409,31 @@ internal static class OrchestraPlanner
         }
 
         plans.Add(BuildSessionPreparationPlan(runtime));
-        return plans;
+        return plans.Select(plan => ApplyExecutionPolicy(plan, runtime)).ToArray();
+    }
+
+    private static OrchestraPlan ApplyExecutionPolicy(OrchestraPlan plan, RuntimeSummary runtime)
+    {
+        var approvalMode = string.Equals(plan.RiskLevel, "medium", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(plan.ExecutionReadiness, "review_first", StringComparison.OrdinalIgnoreCase)
+            ? "operator_confirmation"
+            : "none";
+        var revisionPayload = JsonSerializer.Serialize(new
+        {
+            runtime.RuntimeId,
+            runtime.Endpoint,
+            runtime.SidecarEndpoint,
+            plan.PlanId,
+            plan.Intent,
+            plan.RiskLevel,
+            plan.ExecutionReadiness,
+            plan.ExecutionMode,
+            Reasons = plan.Reasons.OrderBy(static value => value, StringComparer.Ordinal).ToArray(),
+            Capabilities = plan.RequiredCapabilities.OrderBy(static value => value, StringComparer.Ordinal).ToArray(),
+            Steps = plan.Steps.Select(step => new { step.Key, step.Kind }).ToArray(),
+        });
+        var revision = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(revisionPayload))).ToLowerInvariant()[..16];
+        return plan with { ApprovalMode = approvalMode, Revision = revision };
     }
 
     private static OrchestraPlan BuildRuntimeTriagePlan(

@@ -52,6 +52,8 @@ function renderOrchestraPlan(payload) {
         <span class="tag-pill">risk: ${escapeHtml(plan.riskLevel)}</span>
         <span class="tag-pill">readiness: ${escapeHtml(plan.executionReadiness)}</span>
         <span class="tag-pill">mode: ${escapeHtml(plan.executionMode)}</span>
+        <span class="tag-pill">approval: ${escapeHtml(plan.approvalMode)}</span>
+        <span class="tag-pill">revision: ${escapeHtml(plan.revision)}</span>
         <span class="tag-pill">scope: ${escapeHtml(orchestraTagLabel(payload.tags))}</span>
       </div>
       ${plan.reasons?.length ? `
@@ -69,6 +71,18 @@ function renderOrchestraPlan(payload) {
           </li>
         `).join("")}
       </ol>
+      ${plan.executionMode === "automatic" && plan.approvalMode === "operator_confirmation" ? `
+        <div class="orchestra-approval-form" data-orchestra-approval-form>
+          <label>
+            <span>Approved by <small>operator-provided attribution</small></span>
+            <input type="text" data-orchestra-approved-by value="leserpent-operator" maxlength="80" autocomplete="off" />
+          </label>
+          <label>
+            <span>Approval note</span>
+            <textarea data-orchestra-approval-note maxlength="500" rows="2" placeholder="Why is this execution appropriate now?"></textarea>
+          </label>
+        </div>
+      ` : ""}
       ${plan.executionMode === "guided" && plan.planId === "session_preparation" ? `
         <div class="orchestra-guided-form" data-orchestra-session-form>
           <label>
@@ -85,7 +99,10 @@ function renderOrchestraPlan(payload) {
       ${(plan.suggestedSurfaces || []).length ? `
         <div class="runtime-inline-actions orchestra-surface-links">
           ${plan.executionMode === "automatic" ? `
-            <button type="button" data-orchestra-execute="${escapeHtml(plan.planId)}">Run plan</button>
+            <button type="button"
+              data-orchestra-execute="${escapeHtml(plan.planId)}"
+              data-orchestra-revision="${escapeHtml(plan.revision)}"
+              data-orchestra-approval="${escapeHtml(plan.approvalMode)}">${plan.approvalMode === "operator_confirmation" ? "Review & run" : "Run plan"}</button>
           ` : ""}
           ${(plan.suggestedSurfaces || []).map((surface) => `
             <a class="quiet" href="${escapeHtml(surface.path)}">${escapeHtml(surface.label)}</a>
@@ -111,9 +128,11 @@ function renderOrchestraHistory(runs) {
       <article class="orchestra-run" data-outcome="${escapeHtml(run.outcome)}">
         <div class="item-head">
           <strong>${escapeHtml(run.planId)}</strong>
-          <span class="severity ${escapeHtml(run.outcome === "ok" ? "" : "warning")}">${escapeHtml(run.outcome)}</span>
+          <span class="severity ${escapeHtml(["succeeded", "ok"].includes(run.outcome) ? "" : "warning")}">${escapeHtml(run.outcome)}</span>
         </div>
-        <div class="item-meta">${escapeHtml(run.runId)} · ${escapeHtml(orchestraTimestamp(run.executedAt))}</div>
+        <div class="item-meta">${escapeHtml(run.runId)} · attempt ${escapeHtml(run.attempt || 1)} · ${escapeHtml(orchestraTimestamp(run.executedAt))}</div>
+        <div class="item-meta">actor: ${escapeHtml(run.approvedBy || "unattributed")} · revision: ${escapeHtml(run.planRevision || "legacy")}</div>
+        ${run.approvalNote ? `<div class="orchestra-approval-note">${escapeHtml(run.approvalNote)}</div>` : ""}
         <div class="orchestra-run-steps">
           ${(run.steps || []).map((step) => `
             <div class="orchestra-run-step" data-outcome="${escapeHtml(step.outcome)}">
@@ -123,9 +142,96 @@ function renderOrchestraHistory(runs) {
             </div>
           `).join("")}
         </div>
+        <div class="runtime-inline-actions orchestra-run-actions">
+          ${["queued", "running"].includes(run.outcome) ? `
+            <button type="button" class="quiet" data-orchestra-cancel-run="${escapeHtml(run.runId)}">Cancel</button>
+          ` : ""}
+          ${!["queued", "running"].includes(run.outcome) && run.planId !== "session_preparation" ? `
+            <button type="button" class="quiet" data-orchestra-retry-run="${escapeHtml(run.runId)}">Retry</button>
+          ` : ""}
+        </div>
       </article>
     `).join("")
     : `<div class="hint-line">Executed automatic plans will appear here.</div>`;
+}
+
+function renderOrchestraFleetBoard(payload) {
+  const signature = JSON.stringify(payload);
+  if (state.renderSignatures.orchestraFleetBoard === signature) {
+    return;
+  }
+  state.renderSignatures.orchestraFleetBoard = signature;
+  nodes.orchestraFleetCount.textContent = `${payload.runCount} runs`;
+  const metrics = [
+    ["Active", payload.activeCount],
+    ["Failed", payload.failedCount],
+    ["Degraded", payload.degradedCount],
+    ["Retryable", payload.retryableCount],
+    ["Runtimes", payload.runtimeCount],
+  ];
+  nodes.orchestraFleetMetrics.innerHTML = metrics.map(([label, value]) => `
+    <div class="metric">
+      <div class="metric-label">${escapeHtml(label)}</div>
+      <div class="metric-value">${escapeHtml(value)}</div>
+    </div>
+  `).join("");
+  const recent = (payload.runs || []).slice(0, 20);
+  nodes.orchestraFleetRuns.innerHTML = recent.length
+    ? recent.map((item) => `
+      <button type="button" class="orchestra-fleet-run" data-outcome="${escapeHtml(item.run.outcome)}" data-orchestra-runtime-id="${escapeHtml(item.runtimeId)}">
+        <span class="orchestra-fleet-runtime">
+          <strong>${escapeHtml(item.runtimeName)}</strong>
+          <small>${escapeHtml(orchestraTagLabel(item.tags))}</small>
+        </span>
+        <span>${escapeHtml(item.run.planId)}</span>
+        <span class="severity">${escapeHtml(item.run.outcome)}</span>
+        <span class="item-meta">${escapeHtml(orchestraTimestamp(item.run.executedAt))}</span>
+      </button>
+    `).join("")
+    : `<div class="hint-line">No Orchestra runs have been recorded yet.</div>`;
+}
+
+function scheduleOrchestraFleetPoll(payload) {
+  if (state.orchestraFleetPollTimer) {
+    window.clearTimeout(state.orchestraFleetPollTimer);
+    state.orchestraFleetPollTimer = 0;
+  }
+  if (!payload.activeCount || state.activeTab !== "orchestra") {
+    return;
+  }
+  state.orchestraFleetPollTimer = window.setTimeout(() => {
+    state.orchestraFleetPollTimer = 0;
+    if (state.activeTab === "orchestra") {
+      void loadOrchestraFleetBoard();
+    }
+  }, 1000);
+}
+
+async function loadOrchestraFleetBoard() {
+  try {
+    const payload = await getJson("/v1/orchestra/runs");
+    renderOrchestraFleetBoard(payload);
+    scheduleOrchestraFleetPoll(payload);
+  } catch (error) {
+    console.error(error);
+    nodes.orchestraFleetCount.textContent = "Fleet board unavailable";
+  }
+}
+
+function scheduleOrchestraHistoryPoll(runtimeId, runs) {
+  if (state.orchestraPollTimer) {
+    window.clearTimeout(state.orchestraPollTimer);
+    state.orchestraPollTimer = 0;
+  }
+  if (!runs.some((run) => ["queued", "running"].includes(run.outcome))) {
+    return;
+  }
+  state.orchestraPollTimer = window.setTimeout(() => {
+    state.orchestraPollTimer = 0;
+    if (runtimeId === state.selectedRuntimeId) {
+      void loadOrchestraHistory(runtimeId);
+    }
+  }, 1000);
 }
 
 async function loadOrchestraHistory(runtimeId = state.selectedRuntimeId) {
@@ -138,6 +244,7 @@ async function loadOrchestraHistory(runtimeId = state.selectedRuntimeId) {
     const payload = await getJson(`/v1/orchestra/runtimes/${encodeURIComponent(runtimeId)}/runs`);
     if (runtimeId === state.selectedRuntimeId) {
       renderOrchestraHistory(payload.runs);
+      scheduleOrchestraHistoryPoll(runtimeId, payload.runs || []);
     }
   } catch (error) {
     console.error(error);
@@ -147,9 +254,20 @@ async function loadOrchestraHistory(runtimeId = state.selectedRuntimeId) {
   }
 }
 
-async function executeOrchestraPlan(planId) {
+async function executeOrchestraPlan(planId, revision, approvalMode, approvedBy, approvalNote) {
   const runtimeId = state.selectedRuntimeId;
   if (!runtimeId || !planId) {
+    return;
+  }
+  if (approvalMode === "operator_confirmation" && (!approvedBy || !approvalNote)) {
+    nodes.statusLine.textContent = "Approved by and approval note are required for this plan.";
+    return;
+  }
+
+  const confirmed = approvalMode !== "operator_confirmation" || window.confirm(
+    `Approve Orchestra plan ${planId}?\n\nRisk-aware execution requires operator confirmation.\nRevision: ${revision}`,
+  );
+  if (!confirmed) {
     return;
   }
 
@@ -161,20 +279,81 @@ async function executeOrchestraPlan(planId) {
   nodes.statusLine.textContent = `Running orchestra plan ${planId}...`;
 
   try {
-    const result = await postJson(`/v1/orchestra/plans/${encodeURIComponent(runtimeId)}/${encodeURIComponent(planId)}/execute`);
+    const result = await postJsonBody(`/v1/orchestra/plans/${encodeURIComponent(runtimeId)}/${encodeURIComponent(planId)}/execute`, {
+      confirmed,
+      expectedRevision: revision,
+      approvedBy: approvalMode === "operator_confirmation" ? approvedBy : "automatic",
+      approvalNote: approvalMode === "operator_confirmation" ? approvalNote : null,
+    });
     if (runtimeId !== state.selectedRuntimeId) {
       return;
     }
-    renderOrchestraPlan(result.currentPlan);
-    await loadDashboard();
-    nodes.statusLine.textContent = `Orchestra plan ${planId} completed: ${result.outcome}.`;
+    await loadOrchestraHistory(runtimeId);
+    void loadOrchestraFleetBoard();
+    nodes.statusLine.textContent = `Orchestra plan ${planId} started as ${result.run.runId}.`;
   } catch (error) {
     console.error(error);
     nodes.statusLine.textContent = `Orchestra plan ${planId} failed: ${error.message}`;
     if (button) {
       button.disabled = false;
-      button.textContent = "Run plan";
+      button.textContent = approvalMode === "operator_confirmation" ? "Review & run" : "Run plan";
     }
+    void loadOrchestraPlan(runtimeId);
+  }
+}
+
+async function mutateOrchestraRun(runId, action, button) {
+  const runtimeId = state.selectedRuntimeId;
+  if (!runtimeId || !runId) {
+    return;
+  }
+  button.disabled = true;
+  const originalLabel = button.textContent;
+  button.textContent = action === "cancel" ? "Cancelling..." : "Retrying...";
+  try {
+    const previousRun = (await getJson(`/v1/orchestra/runtimes/${encodeURIComponent(runtimeId)}/runs`)).runs
+      .find((run) => run.runId === runId);
+    const currentPlan = state.orchestraPlan?.plans?.find((plan) => plan.planId === previousRun?.planId);
+    let approvedBy = "automatic";
+    let approvalNote = null;
+    if (action === "retry" && currentPlan?.approvalMode === "operator_confirmation") {
+      approvedBy = window.prompt("Approved by (operator-provided attribution)", previousRun?.approvedBy || "leserpent-operator");
+      if (approvedBy === null) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+        return;
+      }
+      approvalNote = window.prompt("Approval note for this retry", "");
+      if (approvalNote === null) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+        return;
+      }
+    }
+    const confirmed = action !== "retry"
+      || currentPlan?.approvalMode !== "operator_confirmation"
+      || window.confirm(`Approve retry for ${previousRun?.planId || runId}?\n\nRisk: ${currentPlan?.riskLevel || "unknown"}`);
+    if (!confirmed) {
+      button.disabled = false;
+      button.textContent = originalLabel;
+      return;
+    }
+    const path = `/v1/orchestra/runtimes/${encodeURIComponent(runtimeId)}/runs/${encodeURIComponent(runId)}/${action}`;
+    const result = action === "retry"
+      ? await postJsonBody(path, { confirmed, approvedBy, approvalNote })
+      : await postJson(path);
+    if (runtimeId === state.selectedRuntimeId) {
+      await loadOrchestraHistory(runtimeId);
+      void loadOrchestraFleetBoard();
+      nodes.statusLine.textContent = action === "cancel"
+        ? `Cancellation requested for ${runId}.`
+        : `Retry started as ${result.run.runId}.`;
+    }
+  } catch (error) {
+    console.error(error);
+    nodes.statusLine.textContent = `Orchestra ${action} failed: ${error.message}`;
+    button.disabled = false;
+    button.textContent = originalLabel;
   }
 }
 
@@ -201,6 +380,7 @@ async function createOrchestraSession(button) {
     }
     renderOrchestraPlan(result.currentPlan);
     await loadDashboard();
+    void loadOrchestraFleetBoard();
     nodes.statusLine.textContent = `Session ${result.session.sessionId} created through Orchestra.`;
   } catch (error) {
     console.error(error);

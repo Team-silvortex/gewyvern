@@ -22,6 +22,10 @@ public sealed partial class CapabilityDiscoveryService
                 resiliencePlanResult.Plan!,
                 cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch
         {
             return null;
