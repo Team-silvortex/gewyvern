@@ -5,9 +5,9 @@ implemented Leselang slice. The broader destination is defined by the
 [Leserpent 2.0 architecture](leserpent-2-architecture.md); unimplemented roadmap
 syntax is not part of this contract.
 
-Status: **Gate 2, evolving contract 0.2.0**. The current vertical slice parses,
-lowers, authorizes, suspends, serializes, restores, and resumes one read-only
-effect: `runtime.list`.
+Status: **Gate 2, evolving contract 0.4.0**. The current vertical slice parses,
+lowers, authorizes, suspends, serializes, restores, and resumes the read-only
+`runtime.list` effect and the idempotent `runtime.refresh` command effect.
 
 ## Canonical Program
 
@@ -22,6 +22,17 @@ fn main() = runtime.list(
 `runtime.list` returns a runtime list and requires the `runtime.read`
 capability. Each optional filter accepts a string or `none`; empty strings are
 normalized to `none` during HIR lowering.
+
+The canonical mutating program is:
+
+```leselang
+fn main() = runtime.refresh(runtime_id: "runtime-a")
+```
+
+`runtime.refresh` requires `runtime.refresh`, one valid `runtime_id`, and the
+expected runtime revision supplied to `Vm::start`. The VM derives stable
+`leselang-command-N` and `leselang-effect-N` identifiers from the continuation
+sequence and persists the complete `CommandEnvelope` before dispatch.
 
 ## Grammar
 
@@ -42,18 +53,18 @@ their byte spans. Reassembling token text must reproduce the original source.
 Source is UTF-8 and limited to 256 KiB.
 
 The implemented surface deliberately excludes general expressions, local
-bindings, mutation, loops, concurrency syntax, raw HTTP, shell execution, and
-host-language reflection. Synchronous source semantics do not expose
+bindings, arbitrary mutation, loops, concurrency syntax, raw HTTP, shell
+execution, and host-language reflection. Synchronous source semantics do not expose
 `async`/`await`.
 
 ## HIR And Authorization
 
-The syntax tree lowers into a typed `RuntimeList` effect. Lowering rejects
+The syntax tree lowers into typed `RuntimeList` or `RuntimeRefresh` effects. Lowering rejects
 unknown effects, duplicate named arguments, unknown arguments, and values with
 the wrong shape.
 
 Authorization is explicit and occurs before VM execution. A caller without
-`runtime.read` receives a capability diagnostic; the VM does not emit an
+the effect's required capability receives a capability diagnostic; the VM does not emit an
 effect request for unauthorized code.
 
 ## Execution Protocol
@@ -65,9 +76,10 @@ The stackless VM advances through four protocol states:
 - `Yield`: cooperative suspension reserved by the protocol
 - `Fault`: evaluation stopped with a stable VM diagnostic
 
-For the current slice, `start` emits one `RuntimeList` effect. The effect carries
-a continuation token and expected revision. The host executes the shared
-Leserpent domain query, then calls `resume` with the typed result.
+For the current slice, `start` emits one typed query or command operation. The
+operation carries a continuation token and expected revision. Read-only queries
+may use the direct embedded `resume` path. Mutating commands must be leased and
+completed through `acknowledge_effect`; direct mutation resume fails closed.
 
 Continuation images are versioned and capped at 64 KiB. Execution also enforces
 a source-size limit, fuel limit, 24-hour maximum deadline budget, and
@@ -83,16 +95,30 @@ Duplicate or competing completion after a process restart replays that durable
 step rather than accepting a later result. Sequence allocation is transactional
 across concurrent VM connections.
 
-The journal is schema-versioned, uses full synchronous commits and a five-second
+Service workers use the durable dispatch outbox rather than dispatching the
+returned `Step::Effect` directly. `Vm::claim_effect` leases one ready or expired
+request and returns an attempt-fenced `DispatchLease`; another live VM cannot
+claim it until that lease expires. `Vm::acknowledge_effect` verifies the request,
+attempt, and expiration, then commits the terminal step and acknowledgement in
+one transaction. A crashed worker therefore causes bounded redelivery, while a
+late worker cannot overwrite a newer attempt. The `now_ms` argument is scheduler
+time supplied by the trusted runtime host, never by a remote request.
+
+The journal is schema-versioned, migrates schema 1 journals without inventing
+missing identity or capability context, uses full synchronous commits and a five-second
 lock timeout, rejects symbolic-link final paths, and creates Unix files with
 `0600` permissions. It is bounded to 10,000 records, 8 MiB per terminal step,
-and 64 MiB of total logical payload.
+100 dispatch attempts, a five-minute maximum lease, and 64 MiB of total logical
+payload including dispatch requests.
 
-This is a durable continuation guarantee, not yet an exactly-once guarantee for
-arbitrary external mutation. The current `runtime.list` effect is read-only.
-Future mutating effects must journal dispatch and acknowledgement in the same
-protocol. Typed cancellation, wall-clock timeout enforcement, retry policy,
-retention/compaction, and deterministic structured merge remain Gate 2 work.
+This is a durable continuation guarantee plus at-least-once dispatch. For
+`runtime.refresh`, every redelivery reuses the same domain idempotency key, so
+the current domain kernel commits the refresh once and replays its first result.
+This is not a blanket exactly-once guarantee for arbitrary external adapters;
+each future mutating effect must prove the same end-to-end contract. Typed
+cancellation, wall-clock timeout enforcement, semantic
+retry policy, retention/compaction, and deterministic structured merge remain
+Gate 2 work.
 
 ## Diagnostics
 
@@ -115,10 +141,14 @@ For deterministic model or CLI integration:
 2. Lower the syntax tree into HIR and report semantic diagnostics.
 3. Authorize required capabilities before starting the VM.
 4. Open the durable journal, then call `Vm::start`; pending state is committed before return.
-5. Execute the typed effect through `leserpent-domain`.
-6. Call `Vm::resume` with the token, expected revision, and typed result.
-7. Enumerate pending continuations after restart and safely redrive read-only effects.
-8. Treat repeated completion as replay, not another external operation.
+5. Call `Vm::claim_effect` using trusted scheduler time and dispatch its leased request.
+6. Call `Vm::acknowledge_effect` with the same lease and typed result before expiry.
+7. Let expired leases become claimable after restart; never reuse an older attempt.
+8. For commands, execute the persisted `CommandEnvelope` unchanged on every redelivery.
+9. Treat repeated acknowledged completion as replay, not another external operation.
+
+`Vm::resume` remains the direct embedded path for an effect that has not been
+leased. Once a request is leased, completion must use `acknowledge_effect`.
 
 The implementation lives in `crates/leselang-syntax`, `crates/leselang-hir`,
 and `crates/leselang-vm`. Delivery progress is tracked by the

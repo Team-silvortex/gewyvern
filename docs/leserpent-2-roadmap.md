@@ -55,9 +55,12 @@ future examples in this roadmap, defines what callers may use today.
 
 Current evidence covers the `runtime.list` vertical slice, including a bounded
 SQLite journal, transactional sequence allocation, pending recovery, and
-durable first-completion replay. Exactly-once mutation dispatch, cancellation,
-timeout enforcement, retry, and deterministic merge are still required before
-the gate exits.
+durable first-completion replay. The dispatch outbox now adds attempt-fenced
+leases, crash redelivery, multi-VM exclusion, and transactional acknowledgement.
+The first mutating effect, `runtime.refresh`, now carries one stable domain
+idempotency key through crash redelivery and proves single domain commit with
+result replay. Cancellation, timeout enforcement, semantic retry, retention,
+and deterministic merge are still required before the gate exits.
 
 Exit: programs can suspend, restart, re-enter, and replay deterministically.
 

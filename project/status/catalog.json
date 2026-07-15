@@ -395,12 +395,12 @@
       "feature": "effect-reentry",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 45,
+      "completion": 62,
       "confidence": "medium",
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-execution-protocol",
-        "version": "0.2.0",
+        "version": "0.4.0",
         "stability": "evolving",
         "surfaces": [
           "lossless-syntax",
@@ -411,14 +411,20 @@
           "continuation-image",
           "idempotent-reentry",
           "sqlite-effect-journal",
-          "crash-safe-completion-replay"
+          "crash-safe-completion-replay",
+          "durable-dispatch-outbox",
+          "attempt-fenced-effect-lease",
+          "transactional-dispatch-ack",
+          "typed-command-effect",
+          "stable-domain-idempotency",
+          "runtime-refresh-redelivery"
         ]
       },
       "depends_on": ["leserpent-2/domain-protocol/command-query-kernel"],
       "blockers": [
         {
-          "id": "durable-effect-dispatch",
-          "summary": "Continuation completion is durable, but mutating effect dispatch/acknowledgement, cancellation, wall-clock timeout enforcement, retry, retention, and deterministic merge remain unimplemented."
+          "id": "bounded-effect-control",
+          "summary": "Read and mutation effects now survive crash redelivery with stable domain idempotency, but typed cancellation, wall-clock timeout enforcement, semantic retry policy, retention/compaction, and deterministic merge remain."
         }
       ],
       "consumers": ["model-automation", "leserpent-cli", "ui-functions"],
@@ -429,7 +435,7 @@
         { "kind": "source", "path": "crates/leselang-vm", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm/src/journal.rs", "state": "present" }
       ],
-      "next_gate": "Gate 2: journal mutating effect dispatch/acknowledgement, then add typed cancellation, timeout enforcement, retry, retention, and deterministic merge."
+      "next_gate": "Gate 2: add typed cancellation and trusted wall-clock timeout enforcement, then semantic retry, retention, and deterministic merge."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",

@@ -3,6 +3,7 @@ use super::{protocol_dsl_path, protocol_surface};
 
 #[test]
 fn radius_surfaces_split_access_challenge_and_denied_shelves() {
+    let _lock = super::tests_env::lock();
     let access = protocol_surface("radius", "access").expect("radius access surface should exist");
     let access_shelf = access.shelf.expect("radius access should have a shelf");
     assert_eq!(access_shelf.key, "access");
@@ -36,6 +37,7 @@ fn radius_surfaces_split_access_challenge_and_denied_shelves() {
 
 #[test]
 fn radius_aliases_resolve_to_canonical_entries() {
+    let _lock = super::tests_env::lock();
     assert_eq!(
         protocol_dsl_path("radius", Some("radius-access")),
         Some(super::protocol_fixture_path("radius/access"))
@@ -52,6 +54,7 @@ fn radius_aliases_resolve_to_canonical_entries() {
 
 #[test]
 fn radius_summary_and_semantics_expose_new_entries() {
+    let _lock = super::tests_env::lock();
     let summary = built_in_protocol_summary("radius").expect("radius summary should exist");
     let challenge = summary
         .entries

@@ -4,10 +4,11 @@ use std::path::Path;
 
 use leselang_hir::{Effect, HirProgram, Type, authorize};
 use leserpent_domain::{
-    CapabilitySet, DOMAIN_SCHEMA_VERSION, Principal, Query, QueryEnvelope, QueryResult, Revision,
-    RuntimeProjection,
+    CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandEnvelope,
+    CommandId, CommandOrigin, CommandResult, CommandStatus, Confirmation, DOMAIN_SCHEMA_VERSION,
+    IdempotencyKey, Principal, Query, QueryEnvelope, QueryResult, Revision, RuntimeProjection,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 mod journal;
 
@@ -23,6 +24,9 @@ pub const MAX_EXECUTION_FUEL: u64 = 1_000_000;
 pub const DEFAULT_EFFECT_DEADLINE_MS: u64 = 30_000;
 pub const MAX_EFFECT_DEADLINE_MS: u64 = 24 * 60 * 60 * 1_000;
 pub const DEFAULT_MAX_OUTPUT_ITEMS: usize = 10_000;
+pub const DEFAULT_DISPATCH_LEASE_MS: u64 = 30_000;
+pub const MAX_DISPATCH_LEASE_MS: u64 = 5 * 60 * 1_000;
+pub const MAX_DISPATCH_ATTEMPTS: u32 = 100;
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -48,13 +52,90 @@ pub struct ResourceBudget {
     pub max_output_items: usize,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct EffectRequest {
     pub effect_id: String,
     pub required_capability: String,
-    pub query: QueryEnvelope,
+    pub operation: EffectOperation,
     pub continuation: ContinuationImage,
     pub budget: ResourceBudget,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
+pub enum EffectOperation {
+    Query(QueryEnvelope),
+    Command(CommandEnvelope),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
+pub enum EffectResult {
+    Query(QueryResult),
+    Command(Box<CommandResult>),
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum EffectRequestWire {
+    Current {
+        effect_id: String,
+        required_capability: String,
+        operation: EffectOperation,
+        continuation: ContinuationImage,
+        budget: ResourceBudget,
+    },
+    LegacyQuery {
+        effect_id: String,
+        required_capability: String,
+        query: QueryEnvelope,
+        continuation: ContinuationImage,
+        budget: ResourceBudget,
+    },
+}
+
+impl<'de> Deserialize<'de> for EffectRequest {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = EffectRequestWire::deserialize(deserializer)?;
+        Ok(match wire {
+            EffectRequestWire::Current {
+                effect_id,
+                required_capability,
+                operation,
+                continuation,
+                budget,
+            } => Self {
+                effect_id,
+                required_capability,
+                operation,
+                continuation,
+                budget,
+            },
+            EffectRequestWire::LegacyQuery {
+                effect_id,
+                required_capability,
+                query,
+                continuation,
+                budget,
+            } => Self {
+                effect_id,
+                required_capability,
+                operation: EffectOperation::Query(query),
+                continuation,
+                budget,
+            },
+        })
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DispatchLease {
+    pub request: EffectRequest,
+    pub attempt: u32,
+    pub lease_expires_at_ms: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -63,6 +144,9 @@ pub enum Value {
     RuntimeList {
         revision: Revision,
         runtimes: Vec<RuntimeProjection>,
+    },
+    RuntimeRefresh {
+        result: Box<CommandResult>,
     },
 }
 
@@ -150,31 +234,48 @@ impl Vm {
         if let Err(error) = encode_continuation(&image) {
             return Step::Fault(error);
         }
-        let query = match &program.function.effect {
-            Effect::RuntimeList { filter } => Query::RuntimeList {
-                filter: filter.clone(),
-            },
+        let operation = match &program.function.effect {
+            Effect::RuntimeList { filter } => EffectOperation::Query(QueryEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                principal: principal.clone(),
+                capabilities: capabilities.clone(),
+                query: Query::RuntimeList {
+                    filter: filter.clone(),
+                },
+            }),
+            Effect::RuntimeRefresh { runtime_id } => EffectOperation::Command(CommandEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                command_id: CommandId::new(format!("leselang-command-{sequence}"))
+                    .expect("generated command identifier is valid"),
+                idempotency_key: IdempotencyKey::new(format!("leselang-effect-{sequence}"))
+                    .expect("generated idempotency key is valid"),
+                expected_revision,
+                principal: principal.clone(),
+                capabilities: capabilities.clone(),
+                origin: CommandOrigin::Leselang,
+                confirmation: Confirmation::NotRequired,
+                dry_run: false,
+                command: Command::RuntimeRefresh {
+                    runtime_id: runtime_id.clone(),
+                },
+            }),
         };
-        if let Err(error) = self.journal.record_pending(&image) {
-            return Step::Fault(error);
-        }
-        self.pending.insert(token, image.clone());
-        Step::Effect(Box::new(EffectRequest {
+        let request = EffectRequest {
             effect_id: format!("effect-{sequence}"),
             required_capability: program.function.required_capability.clone(),
-            query: QueryEnvelope {
-                schema_version: DOMAIN_SCHEMA_VERSION,
-                principal,
-                capabilities,
-                query,
-            },
+            operation,
             continuation: image.clone(),
             budget: ResourceBudget {
                 fuel_remaining: self.fuel_limit - 1,
                 deadline_ms: image.deadline_ms,
                 max_output_items: image.max_output_items,
             },
-        }))
+        };
+        if let Err(error) = self.journal.record_pending(&image, Some(&request)) {
+            return Step::Fault(error);
+        }
+        self.pending.insert(token, image);
+        Step::Effect(Box::new(request))
     }
 
     pub fn restore(&mut self, image: ContinuationImage) -> Result<(), Fault> {
@@ -203,12 +304,12 @@ impl Vm {
         {
             self.next_effect_id = self.next_effect_id.max(sequence.saturating_add(1));
         }
-        self.journal.record_pending(&image)?;
+        self.journal.record_pending(&image, None)?;
         self.pending.insert(image.token.clone(), image);
         Ok(())
     }
 
-    pub fn resume(&mut self, image: &ContinuationImage, result: QueryResult) -> Step {
+    pub fn resume(&mut self, image: &ContinuationImage, result: EffectResult) -> Step {
         if let Some(completed) = self.completed.get(&image.token) {
             return completed.clone();
         }
@@ -221,38 +322,53 @@ impl Vm {
         if stored != image {
             return fault("LSV2005", "continuation image does not match pending state");
         }
+        if matches!(image.pending_effect, Effect::RuntimeRefresh { .. }) {
+            return fault(
+                "LSV2110",
+                "mutating effects must be completed through dispatch acknowledgement",
+            );
+        }
 
-        let step = match (&image.pending_effect, image.result_type, result) {
-            (
-                Effect::RuntimeList { .. },
-                Type::RuntimeList,
-                QueryResult::RuntimeList { revision, runtimes },
-            ) => {
-                if let Some(expected) = image.expected_revision
-                    && expected != revision
-                {
-                    fault(
-                        "LSV2101",
-                        format!(
-                            "effect revision conflict: expected {}, actual {}",
-                            expected.0, revision.0
-                        ),
-                    )
-                } else if runtimes.len() > image.max_output_items {
-                    fault(
-                        "LSV2102",
-                        format!(
-                            "effect returned {} items, limit is {}",
-                            runtimes.len(),
-                            image.max_output_items
-                        ),
-                    )
-                } else {
-                    Step::Done(Value::RuntimeList { revision, runtimes })
-                }
-            }
-        };
+        let step = step_from_effect_result(image, None, result);
         let authoritative = match self.journal.record_completed(image, &step) {
+            Ok(step) => step,
+            Err(error) => return Step::Fault(error),
+        };
+        self.pending.remove(&image.token);
+        self.completed
+            .insert(image.token.clone(), authoritative.clone());
+        authoritative
+    }
+
+    pub fn claim_effect(
+        &mut self,
+        now_ms: u64,
+        lease_ms: u64,
+    ) -> Result<Option<DispatchLease>, Fault> {
+        self.journal.claim_dispatch(now_ms, lease_ms)
+    }
+
+    pub fn acknowledge_effect(
+        &mut self,
+        lease: &DispatchLease,
+        now_ms: u64,
+        result: EffectResult,
+    ) -> Step {
+        if let Err(error) = validate_effect_request(&lease.request) {
+            return Step::Fault(error);
+        }
+        let image = &lease.request.continuation;
+        if let Some(completed) = self.completed.get(&image.token) {
+            return completed.clone();
+        }
+        let Some(stored) = self.pending.get(&image.token) else {
+            return fault("LSV2004", "unknown continuation token");
+        };
+        if stored != image {
+            return fault("LSV2005", "continuation image does not match pending state");
+        }
+        let step = step_from_effect_result(image, Some(&lease.request.operation), result);
+        let authoritative = match self.journal.acknowledge_dispatch(lease, now_ms, &step) {
             Ok(step) => step,
             Err(error) => return Step::Fault(error),
         };
@@ -377,6 +493,155 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
     Ok(())
 }
 
+fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
+    validate_image(&request.continuation)?;
+    let token_suffix = request
+        .continuation
+        .token
+        .as_str()
+        .strip_prefix("continuation-")
+        .ok_or_else(|| Fault {
+            code: "LSV2010".to_string(),
+            message: "effect request has a non-canonical continuation token".to_string(),
+        })?;
+    if request.effect_id != format!("effect-{token_suffix}") {
+        return Err(Fault {
+            code: "LSV2010".to_string(),
+            message: "effect identifier does not match continuation token".to_string(),
+        });
+    }
+    let operation_valid = match (&request.continuation.pending_effect, &request.operation) {
+        (
+            Effect::RuntimeList {
+                filter: effect_filter,
+            },
+            EffectOperation::Query(query),
+        ) => {
+            validate_effect_identity(
+                query.schema_version,
+                &query.principal,
+                &query.capabilities,
+                &request.required_capability,
+                CAPABILITY_RUNTIME_READ,
+            )?;
+            matches!(&query.query, Query::RuntimeList { filter } if filter == effect_filter)
+        }
+        (Effect::RuntimeRefresh { runtime_id }, EffectOperation::Command(command)) => {
+            validate_effect_identity(
+                command.schema_version,
+                &command.principal,
+                &command.capabilities,
+                &request.required_capability,
+                CAPABILITY_RUNTIME_REFRESH,
+            )?;
+            command.command_id
+                == CommandId::new(format!("leselang-command-{token_suffix}"))
+                    .expect("canonical command identifier is valid")
+                && command.idempotency_key.as_str() == format!("leselang-effect-{token_suffix}")
+                && command.expected_revision == request.continuation.expected_revision
+                && command.origin == CommandOrigin::Leselang
+                && command.confirmation == Confirmation::NotRequired
+                && !command.dry_run
+                && matches!(
+                    &command.command,
+                    Command::RuntimeRefresh { runtime_id: command_runtime_id }
+                        if command_runtime_id == runtime_id
+                )
+        }
+        _ => false,
+    };
+    if !operation_valid
+        || request.budget.fuel_remaining != request.continuation.fuel_remaining
+        || request.budget.deadline_ms != request.continuation.deadline_ms
+        || request.budget.max_output_items != request.continuation.max_output_items
+    {
+        return Err(Fault {
+            code: "LSV2013".to_string(),
+            message: "effect request does not match its continuation".to_string(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_effect_identity(
+    schema_version: u32,
+    principal: &Principal,
+    capabilities: &CapabilitySet,
+    actual_capability: &str,
+    expected_capability: &str,
+) -> Result<(), Fault> {
+    if actual_capability != expected_capability || !capabilities.contains(actual_capability) {
+        return Err(Fault {
+            code: "LSV2011".to_string(),
+            message: "effect request capability is inconsistent".to_string(),
+        });
+    }
+    if schema_version != DOMAIN_SCHEMA_VERSION
+        || principal.id.is_empty()
+        || principal.id.len() > 128
+        || !principal
+            .id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.'))
+    {
+        return Err(Fault {
+            code: "LSV2012".to_string(),
+            message: "effect request envelope is invalid".to_string(),
+        });
+    }
+    Ok(())
+}
+
+fn step_from_effect_result(
+    image: &ContinuationImage,
+    operation: Option<&EffectOperation>,
+    result: EffectResult,
+) -> Step {
+    match (&image.pending_effect, image.result_type, operation, result) {
+        (
+            Effect::RuntimeList { .. },
+            Type::RuntimeList,
+            _,
+            EffectResult::Query(QueryResult::RuntimeList { revision, runtimes }),
+        ) => {
+            if let Some(expected) = image.expected_revision
+                && expected != revision
+            {
+                fault(
+                    "LSV2101",
+                    format!(
+                        "effect revision conflict: expected {}, actual {}",
+                        expected.0, revision.0
+                    ),
+                )
+            } else if runtimes.len() > image.max_output_items {
+                fault(
+                    "LSV2102",
+                    format!(
+                        "effect returned {} items, limit is {}",
+                        runtimes.len(),
+                        image.max_output_items
+                    ),
+                )
+            } else {
+                Step::Done(Value::RuntimeList { revision, runtimes })
+            }
+        }
+        (
+            Effect::RuntimeRefresh { runtime_id },
+            Type::RuntimeRefresh,
+            Some(EffectOperation::Command(command)),
+            EffectResult::Command(result),
+        ) if result.runtime.id == *runtime_id
+            && result.command_id == command.command_id
+            && result.status == CommandStatus::Applied =>
+        {
+            Step::Done(Value::RuntimeRefresh { result })
+        }
+        _ => fault("LSV2103", "effect result does not match pending effect"),
+    }
+}
+
 struct CappedWriter {
     output: Vec<u8>,
     limit: usize,
@@ -427,7 +692,8 @@ mod tests {
     use leselang_hir::lower;
     use leselang_syntax::parse;
     use leserpent_domain::{
-        CAPABILITY_RUNTIME_READ, InMemoryControlPlane, RuntimeId, RuntimeListFilter,
+        CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, InMemoryControlPlane, RuntimeId,
+        RuntimeListFilter,
     };
 
     use super::*;
@@ -483,6 +749,31 @@ mod tests {
         *request
     }
 
+    fn runtime_list_result(revision: u64) -> EffectResult {
+        EffectResult::Query(QueryResult::RuntimeList {
+            revision: Revision(revision),
+            runtimes: Vec::new(),
+        })
+    }
+
+    fn start_refresh(vm: &mut Vm, expected_revision: Revision) -> EffectRequest {
+        let program = lower(&parse(
+            "fn main() = runtime.refresh(runtime_id: \"runtime-a\")",
+        ))
+        .unwrap();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_RUNTIME_REFRESH]),
+            Some(expected_revision),
+        ) else {
+            panic!("expected refresh effect");
+        };
+        *request
+    }
+
     #[test]
     fn stackless_start_emits_typed_runtime_list_effect() {
         let mut vm = Vm::default();
@@ -490,7 +781,10 @@ mod tests {
         assert_eq!(request.required_capability, CAPABILITY_RUNTIME_READ);
         assert_eq!(request.continuation.program_counter, 1);
         assert_eq!(vm.pending_count(), 1);
-        let Query::RuntimeList { filter } = request.query.query;
+        let EffectOperation::Query(query) = request.operation else {
+            panic!("expected query operation");
+        };
+        let Query::RuntimeList { filter } = query.query;
         assert_eq!(
             filter,
             RuntimeListFilter {
@@ -502,13 +796,49 @@ mod tests {
     }
 
     #[test]
+    fn legacy_query_effect_request_decodes_to_current_operation() {
+        let mut vm = Vm::default();
+        let request = start(&mut vm, None);
+        let EffectOperation::Query(query) = request.operation.clone() else {
+            panic!("expected query operation");
+        };
+        let legacy = serde_json::json!({
+            "effect_id": request.effect_id,
+            "required_capability": request.required_capability,
+            "query": query,
+            "continuation": request.continuation,
+            "budget": request.budget,
+        });
+        let decoded: EffectRequest = serde_json::from_value(legacy).unwrap();
+        assert_eq!(decoded, request);
+    }
+
+    #[test]
+    fn mutating_effect_cannot_bypass_leased_command_envelope() {
+        let mut vm = Vm::default();
+        let request = start_refresh(&mut vm, Revision(1));
+        let result = CommandResult {
+            command_id: CommandId::new("leselang-command-1").unwrap(),
+            status: CommandStatus::Applied,
+            runtime: InMemoryControlPlane::default().register_runtime(
+                RuntimeId::new("runtime-a").unwrap(),
+                "Alpha",
+                "http://runtime-a",
+            ),
+            events: Vec::new(),
+        };
+        let step = vm.resume(
+            &request.continuation,
+            EffectResult::Command(Box::new(result)),
+        );
+        assert!(matches!(step, Step::Fault(Fault { ref code, .. }) if code == "LSV2110"));
+    }
+
+    #[test]
     fn completion_consumes_once_and_duplicate_delivery_is_idempotent() {
         let mut vm = Vm::default();
         let request = start(&mut vm, Some(Revision(7)));
-        let result = QueryResult::RuntimeList {
-            revision: Revision(7),
-            runtimes: Vec::new(),
-        };
+        let result = runtime_list_result(7);
         let first = vm.resume(&request.continuation, result.clone());
         let duplicate = vm.resume(&request.continuation, result);
         assert_eq!(first, duplicate);
@@ -525,13 +855,7 @@ mod tests {
 
         let mut restarted_vm = Vm::default();
         restarted_vm.restore(restored_image.clone()).unwrap();
-        let step = restarted_vm.resume(
-            &restored_image,
-            QueryResult::RuntimeList {
-                revision: Revision(11),
-                runtimes: Vec::new(),
-            },
-        );
+        let step = restarted_vm.resume(&restored_image, runtime_list_result(11));
         assert!(matches!(
             step,
             Step::Done(Value::RuntimeList {
@@ -545,10 +869,7 @@ mod tests {
     fn revision_conflict_is_typed_and_idempotently_replayed() {
         let mut vm = Vm::default();
         let request = start(&mut vm, Some(Revision(3)));
-        let result = QueryResult::RuntimeList {
-            revision: Revision(4),
-            runtimes: Vec::new(),
-        };
+        let result = runtime_list_result(4);
         let first = vm.resume(&request.continuation, result.clone());
         let duplicate = vm.resume(&request.continuation, result);
         assert_eq!(first, duplicate);
@@ -612,8 +933,11 @@ mod tests {
         control.register_runtime(RuntimeId::new("runtime-b").unwrap(), "Bravo", "http://b");
         control.register_runtime(RuntimeId::new("runtime-a").unwrap(), "Alpha", "http://a");
 
-        let result = control.query(request.query).unwrap();
-        let step = vm.resume(&request.continuation, result);
+        let EffectOperation::Query(query) = request.operation else {
+            panic!("expected query operation");
+        };
+        let result = control.query(query).unwrap();
+        let step = vm.resume(&request.continuation, EffectResult::Query(result));
         let Step::Done(Value::RuntimeList { runtimes, .. }) = step else {
             panic!("vertical slice should complete");
         };
@@ -653,7 +977,7 @@ mod tests {
             })
             .unwrap();
         assert!(matches!(
-            restarted.resume(&image, result),
+            restarted.resume(&image, EffectResult::Query(result)),
             Step::Fault(Fault { ref code, .. }) if code == "LSV2102"
         ));
 
@@ -688,13 +1012,7 @@ mod tests {
                 restarted.pending_continuations(),
                 vec![request.continuation.clone()]
             );
-            restarted.resume(
-                &request.continuation,
-                QueryResult::RuntimeList {
-                    revision: Revision(21),
-                    runtimes: Vec::new(),
-                },
-            )
+            restarted.resume(&request.continuation, runtime_list_result(21))
         };
         assert!(matches!(
             first_step,
@@ -707,13 +1025,7 @@ mod tests {
         let mut restarted_again = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
         assert_eq!(restarted_again.pending_count(), 0);
         assert_eq!(restarted_again.completed_count(), 1);
-        let replay = restarted_again.resume(
-            &request.continuation,
-            QueryResult::RuntimeList {
-                revision: Revision(99),
-                runtimes: Vec::new(),
-            },
-        );
+        let replay = restarted_again.resume(&request.continuation, runtime_list_result(99));
         assert_eq!(replay, first_step);
     }
 
@@ -738,20 +1050,8 @@ mod tests {
         let request = start(&mut first, None);
         let mut second = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
 
-        let first_step = first.resume(
-            &request.continuation,
-            QueryResult::RuntimeList {
-                revision: Revision(31),
-                runtimes: Vec::new(),
-            },
-        );
-        let competing_step = second.resume(
-            &request.continuation,
-            QueryResult::RuntimeList {
-                revision: Revision(32),
-                runtimes: Vec::new(),
-            },
-        );
+        let first_step = first.resume(&request.continuation, runtime_list_result(31));
+        let competing_step = second.resume(&request.continuation, runtime_list_result(32));
 
         assert_eq!(competing_step, first_step);
         assert!(matches!(
@@ -761,6 +1061,190 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn dispatch_lease_is_fenced_and_acknowledged_in_ephemeral_mode() {
+        let mut vm = Vm::default();
+        let request = start(&mut vm, None);
+        let lease = vm
+            .claim_effect(1_000, DEFAULT_DISPATCH_LEASE_MS)
+            .unwrap()
+            .unwrap();
+        assert_eq!(lease.request, request);
+        assert_eq!(lease.attempt, 1);
+        assert!(
+            vm.claim_effect(1_001, DEFAULT_DISPATCH_LEASE_MS)
+                .unwrap()
+                .is_none()
+        );
+
+        let direct = vm.resume(&request.continuation, runtime_list_result(1));
+        assert!(matches!(direct, Step::Fault(Fault { ref code, .. }) if code == "LSV4024"));
+
+        let completed = vm.acknowledge_effect(&lease, 1_001, runtime_list_result(2));
+        assert!(matches!(
+            completed,
+            Step::Done(Value::RuntimeList {
+                revision: Revision(2),
+                ..
+            })
+        ));
+        assert_eq!(vm.pending_count(), 0);
+    }
+
+    #[test]
+    fn durable_dispatch_reclaims_expired_lease_and_rejects_stale_worker() {
+        let journal = TempJournal::new("dispatch-recovery");
+        let mut first = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let request = start(&mut first, None);
+        let first_lease = first.claim_effect(1_000, 50).unwrap().unwrap();
+
+        let mut restarted = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert!(restarted.claim_effect(1_049, 50).unwrap().is_none());
+        let expired = first.acknowledge_effect(&first_lease, 1_051, runtime_list_result(40));
+        assert!(matches!(expired, Step::Fault(Fault { ref code, .. }) if code == "LSV4023"));
+
+        let second_lease = restarted.claim_effect(1_051, 50).unwrap().unwrap();
+        assert_eq!(second_lease.request, request);
+        assert_eq!(second_lease.attempt, 2);
+        let stale = first.acknowledge_effect(&first_lease, 1_052, runtime_list_result(41));
+        assert!(matches!(stale, Step::Fault(Fault { ref code, .. }) if code == "LSV4022"));
+
+        let completed = restarted.acknowledge_effect(&second_lease, 1_052, runtime_list_result(42));
+        assert!(matches!(
+            completed,
+            Step::Done(Value::RuntimeList {
+                revision: Revision(42),
+                ..
+            })
+        ));
+        drop(restarted);
+
+        let mut recovered = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert!(recovered.claim_effect(2_000, 50).unwrap().is_none());
+        assert_eq!(recovered.completed_count(), 1);
+    }
+
+    #[test]
+    fn durable_dispatch_has_single_claimant_across_live_vms() {
+        let journal = TempJournal::new("dispatch-race");
+        let mut first = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        start(&mut first, None);
+        let mut second = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+
+        assert!(first.claim_effect(10, 100).unwrap().is_some());
+        assert!(second.claim_effect(10, 100).unwrap().is_none());
+    }
+
+    #[test]
+    fn mutating_effect_redelivery_reuses_domain_idempotency_key() {
+        let journal = TempJournal::new("mutation-redelivery");
+        let mut control = InMemoryControlPlane::default();
+        control.register_runtime(
+            RuntimeId::new("runtime-a").unwrap(),
+            "Alpha",
+            "http://runtime-a",
+        );
+
+        let first_lease = {
+            let mut first = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            let request = start_refresh(&mut first, Revision(1));
+            let EffectOperation::Command(command) = &request.operation else {
+                panic!("expected command operation");
+            };
+            assert_eq!(command.idempotency_key.as_str(), "leselang-effect-1");
+            first.claim_effect(1_000, 50).unwrap().unwrap()
+        };
+        let EffectOperation::Command(first_command) = first_lease.request.operation.clone() else {
+            panic!("expected command operation");
+        };
+        let first_result = control.execute(first_command).unwrap();
+        assert_eq!(first_result.runtime.refresh_count, 1);
+
+        let mut restarted = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let second_lease = restarted.claim_effect(1_051, 50).unwrap().unwrap();
+        assert_eq!(second_lease.attempt, 2);
+        assert_eq!(second_lease.request, first_lease.request);
+        let EffectOperation::Command(second_command) = second_lease.request.operation.clone()
+        else {
+            panic!("expected command operation");
+        };
+        let replayed_result = control.execute(second_command).unwrap();
+        assert_eq!(replayed_result, first_result);
+        assert_eq!(replayed_result.runtime.refresh_count, 1);
+
+        let completed = restarted.acknowledge_effect(
+            &second_lease,
+            1_052,
+            EffectResult::Command(Box::new(replayed_result.clone())),
+        );
+        assert!(matches!(
+            completed,
+            Step::Done(Value::RuntimeRefresh { ref result }) if **result == replayed_result
+        ));
+        drop(restarted);
+
+        let mut recovered = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert!(recovered.claim_effect(2_000, 50).unwrap().is_none());
+        assert_eq!(recovered.completed_count(), 1);
+    }
+
+    #[test]
+    fn journal_v1_migrates_without_forging_missing_dispatch_context() {
+        let journal = TempJournal::new("v1-migration");
+        let request = {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            start(&mut vm, None)
+        };
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        connection
+            .execute_batch("DROP TABLE vm_dispatches; PRAGMA user_version = 1;")
+            .unwrap();
+        drop(connection);
+
+        let mut migrated = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert_eq!(migrated.pending_continuations(), vec![request.continuation]);
+        assert!(migrated.claim_effect(10, 100).unwrap().is_none());
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        assert_eq!(
+            connection
+                .query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0))
+                .unwrap(),
+            JOURNAL_SCHEMA_VERSION
+        );
+    }
+
+    #[test]
+    fn durable_journal_accepts_legacy_query_request_encoding() {
+        let journal = TempJournal::new("legacy-request");
+        {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            start(&mut vm, None);
+        }
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        let request: Vec<u8> = connection
+            .query_row("SELECT request FROM vm_dispatches", [], |row| row.get(0))
+            .unwrap();
+        let mut value: serde_json::Value = serde_json::from_slice(&request).unwrap();
+        let operation = value.as_object_mut().unwrap().remove("operation").unwrap();
+        assert_eq!(operation["kind"], "query");
+        value
+            .as_object_mut()
+            .unwrap()
+            .insert("query".to_string(), operation["payload"].clone());
+        connection
+            .execute(
+                "UPDATE vm_dispatches SET request = ?1",
+                [serde_json::to_vec(&value).unwrap()],
+            )
+            .unwrap();
+        drop(connection);
+
+        let mut recovered = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let lease = recovered.claim_effect(10, 100).unwrap().unwrap();
+        let completed = recovered.acknowledge_effect(&lease, 11, runtime_list_result(1));
+        assert!(matches!(completed, Step::Done(Value::RuntimeList { .. })));
     }
 
     #[test]

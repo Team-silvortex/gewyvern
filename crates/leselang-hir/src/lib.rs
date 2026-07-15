@@ -1,7 +1,10 @@
 use std::collections::BTreeSet;
 
 use leselang_syntax::{Expression, Span, SyntaxTree};
-use leserpent_domain::{CAPABILITY_RUNTIME_READ, CapabilitySet, RuntimeListFilter};
+use leserpent_domain::{
+    CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, RuntimeId,
+    RuntimeListFilter,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -21,12 +24,14 @@ pub struct HirFunction {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Effect {
     RuntimeList { filter: RuntimeListFilter },
+    RuntimeRefresh { runtime_id: RuntimeId },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Type {
     RuntimeList,
+    RuntimeRefresh,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -67,16 +72,16 @@ pub fn lower(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnostic>> {
             span: Some(function.span),
         }]);
     };
-    if callee != "runtime.list" {
+    if !matches!(callee.as_str(), "runtime.list" | "runtime.refresh") {
         return Err(vec![Diagnostic {
             code: "LSH1003".to_string(),
             message: format!("unknown effect '{callee}'"),
             span: Some(*span),
         }]);
     }
-
     let mut seen = BTreeSet::new();
     let mut filter = RuntimeListFilter::default();
+    let mut runtime_id = None;
     let mut diagnostics = Vec::new();
     for argument in arguments {
         if !seen.insert(argument.name.as_str()) {
@@ -99,29 +104,62 @@ pub fn lower(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnostic>> {
                 continue;
             }
         };
-        match argument.name.as_str() {
-            "environment" => filter.environment = value,
-            "cluster" => filter.cluster = value,
-            "role" => filter.role = value,
+        match (callee.as_str(), argument.name.as_str()) {
+            ("runtime.list", "environment") => filter.environment = value,
+            ("runtime.list", "cluster") => filter.cluster = value,
+            ("runtime.list", "role") => filter.role = value,
+            ("runtime.refresh", "runtime_id") => {
+                match value.and_then(|value| RuntimeId::new(value).ok()) {
+                    Some(value) => runtime_id = Some(value),
+                    None => diagnostics.push(Diagnostic {
+                        code: "LSH1104".to_string(),
+                        message: "runtime.refresh runtime_id must be a valid identifier string"
+                            .to_string(),
+                        span: Some(argument.span),
+                    }),
+                }
+            }
             _ => diagnostics.push(Diagnostic {
                 code: "LSH1103".to_string(),
-                message: format!("unknown runtime.list argument '{}'", argument.name),
+                message: format!("unknown {callee} argument '{}'", argument.name),
                 span: Some(argument.span),
             }),
         }
+    }
+    if callee == "runtime.refresh" && runtime_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1105".to_string(),
+            message: "runtime.refresh requires runtime_id".to_string(),
+            span: Some(*span),
+        });
     }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
 
+    let (effect, result_type, required_capability) = match callee.as_str() {
+        "runtime.list" => (
+            Effect::RuntimeList {
+                filter: filter.normalized(),
+            },
+            Type::RuntimeList,
+            CAPABILITY_RUNTIME_READ,
+        ),
+        "runtime.refresh" => (
+            Effect::RuntimeRefresh {
+                runtime_id: runtime_id.expect("validated runtime.refresh identifier"),
+            },
+            Type::RuntimeRefresh,
+            CAPABILITY_RUNTIME_REFRESH,
+        ),
+        _ => unreachable!("unknown effects returned above"),
+    };
     Ok(HirProgram {
         function: HirFunction {
             name: function.name.clone(),
-            effect: Effect::RuntimeList {
-                filter: filter.normalized(),
-            },
-            result_type: Type::RuntimeList,
-            required_capability: CAPABILITY_RUNTIME_READ.to_string(),
+            effect,
+            result_type,
+            required_capability: required_capability.to_string(),
         },
     })
 }
@@ -157,7 +195,9 @@ mod tests {
             program.function.required_capability,
             CAPABILITY_RUNTIME_READ
         );
-        let Effect::RuntimeList { filter } = program.function.effect;
+        let Effect::RuntimeList { filter } = program.function.effect else {
+            panic!("expected runtime.list effect");
+        };
         assert_eq!(filter.environment.as_deref(), Some("production"));
         assert_eq!(filter.cluster, None);
     }
@@ -182,5 +222,36 @@ mod tests {
             "LSH2001"
         );
         authorize(&program, &CapabilitySet::new([CAPABILITY_RUNTIME_READ])).unwrap();
+    }
+
+    #[test]
+    fn runtime_refresh_lowers_to_typed_mutating_effect() {
+        let program = lower(&parse(
+            "fn main() = runtime.refresh(runtime_id: \"runtime-a\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::RuntimeRefresh);
+        assert_eq!(
+            program.function.required_capability,
+            CAPABILITY_RUNTIME_REFRESH
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::RuntimeRefresh { ref runtime_id } if runtime_id.as_str() == "runtime-a"
+        ));
+    }
+
+    #[test]
+    fn runtime_refresh_requires_one_valid_identifier() {
+        for source in [
+            "fn main() = runtime.refresh()",
+            "fn main() = runtime.refresh(runtime_id: none)",
+            "fn main() = runtime.refresh(runtime_id: \"bad/id\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
     }
 }
