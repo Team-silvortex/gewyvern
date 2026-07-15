@@ -34,7 +34,9 @@ pub fn parse_str_with_frontend_unvalidated(
     parse_str_with_frontend_unvalidated_with_base(input, None)
 }
 
-pub(crate) fn load_file_with_package_context(path: &str) -> Result<(String, PackageContext), DslError> {
+pub(crate) fn load_file_with_package_context(
+    path: &str,
+) -> Result<(String, PackageContext), DslError> {
     let package = package::resolve_package_context(path)?;
     let resolved = package.entry_file.clone();
     let input = read_file(&resolved)?;
@@ -103,7 +105,9 @@ pub(super) fn looks_like_pipeline_dsl(input: &str) -> bool {
                 && !line.starts_with("//!")
         })
         .next()
-        .is_some_and(|line| is_pipeline_template_head(line) || parse_pipeline_function_head(line).is_some())
+        .is_some_and(|line| {
+            is_pipeline_template_head(line) || parse_pipeline_function_head(line).is_some()
+        })
 }
 
 fn is_pipeline_template_head(line: &str) -> bool {

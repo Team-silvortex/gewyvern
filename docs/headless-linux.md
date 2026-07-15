@@ -3,8 +3,9 @@
 This project can keep most runtime and export work on macOS, but real eBPF
 attach and ringbuf work should be validated in Linux.
 
-The lightest path for this repository is a headless Linux container running
-inside Docker Desktop's Linux VM.
+The default path is now a headless Linux container running on the trusted
+remote validation server. This keeps Docker and privileged Linux workloads off
+the developer workstation while preserving the same compose contract.
 
 ## What This Gives Us
 
@@ -53,27 +54,26 @@ For those, use:
 
 ## Prerequisite
 
-Docker Desktop needs to be running.
-
-On this machine, `docker` exists, but the daemon was not running when this doc
-was written, so the container flow could not yet be exercised end-to-end.
+The SSH alias in `GEWY_REMOTE_HOST` must reach a Linux account with Docker group
+access. It defaults to `kyuubiki-lab`. See
+[remote Docker execution](remote-docker.md) for the sync and security contract.
 
 ## Build The Image
 
 From the repository root:
 
 ```bash
-docker compose -f docker-compose.headless-linux.yml build
+scripts/remote/headless_linux.sh build
 ```
 
 ## Start The Headless Linux Shell
 
 ```bash
-docker compose -f docker-compose.headless-linux.yml up -d
-docker compose -f docker-compose.headless-linux.yml exec ebpf-dev bash
+scripts/remote/headless_linux.sh up
+scripts/remote/headless_linux.sh shell
 ```
 
-The repository is mounted at `/workspace`.
+The synchronized remote repository is mounted at `/workspace`.
 
 ## First Commands Inside Linux
 
@@ -124,5 +124,5 @@ eBPF development usually needs privileged access to kernel facilities such as:
 - `/sys/kernel/debug`
 - host PID namespace visibility
 
-If Docker Desktop tightens those mounts on a future build, the next fallback is
-to use a dedicated headless Linux VM.
+The remote host is the authoritative kernel for this development shelf. Docker
+Desktop is only an explicit local fallback through `GEWY_DOCKER_EXECUTION=local`.

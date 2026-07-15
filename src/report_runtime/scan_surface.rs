@@ -27,28 +27,48 @@ pub(super) fn estimate_protocol_surface_json_capacity(
             + overlay.companion_entry.as_deref().map_or(0, str::len)
             + 48
     });
-    256
-        + surface.protocol.len()
+    256 + surface.protocol.len()
         + surface.entry.len()
         + surface.default_entry.len()
-        + surface.protocol_aliases.iter().map(String::len).sum::<usize>()
+        + surface
+            .protocol_aliases
+            .iter()
+            .map(String::len)
+            .sum::<usize>()
         + surface.entry_aliases.iter().map(String::len).sum::<usize>()
-        + surface.sibling_entries.iter().map(String::len).sum::<usize>()
+        + surface
+            .sibling_entries
+            .iter()
+            .map(String::len)
+            .sum::<usize>()
         + surface.selected_overlay.as_deref().map_or(0, str::len)
         + surface.entry_semantics.as_ref().map_or(0, |semantics| {
             semantics.category.len()
                 + semantics.operator_focus.len()
                 + semantics.typical_signal.as_deref().map_or(0, str::len)
-                + semantics.primary_failure_mode.as_deref().map_or(0, str::len)
-                + semantics.primary_failure_detail.as_deref().map_or(0, str::len)
-                + semantics.primary_failure_basis.as_deref().map_or(0, str::len)
+                + semantics
+                    .primary_failure_mode
+                    .as_deref()
+                    .map_or(0, str::len)
+                + semantics
+                    .primary_failure_detail
+                    .as_deref()
+                    .map_or(0, str::len)
+                + semantics
+                    .primary_failure_basis
+                    .as_deref()
+                    .map_or(0, str::len)
                 + 80
         })
         + surface.cluster_hint.as_ref().map_or(0, |hint| {
             hint.key.len()
                 + hint.label.len()
                 + hint.operator_hint.len()
-                + hint.sibling_protocols.iter().map(String::len).sum::<usize>()
+                + hint
+                    .sibling_protocols
+                    .iter()
+                    .map(String::len)
+                    .sum::<usize>()
                 + 64
         })
         + surface.shelf.as_ref().map_or(0, |shelf| {
@@ -67,8 +87,7 @@ pub(super) fn estimate_protocol_surface_text_capacity(
     let Some(surface) = surface else {
         return 20;
     };
-    320
-        + surface.protocol.len()
+    320 + surface.protocol.len()
         + surface.entry.len()
         + surface.default_entry.len()
         + surface.protocol_aliases.len() * 16
@@ -361,7 +380,12 @@ fn append_entry_semantics_text(text: &mut String, surface: &ProtocolSurfaceSumma
         text.push(':');
         text.push_str(semantics.primary_failure_mode.as_deref().unwrap_or("none"));
         text.push(':');
-        text.push_str(semantics.primary_failure_detail.as_deref().unwrap_or("none"));
+        text.push_str(
+            semantics
+                .primary_failure_detail
+                .as_deref()
+                .unwrap_or("none"),
+        );
         text.push(':');
         text.push_str(semantics.primary_failure_basis.as_deref().unwrap_or("none"));
     } else {

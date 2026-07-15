@@ -6,9 +6,9 @@ use serde_json::json;
 use super::command::{ValidationError, ValidationReport, repo_root};
 use super::{
     RemoteLinuxHostOptions, run_container_runtime_validation, run_container_validation_summary,
-    run_debugger_cross_validation, run_package_install_smoke, run_pathological_container_validation,
-    run_remote_linux_host_validation, run_three_module_stack_smoke, validation_command_stdout,
-    validation_log,
+    run_debugger_cross_validation, run_package_install_smoke,
+    run_pathological_container_validation, run_remote_linux_host_validation,
+    run_three_module_stack_smoke, validation_command_stdout, validation_log,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -315,10 +315,7 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
     }
 }
 
-fn write_release_artifact_index(
-    out_dir: &Path,
-    checks: &[String],
-) -> Result<(), ValidationError> {
+fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(), ValidationError> {
     fs::create_dir_all(out_dir)?;
 
     let artifact_index_path = out_dir.join("release-gate-artifacts.json");
@@ -389,7 +386,9 @@ fn write_release_artifact_index(
         release_artifact_entry(
             "remote_linux_ebpf",
             "directory",
-            &out_dir.join("remote-linux-host-validation").join("remote-ebpf"),
+            &out_dir
+                .join("remote-linux-host-validation")
+                .join("remote-ebpf"),
             "optional",
             Some(
                 checks.iter().any(|check| {
@@ -453,7 +452,10 @@ fn write_release_artifact_index(
         "root": out_dir.display().to_string(),
         "artifacts": entries,
     });
-    fs::write(&artifact_index_path, serde_json::to_string_pretty(&payload)?)?;
+    fs::write(
+        &artifact_index_path,
+        serde_json::to_string_pretty(&payload)?,
+    )?;
 
     let summary = payload["artifacts"]
         .as_array()

@@ -438,8 +438,7 @@ fn initialize_package(dir: &str) -> Result<(), String> {
 
     let entry_path = root.join("main.gewy");
     if !entry_path.exists() {
-        fs::write(&entry_path, render_init_entry(&package_name))
-            .map_err(|err| err.to_string())?;
+        fs::write(&entry_path, render_init_entry(&package_name)).map_err(|err| err.to_string())?;
     }
 
     let module_path = root.join("module.gewy");

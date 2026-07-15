@@ -616,11 +616,14 @@ pub fn run_ftp_denied_container_validation(
         "failed to start FTP denied container",
     )?;
 
-    wait_for_ftp_banner(&format!("127.0.0.1:{}", cfg.host_port), Duration::from_secs(45))
-        .map_err(|err| {
-            let logs = docker_logs(&container_name).unwrap_or_default();
-            ValidationError::new(format!("ftp target never became ready: {err}\n{logs}"))
-        })?;
+    wait_for_ftp_banner(
+        &format!("127.0.0.1:{}", cfg.host_port),
+        Duration::from_secs(45),
+    )
+    .map_err(|err| {
+        let logs = docker_logs(&container_name).unwrap_or_default();
+        ValidationError::new(format!("ftp target never became ready: {err}\n{logs}"))
+    })?;
 
     let denied_exit = curl_capture_ftp_denied_exchange(
         &format!("ftp://127.0.0.1:{}/", cfg.host_port),
@@ -1097,10 +1100,7 @@ impl FtpDeniedValidationConfig {
         let unique = std::process::id();
         Ok(Self {
             image: env_string("FTP_DENIED_IMAGE", "fauria/vsftpd:latest"),
-            container_name: env_string(
-                "FTP_DENIED_NAME",
-                &format!("gewyvern-ftp-denied-{unique}"),
-            ),
+            container_name: env_string("FTP_DENIED_NAME", &format!("gewyvern-ftp-denied-{unique}")),
             host_port: match env::var("FTP_DENIED_PORT") {
                 Ok(value) => value.parse::<u16>().map_err(|err| {
                     ValidationError::new(format!("invalid FTP_DENIED_PORT value `{value}`: {err}"))
@@ -1131,10 +1131,7 @@ impl LdapBindDeniedValidationConfig {
                 })?,
                 Err(_) => find_free_loopback_port()?,
             },
-            admin_dn: env_string(
-                "LDAP_BIND_DENIED_ADMIN_DN",
-                "cn=admin,dc=example,dc=org",
-            ),
+            admin_dn: env_string("LDAP_BIND_DENIED_ADMIN_DN", "cn=admin,dc=example,dc=org"),
             admin_password: env_string("LDAP_BIND_DENIED_ADMIN_PASSWORD", "admin"),
             search_base: env_string("LDAP_BIND_DENIED_BASE", "dc=example,dc=org"),
             out_dir: out_dir.unwrap_or_else(|| default_out_dir("ldap-bind-denied-container")),

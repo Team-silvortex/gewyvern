@@ -563,9 +563,9 @@ fn normalize_pipeline_rule_args(
     )?;
     for (key, value) in remaining_keywords {
         if keywords.insert(key, value).is_some() {
-            return Err(DslError::InvalidValue(
-                format!("pipeline step '{step}' received duplicate rule field")
-            )
+            return Err(DslError::InvalidValue(format!(
+                "pipeline step '{step}' received duplicate rule field"
+            ))
             .at_line_column(0, Some(call_column)));
         }
     }

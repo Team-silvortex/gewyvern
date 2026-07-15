@@ -86,9 +86,13 @@ fn documented_shell_entrypoints_are_executable() {
         "scripts/packaging/release_gate.sh",
         "scripts/validation/debugger_cross_validation.sh",
         "scripts/validation/field_validation_smoke.sh",
+        "scripts/validation/ftp_denied_container_validation.sh",
         "scripts/validation/high_frequency_validation.sh",
         "scripts/validation/juice_shop_container_validation.sh",
+        "scripts/validation/ldap_bind_denied_container_validation.sh",
         "scripts/validation/pathological_container_validation.sh",
+        "scripts/remote/headless_linux.sh",
+        "scripts/remote/run_on_linux_host.sh",
         "scripts/validation/registry_validation.sh",
         "scripts/validation/runtime_lifecycle_validation.sh",
         "scripts/validation/runtime_operator_validation.sh",
@@ -106,6 +110,40 @@ fn documented_shell_entrypoints_are_executable() {
             .permissions()
             .mode();
         assert_ne!(mode & 0o111, 0, "{} should be executable", relative);
+    }
+}
+
+#[test]
+fn container_entrypoints_default_to_a_bounded_remote_linux_workspace() {
+    let dispatcher = read_repo_file("scripts/remote/container_execution.sh");
+    let runner = read_repo_file("scripts/remote/run_on_linux_host.sh");
+    let remote_docs = read_repo_file("docs/remote-docker.md");
+
+    assert!(dispatcher.contains("GEWY_DOCKER_EXECUTION"));
+    assert!(dispatcher.contains("host_os") && dispatcher.contains("Darwin"));
+    assert!(runner.contains("BatchMode=yes"));
+    assert!(runner.contains("/.cache/gewyvern/docker-workspace"));
+    assert!(runner.contains("REMOTE_WORKSPACE") && runner.contains("--delete"));
+    assert!(runner.contains("flock -w 120"));
+    assert!(runner.contains("control-plane-state.json"));
+    assert!(!runner.contains("DOCKER_HOST="));
+    assert!(!runner.contains("SSHPASS"));
+    assert!(remote_docs.contains("GEWY_DOCKER_EXECUTION=local"));
+
+    for entrypoint in [
+        "scripts/packaging/build_packages_in_container.sh",
+        "scripts/packaging/release_container_check.sh",
+        "scripts/validation/juice_shop_container_validation.sh",
+        "scripts/validation/ftp_denied_container_validation.sh",
+        "scripts/validation/ldap_bind_denied_container_validation.sh",
+        "scripts/validation/pathological_container_validation.sh",
+    ] {
+        let source = read_repo_file(entrypoint);
+        assert!(source.contains("container_execution.sh"), "{entrypoint}");
+        assert!(
+            source.contains("gewy_container_maybe_run_remote"),
+            "{entrypoint}"
+        );
     }
 }
 

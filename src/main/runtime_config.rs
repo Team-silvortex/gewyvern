@@ -136,7 +136,10 @@ pub(crate) fn apply_runtime_path_overrides(config: &RuntimeConfigFile) {
         SOCKET_FAILURE_BACKOFF_CAP_ENV,
         config.socket_failure_backoff_cap_ms,
     );
-    apply_env_string_override(API_ADMIN_TOKEN_ENV, config.defaults.api_admin_token.as_deref());
+    apply_env_string_override(
+        API_ADMIN_TOKEN_ENV,
+        config.defaults.api_admin_token.as_deref(),
+    );
 }
 
 fn apply_env_string_override(key: &str, value: Option<&str>) {

@@ -13,14 +13,12 @@ use gewyvern::validation_harness::{
     ReleaseCheckMode, ReleaseGateOptions, RemoteLinuxHostOptions, ValidationError,
     run_container_operator_path_validation, run_container_protocol_validation,
     run_container_runtime_validation, run_container_validation_summary,
-    run_debugger_cross_validation, run_external_engine_roundtrip_demo,
-    run_field_smoke_validation, run_ftp_denied_container_validation,
-    run_high_frequency_validation, run_ldap_bind_denied_container_validation,
-    run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke,
-    run_juice_shop_container_validation, run_package_install_smoke,
-    run_pathological_container_validation,
-    run_registry_validation, run_release_container_check, run_release_gate,
-    run_remote_linux_host_validation, run_resilience_bundle_validation,
+    run_debugger_cross_validation, run_external_engine_roundtrip_demo, run_field_smoke_validation,
+    run_ftp_denied_container_validation, run_high_frequency_validation,
+    run_juice_shop_container_validation, run_ldap_bind_denied_container_validation,
+    run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke, run_package_install_smoke,
+    run_pathological_container_validation, run_registry_validation, run_release_container_check,
+    run_release_gate, run_remote_linux_host_validation, run_resilience_bundle_validation,
     run_resilience_drive_bad_json_validation, run_resilience_emit_helper_validation,
     run_resilience_log_evidence_validation, run_resilience_roundtrip_validation,
     run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
@@ -2084,7 +2082,13 @@ fn summarize_release_gate_posture(
         .and_then(|value| value.as_str())
         == Some("watch");
 
-    if packaged_ready && stack_ready && debugger_ready && pathology_ready && remote_full && remote_watch {
+    if packaged_ready
+        && stack_ready
+        && debugger_ready
+        && pathology_ready
+        && remote_full
+        && remote_watch
+    {
         (
             "watch",
             "timing_watch",
@@ -2437,7 +2441,8 @@ mod tests {
         .unwrap();
 
         let summary = remote_linux_host_summary_value(&temp.path);
-        let expected = read_fixture("docs/fixtures/gewyvern_validate_remote_linux_host_summary.json");
+        let expected =
+            read_fixture("docs/fixtures/gewyvern_validate_remote_linux_host_summary.json");
         assert_eq!(summary, expected);
     }
 
@@ -2452,7 +2457,9 @@ mod tests {
             Some((FailureClass::Timeout, "validation_timeout"))
         );
         assert_eq!(
-            classify_failure("remote host must be x86_64/amd64 for packaged validation, got `arm64`"),
+            classify_failure(
+                "remote host must be x86_64/amd64 for packaged validation, got `arm64`"
+            ),
             Some((FailureClass::Remote, "remote_host_wrong_arch"))
         );
         assert_eq!(

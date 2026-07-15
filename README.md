@@ -245,6 +245,10 @@ Core CLI and test entrypoints:
 
 Packaging entrypoints:
 
+On macOS these container-heavy scripts run on the configured Linux server by
+default and synchronize their evidence back. See
+[remote Docker execution](docs/remote-docker.md).
+
 - `bash scripts/packaging/build_packages.sh --layout-only`
 - `bash scripts/packaging/build_packages_in_container.sh --format all`
 - `bash scripts/packaging/package_install_smoke.sh`

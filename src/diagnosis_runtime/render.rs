@@ -1,7 +1,7 @@
 use super::{
     AnalysisAugmentation, AnalysisSnapshot, ProcessNetworkProfileSummary,
-    ProtocolFlowAnalysisSummary, external_sidecar_contract_state,
-    failure_detail_family_label, failure_mode_family_label, stage_family_label,
+    ProtocolFlowAnalysisSummary, external_sidecar_contract_state, failure_detail_family_label,
+    failure_mode_family_label, stage_family_label,
 };
 use crate::UiLocale;
 use crate::render_utils::{
@@ -313,7 +313,11 @@ pub(crate) fn append_external_sidecar_contract_json(
     let contract = external_sidecar_contract_state(snapshot);
     let trust_level = contract.trust_level();
     json.push_str(",\"has_external_capability_profile\":");
-    json.push_str(if contract.has_profile { "true" } else { "false" });
+    json.push_str(if contract.has_profile {
+        "true"
+    } else {
+        "false"
+    });
     json.push_str(",\"external_capability_status\":");
     if let Some(value) = contract.capability_status.as_deref() {
         append_json_string(json, value);

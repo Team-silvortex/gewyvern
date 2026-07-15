@@ -37,5 +37,8 @@ fn single_runtime_target_name_falls_back_for_unknown_template() {
         run_binding_demo(binding),
         &Cli::from_args(["--demo".to_string(), "udp".to_string()]).unwrap(),
     );
-    assert_eq!(single_runtime_target_name(&export), SOCKET_SESSION_TARGET_NAME);
+    assert_eq!(
+        single_runtime_target_name(&export),
+        SOCKET_SESSION_TARGET_NAME
+    );
 }

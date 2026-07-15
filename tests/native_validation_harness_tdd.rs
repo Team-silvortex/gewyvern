@@ -127,7 +127,9 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(mod_file.contains("run_stack_probe_validation"));
     assert!(mod_file.contains("run_three_module_stack_smoke"));
     assert!(mod_file.contains("run_pathological_container_validation"));
-    assert!(read_repo_file("src/validation_harness/stack_suites.rs").contains("evidence-index.json"));
+    assert!(
+        read_repo_file("src/validation_harness/stack_suites.rs").contains("evidence-index.json")
+    );
     assert!(mod_file.contains("write_stack_resilience_summary"));
 }
 

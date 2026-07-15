@@ -35,10 +35,7 @@ fn temp_test_dir(prefix: &str) -> std::path::PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system time before unix epoch")
         .as_nanos();
-    let root = std::env::temp_dir().join(format!(
-        "gewyc-{prefix}-{}-{nonce}",
-        std::process::id()
-    ));
+    let root = std::env::temp_dir().join(format!("gewyc-{prefix}-{}-{nonce}", std::process::id()));
     fs::create_dir_all(&root).expect("create temp test dir");
     root
 }
@@ -382,11 +379,18 @@ fn initialize_package_preserves_existing_files() {
     let module = root.join("module.gewy");
     fs::write(&manifest, "name=custom\nentry=main.gewy\n").unwrap();
     fs::write(&entry, "template(:custom)\n").unwrap();
-    fs::write(&module, "fn custom() =\n  |> fragment(:udp_packet_meta_fragment)\n").unwrap();
+    fs::write(
+        &module,
+        "fn custom() =\n  |> fragment(:udp_packet_meta_fragment)\n",
+    )
+    .unwrap();
 
     initialize_package(root.to_str().unwrap()).unwrap();
 
-    assert_eq!(fs::read_to_string(&manifest).unwrap(), "name=custom\nentry=main.gewy\n");
+    assert_eq!(
+        fs::read_to_string(&manifest).unwrap(),
+        "name=custom\nentry=main.gewy\n"
+    );
     assert_eq!(fs::read_to_string(&entry).unwrap(), "template(:custom)\n");
     assert_eq!(
         fs::read_to_string(&module).unwrap(),

@@ -14,6 +14,7 @@ and release gates.
 - [Service behavior](../service-behavior.md)
 - [Ingest modes](../ingest-modes.md)
 - [Headless Linux](../headless-linux.md)
+- [Remote Docker execution](../remote-docker.md)
 - [Runtime configuration](../runtime-config-contract.md)
 - [Security checklist](../book/how-to-security-checklist.md)
 - [Security posture](../security-posture.md)

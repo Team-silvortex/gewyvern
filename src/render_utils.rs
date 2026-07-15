@@ -127,10 +127,7 @@ pub(crate) fn extract_json_string_field(input: &str, key: &str) -> Option<String
     None
 }
 
-pub(crate) fn extract_json_string_field_borrowed<'a>(
-    input: &'a str,
-    key: &str,
-) -> Option<&'a str> {
+pub(crate) fn extract_json_string_field_borrowed<'a>(input: &'a str, key: &str) -> Option<&'a str> {
     let rest = json_string_field_rest(input, key)?;
     let bytes = rest.as_bytes();
     if bytes.first().copied()? != b'"' {

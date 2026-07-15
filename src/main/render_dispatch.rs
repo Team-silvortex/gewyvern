@@ -25,8 +25,8 @@ fn render_http_transaction_outputs(cli: &Cli, outputs: &[(String, ExportBundle)]
         && outputs
             .iter()
             .any(|(_, export)| export_has_operation(export, "http3_request"));
-    let companion_count =
-        (if needs_http_response_companions { 2 } else { 0 }) + usize::from(needs_http3_response_companion);
+    let companion_count = (if needs_http_response_companions { 2 } else { 0 })
+        + usize::from(needs_http3_response_companion);
     let mut composed_exports = Vec::with_capacity(outputs.len() + companion_count);
     composed_exports.extend(outputs.iter().map(|(_, export)| export.clone()));
 

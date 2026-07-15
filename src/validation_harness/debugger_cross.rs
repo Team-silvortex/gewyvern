@@ -106,12 +106,22 @@ fn check_http_request(out_dir: &std::path::Path) -> Result<(), ValidationError> 
     )?;
     assert_eq_str(
         &session,
-        &["recommended_focus", "debugger_route", "primary_step", "kind"],
+        &[
+            "recommended_focus",
+            "debugger_route",
+            "primary_step",
+            "kind",
+        ],
         "observe",
     )?;
     require_non_empty_string(
         &session,
-        &["recommended_focus", "debugger_route", "primary_step", "command"],
+        &[
+            "recommended_focus",
+            "debugger_route",
+            "primary_step",
+            "command",
+        ],
     )?;
     assert_eq_bool(
         &session,
@@ -194,12 +204,22 @@ fn check_http_connect_denied(out_dir: &std::path::Path) -> Result<(), Validation
     )?;
     assert_eq_str(
         &session,
-        &["recommended_focus", "debugger_route", "primary_step", "kind"],
+        &[
+            "recommended_focus",
+            "debugger_route",
+            "primary_step",
+            "kind",
+        ],
         "open_anomaly_flow",
     )?;
     require_non_empty_string(
         &session,
-        &["recommended_focus", "debugger_route", "primary_step", "command"],
+        &[
+            "recommended_focus",
+            "debugger_route",
+            "primary_step",
+            "command",
+        ],
     )?;
     assert_eq_bool(
         &session,
@@ -290,12 +310,22 @@ fn check_socks5_auth_connect_denied(out_dir: &std::path::Path) -> Result<(), Val
     )?;
     assert_eq_str(
         &session,
-        &["recommended_focus", "debugger_route", "primary_step", "kind"],
+        &[
+            "recommended_focus",
+            "debugger_route",
+            "primary_step",
+            "kind",
+        ],
         "open_anomaly_flow",
     )?;
     require_non_empty_string(
         &session,
-        &["recommended_focus", "debugger_route", "primary_step", "command"],
+        &[
+            "recommended_focus",
+            "debugger_route",
+            "primary_step",
+            "command",
+        ],
     )?;
     assert_eq_bool(
         &session,

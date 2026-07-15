@@ -5,7 +5,7 @@ implemented Leselang slice. The broader destination is defined by the
 [Leserpent 2.0 architecture](leserpent-2-architecture.md); unimplemented roadmap
 syntax is not part of this contract.
 
-Status: **Gate 2, evolving contract 0.1.0**. The current vertical slice parses,
+Status: **Gate 2, evolving contract 0.2.0**. The current vertical slice parses,
 lowers, authorizes, suspends, serializes, restores, and resumes one read-only
 effect: `runtime.list`.
 
@@ -70,15 +70,29 @@ a continuation token and expected revision. The host executes the shared
 Leserpent domain query, then calls `resume` with the typed result.
 
 Continuation images are versioned and capped at 64 KiB. Execution also enforces
-a source-size limit, fuel limit, deadline budget field, and output-item limit.
+a source-size limit, fuel limit, 24-hour maximum deadline budget, and
+10,000-item output limit.
 Restored continuations advance their token sequence so a restart cannot reuse a
 live token.
 
-Duplicate completion in the same VM instance is idempotent: the first completed
-step is replayed without executing the effect again. This is not yet a durable
-exactly-once guarantee. A process crash loses the in-memory pending/completed
-journal; durable effect journaling, cancellation, timeout enforcement, retry,
-and deterministic structured merge remain Gate 2 work.
+`Vm::new` provides an ephemeral journal for tests and embedded one-shot use.
+`Vm::open_journal` opens the SQLite effect journal for service operation. It
+atomically persists pending continuations before exposing an effect, restores
+them after restart, and commits the first terminal step as authoritative.
+Duplicate or competing completion after a process restart replays that durable
+step rather than accepting a later result. Sequence allocation is transactional
+across concurrent VM connections.
+
+The journal is schema-versioned, uses full synchronous commits and a five-second
+lock timeout, rejects symbolic-link final paths, and creates Unix files with
+`0600` permissions. It is bounded to 10,000 records, 8 MiB per terminal step,
+and 64 MiB of total logical payload.
+
+This is a durable continuation guarantee, not yet an exactly-once guarantee for
+arbitrary external mutation. The current `runtime.list` effect is read-only.
+Future mutating effects must journal dispatch and acknowledgement in the same
+protocol. Typed cancellation, wall-clock timeout enforcement, retry policy,
+retention/compaction, and deterministic structured merge remain Gate 2 work.
 
 ## Diagnostics
 
@@ -88,7 +102,7 @@ Diagnostics use stable subsystem prefixes:
 | --- | --- | --- |
 | `LSE` | lexer and parser | malformed input, source limit |
 | `LSH` | HIR and authorization | unknown effect, duplicate argument, missing capability |
-| `LSV` | VM and continuation | invalid image, revision conflict, execution limit |
+| `LSV` | VM, continuation, and journal | invalid image, revision conflict, persistence failure |
 
 Consumers must branch on diagnostic codes rather than English messages. Spans
 use byte offsets into the original UTF-8 source.
@@ -100,10 +114,11 @@ For deterministic model or CLI integration:
 1. Parse source and report all syntax diagnostics.
 2. Lower the syntax tree into HIR and report semantic diagnostics.
 3. Authorize required capabilities before starting the VM.
-4. Call `Vm::start` and persist any returned continuation image.
+4. Open the durable journal, then call `Vm::start`; pending state is committed before return.
 5. Execute the typed effect through `leserpent-domain`.
 6. Call `Vm::resume` with the token, expected revision, and typed result.
-7. Treat repeated completion as replay, not another external operation.
+7. Enumerate pending continuations after restart and safely redrive read-only effects.
+8. Treat repeated completion as replay, not another external operation.
 
 The implementation lives in `crates/leselang-syntax`, `crates/leselang-hir`,
 and `crates/leselang-vm`. Delivery progress is tracked by the

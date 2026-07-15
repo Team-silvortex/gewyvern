@@ -1,5 +1,5 @@
-use super::*;
 use super::debug_targets::{rank, ranked_targets, scan_target_protocol_entry};
+use super::*;
 use gewyvern::protocol_profiles::protocol_surface;
 
 pub(super) fn render_debug_session_outputs(
@@ -183,13 +183,7 @@ fn append_debugger_route_json(json: &mut String, name: &str, analysis: &Analysis
     let primary_command = debugger_route_command(primary_step, name);
     let fallback_command = debugger_route_command(fallback_step, name);
     json.push('{');
-    append_route_step(
-        json,
-        "primary_step",
-        primary_step,
-        &primary_command,
-        false,
-    );
+    append_route_step(json, "primary_step", primary_step, &primary_command, false);
     append_route_step(
         json,
         "fallback_step",

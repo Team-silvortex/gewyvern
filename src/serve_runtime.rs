@@ -10,6 +10,7 @@ use crate::diagnosis_runtime::{
     external_capability_summary, external_sidecar_consumption_mode, external_sidecar_presence,
     external_sidecar_trust_level,
 };
+use crate::report_runtime::collect_analyses;
 use crate::runtime_events::{
     EVENT_API_SERVICE_START, EVENT_APPEND_FAILED, EVENT_SNAPSHOT_PERSIST_FAILED,
     EVENT_SOCKET_LISTENER_BIND_FAILED, EVENT_SOCKET_LISTENER_CLEANUP_FAILED,
@@ -18,7 +19,6 @@ use crate::runtime_events::{
     EVENT_UNIX_SERVICE_START, EVENT_WRITE_FAILED,
 };
 use crate::runtime_logging::{log_error_event, log_info_event, log_warn_event};
-use crate::report_runtime::collect_analyses;
 use crate::socket_resilience::{
     SocketLoopHealth, apply_socket_failure_backoff, log_socket_loop_recovered,
     log_socket_session_failure,
@@ -27,8 +27,8 @@ use crate::socket_resilience::{
 use super::{
     Cli, ReportFormat, SocketTarget, UiLocale, analysis_snapshot, analysis_snapshot_json,
     annotate_export_trust, findings_json_with_analysis, findings_text, render_scan_outputs,
-    run_binding_session, scan_report_html_with_analyses, scan_report_json_with_analyses,
-    scan_report_text_with_analyses, scan_targets_for_cli, scan_analysis_json_array,
+    run_binding_session, scan_analysis_json_array, scan_report_html_with_analyses,
+    scan_report_json_with_analyses, scan_report_text_with_analyses, scan_targets_for_cli,
     single_target_report_html_with_analysis, single_target_report_json_with_analysis,
     summary_json_with_analysis, summary_line_with_analysis, training_example_json_array,
     training_example_json_with_analysis,

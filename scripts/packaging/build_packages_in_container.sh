@@ -3,6 +3,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "${ROOT}/scripts/remote/container_execution.sh"
+gewy_container_maybe_run_remote "$@"
+
 IMAGE_TAG="${GEWY_DOCKER_IMAGE_TAG:-gewyvern-linux-dev:packaging}"
 DOCKER_BASE_IMAGE="${DOCKER_BASE_IMAGE:-ubuntu:24.04}"
 DOCKER_APT_MIRROR="${DOCKER_APT_MIRROR:-}"
@@ -40,7 +43,7 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 if ! docker info >/dev/null 2>&1; then
-  echo "docker daemon is not reachable; start Docker Desktop or another local daemon and retry" >&2
+  echo "docker daemon is not reachable; use the remote default or set GEWY_DOCKER_EXECUTION=local only when a local daemon is ready" >&2
   exit 1
 fi
 

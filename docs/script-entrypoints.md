@@ -116,6 +116,11 @@ If you only want the packaged part, run:
 bash scripts/packaging/release_container_check.sh
 ```
 
+On macOS, container shell entrypoints dispatch to the trusted Linux server by
+default. They synchronize evidence back into the local `target/` tree. The
+policy, overrides, and privilege boundary are documented in
+[remote Docker execution](remote-docker.md).
+
 Relevant docs:
 
 - [docs/release-checklist.md](docs/release-checklist.md)
@@ -123,14 +128,14 @@ Relevant docs:
 
 ### I want to verify the packaged Linux artifacts
 
-Run:
+Run the shell wrappers below when Docker should execute on the configured Linux
+server. Direct `cargo run ... container-*` commands remain host-local by design.
 
 ```bash
-cargo run --quiet --bin gewyvern_validate -- package-install-smoke
-cargo run --quiet --bin gewyvern_validate -- container-runtime-validation
-cargo run --quiet --bin gewyvern_validate -- container-protocol-validation
-cargo run --quiet --bin gewyvern_validate -- container-operator-path-validation
-cargo run --quiet --bin gewyvern_validate -- container-validation-summary
+bash scripts/packaging/container_runtime_validation.sh
+bash scripts/packaging/container_protocol_validation.sh
+bash scripts/packaging/container_operator_path_validation.sh
+bash scripts/packaging/container_validation_summary.sh
 ```
 
 Use these when the question is specifically about `deb`/`rpm` output rather
@@ -472,10 +477,10 @@ Run:
 sudo cargo run --quiet --bin gewyvern_validate -- juice-shop-container-validation
 ```
 
-Or through the compatibility wrapper:
+Or through the server-aware wrapper:
 
 ```bash
-sudo bash scripts/validation/juice_shop_container_validation.sh
+bash scripts/validation/juice_shop_container_validation.sh
 ```
 
 Use this when the real question is:
@@ -488,9 +493,13 @@ If you want the same style of proof for protocol/authentication denial instead
 of HTTP error evidence, run:
 
 ```bash
-sudo cargo run --quiet --bin gewyvern_validate -- ftp-denied-container-validation
-sudo cargo run --quiet --bin gewyvern_validate -- ldap-bind-denied-container-validation
+bash scripts/validation/ftp_denied_container_validation.sh
+bash scripts/validation/ldap_bind_denied_container_validation.sh
 ```
+
+These practical suites also contain same-host eBPF attach proof. Docker group
+access is automatic on the validation account, but BPF privilege remains a
+separate explicit requirement and is never silently elevated by the wrapper.
 
 That companion check preserves client-side FTP `530` denial evidence,
 target-side `FAIL LOGIN` server logs, and the same nested Linux attach proof.

@@ -163,7 +163,9 @@ fn api_training_example_routes_cover_single_export() {
             findings_json: findings_json(TARGET_NAME, &export),
             analysis_json: analysis_snapshot_json(&analysis),
             training_example_json: training_example_json_with_analysis(
-                TARGET_NAME, &export, &analysis,
+                TARGET_NAME,
+                &export,
+                &analysis,
             ),
             has_external_sidecar_context: false,
             has_external_evidence_chain_enrichment: false,
@@ -205,10 +207,9 @@ fn api_training_example_routes_cover_single_export() {
         &snapshot,
     );
     assert!(target_dataset_body.contains("\"kind\":\"training_dataset_manifest\""));
-    assert!(
-        target_dataset_body
-            .contains("\"sample_path\":\"/v1/latest/targets/scan:http:request/training-example.json\"")
-    );
+    assert!(target_dataset_body.contains(
+        "\"sample_path\":\"/v1/latest/targets/scan:http:request/training-example.json\""
+    ));
     assert!(target_dataset_body.contains("\"sample_id\":\"gewy:"));
     assert!(target_dataset_body.contains("\"split_hints\":{\"name_bucket_mod_10\":"));
     let sample_id = extract_json_string_field(&target_body, "sample_id")

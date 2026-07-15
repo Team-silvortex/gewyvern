@@ -137,12 +137,7 @@ fn collect_non_socket_cli_outputs(
         let label = selected_scan_target_for_cli(cli)
             .map(|target| target.label())
             .unwrap_or_else(|| single_runtime_target_name(&export));
-        push_filtered_output(
-            outputs,
-            cli,
-            label,
-            export,
-        );
+        push_filtered_output(outputs, cli, label, export);
         return;
     }
 

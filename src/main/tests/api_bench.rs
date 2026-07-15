@@ -84,11 +84,15 @@ fn api_snapshot_meta_and_routes_cover_single_export() {
     assert!(dataset_body.contains("\"kind\":\"training_dataset_manifest\""));
     let (_, _, export_body) = api_response_for_request("/v1/latest/export.json", &snapshot);
     assert!(export_body.contains("\"template_id\""));
-    let (_, _, target_summary_body) =
-        api_response_for_request("/v1/latest/targets/scan:http:request/summary.json", &snapshot);
+    let (_, _, target_summary_body) = api_response_for_request(
+        "/v1/latest/targets/scan:http:request/summary.json",
+        &snapshot,
+    );
     assert!(target_summary_body.contains("\"demo\":\"scan:http:request\""));
-    let (_, _, target_analysis_body) =
-        api_response_for_request("/v1/latest/targets/scan:http:request/analysis.json", &snapshot);
+    let (_, _, target_analysis_body) = api_response_for_request(
+        "/v1/latest/targets/scan:http:request/analysis.json",
+        &snapshot,
+    );
     assert!(target_analysis_body.contains("\"primary_failure_mode\""));
     let (surface_status, _, surface_body) = api_response_for_request(
         "/v1/latest/targets/scan:http:request/protocol-surface.json",

@@ -1,5 +1,5 @@
-use super::*;
 use super::debug_targets::{rank, ranked_targets, scan_target_protocol_entry};
+use super::*;
 
 pub(super) fn render_debugger_console_outputs(
     cli: &Cli,

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::io::{self, Write};
+use std::path::Path;
 
 use leselang_hir::{Effect, HirProgram, Type, authorize};
 use leserpent_domain::{
@@ -8,11 +9,19 @@ use leserpent_domain::{
 };
 use serde::{Deserialize, Serialize};
 
+mod journal;
+
+use journal::Journal;
+pub use journal::{
+    JOURNAL_SCHEMA_VERSION, MAX_JOURNAL_ENTRY_BYTES, MAX_JOURNAL_RECORDS, MAX_JOURNAL_TOTAL_BYTES,
+};
+
 pub const CONTINUATION_SCHEMA_VERSION: u32 = 1;
 pub const MAX_CONTINUATION_BYTES: usize = 64 * 1024;
 pub const DEFAULT_FUEL: u64 = 1_000;
 pub const MAX_EXECUTION_FUEL: u64 = 1_000_000;
 pub const DEFAULT_EFFECT_DEADLINE_MS: u64 = 30_000;
+pub const MAX_EFFECT_DEADLINE_MS: u64 = 24 * 60 * 60 * 1_000;
 pub const DEFAULT_MAX_OUTPUT_ITEMS: usize = 10_000;
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -77,6 +86,7 @@ pub struct Vm {
     fuel_limit: u64,
     pending: BTreeMap<ContinuationToken, ContinuationImage>,
     completed: BTreeMap<ContinuationToken, Step>,
+    journal: Journal,
 }
 
 impl Default for Vm {
@@ -92,7 +102,19 @@ impl Vm {
             fuel_limit: fuel_limit.min(MAX_EXECUTION_FUEL),
             pending: BTreeMap::new(),
             completed: BTreeMap::new(),
+            journal: Journal::ephemeral(),
         }
+    }
+
+    pub fn open_journal(path: impl AsRef<Path>, fuel_limit: u64) -> Result<Self, Fault> {
+        let (journal, snapshot) = Journal::open(path.as_ref())?;
+        Ok(Self {
+            next_effect_id: snapshot.next_sequence,
+            fuel_limit: fuel_limit.min(MAX_EXECUTION_FUEL),
+            pending: snapshot.pending,
+            completed: snapshot.completed,
+            journal,
+        })
     }
 
     pub fn start(
@@ -109,7 +131,10 @@ impl Vm {
             return fault(&error.code, error.message);
         }
 
-        let sequence = self.allocate_sequence();
+        let sequence = match self.allocate_sequence() {
+            Ok(sequence) => sequence,
+            Err(error) => return Step::Fault(error),
+        };
         let token = ContinuationToken(format!("continuation-{sequence}"));
         let image = ContinuationImage {
             schema_version: CONTINUATION_SCHEMA_VERSION,
@@ -130,6 +155,9 @@ impl Vm {
                 filter: filter.clone(),
             },
         };
+        if let Err(error) = self.journal.record_pending(&image) {
+            return Step::Fault(error);
+        }
         self.pending.insert(token, image.clone());
         Step::Effect(Box::new(EffectRequest {
             effect_id: format!("effect-{sequence}"),
@@ -175,6 +203,7 @@ impl Vm {
         {
             self.next_effect_id = self.next_effect_id.max(sequence.saturating_add(1));
         }
+        self.journal.record_pending(&image)?;
         self.pending.insert(image.token.clone(), image);
         Ok(())
     }
@@ -223,22 +252,35 @@ impl Vm {
                 }
             }
         };
+        let authoritative = match self.journal.record_completed(image, &step) {
+            Ok(step) => step,
+            Err(error) => return Step::Fault(error),
+        };
         self.pending.remove(&image.token);
-        self.completed.insert(image.token.clone(), step.clone());
-        step
+        self.completed
+            .insert(image.token.clone(), authoritative.clone());
+        authoritative
     }
 
     pub fn pending_count(&self) -> usize {
         self.pending.len()
     }
 
-    fn allocate_sequence(&mut self) -> u64 {
+    pub fn pending_continuations(&self) -> Vec<ContinuationImage> {
+        self.pending.values().cloned().collect()
+    }
+
+    pub fn completed_count(&self) -> usize {
+        self.completed.len()
+    }
+
+    fn allocate_sequence(&mut self) -> Result<u64, Fault> {
         loop {
-            let sequence = self.next_effect_id;
+            let sequence = self.journal.allocate_sequence(self.next_effect_id)?;
             self.next_effect_id = self.next_effect_id.saturating_add(1);
             let token = ContinuationToken(format!("continuation-{sequence}"));
             if !self.pending.contains_key(&token) && !self.completed.contains_key(&token) {
-                return sequence;
+                return Ok(sequence);
             }
         }
     }
@@ -252,17 +294,25 @@ impl ContinuationToken {
 
 pub fn encode_continuation(image: &ContinuationImage) -> Result<Vec<u8>, Fault> {
     validate_image(image)?;
-    let mut writer = CappedWriter::new(MAX_CONTINUATION_BYTES);
-    if let Err(error) = serde_json::to_writer(&mut writer, image) {
+    encode_json_capped(image, MAX_CONTINUATION_BYTES, "continuation")
+}
+
+fn encode_json_capped<T: Serialize>(
+    value: &T,
+    limit: usize,
+    label: &str,
+) -> Result<Vec<u8>, Fault> {
+    let mut writer = CappedWriter::new(limit);
+    if let Err(error) = serde_json::to_writer(&mut writer, value) {
         if writer.overflowed {
             return Err(Fault {
                 code: "LSV3002".to_string(),
-                message: format!("continuation exceeds {MAX_CONTINUATION_BYTES} bytes"),
+                message: format!("{label} exceeds {limit} bytes"),
             });
         }
         return Err(Fault {
             code: "LSV3001".to_string(),
-            message: format!("failed to encode continuation: {error}"),
+            message: format!("failed to encode {label}: {error}"),
         });
     }
     Ok(writer.output)
@@ -312,6 +362,18 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
             message: "continuation fuel exceeds runtime limit".to_string(),
         });
     }
+    if image.deadline_ms == 0 || image.deadline_ms > MAX_EFFECT_DEADLINE_MS {
+        return Err(Fault {
+            code: "LSV2008".to_string(),
+            message: "continuation deadline exceeds runtime limit".to_string(),
+        });
+    }
+    if image.max_output_items > DEFAULT_MAX_OUTPUT_ITEMS {
+        return Err(Fault {
+            code: "LSV2009".to_string(),
+            message: "continuation output limit exceeds runtime maximum".to_string(),
+        });
+    }
     Ok(())
 }
 
@@ -358,6 +420,10 @@ fn fault(code: &str, message: impl Into<String>) -> Step {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
     use leselang_hir::lower;
     use leselang_syntax::parse;
     use leserpent_domain::{
@@ -365,6 +431,36 @@ mod tests {
     };
 
     use super::*;
+
+    static NEXT_TEMP_JOURNAL: AtomicU64 = AtomicU64::new(1);
+
+    struct TempJournal {
+        root: PathBuf,
+        path: PathBuf,
+    }
+
+    impl TempJournal {
+        fn new(label: &str) -> Self {
+            let sequence = NEXT_TEMP_JOURNAL.fetch_add(1, Ordering::Relaxed);
+            let root = std::env::temp_dir().join(format!(
+                "leselang-vm-{label}-{}-{sequence}",
+                std::process::id()
+            ));
+            fs::create_dir(&root).unwrap();
+            let path = root.join("effects.sqlite3");
+            Self { root, path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TempJournal {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.root);
+        }
+    }
 
     fn program() -> HirProgram {
         lower(&parse(
@@ -482,6 +578,19 @@ mod tests {
                 .code,
             "LSV3002"
         );
+
+        let mut forged_budget = start(&mut vm, None).continuation;
+        forged_budget.deadline_ms = 0;
+        assert_eq!(
+            encode_continuation(&forged_budget).unwrap_err().code,
+            "LSV2008"
+        );
+        forged_budget.deadline_ms = DEFAULT_EFFECT_DEADLINE_MS;
+        forged_budget.max_output_items = DEFAULT_MAX_OUTPUT_ITEMS + 1;
+        assert_eq!(
+            encode_continuation(&forged_budget).unwrap_err().code,
+            "LSV2009"
+        );
     }
 
     #[test]
@@ -560,5 +669,128 @@ mod tests {
             None,
         );
         assert!(matches!(step, Step::Fault(Fault { ref code, .. }) if code == "LSV3002"));
+    }
+
+    #[test]
+    fn durable_journal_recovers_pending_and_replays_completion_after_restart() {
+        let journal = TempJournal::new("restart");
+        let request = {
+            let mut first = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            let request = start(&mut first, None);
+            assert_eq!(first.pending_count(), 1);
+            request
+        };
+
+        let first_step = {
+            let mut restarted = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            assert_eq!(restarted.pending_count(), 1);
+            assert_eq!(
+                restarted.pending_continuations(),
+                vec![request.continuation.clone()]
+            );
+            restarted.resume(
+                &request.continuation,
+                QueryResult::RuntimeList {
+                    revision: Revision(21),
+                    runtimes: Vec::new(),
+                },
+            )
+        };
+        assert!(matches!(
+            first_step,
+            Step::Done(Value::RuntimeList {
+                revision: Revision(21),
+                ..
+            })
+        ));
+
+        let mut restarted_again = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert_eq!(restarted_again.pending_count(), 0);
+        assert_eq!(restarted_again.completed_count(), 1);
+        let replay = restarted_again.resume(
+            &request.continuation,
+            QueryResult::RuntimeList {
+                revision: Revision(99),
+                runtimes: Vec::new(),
+            },
+        );
+        assert_eq!(replay, first_step);
+    }
+
+    #[test]
+    fn durable_sequence_allocation_does_not_collide_between_live_vms() {
+        let journal = TempJournal::new("sequences");
+        let mut first = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let mut second = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+
+        let first_request = start(&mut first, None);
+        let second_request = start(&mut second, None);
+
+        assert_eq!(first_request.continuation.token.as_str(), "continuation-1");
+        assert_eq!(second_request.continuation.token.as_str(), "continuation-2");
+        assert_ne!(first_request.effect_id, second_request.effect_id);
+    }
+
+    #[test]
+    fn concurrent_completion_uses_the_first_durable_result() {
+        let journal = TempJournal::new("completion-race");
+        let mut first = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let request = start(&mut first, None);
+        let mut second = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+
+        let first_step = first.resume(
+            &request.continuation,
+            QueryResult::RuntimeList {
+                revision: Revision(31),
+                runtimes: Vec::new(),
+            },
+        );
+        let competing_step = second.resume(
+            &request.continuation,
+            QueryResult::RuntimeList {
+                revision: Revision(32),
+                runtimes: Vec::new(),
+            },
+        );
+
+        assert_eq!(competing_step, first_step);
+        assert!(matches!(
+            competing_step,
+            Step::Done(Value::RuntimeList {
+                revision: Revision(31),
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn durable_journal_rejects_unknown_schema_versions() {
+        let journal = TempJournal::new("version");
+        drop(Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap());
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        connection
+            .execute_batch("PRAGMA user_version = 99;")
+            .unwrap();
+        drop(connection);
+
+        let error = Vm::open_journal(journal.path(), DEFAULT_FUEL)
+            .err()
+            .unwrap();
+        assert_eq!(error.code, "LSV4004");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn durable_journal_is_private_and_rejects_symbolic_links() {
+        use std::os::unix::fs::{MetadataExt, symlink};
+
+        let journal = TempJournal::new("permissions");
+        drop(Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap());
+        assert_eq!(fs::metadata(journal.path()).unwrap().mode() & 0o777, 0o600);
+
+        let link = journal.root.join("journal-link.sqlite3");
+        symlink(journal.path(), &link).unwrap();
+        let error = Vm::open_journal(&link, DEFAULT_FUEL).err().unwrap();
+        assert_eq!(error.code, "LSV4001");
     }
 }

@@ -70,7 +70,9 @@ impl ExternalSidecarDerivedState<'_> {
     pub(super) fn item_hints(&self, item_name: &str) -> (&str, &str) {
         match item_name {
             "external_evidence_chain_enrichment" => (
-                self.enrichment_handoff.as_deref().unwrap_or("advisory_only"),
+                self.enrichment_handoff
+                    .as_deref()
+                    .unwrap_or("advisory_only"),
                 self.enrichment_merge_hint
                     .as_deref()
                     .unwrap_or("augmentations_only"),
@@ -93,20 +95,18 @@ pub(super) fn external_sidecar_derived_state<'a>(
     for item in &analysis.augmentations {
         match item.name.as_str() {
             "external_evidence_chain_enrichment" => {
-                state.enrichment_handoff = item
-                    .data_json
-                    .as_deref()
-                    .and_then(|data| extract_json_string_field_cow(data, "external_handoff_readiness"));
+                state.enrichment_handoff = item.data_json.as_deref().and_then(|data| {
+                    extract_json_string_field_cow(data, "external_handoff_readiness")
+                });
                 state.enrichment_merge_hint = item
                     .data_json
                     .as_deref()
                     .and_then(|data| extract_json_string_field_cow(data, "external_merge_hint"));
             }
             "external_diagnostic_opinion" => {
-                state.opinion_handoff = item
-                    .data_json
-                    .as_deref()
-                    .and_then(|data| extract_json_string_field_cow(data, "external_handoff_readiness"));
+                state.opinion_handoff = item.data_json.as_deref().and_then(|data| {
+                    extract_json_string_field_cow(data, "external_handoff_readiness")
+                });
                 state.opinion_merge_hint = item
                     .data_json
                     .as_deref()
@@ -194,10 +194,9 @@ fn external_sidecar_json_state<'a>(
                     .data_json
                     .as_deref()
                     .and_then(|data| extract_json_string_field_cow(data, "external_merge_hint"));
-                enrichment.context_status = item
-                    .data_json
-                    .as_deref()
-                    .and_then(|data| extract_json_string_field_cow(data, "external_context_status"));
+                enrichment.context_status = item.data_json.as_deref().and_then(|data| {
+                    extract_json_string_field_cow(data, "external_context_status")
+                });
             }
             "external_diagnostic_opinion" => {
                 opinion.item = Some(item);
@@ -208,10 +207,9 @@ fn external_sidecar_json_state<'a>(
                     .data_json
                     .as_deref()
                     .and_then(|data| extract_json_string_field_cow(data, "external_merge_hint"));
-                opinion.context_status = item
-                    .data_json
-                    .as_deref()
-                    .and_then(|data| extract_json_string_field_cow(data, "external_context_status"));
+                opinion.context_status = item.data_json.as_deref().and_then(|data| {
+                    extract_json_string_field_cow(data, "external_context_status")
+                });
             }
             _ => {}
         }
@@ -221,7 +219,10 @@ fn external_sidecar_json_state<'a>(
 
 fn append_external_sidecar_context_field_from_state(
     json: &mut String,
-    state: &(ExternalSidecarItemJsonState<'_>, ExternalSidecarItemJsonState<'_>),
+    state: &(
+        ExternalSidecarItemJsonState<'_>,
+        ExternalSidecarItemJsonState<'_>,
+    ),
 ) {
     json.push_str(",\"external_sidecar_context\":");
     json.push_str("{\"evidence_chain_enrichment\":");
@@ -249,7 +250,11 @@ fn append_external_sidecar_contract_fields_from_contract(
 ) {
     let trust_level = contract.trust_level();
     json.push_str(",\"has_external_capability_profile\":");
-    json.push_str(if contract.has_profile { "true" } else { "false" });
+    json.push_str(if contract.has_profile {
+        "true"
+    } else {
+        "false"
+    });
     json.push_str(",\"external_capability_status\":");
     if let Some(value) = contract.capability_status.as_deref() {
         append_json_string(json, value);

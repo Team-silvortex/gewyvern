@@ -1,16 +1,16 @@
 use std::io::Write;
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
 use super::{
-    api_client_is_loopback, handle_api_client, log_error_event, log_warn_event, ApiAccessPolicy,
-    ApiSnapshot, ApiState, API_CLIENT_WRITE_TIMEOUT, API_MAX_CONCURRENT_CLIENTS,
+    API_CLIENT_WRITE_TIMEOUT, API_MAX_CONCURRENT_CLIENTS, ApiAccessPolicy, ApiSnapshot, ApiState,
     EVENT_API_CLIENT_ACCEPT_FAILED, EVENT_API_CLIENT_OVERLOAD_REJECTED,
-    EVENT_API_LISTENER_BIND_FAILED,
+    EVENT_API_LISTENER_BIND_FAILED, api_client_is_loopback, handle_api_client, log_error_event,
+    log_warn_event,
 };
 
 pub struct ApiService {

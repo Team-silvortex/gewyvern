@@ -29,7 +29,8 @@ fn leselang_reference_separates_current_contract_from_roadmap_design() {
         "runtime.read",
         "Effect",
         "64 KiB",
-        "not yet a durable",
+        "durable continuation guarantee",
+        "SQLite effect journal",
         "LSE",
         "LSH",
         "LSV",
@@ -123,8 +124,8 @@ fn leserpent_next_major_has_one_architecture_and_one_delivery_roadmap() {
         .expect("Leserpent 2.0 roadmap must exist");
     let project = fs::read_to_string(root.join("docs/modules/project.md"))
         .expect("project module must exist");
-    let root_roadmap = fs::read_to_string(root.join("ROADMAP.md"))
-        .expect("root roadmap must exist");
+    let root_roadmap =
+        fs::read_to_string(root.join("ROADMAP.md")).expect("root roadmap must exist");
 
     for invariant in [
         "Non-Negotiable Invariants",

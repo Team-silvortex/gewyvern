@@ -60,11 +60,11 @@ use crate::diagnosis_runtime::*;
 use crate::report_runtime::{
     findings_json, findings_json_with_analysis, findings_text, http_transactions_json,
     http_transactions_text, render_debug_session_outputs, render_debugger_console_outputs,
-    render_report_outputs, render_scan_outputs, scan_report_html_with_analyses,
-    scan_report_json_with_analyses, scan_report_text_with_analyses,
-    single_target_report_html_with_analysis, single_target_report_json_with_analysis,
-    summary_json, summary_json_with_analysis, summary_line, summary_line_with_analysis,
-    scan_analysis_json_array, training_example_json_array, training_example_json_with_analysis,
+    render_report_outputs, render_scan_outputs, scan_analysis_json_array,
+    scan_report_html_with_analyses, scan_report_json_with_analyses, scan_report_text_with_analyses,
+    single_target_report_html_with_analysis, single_target_report_json_with_analysis, summary_json,
+    summary_json_with_analysis, summary_line, summary_line_with_analysis,
+    training_example_json_array, training_example_json_with_analysis,
 };
 #[cfg(test)]
 use crate::report_runtime::{

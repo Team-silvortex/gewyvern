@@ -76,13 +76,7 @@ pub(super) fn single_target_report_json_with_analysis(
 ) -> String {
     let protocol_surface = protocol_surface_for_target(name);
     let estimated_capacity = 160
-        + estimate_scan_target_json_capacity(
-            name,
-            export,
-            analysis,
-            &protocol_surface,
-            usize::MAX,
-        );
+        + estimate_scan_target_json_capacity(name, export, analysis, &protocol_surface, usize::MAX);
     let mut json = String::with_capacity(estimated_capacity);
     let _ = write!(
         json,
@@ -575,7 +569,11 @@ pub(super) fn append_scan_target_html_card(
     if analysis.competing_hypotheses.is_empty() {
         competing_hypotheses.push_str("none");
     } else {
-        push_joined_strings(&mut competing_hypotheses, &analysis.competing_hypotheses, " | ");
+        push_joined_strings(
+            &mut competing_hypotheses,
+            &analysis.competing_hypotheses,
+            " | ",
+        );
     }
     let suspect_modules = first_or_none(&analysis.suspect_modules);
     let primary_module_family = module_family_label(&analysis.primary_module_kind);

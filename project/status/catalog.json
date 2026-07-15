@@ -194,14 +194,20 @@
       "feature": "linux-attach",
       "lifecycle": "current",
       "maturity": "stabilizing",
-      "completion": 82,
+      "completion": 83,
       "confidence": "medium",
       "independence": "internal",
       "contract": {
         "id": "linux-attach-validation",
         "version": "1.0.0",
         "stability": "evolving",
-        "surfaces": ["attach-smoke", "kprobe-smoke", "tc-smoke", "remote-linux-validation"]
+        "surfaces": [
+          "attach-smoke",
+          "kprobe-smoke",
+          "tc-smoke",
+          "remote-linux-validation",
+          "remote-docker-execution"
+        ]
       },
       "depends_on": ["gewyvern-core/runtime-evidence/evidence-reconstruction"],
       "blockers": [
@@ -214,7 +220,10 @@
       "evidence": [
         { "kind": "source", "path": "src/linux_ebpf_smoke.rs", "state": "present" },
         { "kind": "test", "path": "tests/native_validation_harness_tdd.rs", "state": "present" },
-        { "kind": "documentation", "path": "docs/headless-linux.md", "state": "present" }
+        { "kind": "documentation", "path": "docs/headless-linux.md", "state": "present" },
+        { "kind": "source", "path": "scripts/remote/run_on_linux_host.sh", "state": "present" },
+        { "kind": "test", "path": "tests/script_portability_tdd.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/remote-docker.md", "state": "present" }
       ],
       "next_gate": "Expand repeatable physical-host and kernel-version evidence."
     },
@@ -386,12 +395,12 @@
       "feature": "effect-reentry",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 32,
+      "completion": 45,
       "confidence": "medium",
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-execution-protocol",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "stability": "evolving",
         "surfaces": [
           "lossless-syntax",
@@ -400,14 +409,16 @@
           "step",
           "effect-request",
           "continuation-image",
-          "idempotent-reentry"
+          "idempotent-reentry",
+          "sqlite-effect-journal",
+          "crash-safe-completion-replay"
         ]
       },
       "depends_on": ["leserpent-2/domain-protocol/command-query-kernel"],
       "blockers": [
         {
-          "id": "durable-effect-journal",
-          "summary": "Pending and completed effects are process-local; crash-safe exactly-once replay, cancellation, timeout enforcement, retry, and deterministic merge remain unimplemented."
+          "id": "durable-effect-dispatch",
+          "summary": "Continuation completion is durable, but mutating effect dispatch/acknowledgement, cancellation, wall-clock timeout enforcement, retry, retention, and deterministic merge remain unimplemented."
         }
       ],
       "consumers": ["model-automation", "leserpent-cli", "ui-functions"],
@@ -415,9 +426,10 @@
         { "kind": "documentation", "path": "docs/leselang-language.md", "state": "present" },
         { "kind": "source", "path": "crates/leselang-syntax", "state": "present" },
         { "kind": "source", "path": "crates/leselang-hir", "state": "present" },
-        { "kind": "source", "path": "crates/leselang-vm", "state": "present" }
+        { "kind": "source", "path": "crates/leselang-vm", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-vm/src/journal.rs", "state": "present" }
       ],
-      "next_gate": "Gate 2: add a durable effect journal, typed cancellation and timeout, retry policy, and deterministic structured merge."
+      "next_gate": "Gate 2: journal mutating effect dispatch/acknowledgement, then add typed cancellation, timeout enforcement, retry, retention, and deterministic merge."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",

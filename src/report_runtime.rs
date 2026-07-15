@@ -6,8 +6,8 @@ use super::*;
 use crate::render_utils::*;
 
 mod debug_session;
-mod debugger_console;
 mod debug_targets;
+mod debugger_console;
 mod http_render;
 mod scan;
 mod scan_surface;
@@ -141,14 +141,13 @@ pub(super) fn scan_analysis_json_array(
     outputs: &[(String, ExportBundle)],
     analyses: &[AnalysisSnapshot],
 ) -> String {
-    let estimated_capacity = 2
-        + outputs
-            .iter()
-            .zip(analyses.iter())
-            .map(|((name, _), analysis)| {
-                name.len() + estimate_analysis_snapshot_json_capacity(analysis) + 24
-            })
-            .sum::<usize>();
+    let estimated_capacity = 2 + outputs
+        .iter()
+        .zip(analyses.iter())
+        .map(|((name, _), analysis)| {
+            name.len() + estimate_analysis_snapshot_json_capacity(analysis) + 24
+        })
+        .sum::<usize>();
     let mut json = String::with_capacity(estimated_capacity);
     json.push('[');
     for (index, ((name, _), analysis)) in outputs.iter().zip(analyses.iter()).enumerate() {
@@ -438,7 +437,13 @@ pub(super) fn append_http_transaction_json(json: &mut String, transaction: &Http
         "false"
     });
     json.push_str(",\"suspect_sides\":");
-    append_str_list_json(json, transaction.suspect_sides.iter().map(http_suspect_side_label));
+    append_str_list_json(
+        json,
+        transaction
+            .suspect_sides
+            .iter()
+            .map(http_suspect_side_label),
+    );
     json.push_str(",\"phases\":");
     append_string_list_json(json, &transaction.phases);
     json.push_str(",\"components\":[");

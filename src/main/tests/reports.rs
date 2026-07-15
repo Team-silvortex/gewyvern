@@ -1,9 +1,9 @@
 use super::{
     Cli, analysis_snapshot, annotate_export_trust, dsl_fixture_path,
     push_synthetic_missing_stage_finding, render_report_outputs, run_binding_demo,
-    scan_report_html, scan_report_json, scan_report_text,
-    single_target_report_html_with_analysis, single_target_report_json_with_analysis, summary_json,
-    synthesize_large_scan_outputs, with_fake_etragon_hook,
+    scan_report_html, scan_report_json, scan_report_text, single_target_report_html_with_analysis,
+    single_target_report_json_with_analysis, summary_json, synthesize_large_scan_outputs,
+    with_fake_etragon_hook,
 };
 use crate::serve_runtime::SOCKET_SESSION_TARGET_NAME;
 use gewyvern::dsl::compile_file;
@@ -198,8 +198,7 @@ fn scan_report_html_renders_visual_summary() {
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),
     );
     let analysis = analysis_snapshot(&export);
-    let report =
-        single_target_report_html_with_analysis("scan:http:request", &export, &analysis);
+    let report = single_target_report_html_with_analysis("scan:http:request", &export, &analysis);
     assert!(report.contains("<!DOCTYPE html>"));
     assert!(report.contains("gewyvern Scan Report"));
     assert!(report.contains("scan:http:request"));

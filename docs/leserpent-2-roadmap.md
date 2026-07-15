@@ -53,6 +53,12 @@ future examples in this roadmap, defines what callers may use today.
 - effect journal and exactly-once continuation consumption
 - formatter, explain output, and model-oriented language guide
 
+Current evidence covers the `runtime.list` vertical slice, including a bounded
+SQLite journal, transactional sequence allocation, pending recovery, and
+durable first-completion replay. Exactly-once mutation dispatch, cancellation,
+timeout enforcement, retry, and deterministic merge are still required before
+the gate exits.
+
 Exit: programs can suspend, restart, re-enter, and replay deterministically.
 
 ## Gate 3: Native CLI Parity
