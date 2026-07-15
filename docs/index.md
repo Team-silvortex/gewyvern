@@ -7,6 +7,7 @@ that owns your question; do not scan the repository by filename.
 
 - New user: [first run](book/tutorial-first-run.md)
 - GewyLang author: [language module](modules/gewylang.md)
+- Leselang author: [automation language module](modules/leselang.md)
 - Operator: [operations module](modules/operations.md)
 - Contributor: [project module](modules/project.md)
 - Next major: [Leserpent 2.0 roadmap](leserpent-2-roadmap.md)
@@ -18,6 +19,7 @@ that owns your question; do not scan the repository by filename.
 | --- | --- |
 | [Runtime](modules/runtime.md) | architecture, evidence flow, service and machine contracts |
 | [GewyLang](modules/gewylang.md) | language, compiler, package authoring and migration |
+| [Leselang](modules/leselang.md) | orchestration syntax, HIR, effects and deterministic re-entry |
 | [Protocols](modules/protocols.md) | registry, protocol families, package implementation |
 | [Operations](modules/operations.md) | CLI, deployment, validation, security and release gates |
 | [Project](modules/project.md) | development, module ownership, packaging and history |

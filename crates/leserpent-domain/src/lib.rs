@@ -58,7 +58,47 @@ pub enum Command {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Query {
-    RuntimeList,
+    RuntimeList { filter: RuntimeListFilter },
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RuntimeTags {
+    pub environment: Option<String>,
+    pub cluster: Option<String>,
+    pub role: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RuntimeListFilter {
+    pub environment: Option<String>,
+    pub cluster: Option<String>,
+    pub role: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RuntimeStatusSnapshot {
+    pub status_source: String,
+    pub status_fetched_at: Option<String>,
+    pub status_fetch_error: Option<String>,
+    pub has_latest_snapshot: bool,
+    pub snapshot_kind: Option<String>,
+    pub target_count: Option<u64>,
+    pub has_summary_json: bool,
+    pub has_analysis_json: bool,
+    pub has_training_example_json: bool,
+    pub has_training_dataset_manifest: bool,
+    pub has_export_json: bool,
+    pub has_report_json: bool,
+    pub has_report_html: bool,
+    pub has_external_sidecar_context: bool,
+    pub has_external_evidence_chain_enrichment: bool,
+    pub has_external_diagnostic_opinion: bool,
+    pub resilience_degraded: bool,
+    pub resilience_status: Option<String>,
+    pub resilience_summary: Option<String>,
+    pub socket_service_status: Option<String>,
+    pub socket_consecutive_idle_timeouts: Option<u64>,
+    pub socket_total_idle_timeouts: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -91,6 +131,8 @@ pub struct RuntimeProjection {
     pub revision: Revision,
     pub refresh_count: u64,
     pub refresh_status: RefreshStatus,
+    pub tags: RuntimeTags,
+    pub status: RuntimeStatusSnapshot,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -98,6 +140,8 @@ pub struct RuntimeProjection {
 pub enum RefreshStatus {
     NeverRequested,
     Pending,
+    Ready,
+    Failed,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -207,12 +251,68 @@ impl CapabilitySet {
     }
 }
 
+impl RuntimeListFilter {
+    pub fn normalized(self) -> Self {
+        Self {
+            environment: normalize_filter_value(self.environment),
+            cluster: normalize_filter_value(self.cluster),
+            role: normalize_filter_value(self.role),
+        }
+    }
+}
+
+impl Default for RuntimeStatusSnapshot {
+    fn default() -> Self {
+        Self {
+            status_source: "unobserved".to_string(),
+            status_fetched_at: None,
+            status_fetch_error: None,
+            has_latest_snapshot: false,
+            snapshot_kind: None,
+            target_count: None,
+            has_summary_json: false,
+            has_analysis_json: false,
+            has_training_example_json: false,
+            has_training_dataset_manifest: false,
+            has_export_json: false,
+            has_report_json: false,
+            has_report_html: false,
+            has_external_sidecar_context: false,
+            has_external_evidence_chain_enrichment: false,
+            has_external_diagnostic_opinion: false,
+            resilience_degraded: false,
+            resilience_status: None,
+            resilience_summary: None,
+            socket_service_status: None,
+            socket_consecutive_idle_timeouts: None,
+            socket_total_idle_timeouts: None,
+        }
+    }
+}
+
 impl InMemoryControlPlane {
     pub fn register_runtime(
         &mut self,
         id: RuntimeId,
         name: impl Into<String>,
         endpoint: impl Into<String>,
+    ) -> RuntimeProjection {
+        self.register_runtime_with_metadata(
+            id,
+            name,
+            endpoint,
+            RuntimeTags::default(),
+            RuntimeStatusSnapshot::default(),
+        )
+    }
+
+    pub fn register_runtime_with_metadata(
+        &mut self,
+        id: RuntimeId,
+        name: impl Into<String>,
+        endpoint: impl Into<String>,
+        tags: RuntimeTags,
+        status: RuntimeStatusSnapshot,
     ) -> RuntimeProjection {
         self.revision += 1;
         let projection = RuntimeProjection {
@@ -222,6 +322,8 @@ impl InMemoryControlPlane {
             revision: Revision(self.revision),
             refresh_count: 0,
             refresh_status: RefreshStatus::NeverRequested,
+            tags,
+            status,
         };
         self.runtimes.insert(id, projection.clone());
         projection
@@ -232,10 +334,25 @@ impl InMemoryControlPlane {
         validate_principal(&envelope.principal)?;
         require_capability(&envelope.capabilities, CAPABILITY_RUNTIME_READ)?;
         match envelope.query {
-            Query::RuntimeList => Ok(QueryResult::RuntimeList {
-                revision: Revision(self.revision),
-                runtimes: self.runtimes.values().cloned().collect(),
-            }),
+            Query::RuntimeList { filter } => {
+                let filter = filter.normalized();
+                let mut runtimes = self
+                    .runtimes
+                    .values()
+                    .filter(|runtime| matches_filter(runtime, &filter))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                runtimes.sort_by(|left, right| {
+                    left.name
+                        .to_ascii_lowercase()
+                        .cmp(&right.name.to_ascii_lowercase())
+                        .then_with(|| left.id.cmp(&right.id))
+                });
+                Ok(QueryResult::RuntimeList {
+                    revision: Revision(self.revision),
+                    runtimes,
+                })
+            }
         }
     }
 
@@ -313,6 +430,39 @@ impl InMemoryControlPlane {
             }
         }
     }
+
+    pub fn complete_runtime_status_refresh(
+        &mut self,
+        runtime_id: &RuntimeId,
+        expected_revision: Revision,
+        status: RuntimeStatusSnapshot,
+    ) -> Result<RuntimeProjection, DomainError> {
+        let current =
+            self.runtimes
+                .get(runtime_id)
+                .cloned()
+                .ok_or_else(|| DomainError::RuntimeNotFound {
+                    runtime_id: runtime_id.as_str().to_string(),
+                })?;
+        if current.revision != expected_revision {
+            return Err(DomainError::RevisionConflict {
+                expected: expected_revision,
+                actual: current.revision,
+            });
+        }
+
+        self.revision += 1;
+        let mut next = current;
+        next.revision = Revision(self.revision);
+        next.refresh_status = if status.status_fetch_error.is_some() {
+            RefreshStatus::Failed
+        } else {
+            RefreshStatus::Ready
+        };
+        next.status = status;
+        self.runtimes.insert(runtime_id.clone(), next.clone());
+        Ok(next)
+    }
 }
 
 impl fmt::Display for DomainError {
@@ -379,6 +529,27 @@ fn require_capability(
         .ok_or(DomainError::Unauthorized { capability })
 }
 
+fn normalize_filter_value(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let trimmed = value.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
+    })
+}
+
+fn matches_filter(runtime: &RuntimeProjection, filter: &RuntimeListFilter) -> bool {
+    matches_tag(&runtime.tags.environment, &filter.environment)
+        && matches_tag(&runtime.tags.cluster, &filter.cluster)
+        && matches_tag(&runtime.tags.role, &filter.role)
+}
+
+fn matches_tag(actual: &Option<String>, expected: &Option<String>) -> bool {
+    expected.as_ref().is_none_or(|expected| {
+        actual
+            .as_ref()
+            .is_some_and(|actual| actual.eq_ignore_ascii_case(expected))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -413,7 +584,9 @@ mod tests {
                     id: "operator".to_string(),
                 },
                 capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
-                query: Query::RuntimeList,
+                query: Query::RuntimeList {
+                    filter: RuntimeListFilter::default(),
+                },
             })
             .unwrap();
         let QueryResult::RuntimeList { runtimes, .. } = result;
@@ -502,5 +675,87 @@ mod tests {
         let result = control.execute(second).unwrap();
         assert_eq!(result.runtime.revision, Revision(3));
         assert_eq!(result.runtime.refresh_count, 2);
+    }
+
+    #[test]
+    fn runtime_list_matches_legacy_filter_and_name_ordering() {
+        let mut control = InMemoryControlPlane::default();
+        control.register_runtime_with_metadata(
+            RuntimeId::new("runtime-z").unwrap(),
+            "alpha",
+            "http://z",
+            RuntimeTags {
+                environment: Some("Production".to_string()),
+                cluster: Some("east".to_string()),
+                role: Some("edge".to_string()),
+            },
+            RuntimeStatusSnapshot::default(),
+        );
+        control.register_runtime_with_metadata(
+            RuntimeId::new("runtime-a").unwrap(),
+            "Bravo",
+            "http://a",
+            RuntimeTags {
+                environment: Some("production".to_string()),
+                cluster: Some("west".to_string()),
+                role: Some("edge".to_string()),
+            },
+            RuntimeStatusSnapshot::default(),
+        );
+
+        let result = control
+            .query(QueryEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                principal: Principal {
+                    id: "operator".to_string(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                query: Query::RuntimeList {
+                    filter: RuntimeListFilter {
+                        environment: Some(" production ".to_string()),
+                        cluster: None,
+                        role: Some("EDGE".to_string()),
+                    },
+                },
+            })
+            .unwrap();
+        let QueryResult::RuntimeList { runtimes, .. } = result;
+        assert_eq!(runtimes.len(), 2);
+        assert_eq!(runtimes[0].id.as_str(), "runtime-z");
+        assert_eq!(runtimes[1].id.as_str(), "runtime-a");
+    }
+
+    #[test]
+    fn status_refresh_completion_is_revision_checked_and_records_failures() {
+        let mut control = InMemoryControlPlane::default();
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        control.register_runtime(runtime_id.clone(), "A", "http://a");
+        let requested = control
+            .execute(refresh_envelope(
+                runtime_id.clone(),
+                "command-1",
+                "refresh-a",
+            ))
+            .unwrap();
+        assert_eq!(requested.runtime.refresh_status, RefreshStatus::Pending);
+
+        let failed_status = RuntimeStatusSnapshot {
+            status_source: "fetch_failed".to_string(),
+            status_fetch_error: Some("connection refused".to_string()),
+            ..RuntimeStatusSnapshot::default()
+        };
+        assert!(matches!(
+            control.complete_runtime_status_refresh(
+                &runtime_id,
+                Revision(1),
+                failed_status.clone()
+            ),
+            Err(DomainError::RevisionConflict { .. })
+        ));
+        let completed = control
+            .complete_runtime_status_refresh(&runtime_id, Revision(2), failed_status)
+            .unwrap();
+        assert_eq!(completed.refresh_status, RefreshStatus::Failed);
+        assert_eq!(completed.revision, Revision(3));
     }
 }

@@ -3,6 +3,8 @@ use leserpent_domain::{
 };
 use serde::{Deserialize, Serialize};
 
+pub mod compatibility_v1;
+
 pub const PROTOCOL_SCHEMA_VERSION: u32 = 1;
 pub const MAX_PROTOCOL_MESSAGE_BYTES: usize = 1024 * 1024;
 
@@ -22,7 +24,7 @@ pub struct RequestEnvelope {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
 pub enum ProtocolResponse {
-    Command(CommandResult),
+    Command(Box<CommandResult>),
     Query(QueryResult),
     Error(ProtocolError),
 }
@@ -122,7 +124,7 @@ pub fn domain_error_response(error: &DomainError) -> ResponseEnvelope {
 #[cfg(test)]
 mod tests {
     use leserpent_domain::{
-        CAPABILITY_RUNTIME_READ, CapabilitySet, Principal, Query, QueryEnvelope,
+        CAPABILITY_RUNTIME_READ, CapabilitySet, Principal, Query, QueryEnvelope, RuntimeListFilter,
     };
 
     use super::*;
@@ -137,7 +139,9 @@ mod tests {
                     id: "operator".to_string(),
                 },
                 capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
-                query: Query::RuntimeList,
+                query: Query::RuntimeList {
+                    filter: RuntimeListFilter::default(),
+                },
             }),
         };
         let bytes = encode_request(&request).unwrap();
@@ -167,7 +171,7 @@ mod tests {
             Err(DecodeError::Oversized { .. })
         ));
 
-        let source = br#"{"schema_version":2,"request":{"kind":"query","payload":{"schema_version":1,"principal":{"id":"operator"},"capabilities":["runtime.read"],"query":{"kind":"runtime_list"}}}}"#;
+        let source = br#"{"schema_version":2,"request":{"kind":"query","payload":{"schema_version":1,"principal":{"id":"operator"},"capabilities":["runtime.read"],"query":{"kind":"runtime_list","filter":{"environment":null,"cluster":null,"role":null}}}}}"#;
         assert!(matches!(
             decode_request(source),
             Err(DecodeError::InvalidSchemaVersion { .. })

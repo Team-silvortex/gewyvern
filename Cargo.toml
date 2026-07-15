@@ -2,6 +2,9 @@
 members = [
     ".",
     "crates/gewyc",
+    "crates/leselang-hir",
+    "crates/leselang-syntax",
+    "crates/leselang-vm",
     "crates/leserpent-domain",
     "crates/leserpent-protocol",
     "apps/etragon",

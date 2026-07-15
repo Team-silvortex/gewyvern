@@ -21,4 +21,10 @@
     <ProjectReference Include="../../src/Leserpent/Leserpent.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="../../../../crates/leserpent-protocol/tests/fixtures/legacy-runtime-*-v1.json"
+             Link="CompatibilityFixtures/%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

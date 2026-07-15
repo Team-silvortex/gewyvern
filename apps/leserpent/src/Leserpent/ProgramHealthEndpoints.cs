@@ -6,7 +6,7 @@ public partial class Program
 {
     private static void MapHealthEndpoints(WebApplication app)
     {
-        app.MapGet("/health", (ControlPlaneStateStore stateStore, IOrchestraRunStore orchestraRunStore, RegistryService registry, ControlPlaneSecurityPolicy security) =>
+        app.MapGet("/health", (ControlPlaneStateStore stateStore, IOrchestraRunStore orchestraRunStore, RegistryService registry, ControlPlaneSecurityPolicy security, ICompatibilityBridge compatibilityBridge) =>
             Results.Ok(new HealthResponse(
                 true,
                 "leserpent",
@@ -16,7 +16,7 @@ public partial class Program
                     security.ApiMode,
                     security.AdminTokenConfigured,
                     security.PublicEndpointDiscoveryAllowed),
-                BuildRuntimePosture(stateStore, orchestraRunStore),
+                BuildRuntimePosture(stateStore, orchestraRunStore, compatibilityBridge),
                 new HealthPersistenceResponse(
                     stateStore.StatePath,
                     stateStore.BackupStatePath,
@@ -34,7 +34,7 @@ public partial class Program
                     orchestraRunStore.LastError,
                     string.IsNullOrWhiteSpace(orchestraRunStore.LastError)))));
 
-        app.MapGet("/v1/capabilities", (ControlPlaneStateStore stateStore, IOrchestraRunStore orchestraRunStore, RegistryService registry, ControlPlaneSecurityPolicy security) =>
+        app.MapGet("/v1/capabilities", (ControlPlaneStateStore stateStore, IOrchestraRunStore orchestraRunStore, RegistryService registry, ControlPlaneSecurityPolicy security, ICompatibilityBridge compatibilityBridge) =>
             Results.Ok(new ServiceCapabilities(
                 "leserpent",
                 typeof(Program).Assembly.GetName().Version?.ToString() ?? "dev",
@@ -98,6 +98,6 @@ public partial class Program
                     security.ApiMode,
                     security.AdminTokenConfigured,
                     security.PublicEndpointDiscoveryAllowed),
-                BuildRuntimePosture(stateStore, orchestraRunStore))));
+                BuildRuntimePosture(stateStore, orchestraRunStore, compatibilityBridge))));
     }
 }

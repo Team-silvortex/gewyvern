@@ -54,7 +54,7 @@ if [[ ! "${KEEP_RELEASES}" =~ ^[1-9][0-9]*$ ]]; then
   exit 2
 fi
 
-for required in Leserpent libe_sqlite3.so wwwroot deploy/leserpent.service deploy/leserpent.env.example; do
+for required in Leserpent leserpent-compat-bridge libe_sqlite3.so wwwroot deploy/leserpent.service deploy/leserpent.env.example; do
   if [[ ! -e "${SOURCE_DIR}/${required}" ]]; then
     printf 'invalid Leserpent bundle: missing %s\n' "${required}" >&2
     exit 1
@@ -86,6 +86,7 @@ find "${release_dir}" -type d -exec chmod 0755 {} +
 find "${release_dir}" -type f -exec chmod 0644 {} +
 find "${release_dir}" -type f -name '*.dbg' -delete
 chmod 0755 "${release_dir}/Leserpent"
+chmod 0755 "${release_dir}/leserpent-compat-bridge"
 install -m 0644 "${SOURCE_DIR}/deploy/leserpent.service" "${unit_dir}/leserpent.service"
 
 if [[ ! -f "${config_dir}/leserpent.env" ]]; then

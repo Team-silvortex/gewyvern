@@ -1,0 +1,15 @@
+[package]
+name = "leselang-vm"
+version.workspace = true
+edition.workspace = true
+description = "Stackless Leselang evaluator with versioned effect continuations"
+license.workspace = true
+
+[dependencies]
+leselang-hir = { path = "../leselang-hir" }
+leserpent-domain = { path = "../leserpent-domain" }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+leselang-syntax = { path = "../leselang-syntax" }

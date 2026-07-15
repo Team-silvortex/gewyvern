@@ -1,0 +1,11 @@
+[package]
+name = "leselang-hir"
+version.workspace = true
+edition.workspace = true
+description = "Typed, capability-aware high-level IR for Leselang"
+license.workspace = true
+
+[dependencies]
+leselang-syntax = { path = "../leselang-syntax" }
+leserpent-domain = { path = "../leserpent-domain" }
+serde.workspace = true

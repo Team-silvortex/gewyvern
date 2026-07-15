@@ -11,7 +11,10 @@ dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj \
   -o artifacts/leserpent/linux-x64
 ```
 
-The output contains the native executable, SQLite native library, dashboard assets, and a `deploy` directory.
+The publish target also builds the Rust compatibility bridge with Cargo. The
+output contains both native executables, the SQLite native library, dashboard
+assets, and a `deploy` directory. Linux bundles must be built on Linux so the
+bridge architecture matches the selected RID.
 
 ## Install or upgrade
 
@@ -26,6 +29,7 @@ The installer:
 - atomically points `/opt/leserpent/current` at the new release
 - writes the systemd unit to `/etc/systemd/system/leserpent.service`
 - creates `/etc/leserpent/leserpent.env` once and generates a 256-bit admin token
+- enables the bundled `leserpent-compat-bridge` through an absolute release path
 - stores mutable state and SQLite data below `/var/lib/leserpent`
 - starts the service, waits for `/health`, and rolls back the release link if health fails
 - retains the three newest healthy releases by default

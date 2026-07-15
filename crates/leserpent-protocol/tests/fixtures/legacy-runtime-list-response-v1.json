@@ -1,0 +1,81 @@
+{
+  "filter": {
+    "environment": " production ",
+    "cluster": null,
+    "role": "EDGE"
+  },
+  "runtimes": [
+    {
+      "runtimeId": "runtime-alpha",
+      "name": "Alpha",
+      "endpoint": "http://127.0.0.1:9411",
+      "sidecarEndpoint": null,
+      "hasSidecarAdminToken": false,
+      "registeredAt": "2026-07-15T01:00:00+00:00",
+      "updatedAt": "2026-07-15T01:05:00+00:00",
+      "capabilities": [],
+      "capabilitySource": "manual",
+      "capabilityFetchedAt": null,
+      "capabilityFetchError": null,
+      "tags": {
+        "environment": "Production",
+        "cluster": "east",
+        "role": "edge"
+      },
+      "status": {
+        "statusSource": "gewyvern-api",
+        "statusFetchedAt": "2026-07-15T01:05:00+00:00",
+        "statusFetchError": null,
+        "hasLatestSnapshot": true,
+        "snapshotKind": "single",
+        "targetCount": 1,
+        "hasSummaryJson": true,
+        "hasAnalysisJson": true,
+        "hasTrainingExampleJson": false,
+        "hasTrainingDatasetManifest": false,
+        "hasExportJson": true,
+        "hasReportJson": true,
+        "hasReportHtml": true,
+        "hasExternalSidecarContext": false,
+        "hasExternalEvidenceChainEnrichment": false,
+        "hasExternalDiagnosticOpinion": false,
+        "resilienceDegraded": false,
+        "resilienceStatus": "ready",
+        "resilienceSummary": "runtime ready",
+        "socketServiceStatus": "listening",
+        "socketConsecutiveIdleTimeouts": 0,
+        "socketTotalIdleTimeouts": 2
+      },
+      "sidecarStatus": null,
+      "hasRuntimeAdminToken": true
+    },
+    {
+      "runtimeId": "runtime-bravo",
+      "name": "bravo",
+      "endpoint": "http://127.0.0.1:9511",
+      "tags": {
+        "environment": "production",
+        "cluster": "west",
+        "role": "Edge"
+      },
+      "status": {
+        "statusSource": "unobserved",
+        "statusFetchedAt": null,
+        "statusFetchError": null,
+        "hasLatestSnapshot": false,
+        "snapshotKind": null,
+        "targetCount": null,
+        "hasSummaryJson": false,
+        "hasAnalysisJson": false,
+        "hasTrainingExampleJson": false,
+        "hasTrainingDatasetManifest": false,
+        "hasExportJson": false,
+        "hasReportJson": false,
+        "hasReportHtml": false,
+        "hasExternalSidecarContext": false,
+        "hasExternalEvidenceChainEnrichment": false,
+        "hasExternalDiagnosticOpinion": false
+      }
+    }
+  ]
+}

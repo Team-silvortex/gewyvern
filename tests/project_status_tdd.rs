@@ -66,13 +66,28 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/domain-protocol/command-query-kernel")
         .expect("Leserpent Gate 1 cell must exist");
-    assert_eq!(domain.maturity, Maturity::Developing);
+    assert_eq!(domain.maturity, Maturity::Stabilizing);
     assert_eq!(domain.contract.stability, ContractStability::Evolving);
     assert!(
         domain
             .evidence
             .iter()
             .any(|item| item.kind == EvidenceKind::Source && item.state == EvidenceState::Present)
+    );
+
+    let language = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
+        .expect("Leserpent Gate 2 cell must exist");
+    assert_eq!(language.maturity, Maturity::Developing);
+    assert_eq!(language.contract.stability, ContractStability::Evolving);
+    assert!(
+        language
+            .evidence
+            .iter()
+            .filter(|item| item.kind == EvidenceKind::Source)
+            .all(|item| item.state == EvidenceState::Present)
     );
 }
 
@@ -133,7 +148,7 @@ fn native_status_cli_exposes_human_and_machine_views() {
             "--lifecycle",
             "target",
             "--maturity",
-            "planned",
+            "developing",
             "--json",
         ])
         .output()

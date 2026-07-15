@@ -301,6 +301,26 @@ JSON state 默认路径：
 - runtime 存在 `queued`/`running` Orchestra run 时，单删和批量删除会返回 `409 runtime_delete_orchestra_active` 及 `activeRuns`；批量操作不会部分删除其他 idle runtime
 - 仓库只保留 `src/Leserpent/data/control-plane-state.sample.json`，真实运行态 state 不应该提交。
 
+### Rust compatibility bridge
+
+Leserpent 1.x 可以选择让 runtime list 和 status refresh 响应经过 Rust 2.0
+协议核校验：
+
+```bash
+cargo build -p leserpent-protocol --bin leserpent-compat-bridge
+export LESERPENT_RUST_BRIDGE_BIN="$PWD/target/debug/leserpent-compat-bridge"
+```
+
+`LESERPENT_RUST_BRIDGE_BIN` 必须是现存可执行文件的绝对路径。可用
+`LESERPENT_RUST_BRIDGE_TIMEOUT_MS` 设置 `100..30000` ms 的请求期限，默认
+为 2000 ms。启用后 bridge 拒绝、超时或协议错位会返回
+`502 compatibility_bridge_failed`，status refresh 不会在校验失败时写入
+registry。`/health` 和 `/v1/capabilities` 的 `rust_compatibility_bridge`
+adapter 状态会显示是否真正启用。
+
+未配置 bridge 时 1.x 行为保持不变。当前 bridge 尚未进入发布包，迁移
+部署前应阅读 [兼容策略](../../crates/leserpent-protocol/COMPATIBILITY.md)。
+
 当前会恢复和保存：
 
 - registered runtimes
@@ -580,7 +600,9 @@ dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj \
 
 ARM64 Linux 使用 `-r linux-arm64`。Native AOT 不支持从 macOS 直接交叉编译 Linux 产物，因此 Linux 发布应在对应 Linux 构建机或 CI runner 上执行。
 
-发布目录会自动包含 Linux 安装器、systemd unit 和环境模板。首次安装与后续原子升级使用同一条命令：
+发布目录会自动包含 Leserpent、`leserpent-compat-bridge`、Linux 安装器、
+systemd unit 和环境模板。Cargo bridge 会在 Linux publish 阶段以 `--locked
+--release` 构建；首次安装与后续原子升级使用同一条命令：
 
 ```bash
 sudo artifacts/leserpent/linux-x64/deploy/install.sh

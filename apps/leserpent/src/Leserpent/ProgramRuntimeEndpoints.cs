@@ -8,10 +8,21 @@ public partial class Program
 {
     private static void MapRuntimeEndpoints(WebApplication app)
     {
-        app.MapGet("/v1/runtimes", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
-            Results.Ok(new RuntimeCollectionResponse(
+        app.MapGet("/v1/runtimes", async Task<IResult> ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry, ICompatibilityBridge compatibilityBridge, CancellationToken cancellationToken) =>
+        {
+            var response = new RuntimeCollectionResponse(
                 new RuntimeListFilter(environmentTag, cluster, role),
-                registry.ListRuntimes(new RuntimeListFilter(environmentTag, cluster, role)))));
+                registry.ListRuntimes(new RuntimeListFilter(environmentTag, cluster, role)));
+            try
+            {
+                await compatibilityBridge.ValidateRuntimeListAsync(response, cancellationToken);
+                return Results.Ok(response);
+            }
+            catch (CompatibilityBridgeException ex)
+            {
+                return CompatibilityBridgeFailure(ex);
+            }
+        });
 
         app.MapGet("/v1/runtimes/{id}", (string id, RegistryService registry) =>
         {
@@ -226,7 +237,7 @@ public partial class Program
                 : Results.Ok(refreshed);
         });
 
-        app.MapPost("/v1/runtimes/{id}/refresh-status", async (string id, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/runtimes/{id}/refresh-status", async (string id, RegistryService registry, CapabilityDiscoveryService discovery, ICompatibilityBridge compatibilityBridge, CancellationToken cancellationToken) =>
         {
             var runtime = registry.GetRuntime(id);
             if (runtime is null)
@@ -234,9 +245,26 @@ public partial class Program
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
 
-            var refreshed = registry.RefreshRuntimeStatus(
-                id,
-                await discovery.DiscoverStatusAsync(runtime.Endpoint, null, cancellationToken, registry.GetRuntimeControlAccess(id)?.AdminToken));
+            var statusDiscovery = await discovery.DiscoverStatusAsync(
+                runtime.Endpoint,
+                null,
+                cancellationToken,
+                registry.GetRuntimeControlAccess(id)?.AdminToken);
+            try
+            {
+                await compatibilityBridge.ValidateStatusRefreshAsync(
+                    new RuntimeStatusRefreshResponse(
+                        runtime.RuntimeId,
+                        runtime.Name,
+                        runtime.Endpoint,
+                        statusDiscovery.Status),
+                    cancellationToken);
+            }
+            catch (CompatibilityBridgeException ex)
+            {
+                return CompatibilityBridgeFailure(ex);
+            }
+            var refreshed = registry.RefreshRuntimeStatus(id, statusDiscovery);
             if (refreshed is not null)
             {
                 registry.RecordRecoveryActivity(
@@ -439,4 +467,10 @@ public partial class Program
         }
         return null;
     }
+
+    private static IResult CompatibilityBridgeFailure(CompatibilityBridgeException error) =>
+        Results.Json(
+            new ApiErrorResponse("compatibility_bridge_failed", error.Message),
+            LeserpentJsonContext.Default.ApiErrorResponse,
+            statusCode: StatusCodes.Status502BadGateway);
 }

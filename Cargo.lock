@@ -117,6 +117,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
+name = "leselang-hir"
+version = "1.0.0"
+dependencies = [
+ "leselang-syntax",
+ "leserpent-domain",
+ "serde",
+]
+
+[[package]]
+name = "leselang-syntax"
+version = "1.0.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "leselang-vm"
+version = "1.0.0"
+dependencies = [
+ "leselang-hir",
+ "leselang-syntax",
+ "leserpent-domain",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "leserpent-domain"
 version = "1.0.0"
 dependencies = [

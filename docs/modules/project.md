@@ -21,6 +21,7 @@ maintenance, and historical context.
 - [Release checklist](../release-checklist.md)
 - [Leserpent 2.0 architecture](../leserpent-2-architecture.md)
 - [Leserpent 2.0 roadmap](../leserpent-2-roadmap.md)
+- [Leselang module](leselang.md)
 - [Project status protocol](../project-status-system.md)
 
 ## History

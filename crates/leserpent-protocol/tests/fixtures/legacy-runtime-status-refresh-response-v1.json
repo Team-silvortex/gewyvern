@@ -1,0 +1,29 @@
+{
+  "runtimeId": "runtime-alpha",
+  "name": "Alpha",
+  "endpoint": "http://127.0.0.1:9411",
+  "status": {
+    "statusSource": "gewyvern-api",
+    "statusFetchedAt": "2026-07-15T01:10:00+00:00",
+    "statusFetchError": null,
+    "hasLatestSnapshot": true,
+    "snapshotKind": "single",
+    "targetCount": 2,
+    "hasSummaryJson": true,
+    "hasAnalysisJson": true,
+    "hasTrainingExampleJson": true,
+    "hasTrainingDatasetManifest": true,
+    "hasExportJson": true,
+    "hasReportJson": true,
+    "hasReportHtml": true,
+    "hasExternalSidecarContext": false,
+    "hasExternalEvidenceChainEnrichment": false,
+    "hasExternalDiagnosticOpinion": false,
+    "resilienceDegraded": false,
+    "resilienceStatus": "ready",
+    "resilienceSummary": "runtime ready",
+    "socketServiceStatus": "listening",
+    "socketConsecutiveIdleTimeouts": 0,
+    "socketTotalIdleTimeouts": 2
+  }
+}

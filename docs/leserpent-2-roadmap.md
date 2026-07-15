@@ -34,9 +34,16 @@ Build `leserpent-domain` and `leserpent-protocol`.
 
 Exit: GUI/API and Rust fixtures agree on normalized semantics.
 
+The current compatibility policy and fixture boundary are maintained in
+[`crates/leserpent-protocol/COMPATIBILITY.md`](../crates/leserpent-protocol/COMPATIBILITY.md).
+
 ## Gate 2: Leselang Frontend And VM
 
 Build the language without UI-specific shortcuts.
+
+The implemented language surface and its explicit limits are maintained in the
+[Leselang language contract](leselang-language.md). That contract, rather than
+future examples in this roadmap, defines what callers may use today.
 
 - lossless parser and first-class diagnostics
 - HIR, lightweight static types, effects, and capability checking
@@ -153,4 +160,3 @@ The first code-bearing slice should be deliberately narrow:
 6. compare both paths with the current Leserpent API fixture
 
 This proves the architecture before parser breadth or GUI migration expands.
-

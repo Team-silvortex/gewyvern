@@ -1,0 +1,9 @@
+[package]
+name = "leselang-syntax"
+version.workspace = true
+edition.workspace = true
+description = "Lossless lexer, parser, spans, and diagnostics for Leselang"
+license.workspace = true
+
+[dependencies]
+serde.workspace = true

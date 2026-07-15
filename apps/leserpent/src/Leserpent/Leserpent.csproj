@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <RepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../../..'))</RepositoryRoot>
+    <RustCompatibilityBridgePath>$(RepositoryRoot)/target/release/leserpent-compat-bridge</RustCompatibilityBridgePath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,5 +18,20 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <Target Name="BuildRustCompatibilityBridge"
+          BeforeTargets="Publish"
+          Condition="('$(RuntimeIdentifier)' == 'linux-x64' Or '$(RuntimeIdentifier)' == 'linux-arm64') And $([MSBuild]::IsOSPlatform('Linux'))">
+    <Exec Command="cargo build --locked --release -p leserpent-protocol --bin leserpent-compat-bridge"
+          WorkingDirectory="$(RepositoryRoot)" />
+    <Copy SourceFiles="$(RustCompatibilityBridgePath)"
+          DestinationFiles="$(PublishDir)leserpent-compat-bridge" />
+  </Target>
+
+  <Target Name="RejectCrossPlatformRustCompatibilityBridge"
+          BeforeTargets="Publish"
+          Condition="('$(RuntimeIdentifier)' == 'linux-x64' Or '$(RuntimeIdentifier)' == 'linux-arm64') And !$([MSBuild]::IsOSPlatform('Linux'))">
+    <Error Text="Leserpent Linux bundles, including the Rust compatibility bridge, must be published on Linux." />
+  </Target>
 
 </Project>

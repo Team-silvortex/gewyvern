@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 const MODULES: &[&str] = &[
     "runtime.md",
     "gewylang.md",
+    "leselang.md",
     "protocols.md",
     "operations.md",
     "project.md",
@@ -11,6 +12,37 @@ const MODULES: &[&str] = &[
 
 fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+#[test]
+fn leselang_reference_separates_current_contract_from_roadmap_design() {
+    let root = repository_root();
+    let reference = fs::read_to_string(root.join("docs/leselang-language.md"))
+        .expect("Leselang language reference must exist");
+    let module = fs::read_to_string(root.join("docs/modules/leselang.md"))
+        .expect("Leselang documentation module must exist");
+    let roadmap = fs::read_to_string(root.join("docs/leserpent-2-roadmap.md"))
+        .expect("Leserpent 2.0 roadmap must exist");
+
+    for invariant in [
+        "fn main() = runtime.list(",
+        "runtime.read",
+        "Effect",
+        "64 KiB",
+        "not yet a durable",
+        "LSE",
+        "LSH",
+        "LSV",
+    ] {
+        assert!(
+            reference.contains(invariant),
+            "Leselang reference must preserve current invariant: {invariant}"
+        );
+    }
+
+    assert!(reference.contains("do not expose\n`async`/`await`"));
+    assert!(module.contains("(../leselang-language.md)"));
+    assert!(roadmap.contains("(leselang-language.md)"));
 }
 
 #[test]

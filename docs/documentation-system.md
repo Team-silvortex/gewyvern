@@ -31,6 +31,7 @@ Every current page has one primary owner:
 | --- | --- |
 | Runtime | [modules/runtime.md](modules/runtime.md) |
 | GewyLang | [modules/gewylang.md](modules/gewylang.md) |
+| Leselang | [modules/leselang.md](modules/leselang.md) |
 | Protocols | [modules/protocols.md](modules/protocols.md) |
 | Operations | [modules/operations.md](modules/operations.md) |
 | Project | [modules/project.md](modules/project.md) |

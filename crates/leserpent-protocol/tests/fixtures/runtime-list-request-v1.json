@@ -11,7 +11,12 @@
         "runtime.read"
       ],
       "query": {
-        "kind": "runtime_list"
+        "kind": "runtime_list",
+        "filter": {
+          "environment": null,
+          "cluster": null,
+          "role": null
+        }
       }
     }
   }

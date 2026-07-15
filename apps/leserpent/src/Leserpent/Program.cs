@@ -39,6 +39,7 @@ public partial class Program
         builder.Services.AddSingleton<ControlPlaneStateStore>();
         builder.Services.AddSingleton<IOrchestraRunStore, SqliteOrchestraRunStore>();
         builder.Services.AddSingleton<RegistryService>();
+        builder.Services.AddSingleton<ICompatibilityBridge, RustCompatibilityBridge>();
         builder.Services.AddHttpClient<CapabilityDiscoveryService>();
         builder.Services.AddSingleton<IOrchestraPlanExecutor, OrchestraPlanExecutor>();
         builder.Services.AddSingleton<OrchestraExecutionCoordinator>();
@@ -113,7 +114,8 @@ public partial class Program
 
     private static ServiceRuntimePosture BuildRuntimePosture(
         ControlPlaneStateStore stateStore,
-        IOrchestraRunStore orchestraRunStore)
+        IOrchestraRunStore orchestraRunStore,
+        ICompatibilityBridge compatibilityBridge)
     {
         var persistenceReady = string.IsNullOrWhiteSpace(stateStore.LastSaveError)
             && string.IsNullOrWhiteSpace(orchestraRunStore.LastError);
@@ -123,6 +125,12 @@ public partial class Program
             DegradedButOperable: !persistenceReady,
             OptionalAdapters: new[]
             {
+                new ServiceOptionalAdapter(
+                    "rust_compatibility_bridge",
+                    compatibilityBridge.Enabled ? "configured" : "optional_unconfigured",
+                    compatibilityBridge.Enabled
+                        ? "The 1.x runtime list and status refresh compatibility checks are routed through Rust."
+                        : "Set LESERPENT_RUST_BRIDGE_BIN to an absolute bridge binary path to enable Rust compatibility checks."),
                 new ServiceOptionalAdapter(
                     "docker_scenarios",
                     "optional_unconfigured",

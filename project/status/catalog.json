@@ -338,13 +338,13 @@
       "module": "domain-protocol",
       "feature": "command-query-kernel",
       "lifecycle": "target",
-      "maturity": "developing",
-      "completion": 28,
+      "maturity": "stabilizing",
+      "completion": 78,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-domain-protocol",
-        "version": "0.1.0",
+        "version": "0.3.0",
         "stability": "evolving",
         "surfaces": [
           "command-envelope",
@@ -352,14 +352,16 @@
           "event",
           "capability",
           "revision",
-          "wire-envelope"
+          "wire-envelope",
+          "legacy-v1-compatibility",
+          "compatibility-process-transport"
         ]
       },
       "depends_on": ["leserpent-1x/control-plane/orchestration-persistence"],
       "blockers": [
         {
-          "id": "compatibility-parity-fixtures",
-          "summary": "The Rust runtime.list and runtime.refresh contracts still need parity fixtures against the 1.x API."
+          "id": "linux-package-smoke",
+          "summary": "The dual-binary Linux publish and staged installer path are wired but still need execution evidence on a Linux builder."
         }
       ],
       "consumers": ["leselang-vm", "leserpent-cli", "avalonia-client", "web-adapter"],
@@ -367,9 +369,15 @@
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-domain", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol", "state": "present" },
-        { "kind": "test", "path": "crates/leserpent-protocol/tests/fixtures", "state": "present" }
+        { "kind": "source", "path": "crates/leserpent-protocol/src/bin/leserpent-compat-bridge.rs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent/src/Leserpent/ControlPlane/RustCompatibilityBridge.cs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-protocol/tests/fixtures", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-protocol/tests/compatibility_v1.rs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RustCompatibilityFixtureTests.cs", "state": "present" },
+        { "kind": "test", "path": "tests/leserpent_bridge_packaging_tdd.rs", "state": "present" },
+        { "kind": "documentation", "path": "crates/leserpent-protocol/COMPATIBILITY.md", "state": "present" }
       ],
-      "next_gate": "Gate 1: prove normalized parity with current Leserpent runtime list and refresh fixtures."
+      "next_gate": "Gate 2: begin the Leselang frontend and stackless VM while stabilizing bridge release packaging."
     },
     {
       "id": "leserpent-2/language-vm/effect-reentry",
@@ -377,29 +385,39 @@
       "module": "language-vm",
       "feature": "effect-reentry",
       "lifecycle": "target",
-      "maturity": "planned",
-      "completion": 3,
+      "maturity": "developing",
+      "completion": 32,
       "confidence": "medium",
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-execution-protocol",
-        "version": "0.1.0-draft",
-        "stability": "draft",
-        "surfaces": ["syntax", "hir", "step", "effect-request", "continuation"]
+        "version": "0.1.0",
+        "stability": "evolving",
+        "surfaces": [
+          "lossless-syntax",
+          "typed-hir",
+          "capability-check",
+          "step",
+          "effect-request",
+          "continuation-image",
+          "idempotent-reentry"
+        ]
       },
       "depends_on": ["leserpent-2/domain-protocol/command-query-kernel"],
       "blockers": [
         {
-          "id": "gate-two-not-implemented",
-          "summary": "Parser, HIR, stackless VM, journal, and continuation format remain roadmap work."
+          "id": "durable-effect-journal",
+          "summary": "Pending and completed effects are process-local; crash-safe exactly-once replay, cancellation, timeout enforcement, retry, and deterministic merge remain unimplemented."
         }
       ],
       "consumers": ["model-automation", "leserpent-cli", "ui-functions"],
       "evidence": [
-        { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
-        { "kind": "source", "path": "crates/leselang-vm", "state": "planned" }
+        { "kind": "documentation", "path": "docs/leselang-language.md", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-syntax", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-hir", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-vm", "state": "present" }
       ],
-      "next_gate": "Gate 2: prove suspend, restart, single-consume re-entry, and deterministic replay."
+      "next_gate": "Gate 2: add a durable effect journal, typed cancellation and timeout, retry policy, and deterministic structured merge."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",
