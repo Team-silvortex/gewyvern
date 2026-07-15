@@ -680,14 +680,14 @@
       "feature": "wire-compatibility",
       "lifecycle": "target",
       "maturity": "stabilizing",
-      "completion": 76,
+      "completion": 86,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-wire-contract",
-        "version": "0.3.0",
+        "version": "0.6.0",
         "stability": "evolving",
-        "surfaces": ["wire-envelope", "legacy-v1-compatibility", "compatibility-process-transport", "local-ipc", "remote-transport"]
+        "surfaces": ["wire-envelope", "legacy-v1-compatibility", "compatibility-process-transport", "authenticated-unix-ipc", "bounded-line-framing", "authority-health-request", "optional-effect-queue-health", "legacy-health-response-decode", "remote-transport"]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-1x/control-plane/orchestration-persistence"],
       "blockers": [
@@ -705,11 +705,12 @@
         { "kind": "documentation", "path": "crates/leserpent-protocol/COMPATIBILITY.md", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol/src/bin/leserpent-compat-bridge.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpentd/src/ipc.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-protocol/tests/compatibility_v1.rs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RustCompatibilityFixtureTests.cs", "state": "present" },
         { "kind": "test", "path": "tests/leserpent_bridge_packaging_tdd.rs", "state": "present" }
       ],
-      "next_gate": "Gate 1: close Linux package smoke, then add authenticated remote transports without changing domain semantics."
+      "next_gate": "Gate 1: close Linux package smoke, add Windows named-pipe parity, then add authenticated remote transports without changing domain semantics."
     },
     {
       "id": "leserpent-2/language-syntax/lossless-frontend",
@@ -907,20 +908,20 @@
       "feature": "durable-authority",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 76,
+      "completion": 92,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-runtime-contract",
-        "version": "0.8.0",
+        "version": "0.11.0",
         "stability": "evolving",
-        "surfaces": ["command-plan-dispatch", "query-result", "command-result", "plan-validation", "in-memory-projections", "domain-idempotency", "sqlite-journal", "transactional-schema-migration", "migration-history", "schema-shape-validation", "ordered-registration-command-replay", "pending-command-recovery", "terminal-failure-record", "replay-consistency-check", "bounded-journal", "private-nofollow-storage", "sqlite-v4-snapshot", "snapshot-integrity", "incremental-replay", "dual-generation-fallback", "bounded-terminal-prefix-compaction", "sqlite-v5-owner-lease", "stale-reader-fencing", "stale-writer-fencing", "sqlite-v6-effect-scheduler", "idempotent-effect-enqueue", "transactional-effect-claim", "attempt-fencing", "lease-renewal", "crash-redelivery", "bounded-attempts", "transactions", "policy"]
+        "surfaces": ["command-plan-dispatch", "query-result", "command-result", "plan-validation", "in-memory-projections", "domain-idempotency", "sqlite-journal", "transactional-schema-migration", "migration-history", "schema-shape-validation", "ordered-registration-command-replay", "pending-command-recovery", "terminal-failure-record", "replay-consistency-check", "bounded-journal", "private-nofollow-storage", "sqlite-v4-snapshot", "snapshot-integrity", "incremental-replay", "dual-generation-fallback", "bounded-terminal-prefix-compaction", "sqlite-v5-owner-lease", "owner-heartbeat", "stale-reader-fencing", "stale-writer-fencing", "sqlite-v6-effect-scheduler", "idempotent-effect-enqueue", "transactional-effect-claim", "attempt-fencing", "lease-renewal", "crash-redelivery", "bounded-attempts", "synchronous-worker-step", "complete-retry-reject", "typed-status-observation", "atomic-effect-projection-completion", "status-replay-validation", "effect-queue-state-counters", "active-capacity-saturation", "bounded-terminal-retention", "active-task-preservation", "transactions", "policy"]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel"],
       "blockers": [
         {
           "id": "durable-runtime-breadth",
-          "summary": "SQLite durability, exclusive ownership, and transactional effect enqueue/claim/renew/complete/fail with crash redelivery and attempt fencing are implemented; daemon heartbeat, worker loops, queue policy, and terminal retention remain."
+          "summary": "SQLite durability, scheduling, status projection replay, queue-state observability, active-capacity backpressure, and bounded terminal retention are implemented; bounded worker concurrency policy remains."
         }
       ],
       "consumers": ["leserpentd", "leserpent-cli", "protocol-server", "effect-adapters"],
@@ -930,7 +931,7 @@
         { "kind": "source", "path": "crates/leserpent-runtime/src/persistence.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-runtime/src/lib.rs", "state": "present" }
       ],
-      "next_gate": "Gate 5: add daemon-driven owner heartbeat and bounded worker loops over typed adapters, then define terminal task retention and backpressure policy."
+      "next_gate": "Gate 5: define bounded worker concurrency and cancellation without weakening lease fencing or synchronous adapter semantics."
     },
     {
       "id": "leserpent-2/effect-adapters/typed-integrations",
@@ -938,29 +939,31 @@
       "module": "effect-adapters",
       "feature": "typed-integrations",
       "lifecycle": "target",
-      "maturity": "planned",
-      "completion": 1,
+      "maturity": "incubating",
+      "completion": 36,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-adapter-contract",
-        "version": "0.1.0-draft",
-        "stability": "draft",
-        "surfaces": ["gewyvern", "storage", "deployment", "discovery", "secret-store"]
+        "version": "0.3.0",
+        "stability": "evolving",
+        "surfaces": ["typed-adapter-trait", "adapter-registry", "unknown-kind-rejection", "gewyvern-loopback-health", "gewyvern-typed-status-refresh", "bounded-http-response", "configured-secret-boundary", "revision-bound-status-observation", "scheduler-daemon-adapter-vertical", "storage", "deployment", "discovery", "secret-store"]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-2/control-runtime/durable-authority"],
       "blockers": [
         {
-          "id": "crate-not-created",
-          "summary": "External integrations remain in Gewyvern and the 1.x bridge rather than a shared capability-gated Rust adapter crate."
+          "id": "adapter-breadth",
+          "summary": "The shared adapter crate, bounded loopback health adapter, and typed two-endpoint Gewyvern status refresh exist; deployment, discovery, TLS remote transport, and secret-store adapters remain."
         }
       ],
       "consumers": ["leserpent-runtime", "leserpentd"],
       "evidence": [
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
-        { "kind": "source", "path": "crates/leserpent-adapters", "state": "planned" }
+        { "kind": "source", "path": "crates/leserpent-adapters", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-adapters/src/gewyvern.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpentd/src/lib.rs", "state": "present" }
       ],
-      "next_gate": "Gate 5: implement one bounded Gewyvern adapter and one secret-storage adapter behind typed capabilities."
+      "next_gate": "Gate 5: add a platform secret-storage boundary, then design authenticated remote TLS targets without weakening loopback defaults."
     },
     {
       "id": "leserpent-2/daemon-host/daemon-lifecycle",
@@ -968,29 +971,30 @@
       "module": "daemon-host",
       "feature": "daemon-lifecycle",
       "lifecycle": "target",
-      "maturity": "planned",
-      "completion": 0,
+      "maturity": "incubating",
+      "completion": 54,
       "confidence": "high",
       "independence": "standalone-service",
       "contract": {
         "id": "leserpentd-contract",
-        "version": "0.1.0-draft",
-        "stability": "draft",
-        "surfaces": ["local-ipc", "process-isolation", "health", "lifecycle", "recovery"]
+        "version": "0.6.0",
+        "stability": "evolving",
+        "surfaces": ["standalone-binary", "database-selection", "owner-heartbeat", "typed-adapter-registry", "bounded-worker-step", "heartbeat-only-safe-mode", "finite-step-smoke", "authenticated-unix-ipc", "environment-only-token", "private-socket", "bounded-frame", "wire-v1-dispatch", "authority-health", "queue-health", "periodic-maintenance", "bounded-terminal-retention", "retention-statistics", "gewyvern-health-registration", "gewyvern-status-registration", "sigint-shutdown", "sigterm-shutdown", "raii-lease-release", "process-isolation", "lifecycle", "recovery"]
       },
       "depends_on": ["leserpent-2/control-runtime/durable-authority", "leserpent-2/transport-protocol/wire-compatibility", "leserpent-2/effect-adapters/typed-integrations"],
       "blockers": [
         {
-          "id": "crate-not-created",
-          "summary": "The isolated leserpentd runtime host and local IPC lifecycle are not implemented."
+          "id": "daemon-host-breadth",
+          "summary": "The standalone host, worker driver, authenticated IPC health with queue pressure, bounded terminal maintenance, graceful signals, and Gewyvern health/status wiring exist; Windows named pipes, bounded concurrency, and broader adapters remain."
         }
       ],
       "consumers": ["leserpent-cli", "avalonia-client", "web-client", "remote-client"],
       "evidence": [
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
-        { "kind": "source", "path": "crates/leserpentd", "state": "planned" }
+        { "kind": "source", "path": "crates/leserpentd", "state": "present" },
+        { "kind": "test", "path": "crates/leserpentd/src/lib.rs", "state": "present" }
       ],
-      "next_gate": "Gate 5: host the Rust runtime out of process over authenticated local IPC with restart recovery."
+      "next_gate": "Gate 5: add bounded worker concurrency, Windows named-pipe parity, and retained restart/shutdown evidence as release artifacts."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",

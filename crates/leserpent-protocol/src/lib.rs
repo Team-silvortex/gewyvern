@@ -13,7 +13,11 @@ pub const MAX_PROTOCOL_MESSAGE_BYTES: usize = 1024 * 1024;
 pub enum ProtocolRequest {
     Command(CommandEnvelope),
     Query(QueryEnvelope),
+    Health(HealthRequest),
 }
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct HealthRequest {}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RequestEnvelope {
@@ -26,7 +30,29 @@ pub struct RequestEnvelope {
 pub enum ProtocolResponse {
     Command(Box<CommandResult>),
     Query(QueryResult),
+    Health(HealthResponse),
     Error(ProtocolError),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct HealthResponse {
+    pub status: String,
+    pub authority_owned: bool,
+    pub protocol_schema_version: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effect_queue: Option<EffectQueueHealth>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EffectQueueHealth {
+    pub ready: u64,
+    pub leased: u64,
+    pub completed: u64,
+    pub failed: u64,
+    pub active: u64,
+    pub terminal: u64,
+    pub capacity: u64,
+    pub saturated: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -67,6 +93,7 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
     let domain_version = match &envelope.request {
         ProtocolRequest::Command(command) => command.schema_version,
         ProtocolRequest::Query(query) => query.schema_version,
+        ProtocolRequest::Health(_) => DOMAIN_SCHEMA_VERSION,
     };
     if domain_version != DOMAIN_SCHEMA_VERSION {
         return Err(DecodeError::InvalidDomainSchemaVersion {
@@ -176,5 +203,50 @@ mod tests {
             decode_request(source),
             Err(DecodeError::InvalidSchemaVersion { .. })
         ));
+    }
+
+    #[test]
+    fn health_request_round_trips_without_domain_payload() {
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Health(HealthRequest {}),
+        };
+        assert_eq!(
+            decode_request(&encode_request(&request).unwrap()).unwrap(),
+            request
+        );
+    }
+
+    #[test]
+    fn health_response_accepts_legacy_payload_and_round_trips_queue_pressure() {
+        let legacy = br#"{"schema_version":1,"response":{"kind":"health","payload":{"status":"ready","authority_owned":true,"protocol_schema_version":1}}}"#;
+        let decoded = decode_response(legacy).unwrap();
+        let ProtocolResponse::Health(health) = decoded.response else {
+            panic!("legacy response should remain health");
+        };
+        assert_eq!(health.effect_queue, None);
+
+        let response = ResponseEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            response: ProtocolResponse::Health(HealthResponse {
+                status: "ready".into(),
+                authority_owned: true,
+                protocol_schema_version: PROTOCOL_SCHEMA_VERSION,
+                effect_queue: Some(EffectQueueHealth {
+                    ready: 3,
+                    leased: 1,
+                    completed: 5,
+                    failed: 2,
+                    active: 4,
+                    terminal: 7,
+                    capacity: 10_000,
+                    saturated: false,
+                }),
+            }),
+        };
+        assert_eq!(
+            decode_response(&encode_response(&response).unwrap()).unwrap(),
+            response
+        );
     }
 }

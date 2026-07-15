@@ -8,6 +8,7 @@ pub const COMMAND_PLAN_SCHEMA_VERSION: u32 = 1;
 pub const DOMAIN_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 pub const CAPABILITY_RUNTIME_READ: &str = "runtime.read";
 pub const CAPABILITY_RUNTIME_REFRESH: &str = "runtime.refresh";
+pub const RUNTIME_STATUS_REFRESH_EFFECT_KIND: &str = "gewyvern.status.refresh";
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -101,6 +102,14 @@ pub struct RuntimeStatusSnapshot {
     pub socket_service_status: Option<String>,
     pub socket_consecutive_idle_timeouts: Option<u64>,
     pub socket_total_idle_timeouts: Option<u64>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeStatusObservation {
+    pub runtime_id: String,
+    pub expected_revision: Revision,
+    pub status: RuntimeStatusSnapshot,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -254,7 +263,7 @@ struct AppliedCommand {
     result: CommandResult,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct InMemoryControlPlane {
     revision: u64,
     runtimes: BTreeMap<RuntimeId, RuntimeProjection>,

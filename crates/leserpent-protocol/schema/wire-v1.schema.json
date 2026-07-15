@@ -17,7 +17,7 @@
           "type": "object",
           "required": ["kind", "payload"],
           "properties": {
-            "kind": { "enum": ["command", "query"] },
+            "kind": { "enum": ["command", "query", "health"] },
             "payload": { "type": "object" }
           }
         }
@@ -33,7 +33,7 @@
           "type": "object",
           "required": ["kind", "payload"],
           "properties": {
-            "kind": { "enum": ["command", "query", "error"] },
+            "kind": { "enum": ["command", "query", "health", "error"] },
             "payload": { "type": "object" }
           }
         }

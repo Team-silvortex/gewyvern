@@ -5,13 +5,15 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rusqlite::{Connection, OpenFlags, TransactionBehavior, params};
 
+use crate::{EFFECT_QUEUE_CAPACITY, EffectQueueStats};
+
 const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 6;
 const MAX_JOURNAL_RECORDS: i64 = 100_000;
 const MAX_JOURNAL_PAYLOAD_BYTES: usize = 64 * 1024;
 const MAX_SNAPSHOT_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
 const MAX_COMPACTION_RECORDS: i64 = 1_000;
 const OWNER_LEASE_DURATION_MS: i64 = 30_000;
-const MAX_EFFECT_TASKS: i64 = 10_000;
+const MAX_EFFECT_TASKS: i64 = EFFECT_QUEUE_CAPACITY as i64;
 const MAX_EFFECT_LEASE_MS: i64 = 5 * 60 * 1_000;
 static OWNER_TOKEN_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -19,6 +21,7 @@ static OWNER_TOKEN_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 pub enum JournalEntryKind {
     RuntimeRegistration,
     CommandPlan,
+    RuntimeStatusObservation,
 }
 
 impl JournalEntryKind {
@@ -26,6 +29,7 @@ impl JournalEntryKind {
         match self {
             Self::RuntimeRegistration => "runtime_registration",
             Self::CommandPlan => "command_plan",
+            Self::RuntimeStatusObservation => "runtime_status_observation",
         }
     }
 
@@ -33,6 +37,7 @@ impl JournalEntryKind {
         match value {
             "runtime_registration" => Ok(Self::RuntimeRegistration),
             "command_plan" => Ok(Self::CommandPlan),
+            "runtime_status_observation" => Ok(Self::RuntimeStatusObservation),
             other => Err(format!("unknown runtime journal entry kind '{other}'")),
         }
     }
@@ -435,6 +440,71 @@ impl Journal {
         transaction.commit().map_err(|error| error.to_string())
     }
 
+    pub fn effect_queue_stats(&mut self) -> Result<EffectQueueStats, String> {
+        self.ensure_owner()?;
+        let (ready, leased, completed, failed): (i64, i64, i64, i64) = self
+            .connection
+            .query_row(
+                "SELECT
+                     COALESCE(SUM(CASE WHEN state = 'ready' THEN 1 ELSE 0 END), 0),
+                     COALESCE(SUM(CASE WHEN state = 'leased' THEN 1 ELSE 0 END), 0),
+                     COALESCE(SUM(CASE WHEN state = 'completed' THEN 1 ELSE 0 END), 0),
+                     COALESCE(SUM(CASE WHEN state = 'failed' THEN 1 ELSE 0 END), 0)
+                 FROM runtime_effect_tasks",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .map_err(|error| error.to_string())?;
+        Ok(EffectQueueStats {
+            ready: u64::try_from(ready).map_err(|_| "invalid ready effect count")?,
+            leased: u64::try_from(leased).map_err(|_| "invalid leased effect count")?,
+            completed: u64::try_from(completed).map_err(|_| "invalid completed effect count")?,
+            failed: u64::try_from(failed).map_err(|_| "invalid failed effect count")?,
+            capacity: EFFECT_QUEUE_CAPACITY,
+        })
+    }
+
+    pub fn prune_terminal_effects(&mut self, retain: u64, batch_limit: u64) -> Result<u64, String> {
+        self.ensure_owner()?;
+        if batch_limit == 0 || batch_limit > 1_000 {
+            return Err("effect retention batch_limit must be between 1 and 1000".into());
+        }
+        let retain = i64::try_from(retain)
+            .map_err(|_| "effect terminal retention is too large".to_string())?;
+        let batch_limit = i64::try_from(batch_limit)
+            .map_err(|_| "effect retention batch limit is too large".to_string())?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let terminal: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM runtime_effect_tasks
+                 WHERE state IN ('completed', 'failed')",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        let remove = terminal.saturating_sub(retain).min(batch_limit);
+        if remove == 0 {
+            transaction.commit().map_err(|error| error.to_string())?;
+            return Ok(0);
+        }
+        let changed = transaction
+            .execute(
+                "DELETE FROM runtime_effect_tasks WHERE effect_id IN (
+                     SELECT effect_id FROM runtime_effect_tasks
+                     WHERE state IN ('completed', 'failed')
+                     ORDER BY updated_at_unix_ms ASC, created_at_unix_ms ASC, effect_id ASC
+                     LIMIT ?1
+                 )",
+                [remove],
+            )
+            .map_err(|error| error.to_string())?;
+        transaction.commit().map_err(|error| error.to_string())?;
+        u64::try_from(changed).map_err(|_| "effect retention count overflow".into())
+    }
+
     pub fn claim_effect(
         &mut self,
         worker_id: &str,
@@ -546,6 +616,60 @@ impl Journal {
         self.finish_effect(lease, Some(outcome), None, Duration::ZERO)
     }
 
+    pub fn complete_effect_with_journal(
+        &mut self,
+        lease: &EffectLease,
+        kind: JournalEntryKind,
+        payload: &[u8],
+        journal_outcome: &[u8],
+        effect_outcome: &[u8],
+    ) -> Result<(), String> {
+        self.ensure_owner()?;
+        validate_blob("payload", payload)?;
+        validate_blob("journal outcome", journal_outcome)?;
+        validate_blob("effect outcome", effect_outcome)?;
+        let now = unix_time_ms()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let count: i64 = transaction
+            .query_row("SELECT COUNT(*) FROM runtime_journal", [], |row| row.get(0))
+            .map_err(|error| error.to_string())?;
+        if count >= MAX_JOURNAL_RECORDS {
+            return Err(format!(
+                "runtime journal record limit {MAX_JOURNAL_RECORDS} reached"
+            ));
+        }
+        transaction
+            .execute(
+                "INSERT INTO runtime_journal
+                     (kind, payload, outcome, created_at_unix_ms)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![kind.as_str(), payload, journal_outcome, now],
+            )
+            .map_err(|error| error.to_string())?;
+        let changed = transaction
+            .execute(
+                "UPDATE runtime_effect_tasks SET state = 'completed', outcome = ?1,
+                     lease_token = NULL, lease_expires_at_unix_ms = NULL, updated_at_unix_ms = ?2
+                 WHERE effect_id = ?3 AND state = 'leased' AND lease_token = ?4
+                   AND attempt = ?5 AND lease_expires_at_unix_ms > ?2",
+                params![
+                    effect_outcome,
+                    now,
+                    lease.effect_id,
+                    lease.lease_token,
+                    i64::from(lease.attempt)
+                ],
+            )
+            .map_err(|error| error.to_string())?;
+        if changed != 1 {
+            return Err("effect lease was lost or expired".into());
+        }
+        transaction.commit().map_err(|error| error.to_string())
+    }
+
     pub fn fail_effect(
         &mut self,
         lease: &EffectLease,
@@ -553,6 +677,35 @@ impl Journal {
         retry_after: Duration,
     ) -> Result<(), String> {
         self.finish_effect(lease, None, Some(error), retry_after)
+    }
+
+    pub fn reject_effect(&mut self, lease: &EffectLease, error: &str) -> Result<(), String> {
+        self.ensure_owner()?;
+        if error.len() > MAX_JOURNAL_PAYLOAD_BYTES {
+            return Err("effect error is too large".into());
+        }
+        let now = unix_time_ms()?;
+        let changed = self
+            .connection
+            .execute(
+                "UPDATE runtime_effect_tasks SET state = 'failed', last_error = ?1,
+                     lease_token = NULL, lease_expires_at_unix_ms = NULL,
+                     updated_at_unix_ms = ?2
+                 WHERE effect_id = ?3 AND state = 'leased' AND lease_token = ?4
+                   AND attempt = ?5 AND lease_expires_at_unix_ms > ?2",
+                params![
+                    error,
+                    now,
+                    lease.effect_id,
+                    lease.lease_token,
+                    i64::from(lease.attempt)
+                ],
+            )
+            .map_err(|error| error.to_string())?;
+        if changed != 1 {
+            return Err("effect lease was lost or expired".into());
+        }
+        Ok(())
     }
 
     fn finish_effect(

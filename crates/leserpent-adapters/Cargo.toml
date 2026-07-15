@@ -1,0 +1,12 @@
+[package]
+name = "leserpent-adapters"
+version.workspace = true
+edition.workspace = true
+description = "Capability-bounded external effect adapters for Leserpent"
+license.workspace = true
+
+[dependencies]
+leserpent-domain = { path = "../leserpent-domain" }
+leserpent-runtime = { path = "../leserpent-runtime" }
+serde.workspace = true
+serde_json.workspace = true

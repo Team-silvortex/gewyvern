@@ -1,0 +1,15 @@
+[package]
+name = "leserpentd"
+version.workspace = true
+edition.workspace = true
+description = "Standalone Leserpent runtime host and bounded effect worker"
+license.workspace = true
+
+[dependencies]
+leserpent-adapters = { path = "../leserpent-adapters" }
+leserpent-domain = { path = "../leserpent-domain" }
+leserpent-protocol = { path = "../leserpent-protocol" }
+leserpent-runtime = { path = "../leserpent-runtime" }
+serde.workspace = true
+serde_json.workspace = true
+signal-hook.workspace = true

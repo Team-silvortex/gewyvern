@@ -141,8 +141,64 @@ writes are fenced on their next operation. Schema v6 adds a bounded persistent
 effect queue with idempotent enqueue, atomic claim, lease
 renewal, attempt-token fencing, crash redelivery, retry delay, terminal
 completion/failure, and max-attempt sealing. Daemon heartbeat, typed adapter
-worker loops, queue backpressure policy, and terminal task retention remain the
-gate boundary.
+worker loops, and status projection integration are implemented; queue
+backpressure visibility and terminal task retention are now implemented, while
+bounded worker concurrency remains the gate boundary. The runtime now exposes
+an explicit owner heartbeat plus a
+bounded synchronous worker step. Executors return `Complete`, `Retry`, or
+`Reject`; the runtime alone commits the fenced lease transition, while callers
+retain control over concurrency, cancellation, and shutdown.
+
+Status-refresh completion is also durable end to end. A typed observation
+carries its runtime ID and expected projection revision; the runtime validates
+it on a cloned projection, then appends the replay record and completes the
+leased effect in one SQLite transaction before publishing the new in-memory
+state. Restart replay verifies the recorded projection outcome. Stale revisions
+and malformed adapter outcomes fail the task closed without stopping the worker.
+
+The effect queue reports exact `ready`, `leased`, `completed`, and `failed`
+counts together with active capacity and saturation. Authenticated wire-v1
+health includes this data through an optional field, so older response payloads
+remain decodable. Terminal retention is explicit and bounded: daemon maintenance
+runs every 256 heartbeats by default, retains the newest 8192 terminal tasks,
+and removes at most 100 per pass without touching ready or leased work. This
+also defines the persisted effect-ID idempotency horizon; producers must use
+globally unique effect IDs rather than intentionally recycling compacted IDs.
+
+The initial `leserpentd` crate now hosts `ControlRuntime` as a standalone
+process. It drives explicit owner heartbeats and bounded worker steps through a
+typed adapter registry, supports finite-step smoke execution, and stays in a
+heartbeat-only safe mode when no adapter is installed. Graceful Unix signal
+shutdown and authenticated local health are implemented; Windows IPC parity,
+bounded worker concurrency, and broader production adapters remain before the daemon can
+become authoritative.
+
+On Unix, `leserpentd` now exposes the existing wire-v1 request and response
+envelopes over a private `0600` Unix socket. Each bounded line frame carries an
+IPC token sourced only from `LESERPENT_IPC_TOKEN`; token comparison is constant
+time, malformed or oversized frames fail closed, and internal storage failures
+are not reflected to clients. Windows named-pipe parity remains before local IPC
+is cross-platform complete.
+
+Wire v1 now includes an authenticated health request whose response is emitted
+only after the runtime renews its owner lease, so `ready` proves current local
+authority rather than process liveness alone. The daemon maps SIGINT and SIGTERM
+to an atomic stop flag; normal stack unwinding removes the socket inode and
+releases the SQLite owner row. A real process smoke verifies exit code zero and
+lease release after SIGINT.
+
+The first production integration now lives in the independent
+`leserpent-adapters` crate rather than the daemon host. Its typed registry
+rejects unknown effect kinds, and the initial Gewyvern health adapter accepts
+only configured loopback targets, keeps admin tokens out of scheduler payloads,
+bounds HTTP responses, and validates the `/health` JSON contract. A vertical
+test proves SQLite enqueue through daemon claim and adapter execution to fenced
+completion. The typed status adapter now combines `/health` and
+`/v1/latest/meta` into a frontend-neutral snapshot without journaling its admin
+token. `leserpentd` registers both health and status effect kinds for configured
+targets, and status outcomes flow through the runtime's atomic projection and
+replay path. Deployment, discovery, remote TLS, and secret storage remain future
+adapter slices.
 
 - SQLite journal, projections, snapshots, and migrations
 - effect workers with backpressure and recovery
