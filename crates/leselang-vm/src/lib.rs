@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Write};
 use std::path::Path;
 
@@ -32,6 +32,12 @@ pub const MAX_SEMANTIC_RETRIES: u32 = 16;
 pub const DEFAULT_RETRY_BASE_DELAY_MS: u64 = 250;
 pub const DEFAULT_RETRY_MAX_DELAY_MS: u64 = 30_000;
 pub const MAX_RETRY_DELAY_MS: u64 = 60 * 60 * 1_000;
+pub const DEFAULT_COMPLETED_RETENTION: usize = 5_000;
+pub const DEFAULT_COMPACTION_BATCH: usize = 500;
+pub const MAX_COMPACTION_BATCH: usize = 1_000;
+pub const MAX_MERGE_BRANCHES: usize = 64;
+pub const MAX_MERGE_BRANCH_NAME_BYTES: usize = 64;
+pub const MAX_STRUCTURED_VALUE_DEPTH: usize = 16;
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -201,6 +207,64 @@ pub enum RetryDisposition {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RetentionPolicy {
+    pub max_completed_records: usize,
+    pub max_delete_per_run: usize,
+}
+
+impl Default for RetentionPolicy {
+    fn default() -> Self {
+        Self {
+            max_completed_records: DEFAULT_COMPLETED_RETENTION,
+            max_delete_per_run: DEFAULT_COMPACTION_BATCH,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CompactionReport {
+    pub removed_records: usize,
+    pub remaining_completed: usize,
+    pub reclaimed_logical_bytes: usize,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct MergePlan {
+    pub branches: Vec<String>,
+}
+
+impl MergePlan {
+    pub fn new(branches: impl IntoIterator<Item = impl Into<String>>) -> Result<Self, Fault> {
+        let plan = Self {
+            branches: branches.into_iter().map(Into::into).collect(),
+        };
+        validate_merge_plan(&plan)?;
+        Ok(plan)
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct BranchCompletion {
+    pub branch: String,
+    pub outcome: BranchOutcome,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
+pub enum BranchOutcome {
+    Value(Value),
+    Cancelled(Cancellation),
+    Failed(FailedEffect),
+    Fault(Fault),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct StructuredField {
+    pub name: String,
+    pub value: Box<Value>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Value {
     RuntimeList {
@@ -209,6 +273,9 @@ pub enum Value {
     },
     RuntimeRefresh {
         result: Box<CommandResult>,
+    },
+    Structured {
+        fields: Vec<StructuredField>,
     },
 }
 
@@ -334,6 +401,12 @@ impl Vm {
         if let Err(error) = authorize(program, &capabilities) {
             return fault(&error.code, error.message);
         }
+        if matches!(program.function.effect, Effect::All { .. }) {
+            return fault(
+                "LSV1002",
+                "structured all execution requires a multi-branch continuation",
+            );
+        }
 
         let sequence = match self.allocate_sequence() {
             Ok(sequence) => sequence,
@@ -355,35 +428,42 @@ impl Vm {
         if let Err(error) = encode_continuation(&image) {
             return Step::Fault(error);
         }
-        let operation = match &program.function.effect {
-            Effect::RuntimeList { filter } => EffectOperation::Query(QueryEnvelope {
-                schema_version: DOMAIN_SCHEMA_VERSION,
-                principal: principal.clone(),
-                capabilities: capabilities.clone(),
-                query: Query::RuntimeList {
-                    filter: filter.clone(),
-                },
-            }),
-            Effect::RuntimeRefresh { runtime_id } => EffectOperation::Command(CommandEnvelope {
-                schema_version: DOMAIN_SCHEMA_VERSION,
-                command_id: CommandId::new(format!("leselang-command-{sequence}"))
-                    .expect("generated command identifier is valid"),
-                idempotency_key: IdempotencyKey::new(format!("leselang-effect-{sequence}"))
-                    .expect("generated idempotency key is valid"),
-                expected_revision,
-                principal: principal.clone(),
-                capabilities: capabilities.clone(),
-                origin: CommandOrigin::Leselang,
-                confirmation: Confirmation::NotRequired,
-                dry_run: false,
-                command: Command::RuntimeRefresh {
-                    runtime_id: runtime_id.clone(),
-                },
-            }),
+        let (required_capability, operation) = match &program.function.effect {
+            Effect::RuntimeList { filter } => (
+                CAPABILITY_RUNTIME_READ,
+                EffectOperation::Query(QueryEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal: principal.clone(),
+                    capabilities: capabilities.clone(),
+                    query: Query::RuntimeList {
+                        filter: filter.clone(),
+                    },
+                }),
+            ),
+            Effect::RuntimeRefresh { runtime_id } => (
+                CAPABILITY_RUNTIME_REFRESH,
+                EffectOperation::Command(CommandEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    command_id: CommandId::new(format!("leselang-command-{sequence}"))
+                        .expect("generated command identifier is valid"),
+                    idempotency_key: IdempotencyKey::new(format!("leselang-effect-{sequence}"))
+                        .expect("generated idempotency key is valid"),
+                    expected_revision,
+                    principal: principal.clone(),
+                    capabilities: capabilities.clone(),
+                    origin: CommandOrigin::Leselang,
+                    confirmation: Confirmation::NotRequired,
+                    dry_run: false,
+                    command: Command::RuntimeRefresh {
+                        runtime_id: runtime_id.clone(),
+                    },
+                }),
+            ),
+            Effect::All { .. } => unreachable!("structured all returned before allocation"),
         };
         let request = EffectRequest {
             effect_id: format!("effect-{sequence}"),
-            required_capability: program.function.required_capability.clone(),
+            required_capability: required_capability.to_string(),
             operation,
             continuation: image.clone(),
             budget: ResourceBudget {
@@ -457,8 +537,10 @@ impl Vm {
     }
 
     fn resume_inner(&mut self, image: &ContinuationImage, result: EffectResult) -> Step {
-        if let Some(completed) = self.completed.get(&image.token) {
-            return completed.clone();
+        match self.replay_completed(&image.token) {
+            Ok(Some(completed)) => return completed,
+            Ok(None) => {}
+            Err(error) => return Step::Fault(error),
         }
         if let Err(error) = validate_image(image) {
             return Step::Fault(error);
@@ -509,8 +591,10 @@ impl Vm {
             return Step::Fault(error);
         }
         let image = &lease.request.continuation;
-        if let Some(completed) = self.completed.get(&image.token) {
-            return completed.clone();
+        match self.replay_completed(&image.token) {
+            Ok(Some(completed)) => return completed,
+            Ok(None) => {}
+            Err(error) => return Step::Fault(error),
         }
         let Some(stored) = self.pending.get(&image.token) else {
             return fault("LSV2004", "unknown continuation token");
@@ -538,8 +622,8 @@ impl Vm {
     ) -> Result<RetryDisposition, Fault> {
         validate_scheduler_time(now_ms)?;
         self.expire_due(now_ms)?;
-        if let Some(completed) = self.completed.get(&lease.request.continuation.token) {
-            return Ok(RetryDisposition::Terminal(completed.clone()));
+        if let Some(completed) = self.replay_completed(&lease.request.continuation.token)? {
+            return Ok(RetryDisposition::Terminal(completed));
         }
         validate_effect_error(&error)?;
         if error.class == EffectErrorClass::Transient {
@@ -590,8 +674,10 @@ impl Vm {
         if let Err(error) = self.expire_due(now_ms) {
             return Step::Fault(error);
         }
-        if let Some(completed) = self.completed.get(&image.token) {
-            return completed.clone();
+        match self.replay_completed(&image.token) {
+            Ok(Some(completed)) => return completed,
+            Ok(None) => {}
+            Err(error) => return Step::Fault(error),
         }
         let Some(stored) = self.pending.get(&image.token) else {
             return fault("LSV2004", "unknown continuation token");
@@ -612,6 +698,36 @@ impl Vm {
 
     pub fn completed_count(&self) -> usize {
         self.completed.len()
+    }
+
+    pub fn compact_journal(&mut self, policy: &RetentionPolicy) -> Result<CompactionReport, Fault> {
+        validate_retention_policy(policy)?;
+        let mut local_completed = self
+            .completed
+            .iter()
+            .map(|(token, step)| (token.clone(), step.clone()))
+            .collect::<Vec<_>>();
+        local_completed.sort_by(|(left, _), (right, _)| continuation_age_order(left, right));
+        let compacted = self.journal.compact_completed(&local_completed, policy)?;
+        for token in &compacted.pruned_tokens {
+            self.completed.remove(token);
+        }
+        Ok(CompactionReport {
+            removed_records: compacted.removed_records,
+            remaining_completed: compacted.remaining_completed,
+            reclaimed_logical_bytes: compacted.reclaimed_logical_bytes,
+        })
+    }
+
+    fn replay_completed(&mut self, token: &ContinuationToken) -> Result<Option<Step>, Fault> {
+        let Some(step) = self.completed.get(token).cloned() else {
+            return Ok(None);
+        };
+        if self.journal.completed_exists(token)? {
+            return Ok(Some(step));
+        }
+        self.completed.remove(token);
+        Ok(None)
     }
 
     fn allocate_sequence(&mut self) -> Result<u64, Fault> {
@@ -714,14 +830,7 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
             ),
         });
     }
-    if image.token.0.is_empty()
-        || image.token.0.len() > 128
-        || !image
-            .token
-            .0
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-    {
+    if !valid_continuation_token(&image.token) {
         return Err(Fault {
             code: "LSV2006".to_string(),
             message: "invalid continuation token".to_string(),
@@ -895,6 +1004,215 @@ fn retry_delay(policy: &RetryPolicy, retry_count: u32) -> Result<u64, Fault> {
         .base_delay_ms
         .saturating_mul(multiplier)
         .min(policy.max_delay_ms))
+}
+
+pub fn merge_declared(
+    plan: &MergePlan,
+    completions: Vec<BranchCompletion>,
+    max_output_items: usize,
+) -> Result<Step, Fault> {
+    validate_merge_plan(plan)?;
+    if max_output_items > DEFAULT_MAX_OUTPUT_ITEMS {
+        return Err(Fault {
+            code: "LSV2404".to_string(),
+            message: "structured merge output budget exceeds runtime bounds".to_string(),
+        });
+    }
+    if completions.len() != plan.branches.len() {
+        return Err(Fault {
+            code: "LSV2402".to_string(),
+            message: "structured merge completion set is incomplete".to_string(),
+        });
+    }
+
+    let expected = plan
+        .branches
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let mut by_branch = BTreeMap::new();
+    let mut output_items = 0usize;
+    for completion in completions {
+        if !valid_merge_branch_name(&completion.branch)
+            || !expected.contains(completion.branch.as_str())
+            || by_branch.contains_key(&completion.branch)
+        {
+            return Err(Fault {
+                code: "LSV2402".to_string(),
+                message: "structured merge completion set does not match its plan".to_string(),
+            });
+        }
+        output_items = output_items.saturating_add(validate_branch_outcome(&completion.outcome)?);
+        by_branch.insert(completion.branch, completion.outcome);
+    }
+    if output_items > max_output_items {
+        return Err(Fault {
+            code: "LSV2404".to_string(),
+            message: format!(
+                "structured merge returned {output_items} items, limit is {max_output_items}"
+            ),
+        });
+    }
+
+    let mut fields = Vec::with_capacity(plan.branches.len());
+    let mut terminal = None;
+    for branch in &plan.branches {
+        let outcome = by_branch.remove(branch).ok_or_else(|| Fault {
+            code: "LSV2402".to_string(),
+            message: "structured merge completion set is incomplete".to_string(),
+        })?;
+        match outcome {
+            BranchOutcome::Value(value) => fields.push(StructuredField {
+                name: branch.clone(),
+                value: Box::new(value),
+            }),
+            BranchOutcome::Cancelled(cancellation) => {
+                terminal = Some(Step::Cancelled(cancellation));
+                break;
+            }
+            BranchOutcome::Failed(failure) => {
+                terminal = Some(Step::Failed(failure));
+                break;
+            }
+            BranchOutcome::Fault(fault) => {
+                terminal = Some(Step::Fault(fault));
+                break;
+            }
+        }
+    }
+    let step = terminal.unwrap_or(Step::Done(Value::Structured { fields }));
+    if let Step::Done(value) = &step {
+        validate_value(value, 1)?;
+    }
+    encode_json_capped(&step, MAX_JOURNAL_ENTRY_BYTES, "structured merge output")?;
+    Ok(step)
+}
+
+fn validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
+    let unique = plan.branches.iter().collect::<BTreeSet<_>>();
+    if !(2..=MAX_MERGE_BRANCHES).contains(&plan.branches.len())
+        || unique.len() != plan.branches.len()
+        || plan
+            .branches
+            .iter()
+            .any(|branch| !valid_merge_branch_name(branch))
+    {
+        return Err(Fault {
+            code: "LSV2401".to_string(),
+            message: "structured merge plan is invalid or exceeds runtime bounds".to_string(),
+        });
+    }
+    Ok(())
+}
+
+fn valid_merge_branch_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= MAX_MERGE_BRANCH_NAME_BYTES
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+fn validate_branch_outcome(outcome: &BranchOutcome) -> Result<usize, Fault> {
+    match outcome {
+        BranchOutcome::Value(value) => validate_value(value, 2),
+        BranchOutcome::Cancelled(cancellation)
+            if valid_continuation_token(&cancellation.continuation)
+                && cancellation.observed_at_ms <= i64::MAX as u64 =>
+        {
+            Ok(0)
+        }
+        BranchOutcome::Failed(failure)
+            if failure.retry_count <= MAX_SEMANTIC_RETRIES
+                && validate_effect_error(&failure.error).is_ok() =>
+        {
+            Ok(0)
+        }
+        BranchOutcome::Fault(fault)
+            if !fault.code.is_empty() && fault.code.len() <= 32 && fault.message.len() <= 4_096 =>
+        {
+            Ok(0)
+        }
+        _ => Err(Fault {
+            code: "LSV2403".to_string(),
+            message: "structured merge branch outcome is invalid".to_string(),
+        }),
+    }
+}
+
+fn valid_continuation_token(token: &ContinuationToken) -> bool {
+    !token.as_str().is_empty()
+        && token.as_str().len() <= 128
+        && token
+            .as_str()
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+}
+
+pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault> {
+    if depth > MAX_STRUCTURED_VALUE_DEPTH {
+        return Err(Fault {
+            code: "LSV2403".to_string(),
+            message: "structured value nesting exceeds runtime bounds".to_string(),
+        });
+    }
+    match value {
+        Value::RuntimeList { runtimes, .. } if runtimes.len() <= DEFAULT_MAX_OUTPUT_ITEMS => {
+            Ok(runtimes.len())
+        }
+        Value::RuntimeRefresh { .. } => Ok(1),
+        Value::Structured { fields } if (2..=MAX_MERGE_BRANCHES).contains(&fields.len()) => {
+            let mut names = BTreeSet::new();
+            let mut output_items = 0usize;
+            for field in fields {
+                if !valid_merge_branch_name(&field.name) || !names.insert(field.name.as_str()) {
+                    return Err(Fault {
+                        code: "LSV2403".to_string(),
+                        message: "structured value fields are invalid".to_string(),
+                    });
+                }
+                output_items = output_items
+                    .saturating_add(validate_value(&field.value, depth.saturating_add(1))?);
+            }
+            Ok(output_items)
+        }
+        _ => Err(Fault {
+            code: "LSV2403".to_string(),
+            message: "structured value exceeds runtime bounds".to_string(),
+        }),
+    }
+}
+
+fn validate_retention_policy(policy: &RetentionPolicy) -> Result<(), Fault> {
+    if policy.max_completed_records == 0
+        || policy.max_completed_records > MAX_JOURNAL_RECORDS
+        || policy.max_delete_per_run == 0
+        || policy.max_delete_per_run > MAX_COMPACTION_BATCH
+    {
+        return Err(Fault {
+            code: "LSV2301".to_string(),
+            message: "journal retention policy exceeds runtime bounds".to_string(),
+        });
+    }
+    Ok(())
+}
+
+fn continuation_age_order(
+    left: &ContinuationToken,
+    right: &ContinuationToken,
+) -> std::cmp::Ordering {
+    let sequence = |token: &ContinuationToken| {
+        token
+            .as_str()
+            .strip_prefix("continuation-")
+            .and_then(|value| value.parse::<u64>().ok())
+    };
+    match (sequence(left), sequence(right)) {
+        (Some(left), Some(right)) => left.cmp(&right),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => left.cmp(right),
+    }
 }
 
 fn validate_effect_identity(
@@ -1106,6 +1424,20 @@ mod tests {
         })
     }
 
+    fn runtime_list_value(revision: u64) -> Value {
+        Value::RuntimeList {
+            revision: Revision(revision),
+            runtimes: Vec::new(),
+        }
+    }
+
+    fn completed_branch(branch: &str, revision: u64) -> BranchCompletion {
+        BranchCompletion {
+            branch: branch.to_string(),
+            outcome: BranchOutcome::Value(runtime_list_value(revision)),
+        }
+    }
+
     fn transient_error() -> EffectError {
         EffectError {
             class: EffectErrorClass::Transient,
@@ -1150,6 +1482,217 @@ mod tests {
                 cluster: None,
                 role: None,
             }
+        );
+    }
+
+    #[test]
+    fn structured_all_fails_before_continuation_allocation_until_graph_is_durable() {
+        let structured = lower(&parse(
+            "fn main() = all(read: runtime.list(), refresh: runtime.refresh(runtime_id: \"runtime-a\"))",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let unauthorized = vm.start(
+            &structured,
+            Principal {
+                id: "operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+            Some(Revision(1)),
+        );
+        assert!(matches!(
+            unauthorized,
+            Step::Fault(Fault { ref code, .. }) if code == "LSH2001"
+        ));
+
+        let unsupported = vm.start(
+            &structured,
+            Principal {
+                id: "operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH]),
+            Some(Revision(1)),
+        );
+        assert!(matches!(
+            unsupported,
+            Step::Fault(Fault { ref code, .. }) if code == "LSV1002"
+        ));
+        assert_eq!(vm.pending_count(), 0);
+        assert_eq!(vm.completed_count(), 0);
+        assert_eq!(
+            start(&mut vm, None).continuation.token.as_str(),
+            "continuation-1"
+        );
+    }
+
+    #[test]
+    fn structured_merge_uses_declaration_order_not_arrival_order() {
+        let plan = MergePlan::new(["inventory", "health", "history"]).unwrap();
+        let merged = merge_declared(
+            &plan,
+            vec![
+                completed_branch("history", 3),
+                completed_branch("inventory", 1),
+                completed_branch("health", 2),
+            ],
+            DEFAULT_MAX_OUTPUT_ITEMS,
+        )
+        .unwrap();
+        let Step::Done(Value::Structured { fields }) = merged else {
+            panic!("expected structured value");
+        };
+        assert_eq!(
+            fields
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>(),
+            ["inventory", "health", "history"]
+        );
+        for (field, expected_revision) in fields.iter().zip(1..=3) {
+            assert!(matches!(
+                field.value.as_ref(),
+                Value::RuntimeList { revision, .. } if *revision == Revision(expected_revision)
+            ));
+        }
+    }
+
+    #[test]
+    fn structured_merge_terminal_winner_is_deterministic() {
+        let plan = MergePlan::new(["primary", "secondary", "fallback"]).unwrap();
+        let merged = merge_declared(
+            &plan,
+            vec![
+                BranchCompletion {
+                    branch: "fallback".to_string(),
+                    outcome: BranchOutcome::Cancelled(Cancellation {
+                        continuation: ContinuationToken("continuation-3".to_string()),
+                        reason: CancellationReason::Requested,
+                        observed_at_ms: 30,
+                    }),
+                },
+                BranchCompletion {
+                    branch: "secondary".to_string(),
+                    outcome: BranchOutcome::Fault(Fault {
+                        code: "SECOND".to_string(),
+                        message: "secondary failed first in declared order".to_string(),
+                    }),
+                },
+                completed_branch("primary", 1),
+            ],
+            DEFAULT_MAX_OUTPUT_ITEMS,
+        )
+        .unwrap();
+        assert!(matches!(merged, Step::Fault(Fault { ref code, .. }) if code == "SECOND"));
+    }
+
+    #[test]
+    fn structured_merge_rejects_invalid_sets_and_resource_budgets() {
+        assert_eq!(MergePlan::new(["only"]).unwrap_err().code, "LSV2401");
+        assert_eq!(
+            MergePlan::new(["same", "same"]).unwrap_err().code,
+            "LSV2401"
+        );
+        let plan = MergePlan::new(["left", "right"]).unwrap();
+        assert_eq!(
+            merge_declared(
+                &plan,
+                vec![completed_branch("left", 1), completed_branch("left", 2)],
+                DEFAULT_MAX_OUTPUT_ITEMS,
+            )
+            .unwrap_err()
+            .code,
+            "LSV2402"
+        );
+        assert_eq!(
+            merge_declared(
+                &plan,
+                vec![completed_branch("left", 1)],
+                DEFAULT_MAX_OUTPUT_ITEMS,
+            )
+            .unwrap_err()
+            .code,
+            "LSV2402"
+        );
+
+        let mut control = InMemoryControlPlane::default();
+        let runtime = control.register_runtime(
+            RuntimeId::new("runtime-a").unwrap(),
+            "Alpha",
+            "http://runtime-a",
+        );
+        assert_eq!(
+            merge_declared(
+                &plan,
+                vec![
+                    BranchCompletion {
+                        branch: "left".to_string(),
+                        outcome: BranchOutcome::Value(Value::RuntimeList {
+                            revision: Revision(1),
+                            runtimes: vec![runtime],
+                        }),
+                    },
+                    completed_branch("right", 2),
+                ],
+                0,
+            )
+            .unwrap_err()
+            .code,
+            "LSV2404"
+        );
+        assert_eq!(
+            merge_declared(
+                &plan,
+                vec![
+                    BranchCompletion {
+                        branch: "left".to_string(),
+                        outcome: BranchOutcome::Fault(Fault {
+                            code: "TOO_LARGE".to_string(),
+                            message: "x".repeat(4_097),
+                        }),
+                    },
+                    completed_branch("right", 2),
+                ],
+                DEFAULT_MAX_OUTPUT_ITEMS,
+            )
+            .unwrap_err()
+            .code,
+            "LSV2403"
+        );
+    }
+
+    #[test]
+    fn structured_merge_rejects_excessive_nesting() {
+        let mut nested = runtime_list_value(1);
+        for depth in 0..MAX_STRUCTURED_VALUE_DEPTH {
+            nested = Value::Structured {
+                fields: vec![
+                    StructuredField {
+                        name: "leaf".to_string(),
+                        value: Box::new(runtime_list_value(depth as u64)),
+                    },
+                    StructuredField {
+                        name: "nested".to_string(),
+                        value: Box::new(nested),
+                    },
+                ],
+            };
+        }
+        let plan = MergePlan::new(["deep", "peer"]).unwrap();
+        assert_eq!(
+            merge_declared(
+                &plan,
+                vec![
+                    BranchCompletion {
+                        branch: "deep".to_string(),
+                        outcome: BranchOutcome::Value(nested),
+                    },
+                    completed_branch("peer", 2),
+                ],
+                DEFAULT_MAX_OUTPUT_ITEMS,
+            )
+            .unwrap_err()
+            .code,
+            "LSV2403"
         );
     }
 
@@ -1202,6 +1745,61 @@ mod tests {
         assert_eq!(first, duplicate);
         assert!(matches!(first, Step::Done(Value::RuntimeList { .. })));
         assert_eq!(vm.pending_count(), 0);
+    }
+
+    #[test]
+    fn ephemeral_compaction_is_bounded_and_orders_numeric_continuations() {
+        let mut vm = Vm::default();
+        let mut requests = Vec::new();
+        for revision in 1..=11 {
+            let request = start(&mut vm, None);
+            assert!(matches!(
+                vm.resume(&request.continuation, runtime_list_result(revision)),
+                Step::Done(_)
+            ));
+            requests.push(request);
+        }
+
+        let report = vm
+            .compact_journal(&RetentionPolicy {
+                max_completed_records: 2,
+                max_delete_per_run: 3,
+            })
+            .unwrap();
+        assert_eq!(report.removed_records, 3);
+        assert_eq!(report.remaining_completed, 8);
+        assert!(report.reclaimed_logical_bytes > 0);
+        assert_eq!(vm.completed_count(), 8);
+        for request in requests.iter().take(3) {
+            assert!(matches!(
+                vm.resume(&request.continuation, runtime_list_result(99)),
+                Step::Fault(Fault { ref code, .. }) if code == "LSV2004"
+            ));
+        }
+        assert!(matches!(
+            vm.resume(&requests[9].continuation, runtime_list_result(99)),
+            Step::Done(Value::RuntimeList {
+                revision: Revision(10),
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn retention_policy_is_bounded() {
+        let mut vm = Vm::default();
+        for policy in [
+            RetentionPolicy {
+                max_completed_records: 0,
+                max_delete_per_run: 1,
+            },
+            RetentionPolicy {
+                max_completed_records: 1,
+                max_delete_per_run: MAX_COMPACTION_BATCH + 1,
+            },
+        ] {
+            assert_eq!(vm.compact_journal(&policy).unwrap_err().code, "LSV2301");
+        }
     }
 
     #[test]
@@ -1385,6 +1983,148 @@ mod tests {
         assert_eq!(restarted_again.completed_count(), 1);
         let replay = restarted_again.resume(&request.continuation, runtime_list_result(99));
         assert_eq!(replay, first_step);
+    }
+
+    #[test]
+    fn durable_journal_replays_structured_merge_output() {
+        let journal = TempJournal::new("structured-merge");
+        let request;
+        let merged = merge_declared(
+            &MergePlan::new(["inventory", "health"]).unwrap(),
+            vec![
+                completed_branch("health", 2),
+                completed_branch("inventory", 1),
+            ],
+            DEFAULT_MAX_OUTPUT_ITEMS,
+        )
+        .unwrap();
+        {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            request = start(&mut vm, None);
+            vm.journal
+                .record_completed(&request.continuation, &merged)
+                .unwrap();
+        }
+
+        let mut restarted = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert_eq!(restarted.completed_count(), 1);
+        assert_eq!(
+            restarted.resume(&request.continuation, runtime_list_result(99)),
+            merged
+        );
+    }
+
+    #[test]
+    fn durable_compaction_deletes_only_oldest_completed_records() {
+        let journal = TempJournal::new("compaction");
+        let pending;
+        {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            let mut completed = Vec::new();
+            for revision in 1..=3 {
+                let request = start(&mut vm, None);
+                assert!(matches!(
+                    vm.resume(&request.continuation, runtime_list_result(revision)),
+                    Step::Done(_)
+                ));
+                completed.push(request);
+            }
+            pending = start(&mut vm, None);
+
+            let report = vm
+                .compact_journal(&RetentionPolicy {
+                    max_completed_records: 1,
+                    max_delete_per_run: 1,
+                })
+                .unwrap();
+            assert_eq!(report.removed_records, 1);
+            assert_eq!(report.remaining_completed, 2);
+            assert!(report.reclaimed_logical_bytes > 0);
+            assert_eq!(vm.pending_count(), 1);
+            assert_eq!(vm.completed_count(), 2);
+            assert!(matches!(
+                vm.resume(&completed[0].continuation, runtime_list_result(99)),
+                Step::Fault(Fault { ref code, .. }) if code == "LSV2004"
+            ));
+        }
+
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        let counts: (i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM vm_effects WHERE state = 'pending'),
+                   (SELECT COUNT(*) FROM vm_effects WHERE state = 'completed'),
+                   (SELECT COUNT(*) FROM vm_dispatches)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (1, 2, 3));
+        drop(connection);
+
+        let mut restarted = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert_eq!(restarted.pending_count(), 1);
+        assert_eq!(restarted.completed_count(), 2);
+        let report = restarted
+            .compact_journal(&RetentionPolicy {
+                max_completed_records: 1,
+                max_delete_per_run: 10,
+            })
+            .unwrap();
+        assert_eq!(report.removed_records, 1);
+        assert_eq!(report.remaining_completed, 1);
+        assert!(
+            restarted
+                .pending_continuations()
+                .contains(&pending.continuation)
+        );
+
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        let counts: (i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM vm_effects WHERE state = 'pending'),
+                   (SELECT COUNT(*) FROM vm_effects WHERE state = 'completed'),
+                   (SELECT COUNT(*) FROM vm_dispatches)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (1, 1, 2));
+    }
+
+    #[test]
+    fn durable_compaction_invalidates_stale_live_vm_replay() {
+        let journal = TempJournal::new("compaction-live-vms");
+        let oldest;
+        {
+            let mut creator = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            oldest = start(&mut creator, None);
+            creator.resume(&oldest.continuation, runtime_list_result(1));
+            let newest = start(&mut creator, None);
+            creator.resume(&newest.continuation, runtime_list_result(2));
+        }
+
+        let mut stale = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let mut compactor = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let policy = RetentionPolicy {
+            max_completed_records: 1,
+            max_delete_per_run: 1,
+        };
+        assert_eq!(
+            compactor.compact_journal(&policy).unwrap().removed_records,
+            1
+        );
+        assert_eq!(stale.completed_count(), 2);
+        assert!(matches!(
+            stale.resume(&oldest.continuation, runtime_list_result(99)),
+            Step::Fault(Fault { ref code, .. }) if code == "LSV2004"
+        ));
+        assert_eq!(stale.completed_count(), 1);
+
+        let reconciled = stale.compact_journal(&policy).unwrap();
+        assert_eq!(reconciled.removed_records, 0);
+        assert_eq!(reconciled.remaining_completed, 1);
     }
 
     #[test]

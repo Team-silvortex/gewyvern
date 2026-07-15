@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub const MAX_SOURCE_BYTES: usize = 256 * 1024;
+pub const MAX_CALL_DEPTH: usize = 16;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Span {
@@ -253,7 +254,7 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::LeftParen, "LSE1003", "expected '('")?;
         self.expect(TokenKind::RightParen, "LSE1004", "expected ')'")?;
         self.expect(TokenKind::Equal, "LSE1005", "expected '='")?;
-        let body = self.parse_call()?;
+        let body = self.parse_call(0)?;
         let end = expression_span(&body).end;
         if self.peek().kind != TokenKind::Eof {
             let token = self.peek().clone();
@@ -270,16 +271,26 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_call(&mut self) -> Option<Expression> {
-        let first = self.expect_ident("LSE1101", "expected effect namespace")?;
-        self.expect(TokenKind::Dot, "LSE1102", "expected '.'")?;
-        let second = self.expect_ident("LSE1103", "expected effect operation")?;
+    fn parse_call(&mut self, depth: usize) -> Option<Expression> {
+        if depth >= MAX_CALL_DEPTH {
+            let span = self.peek().span;
+            self.error("LSE1110", "call nesting exceeds parser limit", span);
+            return None;
+        }
+        let first = self.expect_ident("LSE1101", "expected function or effect namespace")?;
+        let callee = if self.peek().kind == TokenKind::Dot {
+            self.bump();
+            let second = self.expect_ident("LSE1103", "expected effect operation")?;
+            format!("{}.{}", first.0, second.0)
+        } else {
+            first.0.clone()
+        };
         self.expect(TokenKind::LeftParen, "LSE1104", "expected '('")?;
         let mut arguments = Vec::new();
         while self.peek().kind != TokenKind::RightParen && self.peek().kind != TokenKind::Eof {
             let (name, name_span) = self.expect_ident("LSE1105", "expected argument name")?;
             self.expect(TokenKind::Colon, "LSE1106", "expected ':'")?;
-            let value = self.parse_value()?;
+            let value = self.parse_value(depth)?;
             let span = Span {
                 start: name_span.start,
                 end: expression_span(&value).end,
@@ -292,7 +303,7 @@ impl<'a> Parser<'a> {
         }
         let close = self.expect(TokenKind::RightParen, "LSE1107", "expected ')'")?;
         Some(Expression::Call {
-            callee: format!("{}.{}", first.0, second.0),
+            callee,
             arguments,
             span: Span {
                 start: first.1.start,
@@ -301,7 +312,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_value(&mut self) -> Option<Expression> {
+    fn parse_value(&mut self, call_depth: usize) -> Option<Expression> {
         let token = self.peek().clone();
         match token.kind {
             TokenKind::String => {
@@ -321,8 +332,13 @@ impl<'a> Parser<'a> {
                 self.bump();
                 Some(Expression::None { span: token.span })
             }
+            TokenKind::Ident => self.parse_call(call_depth + 1),
             _ => {
-                self.error("LSE1109", "expected string or 'none'", token.span);
+                self.error(
+                    "LSE1109",
+                    "expected string, 'none', or nested call",
+                    token.span,
+                );
                 None
             }
         }
@@ -432,6 +448,42 @@ mod tests {
             &arguments[0].value,
             Expression::String { value, .. } if value == "pro\nd"
         ));
+    }
+
+    #[test]
+    fn parser_retains_declared_all_branch_order() {
+        let source = "fn main() = all(inventory: runtime.list(role: \"edge\"), refresh: runtime.refresh(runtime_id: \"runtime-a\"))";
+        let tree = parse(source);
+        assert!(tree.diagnostics.is_empty(), "{:?}", tree.diagnostics);
+        assert_eq!(tree.reconstruct(), source);
+        let Expression::Call {
+            callee, arguments, ..
+        } = tree.function.unwrap().body
+        else {
+            panic!("expected all call");
+        };
+        assert_eq!(callee, "all");
+        assert_eq!(
+            arguments
+                .iter()
+                .map(|argument| argument.name.as_str())
+                .collect::<Vec<_>>(),
+            ["inventory", "refresh"]
+        );
+        assert!(matches!(
+            arguments[0].value,
+            Expression::Call { ref callee, .. } if callee == "runtime.list"
+        ));
+    }
+
+    #[test]
+    fn parser_rejects_excessive_nested_calls_before_stack_growth() {
+        let mut expression = "runtime.list()".to_string();
+        for _ in 0..MAX_CALL_DEPTH {
+            expression = format!("all(left: {expression}, right: runtime.list())");
+        }
+        let tree = parse(&format!("fn main() = {expression}"));
+        assert!(tree.diagnostics.iter().any(|item| item.code == "LSE1110"));
     }
 
     #[test]

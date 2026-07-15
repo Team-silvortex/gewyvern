@@ -63,8 +63,17 @@ result replay. Typed requested cancellation and trusted wall-clock deadlines now
 atomically fence ready or leased dispatches and survive restart as replayable
 terminal states. Bounded semantic retry now persists deterministic not-before
 clocks independently from transport attempts and preserves command idempotency
-across restart. Retention and deterministic merge are still required before the
-gate exits.
+across restart. Count-based journal retention now transactionally compacts only
+the oldest terminal records in bounded batches, cascades acknowledged outbox
+rows, and uses secure deletion without disturbing pending or leased work.
+The deterministic merge kernel now normalizes out-of-order branch completions,
+selects competing terminal outcomes in declaration order, bounds recursive
+structured values, and persists merged output through the existing journal.
+Source-level `all` now preserves named branch order in the lossless parser,
+lowers branch-local types, and authorizes the union of branch capabilities. The
+VM intentionally rejects it before continuation allocation until durable
+multi-branch continuation wiring is complete; that graph is still required
+before the gate exits.
 
 Exit: programs can suspend, restart, re-enter, and replay deterministically.
 

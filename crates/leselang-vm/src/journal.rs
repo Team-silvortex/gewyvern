@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
@@ -9,8 +9,9 @@ use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, pa
 use crate::{
     Cancellation, CancellationReason, ContinuationImage, ContinuationToken, DispatchLease,
     EffectError, EffectRequest, Fault, MAX_CONTINUATION_BYTES, MAX_DISPATCH_ATTEMPTS,
-    MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES, RetryDisposition, Step, Value, encode_json_capped,
-    validate_effect_error, validate_effect_request, validate_image,
+    MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES, RetentionPolicy, RetryDisposition, Step,
+    encode_json_capped, validate_effect_error, validate_effect_request, validate_image,
+    validate_value,
 };
 
 pub const JOURNAL_SCHEMA_VERSION: u32 = 4;
@@ -23,6 +24,13 @@ pub(crate) struct JournalSnapshot {
     pub pending: BTreeMap<ContinuationToken, ContinuationImage>,
     pub completed: BTreeMap<ContinuationToken, Step>,
     pub next_sequence: u64,
+}
+
+pub(crate) struct JournalCompaction {
+    pub removed_records: usize,
+    pub pruned_tokens: Vec<ContinuationToken>,
+    pub remaining_completed: usize,
+    pub reclaimed_logical_bytes: usize,
 }
 
 pub(crate) enum Journal {
@@ -154,6 +162,24 @@ impl Journal {
         match self {
             Self::Ephemeral(journal) => journal.report_error(lease, now_ms, disposition),
             Self::Sqlite(journal) => journal.report_error(lease, now_ms, disposition),
+        }
+    }
+
+    pub fn compact_completed(
+        &mut self,
+        local_completed: &[(ContinuationToken, Step)],
+        policy: &RetentionPolicy,
+    ) -> Result<JournalCompaction, Fault> {
+        match self {
+            Self::Ephemeral(journal) => journal.compact_completed(local_completed, policy),
+            Self::Sqlite(journal) => journal.compact_completed(local_completed, policy),
+        }
+    }
+
+    pub fn completed_exists(&self, token: &ContinuationToken) -> Result<bool, Fault> {
+        match self {
+            Self::Ephemeral(_) => Ok(true),
+            Self::Sqlite(journal) => journal.completed_exists(token),
         }
     }
 }
@@ -321,6 +347,49 @@ impl EphemeralJournal {
         }
         Ok(disposition.clone())
     }
+
+    fn compact_completed(
+        &mut self,
+        local_completed: &[(ContinuationToken, Step)],
+        policy: &RetentionPolicy,
+    ) -> Result<JournalCompaction, Fault> {
+        let remove_count = local_completed
+            .len()
+            .saturating_sub(policy.max_completed_records)
+            .min(policy.max_delete_per_run);
+        let mut reclaimed_logical_bytes = 0usize;
+        let mut removed_tokens = Vec::with_capacity(remove_count);
+        for (token, step) in local_completed.iter().take(remove_count) {
+            reclaimed_logical_bytes = reclaimed_logical_bytes.saturating_add(
+                encode_json_capped(step, MAX_JOURNAL_ENTRY_BYTES, "completed step")?.len(),
+            );
+            if let Some(dispatch) = self.dispatches.get(token) {
+                reclaimed_logical_bytes = reclaimed_logical_bytes.saturating_add(
+                    encode_json_capped(
+                        &dispatch.request,
+                        MAX_JOURNAL_ENTRY_BYTES,
+                        "effect request",
+                    )?
+                    .len(),
+                );
+                if let Some(error) = &dispatch.last_error {
+                    reclaimed_logical_bytes = reclaimed_logical_bytes.saturating_add(
+                        encode_json_capped(error, MAX_JOURNAL_ENTRY_BYTES, "effect error")?.len(),
+                    );
+                }
+            }
+            removed_tokens.push(token.clone());
+        }
+        for token in &removed_tokens {
+            self.dispatches.remove(token);
+        }
+        Ok(JournalCompaction {
+            removed_records: removed_tokens.len(),
+            pruned_tokens: removed_tokens,
+            remaining_completed: local_completed.len().saturating_sub(remove_count),
+            reclaimed_logical_bytes,
+        })
+    }
 }
 
 fn validate_retry_lease(
@@ -403,6 +472,7 @@ impl SqliteJournal {
                 "PRAGMA journal_mode = DELETE;
                  PRAGMA synchronous = FULL;
                  PRAGMA foreign_keys = ON;
+                 PRAGMA secure_delete = ON;
                  PRAGMA trusted_schema = OFF;",
             )
             .map_err(|error| journal_error("LSV4002", "failed to configure journal", error))?;
@@ -630,6 +700,24 @@ impl SqliteJournal {
             completed,
             next_sequence: next_sequence.max(1),
         })
+    }
+
+    fn completed_exists(&self, token: &ContinuationToken) -> Result<bool, Fault> {
+        self.connection
+            .query_row(
+                "SELECT EXISTS(
+                   SELECT 1 FROM vm_effects WHERE token = ?1 AND state = 'completed'
+                 )",
+                [token.as_str()],
+                |row| row.get(0),
+            )
+            .map_err(|error| {
+                journal_error(
+                    "LSV4031",
+                    "failed to verify completed journal record",
+                    error,
+                )
+            })
     }
 
     fn allocate_sequence(&mut self, local_next: u64) -> Result<u64, Fault> {
@@ -1163,6 +1251,151 @@ impl SqliteJournal {
             .map_err(|error| journal_error("LSV4025", "failed to commit effect timeouts", error))?;
         Ok(expired)
     }
+
+    fn compact_completed(
+        &mut self,
+        local_completed: &[(ContinuationToken, Step)],
+        policy: &RetentionPolicy,
+    ) -> Result<JournalCompaction, Fault> {
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| {
+                journal_error("LSV4030", "failed to lock journal compaction", error)
+            })?;
+        let completed_count: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM vm_effects WHERE state = 'completed'",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| {
+                journal_error(
+                    "LSV4030",
+                    "failed to count completed journal records",
+                    error,
+                )
+            })?;
+        let completed_count = usize::try_from(completed_count)
+            .map_err(|_| journal_fault("LSV4007", "completed journal count is invalid"))?;
+        let remove_count = completed_count
+            .saturating_sub(policy.max_completed_records)
+            .min(policy.max_delete_per_run);
+        if remove_count == 0 {
+            let pruned_tokens = stale_local_completed(&transaction, local_completed)?;
+            transaction.commit().map_err(|error| {
+                journal_error("LSV4030", "failed to close journal compaction", error)
+            })?;
+            return Ok(JournalCompaction {
+                removed_records: 0,
+                pruned_tokens,
+                remaining_completed: completed_count,
+                reclaimed_logical_bytes: 0,
+            });
+        }
+
+        let limit = i64::try_from(remove_count)
+            .map_err(|_| journal_fault("LSV4030", "journal compaction batch is invalid"))?;
+        let removed = {
+            let mut statement = transaction
+                .prepare(
+                    "SELECT e.token,
+                            length(e.image) + length(e.terminal_step) +
+                            COALESCE(length(d.request), 0) +
+                            COALESCE(length(d.last_error), 0)
+                     FROM vm_effects e
+                     LEFT JOIN vm_dispatches d ON d.token = e.token
+                     WHERE e.state = 'completed'
+                     ORDER BY e.rowid ASC
+                     LIMIT ?1",
+                )
+                .map_err(|error| {
+                    journal_error("LSV4030", "failed to prepare journal compaction", error)
+                })?;
+            let rows = statement
+                .query_map([limit], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+                })
+                .map_err(|error| {
+                    journal_error("LSV4030", "failed to scan journal compaction", error)
+                })?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(|error| {
+                journal_error("LSV4030", "failed to read journal compaction", error)
+            })?
+        };
+
+        let mut removed_tokens = Vec::with_capacity(removed.len());
+        let mut reclaimed_logical_bytes = 0usize;
+        for (token, logical_bytes) in removed {
+            let deleted = transaction
+                .execute(
+                    "DELETE FROM vm_effects WHERE token = ?1 AND state = 'completed'",
+                    [&token],
+                )
+                .map_err(|error| {
+                    journal_error(
+                        "LSV4030",
+                        "failed to delete completed journal record",
+                        error,
+                    )
+                })?;
+            if deleted == 1 {
+                reclaimed_logical_bytes = reclaimed_logical_bytes.saturating_add(
+                    usize::try_from(logical_bytes).map_err(|_| {
+                        journal_fault("LSV4007", "journal compaction size is invalid")
+                    })?,
+                );
+                removed_tokens.push(ContinuationToken(token));
+            }
+        }
+        let pruned_tokens = stale_local_completed(&transaction, local_completed)?;
+        transaction.commit().map_err(|error| {
+            journal_error("LSV4030", "failed to commit journal compaction", error)
+        })?;
+        Ok(JournalCompaction {
+            remaining_completed: completed_count.saturating_sub(removed_tokens.len()),
+            removed_records: removed_tokens.len(),
+            pruned_tokens,
+            reclaimed_logical_bytes,
+        })
+    }
+}
+
+fn stale_local_completed(
+    connection: &Connection,
+    local_completed: &[(ContinuationToken, Step)],
+) -> Result<Vec<ContinuationToken>, Fault> {
+    let mut statement = connection
+        .prepare("SELECT token FROM vm_effects WHERE state = 'completed'")
+        .map_err(|error| {
+            journal_error(
+                "LSV4030",
+                "failed to prepare completed journal reconciliation",
+                error,
+            )
+        })?;
+    let persisted = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|error| {
+            journal_error(
+                "LSV4030",
+                "failed to scan completed journal reconciliation",
+                error,
+            )
+        })?
+        .collect::<Result<BTreeSet<_>, _>>()
+        .map_err(|error| {
+            journal_error(
+                "LSV4030",
+                "failed to read completed journal reconciliation",
+                error,
+            )
+        })?;
+    Ok(local_completed
+        .iter()
+        .filter(|(token, _)| !persisted.contains(token.as_str()))
+        .map(|(token, _)| token.clone())
+        .collect())
 }
 
 fn complete_terminal_record(
@@ -1453,8 +1686,7 @@ fn decode_bounded<T: serde::de::DeserializeOwned>(bytes: &[u8], limit: usize) ->
 
 fn validate_terminal_step(step: &Step) -> Result<(), Fault> {
     match step {
-        Step::Done(Value::RuntimeList { runtimes, .. }) if runtimes.len() <= 10_000 => Ok(()),
-        Step::Done(Value::RuntimeRefresh { .. }) => Ok(()),
+        Step::Done(value) if validate_value(value, 1).is_ok() => Ok(()),
         Step::Cancelled(cancellation)
             if !cancellation.continuation.as_str().is_empty()
                 && cancellation.observed_at_ms <= i64::MAX as u64 =>

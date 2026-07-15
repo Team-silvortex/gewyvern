@@ -5,7 +5,7 @@ implemented Leselang slice. The broader destination is defined by the
 [Leserpent 2.0 architecture](leserpent-2-architecture.md); unimplemented roadmap
 syntax is not part of this contract.
 
-Status: **Gate 2, evolving contract 0.6.0**. The current vertical slice parses,
+Status: **Gate 2, evolving contract 0.9.0**. The current vertical slice parses,
 lowers, authorizes, suspends, serializes, restores, and resumes the read-only
 `runtime.list` effect and the idempotent `runtime.refresh` command effect.
 
@@ -38,11 +38,14 @@ sequence and persists the complete `CommandEnvelope` before dispatch.
 
 ```ebnf
 program       = function, EOF ;
-function      = "fn", identifier, "(", ")", "=", effect-call ;
+function      = "fn", identifier, "(", ")", "=", call ;
+call          = effect-call | all-call ;
 effect-call   = identifier, ".", identifier, "(", [ arguments ], ")" ;
+all-call      = "all", "(", branch, ",", branch, { ",", branch }, [ "," ], ")" ;
+branch        = identifier, ":", call ;
 arguments     = argument, { ",", argument }, [ "," ] ;
 argument      = identifier, ":", value ;
-value         = string | "none" ;
+value         = string | "none" | call ;
 identifier    = ( letter | "_" ), { letter | digit | "_" } ;
 string        = '"', { character | escape }, '"' ;
 escape        = "\\", ( '"' | "\\" | "n" | "r" | "t" ) ;
@@ -53,9 +56,25 @@ their byte spans. Reassembling token text must reproduce the original source.
 Source is UTF-8 and limited to 256 KiB.
 
 The implemented surface deliberately excludes general expressions, local
-bindings, arbitrary mutation, loops, concurrency syntax, raw HTTP, shell
+bindings, arbitrary mutation, loops, unstructured concurrency, raw HTTP, shell
 execution, and host-language reflection. Synchronous source semantics do not expose
-`async`/`await`.
+`async`/`await`; `all` is the explicit structured-concurrency form.
+
+The frontend accepts structured declarations such as:
+
+```leselang
+fn main() = all(
+  inventory: runtime.list(role: "edge"),
+  refresh: runtime.refresh(runtime_id: "runtime-a")
+)
+```
+
+`all` requires two to 64 uniquely named effect branches. Syntax and HIR preserve
+declaration order, each branch retains its own result type, and function
+authorization requires the union of all branch capabilities. The current VM
+fails this form with `LSV1002` before allocating a continuation or writing the
+journal. Durable branch-graph execution is the next contract step; callers must
+not treat frontend acceptance as execution support yet.
 
 ## HIR And Authorization
 
@@ -102,6 +121,17 @@ last classified error and cannot be claimed early; retry exhaustion becomes a
 typed, replayable failure. The original effect request and command idempotency
 key never change.
 
+`merge_declared` is the bounded deterministic merge kernel for future structured
+`all` evaluation. A `MergePlan` declares two to 64 uniquely named branches;
+completions may arrive in any order, but successful `Value::Structured` fields
+and competing terminal outcomes are always selected in declaration order.
+Malformed, missing, duplicate, or unexpected completions fail closed. Structured
+values are limited to 16 levels, branch names to 64 ASCII identifier bytes, and
+the caller's output-item budget. The merged terminal value uses the existing
+journal schema and remains replayable after restart. This kernel is public VM
+protocol today; source-level `all(...)` parsing and typed lowering are
+implemented, while durable multi-branch continuations remain integration work.
+
 Continuation images are versioned and capped at 64 KiB. Execution also enforces
 a source-size limit, fuel limit, 24-hour maximum deadline budget, and
 10,000-item output limit.
@@ -134,12 +164,24 @@ permissions. It is bounded to 10,000 records, 8 MiB per terminal step, 100
 dispatch attempts, a five-minute maximum lease, and 64 MiB of total logical
 payload including dispatch requests.
 
+`Vm::compact_journal` applies explicit count-based retention to terminal
+records. It never deletes pending or leased effects, always retains at least one
+completed record, and removes at most 1,000 records per transaction. The default
+policy retains 5,000 completed records and deletes in batches of 500. Selection
+uses durable insertion order, dispatch rows are removed by foreign-key cascade,
+and SQLite secure deletion is enabled so deleted payload is overwritten in
+reusable pages. `CompactionReport::reclaimed_logical_bytes` reports removed
+payload; it does not promise immediate physical database file shrink.
+
 This is a durable continuation guarantee plus at-least-once dispatch. For
 `runtime.refresh`, every redelivery reuses the same domain idempotency key, so
 the current domain kernel commits the refresh once and replays its first result.
 This is not a blanket exactly-once guarantee for arbitrary external adapters;
 each future mutating effect must prove the same end-to-end contract.
-Retention/compaction and deterministic structured merge remain Gate 2 work.
+Terminal replay is guaranteed only while the record remains inside the explicit
+retention window; a compacted token becomes unknown (`LSV2004`). Deterministic
+merge semantics are implemented, while structured `all` continuation wiring
+remains Gate 2 work.
 
 ## Diagnostics
 
@@ -169,6 +211,7 @@ For deterministic model or CLI integration:
 9. Treat repeated acknowledged completion as replay, not another external operation.
 10. Treat `Cancelled` as a terminal result and never dispatch its operation again.
 11. Report classified failures through `report_effect_error`; never retry outside the journal.
+12. Run bounded `compact_journal` maintenance and treat its retention window as part of the service contract.
 
 `Vm::resume` remains the direct embedded path for an effect that has not been
 leased. Once a request is leased, completion must use `acknowledge_effect`.

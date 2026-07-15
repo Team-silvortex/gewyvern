@@ -395,12 +395,12 @@
       "feature": "effect-reentry",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 78,
+      "completion": 93,
       "confidence": "medium",
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-execution-protocol",
-        "version": "0.6.0",
+        "version": "0.9.0",
         "stability": "evolving",
         "surfaces": [
           "lossless-syntax",
@@ -426,14 +426,25 @@
           "bounded-semantic-retry",
           "deterministic-retry-backoff",
           "persisted-not-before-dispatch",
-          "journal-schema-4"
+          "journal-schema-4",
+          "bounded-journal-retention",
+          "transactional-journal-compaction",
+          "secure-delete-compaction",
+          "deterministic-merge-kernel",
+          "declared-order-terminal-arbitration",
+          "bounded-structured-value",
+          "structured-value-journal-replay",
+          "source-all-frontend",
+          "declared-branch-order-hir",
+          "multi-capability-authorization",
+          "pre-allocation-execution-guard"
         ]
       },
       "depends_on": ["leserpent-2/domain-protocol/command-query-kernel"],
       "blockers": [
         {
-          "id": "durable-history-merge",
-          "summary": "Effect lifecycle now covers redelivery, cancellation, timeout, and bounded semantic retry, but retention/compaction and deterministic structured merge remain."
+          "id": "durable-all-branch-graph",
+          "summary": "Source-level all and merge semantics are proven; durable multi-branch continuation execution remains before Gate 2 can exit."
         }
       ],
       "consumers": ["model-automation", "leserpent-cli", "ui-functions"],
@@ -444,7 +455,7 @@
         { "kind": "source", "path": "crates/leselang-vm", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm/src/journal.rs", "state": "present" }
       ],
-      "next_gate": "Gate 2: add bounded journal retention/compaction, then deterministic structured merge."
+      "next_gate": "Gate 2: persist and execute the all branch graph, then remove the LSV1002 guard."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",
