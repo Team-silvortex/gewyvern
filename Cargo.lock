@@ -256,6 +256,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "leserpent-cli"
+version = "1.0.0"
+dependencies = [
+ "leselang-command",
+ "leselang-hir",
+ "leselang-syntax",
+ "leserpent-domain",
+ "leserpent-protocol",
+ "leserpent-runtime",
+ "leserpentd",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "leserpent-domain"
 version = "1.0.0"
 dependencies = [

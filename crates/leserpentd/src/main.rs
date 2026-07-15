@@ -114,7 +114,8 @@ fn run() -> Result<(), String> {
                 if let Some(ipc) = &ipc {
                     ipc.poll_once(host.runtime_mut())?;
                 }
-                host.run_steps(1).map_err(|error| error.to_string())?;
+                host.run_steps_until(1, &stop)
+                    .map_err(|error| error.to_string())?;
             }
         }
         None => {
@@ -123,7 +124,8 @@ fn run() -> Result<(), String> {
                 if let Some(ipc) = &ipc {
                     ipc.poll_once(host.runtime_mut())?;
                 }
-                host.run_steps(1).map_err(|error| error.to_string())?;
+                host.run_steps_until(1, &stop)
+                    .map_err(|error| error.to_string())?;
             }
         }
     }

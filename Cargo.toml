@@ -8,6 +8,7 @@ members = [
     "crates/leselang-vm",
     "crates/leserpent-domain",
     "crates/leserpent-adapters",
+    "crates/leserpent-cli",
     "crates/leserpent-protocol",
     "crates/leserpent-runtime",
     "crates/leserpentd",

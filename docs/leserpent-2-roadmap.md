@@ -101,6 +101,18 @@ Build the Rust `leserpent` CLI on the shared protocol.
 - dry-run and confirmation UX
 - local IPC and authenticated remote transport
 
+The first native slice now exists in `crates/leserpent-cli` and installs the
+`leserpent` binary. It connects only through authenticated wire-v1 local IPC,
+reads its token only from `LESERPENT_IPC_TOKEN`, validates owner-private socket
+metadata before sending credentials, and supports `health` plus filtered
+`runtime list`. Human output is control-character-safe; `--json` preserves the
+versioned response envelope for automation. A real binary-to-daemon test covers
+both modes. `runtime refresh` now requires explicit `--yes` for mutation, supports
+non-mutating `--dry-run`, optimistic revision checks, stable caller-provided
+idempotency keys, and local-only canonical Leselang export. A parity test parses,
+lowers, and compares the exported command. Broader inspect/watch/history/export
+operations remain before Gate 3 exits.
+
 Exit: every migrated operation is executable through CLI and Leselang with the
 same parity fixtures.
 
@@ -149,6 +161,19 @@ bounded synchronous worker step. Executors return `Complete`, `Retry`, or
 `Reject`; the runtime alone commits the fenced lease transition, while callers
 retain control over concurrency, cancellation, and shutdown.
 
+Schema v7 freezes the durable runtime semantics. It records the introduction of
+typed status-observation journal entries even though no physical table change is
+needed, so a v6 binary rejects a newer database by version instead of attempting
+an incompatible replay. Startup requires migration history to be exactly 1
+through 7, verifies the effect-table columns and claim index, and rejects unknown
+journal kinds before rebuilding projections. Complete v6 databases migrate
+transactionally to v7.
+
+Applied refresh events now materialize their typed status effect before the
+command returns. Startup reconstructs a missing effect from durable applied
+command results, closing the crash window between command-journal completion and
+queue insertion without duplicating an existing idempotent task.
+
 Status-refresh completion is also durable end to end. A typed observation
 carries its runtime ID and expected projection revision; the runtime validates
 it on a cloned projection, then appends the replay record and completes the
@@ -165,13 +190,46 @@ and removes at most 100 per pass without touching ready or leased work. This
 also defines the persisted effect-ID idempotency horizon; producers must use
 globally unique effect IDs rather than intentionally recycling compacted IDs.
 
+Bounded synchronous concurrency is now explicit. `leserpentd` claims at most
+four effect kinds per batch by default (configurable from one through 32), runs
+different adapter kinds on scoped native threads, and settles outcomes back on
+the single authority thread in claim order. A batch never leases two tasks for
+the same adapter kind, so mutex wait time cannot consume a second task's lease.
+Adapters receive a cooperative cancellation context; cancellation schedules a
+retry, while a panic is contained and rejects only its claimed task. The main
+signal loop passes its stop flag into batch execution.
+
+The repeatable Linux stress harness is
+`scripts/validation/leserpentd_linux_stress.sh`; it runs natively on the trusted
+remote shelf and retains JSON under
+`target/validation/leserpentd-linux-stress/`. The 2026-07-15 x86_64 run on Linux
+6.17.0-35 proved eight-way observed parallelism with all 256 effects completed,
+cooperative cancellation returning a lease to `ready` in 25 ms, strict rejection
+of task 10,001 at the 10,000-active capacity, and real process-exit recovery as
+attempt two after the 30-second owner lease elapsed. The saturation phase took
+28.2 seconds with one transaction per task and `synchronous=FULL`.
+
+The runtime now provides atomic enqueue batches of one through 1000 tasks.
+Validation, duplicate-ID detection, existing-record idempotency checks, and the
+active-capacity decision all complete before insertion; any conflict or overflow
+rolls back the whole batch. A full queue still accepts exact idempotent replays.
+On the same Linux host, filling all 10,000 active slots as 100 batches of 100
+took 584 ms, a 48.3x improvement over 28,185 ms, without changing
+`synchronous=FULL` durability.
+
+With the schema-v7 compatibility fence, atomic batch API, Linux stress evidence,
+and negative migration tests in place, the reusable control-runtime contract is
+frozen as `1.0.0`. This freezes the runtime cell, not the wider Leserpent 2.0
+architecture; daemon platform parity, adapters, renderers, and remote control
+continue on their own status-tensor tracks.
+
 The initial `leserpentd` crate now hosts `ControlRuntime` as a standalone
 process. It drives explicit owner heartbeats and bounded worker steps through a
 typed adapter registry, supports finite-step smoke execution, and stays in a
 heartbeat-only safe mode when no adapter is installed. Graceful Unix signal
-shutdown and authenticated local health are implemented; Windows IPC parity,
-bounded worker concurrency, and broader production adapters remain before the daemon can
-become authoritative.
+shutdown, authenticated local health, and bounded synchronous worker concurrency
+are implemented; Windows IPC parity and broader production adapters remain
+before the daemon can become authoritative.
 
 On Unix, `leserpentd` now exposes the existing wire-v1 request and response
 envelopes over a private `0600` Unix socket. Each bounded line frame carries an

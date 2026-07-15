@@ -76,6 +76,9 @@ impl IpcServer {
 
     fn handle(&self, mut stream: UnixStream, runtime: &mut ControlRuntime) -> Result<(), String> {
         stream
+            .set_nonblocking(false)
+            .map_err(|error| error.to_string())?;
+        stream
             .set_read_timeout(Some(Duration::from_secs(2)))
             .map_err(|error| error.to_string())?;
         stream

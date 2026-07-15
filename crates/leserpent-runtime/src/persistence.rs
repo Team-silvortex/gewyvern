@@ -1,13 +1,15 @@
+use std::collections::BTreeSet;
 use std::fs::{self, OpenOptions};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use rusqlite::{Connection, OpenFlags, TransactionBehavior, params};
+use rusqlite::types::Value;
+use rusqlite::{Connection, OpenFlags, TransactionBehavior, params, params_from_iter};
 
-use crate::{EFFECT_QUEUE_CAPACITY, EffectQueueStats};
+use crate::{EFFECT_QUEUE_CAPACITY, EffectEnqueue, EffectQueueStats, MAX_EFFECT_ENQUEUE_BATCH};
 
-const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 6;
+const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 7;
 const MAX_JOURNAL_RECORDS: i64 = 100_000;
 const MAX_JOURNAL_PAYLOAD_BYTES: usize = 64 * 1024;
 const MAX_SNAPSHOT_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
@@ -387,12 +389,36 @@ impl Journal {
         payload: &[u8],
         max_attempts: u32,
     ) -> Result<(), String> {
+        self.enqueue_effect_batch(&[EffectEnqueue {
+            effect_id: effect_id.to_string(),
+            kind: kind.to_string(),
+            payload: payload.to_vec(),
+            max_attempts,
+        }])?;
+        Ok(())
+    }
+
+    pub fn enqueue_effect_batch(&mut self, effects: &[EffectEnqueue]) -> Result<u64, String> {
         self.ensure_owner()?;
-        validate_scheduler_id("effect_id", effect_id)?;
-        validate_scheduler_id("effect kind", kind)?;
-        validate_blob("effect payload", payload)?;
-        if max_attempts == 0 || max_attempts > 100 {
-            return Err("effect max_attempts must be between 1 and 100".into());
+        if effects.is_empty() || effects.len() > MAX_EFFECT_ENQUEUE_BATCH {
+            return Err(format!(
+                "effect enqueue batch must contain between 1 and {MAX_EFFECT_ENQUEUE_BATCH} tasks"
+            ));
+        }
+        let mut batch_ids = BTreeSet::new();
+        for effect in effects {
+            validate_scheduler_id("effect_id", &effect.effect_id)?;
+            validate_scheduler_id("effect kind", &effect.kind)?;
+            validate_blob("effect payload", &effect.payload)?;
+            if effect.max_attempts == 0 || effect.max_attempts > 100 {
+                return Err("effect max_attempts must be between 1 and 100".into());
+            }
+            if !batch_ids.insert(effect.effect_id.as_str()) {
+                return Err(format!(
+                    "effect id '{}' is duplicated within the enqueue batch",
+                    effect.effect_id
+                ));
+            }
         }
         let now = unix_time_ms()?;
         let transaction = self
@@ -407,37 +433,57 @@ impl Journal {
                 |row| row.get(0),
             )
             .map_err(|error| error.to_string())?;
-        if active >= MAX_EFFECT_TASKS {
+        let mut new_effects = Vec::with_capacity(effects.len());
+        for effect in effects {
+            let existing: Option<(String, Vec<u8>, i64)> = transaction
+                .query_row(
+                    "SELECT kind, payload, max_attempts FROM runtime_effect_tasks
+                     WHERE effect_id = ?1",
+                    [&effect.effect_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .optional()
+                .map_err(|error| error.to_string())?;
+            match existing {
+                Some((kind, payload, max_attempts))
+                    if kind == effect.kind
+                        && payload == effect.payload
+                        && max_attempts == i64::from(effect.max_attempts) => {}
+                Some(_) => {
+                    return Err(format!(
+                        "effect id '{}' was reused with different input",
+                        effect.effect_id
+                    ));
+                }
+                None => new_effects.push(effect),
+            }
+        }
+        let new_count = i64::try_from(new_effects.len())
+            .map_err(|_| "effect enqueue batch is too large".to_string())?;
+        if active.saturating_add(new_count) > MAX_EFFECT_TASKS {
             return Err(format!(
                 "runtime effect queue limit {MAX_EFFECT_TASKS} reached"
             ));
         }
-        let changed = transaction
-            .execute(
-                "INSERT INTO runtime_effect_tasks
+        for effect in new_effects {
+            transaction
+                .execute(
+                    "INSERT INTO runtime_effect_tasks
                      (effect_id, kind, payload, state, attempt, max_attempts,
                       available_at_unix_ms, created_at_unix_ms, updated_at_unix_ms)
-                 VALUES (?1, ?2, ?3, 'ready', 0, ?4, ?5, ?5, ?5)
-                 ON CONFLICT(effect_id) DO NOTHING",
-                params![effect_id, kind, payload, i64::from(max_attempts), now],
-            )
-            .map_err(|error| error.to_string())?;
-        if changed == 0 {
-            let matches: i64 = transaction
-                .query_row(
-                    "SELECT COUNT(*) FROM runtime_effect_tasks
-                     WHERE effect_id = ?1 AND kind = ?2 AND payload = ?3 AND max_attempts = ?4",
-                    params![effect_id, kind, payload, i64::from(max_attempts)],
-                    |row| row.get(0),
+                 VALUES (?1, ?2, ?3, 'ready', 0, ?4, ?5, ?5, ?5)",
+                    params![
+                        effect.effect_id,
+                        effect.kind,
+                        effect.payload,
+                        i64::from(effect.max_attempts),
+                        now
+                    ],
                 )
                 .map_err(|error| error.to_string())?;
-            if matches != 1 {
-                return Err(format!(
-                    "effect id '{effect_id}' was reused with different input"
-                ));
-            }
         }
-        transaction.commit().map_err(|error| error.to_string())
+        transaction.commit().map_err(|error| error.to_string())?;
+        u64::try_from(new_count).map_err(|_| "effect enqueue count overflow".into())
     }
 
     pub fn effect_queue_stats(&mut self) -> Result<EffectQueueStats, String> {
@@ -505,13 +551,17 @@ impl Journal {
         u64::try_from(changed).map_err(|_| "effect retention count overflow".into())
     }
 
-    pub fn claim_effect(
+    pub fn claim_effect_excluding(
         &mut self,
         worker_id: &str,
         lease_duration: Duration,
+        excluded_kinds: &[String],
     ) -> Result<Option<EffectLease>, String> {
         self.ensure_owner()?;
         validate_scheduler_id("worker_id", worker_id)?;
+        for kind in excluded_kinds {
+            validate_scheduler_id("excluded effect kind", kind)?;
+        }
         let lease_ms = validate_lease_duration(lease_duration)?;
         let now = unix_time_ms()?;
         let expires_at = now
@@ -532,17 +582,30 @@ impl Journal {
                 [now],
             )
             .map_err(|error| error.to_string())?;
-        let candidate: Option<(String, String, Vec<u8>, i64)> = transaction
-            .query_row(
-                "SELECT effect_id, kind, payload, attempt FROM runtime_effect_tasks
+        let excluded_clause = if excluded_kinds.is_empty() {
+            String::new()
+        } else {
+            let placeholders = (2..excluded_kinds.len() + 2)
+                .map(|index| format!("?{index}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(" AND kind NOT IN ({placeholders})")
+        };
+        let query = format!(
+            "SELECT effect_id, kind, payload, attempt FROM runtime_effect_tasks
                  WHERE attempt < max_attempts AND (
                      (state = 'ready' AND available_at_unix_ms <= ?1) OR
                      (state = 'leased' AND lease_expires_at_unix_ms <= ?1)
-                 )
-                 ORDER BY available_at_unix_ms, created_at_unix_ms, effect_id LIMIT 1",
-                [now],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-            )
+                 ){excluded_clause}
+                 ORDER BY available_at_unix_ms, created_at_unix_ms, effect_id LIMIT 1"
+        );
+        let mut query_params = Vec::with_capacity(excluded_kinds.len() + 1);
+        query_params.push(Value::Integer(now));
+        query_params.extend(excluded_kinds.iter().cloned().map(Value::Text));
+        let candidate: Option<(String, String, Vec<u8>, i64)> = transaction
+            .query_row(&query, params_from_iter(query_params.iter()), |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
             .optional()
             .map_err(|error| error.to_string())?;
         let Some((effect_id, kind, payload, previous_attempt)) = candidate else {
@@ -802,10 +865,35 @@ fn migrate_schema(connection: &mut Connection, from: i64) -> Result<i64, String>
         3 => migrate_schema_3_to_4(connection),
         4 => migrate_schema_4_to_5(connection),
         5 => migrate_schema_5_to_6(connection),
+        6 => migrate_schema_6_to_7(connection),
         version => Err(format!(
             "no runtime journal migration from schema {version}"
         )),
     }
+}
+
+fn migrate_schema_6_to_7(connection: &mut Connection) -> Result<i64, String> {
+    let applied_at = unix_time_ms()?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms) VALUES (7, ?1)",
+            [applied_at],
+        )
+        .map_err(|error| error.to_string())?;
+    let changed = transaction
+        .execute(
+            "UPDATE runtime_metadata SET value = 7 WHERE key = 'schema_version' AND value = 6",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("runtime journal schema changed during migration".into());
+    }
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(7)
 }
 
 fn migrate_schema_5_to_6(connection: &mut Connection) -> Result<i64, String> {
@@ -1003,15 +1091,16 @@ fn migrate_schema_1_to_2(connection: &mut Connection) -> Result<i64, String> {
 }
 
 fn validate_current_schema(connection: &Connection) -> Result<(), String> {
-    let migration_count: i64 = connection
+    let (migration_count, first_migration, last_migration): (i64, i64, i64) = connection
         .query_row(
-            "SELECT COUNT(*) FROM runtime_schema_migrations WHERE version IN (1, 2, 3, 4, 5, 6)",
+            "SELECT COUNT(*), COALESCE(MIN(version), 0), COALESCE(MAX(version), 0)
+             FROM runtime_schema_migrations",
             [],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
-        .map_err(|error| format!("invalid runtime journal schema 6: {error}"))?;
-    if migration_count != 6 {
-        return Err("invalid runtime journal schema 6 migration history".into());
+        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
+    if (migration_count, first_migration, last_migration) != (7, 1, 7) {
+        return Err("invalid runtime journal schema 7 migration history".into());
     }
     let timestamp_column: i64 = connection
         .query_row(
@@ -1021,23 +1110,61 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     if timestamp_column != 1 {
-        return Err("invalid runtime journal schema 6 timestamp column".into());
+        return Err("invalid runtime journal schema 7 timestamp column".into());
     }
     connection
         .query_row("SELECT COUNT(*) FROM runtime_snapshots", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 6: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 6: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_effect_tasks", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 6: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
+    let effect_columns: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('runtime_effect_tasks')
+             WHERE name IN (
+                 'effect_id', 'kind', 'payload', 'state', 'attempt', 'max_attempts',
+                 'available_at_unix_ms', 'lease_token', 'lease_expires_at_unix_ms',
+                 'outcome', 'last_error', 'created_at_unix_ms', 'updated_at_unix_ms'
+             )",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
+    if effect_columns != 13 {
+        return Err("invalid runtime journal schema 7 effect columns".into());
+    }
+    let claim_index: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'index' AND name = 'runtime_effect_claim'
+               AND tbl_name = 'runtime_effect_tasks'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
+    if claim_index != 1 {
+        return Err("invalid runtime journal schema 7 effect claim index".into());
+    }
+    let unknown_journal_kinds: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM runtime_journal
+             WHERE kind NOT IN ('runtime_registration', 'command_plan', 'runtime_status_observation')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
+    if unknown_journal_kinds != 0 {
+        return Err("invalid runtime journal schema 7 journal kind".into());
+    }
     Ok(())
 }
 

@@ -1,7 +1,8 @@
 use leserpent_domain::{
-    CommandPlan, CommandPlanError, CommandResult, DOMAIN_SNAPSHOT_SCHEMA_VERSION, DomainError,
-    DomainSnapshot, DomainSnapshotError, InMemoryControlPlane, PlannedOperation, QueryResult,
-    RUNTIME_STATUS_REFRESH_EFFECT_KIND, RuntimeId, RuntimeProjection, RuntimeStatusObservation,
+    CommandPlan, CommandPlanError, CommandResult, CommandStatus, DOMAIN_SNAPSHOT_SCHEMA_VERSION,
+    DomainError, DomainEvent, DomainSnapshot, DomainSnapshotError, InMemoryControlPlane,
+    PlannedOperation, QueryResult, RUNTIME_STATUS_REFRESH_EFFECT_KIND, RuntimeId,
+    RuntimeProjection, RuntimeStatusObservation, RuntimeStatusRefreshRequest,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -14,6 +15,15 @@ pub use persistence::EffectLease;
 use persistence::{Journal, JournalEntryKind};
 
 pub const EFFECT_QUEUE_CAPACITY: u64 = 10_000;
+pub const MAX_EFFECT_ENQUEUE_BATCH: usize = 1_000;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EffectEnqueue {
+    pub effect_id: String,
+    pub kind: String,
+    pub payload: Vec<u8>,
+    pub max_attempts: u32,
+}
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct EffectQueueStats {
@@ -249,6 +259,16 @@ impl ControlRuntime {
             }
         }
         runtime.journal = Some(journal);
+        let applied = runtime
+            .control
+            .snapshot()
+            .applied_commands
+            .into_iter()
+            .map(|entry| entry.result)
+            .collect::<Vec<_>>();
+        for result in &applied {
+            runtime.schedule_command_effects(result)?;
+        }
         Ok(runtime)
     }
 
@@ -291,6 +311,17 @@ impl ControlRuntime {
             .map_err(RuntimeError::Storage)
     }
 
+    pub fn enqueue_effect_batch(&mut self, effects: &[EffectEnqueue]) -> Result<u64, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "effect scheduling requires persistent storage".into(),
+            ));
+        };
+        journal
+            .enqueue_effect_batch(effects)
+            .map_err(RuntimeError::Storage)
+    }
+
     pub fn effect_queue_stats(&mut self) -> Result<EffectQueueStats, RuntimeError> {
         let Some(journal) = &mut self.journal else {
             return Ok(EffectQueueStats {
@@ -321,13 +352,22 @@ impl ControlRuntime {
         worker_id: &str,
         lease_duration: Duration,
     ) -> Result<Option<EffectLease>, RuntimeError> {
+        self.claim_effect_excluding(worker_id, lease_duration, &[])
+    }
+
+    pub fn claim_effect_excluding(
+        &mut self,
+        worker_id: &str,
+        lease_duration: Duration,
+        excluded_kinds: &[String],
+    ) -> Result<Option<EffectLease>, RuntimeError> {
         let Some(journal) = &mut self.journal else {
             return Err(RuntimeError::Storage(
                 "effect scheduling requires persistent storage".into(),
             ));
         };
         journal
-            .claim_effect(worker_id, lease_duration)
+            .claim_effect_excluding(worker_id, lease_duration, excluded_kinds)
             .map_err(RuntimeError::Storage)
     }
 
@@ -397,9 +437,18 @@ impl ControlRuntime {
         let Some(lease) = self.claim_effect(worker_id, lease_duration)? else {
             return Ok(WorkerStep::Idle);
         };
+        let execution = executor.execute(&lease);
+        self.settle_effect(&lease, execution)
+    }
+
+    pub fn settle_effect(
+        &mut self,
+        lease: &EffectLease,
+        execution: EffectExecution,
+    ) -> Result<WorkerStep, RuntimeError> {
         let effect_id = lease.effect_id.clone();
         let attempt = lease.attempt;
-        match executor.execute(&lease) {
+        match execution {
             EffectExecution::Complete(outcome) => {
                 if lease.kind == RUNTIME_STATUS_REFRESH_EFFECT_KIND {
                     match self.complete_runtime_status_effect(&lease, &outcome) {
@@ -538,9 +587,35 @@ impl ControlRuntime {
                         .complete(sequence, &outcome)
                         .map_err(RuntimeError::Storage)?;
                 }
+                self.schedule_command_effects(&result)?;
                 Ok(PlanResult::Command(result))
             }
         }
+    }
+
+    fn schedule_command_effects(&mut self, result: &CommandResult) -> Result<(), RuntimeError> {
+        if result.status != CommandStatus::Applied || self.journal.is_none() {
+            return Ok(());
+        }
+        for event in &result.events {
+            let DomainEvent::RuntimeRefreshRequested {
+                runtime_id,
+                revision,
+                command_id,
+            } = event;
+            let payload = serde_json::to_vec(&RuntimeStatusRefreshRequest {
+                runtime_id: runtime_id.as_str().to_string(),
+                expected_revision: *revision,
+            })
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+            self.enqueue_effect(
+                command_id.as_str(),
+                RUNTIME_STATUS_REFRESH_EFFECT_KIND,
+                &payload,
+                3,
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -911,8 +986,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 6);
-        assert_eq!(migration_count, 6);
+        assert_eq!(schema, 7);
+        assert_eq!(migration_count, 7);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -920,7 +995,7 @@ mod tests {
 
     #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v6");
+        let path = temp_journal("incomplete-v7");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -935,14 +1010,95 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 6);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 7);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 6")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 7")
+        ));
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn sqlite_journal_migrates_complete_v6_semantics_to_v7() {
+        let path = temp_journal("v6-semantic-migration");
+        drop(ControlRuntime::open(&path).unwrap());
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 7",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE runtime_metadata SET value = 6 WHERE key = 'schema_version'",
+                [],
+            )
+            .unwrap();
+        drop(connection);
+
+        drop(ControlRuntime::open(&path).unwrap());
+        let connection = Connection::open(&path).unwrap();
+        let schema: i64 = connection
+            .query_row(
+                "SELECT value FROM runtime_metadata WHERE key = 'schema_version'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let migration: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM runtime_schema_migrations WHERE version = 7",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(schema, 7);
+        assert_eq!(migration, 1);
+        drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn sqlite_journal_rejects_unknown_v7_entry_kind_before_replay() {
+        let path = temp_journal("v7-unknown-kind");
+        drop(ControlRuntime::open(&path).unwrap());
+        Connection::open(&path)
+            .unwrap()
+            .execute(
+                "INSERT INTO runtime_journal (kind, payload, created_at_unix_ms)
+                 VALUES ('future_kind', x'7b7d', 0)",
+                [],
+            )
+            .unwrap();
+        assert!(matches!(
+            ControlRuntime::open(&path),
+            Err(RuntimeError::Storage(ref error))
+                if error.contains("invalid runtime journal schema 7 journal kind")
+        ));
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn sqlite_journal_rejects_extra_migration_history() {
+        let path = temp_journal("v7-extra-migration");
+        drop(ControlRuntime::open(&path).unwrap());
+        Connection::open(&path)
+            .unwrap()
+            .execute(
+                "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
+                 VALUES (8, 0)",
+                [],
+            )
+            .unwrap();
+        assert!(matches!(
+            ControlRuntime::open(&path),
+            Err(RuntimeError::Storage(ref error))
+                if error.contains("invalid runtime journal schema 7 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -1180,7 +1336,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 6);
+        assert_eq!(schema, 7);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -1229,6 +1385,105 @@ mod tests {
         assert_eq!(count, 1);
         assert_eq!(outcome, b"ok");
         drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn sqlite_scheduler_batch_enqueue_is_atomic_and_idempotent() {
+        let path = temp_journal("scheduler-batch-enqueue");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let batch = vec![
+            EffectEnqueue {
+                effect_id: "batch-a".into(),
+                kind: "test.batch".into(),
+                payload: b"a".to_vec(),
+                max_attempts: 3,
+            },
+            EffectEnqueue {
+                effect_id: "batch-b".into(),
+                kind: "test.batch".into(),
+                payload: b"b".to_vec(),
+                max_attempts: 3,
+            },
+        ];
+        assert_eq!(runtime.enqueue_effect_batch(&batch).unwrap(), 2);
+        assert_eq!(runtime.enqueue_effect_batch(&batch).unwrap(), 0);
+        assert_eq!(runtime.effect_queue_stats().unwrap().ready, 2);
+
+        let conflicting = vec![
+            EffectEnqueue {
+                effect_id: "batch-c".into(),
+                kind: "test.batch".into(),
+                payload: b"c".to_vec(),
+                max_attempts: 3,
+            },
+            EffectEnqueue {
+                effect_id: "batch-a".into(),
+                kind: "test.batch".into(),
+                payload: b"changed".to_vec(),
+                max_attempts: 3,
+            },
+        ];
+        assert!(runtime.enqueue_effect_batch(&conflicting).is_err());
+        assert_eq!(runtime.effect_queue_stats().unwrap().ready, 2);
+
+        let duplicated = vec![batch[0].clone(), batch[0].clone()];
+        assert!(runtime.enqueue_effect_batch(&duplicated).is_err());
+        assert!(runtime.enqueue_effect_batch(&[]).is_err());
+        let oversized = (0..=MAX_EFFECT_ENQUEUE_BATCH)
+            .map(|index| EffectEnqueue {
+                effect_id: format!("oversized-{index}"),
+                kind: "test.batch".into(),
+                payload: Vec::new(),
+                max_attempts: 1,
+            })
+            .collect::<Vec<_>>();
+        assert!(runtime.enqueue_effect_batch(&oversized).is_err());
+        drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn sqlite_scheduler_batch_capacity_preserves_idempotent_replay() {
+        let path = temp_journal("scheduler-batch-capacity");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        for start in (0..EFFECT_QUEUE_CAPACITY).step_by(MAX_EFFECT_ENQUEUE_BATCH) {
+            let batch = (start..start + MAX_EFFECT_ENQUEUE_BATCH as u64)
+                .map(|index| EffectEnqueue {
+                    effect_id: format!("capacity-{index}"),
+                    kind: "test.capacity".into(),
+                    payload: b"capacity".to_vec(),
+                    max_attempts: 1,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                runtime.enqueue_effect_batch(&batch).unwrap(),
+                MAX_EFFECT_ENQUEUE_BATCH as u64
+            );
+        }
+        assert!(runtime.effect_queue_stats().unwrap().saturated());
+        let existing = EffectEnqueue {
+            effect_id: "capacity-0".into(),
+            kind: "test.capacity".into(),
+            payload: b"capacity".to_vec(),
+            max_attempts: 1,
+        };
+        assert_eq!(
+            runtime.enqueue_effect_batch(&[existing.clone()]).unwrap(),
+            0
+        );
+        let overflow = EffectEnqueue {
+            effect_id: "capacity-overflow".into(),
+            kind: "test.capacity".into(),
+            payload: b"overflow".to_vec(),
+            max_attempts: 1,
+        };
+        assert!(runtime.enqueue_effect_batch(&[existing, overflow]).is_err());
+        assert_eq!(
+            runtime.effect_queue_stats().unwrap().active(),
+            EFFECT_QUEUE_CAPACITY
+        );
+        drop(runtime);
         fs::remove_file(path).unwrap();
     }
 
@@ -1492,14 +1747,6 @@ mod tests {
                     ..RuntimeStatusSnapshot::default()
                 },
             };
-            runtime
-                .enqueue_effect(
-                    "status-runtime-a-2",
-                    RUNTIME_STATUS_REFRESH_EFFECT_KIND,
-                    br#"{"runtime_id":"runtime-a","expected_revision":2}"#,
-                    3,
-                )
-                .unwrap();
             let mut executor = ScriptedExecutor {
                 outcomes: VecDeque::from([EffectExecution::Complete(
                     serde_json::to_vec(&observation).unwrap(),
@@ -1510,7 +1757,7 @@ mod tests {
                     .run_effect_once("worker-a", Duration::from_secs(30), &mut executor)
                     .unwrap(),
                 WorkerStep::Completed {
-                    effect_id: "status-runtime-a-2".into(),
+                    effect_id: "command-a".into(),
                     attempt: 1,
                 }
             );
@@ -1532,6 +1779,46 @@ mod tests {
         assert_eq!(runtimes[0].refresh_status, RefreshStatus::Ready);
         assert_eq!(runtimes[0].status.status_source, "gewyvern-api");
         assert_eq!(runtimes[0].status.target_count, Some(2));
+        drop(recovered);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn restart_repairs_missing_effect_for_applied_refresh_command() {
+        let path = temp_journal("refresh-effect-repair");
+        {
+            let mut runtime = ControlRuntime::open(&path).unwrap();
+            let registered = runtime
+                .register_runtime(
+                    RuntimeId::new("runtime-a").unwrap(),
+                    "Runtime A",
+                    "http://127.0.0.1:9411",
+                )
+                .unwrap();
+            runtime
+                .execute_plan(refresh_plan(registered.revision))
+                .unwrap();
+            assert_eq!(runtime.effect_queue_stats().unwrap().ready, 1);
+            Connection::open(&path)
+                .unwrap()
+                .execute(
+                    "DELETE FROM runtime_effect_tasks WHERE effect_id = 'command-a'",
+                    [],
+                )
+                .unwrap();
+        }
+
+        let mut recovered = ControlRuntime::open(&path).unwrap();
+        assert_eq!(recovered.effect_queue_stats().unwrap().ready, 1);
+        let lease = recovered
+            .claim_effect("repair-worker", Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        assert_eq!(lease.effect_id, "command-a");
+        assert_eq!(lease.kind, RUNTIME_STATUS_REFRESH_EFFECT_KIND);
+        let request: RuntimeStatusRefreshRequest = serde_json::from_slice(&lease.payload).unwrap();
+        assert_eq!(request.runtime_id, "runtime-a");
+        assert_eq!(request.expected_revision, Revision(2));
         drop(recovered);
         fs::remove_file(path).unwrap();
     }

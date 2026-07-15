@@ -1,0 +1,23 @@
+[package]
+name = "leserpent-cli"
+version.workspace = true
+edition.workspace = true
+description = "Native authenticated CLI for the Leserpent control runtime"
+license.workspace = true
+
+[dependencies]
+leserpent-domain = { path = "../leserpent-domain" }
+leserpent-protocol = { path = "../leserpent-protocol" }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+leselang-command = { path = "../leselang-command" }
+leselang-hir = { path = "../leselang-hir" }
+leselang-syntax = { path = "../leselang-syntax" }
+leserpent-runtime = { path = "../leserpent-runtime" }
+leserpentd = { path = "../leserpentd" }
+
+[[bin]]
+name = "leserpent"
+path = "src/main.rs"

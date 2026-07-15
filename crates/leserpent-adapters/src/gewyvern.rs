@@ -4,10 +4,11 @@ use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
 
 use leserpent_domain::{
-    RUNTIME_STATUS_REFRESH_EFFECT_KIND, Revision, RuntimeStatusObservation, RuntimeStatusSnapshot,
+    RUNTIME_STATUS_REFRESH_EFFECT_KIND, RuntimeStatusObservation, RuntimeStatusRefreshRequest,
+    RuntimeStatusSnapshot,
 };
 use leserpent_runtime::EffectExecution;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::{EffectAdapter, validate_id};
 
@@ -48,12 +49,7 @@ pub struct GewyvernStatusRefreshAdapter {
     timeout: Duration,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct GewyvernStatusRefreshRequest {
-    pub runtime_id: String,
-    pub expected_revision: Revision,
-}
+pub type GewyvernStatusRefreshRequest = RuntimeStatusRefreshRequest;
 
 pub type GewyvernStatusObservation = RuntimeStatusObservation;
 
@@ -303,6 +299,8 @@ fn reject(error: &str) -> EffectExecution {
 mod tests {
     use std::net::{IpAddr, Ipv4Addr, TcpListener};
     use std::thread;
+
+    use leserpent_domain::Revision;
 
     use super::*;
 

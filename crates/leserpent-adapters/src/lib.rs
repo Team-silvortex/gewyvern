@@ -1,4 +1,7 @@
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use leserpent_runtime::{EffectExecution, EffectExecutor, EffectLease};
 
@@ -13,11 +16,36 @@ pub use gewyvern::{
 pub trait EffectAdapter: Send {
     fn kind(&self) -> &str;
     fn execute(&mut self, payload: &[u8]) -> EffectExecution;
+
+    fn execute_with_context(
+        &mut self,
+        payload: &[u8],
+        _context: &EffectContext<'_>,
+    ) -> EffectExecution {
+        self.execute(payload)
+    }
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy)]
+pub struct EffectContext<'a> {
+    cancelled: &'a AtomicBool,
+}
+
+impl<'a> EffectContext<'a> {
+    pub fn new(cancelled: &'a AtomicBool) -> Self {
+        Self { cancelled }
+    }
+
+    pub fn is_cancelled(self) -> bool {
+        self.cancelled.load(Ordering::Acquire)
+    }
+}
+
+type SharedAdapter = Arc<Mutex<Box<dyn EffectAdapter>>>;
+
+#[derive(Clone, Default)]
 pub struct AdapterRegistry {
-    adapters: BTreeMap<String, Box<dyn EffectAdapter>>,
+    adapters: BTreeMap<String, SharedAdapter>,
 }
 
 impl AdapterRegistry {
@@ -27,7 +55,8 @@ impl AdapterRegistry {
         if self.adapters.contains_key(&kind) {
             return Err(format!("adapter kind '{kind}' is already registered"));
         }
-        self.adapters.insert(kind, Box::new(adapter));
+        self.adapters
+            .insert(kind, Arc::new(Mutex::new(Box::new(adapter))));
         Ok(())
     }
 
@@ -38,16 +67,36 @@ impl AdapterRegistry {
     pub fn len(&self) -> usize {
         self.adapters.len()
     }
+
+    pub fn execute_lease(
+        &self,
+        lease: &EffectLease,
+        context: &EffectContext<'_>,
+    ) -> EffectExecution {
+        if context.is_cancelled() {
+            return EffectExecution::Retry {
+                error: "adapter execution was cancelled".into(),
+                after: Duration::ZERO,
+            };
+        }
+        let Some(adapter) = self.adapters.get(&lease.kind) else {
+            return EffectExecution::Reject {
+                error: format!("no adapter is registered for effect kind '{}'", lease.kind),
+            };
+        };
+        match adapter.lock() {
+            Ok(mut adapter) => adapter.execute_with_context(&lease.payload, context),
+            Err(_) => EffectExecution::Reject {
+                error: "adapter became unavailable after an execution panic".into(),
+            },
+        }
+    }
 }
 
 impl EffectExecutor for AdapterRegistry {
     fn execute(&mut self, lease: &EffectLease) -> EffectExecution {
-        match self.adapters.get_mut(&lease.kind) {
-            Some(adapter) => adapter.execute(&lease.payload),
-            None => EffectExecution::Reject {
-                error: format!("no adapter is registered for effect kind '{}'", lease.kind),
-            },
-        }
+        static NOT_CANCELLED: AtomicBool = AtomicBool::new(false);
+        self.execute_lease(lease, &EffectContext::new(&NOT_CANCELLED))
     }
 }
 

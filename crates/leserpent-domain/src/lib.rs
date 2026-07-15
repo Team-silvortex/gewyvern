@@ -113,6 +113,13 @@ pub struct RuntimeStatusObservation {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeStatusRefreshRequest {
+    pub runtime_id: String,
+    pub expected_revision: Revision,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct CommandEnvelope {
     pub schema_version: u32,
     pub command_id: CommandId,
@@ -283,6 +290,10 @@ impl RuntimeId {
 impl CommandId {
     pub fn new(value: impl Into<String>) -> Result<Self, DomainError> {
         validated_identifier("command_id", value.into()).map(Self)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
