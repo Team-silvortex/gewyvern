@@ -6,6 +6,8 @@ const languagePackCatalogUrl = "/language-packs/catalog.json";
 const builtinLanguageLocales = new Set(["en", "zh-CN", "zh-TW", "ja", "es", "de", "fr", "ko"]);
 const languagePackLimits = {
   bytes: 256 * 1024,
+  catalogBytes: 128 * 1024,
+  catalogPacks: 64,
   installedBytes: 512 * 1024,
   packs: 12,
   depth: 12,
@@ -141,14 +143,41 @@ function setLanguagePackStatus(message, tone = "") {
   nodes.languagePackStatus.dataset.tone = tone;
 }
 
+async function boundedResponseText(response, maxBytes, label) {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    languagePackError(`${label} exceeds ${maxBytes} bytes`);
+  }
+  if (!response.body) languagePackError(`${label} response has no readable body`);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let bytes = 0;
+  let text = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        await reader.cancel("response exceeds configured limit");
+        languagePackError(`${label} exceeds ${maxBytes} bytes`);
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    return text + decoder.decode();
+  } catch (error) {
+    if (error instanceof TypeError) languagePackError(`${label} is not valid UTF-8`);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 async function fetchLanguagePackText(url) {
   const response = await fetch(url, { credentials: "same-origin", cache: "no-cache" });
   if (!response.ok) languagePackError(`${url} -> ${response.status}`);
-  const text = await response.text();
-  if (new TextEncoder().encode(text).byteLength > languagePackLimits.bytes) {
-    languagePackError("language pack exceeds 256 KiB");
-  }
-  return text;
+  return boundedResponseText(response, languagePackLimits.bytes, "language pack");
 }
 
 async function loadLanguagePackCatalog() {
@@ -156,8 +185,14 @@ async function loadLanguagePackCatalog() {
   try {
     const response = await fetch(languagePackCatalogUrl, { credentials: "same-origin", cache: "no-cache" });
     if (!response.ok) languagePackError(`${languagePackCatalogUrl} -> ${response.status}`);
-    const catalog = await response.json();
-    if (catalog?.schema !== "leserpent.language-pack-catalog/v1" || !Array.isArray(catalog.packs)) {
+    const catalog = JSON.parse(await boundedResponseText(
+      response,
+      languagePackLimits.catalogBytes,
+      "language-pack catalog",
+    ));
+    if (catalog?.schema !== "leserpent.language-pack-catalog/v1"
+      || !Array.isArray(catalog.packs)
+      || catalog.packs.length > languagePackLimits.catalogPacks) {
       languagePackError("language-pack catalog schema is invalid");
     }
     state.languagePackCatalog = catalog.packs.flatMap((entry) => {
@@ -240,53 +275,63 @@ function downloadLanguagePack(pack) {
 async function handleLanguagePackAction(button) {
   const locale = button.dataset.locale;
   const action = button.dataset.languagePackAction;
-  try {
-    if (action === "remove") {
-      delete state.installedLanguagePacks[locale];
-      delete translations[locale];
-      persistLanguagePacks();
-      if (state.languagePreference === locale) {
-        state.languagePreference = "auto";
-        state.language = resolveLanguage("auto");
-        setStoredLanguagePreference("auto");
-      }
-      syncLanguageOptions();
-      applyTranslations();
-      renderDashboardFromCache();
-      renderLanguagePackCenter();
-      setLanguagePackStatus(t("languagePacks.removed"), "good");
-      return;
-    }
-    if (action === "export") {
-      downloadLanguagePack(state.installedLanguagePacks[locale]);
-      return;
-    }
-    const entry = state.languagePackCatalog.find((item) => item.locale === locale);
-    if (!entry) languagePackError("catalog entry not found");
-    const pack = await verifiedCatalogPack(entry);
-    if (action === "download") {
-      downloadLanguagePack(pack);
-      setLanguagePackStatus(t("languagePacks.downloaded", { name: pack.nativeName }), "good");
-    } else {
-      await installLanguagePack(pack);
-    }
-  } catch (error) {
-    console.error(error);
-    setLanguagePackStatus(t("languagePacks.operationFailed", { message: error.message }), "bad");
+  const key = `language-pack:${locale}`;
+  if (state.uiActions.has(key)) return;
+  if (action === "remove") {
+    const pack = state.installedLanguagePacks[locale];
+    if (!pack || !window.confirm(t("languagePacks.removeConfirm", { name: pack.nativeName }))) return;
   }
+  await runUiActionOnce(key, button, `${button.textContent}...`, async () => {
+    try {
+      if (action === "remove") {
+        delete state.installedLanguagePacks[locale];
+        delete translations[locale];
+        persistLanguagePacks();
+        if (state.languagePreference === locale) {
+          state.languagePreference = "auto";
+          state.language = resolveLanguage("auto");
+          setStoredLanguagePreference("auto");
+        }
+        syncLanguageOptions();
+        applyTranslations();
+        renderDashboardFromCache();
+        renderLanguagePackCenter();
+        setLanguagePackStatus(t("languagePacks.removed"), "good");
+        return;
+      }
+      if (action === "export") {
+        downloadLanguagePack(state.installedLanguagePacks[locale]);
+        return;
+      }
+      const entry = state.languagePackCatalog.find((item) => item.locale === locale);
+      if (!entry) languagePackError("catalog entry not found");
+      const pack = await verifiedCatalogPack(entry);
+      if (action === "download") {
+        downloadLanguagePack(pack);
+        setLanguagePackStatus(t("languagePacks.downloaded", { name: pack.nativeName }), "good");
+      } else {
+        await installLanguagePack(pack);
+      }
+    } catch (error) {
+      console.error(error);
+      setLanguagePackStatus(t("languagePacks.operationFailed", { message: error.message }), "bad");
+    }
+  });
 }
 
 async function importLanguagePackFile(file) {
   if (!file) return;
-  try {
-    if (file.size > languagePackLimits.bytes) languagePackError("language pack exceeds 256 KiB");
-    await installLanguagePack(JSON.parse(await file.text()));
-  } catch (error) {
-    console.error(error);
-    setLanguagePackStatus(t("languagePacks.operationFailed", { message: error.message }), "bad");
-  } finally {
-    nodes.languagePackFile.value = "";
-  }
+  await runUiActionOnce("language-pack-import", nodes.languagePackImport, `${t("languagePacks.import")}...`, async () => {
+    try {
+      if (file.size > languagePackLimits.bytes) languagePackError("language pack exceeds 256 KiB");
+      await installLanguagePack(JSON.parse(await file.text()));
+    } catch (error) {
+      console.error(error);
+      setLanguagePackStatus(t("languagePacks.operationFailed", { message: error.message }), "bad");
+    } finally {
+      nodes.languagePackFile.value = "";
+    }
+  });
 }
 
 function renderLanguagePackCenter() {

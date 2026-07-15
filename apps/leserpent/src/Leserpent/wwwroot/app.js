@@ -51,6 +51,7 @@ translations.en = {
         download: "Download",
         export: "Export",
         remove: "Remove",
+        removeConfirm: "Remove {name}? The built-in English fallback will be used if this is the active language.",
         installed: "Installed {name}.",
         downloaded: "Downloaded {name}.",
         removed: "Language pack removed.",
@@ -334,6 +335,7 @@ translations.en = {
         fetchCapabilities: "Fetch capability and latest-meta from gewyvern",
         submit: "Register Runtime",
         clear: "Clear Form",
+        clearConfirm: "Clear the registration form? Endpoint and token values will be discarded.",
         untouched: "No runtime submitted yet.",
         previewTitle: "Live Preview",
         previewName: "name",
@@ -341,6 +343,7 @@ translations.en = {
         previewEndpoint: "endpoint",
         previewSidecar: "sidecar",
         previewSidecarAccess: "sidecar access",
+        previewPairing: "pairing token",
         previewCapabilityFetch: "capability fetch",
         suggested: "suggested",
         pendingRuntimeName: "pending runtime name",
@@ -350,6 +353,8 @@ translations.en = {
         sidecarUnpaired: "not paired",
         capabilityEnabled: "enabled",
         capabilityDisabled: "disabled",
+        pairingReady: "provided",
+        pairingMissing: "required",
         blockedEndpoint: "Registration blocked: endpoint must start with http:// or https:// and be a valid URL.",
         blockedSidecarEndpoint: "Registration blocked: sidecar endpoint must start with http:// or https:// and be a valid URL.",
         blockedDuplicate: "Registration blocked: {reason} already exists on {name} ({endpoint}).",
@@ -357,6 +362,7 @@ translations.en = {
         duplicateName: "name",
         duplicateEndpoint: "endpoint",
         registering: "Registering runtime...",
+        registeringShort: "Registering...",
         registered: "Registered {name} ({runtimeId}) into {slice} with status {status}.",
         failed: "Registration failed: {message}. If this runtime already exists, try selecting it from the table instead of registering again.",
         allRuntimes: "all runtimes",
@@ -397,6 +403,12 @@ translations.en = {
         exportFailed: "Export failed: {message}",
         importing: "Importing control-plane state from {file}...",
         invalidJson: "selected file is not valid JSON",
+        invalidStructure: "selected file is not a Leserpent control-plane state document",
+        incompatibleSchema: "selected file uses unsupported schema version {schema}",
+        importTooLarge: "selected file exceeds the 1 MiB import limit",
+        importConfirm: "Import {file}? This replaces the current state ({currentRuntimes} runtimes, {currentSessions} sessions) with {runtimes} runtimes and {sessions} sessions.",
+        importCancelled: "State import cancelled; the current state was not changed.",
+        importingShort: "Importing...",
         imported: "Imported {runtimes} runtimes and {sessions} sessions.",
         importFailed: "Import failed: {message}",
     },
@@ -484,6 +496,8 @@ translations.en = {
         runtimeDeleteUnobservedSliceConfirm: "Delete {count} unobserved runtimes in the current slice ({slice})? This also removes their linked sessions.",
         runtimeDeleteUnobservedSliceDone: "Deleted {count} unobserved runtimes from {slice}. Removed {sessions} linked sessions.",
         runtimeClearSliceConfirm: "Delete all {count} runtimes in the current slice ({slice})? This also removes all linked sessions for that slice.",
+        runtimeClearSliceChallenge: "Type {challenge} to confirm this destructive operation.",
+        runtimeClearSliceChallengeFailed: "Slice cleanup cancelled because the confirmation text did not match.",
         runtimeClearSliceDone: "Cleared {count} runtimes from {slice}. Removed {sessions} linked sessions.",
         runtimeDeleteBatchFailed: "Bulk runtime cleanup failed: {message}",
         runtimeCleanupProtectedWarning: "Caution: this slice looks like live or prod. Double-check before continuing.",
@@ -545,6 +559,7 @@ translations["zh-CN"] = {
         download: "下载",
         export: "导出",
         remove: "卸载",
+        removeConfirm: "要卸载 {name} 吗？如果它是当前语言，界面会回退到内置语言。",
         installed: "已安装 {name}。",
         downloaded: "已下载 {name}。",
         removed: "语言包已卸载。",
@@ -828,6 +843,7 @@ translations["zh-CN"] = {
         fetchCapabilities: "注册时从 gewyvern 拉取 capability 和 latest-meta",
         submit: "注册 Runtime",
         clear: "清空表单",
+        clearConfirm: "要清空注册表单吗？Endpoint 和令牌内容将被丢弃。",
         untouched: "还没有提交 runtime。",
         previewTitle: "实时预览",
         previewName: "名称",
@@ -835,6 +851,7 @@ translations["zh-CN"] = {
         previewEndpoint: "endpoint",
         previewSidecar: "sidecar",
         previewSidecarAccess: "sidecar 访问",
+        previewPairing: "配对令牌",
         previewCapabilityFetch: "能力抓取",
         suggested: "建议",
         pendingRuntimeName: "等待生成 runtime 名称",
@@ -844,6 +861,8 @@ translations["zh-CN"] = {
         sidecarUnpaired: "未配对",
         capabilityEnabled: "开启",
         capabilityDisabled: "关闭",
+        pairingReady: "已填写",
+        pairingMissing: "必填",
         blockedEndpoint: "注册已拦截：endpoint 必须以 http:// 或 https:// 开头，并且是合法 URL。",
         blockedSidecarEndpoint: "注册已拦截：sidecar endpoint 必须以 http:// 或 https:// 开头，并且是合法 URL。",
         blockedDuplicate: "注册已拦截：{reason} 已存在于 {name} ({endpoint})。",
@@ -851,6 +870,7 @@ translations["zh-CN"] = {
         duplicateName: "名称",
         duplicateEndpoint: "endpoint",
         registering: "正在注册 runtime...",
+        registeringShort: "注册中...",
         registered: "已将 {name} ({runtimeId}) 注册到 {slice}，当前状态为 {status}。",
         failed: "注册失败：{message}。如果这条 runtime 已经存在，建议直接在表格里选中它。",
         allRuntimes: "全部 runtimes",
@@ -891,6 +911,12 @@ translations["zh-CN"] = {
         exportFailed: "导出失败：{message}",
         importing: "正在从 {file} 导入控制面状态...",
         invalidJson: "所选文件不是合法 JSON",
+        invalidStructure: "所选文件不是 Leserpent 控制面状态文档",
+        incompatibleSchema: "所选文件使用了不受支持的 schema 版本 {schema}",
+        importTooLarge: "所选文件超过 1 MiB 导入上限",
+        importConfirm: "要导入 {file} 吗？这会用 {runtimes} 个 runtime 和 {sessions} 个 session 覆盖当前的 {currentRuntimes} 个 runtime 与 {currentSessions} 个 session。",
+        importCancelled: "已取消状态导入，当前状态没有改变。",
+        importingShort: "导入中...",
         imported: "已导入 {runtimes} 个 runtime 和 {sessions} 个 session。",
         importFailed: "导入失败：{message}",
     },
@@ -978,6 +1004,8 @@ translations["zh-CN"] = {
         runtimeDeleteUnobservedSliceConfirm: "要删除当前切片（{slice}）里这 {count} 个未观测 runtime 吗？这也会移除它们关联的 session。",
         runtimeDeleteUnobservedSliceDone: "已从 {slice} 删除 {count} 个未观测 runtime，并移除了 {sessions} 个关联 session。",
         runtimeClearSliceConfirm: "要清空当前切片（{slice}）里的全部 {count} 个 runtime 吗？这也会移除这个切片下的所有关联 session。",
+        runtimeClearSliceChallenge: "请输入 {challenge} 以确认这项破坏性操作。",
+        runtimeClearSliceChallengeFailed: "确认文字不匹配，已取消清空切片。",
         runtimeClearSliceDone: "已清空 {slice}，删除了 {count} 个 runtime，并移除了 {sessions} 个关联 session。",
         runtimeDeleteBatchFailed: "批量清理 runtime 失败：{message}",
         runtimeCleanupProtectedWarning: "注意：这个切片看起来像 live 或 prod，继续前请再确认一次。",
@@ -2169,7 +2197,7 @@ async function handleRuntimeTableAction(button) {
         : button.dataset.action === "refresh-sidecar"
             ? "sidecar"
             : "all";
-    await refreshRuntimeById(runtimeId, kind);
+    await refreshRuntimeById(runtimeId, kind, button);
 }
 function bootstrapDashboard() {
     restoreLanguagePacks();
@@ -2252,22 +2280,28 @@ function bootstrapDashboard() {
         applyTheme();
         syncLocation();
     });
-    nodes.applyFiltersButton.addEventListener("click", () => {
-        state.filter.environment = nodes.environmentInput.value.trim();
-        state.filter.cluster = nodes.clusterInput.value.trim();
-        state.filter.role = nodes.roleInput.value.trim();
-        loadDashboard();
-    });
+    nodes.applyFiltersButton.addEventListener("click", applyFleetFilters);
+    for (const input of [nodes.environmentInput, nodes.clusterInput, nodes.roleInput]) {
+        input.addEventListener("input", syncFilterActionState);
+        input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && !nodes.applyFiltersButton.disabled) {
+                event.preventDefault();
+                applyFleetFilters();
+            }
+        });
+    }
     nodes.clearFiltersButton.addEventListener("click", () => {
         state.filter.environment = "";
         state.filter.cluster = "";
         state.filter.role = "";
         state.runtimeSearch = "";
         state.selectedRuntimeId = null;
-        loadDashboard();
+        syncFilterActionState();
+        void loadDashboard();
     });
     nodes.runtimeSearch.addEventListener("input", () => {
         state.runtimeSearch = nodes.runtimeSearch.value.trim();
+        syncFilterActionState();
         scheduleRuntimeSliceRender();
         syncLocation();
     });
@@ -2308,15 +2342,15 @@ function bootstrapDashboard() {
         if (!(button instanceof HTMLButtonElement) || button.disabled) {
             return;
         }
-        await refreshSelectedRuntime(button.dataset.recoveryAction);
+        await refreshSelectedRuntime(button.dataset.recoveryAction, button);
     });
     nodes.runtimeDeleteFailed?.addEventListener("click", deleteFailedRuntimes);
     nodes.runtimeDeleteUnobserved?.addEventListener("click", deleteUnobservedRuntimes);
     nodes.runtimeClearSlice?.addEventListener("click", clearRuntimeSlice);
     nodes.runtimeCleanupMenu?.addEventListener("toggle", syncCleanupMenuState);
-    nodes.refreshAllButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-all", t("notifications.fleetRefreshAll")));
-    nodes.refreshStatusButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-status", t("notifications.fleetStatusRefresh")));
-    nodes.refreshCapabilitiesButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-capabilities", t("notifications.fleetCapabilityRefresh")));
+    nodes.refreshAllButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-all", t("notifications.fleetRefreshAll"), nodes.refreshAllButton));
+    nodes.refreshStatusButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-status", t("notifications.fleetStatusRefresh"), nodes.refreshStatusButton));
+    nodes.refreshCapabilitiesButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-capabilities", t("notifications.fleetCapabilityRefresh"), nodes.refreshCapabilitiesButton));
     nodes.orchestraRefresh?.addEventListener("click", () => loadOrchestraPlan());
     nodes.orchestraPlans?.addEventListener("click", (event) => {
         const button = event.target.closest("[data-orchestra-execute]");
@@ -2363,10 +2397,10 @@ function bootstrapDashboard() {
         const [file] = event.target.files || [];
         importPersistenceState(file);
     });
-    nodes.runtimeDetailRefreshAll.addEventListener("click", () => refreshSelectedRuntime("all"));
-    nodes.runtimeDetailRefreshStatus.addEventListener("click", () => refreshSelectedRuntime("status"));
-    nodes.runtimeDetailRefreshCapabilities.addEventListener("click", () => refreshSelectedRuntime("capabilities"));
-    nodes.runtimeDetailRefreshSidecar.addEventListener("click", () => refreshSelectedRuntime("sidecar"));
+    nodes.runtimeDetailRefreshAll.addEventListener("click", () => refreshSelectedRuntime("all", nodes.runtimeDetailRefreshAll));
+    nodes.runtimeDetailRefreshStatus.addEventListener("click", () => refreshSelectedRuntime("status", nodes.runtimeDetailRefreshStatus));
+    nodes.runtimeDetailRefreshCapabilities.addEventListener("click", () => refreshSelectedRuntime("capabilities", nodes.runtimeDetailRefreshCapabilities));
+    nodes.runtimeDetailRefreshSidecar.addEventListener("click", () => refreshSelectedRuntime("sidecar", nodes.runtimeDetailRefreshSidecar));
     nodes.runtimeDetailCopyLink.addEventListener("click", copySelectedRuntimeLink);
     nodes.registerName.addEventListener("input", () => {
         state.registerNameTouched = nodes.registerName.value.trim().length > 0;
@@ -2375,6 +2409,7 @@ function bootstrapDashboard() {
     nodes.registerEndpoint.addEventListener("input", maybePrefillRuntimeNameFromEndpoint);
     nodes.registerSidecarEndpoint.addEventListener("input", scheduleRenderRegisterPreview);
     nodes.registerSidecarAdminToken.addEventListener("input", scheduleRenderRegisterPreview);
+    nodes.registerToken.addEventListener("input", scheduleRenderRegisterPreview);
     nodes.registerRuntimeEnvironment.addEventListener("input", scheduleRenderRegisterPreview);
     nodes.registerRuntimeCluster.addEventListener("input", scheduleRenderRegisterPreview);
     nodes.registerRuntimeRole.addEventListener("input", scheduleRenderRegisterPreview);
@@ -3533,6 +3568,8 @@ const languagePackCatalogUrl = "/language-packs/catalog.json";
 const builtinLanguageLocales = new Set(["en", "zh-CN", "zh-TW", "ja", "es", "de", "fr", "ko"]);
 const languagePackLimits = {
     bytes: 256 * 1024,
+    catalogBytes: 128 * 1024,
+    catalogPacks: 64,
     installedBytes: 512 * 1024,
     packs: 12,
     depth: 12,
@@ -3660,15 +3697,45 @@ function setLanguagePackStatus(message, tone = "") {
     nodes.languagePackStatus.textContent = message;
     nodes.languagePackStatus.dataset.tone = tone;
 }
+async function boundedResponseText(response, maxBytes, label) {
+    const declaredLength = Number(response.headers.get("content-length"));
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+        languagePackError(`${label} exceeds ${maxBytes} bytes`);
+    }
+    if (!response.body)
+        languagePackError(`${label} response has no readable body`);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    let bytes = 0;
+    let text = "";
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done)
+                break;
+            bytes += value.byteLength;
+            if (bytes > maxBytes) {
+                await reader.cancel("response exceeds configured limit");
+                languagePackError(`${label} exceeds ${maxBytes} bytes`);
+            }
+            text += decoder.decode(value, { stream: true });
+        }
+        return text + decoder.decode();
+    }
+    catch (error) {
+        if (error instanceof TypeError)
+            languagePackError(`${label} is not valid UTF-8`);
+        throw error;
+    }
+    finally {
+        reader.releaseLock();
+    }
+}
 async function fetchLanguagePackText(url) {
     const response = await fetch(url, { credentials: "same-origin", cache: "no-cache" });
     if (!response.ok)
         languagePackError(`${url} -> ${response.status}`);
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > languagePackLimits.bytes) {
-        languagePackError("language pack exceeds 256 KiB");
-    }
-    return text;
+    return boundedResponseText(response, languagePackLimits.bytes, "language pack");
 }
 async function loadLanguagePackCatalog() {
     setLanguagePackStatus(t("languagePacks.loading"));
@@ -3676,8 +3743,10 @@ async function loadLanguagePackCatalog() {
         const response = await fetch(languagePackCatalogUrl, { credentials: "same-origin", cache: "no-cache" });
         if (!response.ok)
             languagePackError(`${languagePackCatalogUrl} -> ${response.status}`);
-        const catalog = await response.json();
-        if (catalog?.schema !== "leserpent.language-pack-catalog/v1" || !Array.isArray(catalog.packs)) {
+        const catalog = JSON.parse(await boundedResponseText(response, languagePackLimits.catalogBytes, "language-pack catalog"));
+        if (catalog?.schema !== "leserpent.language-pack-catalog/v1"
+            || !Array.isArray(catalog.packs)
+            || catalog.packs.length > languagePackLimits.catalogPacks) {
             languagePackError("language-pack catalog schema is invalid");
         }
         state.languagePackCatalog = catalog.packs.flatMap((entry) => {
@@ -3761,59 +3830,71 @@ function downloadLanguagePack(pack) {
 async function handleLanguagePackAction(button) {
     const locale = button.dataset.locale;
     const action = button.dataset.languagePackAction;
-    try {
-        if (action === "remove") {
-            delete state.installedLanguagePacks[locale];
-            delete translations[locale];
-            persistLanguagePacks();
-            if (state.languagePreference === locale) {
-                state.languagePreference = "auto";
-                state.language = resolveLanguage("auto");
-                setStoredLanguagePreference("auto");
+    const key = `language-pack:${locale}`;
+    if (state.uiActions.has(key))
+        return;
+    if (action === "remove") {
+        const pack = state.installedLanguagePacks[locale];
+        if (!pack || !window.confirm(t("languagePacks.removeConfirm", { name: pack.nativeName })))
+            return;
+    }
+    await runUiActionOnce(key, button, `${button.textContent}...`, async () => {
+        try {
+            if (action === "remove") {
+                delete state.installedLanguagePacks[locale];
+                delete translations[locale];
+                persistLanguagePacks();
+                if (state.languagePreference === locale) {
+                    state.languagePreference = "auto";
+                    state.language = resolveLanguage("auto");
+                    setStoredLanguagePreference("auto");
+                }
+                syncLanguageOptions();
+                applyTranslations();
+                renderDashboardFromCache();
+                renderLanguagePackCenter();
+                setLanguagePackStatus(t("languagePacks.removed"), "good");
+                return;
             }
-            syncLanguageOptions();
-            applyTranslations();
-            renderDashboardFromCache();
-            renderLanguagePackCenter();
-            setLanguagePackStatus(t("languagePacks.removed"), "good");
-            return;
+            if (action === "export") {
+                downloadLanguagePack(state.installedLanguagePacks[locale]);
+                return;
+            }
+            const entry = state.languagePackCatalog.find((item) => item.locale === locale);
+            if (!entry)
+                languagePackError("catalog entry not found");
+            const pack = await verifiedCatalogPack(entry);
+            if (action === "download") {
+                downloadLanguagePack(pack);
+                setLanguagePackStatus(t("languagePacks.downloaded", { name: pack.nativeName }), "good");
+            }
+            else {
+                await installLanguagePack(pack);
+            }
         }
-        if (action === "export") {
-            downloadLanguagePack(state.installedLanguagePacks[locale]);
-            return;
+        catch (error) {
+            console.error(error);
+            setLanguagePackStatus(t("languagePacks.operationFailed", { message: error.message }), "bad");
         }
-        const entry = state.languagePackCatalog.find((item) => item.locale === locale);
-        if (!entry)
-            languagePackError("catalog entry not found");
-        const pack = await verifiedCatalogPack(entry);
-        if (action === "download") {
-            downloadLanguagePack(pack);
-            setLanguagePackStatus(t("languagePacks.downloaded", { name: pack.nativeName }), "good");
-        }
-        else {
-            await installLanguagePack(pack);
-        }
-    }
-    catch (error) {
-        console.error(error);
-        setLanguagePackStatus(t("languagePacks.operationFailed", { message: error.message }), "bad");
-    }
+    });
 }
 async function importLanguagePackFile(file) {
     if (!file)
         return;
-    try {
-        if (file.size > languagePackLimits.bytes)
-            languagePackError("language pack exceeds 256 KiB");
-        await installLanguagePack(JSON.parse(await file.text()));
-    }
-    catch (error) {
-        console.error(error);
-        setLanguagePackStatus(t("languagePacks.operationFailed", { message: error.message }), "bad");
-    }
-    finally {
-        nodes.languagePackFile.value = "";
-    }
+    await runUiActionOnce("language-pack-import", nodes.languagePackImport, `${t("languagePacks.import")}...`, async () => {
+        try {
+            if (file.size > languagePackLimits.bytes)
+                languagePackError("language pack exceeds 256 KiB");
+            await installLanguagePack(JSON.parse(await file.text()));
+        }
+        catch (error) {
+            console.error(error);
+            setLanguagePackStatus(t("languagePacks.operationFailed", { message: error.message }), "bad");
+        }
+        finally {
+            nodes.languagePackFile.value = "";
+        }
+    });
 }
 function renderLanguagePackCenter() {
     const installed = Object.values(state.installedLanguagePacks);
@@ -5041,7 +5122,7 @@ function renderRuntimeWindowGrid() {
         <div class="runtime-child-window-target" data-runtime-window-target></div>
         <div class="runtime-child-window-body">
           <div class="runtime-panel-blank hidden" data-runtime-window-blank></div>
-          <iframe loading="lazy" referrerpolicy="no-referrer" data-runtime-window-frame></iframe>
+          <iframe loading="lazy" referrerpolicy="no-referrer" sandbox data-runtime-window-frame></iframe>
         </div>`;
         }
         card.classList.toggle("is-active", runtimeId === state.activeRuntimeWindowId);
@@ -5341,57 +5422,72 @@ function renderRuntimePanel(runtime) {
     }
     finalizeRuntimeWindowWorkspace();
 }
-async function refreshRuntimeById(runtimeId, kind) {
+async function refreshRuntimeById(runtimeId, kind, button = null) {
     if (!runtimeId) {
         nodes.statusLine.textContent = t("notifications.noRuntimeSelected");
         return;
     }
     const label = refreshLabel(kind);
-    nodes.statusLine.textContent = `${label}...`;
-    try {
-        if (kind === "all") {
-            await postJson(`/v1/runtimes/${runtimeId}/refresh-capabilities`);
-            await postJson(`/v1/runtimes/${runtimeId}/refresh-status`);
-            const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === runtimeId) || null;
-            if (selectedRuntime?.sidecarEndpoint) {
+    await runUiActionOnce(`runtime-refresh:${runtimeId}`, button, `${label}...`, async () => {
+        const detailControls = [
+            nodes.runtimeDetailRefreshAll,
+            nodes.runtimeDetailRefreshStatus,
+            nodes.runtimeDetailRefreshCapabilities,
+            nodes.runtimeDetailRefreshSidecar,
+        ];
+        for (const control of detailControls)
+            control.disabled = true;
+        nodes.statusLine.textContent = `${label}...`;
+        try {
+            if (kind === "all") {
+                await postJson(`/v1/runtimes/${runtimeId}/refresh-capabilities`);
+                await postJson(`/v1/runtimes/${runtimeId}/refresh-status`);
+                const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === runtimeId) || null;
+                if (selectedRuntime?.sidecarEndpoint) {
+                    await postJson(`/v1/runtimes/${runtimeId}/refresh-sidecar`);
+                    markBadgeRefresh("sidecar");
+                }
+                markBadgeRefresh("runtime");
+            }
+            else if (kind === "status") {
+                await postJson(`/v1/runtimes/${runtimeId}/refresh-status`);
+                markBadgeRefresh("runtime");
+            }
+            else if (kind === "sidecar") {
                 await postJson(`/v1/runtimes/${runtimeId}/refresh-sidecar`);
                 markBadgeRefresh("sidecar");
             }
-            markBadgeRefresh("runtime");
+            else {
+                await postJson(`/v1/runtimes/${runtimeId}/refresh-capabilities`);
+            }
+            state.activeTab = "runtimes";
+            state.selectedRuntimeId = runtimeId;
+            await loadDashboard();
+            const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === runtimeId) || null;
+            if (selectedRuntime) {
+                renderRuntimePanel(selectedRuntime);
+                window.setTimeout(() => {
+                    const latestSelected = state.latestRuntimes.find((runtime) => runtime.runtimeId === state.selectedRuntimeId) || null;
+                    if (latestSelected)
+                        renderRuntimePanel(latestSelected);
+                }, 2500);
+            }
+            nodes.statusLine.textContent = t("notifications.runtimeRefreshComplete", { label });
         }
-        else if (kind === "status") {
-            await postJson(`/v1/runtimes/${runtimeId}/refresh-status`);
-            markBadgeRefresh("runtime");
+        catch (error) {
+            console.error(error);
+            nodes.statusLine.textContent = t("notifications.runtimeRefreshFailed", { label, message: error.message });
         }
-        else if (kind === "sidecar") {
-            await postJson(`/v1/runtimes/${runtimeId}/refresh-sidecar`);
-            markBadgeRefresh("sidecar");
+        finally {
+            for (const control of detailControls)
+                control.disabled = false;
+            const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === state.selectedRuntimeId);
+            nodes.runtimeDetailRefreshSidecar.disabled = !selectedRuntime?.sidecarEndpoint;
         }
-        else {
-            await postJson(`/v1/runtimes/${runtimeId}/refresh-capabilities`);
-        }
-        state.activeTab = "runtimes";
-        state.selectedRuntimeId = runtimeId;
-        await loadDashboard();
-        const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === runtimeId) || null;
-        if (selectedRuntime) {
-            renderRuntimePanel(selectedRuntime);
-            window.setTimeout(() => {
-                const latestSelected = state.latestRuntimes.find((runtime) => runtime.runtimeId === state.selectedRuntimeId) || null;
-                if (latestSelected) {
-                    renderRuntimePanel(latestSelected);
-                }
-            }, 2500);
-        }
-        nodes.statusLine.textContent = t("notifications.runtimeRefreshComplete", { label });
-    }
-    catch (error) {
-        console.error(error);
-        nodes.statusLine.textContent = t("notifications.runtimeRefreshFailed", { label, message: error.message });
-    }
+    });
 }
-async function refreshSelectedRuntime(kind) {
-    await refreshRuntimeById(state.selectedRuntimeId, kind);
+async function refreshSelectedRuntime(kind, button = null) {
+    await refreshRuntimeById(state.selectedRuntimeId, kind, button);
 }
 async function loadRuntimeAttention(runtimeId) {
     if (!runtimeId) {
@@ -5699,13 +5795,32 @@ function findDuplicateRuntime(name, endpoint) {
     return state.latestRuntimes.find((runtime) => runtime.name.toLowerCase() === normalizedName ||
         runtime.endpoint.toLowerCase() === normalizedEndpoint) || null;
 }
+function duplicateRuntimeMessage(duplicate, name, endpoint) {
+    if (!duplicate)
+        return "";
+    const nameConflict = duplicate.name.toLowerCase() === name.toLowerCase();
+    const endpointConflict = duplicate.endpoint.toLowerCase() === endpoint.toLowerCase();
+    const reason = nameConflict && endpointConflict
+        ? t("register.duplicateNameAndEndpoint")
+        : nameConflict
+            ? t("register.duplicateName")
+            : t("register.duplicateEndpoint");
+    return t("register.blockedDuplicate", {
+        reason,
+        name: duplicate.name,
+        endpoint: duplicate.endpoint,
+    });
+}
 function isLikelyHttpEndpoint(endpoint) {
     if (!(endpoint.startsWith("http://") || endpoint.startsWith("https://"))) {
         return false;
     }
     try {
         const parsed = new URL(endpoint);
-        return parsed.protocol === "http:" || parsed.protocol === "https:";
+        return (parsed.protocol === "http:" || parsed.protocol === "https:")
+            && !!parsed.hostname
+            && !parsed.username
+            && !parsed.password;
     }
     catch {
         return false;
@@ -5745,17 +5860,33 @@ function maybePrefillRuntimeNameFromEndpoint() {
     scheduleRenderRegisterPreview();
 }
 function registerPreviewSignature() {
+    const duplicate = findDuplicateRuntime(nodes.registerName.value.trim(), nodes.registerEndpoint.value.trim());
     return [
         state.language,
         nodes.registerName.value.trim(),
         nodes.registerEndpoint.value.trim(),
         nodes.registerSidecarEndpoint.value.trim(),
         nodes.registerSidecarAdminToken.value.trim() ? "protected" : "open",
+        nodes.registerToken.value.trim() ? "paired" : "missing-token",
         nodes.registerRuntimeEnvironment.value.trim(),
         nodes.registerRuntimeCluster.value.trim(),
         nodes.registerRuntimeRole.value.trim(),
         nodes.registerFetchCapabilities.checked ? "fetch" : "skip",
+        duplicate?.runtimeId || "unique",
     ].join("::");
+}
+function syncRegisterSubmitState(endpointValid, sidecarEndpointValid) {
+    const name = nodes.registerName.value.trim();
+    const endpoint = nodes.registerEndpoint.value.trim();
+    const pairingToken = nodes.registerToken.value.trim();
+    const duplicate = name && endpointValid ? findDuplicateRuntime(name, endpoint) : null;
+    const busy = state.uiActions.has("register-runtime");
+    const valid = !!name && endpointValid && sidecarEndpointValid && !!pairingToken && !duplicate;
+    nodes.registerEndpoint.setAttribute("aria-invalid", endpoint && !endpointValid ? "true" : "false");
+    nodes.registerSidecarEndpoint.setAttribute("aria-invalid", nodes.registerSidecarEndpoint.value.trim() && !sidecarEndpointValid ? "true" : "false");
+    nodes.registerSubmit.disabled = busy || !valid;
+    nodes.registerForm.dataset.ready = valid ? "true" : "false";
+    return { duplicate, valid };
 }
 function scheduleRenderRegisterPreview() {
     if (state.pendingRegisterPreview) {
@@ -5767,17 +5898,19 @@ function scheduleRenderRegisterPreview() {
     });
 }
 function renderRegisterPreview() {
+    const endpoint = nodes.registerEndpoint.value.trim();
+    const sidecarEndpoint = nodes.registerSidecarEndpoint.value.trim();
+    const endpointValid = endpoint.length > 0 && isLikelyHttpEndpoint(endpoint);
+    const sidecarEndpointValid = sidecarEndpoint.length > 0 ? isLikelyHttpEndpoint(sidecarEndpoint) : true;
+    const submission = syncRegisterSubmitState(endpointValid, sidecarEndpointValid);
     const signature = registerPreviewSignature();
     if (state.renderSignatures.registerPreview === signature) {
         return;
     }
     state.renderSignatures.registerPreview = signature;
-    const endpoint = nodes.registerEndpoint.value.trim();
-    const sidecarEndpoint = nodes.registerSidecarEndpoint.value.trim();
     const sidecarAdminToken = nodes.registerSidecarAdminToken.value.trim();
+    const pairingTokenReady = !!nodes.registerToken.value.trim();
     const explicitName = nodes.registerName.value.trim();
-    const endpointValid = endpoint.length > 0 && isLikelyHttpEndpoint(endpoint);
-    const sidecarEndpointValid = sidecarEndpoint.length > 0 ? isLikelyHttpEndpoint(sidecarEndpoint) : true;
     const suggestedName = endpointValid ? suggestedRuntimeName(endpoint) : "";
     const effectiveName = explicitName || suggestedName || t("register.pendingRuntimeName");
     const endpointState = endpoint.length === 0
@@ -5810,12 +5943,12 @@ function renderRegisterPreview() {
       </div>
       <div class="register-preview-row">
         <span>${escapeHtml(t("register.previewEndpoint"))}</span>
-        <strong>${escapeHtml(endpointState)}</strong>
+        <strong class="register-preview-state ${endpointValid ? "good" : endpoint ? "bad" : "pending"}">${escapeHtml(endpointState)}</strong>
         ${endpoint ? `<div class="register-preview-meta">${escapeHtml(endpoint)}</div>` : ""}
       </div>
       <div class="register-preview-row">
         <span>${escapeHtml(t("register.previewSidecar"))}</span>
-        <strong>${escapeHtml(sidecarState)}</strong>
+        <strong class="register-preview-state ${sidecarEndpoint ? sidecarEndpointValid ? "good" : "bad" : "pending"}">${escapeHtml(sidecarState)}</strong>
         ${sidecarEndpoint ? `<div class="register-preview-meta">${escapeHtml(sidecarEndpoint)}</div>` : ""}
       </div>
       <div class="register-preview-row">
@@ -5823,10 +5956,15 @@ function renderRegisterPreview() {
         <strong>${escapeHtml(sidecarAccess)}</strong>
       </div>
       <div class="register-preview-row">
+        <span>${escapeHtml(t("register.previewPairing"))}</span>
+        <strong class="register-preview-state ${pairingTokenReady ? "good" : "bad"}">${escapeHtml(t(pairingTokenReady ? "register.pairingReady" : "register.pairingMissing"))}</strong>
+      </div>
+      <div class="register-preview-row">
         <span>${escapeHtml(t("register.previewCapabilityFetch"))}</span>
         <strong>${escapeHtml(nodes.registerFetchCapabilities.checked ? t("register.capabilityEnabled") : t("register.capabilityDisabled"))}</strong>
       </div>
     </div>
+    ${submission.duplicate ? `<div class="register-preview-warning">${escapeHtml(duplicateRuntimeMessage(submission.duplicate, explicitName, endpoint))}</div>` : ""}
   `;
 }
 function runtimeTableSignature(items, attentionMap) {
@@ -6388,6 +6526,9 @@ async function mutateOrchestraRun(runId, action, button) {
     if (!runtimeId || !runId) {
         return;
     }
+    if (action === "cancel" && !window.confirm(`Cancel Orchestra run ${runId}?\n\nAlready completed steps cannot be rolled back.`)) {
+        return;
+    }
     button.disabled = true;
     const originalLabel = button.textContent;
     button.textContent = action === "cancel" ? "Cancelling..." : "Retrying...";
@@ -6510,11 +6651,38 @@ function syncFilterInputs() {
     nodes.runtimeSort.value = state.runtimeSort;
     const parts = [state.filter.environment, state.filter.cluster, state.filter.role].filter(Boolean);
     nodes.fleetFilterChip.textContent = parts.length ? parts.join(" / ") : t("filters.allRuntimes");
+    syncFilterActionState();
     if (state.activeTab === "runtimes" && state.activeRuntimeMainTab === "register") {
         renderRegisterPreview();
     }
 }
+function syncFilterActionState() {
+    const draft = [nodes.environmentInput, nodes.clusterInput, nodes.roleInput]
+        .map((input) => input.value.trim());
+    const applied = [state.filter.environment, state.filter.cluster, state.filter.role];
+    nodes.applyFiltersButton.disabled = draft.every((value, index) => value === applied[index]);
+    nodes.clearFiltersButton.disabled = !draft.some(Boolean)
+        && !applied.some(Boolean)
+        && !state.runtimeSearch;
+}
+function applyFleetFilters() {
+    state.filter.environment = nodes.environmentInput.value.trim();
+    state.filter.cluster = nodes.clusterInput.value.trim();
+    state.filter.role = nodes.roleInput.value.trim();
+    syncFilterActionState();
+    void loadDashboard();
+}
 function clearRegisterForm() {
+    const hasOperatorInput = [
+        nodes.registerName,
+        nodes.registerEndpoint,
+        nodes.registerSidecarEndpoint,
+        nodes.registerSidecarAdminToken,
+        nodes.registerToken,
+    ].some((input) => input.value.trim());
+    if (hasOperatorInput && !window.confirm(t("register.clearConfirm"))) {
+        return;
+    }
     state.registerNameTouched = false;
     nodes.registerName.value = "";
     nodes.registerEndpoint.value = "";
@@ -6563,6 +6731,44 @@ function currentSliceRiskLevel() {
 function currentSliceRiskWarning() {
     return currentSliceRiskLevel() ? `\n\n${t("notifications.runtimeCleanupProtectedWarning")}` : "";
 }
+async function runUiActionOnce(key, button, busyLabel, action) {
+    if (state.uiActions.has(key)) {
+        return;
+    }
+    state.uiActions.add(key);
+    const previousLabel = button?.textContent || "";
+    if (button) {
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+        button.dataset.busy = "true";
+        if (busyLabel)
+            button.textContent = busyLabel;
+    }
+    try {
+        return await action();
+    }
+    finally {
+        state.uiActions.delete(key);
+        if (button) {
+            button.removeAttribute("aria-busy");
+            delete button.dataset.busy;
+            button.textContent = previousLabel;
+            button.disabled = false;
+        }
+        if (key === "runtime-cleanup")
+            syncCleanupMenuState();
+        if (key === "register-runtime")
+            renderRegisterPreview();
+    }
+}
+function setCleanupControlsBusy(busy) {
+    for (const button of [nodes.runtimeDeleteFailed, nodes.runtimeDeleteUnobserved, nodes.runtimeClearSlice]) {
+        if (!button)
+            continue;
+        button.disabled = busy;
+        button.toggleAttribute("aria-busy", busy);
+    }
+}
 function runtimeNamesPreview(runtimes) {
     const names = runtimes.map((runtime) => runtime.name);
     if (!names.length) {
@@ -6607,6 +6813,19 @@ function syncCleanupMenuState() {
         nodes.runtimeCleanupSessionCount.textContent = t("notifications.runtimeCleanupSessionCount", {
             count: currentSliceSessionCount(),
         });
+    }
+    const cleanupBusy = state.uiActions.has("runtime-cleanup");
+    if (nodes.runtimeDeleteFailed) {
+        nodes.runtimeDeleteFailed.disabled = cleanupBusy || currentFailedRuntimeCount() === 0;
+        nodes.runtimeDeleteFailed.toggleAttribute("aria-busy", cleanupBusy);
+    }
+    if (nodes.runtimeDeleteUnobserved) {
+        nodes.runtimeDeleteUnobserved.disabled = cleanupBusy || currentUnobservedRuntimeCount() === 0;
+        nodes.runtimeDeleteUnobserved.toggleAttribute("aria-busy", cleanupBusy);
+    }
+    if (nodes.runtimeClearSlice) {
+        nodes.runtimeClearSlice.disabled = cleanupBusy || currentSliceCount() === 0;
+        nodes.runtimeClearSlice.toggleAttribute("aria-busy", cleanupBusy);
     }
 }
 function resetRuntimeSelectionAfterBulkDelete() {
@@ -6733,17 +6952,30 @@ async function loadDashboard() {
         }
     }
 }
-async function postAndReload(path, label) {
-    nodes.statusLine.textContent = `${label}...`;
-    try {
-        await postJson(`${path}${buildQuery()}`);
-        await loadDashboard();
-        nodes.statusLine.textContent = t("notifications.fleetRefreshComplete", { label });
-    }
-    catch (error) {
-        console.error(error);
-        nodes.statusLine.textContent = t("notifications.fleetRefreshFailed", { label, message: error.message });
-    }
+async function postAndReload(path, label, button) {
+    await runUiActionOnce("fleet-refresh", button, `${label}...`, async () => {
+        const controls = [nodes.refreshAllButton, nodes.refreshStatusButton, nodes.refreshCapabilitiesButton];
+        for (const control of controls) {
+            control.disabled = true;
+            control.setAttribute("aria-busy", "true");
+        }
+        nodes.statusLine.textContent = `${label}...`;
+        try {
+            await postJson(`${path}${buildQuery()}`);
+            await loadDashboard();
+            nodes.statusLine.textContent = t("notifications.fleetRefreshComplete", { label });
+        }
+        catch (error) {
+            console.error(error);
+            nodes.statusLine.textContent = t("notifications.fleetRefreshFailed", { label, message: error.message });
+        }
+        finally {
+            for (const control of controls) {
+                control.disabled = false;
+                control.removeAttribute("aria-busy");
+            }
+        }
+    });
 }
 async function deleteRuntime(runtimeId, runtimeName) {
     const confirmed = window.confirm(t("notifications.runtimeDeleteConfirm", { name: runtimeName }));
@@ -6775,114 +7007,153 @@ async function deleteFailedRuntimes() {
     const slice = currentSliceLabel();
     const targets = currentSliceRuntimes().filter((runtime) => runtime.status?.statusSource === "fetch_failed");
     const count = targets.length;
+    if (!count || state.uiActions.has("runtime-cleanup")) {
+        syncCleanupMenuState();
+        return;
+    }
     const confirmed = window.confirm(`${t("notifications.runtimeDeleteFailedSliceConfirm", { slice, count })}${describeCleanupTargets(targets)}${currentSliceRiskWarning()}`);
     if (!confirmed) {
         return;
     }
-    nodes.statusLine.textContent = `${t("runtimes.actions.deleteFailed")}...`;
-    try {
-        const result = await postJson(`/v1/runtimes/delete-failed${buildQuery()}`);
-        nodes.runtimeCleanupMenu?.removeAttribute("open");
-        resetRuntimeSelectionAfterBulkDelete();
-        await loadDashboard();
-        nodes.statusLine.textContent = t("notifications.runtimeDeleteFailedSliceDone", {
-            count: result.removedRuntimeCount ?? 0,
-            sessions: result.removedSessionCount ?? 0,
-            slice,
-        });
-    }
-    catch (error) {
-        console.error(error);
-        nodes.statusLine.textContent = t("notifications.runtimeDeleteBatchFailed", { message: error.message });
-    }
+    await runUiActionOnce("runtime-cleanup", nodes.runtimeDeleteFailed, t("runtimes.actions.deleteFailed"), async () => {
+        setCleanupControlsBusy(true);
+        nodes.statusLine.textContent = `${t("runtimes.actions.deleteFailed")}...`;
+        try {
+            const result = await postJson(`/v1/runtimes/delete-failed${buildQuery()}`);
+            nodes.runtimeCleanupMenu?.removeAttribute("open");
+            resetRuntimeSelectionAfterBulkDelete();
+            await loadDashboard();
+            nodes.statusLine.textContent = t("notifications.runtimeDeleteFailedSliceDone", {
+                count: result.removedRuntimeCount ?? 0,
+                sessions: result.removedSessionCount ?? 0,
+                slice,
+            });
+        }
+        catch (error) {
+            console.error(error);
+            nodes.statusLine.textContent = t("notifications.runtimeDeleteBatchFailed", { message: error.message });
+        }
+        finally {
+            syncCleanupMenuState();
+        }
+    });
 }
 async function deleteUnobservedRuntimes() {
     const slice = currentSliceLabel();
     const targets = currentSliceRuntimes().filter((runtime) => runtime.status?.statusSource === "unobserved" && !isIdleReadyStatus(runtime.status));
     const count = targets.length;
+    if (!count || state.uiActions.has("runtime-cleanup")) {
+        syncCleanupMenuState();
+        return;
+    }
     const confirmed = window.confirm(`${t("notifications.runtimeDeleteUnobservedSliceConfirm", { slice, count })}${describeCleanupTargets(targets)}${currentSliceRiskWarning()}`);
     if (!confirmed) {
         return;
     }
-    nodes.statusLine.textContent = `${t("runtimes.actions.deleteUnobserved")}...`;
-    try {
-        const result = await postJson(`/v1/runtimes/delete-unobserved${buildQuery()}`);
-        nodes.runtimeCleanupMenu?.removeAttribute("open");
-        resetRuntimeSelectionAfterBulkDelete();
-        await loadDashboard();
-        nodes.statusLine.textContent = t("notifications.runtimeDeleteUnobservedSliceDone", {
-            count: result.removedRuntimeCount ?? 0,
-            sessions: result.removedSessionCount ?? 0,
-            slice,
-        });
-    }
-    catch (error) {
-        console.error(error);
-        nodes.statusLine.textContent = t("notifications.runtimeDeleteBatchFailed", { message: error.message });
-    }
+    await runUiActionOnce("runtime-cleanup", nodes.runtimeDeleteUnobserved, t("runtimes.actions.deleteUnobserved"), async () => {
+        setCleanupControlsBusy(true);
+        nodes.statusLine.textContent = `${t("runtimes.actions.deleteUnobserved")}...`;
+        try {
+            const result = await postJson(`/v1/runtimes/delete-unobserved${buildQuery()}`);
+            nodes.runtimeCleanupMenu?.removeAttribute("open");
+            resetRuntimeSelectionAfterBulkDelete();
+            await loadDashboard();
+            nodes.statusLine.textContent = t("notifications.runtimeDeleteUnobservedSliceDone", {
+                count: result.removedRuntimeCount ?? 0,
+                sessions: result.removedSessionCount ?? 0,
+                slice,
+            });
+        }
+        catch (error) {
+            console.error(error);
+            nodes.statusLine.textContent = t("notifications.runtimeDeleteBatchFailed", { message: error.message });
+        }
+        finally {
+            syncCleanupMenuState();
+        }
+    });
 }
 async function clearRuntimeSlice() {
     const slice = currentSliceLabel();
     const targets = currentSliceRuntimes();
-    const confirmed = window.confirm(`${t("notifications.runtimeClearSliceConfirm", { slice, count: currentSliceCount() })}${describeCleanupTargets(targets)}${currentSliceRiskWarning()}`);
-    if (!confirmed) {
+    if (!targets.length || state.uiActions.has("runtime-cleanup")) {
+        syncCleanupMenuState();
         return;
     }
-    nodes.statusLine.textContent = `${t("runtimes.actions.clearSlice")}...`;
-    try {
-        const result = await postJson(`/v1/runtimes/delete-slice${buildQuery()}`);
-        nodes.runtimeCleanupMenu?.removeAttribute("open");
-        resetRuntimeSelectionAfterBulkDelete();
-        await loadDashboard();
-        nodes.statusLine.textContent = t("notifications.runtimeClearSliceDone", {
-            count: result.removedRuntimeCount ?? 0,
-            sessions: result.removedSessionCount ?? 0,
-            slice,
-        });
+    const challenge = `CLEAR ${targets.length}`;
+    const entered = window.prompt(`${t("notifications.runtimeClearSliceConfirm", { slice, count: currentSliceCount() })}${describeCleanupTargets(targets)}${currentSliceRiskWarning()}\n\n${t("notifications.runtimeClearSliceChallenge", { challenge })}`, "");
+    if (entered === null) {
+        return;
     }
-    catch (error) {
-        console.error(error);
-        nodes.statusLine.textContent = t("notifications.runtimeDeleteBatchFailed", { message: error.message });
+    if (entered.trim() !== challenge) {
+        nodes.statusLine.textContent = t("notifications.runtimeClearSliceChallengeFailed");
+        return;
     }
+    await runUiActionOnce("runtime-cleanup", nodes.runtimeClearSlice, t("runtimes.actions.clearSlice"), async () => {
+        setCleanupControlsBusy(true);
+        nodes.statusLine.textContent = `${t("runtimes.actions.clearSlice")}...`;
+        try {
+            const result = await postJson(`/v1/runtimes/delete-slice${buildQuery()}`);
+            nodes.runtimeCleanupMenu?.removeAttribute("open");
+            resetRuntimeSelectionAfterBulkDelete();
+            await loadDashboard();
+            nodes.statusLine.textContent = t("notifications.runtimeClearSliceDone", {
+                count: result.removedRuntimeCount ?? 0,
+                sessions: result.removedSessionCount ?? 0,
+                slice,
+            });
+        }
+        catch (error) {
+            console.error(error);
+            nodes.statusLine.textContent = t("notifications.runtimeDeleteBatchFailed", { message: error.message });
+        }
+        finally {
+            syncCleanupMenuState();
+        }
+    });
 }
 async function savePersistenceNow() {
-    nodes.statusLine.textContent = t("persistence.saving");
-    try {
-        await postJson("/v1/persistence/save");
-        await loadDashboard();
-        nodes.statusLine.textContent = t("persistence.saved");
-    }
-    catch (error) {
-        console.error(error);
-        nodes.statusLine.textContent = t("persistence.saveFailed", { message: error.message });
-    }
+    await runUiActionOnce("persistence-save", nodes.persistenceSaveNow, `${t("persistence.saveNow")}...`, async () => {
+        nodes.statusLine.textContent = t("persistence.saving");
+        try {
+            await postJson("/v1/persistence/save");
+            await loadDashboard();
+            nodes.statusLine.textContent = t("persistence.saved");
+        }
+        catch (error) {
+            console.error(error);
+            nodes.statusLine.textContent = t("persistence.saveFailed", { message: error.message });
+        }
+    });
 }
 async function exportPersistenceState() {
-    nodes.statusLine.textContent = t("persistence.exporting");
-    try {
-        const response = await fetch("/v1/persistence/export", {
-            headers: apiHeaders({ intent: "export" }),
-        });
-        if (!response.ok) {
-            throw new Error(`/v1/persistence/export -> ${response.status}`);
+    await runUiActionOnce("persistence-export", nodes.persistenceExportState, `${t("persistence.exportState")}...`, async () => {
+        nodes.statusLine.textContent = t("persistence.exporting");
+        try {
+            const response = await fetch("/v1/persistence/export", {
+                headers: apiHeaders({ intent: "export" }),
+            });
+            if (!response.ok) {
+                throw new Error(`/v1/persistence/export -> ${response.status}`);
+            }
+            const blob = await response.blob();
+            const downloadUrl = URL.createObjectURL(blob);
+            const anchor = document.createElement("a");
+            const disposition = response.headers.get("content-disposition") || "";
+            const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+            anchor.href = downloadUrl;
+            anchor.download = match?.[1] || "leserpent-control-plane-state.json";
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            URL.revokeObjectURL(downloadUrl);
+            nodes.statusLine.textContent = t("persistence.exported");
         }
-        const blob = await response.blob();
-        const downloadUrl = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        const disposition = response.headers.get("content-disposition") || "";
-        const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
-        anchor.href = downloadUrl;
-        anchor.download = match?.[1] || "leserpent-control-plane-state.json";
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(downloadUrl);
-        nodes.statusLine.textContent = t("persistence.exported");
-    }
-    catch (error) {
-        console.error(error);
-        nodes.statusLine.textContent = t("persistence.exportFailed", { message: error.message });
-    }
+        catch (error) {
+            console.error(error);
+            nodes.statusLine.textContent = t("persistence.exportFailed", { message: error.message });
+        }
+    });
 }
 function triggerPersistenceImportPicker() {
     nodes.persistenceImportFile.value = "";
@@ -6892,8 +7163,11 @@ async function importPersistenceState(file) {
     if (!file) {
         return;
     }
-    nodes.statusLine.textContent = t("persistence.importing", { file: file.name });
+    if (state.uiActions.has("persistence-import"))
+        return;
     try {
+        if (file.size > 1_048_576)
+            throw new Error(t("persistence.importTooLarge"));
         const text = await file.text();
         let parsed;
         try {
@@ -6902,20 +7176,41 @@ async function importPersistenceState(file) {
         catch {
             throw new Error(t("persistence.invalidJson"));
         }
-        const response = await fetch("/v1/persistence/import", {
-            method: "POST",
-            headers: apiHeaders({ contentType: "application/json", intent: "mutate" }),
-            body: JSON.stringify(parsed),
-        });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) {
-            throw new Error(payload?.reason || payload?.error || `${response.status}`);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)
+            || !Array.isArray(parsed.runtimes) || !Array.isArray(parsed.sessions)) {
+            throw new Error(t("persistence.invalidStructure"));
         }
-        state.selectedRuntimeId = null;
-        await loadDashboard();
-        nodes.statusLine.textContent = t("persistence.imported", {
-            runtimes: payload.importedRuntimeCount,
-            sessions: payload.importedSessionCount,
+        if (parsed.schemaVersion !== 1) {
+            throw new Error(t("persistence.incompatibleSchema", { schema: parsed.schemaVersion ?? "?" }));
+        }
+        const confirmed = window.confirm(t("persistence.importConfirm", {
+            file: file.name,
+            runtimes: parsed.runtimes.length,
+            sessions: parsed.sessions.length,
+            currentRuntimes: state.latestRuntimes.length,
+            currentSessions: state.cache.sessions?.sessions?.length || 0,
+        }));
+        if (!confirmed) {
+            nodes.statusLine.textContent = t("persistence.importCancelled");
+            return;
+        }
+        await runUiActionOnce("persistence-import", nodes.persistenceImportState, t("persistence.importingShort"), async () => {
+            nodes.statusLine.textContent = t("persistence.importing", { file: file.name });
+            const response = await fetch("/v1/persistence/import", {
+                method: "POST",
+                headers: apiHeaders({ contentType: "application/json", intent: "mutate" }),
+                body: JSON.stringify(parsed),
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok) {
+                throw new Error(payload?.reason || payload?.error || `${response.status}`);
+            }
+            state.selectedRuntimeId = null;
+            await loadDashboard();
+            nodes.statusLine.textContent = t("persistence.imported", {
+                runtimes: payload.importedRuntimeCount,
+                sessions: payload.importedSessionCount,
+            });
         });
     }
     catch (error) {
@@ -6928,6 +7223,8 @@ async function submitRegisterForm(event) {
     const name = nodes.registerName.value.trim();
     const endpoint = nodes.registerEndpoint.value.trim();
     const sidecarEndpoint = nodes.registerSidecarEndpoint.value.trim();
+    if (state.uiActions.has("register-runtime"))
+        return;
     if (!isLikelyHttpEndpoint(endpoint)) {
         nodes.registerResult.textContent = t("register.blockedEndpoint");
         state.activeTab = "runtimes";
@@ -6944,18 +7241,7 @@ async function submitRegisterForm(event) {
     }
     const duplicate = findDuplicateRuntime(name, endpoint);
     if (duplicate) {
-        const nameConflict = duplicate.name.toLowerCase() === name.toLowerCase();
-        const endpointConflict = duplicate.endpoint.toLowerCase() === endpoint.toLowerCase();
-        const conflictReason = nameConflict && endpointConflict
-            ? t("register.duplicateNameAndEndpoint")
-            : nameConflict
-                ? t("register.duplicateName")
-                : t("register.duplicateEndpoint");
-        nodes.registerResult.textContent = t("register.blockedDuplicate", {
-            reason: conflictReason,
-            name: duplicate.name,
-            endpoint: duplicate.endpoint,
-        });
+        nodes.registerResult.textContent = duplicateRuntimeMessage(duplicate, name, endpoint);
         state.activeTab = "runtimes";
         state.activeRuntimeMainTab = "register";
         applyTabShell();
@@ -6975,29 +7261,31 @@ async function submitRegisterForm(event) {
         },
         fetchCapabilities: nodes.registerFetchCapabilities.checked,
     };
-    nodes.registerResult.textContent = t("register.registering");
-    try {
-        const result = await postJsonBody("/v1/runtimes/register", body);
-        state.registerNameTouched = false;
-        state.activeTab = "runtimes";
-        state.activeRuntimeMainTab = "detail";
-        state.selectedRuntimeId = result.runtimeId;
-        nodes.registerResult.textContent = t("register.registered", {
-            name: result.name,
-            runtimeId: result.runtimeId,
-            slice: currentSliceLabel(),
-            status: runtimeStatusHint(result.status),
-        });
-        await loadDashboard();
-        nodes.runtimeDetailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-    catch (error) {
-        console.error(error);
-        nodes.registerResult.textContent = t("register.failed", { message: error.message });
-        state.activeTab = "runtimes";
-        state.activeRuntimeMainTab = "register";
-        applyTabShell();
-    }
+    await runUiActionOnce("register-runtime", nodes.registerSubmit, t("register.registeringShort"), async () => {
+        nodes.registerResult.textContent = t("register.registering");
+        try {
+            const result = await postJsonBody("/v1/runtimes/register", body);
+            state.registerNameTouched = false;
+            state.activeTab = "runtimes";
+            state.activeRuntimeMainTab = "detail";
+            state.selectedRuntimeId = result.runtimeId;
+            nodes.registerResult.textContent = t("register.registered", {
+                name: result.name,
+                runtimeId: result.runtimeId,
+                slice: currentSliceLabel(),
+                status: runtimeStatusHint(result.status),
+            });
+            await loadDashboard();
+            nodes.runtimeDetailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        catch (error) {
+            console.error(error);
+            nodes.registerResult.textContent = t("register.failed", { message: error.message });
+            state.activeTab = "runtimes";
+            state.activeRuntimeMainTab = "register";
+            applyTabShell();
+        }
+    });
 }
 const state = {
     filter: {
@@ -7037,6 +7325,7 @@ const state = {
     lastSyncedLocation: "",
     pendingRegisterPreview: 0,
     pendingRuntimeRender: 0,
+    uiActions: new Set(),
     runtimeAttentionById: new Map(),
     recentBadgeRefresh: {
         runtime: null,
@@ -7179,6 +7468,7 @@ const nodes = {
     registerRuntimeCluster: document.getElementById("register-runtime-cluster"),
     registerRuntimeRole: document.getElementById("register-runtime-role"),
     registerFetchCapabilities: document.getElementById("register-fetch-capabilities"),
+    registerSubmit: document.getElementById("register-submit"),
     registerFormClear: document.getElementById("register-form-clear"),
     registerPreview: document.getElementById("register-preview"),
     registerResult: document.getElementById("register-result"),

@@ -22,18 +22,18 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #09111d;
-  --bg-deep: #122033;
-  --panel: #0f1a2b;
-  --panel-2: #152235;
-  --ink: #edf4ff;
-  --muted: #c7d8f2;
-  --ink-soft: #d7e4f9;
-  --line: #315072;
-  --line-strong: #5f83b2;
-  --accent: #67a3ff;
-  --accent-strong: #8db8ff;
-  --accent-soft: rgba(103, 163, 255, 0.22);
+  --bg: #070e18;
+  --bg-deep: #0b1626;
+  --panel: #101b2c;
+  --panel-2: #16243a;
+  --ink: #f1f6ff;
+  --muted: #aebfd8;
+  --ink-soft: #cad7ea;
+  --line: #344b69;
+  --line-strong: #58779f;
+  --accent: #75aaff;
+  --accent-strong: #9bc2ff;
+  --accent-soft: rgba(117, 170, 255, 0.2);
   --warn: #ffd782;
   --warn-soft: rgba(255, 215, 130, 0.2);
   --danger: #ffadb3;
@@ -1595,6 +1595,35 @@ select:focus {
 .register-preview-row strong {
   color: var(--ink);
   font-size: 0.82rem;
+}
+
+.register-preview-state.good {
+  color: #277a55;
+}
+
+.register-preview-state.bad,
+[aria-invalid="true"] {
+  color: var(--danger);
+}
+
+.register-preview-warning {
+  margin-top: 9px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger-soft) 74%, var(--panel));
+  color: var(--danger);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+input[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger-soft) 62%, transparent);
+}
+
+button[aria-busy="true"] {
+  cursor: progress;
 }
 
 .register-preview-meta {
@@ -4171,4 +4200,132 @@ details:not([open]) > :not(summary) {
   .security-details-body {
     backdrop-filter: none;
   }
+}
+
+/* Keep late-added surfaces in the same calm, legible night palette. */
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(80, 137, 222, 0.16), transparent 34%),
+    radial-gradient(circle at 92% 4%, rgba(37, 88, 154, 0.12), transparent 30%),
+    linear-gradient(180deg, #0b1524 0%, var(--bg) 100%);
+}
+
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .app-chrome {
+  border-color: var(--line);
+  background: linear-gradient(180deg, #121f32 0%, #0e1929 100%);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(183, 211, 255, 0.04);
+}
+
+:root[data-theme="dark"] .app-chrome {
+  border-color: var(--line-strong);
+}
+
+:root[data-theme="dark"] .sidebar-shell,
+:root[data-theme="dark"] .tab-shell {
+  background: linear-gradient(180deg, #111d30 0%, #0c1625 100%);
+}
+
+:root[data-theme="dark"] .overview-spotlight {
+  border-color: #49698f;
+  background:
+    linear-gradient(135deg, rgba(80, 139, 226, 0.2), transparent 44%),
+    linear-gradient(180deg, #172740 0%, #101c2e 100%);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(184, 211, 255, 0.06);
+}
+
+:root[data-theme="dark"] .overview-stat,
+:root[data-theme="dark"] .register-preview,
+:root[data-theme="dark"] .runtime-register-grid .register-checkbox-row,
+:root[data-theme="dark"] .runtime-register-footer .form-result {
+  border-color: var(--line);
+  background: linear-gradient(180deg, #18263b 0%, #121e30 100%);
+}
+
+:root[data-theme="dark"] .metric,
+:root[data-theme="dark"] .group-card,
+:root[data-theme="dark"] .attention-item,
+:root[data-theme="dark"] .session-item {
+  border-color: #304967;
+  background: linear-gradient(180deg, #142238 0%, #0f1a2b 100%);
+}
+
+:root[data-theme="dark"] .attention-item.critical {
+  border-color: rgba(255, 139, 150, 0.42);
+  background: linear-gradient(180deg, rgba(91, 37, 48, 0.88), rgba(42, 24, 33, 0.94));
+}
+
+:root[data-theme="dark"] .attention-item.warning {
+  border-color: rgba(255, 210, 117, 0.42);
+  background: linear-gradient(180deg, rgba(81, 62, 25, 0.88), rgba(39, 32, 20, 0.94));
+}
+
+:root[data-theme="dark"] .detail-actions-overflow summary,
+:root[data-theme="dark"] .runtime-panel-overflow summary,
+:root[data-theme="dark"] .runtime-panel-source-badge,
+:root[data-theme="dark"] .security-details summary,
+:root[data-theme="dark"] .language-pack-details > summary {
+  border-color: var(--line-strong);
+  background: linear-gradient(180deg, #19283f 0%, #111d30 100%);
+}
+
+:root[data-theme="dark"] .detail-actions-overflow-menu,
+:root[data-theme="dark"] .runtime-panel-overflow-menu,
+:root[data-theme="dark"] .runtime-cleanup-panel,
+:root[data-theme="dark"] .runtime-row-menu-panel,
+:root[data-theme="dark"] .security-details-body,
+:root[data-theme="dark"] .language-pack-panel {
+  border-color: #466489;
+  background: rgba(13, 24, 40, 0.98);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(183, 211, 255, 0.05);
+}
+
+:root[data-theme="dark"] .runtime-panel-source-switch,
+:root[data-theme="dark"] .runtime-panel-breadcrumb,
+:root[data-theme="dark"] .runtime-child-window-head,
+:root[data-theme="dark"] .runtime-window-toolbar {
+  border-color: #385675;
+  background: linear-gradient(180deg, #1a2a42 0%, #122036 100%);
+}
+
+:root[data-theme="dark"] .runtime-frame-wrap,
+:root[data-theme="dark"] .runtime-child-window-body {
+  background: linear-gradient(180deg, #0d1726 0%, #09121f 100%);
+  box-shadow: inset 0 1px 0 rgba(183, 211, 255, 0.04);
+}
+
+:root[data-theme="dark"] button:not(:disabled):hover,
+:root[data-theme="dark"] .runtime-panel-source-badge:hover {
+  border-color: var(--accent);
+  background-color: rgba(117, 170, 255, 0.12);
+}
+
+:root[data-theme="dark"] button:focus-visible,
+:root[data-theme="dark"] input:focus-visible,
+:root[data-theme="dark"] select:focus-visible,
+:root[data-theme="dark"] summary:focus-visible {
+  outline: 3px solid rgba(117, 170, 255, 0.42);
+  outline-offset: 2px;
+}
+
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  border-color: #55759e;
+  background: #0b1524;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.28);
+}
+
+:root[data-theme="dark"] input:focus,
+:root[data-theme="dark"] select:focus,
+:root[data-theme="dark"] textarea:focus {
+  border-color: var(--accent);
+}
+
+:root[data-theme="dark"] tbody tr:hover {
+  background: rgba(117, 170, 255, 0.1);
+}
+
+:root[data-theme="dark"] tbody tr.selected {
+  background: rgba(117, 170, 255, 0.17);
 }

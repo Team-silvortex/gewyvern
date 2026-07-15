@@ -38,6 +38,7 @@ const state = {
   lastSyncedLocation: "",
   pendingRegisterPreview: 0,
   pendingRuntimeRender: 0,
+  uiActions: new Set(),
   runtimeAttentionById: new Map(),
   recentBadgeRefresh: {
     runtime: null,
@@ -182,6 +183,7 @@ const nodes = {
   registerRuntimeCluster: document.getElementById("register-runtime-cluster"),
   registerRuntimeRole: document.getElementById("register-runtime-role"),
   registerFetchCapabilities: document.getElementById("register-fetch-capabilities"),
+  registerSubmit: document.getElementById("register-submit"),
   registerFormClear: document.getElementById("register-form-clear"),
   registerPreview: document.getElementById("register-preview"),
   registerResult: document.getElementById("register-result"),

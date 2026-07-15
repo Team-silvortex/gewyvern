@@ -143,7 +143,7 @@ async function handleRuntimeTableAction(button) {
     : button.dataset.action === "refresh-sidecar"
       ? "sidecar"
       : "all";
-  await refreshRuntimeById(runtimeId, kind);
+  await refreshRuntimeById(runtimeId, kind, button);
 }
 
 function bootstrapDashboard() {
@@ -237,12 +237,16 @@ function bootstrapDashboard() {
     syncLocation();
   });
 
-  nodes.applyFiltersButton.addEventListener("click", () => {
-    state.filter.environment = nodes.environmentInput.value.trim();
-    state.filter.cluster = nodes.clusterInput.value.trim();
-    state.filter.role = nodes.roleInput.value.trim();
-    loadDashboard();
-  });
+  nodes.applyFiltersButton.addEventListener("click", applyFleetFilters);
+  for (const input of [nodes.environmentInput, nodes.clusterInput, nodes.roleInput]) {
+    input.addEventListener("input", syncFilterActionState);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !nodes.applyFiltersButton.disabled) {
+        event.preventDefault();
+        applyFleetFilters();
+      }
+    });
+  }
 
   nodes.clearFiltersButton.addEventListener("click", () => {
     state.filter.environment = "";
@@ -250,11 +254,13 @@ function bootstrapDashboard() {
     state.filter.role = "";
     state.runtimeSearch = "";
     state.selectedRuntimeId = null;
-    loadDashboard();
+    syncFilterActionState();
+    void loadDashboard();
   });
 
   nodes.runtimeSearch.addEventListener("input", () => {
     state.runtimeSearch = nodes.runtimeSearch.value.trim();
+    syncFilterActionState();
     scheduleRuntimeSliceRender();
     syncLocation();
   });
@@ -304,16 +310,16 @@ function bootstrapDashboard() {
       return;
     }
 
-    await refreshSelectedRuntime(button.dataset.recoveryAction);
+    await refreshSelectedRuntime(button.dataset.recoveryAction, button);
   });
   nodes.runtimeDeleteFailed?.addEventListener("click", deleteFailedRuntimes);
   nodes.runtimeDeleteUnobserved?.addEventListener("click", deleteUnobservedRuntimes);
   nodes.runtimeClearSlice?.addEventListener("click", clearRuntimeSlice);
   nodes.runtimeCleanupMenu?.addEventListener("toggle", syncCleanupMenuState);
 
-  nodes.refreshAllButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-all", t("notifications.fleetRefreshAll")));
-  nodes.refreshStatusButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-status", t("notifications.fleetStatusRefresh")));
-  nodes.refreshCapabilitiesButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-capabilities", t("notifications.fleetCapabilityRefresh")));
+  nodes.refreshAllButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-all", t("notifications.fleetRefreshAll"), nodes.refreshAllButton));
+  nodes.refreshStatusButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-status", t("notifications.fleetStatusRefresh"), nodes.refreshStatusButton));
+  nodes.refreshCapabilitiesButton.addEventListener("click", () => postAndReload("/v1/fleet/refresh-capabilities", t("notifications.fleetCapabilityRefresh"), nodes.refreshCapabilitiesButton));
   nodes.orchestraRefresh?.addEventListener("click", () => loadOrchestraPlan());
   nodes.orchestraPlans?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-orchestra-execute]");
@@ -366,10 +372,10 @@ function bootstrapDashboard() {
     const [file] = event.target.files || [];
     importPersistenceState(file);
   });
-  nodes.runtimeDetailRefreshAll.addEventListener("click", () => refreshSelectedRuntime("all"));
-  nodes.runtimeDetailRefreshStatus.addEventListener("click", () => refreshSelectedRuntime("status"));
-  nodes.runtimeDetailRefreshCapabilities.addEventListener("click", () => refreshSelectedRuntime("capabilities"));
-  nodes.runtimeDetailRefreshSidecar.addEventListener("click", () => refreshSelectedRuntime("sidecar"));
+  nodes.runtimeDetailRefreshAll.addEventListener("click", () => refreshSelectedRuntime("all", nodes.runtimeDetailRefreshAll));
+  nodes.runtimeDetailRefreshStatus.addEventListener("click", () => refreshSelectedRuntime("status", nodes.runtimeDetailRefreshStatus));
+  nodes.runtimeDetailRefreshCapabilities.addEventListener("click", () => refreshSelectedRuntime("capabilities", nodes.runtimeDetailRefreshCapabilities));
+  nodes.runtimeDetailRefreshSidecar.addEventListener("click", () => refreshSelectedRuntime("sidecar", nodes.runtimeDetailRefreshSidecar));
   nodes.runtimeDetailCopyLink.addEventListener("click", copySelectedRuntimeLink);
   nodes.registerName.addEventListener("input", () => {
     state.registerNameTouched = nodes.registerName.value.trim().length > 0;
@@ -378,6 +384,7 @@ function bootstrapDashboard() {
   nodes.registerEndpoint.addEventListener("input", maybePrefillRuntimeNameFromEndpoint);
   nodes.registerSidecarEndpoint.addEventListener("input", scheduleRenderRegisterPreview);
   nodes.registerSidecarAdminToken.addEventListener("input", scheduleRenderRegisterPreview);
+  nodes.registerToken.addEventListener("input", scheduleRenderRegisterPreview);
   nodes.registerRuntimeEnvironment.addEventListener("input", scheduleRenderRegisterPreview);
   nodes.registerRuntimeCluster.addEventListener("input", scheduleRenderRegisterPreview);
   nodes.registerRuntimeRole.addEventListener("input", scheduleRenderRegisterPreview);

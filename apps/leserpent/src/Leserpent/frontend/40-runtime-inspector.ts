@@ -311,7 +311,7 @@ function renderRuntimeWindowGrid() {
         <div class="runtime-child-window-target" data-runtime-window-target></div>
         <div class="runtime-child-window-body">
           <div class="runtime-panel-blank hidden" data-runtime-window-blank></div>
-          <iframe loading="lazy" referrerpolicy="no-referrer" data-runtime-window-frame></iframe>
+          <iframe loading="lazy" referrerpolicy="no-referrer" sandbox data-runtime-window-frame></iframe>
         </div>`;
     }
     card.classList.toggle("is-active", runtimeId === state.activeRuntimeWindowId);
@@ -618,57 +618,68 @@ function renderRuntimePanel(runtime) {
   finalizeRuntimeWindowWorkspace();
 }
 
-async function refreshRuntimeById(runtimeId, kind) {
+async function refreshRuntimeById(runtimeId, kind, button = null) {
   if (!runtimeId) {
     nodes.statusLine.textContent = t("notifications.noRuntimeSelected");
     return;
   }
 
   const label = refreshLabel(kind);
-  nodes.statusLine.textContent = `${label}...`;
+  await runUiActionOnce(`runtime-refresh:${runtimeId}`, button, `${label}...`, async () => {
+    const detailControls = [
+      nodes.runtimeDetailRefreshAll,
+      nodes.runtimeDetailRefreshStatus,
+      nodes.runtimeDetailRefreshCapabilities,
+      nodes.runtimeDetailRefreshSidecar,
+    ];
+    for (const control of detailControls) control.disabled = true;
+    nodes.statusLine.textContent = `${label}...`;
 
-  try {
-    if (kind === "all") {
-      await postJson(`/v1/runtimes/${runtimeId}/refresh-capabilities`);
-      await postJson(`/v1/runtimes/${runtimeId}/refresh-status`);
-      const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === runtimeId) || null;
-      if (selectedRuntime?.sidecarEndpoint) {
+    try {
+      if (kind === "all") {
+        await postJson(`/v1/runtimes/${runtimeId}/refresh-capabilities`);
+        await postJson(`/v1/runtimes/${runtimeId}/refresh-status`);
+        const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === runtimeId) || null;
+        if (selectedRuntime?.sidecarEndpoint) {
+          await postJson(`/v1/runtimes/${runtimeId}/refresh-sidecar`);
+          markBadgeRefresh("sidecar");
+        }
+        markBadgeRefresh("runtime");
+      } else if (kind === "status") {
+        await postJson(`/v1/runtimes/${runtimeId}/refresh-status`);
+        markBadgeRefresh("runtime");
+      } else if (kind === "sidecar") {
         await postJson(`/v1/runtimes/${runtimeId}/refresh-sidecar`);
         markBadgeRefresh("sidecar");
+      } else {
+        await postJson(`/v1/runtimes/${runtimeId}/refresh-capabilities`);
       }
-      markBadgeRefresh("runtime");
-    } else if (kind === "status") {
-      await postJson(`/v1/runtimes/${runtimeId}/refresh-status`);
-      markBadgeRefresh("runtime");
-    } else if (kind === "sidecar") {
-      await postJson(`/v1/runtimes/${runtimeId}/refresh-sidecar`);
-      markBadgeRefresh("sidecar");
-    } else {
-      await postJson(`/v1/runtimes/${runtimeId}/refresh-capabilities`);
-    }
 
-    state.activeTab = "runtimes";
-    state.selectedRuntimeId = runtimeId;
-    await loadDashboard();
-    const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === runtimeId) || null;
-    if (selectedRuntime) {
-      renderRuntimePanel(selectedRuntime);
-      window.setTimeout(() => {
-        const latestSelected = state.latestRuntimes.find((runtime) => runtime.runtimeId === state.selectedRuntimeId) || null;
-        if (latestSelected) {
-          renderRuntimePanel(latestSelected);
-        }
-      }, 2500);
+      state.activeTab = "runtimes";
+      state.selectedRuntimeId = runtimeId;
+      await loadDashboard();
+      const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === runtimeId) || null;
+      if (selectedRuntime) {
+        renderRuntimePanel(selectedRuntime);
+        window.setTimeout(() => {
+          const latestSelected = state.latestRuntimes.find((runtime) => runtime.runtimeId === state.selectedRuntimeId) || null;
+          if (latestSelected) renderRuntimePanel(latestSelected);
+        }, 2500);
+      }
+      nodes.statusLine.textContent = t("notifications.runtimeRefreshComplete", { label });
+    } catch (error) {
+      console.error(error);
+      nodes.statusLine.textContent = t("notifications.runtimeRefreshFailed", { label, message: error.message });
+    } finally {
+      for (const control of detailControls) control.disabled = false;
+      const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === state.selectedRuntimeId);
+      nodes.runtimeDetailRefreshSidecar.disabled = !selectedRuntime?.sidecarEndpoint;
     }
-    nodes.statusLine.textContent = t("notifications.runtimeRefreshComplete", { label });
-  } catch (error) {
-    console.error(error);
-    nodes.statusLine.textContent = t("notifications.runtimeRefreshFailed", { label, message: error.message });
-  }
+  });
 }
 
-async function refreshSelectedRuntime(kind) {
-  await refreshRuntimeById(state.selectedRuntimeId, kind);
+async function refreshSelectedRuntime(kind, button = null) {
+  await refreshRuntimeById(state.selectedRuntimeId, kind, button);
 }
 
 async function loadRuntimeAttention(runtimeId) {

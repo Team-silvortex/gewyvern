@@ -379,6 +379,9 @@ async function mutateOrchestraRun(runId, action, button) {
   if (!runtimeId || !runId) {
     return;
   }
+  if (action === "cancel" && !window.confirm(`Cancel Orchestra run ${runId}?\n\nAlready completed steps cannot be rolled back.`)) {
+    return;
+  }
   button.disabled = true;
   const originalLabel = button.textContent;
   button.textContent = action === "cancel" ? "Cancelling..." : "Retrying...";

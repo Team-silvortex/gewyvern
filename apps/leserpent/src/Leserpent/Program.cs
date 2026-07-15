@@ -53,6 +53,11 @@ public partial class Program
         app.UseResponseCompression();
         app.Use(async (context, next) =>
         {
+            BrowserSecurityHeaders.Apply(context.Response);
+            await next();
+        });
+        app.Use(async (context, next) =>
+        {
             if (context.Request.Path == "/")
             {
                 context.Response.Headers.CacheControl = "no-cache";

@@ -9,12 +9,42 @@ function syncFilterInputs() {
   nodes.runtimeSort.value = state.runtimeSort;
   const parts = [state.filter.environment, state.filter.cluster, state.filter.role].filter(Boolean);
   nodes.fleetFilterChip.textContent = parts.length ? parts.join(" / ") : t("filters.allRuntimes");
+  syncFilterActionState();
   if (state.activeTab === "runtimes" && state.activeRuntimeMainTab === "register") {
     renderRegisterPreview();
   }
 }
 
+function syncFilterActionState() {
+  const draft = [nodes.environmentInput, nodes.clusterInput, nodes.roleInput]
+    .map((input) => input.value.trim());
+  const applied = [state.filter.environment, state.filter.cluster, state.filter.role];
+  nodes.applyFiltersButton.disabled = draft.every((value, index) => value === applied[index]);
+  nodes.clearFiltersButton.disabled = !draft.some(Boolean)
+    && !applied.some(Boolean)
+    && !state.runtimeSearch;
+}
+
+function applyFleetFilters() {
+  state.filter.environment = nodes.environmentInput.value.trim();
+  state.filter.cluster = nodes.clusterInput.value.trim();
+  state.filter.role = nodes.roleInput.value.trim();
+  syncFilterActionState();
+  void loadDashboard();
+}
+
 function clearRegisterForm() {
+  const hasOperatorInput = [
+    nodes.registerName,
+    nodes.registerEndpoint,
+    nodes.registerSidecarEndpoint,
+    nodes.registerSidecarAdminToken,
+    nodes.registerToken,
+  ].some((input) => input.value.trim());
+  if (hasOperatorInput && !window.confirm(t("register.clearConfirm"))) {
+    return;
+  }
+
   state.registerNameTouched = false;
   nodes.registerName.value = "";
   nodes.registerEndpoint.value = "";
@@ -75,6 +105,42 @@ function currentSliceRiskWarning() {
   return currentSliceRiskLevel() ? `\n\n${t("notifications.runtimeCleanupProtectedWarning")}` : "";
 }
 
+async function runUiActionOnce(key, button, busyLabel, action) {
+  if (state.uiActions.has(key)) {
+    return;
+  }
+
+  state.uiActions.add(key);
+  const previousLabel = button?.textContent || "";
+  if (button) {
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    button.dataset.busy = "true";
+    if (busyLabel) button.textContent = busyLabel;
+  }
+  try {
+    return await action();
+  } finally {
+    state.uiActions.delete(key);
+    if (button) {
+      button.removeAttribute("aria-busy");
+      delete button.dataset.busy;
+      button.textContent = previousLabel;
+      button.disabled = false;
+    }
+    if (key === "runtime-cleanup") syncCleanupMenuState();
+    if (key === "register-runtime") renderRegisterPreview();
+  }
+}
+
+function setCleanupControlsBusy(busy) {
+  for (const button of [nodes.runtimeDeleteFailed, nodes.runtimeDeleteUnobserved, nodes.runtimeClearSlice]) {
+    if (!button) continue;
+    button.disabled = busy;
+    button.toggleAttribute("aria-busy", busy);
+  }
+}
+
 function runtimeNamesPreview(runtimes) {
   const names = runtimes.map((runtime) => runtime.name);
   if (!names.length) {
@@ -124,6 +190,19 @@ function syncCleanupMenuState() {
     nodes.runtimeCleanupSessionCount.textContent = t("notifications.runtimeCleanupSessionCount", {
       count: currentSliceSessionCount(),
     });
+  }
+  const cleanupBusy = state.uiActions.has("runtime-cleanup");
+  if (nodes.runtimeDeleteFailed) {
+    nodes.runtimeDeleteFailed.disabled = cleanupBusy || currentFailedRuntimeCount() === 0;
+    nodes.runtimeDeleteFailed.toggleAttribute("aria-busy", cleanupBusy);
+  }
+  if (nodes.runtimeDeleteUnobserved) {
+    nodes.runtimeDeleteUnobserved.disabled = cleanupBusy || currentUnobservedRuntimeCount() === 0;
+    nodes.runtimeDeleteUnobserved.toggleAttribute("aria-busy", cleanupBusy);
+  }
+  if (nodes.runtimeClearSlice) {
+    nodes.runtimeClearSlice.disabled = cleanupBusy || currentSliceCount() === 0;
+    nodes.runtimeClearSlice.toggleAttribute("aria-busy", cleanupBusy);
   }
 }
 
@@ -258,16 +337,28 @@ async function loadDashboard() {
   }
 }
 
-async function postAndReload(path, label) {
-  nodes.statusLine.textContent = `${label}...`;
-  try {
-    await postJson(`${path}${buildQuery()}`);
-    await loadDashboard();
-    nodes.statusLine.textContent = t("notifications.fleetRefreshComplete", { label });
-  } catch (error) {
-    console.error(error);
-    nodes.statusLine.textContent = t("notifications.fleetRefreshFailed", { label, message: error.message });
-  }
+async function postAndReload(path, label, button) {
+  await runUiActionOnce("fleet-refresh", button, `${label}...`, async () => {
+    const controls = [nodes.refreshAllButton, nodes.refreshStatusButton, nodes.refreshCapabilitiesButton];
+    for (const control of controls) {
+      control.disabled = true;
+      control.setAttribute("aria-busy", "true");
+    }
+    nodes.statusLine.textContent = `${label}...`;
+    try {
+      await postJson(`${path}${buildQuery()}`);
+      await loadDashboard();
+      nodes.statusLine.textContent = t("notifications.fleetRefreshComplete", { label });
+    } catch (error) {
+      console.error(error);
+      nodes.statusLine.textContent = t("notifications.fleetRefreshFailed", { label, message: error.message });
+    } finally {
+      for (const control of controls) {
+        control.disabled = false;
+        control.removeAttribute("aria-busy");
+      }
+    }
+  });
 }
 
 async function deleteRuntime(runtimeId, runtimeName) {
@@ -301,27 +392,36 @@ async function deleteFailedRuntimes() {
   const slice = currentSliceLabel();
   const targets = currentSliceRuntimes().filter((runtime) => runtime.status?.statusSource === "fetch_failed");
   const count = targets.length;
+  if (!count || state.uiActions.has("runtime-cleanup")) {
+    syncCleanupMenuState();
+    return;
+  }
   const confirmed = window.confirm(
     `${t("notifications.runtimeDeleteFailedSliceConfirm", { slice, count })}${describeCleanupTargets(targets)}${currentSliceRiskWarning()}`);
   if (!confirmed) {
     return;
   }
 
-  nodes.statusLine.textContent = `${t("runtimes.actions.deleteFailed")}...`;
-  try {
-    const result = await postJson(`/v1/runtimes/delete-failed${buildQuery()}`);
-    nodes.runtimeCleanupMenu?.removeAttribute("open");
-    resetRuntimeSelectionAfterBulkDelete();
-    await loadDashboard();
-    nodes.statusLine.textContent = t("notifications.runtimeDeleteFailedSliceDone", {
-      count: result.removedRuntimeCount ?? 0,
-      sessions: result.removedSessionCount ?? 0,
-      slice,
-    });
-  } catch (error) {
-    console.error(error);
-    nodes.statusLine.textContent = t("notifications.runtimeDeleteBatchFailed", { message: error.message });
-  }
+  await runUiActionOnce("runtime-cleanup", nodes.runtimeDeleteFailed, t("runtimes.actions.deleteFailed"), async () => {
+    setCleanupControlsBusy(true);
+    nodes.statusLine.textContent = `${t("runtimes.actions.deleteFailed")}...`;
+    try {
+      const result = await postJson(`/v1/runtimes/delete-failed${buildQuery()}`);
+      nodes.runtimeCleanupMenu?.removeAttribute("open");
+      resetRuntimeSelectionAfterBulkDelete();
+      await loadDashboard();
+      nodes.statusLine.textContent = t("notifications.runtimeDeleteFailedSliceDone", {
+        count: result.removedRuntimeCount ?? 0,
+        sessions: result.removedSessionCount ?? 0,
+        slice,
+      });
+    } catch (error) {
+      console.error(error);
+      nodes.statusLine.textContent = t("notifications.runtimeDeleteBatchFailed", { message: error.message });
+    } finally {
+      syncCleanupMenuState();
+    }
+  });
 }
 
 async function deleteUnobservedRuntimes() {
@@ -329,93 +429,122 @@ async function deleteUnobservedRuntimes() {
   const targets = currentSliceRuntimes().filter((runtime) =>
     runtime.status?.statusSource === "unobserved" && !isIdleReadyStatus(runtime.status));
   const count = targets.length;
+  if (!count || state.uiActions.has("runtime-cleanup")) {
+    syncCleanupMenuState();
+    return;
+  }
   const confirmed = window.confirm(
     `${t("notifications.runtimeDeleteUnobservedSliceConfirm", { slice, count })}${describeCleanupTargets(targets)}${currentSliceRiskWarning()}`);
   if (!confirmed) {
     return;
   }
 
-  nodes.statusLine.textContent = `${t("runtimes.actions.deleteUnobserved")}...`;
-  try {
-    const result = await postJson(`/v1/runtimes/delete-unobserved${buildQuery()}`);
-    nodes.runtimeCleanupMenu?.removeAttribute("open");
-    resetRuntimeSelectionAfterBulkDelete();
-    await loadDashboard();
-    nodes.statusLine.textContent = t("notifications.runtimeDeleteUnobservedSliceDone", {
-      count: result.removedRuntimeCount ?? 0,
-      sessions: result.removedSessionCount ?? 0,
-      slice,
-    });
-  } catch (error) {
-    console.error(error);
-    nodes.statusLine.textContent = t("notifications.runtimeDeleteBatchFailed", { message: error.message });
-  }
+  await runUiActionOnce("runtime-cleanup", nodes.runtimeDeleteUnobserved, t("runtimes.actions.deleteUnobserved"), async () => {
+    setCleanupControlsBusy(true);
+    nodes.statusLine.textContent = `${t("runtimes.actions.deleteUnobserved")}...`;
+    try {
+      const result = await postJson(`/v1/runtimes/delete-unobserved${buildQuery()}`);
+      nodes.runtimeCleanupMenu?.removeAttribute("open");
+      resetRuntimeSelectionAfterBulkDelete();
+      await loadDashboard();
+      nodes.statusLine.textContent = t("notifications.runtimeDeleteUnobservedSliceDone", {
+        count: result.removedRuntimeCount ?? 0,
+        sessions: result.removedSessionCount ?? 0,
+        slice,
+      });
+    } catch (error) {
+      console.error(error);
+      nodes.statusLine.textContent = t("notifications.runtimeDeleteBatchFailed", { message: error.message });
+    } finally {
+      syncCleanupMenuState();
+    }
+  });
 }
 
 async function clearRuntimeSlice() {
   const slice = currentSliceLabel();
   const targets = currentSliceRuntimes();
-  const confirmed = window.confirm(
-    `${t("notifications.runtimeClearSliceConfirm", { slice, count: currentSliceCount() })}${describeCleanupTargets(targets)}${currentSliceRiskWarning()}`);
-  if (!confirmed) {
+  if (!targets.length || state.uiActions.has("runtime-cleanup")) {
+    syncCleanupMenuState();
+    return;
+  }
+  const challenge = `CLEAR ${targets.length}`;
+  const entered = window.prompt(
+    `${t("notifications.runtimeClearSliceConfirm", { slice, count: currentSliceCount() })}${describeCleanupTargets(targets)}${currentSliceRiskWarning()}\n\n${t("notifications.runtimeClearSliceChallenge", { challenge })}`,
+    "",
+  );
+  if (entered === null) {
+    return;
+  }
+  if (entered.trim() !== challenge) {
+    nodes.statusLine.textContent = t("notifications.runtimeClearSliceChallengeFailed");
     return;
   }
 
-  nodes.statusLine.textContent = `${t("runtimes.actions.clearSlice")}...`;
-  try {
-    const result = await postJson(`/v1/runtimes/delete-slice${buildQuery()}`);
-    nodes.runtimeCleanupMenu?.removeAttribute("open");
-    resetRuntimeSelectionAfterBulkDelete();
-    await loadDashboard();
-    nodes.statusLine.textContent = t("notifications.runtimeClearSliceDone", {
-      count: result.removedRuntimeCount ?? 0,
-      sessions: result.removedSessionCount ?? 0,
-      slice,
-    });
-  } catch (error) {
-    console.error(error);
-    nodes.statusLine.textContent = t("notifications.runtimeDeleteBatchFailed", { message: error.message });
-  }
+  await runUiActionOnce("runtime-cleanup", nodes.runtimeClearSlice, t("runtimes.actions.clearSlice"), async () => {
+    setCleanupControlsBusy(true);
+    nodes.statusLine.textContent = `${t("runtimes.actions.clearSlice")}...`;
+    try {
+      const result = await postJson(`/v1/runtimes/delete-slice${buildQuery()}`);
+      nodes.runtimeCleanupMenu?.removeAttribute("open");
+      resetRuntimeSelectionAfterBulkDelete();
+      await loadDashboard();
+      nodes.statusLine.textContent = t("notifications.runtimeClearSliceDone", {
+        count: result.removedRuntimeCount ?? 0,
+        sessions: result.removedSessionCount ?? 0,
+        slice,
+      });
+    } catch (error) {
+      console.error(error);
+      nodes.statusLine.textContent = t("notifications.runtimeDeleteBatchFailed", { message: error.message });
+    } finally {
+      syncCleanupMenuState();
+    }
+  });
 }
 
 async function savePersistenceNow() {
-  nodes.statusLine.textContent = t("persistence.saving");
-  try {
-    await postJson("/v1/persistence/save");
-    await loadDashboard();
-    nodes.statusLine.textContent = t("persistence.saved");
-  } catch (error) {
-    console.error(error);
-    nodes.statusLine.textContent = t("persistence.saveFailed", { message: error.message });
-  }
+  await runUiActionOnce("persistence-save", nodes.persistenceSaveNow, `${t("persistence.saveNow")}...`, async () => {
+    nodes.statusLine.textContent = t("persistence.saving");
+    try {
+      await postJson("/v1/persistence/save");
+      await loadDashboard();
+      nodes.statusLine.textContent = t("persistence.saved");
+    } catch (error) {
+      console.error(error);
+      nodes.statusLine.textContent = t("persistence.saveFailed", { message: error.message });
+    }
+  });
 }
 
 async function exportPersistenceState() {
-  nodes.statusLine.textContent = t("persistence.exporting");
-  try {
-    const response = await fetch("/v1/persistence/export", {
-      headers: apiHeaders({ intent: "export" }),
-    });
-    if (!response.ok) {
-      throw new Error(`/v1/persistence/export -> ${response.status}`);
-    }
+  await runUiActionOnce("persistence-export", nodes.persistenceExportState, `${t("persistence.exportState")}...`, async () => {
+    nodes.statusLine.textContent = t("persistence.exporting");
+    try {
+      const response = await fetch("/v1/persistence/export", {
+        headers: apiHeaders({ intent: "export" }),
+      });
+      if (!response.ok) {
+        throw new Error(`/v1/persistence/export -> ${response.status}`);
+      }
 
-    const blob = await response.blob();
-    const downloadUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    const disposition = response.headers.get("content-disposition") || "";
-    const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
-    anchor.href = downloadUrl;
-    anchor.download = match?.[1] || "leserpent-control-plane-state.json";
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(downloadUrl);
-    nodes.statusLine.textContent = t("persistence.exported");
-  } catch (error) {
-    console.error(error);
-    nodes.statusLine.textContent = t("persistence.exportFailed", { message: error.message });
-  }
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+      anchor.href = downloadUrl;
+      anchor.download = match?.[1] || "leserpent-control-plane-state.json";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(downloadUrl);
+      nodes.statusLine.textContent = t("persistence.exported");
+    } catch (error) {
+      console.error(error);
+      nodes.statusLine.textContent = t("persistence.exportFailed", { message: error.message });
+    }
+  });
 }
 
 function triggerPersistenceImportPicker() {
@@ -428,8 +557,9 @@ async function importPersistenceState(file) {
     return;
   }
 
-  nodes.statusLine.textContent = t("persistence.importing", { file: file.name });
+  if (state.uiActions.has("persistence-import")) return;
   try {
+    if (file.size > 1_048_576) throw new Error(t("persistence.importTooLarge"));
     const text = await file.text();
     let parsed;
     try {
@@ -438,21 +568,43 @@ async function importPersistenceState(file) {
       throw new Error(t("persistence.invalidJson"));
     }
 
-    const response = await fetch("/v1/persistence/import", {
-      method: "POST",
-      headers: apiHeaders({ contentType: "application/json", intent: "mutate" }),
-      body: JSON.stringify(parsed),
-    });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(payload?.reason || payload?.error || `${response.status}`);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)
+      || !Array.isArray(parsed.runtimes) || !Array.isArray(parsed.sessions)) {
+      throw new Error(t("persistence.invalidStructure"));
+    }
+    if (parsed.schemaVersion !== 1) {
+      throw new Error(t("persistence.incompatibleSchema", { schema: parsed.schemaVersion ?? "?" }));
+    }
+    const confirmed = window.confirm(t("persistence.importConfirm", {
+      file: file.name,
+      runtimes: parsed.runtimes.length,
+      sessions: parsed.sessions.length,
+      currentRuntimes: state.latestRuntimes.length,
+      currentSessions: state.cache.sessions?.sessions?.length || 0,
+    }));
+    if (!confirmed) {
+      nodes.statusLine.textContent = t("persistence.importCancelled");
+      return;
     }
 
-    state.selectedRuntimeId = null;
-    await loadDashboard();
-    nodes.statusLine.textContent = t("persistence.imported", {
-      runtimes: payload.importedRuntimeCount,
-      sessions: payload.importedSessionCount,
+    await runUiActionOnce("persistence-import", nodes.persistenceImportState, t("persistence.importingShort"), async () => {
+      nodes.statusLine.textContent = t("persistence.importing", { file: file.name });
+      const response = await fetch("/v1/persistence/import", {
+        method: "POST",
+        headers: apiHeaders({ contentType: "application/json", intent: "mutate" }),
+        body: JSON.stringify(parsed),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.reason || payload?.error || `${response.status}`);
+      }
+
+      state.selectedRuntimeId = null;
+      await loadDashboard();
+      nodes.statusLine.textContent = t("persistence.imported", {
+        runtimes: payload.importedRuntimeCount,
+        sessions: payload.importedSessionCount,
+      });
     });
   } catch (error) {
     console.error(error);
@@ -465,6 +617,7 @@ async function submitRegisterForm(event) {
   const name = nodes.registerName.value.trim();
   const endpoint = nodes.registerEndpoint.value.trim();
   const sidecarEndpoint = nodes.registerSidecarEndpoint.value.trim();
+  if (state.uiActions.has("register-runtime")) return;
   if (!isLikelyHttpEndpoint(endpoint)) {
     nodes.registerResult.textContent = t("register.blockedEndpoint");
     state.activeTab = "runtimes";
@@ -483,18 +636,7 @@ async function submitRegisterForm(event) {
 
   const duplicate = findDuplicateRuntime(name, endpoint);
   if (duplicate) {
-    const nameConflict = duplicate.name.toLowerCase() === name.toLowerCase();
-    const endpointConflict = duplicate.endpoint.toLowerCase() === endpoint.toLowerCase();
-    const conflictReason = nameConflict && endpointConflict
-      ? t("register.duplicateNameAndEndpoint")
-      : nameConflict
-        ? t("register.duplicateName")
-        : t("register.duplicateEndpoint");
-    nodes.registerResult.textContent = t("register.blockedDuplicate", {
-      reason: conflictReason,
-      name: duplicate.name,
-      endpoint: duplicate.endpoint,
-    });
+    nodes.registerResult.textContent = duplicateRuntimeMessage(duplicate, name, endpoint);
     state.activeTab = "runtimes";
     state.activeRuntimeMainTab = "register";
     applyTabShell();
@@ -516,26 +658,28 @@ async function submitRegisterForm(event) {
     fetchCapabilities: nodes.registerFetchCapabilities.checked,
   };
 
-  nodes.registerResult.textContent = t("register.registering");
-  try {
-    const result = await postJsonBody("/v1/runtimes/register", body);
-    state.registerNameTouched = false;
-    state.activeTab = "runtimes";
-    state.activeRuntimeMainTab = "detail";
-    state.selectedRuntimeId = result.runtimeId;
-    nodes.registerResult.textContent = t("register.registered", {
-      name: result.name,
-      runtimeId: result.runtimeId,
-      slice: currentSliceLabel(),
-      status: runtimeStatusHint(result.status),
-    });
-    await loadDashboard();
-    nodes.runtimeDetailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-  } catch (error) {
-    console.error(error);
-    nodes.registerResult.textContent = t("register.failed", { message: error.message });
-    state.activeTab = "runtimes";
-    state.activeRuntimeMainTab = "register";
-    applyTabShell();
-  }
+  await runUiActionOnce("register-runtime", nodes.registerSubmit, t("register.registeringShort"), async () => {
+    nodes.registerResult.textContent = t("register.registering");
+    try {
+      const result = await postJsonBody("/v1/runtimes/register", body);
+      state.registerNameTouched = false;
+      state.activeTab = "runtimes";
+      state.activeRuntimeMainTab = "detail";
+      state.selectedRuntimeId = result.runtimeId;
+      nodes.registerResult.textContent = t("register.registered", {
+        name: result.name,
+        runtimeId: result.runtimeId,
+        slice: currentSliceLabel(),
+        status: runtimeStatusHint(result.status),
+      });
+      await loadDashboard();
+      nodes.runtimeDetailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (error) {
+      console.error(error);
+      nodes.registerResult.textContent = t("register.failed", { message: error.message });
+      state.activeTab = "runtimes";
+      state.activeRuntimeMainTab = "register";
+      applyTabShell();
+    }
+  });
 }

@@ -314,42 +314,42 @@
             <form id="register-form" class="register-grid runtime-register-grid">
               <label>
                 <span data-i18n="register.name">Name</span>
-                <input id="register-name" type="text" placeholder="gw-prod-edge-01" data-i18n-placeholder="register.namePlaceholder" required />
+                <input id="register-name" type="text" placeholder="gw-prod-edge-01" data-i18n-placeholder="register.namePlaceholder" maxlength="120" autocomplete="off" required />
               </label>
               <label>
                 <span data-i18n="register.endpoint">Endpoint</span>
-                <input id="register-endpoint" type="text" placeholder="http://127.0.0.1:9910" data-i18n-placeholder="register.endpointPlaceholder" required />
+                <input id="register-endpoint" type="url" placeholder="http://127.0.0.1:9910" data-i18n-placeholder="register.endpointPlaceholder" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" required />
               </label>
               <label>
                 <span data-i18n="register.sidecarEndpoint">Sidecar Endpoint</span>
-                <input id="register-sidecar-endpoint" type="text" placeholder="http://127.0.0.1:4321" data-i18n-placeholder="register.sidecarEndpointPlaceholder" />
+                <input id="register-sidecar-endpoint" type="url" placeholder="http://127.0.0.1:4321" data-i18n-placeholder="register.sidecarEndpointPlaceholder" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" />
               </label>
               <label>
                 <span data-i18n="register.sidecarAdminToken">Sidecar Admin Token</span>
-                <input id="register-sidecar-admin-token" type="password" placeholder="optional for protected etragon sidecars" data-i18n-placeholder="register.sidecarAdminTokenPlaceholder" autocomplete="off" />
+                <input id="register-sidecar-admin-token" type="password" placeholder="optional for protected etragon sidecars" data-i18n-placeholder="register.sidecarAdminTokenPlaceholder" maxlength="512" autocomplete="off" />
               </label>
               <label>
                 <span data-i18n="register.pairingToken">Pairing Token</span>
-                <input id="register-token" type="text" placeholder="token-123" data-i18n-placeholder="register.tokenPlaceholder" required />
+                <input id="register-token" type="password" placeholder="token-123" data-i18n-placeholder="register.tokenPlaceholder" maxlength="512" autocomplete="off" required />
               </label>
               <label>
                 <span data-i18n="filters.environment">Environment</span>
-                <input id="register-runtime-environment" type="text" placeholder="prod" data-i18n-placeholder="filters.environmentPlaceholder" />
+                <input id="register-runtime-environment" type="text" placeholder="prod" data-i18n-placeholder="filters.environmentPlaceholder" maxlength="120" autocomplete="off" />
               </label>
               <label>
                 <span data-i18n="filters.cluster">Cluster</span>
-                <input id="register-runtime-cluster" type="text" placeholder="alpha" data-i18n-placeholder="filters.clusterPlaceholder" />
+                <input id="register-runtime-cluster" type="text" placeholder="alpha" data-i18n-placeholder="filters.clusterPlaceholder" maxlength="120" autocomplete="off" />
               </label>
               <label>
                 <span data-i18n="filters.role">Role</span>
-                <input id="register-runtime-role" type="text" placeholder="edge" data-i18n-placeholder="filters.rolePlaceholder" />
+                <input id="register-runtime-role" type="text" placeholder="edge" data-i18n-placeholder="filters.rolePlaceholder" maxlength="120" autocomplete="off" />
               </label>
               <label class="checkbox-row register-checkbox-row">
                 <input id="register-fetch-capabilities" type="checkbox" checked />
                 <span data-i18n="register.fetchCapabilities">Fetch capability and latest-meta from gewyvern</span>
               </label>
               <div class="register-actions runtime-register-actions">
-                <button type="submit" class="primary" data-i18n="register.submit">Register Runtime</button>
+                <button id="register-submit" type="submit" class="primary" data-i18n="register.submit" disabled>Register Runtime</button>
                 <button id="register-form-clear" type="button" class="quiet" data-i18n="register.clear">Clear Form</button>
               </div>
             </form>
@@ -460,7 +460,7 @@
               <div id="runtime-panel-frame-wrap" class="runtime-frame-wrap hidden">
                 <div id="runtime-panel-url" class="runtime-frame-url"></div>
                 <div id="runtime-panel-blank" class="runtime-panel-blank hidden"></div>
-                <iframe id="runtime-panel-frame" title="gewyvern child panel" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                <iframe id="runtime-panel-frame" title="gewyvern child panel" loading="lazy" referrerpolicy="no-referrer" sandbox></iframe>
               </div>
           </section>
         </div>
