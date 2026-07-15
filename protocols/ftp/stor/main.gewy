@@ -1,37 +1,40 @@
-fn ftp_stor_rules() = {
+# gewyvern stable-subset protocol path
+
+fn ftp_stor_rules() =
+  let module_name = :ftp_stor_path
+  let route_narrative = "static:program resolved an upstream route for this FTP store session"
   |> fragment :tcp_packet_meta_fragment
   |> fragment :tcp_state_fragment
   |> fragment :route_meta_fragment
   |> fragment :sock_lineage_fragment
   |> operation :ftp_stor
   |> reason_model :ftp_stor_path_reason
-  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: :ftp_stor_path, phase: :bind
-  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: :ftp_stor_path, phase: :resolve_upstream
-  |> program_rule pred: :socket_state_observed:remote:ftp, stage: :socket_state_transition, narr: :transport_socket_transition, dedupe: false, mod: :ftp_stor_path, phase: :connect
-  |> program_rule pred: :packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323020, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :ftp_stor_path, phase: :receive_banner
-  |> program_rule pred: :packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x55534552, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :ftp_stor_path, phase: :send_auth_user
-  |> program_rule pred: :packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x33333120, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :ftp_stor_path, phase: :receive_password_required
-  |> program_rule pred: :packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x50415353, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :ftp_stor_path, phase: :send_auth_pass
-  |> program_rule pred: :packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32333020, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :ftp_stor_path, phase: :receive_auth_ok
-  |> program_rule pred: :packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x50415356, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :ftp_stor_path, phase: :send_pasv
-  |> program_rule pred: :packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323720, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :ftp_stor_path, phase: :receive_pasv_ready
-  |> program_rule pred: :packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x53544f52, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :ftp_stor_path, phase: :send_stor
-  |> program_rule pred: :packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x31353020, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :ftp_stor_path, phase: :receive_transfer_open
-  |> program_rule pred: :packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323620, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :ftp_stor_path, phase: :receive_transfer_complete
-  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: :ftp_stor_path, phase: :bind
-  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: :ftp_stor_path, phase: :resolve_upstream
-  |> reason_rule pred: :socket_state_observed:remote:ftp, event: :state_change, narr: :tcp_state_transition, dedupe: false, mod: :ftp_stor_path, phase: :connect
-  |> reason_rule pred: :packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323020, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :ftp_stor_path, phase: :receive_banner
-  |> reason_rule pred: :packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x55534552, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :ftp_stor_path, phase: :send_auth_user
-  |> reason_rule pred: :packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x33333120, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :ftp_stor_path, phase: :receive_password_required
-  |> reason_rule pred: :packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x50415353, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :ftp_stor_path, phase: :send_auth_pass
-  |> reason_rule pred: :packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32333020, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :ftp_stor_path, phase: :receive_auth_ok
-  |> reason_rule pred: :packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x50415356, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :ftp_stor_path, phase: :send_pasv
-  |> reason_rule pred: :packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323720, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :ftp_stor_path, phase: :receive_pasv_ready
-  |> reason_rule pred: :packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x53544f52, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :ftp_stor_path, phase: :send_stor
-  |> reason_rule pred: :packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x31353020, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :ftp_stor_path, phase: :receive_transfer_open
-  |> reason_rule pred: :packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323620, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :ftp_stor_path, phase: :receive_transfer_complete
-}
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> program_rule pred: "socket_state_observed:remote:ftp", stage: :socket_state_transition, narr: "static:program initiated or advanced an FTP socket state transition", dedupe: false, mod: $module_name, phase: :connect
+  |> program_rule pred: "packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323020", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_banner
+  |> program_rule pred: "packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x55534552", stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_auth_user
+  |> program_rule pred: "packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x33333120", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_password_required
+  |> program_rule pred: "packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x50415353", stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_auth_pass
+  |> program_rule pred: "packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32333020", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_auth_ok
+  |> program_rule pred: "packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x50415356", stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_pasv
+  |> program_rule pred: "packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323720", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_pasv_ready
+  |> program_rule pred: "packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x53544f52", stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_stor
+  |> program_rule pred: "packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x31353020", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_transfer_open
+  |> program_rule pred: "packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323620", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_transfer_complete
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> reason_rule pred: "socket_state_observed:remote:ftp", event: :state_change, narr: :tcp_state_transition, dedupe: false, mod: $module_name, phase: :connect
+  |> reason_rule pred: "packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323020", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_banner
+  |> reason_rule pred: "packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x55534552", event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_auth_user
+  |> reason_rule pred: "packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x33333120", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_password_required
+  |> reason_rule pred: "packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x50415353", event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_auth_pass
+  |> reason_rule pred: "packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32333020", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_auth_ok
+  |> reason_rule pred: "packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x50415356", event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_pasv
+  |> reason_rule pred: "packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323720", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_pasv_ready
+  |> reason_rule pred: "packet_observed:tcp:remote:ftp:local_to_remote:prefix4:0x53544f52", event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_stor
+  |> reason_rule pred: "packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x31353020", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_transfer_open
+  |> reason_rule pred: "packet_observed:tcp:remote:ftp:remote_to_local:prefix4:0x32323620", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_transfer_complete
 
 template :ftp_stor_path
 |> window(duration_ms: 5000, lateness_ms: 200)

@@ -22,11 +22,14 @@ leserpent 是：
 
 > control plane / management service
 
-不是：
+当前 1.x 不是 CLI wrapper、kernel runtime 或 eBPF execution engine。
 
-* CLI wrapper
-* runtime
-* execution engine
+2.0 目标不是继续扩张这个 ASP.NET 应用，而是将 control-plane 语义迁移
+到 Rust `leserpentd`，并让 Rust CLI、Leselang 与 Avalonia GUI 成为同一
+command/query contract 的可替换入口：
+
+* [Leserpent 2.0 architecture](../../docs/leserpent-2-architecture.md)
+* [Leserpent 1.0 to 2.0 roadmap](../../docs/leserpent-2-roadmap.md)
 
 它负责：
 
@@ -50,10 +53,20 @@ leserpent 是：
 
 ## 2. 部署模型
 
+当前 1.x：
+
 * ASP.NET Core
 * server-first
 * 可跨平台部署
 * 不建议部署普通客户端
+
+目标 2.0：
+
+* Rust control runtime and native CLI
+* separate local daemon and replaceable clients
+* Avalonia desktop/mobile renderer
+* authenticated web/mobile transport
+* current ASP.NET/TypeScript surface as the migration bridge
 
 ### Runtime posture
 

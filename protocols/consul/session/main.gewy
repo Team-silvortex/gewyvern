@@ -1,1 +1,24 @@
-include "../../../dsl/consul_session_path.gewy"
+# gewyvern stable-subset protocol path
+
+fn consul_session_rules() =
+  let module_name = :consul_session_path
+  let narrative = "static:observed a Consul session lifecycle request"
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :consul_session
+  |> reason_model :consul_session_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_agent
+  |> program_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x50555420", stage: :packet_observed, narr: $narrative, dedupe: true, mod: $module_name, phase: :send_session_mutation
+  |> program_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_session
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_agent
+  |> reason_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x50555420", event: :packet_observed, narr: $narrative, dedupe: true, mod: $module_name, phase: :send_session_mutation
+  |> reason_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_session
+
+template :consul_session_path
+|> window :default_5s
+|> use :consul_session_rules
+|> param :sock_lineage_fragment.capture_comm, true

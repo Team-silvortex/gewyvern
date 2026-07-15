@@ -296,9 +296,9 @@ It is expected to expose:
 - `entry_semantics` when one entry already carries a stable denial or
   failure-oriented diagnosis contract
 
-In the current `0.16.x` tightening line, Redis failure entries are the first
-family where `entry_semantics` is deliberately published as a machine-facing
-contract rather than only prose in the book.
+Redis failure entries, first tightened during `0.16.x`, established the
+current machine-facing `entry_semantics` contract rather than leaving those
+semantics only as prose in the book.
 
 ## CLI Contract Candidate
 

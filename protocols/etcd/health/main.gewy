@@ -1,1 +1,25 @@
-include "../../../dsl/etcd_health_path.gewy"
+# gewyvern stable-subset protocol path
+
+fn etcd_health_rules() =
+  let module_name = :etcd_health_path
+  let http_health = "static:observed an etcd HTTP health probe"
+  let grpc_status = "static:observed an etcd maintenance status probe"
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :etcd_health
+  |> reason_model :etcd_health_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_member
+  |> program_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", stage: :packet_observed, narr: $http_health, dedupe: true, mod: $module_name, phase: :send_health
+  |> program_rule pred: "packet_observed:tcp:remote:https:local_to_remote", stage: :packet_observed, narr: $grpc_status, dedupe: true, mod: $module_name, phase: :send_status
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_member
+  |> reason_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", event: :packet_observed, narr: $http_health, dedupe: true, mod: $module_name, phase: :send_health
+  |> reason_rule pred: "packet_observed:tcp:remote:https:local_to_remote", event: :packet_observed, narr: $grpc_status, dedupe: true, mod: $module_name, phase: :send_status
+
+template :etcd_health_path
+|> window :default_5s
+|> use :etcd_health_rules
+|> param :sock_lineage_fragment.capture_comm, true

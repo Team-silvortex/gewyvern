@@ -34,6 +34,19 @@ pub(super) fn env_test_lock() -> &'static Mutex<()> {
     LOCK.get_or_init(|| Mutex::new(()))
 }
 
+pub(super) fn expected_minor_line() -> String {
+    let mut version = env!("CARGO_PKG_VERSION").split('.');
+    format!(
+        "v{}.{}.x",
+        version
+            .next()
+            .expect("package version has a major component"),
+        version
+            .next()
+            .expect("package version has a minor component")
+    )
+}
+
 pub(super) fn dsl_fixture_path(name: &str) -> String {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("dsl")

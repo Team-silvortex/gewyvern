@@ -38,6 +38,7 @@ impl Default for RemoteLinuxHostOptions {
 pub fn run_remote_linux_host_validation(
     options: RemoteLinuxHostOptions,
 ) -> Result<ValidationReport, ValidationError> {
+    validate_remote_host(&options.host)?;
     require_cmd("ssh")?;
     require_cmd("rsync")?;
     let admin_auth = remote_ebpf_admin_auth()?;
@@ -171,13 +172,11 @@ pub fn run_remote_linux_host_validation(
             artifact_manifest.render(),
         )?;
         if options.build_packages {
-            if let Ok(timings) =
-                collect_remote_package_build_timings(
-                    admin_auth.as_ref(),
-                    &options.host,
-                    &validation_workspace,
-                )
-            {
+            if let Ok(timings) = collect_remote_package_build_timings(
+                admin_auth.as_ref(),
+                &options.host,
+                &validation_workspace,
+            ) {
                 fs::write(out_dir.join("remote-package-build-timings.txt"), timings)?;
                 checks.push("remote_package_build_timings".to_string());
             }
@@ -196,13 +195,11 @@ pub fn run_remote_linux_host_validation(
             )
         })?;
         checks.push("remote_package_smoke".to_string());
-        if let Ok(timings) =
-            collect_remote_package_smoke_timings(
-                admin_auth.as_ref(),
-                &options.host,
-                &validation_workspace,
-            )
-        {
+        if let Ok(timings) = collect_remote_package_smoke_timings(
+            admin_auth.as_ref(),
+            &options.host,
+            &validation_workspace,
+        ) {
             fs::write(out_dir.join("remote-package-smoke-timings.txt"), timings)?;
             checks.push("remote_package_smoke_timings".to_string());
         }
@@ -219,13 +216,11 @@ pub fn run_remote_linux_host_validation(
             )
         })?;
         checks.push("remote_runtime_smoke".to_string());
-        if let Ok(timings) =
-            collect_remote_runtime_smoke_timings(
-                admin_auth.as_ref(),
-                &options.host,
-                &validation_workspace,
-            )
-        {
+        if let Ok(timings) = collect_remote_runtime_smoke_timings(
+            admin_auth.as_ref(),
+            &options.host,
+            &validation_workspace,
+        ) {
             fs::write(out_dir.join("remote-runtime-smoke-timings.txt"), timings)?;
             checks.push("remote_runtime_smoke_timings".to_string());
         }
@@ -548,7 +543,7 @@ fn remote_source_cache_dir(home_dir: &str) -> String {
 }
 
 fn ssh_control_path_template() -> String {
-    "/tmp/gwy-ssh-%C".to_string()
+    format!("/tmp/gwy-ssh-{}-%C", std::process::id())
 }
 
 fn ssh_batch_mode_args() -> Vec<OsString> {
@@ -567,7 +562,7 @@ fn ssh_batch_mode_args() -> Vec<OsString> {
 fn ssh_password_mode_args() -> Vec<OsString> {
     vec![
         OsString::from("-o"),
-        OsString::from("StrictHostKeyChecking=no"),
+        OsString::from("StrictHostKeyChecking=accept-new"),
         OsString::from("-o"),
         OsString::from("PreferredAuthentications=password"),
         OsString::from("-o"),
@@ -585,7 +580,7 @@ fn rsync_ssh_command(auth: Option<&RemoteAdminAuth>) -> String {
     let control_path = ssh_control_path_template();
     match auth {
         Some(_) => format!(
-            "sshpass -e ssh -o StrictHostKeyChecking=no -o PreferredAuthentications=password -o PubkeyAuthentication=no -o ControlMaster=auto -o ControlPersist=60 -o ControlPath={control_path}"
+            "sshpass -e ssh -o StrictHostKeyChecking=accept-new -o PreferredAuthentications=password -o PubkeyAuthentication=no -o ControlMaster=auto -o ControlPersist=60 -o ControlPath={control_path}"
         ),
         None => format!(
             "ssh -o BatchMode=yes -o ControlMaster=auto -o ControlPersist=60 -o ControlPath={control_path}"
@@ -1483,6 +1478,22 @@ fn remote_ebpf_admin_auth() -> Result<Option<RemoteAdminAuth>, ValidationError> 
     }
 }
 
+fn validate_remote_host(host: &str) -> Result<(), ValidationError> {
+    let host = host.trim();
+    if host.is_empty()
+        || host.starts_with('-')
+        || host.chars().any(|character| {
+            !(character.is_ascii_alphanumeric()
+                || matches!(character, '.' | '-' | '_' | ':' | '@' | '[' | ']' | '%'))
+        })
+    {
+        return Err(ValidationError::new(
+            "remote host must be a hostname, IP address, or user@host without whitespace, control characters, or command options",
+        ));
+    }
+    Ok(())
+}
+
 fn remove_remote_workspace(
     host: &str,
     remote_path: &str,
@@ -2249,6 +2260,7 @@ mod tests {
     use super::{
         parse_remote_artifact_manifest, parse_remote_ebpf_evidence, parse_remote_preflight,
         resolve_remote_execution_path, resolve_remote_workspace_path, ssh_auth_target,
+        ssh_password_mode_args, validate_remote_host,
     };
 
     #[test]
@@ -2265,6 +2277,24 @@ mod tests {
             ssh_auth_target("kyuubiki-lab", "chiharukiryu"),
             "chiharukiryu@kyuubiki-lab"
         );
+    }
+
+    #[test]
+    fn password_ssh_keeps_host_verification_enabled() {
+        let args = ssh_password_mode_args();
+        assert!(
+            args.iter()
+                .any(|arg| arg == "StrictHostKeyChecking=accept-new")
+        );
+        assert!(!args.iter().any(|arg| arg == "StrictHostKeyChecking=no"));
+    }
+
+    #[test]
+    fn remote_host_rejects_ssh_option_and_shell_injection_shapes() {
+        assert!(validate_remote_host("builder@192.168.1.12").is_ok());
+        assert!(validate_remote_host("[fd00::12]").is_ok());
+        assert!(validate_remote_host("-oProxyCommand=sh").is_err());
+        assert!(validate_remote_host("host; touch /tmp/pwned").is_err());
     }
 
     #[test]
@@ -2321,11 +2351,9 @@ mod tests {
 
     #[test]
     fn resolve_remote_workspace_path_rejects_escape_outside_allowed_root() {
-        let err = resolve_remote_workspace_path(
-            "/home/kyuubiki-dev/../../etc",
-            "/home/kyuubiki-dev",
-        )
-        .unwrap_err();
+        let err =
+            resolve_remote_workspace_path("/home/kyuubiki-dev/../../etc", "/home/kyuubiki-dev")
+                .unwrap_err();
         assert!(err.to_string().contains("must stay under"));
     }
 

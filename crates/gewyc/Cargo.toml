@@ -2,6 +2,8 @@
 name = "gewyc"
 version.workspace = true
 edition = "2024"
+description = "GewyLang compiler and inspection CLI"
+license.workspace = true
 
 [dependencies]
 gewyvern = { path = "../.." }

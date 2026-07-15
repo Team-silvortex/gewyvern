@@ -31,7 +31,7 @@ walking through a path, not by skimming every reference page.
 
 ### gewylang Path
 
-- [docs/gewylang-system.md](docs/gewylang-system.md)
+- [GewyLang module](../modules/gewylang.md)
 - [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
 - [docs/dsl.md](docs/dsl.md)
 - [docs/dsl-syntax.md](docs/dsl-syntax.md)

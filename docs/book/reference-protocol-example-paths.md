@@ -69,7 +69,7 @@ The normal lookup path is:
 - DSL examples:
   - [dsl/ssh_session_path.gewy](dsl/ssh_session_path.gewy)
   - [dsl/ssh_auth_path.gewy](dsl/ssh_auth_path.gewy)
-  - [dsl/ssh_channel_session.gewy](dsl/ssh_channel_session.gewy)
+  - [dsl/ssh_channel_session_path.gewy](dsl/ssh_channel_session_path.gewy)
 
 ### SOCKS5
 

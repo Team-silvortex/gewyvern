@@ -70,7 +70,9 @@ fn daemon_test_lock_is_stale(lock_path: &Path) -> bool {
         .and_then(|meta| meta.modified())
         .ok()
         .and_then(|modified| SystemTime::now().duration_since(modified).ok())
-        .map(|age| age > Duration::from_secs(10))
+        // Some daemon tests intentionally allow several minutes for worker
+        // convergence. Never steal a lock from a test that is still active.
+        .map(|age| age > Duration::from_secs(10 * 60))
         .unwrap_or(false)
 }
 

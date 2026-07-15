@@ -1,1 +1,21 @@
-include("../../../dsl/rip_request_path.gewy")
+# gewyvern stable-subset protocol path
+
+fn rip_request_rules() =
+  let module_name = :rip_request_path
+  let route_narrative = "static:program resolved a route before sending a RIP route table request"
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :rip_request
+  |> reason_model :rip_request_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_neighbor
+  |> program_rule pred: "datagram_observed:udp:remote:rip:local_to_remote:byte_at:0:0xff:0x01:byte_at:1:0xff:0x02", stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_request
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_neighbor
+  |> reason_rule pred: "datagram_observed:udp:remote:rip:local_to_remote:byte_at:0:0xff:0x01:byte_at:1:0xff:0x02", event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_request
+
+template :rip_request_path
+|> window :default_5s
+|> use :rip_request_rules
+|> param :sock_lineage_fragment.capture_comm, true

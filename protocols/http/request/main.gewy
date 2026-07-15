@@ -1,23 +1,26 @@
-fn http_request_rules() = {
+# gewyvern stable-subset protocol path
+
+fn http_request_rules() =
+  let module_name = :http_request_path
+  let route_narrative = "static:program resolved an upstream route for this HTTP request path"
   |> fragment :tcp_state_fragment
   |> fragment :tcp_packet_meta_fragment
   |> fragment :route_meta_fragment
   |> fragment :sock_lineage_fragment
   |> operation :http_request
   |> reason_model :http_request_path_reason
-  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: :http_request_path, phase: :bind
-  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: :http_request_path, phase: :resolve_upstream
-  |> program_rule pred: :socket_state_observed:remote:https, stage: :socket_state_transition, narr: :transport_socket_transition, dedupe: false, mod: :http_request_path, phase: :connect
-  |> program_rule pred: :socket_state_observed:remote:https:established, stage: :socket_state_transition, narr: :transport_socket_transition, dedupe: true, mod: :http_request_path, phase: :establish
-  |> program_rule pred: :packet_observed:tcp:local_to_remote, stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :http_request_path, phase: :send_request
-  |> program_rule pred: :packet_observed:tcp:remote_to_local, stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :http_request_path, phase: :receive_response
-  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: :http_request_path, phase: :bind
-  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: :http_request_path, phase: :resolve_upstream
-  |> reason_rule pred: :socket_state_observed:remote:https, event: :state_change, narr: :tcp_state_transition, dedupe: false, mod: :http_request_path, phase: :connect
-  |> reason_rule pred: :socket_state_observed:remote:https:established, event: :state_change, narr: :tcp_state_transition, dedupe: true, mod: :http_request_path, phase: :establish
-  |> reason_rule pred: :packet_observed:tcp:local_to_remote, event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: :http_request_path, phase: :send_request
-  |> reason_rule pred: :packet_observed:tcp:remote_to_local, event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: :http_request_path, phase: :receive_response
-}
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> program_rule pred: "socket_state_observed:remote:https", stage: :socket_state_transition, narr: "static:program initiated or advanced an HTTPS connect path", dedupe: false, mod: $module_name, phase: :connect
+  |> program_rule pred: "socket_state_observed:remote:https:established", stage: :socket_state_transition, narr: "static:program reached an established HTTPS socket state", dedupe: true, mod: $module_name, phase: :establish
+  |> program_rule pred: "packet_observed:tcp:local_to_remote", stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_request
+  |> program_rule pred: "packet_observed:tcp:remote_to_local", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_response
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> reason_rule pred: "socket_state_observed:remote:https", event: :state_change, narr: :tcp_state_transition, dedupe: false, mod: $module_name, phase: :connect
+  |> reason_rule pred: "socket_state_observed:remote:https:established", event: :state_change, narr: :tcp_state_transition, dedupe: true, mod: $module_name, phase: :establish
+  |> reason_rule pred: "packet_observed:tcp:local_to_remote", event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_request
+  |> reason_rule pred: "packet_observed:tcp:remote_to_local", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_response
 
 template :http_request_path
 |> window(duration_ms: 5000, lateness_ms: 200)

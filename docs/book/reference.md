@@ -40,8 +40,8 @@ If you are in the protocol volume specifically, start with:
 
 ## Language And Compiler
 
-- [docs/gewylang-system.md](docs/gewylang-system.md)
-  System map for the `gewylang` documentation shelves and reading order.
+- [GewyLang module](../modules/gewylang.md)
+  Compact routing for language authoring, compiler, and migration docs.
 - [docs/gewylang-evolution.md](docs/gewylang-evolution.md)
   Implementation roadmap for the language/frontend/lowering/runtime spine.
 - [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)

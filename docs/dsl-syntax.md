@@ -6,19 +6,13 @@ CLI-facing inspection flow.
 
 This page is the syntax companion to:
 
-- [docs/dsl.md](docs/dsl.md)
-- [docs/dsl-reference.md](docs/dsl-reference.md)
-- [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
+- [docs/dsl.md](dsl.md)
+- [docs/dsl-reference.md](dsl-reference.md)
+- [docs/book/reference-gewylang-package.md](book/reference-gewylang-package.md)
 
 ## Pipeline Shape
 
-Top-level pipeline files start with:
-
-```text
-template :template_id
-```
-
-Single-argument calls can also use the shorter stable form:
+Top-level pipeline files start with the canonical parenless form:
 
 ```text
 template :template_id
@@ -26,20 +20,20 @@ template :template_id
 
 Then extend the binding with Elixir-style pipeline steps:
 
-- `|> window :default_5s` or `|> window :default_5s`
+- `|> window :default_5s`
 - `|> window(duration_ms: 5000, lateness_ms: 200)`
-- `|> reason :udp_datagram_l1` or `|> reason :udp_datagram_l1`
-- `|> fragment :udp_packet_meta_fragment` or `|> fragment :udp_packet_meta_fragment`
-- `|> program_model :example_model` or `|> program_model :example_model`
+- `|> reason :udp_datagram_l1`
+- `|> fragment :udp_packet_meta_fragment`
+- `|> program_model :example_model`
 - `|> reason_model :example_reason`
-- `|> operation :datagram_exchange` or `|> operation :datagram_exchange`
-- `|> param :sock_lineage_fragment.capture_comm, true` or `|> param :sock_lineage_fragment.capture_comm, true`
-- `|> evidence :sock_lineage, :core_requirement` or `|> evidence :sock_lineage, :core_requirement`
-- `|> program_rule(...)`
-- `|> reason_rule(...)`
-- `|> include "./module.gewy"` or `|> include "./module.gewy"`
-- `|> use :network_module` or `|> use :network_module`
-- `|> use :network_module, :demo_app_model, :datagram_exchange` or `|> use :network_module, :demo_app_model, :datagram_exchange`
+- `|> operation :datagram_exchange`
+- `|> param :sock_lineage_fragment.capture_comm, true`
+- `|> evidence :sock_lineage, :core_requirement`
+- `|> program_rule pred: ..., stage: ..., narr: ..., dedupe: ...`
+- `|> reason_rule pred: ..., event: ..., narr: ..., dedupe: ...`
+- `|> include "./module.gewy"`
+- `|> use :network_module`
+- `|> use :network_module, :demo_app_model, :datagram_exchange`
 
 Rule steps also accept a compact keyword surface for the longest field names:
 
@@ -48,12 +42,9 @@ Rule steps also accept a compact keyword surface for the longest field names:
 - `mod` as an alias for `module`
 - `event` as an alias for `key_event` in `reason_rule(...)`
 
-Rule steps may also use positional shorthand for the four required core fields:
-
-- `program_rule predicate, stage, narrative, dedupe`
-- `reason_rule predicate, key_event, narrative, dedupe`
-- optional `module` and `phase` stay named, for example:
-  `|> program_rule :process_bound, :process_bound, :process_bound, true, mod: :demo, phase: :bind`
+Canonical rule calls use named compact fields in the order documented by
+[the style standard](gewylang-style.md). Positional rule fields are migration
+input, not maintained source style.
 
 Current parser rule: one pipeline call per line.
 
@@ -122,9 +113,7 @@ Current doc rules:
 
 ## Function Units
 
-Function units can be declared in two equivalent forms.
-
-Preferred expression-style form:
+Function units use one expression-style form:
 
 ```text
 fn network_module() =
@@ -134,20 +123,10 @@ fn network_module() =
   |> operation :datagram_exchange
 ```
 
-`=>` is accepted as an alias:
-
-```text
-fn network_module(model_name, op_name) =>
-  let default_phase = :bind
-  |> fragment :udp_packet_meta_fragment
-  |> operation $op_name
-  |> program_model $model_name
-```
-
 Tail parameters may also carry defaults:
 
 ```text
-fn network_module(model_name, op_name = :datagram_exchange) =>
+fn network_module(model_name, op_name = :datagram_exchange) =
   |> fragment :udp_packet_meta_fragment
   |> operation $op_name
   |> program_model $model_name
@@ -161,7 +140,7 @@ while still falling back to the default operation.
 `use(...)` may also pass named arguments:
 
 ```text
-fn network_module(model_name, op_name = :datagram_exchange) =>
+fn network_module(model_name, op_name = :datagram_exchange) =
   |> fragment :udp_packet_meta_fragment
   |> operation $op_name
   |> program_model $model_name
@@ -185,8 +164,8 @@ Current rule:
 
 Function parameters carry a lightweight inferred kind surface. `gewylang` does
 not implement a full global type system, but it does infer parameter intent
-from placeholder usage inside a function body. Placeholders support both the
-explicit `$name` form and the shorthand `$name` form.
+from placeholder usage inside a function body. Canonical placeholders use the
+`$name` form.
 
 Current inferred or declared kinds are:
 
@@ -199,7 +178,7 @@ Current inferred or declared kinds are:
 Example:
 
 ```text
-fn udp_core(model_name, op_name = :datagram_exchange, dedupe_flag = true, duration_ms = 5000) =>
+fn udp_core(model_name, op_name = :datagram_exchange, dedupe_flag = true, duration_ms = 5000) =
   |> window(duration_ms: $duration_ms, lateness_ms: 200)
   |> operation $op_name
   |> program_model $model_name
@@ -223,7 +202,7 @@ You may also declare a lightweight kind directly in the function signature when
 you want the contract to be explicit:
 
 ```text
-fn udp_core(model_name: atom, dedupe_flag: bool = true, duration_ms: u64 = 5000) =>
+fn udp_core(model_name: atom, dedupe_flag: bool = true, duration_ms: u64 = 5000) =
   |> window(duration_ms: $duration_ms, lateness_ms: 200)
   |> program_model $model_name
   |> program_rule :process_bound, :process_bound, :process_bound, $dedupe_flag, mod: :frontend_summary, phase: :bind
@@ -232,37 +211,12 @@ fn udp_core(model_name: atom, dedupe_flag: bool = true, duration_ms: u64 = 5000)
 Explicit kinds use the same value-family names and must agree with actual
 function-body usage. If they disagree, `gewylang` fails at compile time.
 
-## Block Form
+## Canonical Source Standard
 
-The original block form is still supported for compatibility:
-
-```text
-fn network_module() {
-|> fragment :udp_packet_meta_fragment
-|> fragment :route_meta_fragment
-|> operation :datagram_exchange
-}
-```
-
-Block functions can also be parameterized:
-
-```text
-fn network_module(model_name, op_name) {
-|> fragment :udp_packet_meta_fragment
-|> operation $op_name
-|> program_model $model_name
-}
-```
-
-And then applied from the entry pipeline:
-
-```text
-template :demo_app
-|> window :default_5s
-|> reason :udp_datagram_l1
-|> include "./module.gewy"
-|> use :network_module
-```
+Repository-maintained source and generated examples follow
+[GewyLang Canonical Style Standard](gewylang-style.md). Parser-only historical
+forms are isolated in [the migration guide](gewylang-migration.md) and are not
+part of this syntax shelf.
 
 ## Stable Subset
 
@@ -270,20 +224,18 @@ The current recommended stable subset is intentionally small:
 
 - one package entry file with exactly one `template ...` head
 - pipeline steps with one call per line
-- pure function units declared with either `fn ... =` or `fn ... { ... }`
+- pure function units declared with `fn ... =`
 - positional `use :fn_name, ...` function application
 - positional-then-named `use :fn_name, ..., key: value` application
 - trailing default parameters for function units
 - local immutable `let` bindings inside function units
 - `include(...)` for file composition
-- keyword-style `program_rule(...)` and `reason_rule(...)`
+- named-field `program_rule` and `reason_rule` calls
 - compact rule aliases such as `pred`, `narr`, `mod`, and `event`
-- positional rule shorthand for the four required core fields
+- `$name` placeholders
 
-Features that are still legal but should be treated as transitional or
-lower-preference:
-
-- large hand-written inline entry pipelines without reusable function units
+Source outside this subset is migration input and should be rewritten before
+being added to `dsl/` or `protocols/`.
 
 ## Pipeline Idioms
 
@@ -311,7 +263,7 @@ fn udp_client(model_name) =
   |> fragment :sock_lineage_fragment
   |> operation $op_name
   |> program_model $model_name
-  |> program_rule :process_bound, :process_bound, :process_bound, true, mod: $module_name, phase: :bind
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
 
 template :demo_app
 |> window :default_5s
@@ -321,48 +273,9 @@ template :demo_app
 
 ## Pipeline EBNF
 
-The canonical draft grammar also lives in
-[docs/gewylang.ebnf](docs/gewylang.ebnf).
-
-```ebnf
-pipeline_file        = { blank_line | comment | function_decl }, template_head,
-                       { pipeline_step | blank_line | comment } ;
-
-function_decl        = function_block_decl | function_expr_decl ;
-function_block_decl  = "fn", ws, ident, "(", [ param_list ], ")", ws, "{",
-                       newline,
-                       { function_binding | function_step | blank_line | comment },
-                       "}" ;
-function_expr_decl   = "fn", ws, ident, "(", [ param_list ], ")", ws,
-                       ( "=" | "=>" ), newline,
-                       { function_binding | function_step | blank_line | comment } ;
-
-template_head        = "template", "(", value, ")" ;
-pipeline_step        = "|>", ws, call ;
-function_step        = "|>", ws, call ;
-function_binding     = "let", ws, ident, ws, "=", ws, value ;
-
-call                 = ident, "(", [ arg_list ], ")" ;
-arg_list             = arg, { ",", ws, arg } ;
-arg                  = value | keyword_arg ;
-keyword_arg          = ident, ":", ws, value ;
-
-param_list           = param_decl, { ",", ws, param_decl } ;
-param_decl           = ident, [ ":", ws, kind_name ], [ ws, "=", ws, value ] ;
-value                = atom | string | placeholder | raw_token ;
-atom                 = ":", ident ;
-placeholder          = "${", ident, "}" | "$", ident ;
-kind_name            = "atom" | "bool" | "u64" | "predicate" | "narrative" | "stage" | "key_event" | "phase" ;
-```
-
-Operational notes:
-
-- exactly one `template ...` head is allowed per pipeline entry
-- `include(...)` is resolved before lowering
-- `use(...)` applies a pure function unit
-- `let` introduces a local immutable binding inside a function unit
-- expression-style functions end when the parser reaches the next non-comment,
-  non-empty line that does not start with `|>` or `let `
+The complete canonical grammar lives in [gewylang.ebnf](gewylang.ebnf). It is
+kept in one place so the syntax guide, model guide, and implementation cannot
+carry divergent grammar copies.
 
 ## Package Shape
 
@@ -397,13 +310,12 @@ template :demo_app
 Example `module.gewy`:
 
 ```text
-fn network_module() {
-|> fragment :udp_packet_meta_fragment
-|> fragment :route_meta_fragment
-|> fragment :sock_lineage_fragment
-|> operation :datagram_exchange
-|> program_model :demo_app_model
-}
+fn network_module() =
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :datagram_exchange
+  |> program_model :demo_app_model
 ```
 
 Included files are merged into the package entry compile path before final
@@ -437,7 +349,7 @@ gewyc lock .
 ```
 
 For exact package/module lookup rules, use
-[docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md).
+[docs/book/reference-gewylang-package.md](book/reference-gewylang-package.md).
 
 ## CLI Usage
 
@@ -463,6 +375,6 @@ cargo run -- --dsl dsl/udp_process_debug.gewy --unix-socket /tmp/gewyvern.sock -
 
 For task-oriented validation flows, prefer:
 
-- [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
-- [docs/book/how-to-add-or-debug-protocol-package.md](docs/book/how-to-add-or-debug-protocol-package.md)
-- [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
+- [docs/book/tutorial-gewylang-package.md](book/tutorial-gewylang-package.md)
+- [docs/book/how-to-add-or-debug-protocol-package.md](book/how-to-add-or-debug-protocol-package.md)
+- [docs/book/how-to-validate-runtime-surface.md](book/how-to-validate-runtime-surface.md)

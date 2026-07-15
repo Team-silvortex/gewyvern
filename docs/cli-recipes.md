@@ -27,7 +27,8 @@ cargo run -p etragon -- --help
 
 # leserpent frontend + backend
 cd apps/leserpent && npm run check:frontend
-dotnet build apps/leserpent/src/Leserpent/Leserpent.csproj
+dotnet restore apps/leserpent/leserpent.slnx --locked-mode
+dotnet build apps/leserpent/leserpent.slnx --no-restore
 ```
 
 ## Security Checks
@@ -37,9 +38,10 @@ Use these when you want the shortest repeatable security shelf for the current
 
 ```bash
 cargo audit
-dotnet list apps/leserpent/src/Leserpent/Leserpent.csproj package --vulnerable
+dotnet restore apps/leserpent/leserpent.slnx --locked-mode
+dotnet list apps/leserpent/leserpent.slnx package --vulnerable --include-transitive
 cd apps/leserpent && npm audit --json
-dotnet test apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj
+dotnet test apps/leserpent/leserpent.slnx --no-restore
 cargo test -p etragon tests::daemon::request_limits::daemon_request_reader_rejects_duplicate_content_length_headers --bin etragon -- --exact --nocapture
 cargo test -p etragon tests::daemon::request_limits::daemon_handler_returns_400_for_invalid_request_headers --bin etragon -- --exact --nocapture
 cargo test -p etragon tests::daemon::routes::daemon_remote_token_checks_trim_and_match_headers_case_insensitively --bin etragon -- --exact --nocapture

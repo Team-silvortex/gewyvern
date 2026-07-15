@@ -33,7 +33,7 @@ runtime.
 It should be treated as a supervisor and coordination shell, not as a kernel
 runtime or packet-processing engine.
 
-## Core Dependencies
+## Current 1.x Core Dependencies
 
 The core runtime should require only:
 
@@ -44,6 +44,21 @@ The core runtime should require only:
 
 These are the dependencies that should be enough to start the service,
 restore state, render the dashboard, and explain current fleet health.
+
+## Target 2.0 Runtime
+
+The 2.0 architecture moves domain, command, query, policy, journal, effect,
+re-entry, and replay semantics into a Rust `leserpentd` runtime. Avalonia,
+the Rust CLI, Leselang, and conforming web clients become replaceable
+frontends over one protocol.
+
+This changes the implementation dependency from “the .NET service is the
+control plane” to “the Rust runtime is authoritative.” It does not change the
+portable, user-space, degraded-but-operable posture described here.
+
+See the authoritative
+[2.0 architecture](../../../docs/leserpent-2-architecture.md) and
+[delivery roadmap](../../../docs/leserpent-2-roadmap.md).
 
 ## Optional Adapters
 

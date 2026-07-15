@@ -1,1 +1,21 @@
-include("../../../dsl/nbns_negative_path.gewy")
+# gewyvern stable-subset protocol path
+
+fn nbns_negative_rules() =
+  let module_name = :nbns_negative_path
+  let negative_narrative = "static:observed a NetBIOS name lookup failure or refusal"
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :nbns_negative
+  |> reason_model :nbns_negative_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_local_link
+  |> program_rule pred: "datagram_observed:udp:remote:nbns:remote_to_local:byte_at:2:0x80:0x80:byte_at:3:0x0f:0x03", stage: :datagram_observed, narr: $negative_narrative, dedupe: true, mod: $module_name, phase: :receive_name_error
+  |> program_rule pred: "datagram_observed:udp:remote:nbns:remote_to_local:byte_at:2:0x80:0x80:byte_at:3:0x0f:0x05", stage: :datagram_observed, narr: $negative_narrative, dedupe: true, mod: $module_name, phase: :receive_refused
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_local_link
+
+template :nbns_negative_path
+|> window :default_5s
+|> use :nbns_negative_rules
+|> param :sock_lineage_fragment.capture_comm, true

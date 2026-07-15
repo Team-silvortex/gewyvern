@@ -1,4 +1,4 @@
-# gewyvern protocol package
+# gewyvern stable-subset protocol path
 
 fn quic_retry_path_rules() =
   let module_name = :quic_retry_path

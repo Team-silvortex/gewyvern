@@ -220,7 +220,7 @@ Recommended conservative upgrade path:
    - custom protocol packages
    - local DSL shelves
    - future config files once they are formalized
-4. `0.15.x` startup now performs a conservative copy-forward for:
+4. beginning with `0.15.x`, startup performs a conservative copy-forward for:
    - `~/.gewyvern/config.toml` to the standard `gewyvern.toml`
    - `~/.gewyvern/protocols/` to `data/protocols/`
    - `~/.gewyvern/dsl/` to `data/dsl/`

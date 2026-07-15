@@ -6,9 +6,9 @@ ids, fragment parameter schema, and safety boundaries.
 
 This page pairs with:
 
-- [docs/dsl.md](docs/dsl.md)
-- [docs/dsl-syntax.md](docs/dsl-syntax.md)
-- [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
+- [docs/dsl.md](dsl.md)
+- [docs/dsl-syntax.md](dsl-syntax.md)
+- [docs/book/reference-gewylang-package.md](book/reference-gewylang-package.md)
 
 ## Legacy Key Surface
 
@@ -208,17 +208,35 @@ evidence=sock_lineage:core_requirement
 evidence=packet_meta:optional_enhancement
 ```
 
+Accepted fact kinds are:
+
+- `tcp_state`
+- `packet_meta`
+- `quic_meta`
+- `route_decision`
+- `sock_lineage`
+- `drop_action`
+- `attach_scope`
+
+Accepted tiers are exactly `core_requirement` and `optional_enhancement`.
+
 This changes planner classification priority, not the underlying fragment's
 kernel behavior.
 
 ## Predicates
 
-Current predicates are:
+Current predicate families are:
 
 - `process_bound`
 - `socket_state_observed`
+- `socket_state_observed:<port>`
+- `socket_state_observed:local:<port>[:established]`
+- `socket_state_observed:remote:<port>[:established]`
 - `route_resolved`
 - `datagram_observed:<proto>`
+- `packet_observed:<proto>`
+- `quic_packet_observed:...`
+- `quic_frame_observed:...`
 - `all(...)`
 - `any(...)`
 
@@ -226,7 +244,9 @@ Examples:
 
 ```text
 process_bound
+socket_state_observed:remote:https:established
 datagram_observed:udp
+packet_observed:tcp:remote:https:local_to_remote
 all(process_bound,datagram_observed:udp)
 any(route_resolved,socket_state_observed)
 ```
@@ -234,7 +254,15 @@ any(route_resolved,socket_state_observed)
 This vocabulary is shared by both `rule=` program-flow rules and
 `reason.rule=` declarative reason rules.
 
-`packet_observed` supports a compact TCP payload fingerprint surface:
+`packet_observed` supports compact TCP or UDP payload fingerprints. The common
+scope qualifiers shared by packet, datagram, and QUIC predicates are:
+
+- `local:<port|name>` or alias `sport:<port|name>`
+- `remote:<port|name>` or alias `dport:<port|name>`
+- `local_to_remote`
+- `remote_to_local`
+
+Its payload qualifier surface includes:
 
 - `local:<port|name>`
 - `remote:<port|name>`
@@ -243,20 +271,36 @@ This vocabulary is shared by both `rule=` program-flow rules and
 - `byte0_mask:<u8>:<u8>`
 - `prefix4:<u32>`
 - `byte4_mask:<u8>:<u8>`
+- `byte13_mask:<u8>:<u8>`
 - `byte_at:<offset>:<u8>:<u8>`
+- `bytes_at:<offset>:<u8>,<u8>,...`
+
+`quic_frame_observed` requires `frame:<type>` and accepts scope qualifiers,
+`type:<packet-type>`, `byte_at`, and `bytes_at`. Use compiler findings rather
+than guessing unsupported packet or frame names.
 
 ## Stages
 
-Current stage values are:
+Program `stage` and reason `event` values share the current signal vocabulary:
 
 - `none`
 - `process_bound`
 - `socket_state_transition`
+- `packet_observed`
 - `datagram_observed`
 - `route_resolved`
+- `syn_seen`
+- `udp_datagram_seen`
+- `process_identified`
+- `state_change`
+- `route_changed`
+- `fin_or_rst`
 
-These stage ids live in the shared signal vocabulary used across program-flow
-and declarative reason surfaces.
+Program rules normally use the evidence-facing values such as
+`process_bound`, `socket_state_transition`, `packet_observed`,
+`datagram_observed`, and `route_resolved`. Reason rules normally use event
+values such as `process_identified`, `state_change`, `packet_observed`,
+`udp_datagram_seen`, and `route_changed`.
 
 ## Narrative Values
 
@@ -264,13 +308,14 @@ Current narrative forms are:
 
 - `none`
 - `process_bound`
+- `packet_observed`
+- `transport_payload_sent`
+- `transport_payload_received`
 - `tcp_state_transition`
 - `route_changed`
 - `udp_datagram_observed`
 - `udp_datagram_sent`
 - `udp_datagram_received`
-- `transport_payload_sent`
-- `transport_payload_received`
 - `static:<text>`
 
 Examples:
@@ -301,15 +346,22 @@ at DSL compile time and again when building `SessionConfig`.
 
 Current built-in parameters are:
 
+- `tcp_packet_meta_fragment.sample_payload_offsets: string`
 - `sock_lineage_fragment.capture_comm: bool`
 - `udp_packet_meta_fragment.min_len: u64`
+- `udp_packet_meta_fragment.sample_payload_offsets: string`
 
 Examples:
 
 ```text
 param=sock_lineage_fragment.capture_comm=false
 param=udp_packet_meta_fragment.min_len=80
+param=tcp_packet_meta_fragment.sample_payload_offsets=0,1,4,9
 ```
+
+`sample_payload_offsets` is a comma-separated string of payload offsets. The
+registry validates the value family; runtime diagnostics validate whether the
+selected offsets cover the predicates used by the binding.
 
 Invalid examples:
 
@@ -334,17 +386,17 @@ param=udp_packet_meta_fragment.min_len=false
 
 When this page feels too exact, step back to:
 
-- [docs/dsl.md](docs/dsl.md)
+- [docs/dsl.md](dsl.md)
 
 When you need authoring structure instead of field-by-field lookup, move to:
 
-- [docs/dsl-syntax.md](docs/dsl-syntax.md)
+- [docs/dsl-syntax.md](dsl-syntax.md)
 
 When you need exact package/module semantics, move to:
 
-- [docs/book/reference-gewylang-package.md](docs/book/reference-gewylang-package.md)
+- [docs/book/reference-gewylang-package.md](book/reference-gewylang-package.md)
 
 When you need compiler/lowering truth, move to:
 
-- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
-- [docs/gewyc-json.md](docs/gewyc-json.md)
+- [docs/book/reference-ir-lowering.md](book/reference-ir-lowering.md)
+- [docs/gewyc-json.md](gewyc-json.md)

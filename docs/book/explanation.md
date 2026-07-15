@@ -19,9 +19,8 @@ track, use:
 
 - [docs/documentation-system.md](docs/documentation-system.md)
   How the documentation set itself is layered and maintained.
-- [docs/gewylang-system.md](docs/gewylang-system.md)
-  How the `gewylang` tutorial, guide, reference, compiler, and rationale
-  pages fit together.
+- [GewyLang module](../modules/gewylang.md)
+  Compact routing for language authoring, compiler, and migration docs.
 - [docs/gewylang-evolution.md](docs/gewylang-evolution.md)
   How the `gewylang -> IR -> runtime` spine is supposed to mature.
 - [docs/architecture-blueprint.md](docs/architecture-blueprint.md)

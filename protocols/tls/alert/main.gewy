@@ -1,18 +1,24 @@
-fn tls_alert_package() =
-  let module_name = :tls_alert_package
+# gewyvern stable-subset protocol path
+
+fn tls_alert_rules() =
+  let module_name = :tls_alert_path
+  let alert_narrative = "static:observed a TLS alert record on the secure transport stream"
   |> fragment :tcp_packet_meta_fragment
   |> fragment :tcp_state_fragment
   |> fragment :route_meta_fragment
   |> fragment :sock_lineage_fragment
   |> operation :tls_alert
+  |> reason_model :tls_alert_path_reason
   |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
-  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_peer
-  |> program_rule pred: "packet_observed:tcp:remote:https:remote_to_local:byte0_mask:0xff:0x15", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_alert
-  |> program_rule pred: "packet_observed:tcp:remote:https:local_to_remote:byte0_mask:0xff:0x15", stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_alert
-  |> reason_rule pred: "packet_observed:tcp:remote:https:remote_to_local:byte0_mask:0xff:0x15", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_alert
-  |> reason_rule pred: "packet_observed:tcp:remote:https:local_to_remote:byte0_mask:0xff:0x15", event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_alert
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_peer
+  |> program_rule pred: "packet_observed:tcp:remote:https:remote_to_local:byte0_mask:0xff:0x15", stage: :packet_observed, narr: $alert_narrative, dedupe: true, mod: $module_name, phase: :receive_alert
+  |> program_rule pred: "packet_observed:tcp:remote:https:local_to_remote:byte0_mask:0xff:0x15", stage: :packet_observed, narr: $alert_narrative, dedupe: true, mod: $module_name, phase: :send_alert
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_peer
+  |> reason_rule pred: "packet_observed:tcp:remote:https:remote_to_local:byte0_mask:0xff:0x15", event: :packet_observed, narr: $alert_narrative, dedupe: true, mod: $module_name, phase: :receive_alert
+  |> reason_rule pred: "packet_observed:tcp:remote:https:local_to_remote:byte0_mask:0xff:0x15", event: :packet_observed, narr: $alert_narrative, dedupe: true, mod: $module_name, phase: :send_alert
 
 template :tls_alert_path
 |> window :default_5s
-|> use :tls_alert_package
+|> use :tls_alert_rules
 |> param :sock_lineage_fragment.capture_comm, true

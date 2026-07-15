@@ -236,7 +236,7 @@ The corresponding environment overrides are:
 These keys control the unified runtime logger used by startup and serve-time
 operational messages.
 
-Runtime log records in `0.15.x` now follow a light structured text form:
+Beginning with `0.15.x`, runtime log records follow a light structured text form:
 
 - `target=...` identifies the subsystem
 - `event=...` identifies the operation or failure shape
@@ -259,7 +259,7 @@ root log path:
 - Windows:
   `%LOCALAPPDATA%\\gewyvern\\state\\logs\\runtime.log`
 
-When `logging.file` is active, `0.15.x` now uses a built-in light rotation
+When `logging.file` is active, releases since `0.15.x` use a built-in light rotation
 policy:
 
 - `runtime.log` is the active file

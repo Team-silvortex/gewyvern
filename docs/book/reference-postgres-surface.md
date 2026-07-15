@@ -97,6 +97,6 @@ If you are validating current PostgreSQL support, the shortest useful order is:
 
 ## Stability Note
 
-This page is the lookup hub for the current PostgreSQL family in the `0.15.x`
+This page is the lookup hub for the PostgreSQL family in the current `1.0.0`
 line. New PostgreSQL command families should prefer landing behind this shelf
 instead of being linked from multiple higher-level pages independently.

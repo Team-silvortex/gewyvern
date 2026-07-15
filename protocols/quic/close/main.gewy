@@ -1,5 +1,3 @@
-# gewyvern stable-subset protocol path
-
 fn quic_close_rules() =
   let module_name = :quic_close_path
   let route_narrative = "static:program resolved an upstream route for this QUIC close path"
@@ -7,7 +5,6 @@ fn quic_close_rules() =
   |> fragment :route_meta_fragment
   |> fragment :sock_lineage_fragment
   |> operation :quic_close_observation
-  |> reason_model :quic_close_path_reason
   |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
   |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_upstream
   |> program_rule pred: "quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial", stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_initial
@@ -15,7 +12,7 @@ fn quic_close_rules() =
   |> program_rule pred: "quic_packet_observed:remote:quic:remote_to_local:long_header:true:type:handshake", stage: :datagram_observed, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_handshake
   |> program_rule pred: "quic_frame_observed:remote:quic:remote_to_local:type:handshake:frame:crypto", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_crypto
   |> program_rule pred: "quic_frame_observed:remote:quic:remote_to_local:frame:connection_close", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_close
-  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :process_bound, event: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
   |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
   |> reason_rule pred: "quic_packet_observed:remote:quic:local_to_remote:min_len:1200:long_header:true:type:initial", event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_initial
   |> reason_rule pred: "quic_frame_observed:remote:quic:local_to_remote:type:initial:frame:crypto", event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_crypto
@@ -26,4 +23,3 @@ fn quic_close_rules() =
 template :quic_close_path
 |> window(duration_ms: 5000, lateness_ms: 200)
 |> use :quic_close_rules
-|> param :sock_lineage_fragment.capture_comm, true

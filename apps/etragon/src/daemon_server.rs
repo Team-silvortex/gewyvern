@@ -50,7 +50,7 @@ where
         while !stop_for_server.load(Ordering::Relaxed) {
             match listener.accept() {
                 Ok((stream, remote_addr)) => {
-                    handle_daemon_client(
+                    if let Err(err) = handle_daemon_client(
                         stream,
                         remote_addr.ip(),
                         &access_policy_for_server,
@@ -58,7 +58,11 @@ where
                         &config_for_server,
                         daemon_state_file_for_server.as_deref(),
                         &invalidation_epoch_for_server,
-                    )?;
+                    ) {
+                        // A malformed or disconnected client must not take down
+                        // the daemon listener for every other client.
+                        eprintln!("etragon daemon client error: {err}");
+                    }
                 }
                 Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
                     thread::sleep(Duration::from_millis(25));

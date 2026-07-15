@@ -8,7 +8,7 @@ organized inside the book.
 Read this alongside:
 
 - [docs/book/how-to.md](docs/book/how-to.md)
-- [docs/book/structure.md](docs/book/structure.md)
+- [Documentation system](../documentation-system.md)
 - [docs/book/conventions.md](docs/book/conventions.md)
 
 ## Why This Page Exists

@@ -281,6 +281,49 @@ fn daemon_serves_latest_python_output_and_meta() {
 }
 
 #[test]
+fn daemon_keeps_serving_after_a_client_disconnects_early() {
+    let _guard = lock_daemon_test_guard();
+    let bind_addr = reserve_bind_addr();
+    let bind_addr_for_thread = bind_addr.clone();
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_for_thread = Arc::clone(&stop);
+    let worker_config = PythonWorkerConfig::default();
+    let daemon = thread::spawn(move || {
+        run_python_daemon_until(
+            &bind_addr_for_thread,
+            10,
+            &worker_config,
+            None,
+            "python-url",
+            "http://example.test/v1/latest/analysis.json",
+            |_, worker| {
+                let analysis_json = fixture("missing_transition_analysis.json");
+                let output_json = worker.analyze_json(&analysis_json)?;
+                Ok(PolledDaemonOutput {
+                    input_fingerprint: analysis_json.clone(),
+                    latest_input_json: Some(analysis_json),
+                    recommendation_summary_json: single_output_recommendation_summary(&output_json),
+                    output_json,
+                    target_outputs: Vec::new(),
+                })
+            },
+            stop_for_thread,
+        )
+    });
+
+    wait_for_daemon_health(&bind_addr).expect("daemon should publish health endpoint");
+    let stream = TcpStream::connect(&bind_addr).expect("client should connect");
+    drop(stream);
+
+    wait_for_daemon_health(&bind_addr).expect("daemon should survive a disconnected client");
+    stop.store(true, Ordering::Relaxed);
+    daemon
+        .join()
+        .expect("daemon thread should join")
+        .expect("daemon should exit cleanly");
+}
+
+#[test]
 fn daemon_reuses_cached_output_when_upstream_input_is_unchanged() {
     let _guard = lock_daemon_test_guard();
     let bind_addr = reserve_bind_addr();

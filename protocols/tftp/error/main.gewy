@@ -2,7 +2,8 @@
 
 fn tftp_error_rules() =
   let module_name = :tftp_error_path
-  let route_narrative = "static:program resolved an upstream route for this TFTP error path"
+  let route_narrative = "static:program resolved an upstream route for this TFTP transfer"
+  let error_narrative = "static:observed a TFTP ERROR packet from the peer"
   |> fragment :udp_packet_meta_fragment
   |> fragment :route_meta_fragment
   |> fragment :sock_lineage_fragment
@@ -11,11 +12,11 @@ fn tftp_error_rules() =
   |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
   |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_upstream
   |> program_rule pred: "datagram_observed:udp:remote:tftp:local_to_remote:prefix2:0x0001", stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_read_request
-  |> program_rule pred: "datagram_observed:udp:remote:tftp:remote_to_local:prefix2:0x0005", stage: :datagram_observed, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_error
+  |> program_rule pred: "datagram_observed:udp:remote:tftp:remote_to_local:prefix2:0x0005", stage: :datagram_observed, narr: $error_narrative, dedupe: true, mod: $module_name, phase: :receive_error
   |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
   |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
   |> reason_rule pred: "datagram_observed:udp:remote:tftp:local_to_remote:prefix2:0x0001", event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_read_request
-  |> reason_rule pred: "datagram_observed:udp:remote:tftp:remote_to_local:prefix2:0x0005", event: :udp_datagram_seen, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_error
+  |> reason_rule pred: "datagram_observed:udp:remote:tftp:remote_to_local:prefix2:0x0005", event: :udp_datagram_seen, narr: $error_narrative, dedupe: true, mod: $module_name, phase: :receive_error
 
 template :tftp_error_path
 |> window(duration_ms: 5000, lateness_ms: 200)

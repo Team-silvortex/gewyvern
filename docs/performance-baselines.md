@@ -4,8 +4,8 @@ These are lightweight local baselines for the current ignored benchmark tests.
 They now serve two purposes:
 
 - a practical comparison point for day-to-day optimization work
-- the current release-candidate acceptance baseline for `0.19.x` runtime and
-  report performance
+- the comparison baseline established during `0.19.x` and retained for
+  `1.0.0` runtime and report performance
 
 They are still not a promise that every machine will produce identical
 numbers.

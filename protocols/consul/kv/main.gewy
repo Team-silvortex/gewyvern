@@ -1,1 +1,27 @@
-include "../../../dsl/consul_kv_path.gewy"
+# gewyvern stable-subset protocol path
+
+fn consul_kv_rules() =
+  let module_name = :consul_kv_path
+  let get_narrative = "static:observed a Consul KV read request"
+  let put_narrative = "static:observed a Consul KV write request"
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :consul_kv
+  |> reason_model :consul_kv_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_agent
+  |> program_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", stage: :packet_observed, narr: $get_narrative, dedupe: true, mod: $module_name, phase: :send_kv_get
+  |> program_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x50555420", stage: :packet_observed, narr: $put_narrative, dedupe: true, mod: $module_name, phase: :send_kv_put
+  |> program_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_kv
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_agent
+  |> reason_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", event: :packet_observed, narr: $get_narrative, dedupe: true, mod: $module_name, phase: :send_kv_get
+  |> reason_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x50555420", event: :packet_observed, narr: $put_narrative, dedupe: true, mod: $module_name, phase: :send_kv_put
+  |> reason_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_kv
+
+template :consul_kv_path
+|> window :default_5s
+|> use :consul_kv_rules
+|> param :sock_lineage_fragment.capture_comm, true

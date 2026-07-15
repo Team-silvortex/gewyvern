@@ -1,0 +1,356 @@
+use gewyvern::dsl::compile_str;
+use gewyvern::fragment::builtin_registry;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+const AUTHORITATIVE_DOCS: &[&str] = &[
+    "docs/gewylang-llm-guide.md",
+    "docs/gewylang-style.md",
+    "docs/gewylang-migration.md",
+    "docs/gewylang.ebnf",
+    "docs/dsl.md",
+    "docs/dsl-syntax.md",
+    "docs/dsl-reference.md",
+    "docs/gewylang-system.md",
+    "docs/gewylang-evolution.md",
+    "docs/book/tutorial-gewylang-package.md",
+    "docs/book/reference-gewylang-package.md",
+    "docs/book/explanation-gewylang-to-ir.md",
+    "docs/book/explanation-gewylang-lightweight-types.md",
+];
+
+fn repository_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+#[test]
+fn authoritative_gewylang_docs_have_no_broken_local_links() {
+    let root = repository_root();
+    let mut checked = 0usize;
+
+    for relative_doc in AUTHORITATIVE_DOCS {
+        let doc = root.join(relative_doc);
+        let source = fs::read_to_string(&doc).expect("authoritative doc must be readable");
+        for target in markdown_link_targets(&source) {
+            if target.starts_with('#')
+                || target.starts_with("http://")
+                || target.starts_with("https://")
+                || target.starts_with("mailto:")
+            {
+                continue;
+            }
+
+            let path = target.split('#').next().unwrap_or_default();
+            if path.is_empty() {
+                continue;
+            }
+            checked += 1;
+            let resolved = doc.parent().unwrap_or(Path::new(".")).join(path);
+            assert!(
+                resolved.exists(),
+                "broken local link in {}: {} -> {}",
+                relative_doc,
+                target,
+                resolved.display()
+            );
+        }
+    }
+
+    assert!(checked >= 25, "expected a meaningful local-link contract");
+}
+
+#[test]
+fn marked_gewylang_examples_compile() {
+    let mut checked = 0usize;
+    for relative_doc in ["docs/gewylang-llm-guide.md", "docs/gewylang-style.md"] {
+        let source = fs::read_to_string(repository_root().join(relative_doc))
+            .expect("compiled-example doc must be readable");
+        for (index, example) in fenced_blocks(&source, "gewy compile").iter().enumerate() {
+            checked += 1;
+            compile_str(example).unwrap_or_else(|error| {
+                panic!(
+                    "{relative_doc} example {} failed to compile: {error:?}",
+                    index + 1
+                )
+            });
+        }
+    }
+    assert!(checked >= 2, "expected compiled examples in canonical docs");
+}
+
+#[test]
+fn reference_covers_registry_fragments_parameters_and_signal_ids() {
+    let reference = fs::read_to_string(repository_root().join("docs/dsl-reference.md"))
+        .expect("DSL reference must be readable");
+
+    let registry = builtin_registry();
+    for fragment_id in [
+        "tcp_state_fragment",
+        "tcp_packet_meta_fragment",
+        "udp_packet_meta_fragment",
+        "route_meta_fragment",
+        "sock_lineage_fragment",
+    ] {
+        let fragment = registry
+            .descriptor(fragment_id)
+            .unwrap_or_else(|| panic!("built-in registry is missing {fragment_id}"));
+        assert!(
+            reference.contains(fragment.id),
+            "DSL reference is missing built-in fragment {}",
+            fragment.id
+        );
+        for parameter in &fragment.params {
+            assert!(
+                reference.contains(parameter.key),
+                "DSL reference is missing parameter {}.{}",
+                fragment.id,
+                parameter.key
+            );
+        }
+    }
+
+    for signal in [
+        "process_bound",
+        "socket_state_transition",
+        "packet_observed",
+        "datagram_observed",
+        "route_resolved",
+        "syn_seen",
+        "udp_datagram_seen",
+        "process_identified",
+        "state_change",
+        "route_changed",
+        "fin_or_rst",
+    ] {
+        assert!(
+            reference.contains(signal),
+            "DSL reference is missing signal {signal}"
+        );
+    }
+}
+
+#[test]
+fn maintained_sources_follow_the_canonical_style() {
+    let mut sources = Vec::new();
+    collect_gewy_sources(&repository_root().join("dsl"), &mut sources);
+    collect_gewy_sources(&repository_root().join("protocols"), &mut sources);
+    assert!(
+        sources.len() >= 700,
+        "expected both maintained source shelves"
+    );
+
+    for source_path in sources {
+        let source = fs::read_to_string(&source_path).expect("GewyLang source must be readable");
+        let template_count = source
+            .lines()
+            .filter(|line| line.trim_start().starts_with("template :"))
+            .count();
+        assert_eq!(
+            template_count,
+            1,
+            "{} must contain exactly one canonical template head",
+            source_path.display()
+        );
+
+        for line in source.lines() {
+            let line = line.trim();
+            if line.starts_with("fn ") {
+                assert!(
+                    line.ends_with(" ="),
+                    "non-canonical function head in {}: {line}",
+                    source_path.display()
+                );
+            }
+            assert_canonical_call(line, &source_path);
+            assert_canonical_rule(line, &source_path);
+            assert!(
+                !is_legacy_assignment(line),
+                "legacy assignment in {}: {line}",
+                source_path.display()
+            );
+        }
+
+        assert!(
+            !source.contains("${")
+                && !source.contains("=>")
+                && !source.lines().any(|line| matches!(line.trim(), "{" | "}"))
+                && !source
+                    .lines()
+                    .any(|line| line.trim_start().starts_with("template(")),
+            "compatibility syntax found in {}",
+            source_path.display()
+        );
+    }
+}
+
+#[test]
+fn protocol_package_mirrors_match_their_dsl_sources() {
+    let root = repository_root();
+    let mut mains = Vec::new();
+    collect_named_files(&root.join("protocols"), "main.gewy", &mut mains);
+    assert_eq!(mains.len(), 361, "expected every protocol package entry");
+
+    let mut mirrored = 0usize;
+    for main in &mains {
+        let source = fs::read_to_string(&main).expect("protocol main must be readable");
+        assert!(
+            !source.trim_start().starts_with("include"),
+            "include-only package entry is forbidden: {}",
+            main.display()
+        );
+        let template_id = source
+            .lines()
+            .find_map(|line| line.trim().strip_prefix("template :"))
+            .and_then(|rest| rest.split_whitespace().next())
+            .expect("canonical package entry must declare a template");
+        let dsl = root.join("dsl").join(format!("{template_id}.gewy"));
+        if dsl.exists() {
+            mirrored += 1;
+            let canonical = fs::read_to_string(&dsl).expect("DSL mirror must be readable");
+            assert_eq!(
+                source,
+                canonical,
+                "protocol mirror drifted from {}",
+                dsl.display()
+            );
+        }
+    }
+    assert_eq!(mirrored, 343, "expected every canonical DSL mirror");
+    assert_eq!(
+        mains.len() - mirrored,
+        18,
+        "expected the package-only canonical entries"
+    );
+}
+
+fn assert_canonical_call(line: &str, source_path: &Path) {
+    let Some(call) = line.strip_prefix("|>").map(str::trim_start) else {
+        return;
+    };
+    let open = call.find('(');
+    let whitespace = call.find(char::is_whitespace);
+    if open.is_some_and(|open| whitespace.is_none_or(|whitespace| open < whitespace)) {
+        let name = &call[..open.expect("open parenthesis exists")];
+        assert_eq!(
+            name,
+            "window",
+            "parenthesized non-window call in {}: {line}",
+            source_path.display()
+        );
+    }
+}
+
+fn assert_canonical_rule(line: &str, source_path: &Path) {
+    let expected_signal = if line.starts_with("|> program_rule") {
+        Some(", stage:")
+    } else if line.starts_with("|> reason_rule") {
+        Some(", event:")
+    } else {
+        None
+    };
+    let Some(expected_signal) = expected_signal else {
+        return;
+    };
+    assert!(
+        (line.starts_with("|> program_rule pred:") || line.starts_with("|> reason_rule pred:"))
+            && line.contains(expected_signal)
+            && line.contains(", narr:")
+            && line.contains(", dedupe:"),
+        "non-canonical rule in {}: {line}",
+        source_path.display()
+    );
+
+    let predicate = line
+        .split_once("pred: ")
+        .map(|(_, rest)| rest.split(',').next().unwrap_or_default())
+        .unwrap_or_default();
+    assert!(
+        !predicate
+            .strip_prefix(':')
+            .is_some_and(|value| value.contains(':')),
+        "complex predicate must be quoted or bound in {}: {line}",
+        source_path.display()
+    );
+}
+
+fn markdown_link_targets(source: &str) -> Vec<&str> {
+    let mut targets = Vec::new();
+    let mut rest = source;
+    while let Some(start) = rest.find("](") {
+        rest = &rest[start + 2..];
+        let Some(end) = rest.find(')') else {
+            break;
+        };
+        targets.push(rest[..end].trim());
+        rest = &rest[end + 1..];
+    }
+    targets
+}
+
+fn fenced_blocks(source: &str, info: &str) -> Vec<String> {
+    let opening = format!("```{info}");
+    let mut blocks = Vec::new();
+    let mut current = None::<String>;
+
+    for line in source.lines() {
+        if current.is_none() && line.trim() == opening {
+            current = Some(String::new());
+            continue;
+        }
+        if line.trim() == "```" {
+            if let Some(block) = current.take() {
+                blocks.push(block);
+            }
+            continue;
+        }
+        if let Some(block) = current.as_mut() {
+            block.push_str(line);
+            block.push('\n');
+        }
+    }
+
+    blocks
+}
+
+fn collect_gewy_sources(directory: &Path, output: &mut Vec<PathBuf>) {
+    for entry in fs::read_dir(directory).expect("source directory must be readable") {
+        let path = entry.expect("source entry must be readable").path();
+        if path.is_dir() {
+            collect_gewy_sources(&path, output);
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == "gewy")
+        {
+            output.push(path);
+        }
+    }
+}
+
+fn collect_named_files(directory: &Path, file_name: &str, output: &mut Vec<PathBuf>) {
+    for entry in fs::read_dir(directory).expect("source directory must be readable") {
+        let path = entry.expect("source entry must be readable").path();
+        if path.is_dir() {
+            collect_named_files(&path, file_name, output);
+        } else if path.file_name().is_some_and(|name| name == file_name) {
+            output.push(path);
+        }
+    }
+}
+
+fn is_legacy_assignment(line: &str) -> bool {
+    [
+        "template=",
+        "window=",
+        "reason=",
+        "fragment=",
+        "program_model=",
+        "reason_model=",
+        "operation=",
+        "rule=",
+        "reason.rule=",
+        "param=",
+        "evidence=",
+    ]
+    .iter()
+    .any(|prefix| line.starts_with(prefix))
+}

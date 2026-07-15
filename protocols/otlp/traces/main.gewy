@@ -1,1 +1,24 @@
-include "../../../dsl/otlp_traces_path.gewy"
+# gewyvern stable-subset protocol path
+
+fn otlp_traces_rules() =
+  let module_name = :otlp_traces_path
+  let traces_narrative = "static:observed OTLP trace export over gRPC or HTTP"
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :otlp_traces_export
+  |> reason_model :otlp_traces_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_collector
+  |> program_rule pred: "packet_observed:tcp:remote:https:local_to_remote:byte_at:3:0xff:0x01", stage: :packet_observed, narr: $traces_narrative, dedupe: true, mod: $module_name, phase: :send_trace_headers
+  |> program_rule pred: "packet_observed:tcp:remote:https:local_to_remote:byte_at:3:0xff:0x00", stage: :packet_observed, narr: :transport_payload_sent, dedupe: false, mod: $module_name, phase: :send_trace_batch
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_collector
+  |> reason_rule pred: "packet_observed:tcp:remote:https:local_to_remote:byte_at:3:0xff:0x01", event: :packet_observed, narr: $traces_narrative, dedupe: true, mod: $module_name, phase: :send_trace_headers
+  |> reason_rule pred: "packet_observed:tcp:remote:https:local_to_remote:byte_at:3:0xff:0x00", event: :packet_observed, narr: :transport_payload_sent, dedupe: false, mod: $module_name, phase: :send_trace_batch
+
+template :otlp_traces_path
+|> window(duration_ms: 10000, lateness_ms: 300)
+|> use :otlp_traces_rules
+|> param :sock_lineage_fragment.capture_comm, true

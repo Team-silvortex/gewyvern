@@ -7,6 +7,7 @@ fn amqp_publish_session_rules() =
   |> fragment :tcp_packet_meta_fragment
   |> fragment :route_meta_fragment
   |> fragment :sock_lineage_fragment
+  |> program_model :amqp_publish_session_model
   |> operation :amqp_publish_session
   |> reason_model :amqp_publish_session_reason
   |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
@@ -29,5 +30,6 @@ fn amqp_publish_session_rules() =
   |> reason_rule pred: "packet_observed:tcp:remote:amqp:remote_to_local:byte0_mask:0xff:0x01:byte_at:10:0xff:0x50", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_ack
 
 template :amqp_publish_session
-|> window(duration_ms: 5000, lateness_ms: 200)
+|> window :default_5s
 |> use :amqp_publish_session_rules
+|> param :sock_lineage_fragment.capture_comm, true

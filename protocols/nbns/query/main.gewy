@@ -1,1 +1,21 @@
-include("../../../dsl/nbns_query_path.gewy")
+# gewyvern stable-subset protocol path
+
+fn nbns_query_rules() =
+  let module_name = :nbns_query_path
+  let route_narrative = "static:program resolved a local-link route for this NetBIOS name query"
+  |> fragment :udp_packet_meta_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :nbns_query
+  |> reason_model :nbns_query_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_local_link
+  |> program_rule pred: "datagram_observed:udp:remote:nbns:local_to_remote:byte_at:2:0x80:0x00", stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_query
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_local_link
+  |> reason_rule pred: "datagram_observed:udp:remote:nbns:local_to_remote:byte_at:2:0x80:0x00", event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_query
+
+template :nbns_query_path
+|> window :default_5s
+|> use :nbns_query_rules
+|> param :sock_lineage_fragment.capture_comm, true

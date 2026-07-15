@@ -186,8 +186,8 @@ Important boundary:
 
 ## Step 8: What “Good Enough To Start Using” Means
 
-The current `v0.15.0` line is not claiming forever-frozen stability across
-every surface, but it is already meant to be usable on purpose.
+The current `v1.0.0` line keeps compatibility promises around its documented
+stable surfaces while leaving explicitly evolving extensions room to mature.
 
 That means:
 

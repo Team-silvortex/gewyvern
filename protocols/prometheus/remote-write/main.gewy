@@ -1,1 +1,24 @@
-include "../../../dsl/prometheus_remote_write_path.gewy"
+# gewyvern stable-subset protocol path
+
+fn prometheus_remote_write_rules() =
+  let module_name = :prometheus_remote_write_path
+  let write_narrative = "static:observed a Prometheus remote-write request"
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :prometheus_remote_write
+  |> reason_model :prometheus_remote_write_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_receiver
+  |> program_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x504f5354", stage: :packet_observed, narr: $write_narrative, dedupe: true, mod: $module_name, phase: :send_write_batch
+  |> program_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_write_response
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_receiver
+  |> reason_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x504f5354", event: :packet_observed, narr: $write_narrative, dedupe: true, mod: $module_name, phase: :send_write_batch
+  |> reason_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_write_response
+
+template :prometheus_remote_write_path
+|> window(duration_ms: 10000, lateness_ms: 300)
+|> use :prometheus_remote_write_rules
+|> param :sock_lineage_fragment.capture_comm, true

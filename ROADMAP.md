@@ -3,9 +3,9 @@
 This roadmap now treats `v1.0.0` as the active sealed stable line.
 
 `gewyvern` is no longer on the road to `1.0.0`; it has crossed that line.
-The current question is how to keep the first stable release disciplined while
-we extend it through measured post-`1.0.0` reliability, performance, and UX
-work.
+The current question is how to preserve the sealed Gewyvern core while
+Leserpent grows into the Rust, Leselang, CLI, and multi-frontend control plane
+defined for `2.0.0`.
 
 ## Current Line
 
@@ -13,9 +13,12 @@ work.
 - sealed stable release line: `v1.0.0`
 - current documented checkpoint: `v1.0.0` stable release and proof shelf
 - immediate follow-up line: `v1.0.x` stabilization and operating refinement
-- target next major: no deliberate `v2.0` plan exists today
-- later decision point: consider `v2.0` only if the DSL/runtime/report
-  contract eventually needs a deliberate breaking reset
+- target next major: `v2.0.0`, centered on the Rust Leserpent runtime and
+  replaceable Leselang, CLI, and GUI frontends
+- active next-major architecture:
+  [docs/leserpent-2-architecture.md](docs/leserpent-2-architecture.md)
+- active delivery gates:
+  [docs/leserpent-2-roadmap.md](docs/leserpent-2-roadmap.md)
 
 For the durable minor-line record, see
 [docs/history/index.md](docs/history/index.md).
@@ -67,12 +70,23 @@ Execution shelf:
 - machine-facing changes should be treated as explicit contract management
 - nearby tooling may evolve faster, but core surfaces should stay narrow
 
-### 3. `v2.0`: Reserved For Real Contract Pressure
+### 3. `v2.0`: Rust Leserpent And Leselang
 
-- no active `v2.0` roadmap exists today
-- only open a `v2.0` line if the DSL/runtime/report contract truly needs a
-  breaking reset
-- do not invoke a new major just to group ordinary growth work
+- preserve Gewyvern as the Linux-first debugger/runtime rather than absorbing
+  it into a control-plane rewrite
+- move Leserpent command, query, policy, journal, effect, and replay semantics
+  into Rust
+- make Leselang a synchronous functional language driven by typed,
+  journaled effect suspension and re-entry
+- make Rust CLI, Avalonia GUI, web clients, and model-generated Leselang
+  atomically replaceable through one command/query protocol
+- retain the 1.x ASP.NET and TypeScript implementation as a tested migration
+  bridge; prohibit a big-bang rewrite
+
+The exact contracts and ordered gates are maintained in:
+
+- [docs/leserpent-2-architecture.md](docs/leserpent-2-architecture.md)
+- [docs/leserpent-2-roadmap.md](docs/leserpent-2-roadmap.md)
 
 ## Recently Closed Or Historical Lines
 

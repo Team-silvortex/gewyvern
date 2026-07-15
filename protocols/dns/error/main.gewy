@@ -1,12 +1,16 @@
-fn dns_error_package() =
-  let module_name = :dns_error_package
+# gewyvern stable-subset protocol path
+
+fn dns_error_rules() =
+  let module_name = :dns_error_path
   let error_narrative = "static:observed a DNS error response code from the resolver path"
   |> fragment :udp_packet_meta_fragment
   |> fragment :route_meta_fragment
   |> fragment :sock_lineage_fragment
   |> operation :dns_error
+  |> reason_model :dns_error_path_reason
   |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
-  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_upstream
+  |> program_rule pred: "datagram_observed:udp:remote:53:remote_to_local:byte_at:2:0x80:0x80:byte_at:3:0x0f:0x01", stage: :datagram_observed, narr: $error_narrative, dedupe: true, mod: $module_name, phase: :receive_formerr
   |> program_rule pred: "datagram_observed:udp:remote:53:remote_to_local:byte_at:2:0x80:0x80:byte_at:3:0x0f:0x02", stage: :datagram_observed, narr: $error_narrative, dedupe: true, mod: $module_name, phase: :receive_servfail
   |> program_rule pred: "datagram_observed:udp:remote:53:remote_to_local:byte_at:2:0x80:0x80:byte_at:3:0x0f:0x03", stage: :datagram_observed, narr: $error_narrative, dedupe: true, mod: $module_name, phase: :receive_nxdomain
   |> program_rule pred: "datagram_observed:udp:remote:53:remote_to_local:byte_at:2:0x80:0x80:byte_at:3:0x0f:0x05", stage: :datagram_observed, narr: $error_narrative, dedupe: true, mod: $module_name, phase: :receive_refused
@@ -15,5 +19,5 @@ fn dns_error_package() =
 
 template :dns_error_path
 |> window :default_5s
-|> use :dns_error_package
+|> use :dns_error_rules
 |> param :sock_lineage_fragment.capture_comm, true

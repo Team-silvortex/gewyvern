@@ -1,1 +1,24 @@
-include "../../../dsl/loki_push_path.gewy"
+# gewyvern stable-subset protocol path
+
+fn loki_push_rules() =
+  let module_name = :loki_push_path
+  let push_narrative = "static:observed a Loki log push request"
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :loki_push
+  |> reason_model :loki_push_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_loki
+  |> program_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x504f5354", stage: :packet_observed, narr: $push_narrative, dedupe: true, mod: $module_name, phase: :send_log_batch
+  |> program_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_push_response
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_loki
+  |> reason_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x504f5354", event: :packet_observed, narr: $push_narrative, dedupe: true, mod: $module_name, phase: :send_log_batch
+  |> reason_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_push_response
+
+template :loki_push_path
+|> window(duration_ms: 10000, lateness_ms: 300)
+|> use :loki_push_rules
+|> param :sock_lineage_fragment.capture_comm, true

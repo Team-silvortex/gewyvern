@@ -171,7 +171,7 @@ compiler/package level.
 
 The packaged container path is no longer relying on stale historical artifacts.
 
-Fresh `0.15.0` native packages were rebuilt from the current source tree and
+Fresh `0.15.0` native packages were rebuilt from the then-current source tree and
 then used as the input for the packaged validation chain:
 
 - `target/packages/gewyvern_0.15.0-1_arm64.deb`

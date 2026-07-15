@@ -348,7 +348,8 @@ fn extract_template_id(input: &str) -> Option<String> {
             let template_id = tail[..end].trim();
             return (!template_id.is_empty()).then(|| template_id.to_string());
         }
-        line.strip_prefix("template ")
+        line.strip_prefix("template :")
+            .or_else(|| line.strip_prefix("template "))
             .map(str::trim)
             .filter(|template_id| !template_id.is_empty())
             .map(ToString::to_string)
@@ -397,7 +398,9 @@ mod tests_env {
 
     pub(crate) fn lock() -> MutexGuard<'static, ()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 }
 

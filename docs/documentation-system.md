@@ -1,314 +1,89 @@
 # Documentation System
 
-Use this page when you need the design sheet for the `gewyvern` documentation
-set itself.
+This page defines how the documentation stays small, modular, and testable.
+For content, start at the [documentation index](index.md).
 
-This page treats the docs as a real subsystem, not as a loose folder of notes.
-
-Its goal is to answer:
-
-- what kinds of documentation exist here?
-- how are they layered?
-- where should new material land?
-- how do the docs stay coherent across minor lines?
-
-Read this alongside:
-
-- [docs/index.md](docs/index.md)
-- [docs/book/index.md](docs/book/index.md)
-- [docs/script-entrypoints.md](docs/script-entrypoints.md)
-- [docs/cli-recipes.md](docs/cli-recipes.md)
-- [docs/book/conventions.md](docs/book/conventions.md)
-- [docs/book/structure.md](docs/book/structure.md)
-- [docs/development.md](docs/development.md)
-
-Use:
-
-- [docs/index.md](docs/index.md)
-  when you want the global doc map
-- [docs/book/index.md](docs/book/index.md)
-  when you want the reading-order spine
-- [docs/script-entrypoints.md](docs/script-entrypoints.md)
-  when you want a goal-based operator script map
-- [docs/cli-recipes.md](docs/cli-recipes.md)
-  when you want practical CLI/API/demo commands without the full storyline
-- [docs/documentation-system.md](docs/documentation-system.md)
-  when you want the design rules for the docs themselves
-
-## Why This Page Exists
-
-`gewyvern` now has enough surface area that the docs cannot be treated as
-incidental commentary anymore.
-
-The documentation set has to do five jobs at once:
-
-1. onboard new readers
-2. support operators
-3. support contributors
-4. preserve architecture and contract clarity
-5. record minor-line evolution honestly
-
-Without an explicit docs system, the repo drifts toward:
-
-- duplicate pages
-- mixed page types
-- missing reading order
-- stale release-line claims
-
-## Documentation Stack
-
-The current documentation system is best understood as five shelves:
+## Architecture
 
 ```mermaid
-flowchart TD
-    A["README"] --> B["Top-level durable docs"]
-    B --> C["Book reading framework"]
-    B --> D["Reference/detail shelves"]
-    B --> E["Validation and evidence records"]
-    B --> F["History by minor line"]
+flowchart LR
+    R["README"] --> I["docs/index.md"]
+    I --> M["domain module"]
+    M --> D["authoritative subject page"]
+    I --> B["book reading modes"]
+    D --> H["history, when obsolete"]
 ```
 
-These shelves are related, but they do different jobs.
+There are four layers:
 
-## Shelf 1: README
+1. `README.md` states the product and links to one documentation entry.
+2. `docs/index.md` routes readers by domain or document type.
+3. `docs/modules/*.md` are short domain manifests.
+4. Subject pages contain the actual tutorial, procedure, contract, or rationale.
 
-`README.md` is the repo-front door.
+History is an archive, not another current-documentation layer.
 
-Its job is to answer:
+## Modules
 
-- what is this project?
-- what can I run right now?
-- what release line am I looking at?
-- where should I go next?
+Every current page has one primary owner:
 
-It should stay:
+| Module | Manifest |
+| --- | --- |
+| Runtime | [modules/runtime.md](modules/runtime.md) |
+| GewyLang | [modules/gewylang.md](modules/gewylang.md) |
+| Protocols | [modules/protocols.md](modules/protocols.md) |
+| Operations | [modules/operations.md](modules/operations.md) |
+| Project | [modules/project.md](modules/project.md) |
 
-- short enough to scan
-- concrete enough to trust
-- linked into the deeper docs instead of trying to replace them
+Cross-links are encouraged, but a page appears as a primary entry in only one
+module. Module manifests route; they do not restate subject content.
 
-## Shelf 2: Top-Level Durable Docs
+## Document Types
 
-Top-level `docs/` pages are the durable subject shelves.
+Use one type per page:
 
-Examples:
+- **Tutorial:** a learning path with a successful end state.
+- **How-to:** steps for one concrete task.
+- **Reference:** exact syntax, schema, CLI, or compatibility contract.
+- **Explanation:** architecture, rationale, and tradeoffs.
+- **History:** release-specific evidence that is no longer the current contract.
 
-- system
-- architecture
-- DSL
-- fragments
-- security
-- machine contract
-- packaging
-- service behavior
-- operator script map
-- CLI recipe shelf
+The [book index](book/index.md) exposes these types as reading modes. It does
+not maintain a second domain map.
 
-Their job is to preserve long-lived project knowledge.
+## Placement
 
-These pages should answer:
+- Put durable subject pages directly under `docs/` when they define a major
+  project contract or subsystem.
+- Put typed chapters under `docs/book/` using `tutorial-`, `how-to-`,
+  `reference-`, or `explanation-` prefixes.
+- Put release-specific records under `docs/history/`.
+- Add a new module only when no existing module can own the topic without
+  mixing unrelated responsibilities.
 
-- what is the current design?
-- what boundary is being defended?
-- what contract or posture is intended to last across patch releases?
+Before creating a page, prefer editing the existing authority for that topic.
 
-Two special top-level durable pages now intentionally sit between "subject
-shelf" and "operator helper":
+## Link Discipline
 
-- [docs/script-entrypoints.md](docs/script-entrypoints.md)
-  Goal-based script routing for validation, packaging, demos, Linux smoke,
-  perf, and history helpers.
-- [docs/cli-recipes.md](docs/cli-recipes.md)
-  Compact command shelf for runtime CLI, `gewyc`, socket ingest, API routes,
-  and narrow roundtrip demos.
+Each subject page should normally have:
 
-These are not book chapters. They are durable operator-facing lookup shelves.
+1. one module or upstream link
+2. zero to three close companion links
+3. no copied global table of contents
 
-## Shelf 3: Book Reading Framework
+Use standard paths relative to the current file in new documentation. The test
+suite still resolves historical repository-root-style links while old pages
+are gradually normalized.
 
-`docs/book/` is the reading framework.
+## Change Checklist
 
-Its job is not to duplicate every subject page.
-Its job is to organize the reading experience into four modes:
+When documentation changes:
 
-- tutorials
-- how-to guides
-- reference
-- explanation
+1. update the authoritative subject page
+2. update its owning module only when discoverability changed
+3. move obsolete release claims to history instead of duplicating them
+4. run `cargo test --test documentation_system_tdd`
+5. run domain-specific documentation tests when available
 
-This shelf should answer:
-
-- how should a reader enter the material?
-- in what order should they read?
-- what kind of page are they looking at?
-- which part of the whole-system storyline are they in?
-
-## Shelf 4: Validation And Evidence
-
-These pages answer whether the current line has actually earned its claims.
-
-Examples:
-
-- `docs/v0.15-posture.md`
-- `docs/field-validation.md`
-- `docs/field-findings.md`
-- `docs/release-checklist.md`
-- `docs/security-posture.md`
-
-Their job is to connect the architecture story to real validation evidence.
-
-These pages should stay close to what the code and scripts can actually prove.
-
-## Shelf 5: History By Minor Line
-
-`docs/history/` is the durable minor-line memory.
-
-Its job is to answer:
-
-- what did `v0.13.x` mean?
-- what did `v0.14.x` change in posture?
-- what does `v0.15.x` add in operational discipline and upgrade shape?
-- what was already whole enough?
-- what was still intentionally incomplete?
-
-This shelf keeps the project from pretending each new line is a total reset.
-
-When one line's validation posture depends on a small durable artifact bundle,
-the compact companion rule sheet now lives at:
-
-- [docs/history/minor-line-evidence-bundle.md](docs/history/minor-line-evidence-bundle.md)
-
-## Reading Paths By Reader Type
-
-The documentation system should support at least these reader types:
-
-### Operator
-
-Needs:
-
-- runnable path
-- output interpretation
-- validation checklist
-
-Start with:
-
-- `README.md`
-- [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
-- [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
-
-### Contributor
-
-Needs:
-
-- code ownership map
-- architecture boundaries
-- test workflow
-
-Start with:
-
-- [docs/index.md](docs/index.md)
-- [docs/system.md](docs/system.md)
-- [docs/development.md](docs/development.md)
-
-### Reviewer
-
-Needs:
-
-- architecture clarity
-- contract clarity
-- evidence of maturity
-
-Start with:
-
-- [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
-- [docs/architecture-evolution.md](docs/architecture-evolution.md)
-- [docs/field-validation.md](docs/field-validation.md)
-
-### DSL Or Protocol Author
-
-Needs:
-
-- package shape
-- protocol shelf lookup
-- lowered IR visibility
-
-Start with:
-
-- [docs/gewylang-system.md](docs/gewylang-system.md)
-- [docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md)
-- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
-- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
-
-## Page Placement Rules
-
-When adding new documentation, use this routing table:
-
-### Put it in `README.md` when
-
-- it is repo-front-door material
-- it answers the shortest “what is this?” question
-- it should be seen before any deep dive
-
-### Put it in top-level `docs/` when
-
-- it is a durable subject page
-- it explains a long-lived system boundary or contract
-- it should remain meaningful outside one reading mode
-- it is a compact operator lookup shelf that should not be stretched into a
-  tutorial, how-to, or full reference chapter
-
-### Put it in `docs/book/` when
-
-- it is primarily about reading flow
-- it is tutorial, how-to, reference, or explanation material
-- it helps a reader navigate rather than only store facts
-- it benefits from the four reading modes more than from top-level subject
-  lookup
-
-### Put it in `docs/history/` when
-
-- it records the meaning of one minor line
-- it explains release-line posture, not day-to-day behavior
-
-## Maintenance Rules
-
-The documentation system should obey these rules:
-
-1. No second page should exist only because the first page became long.
-2. New pages should declare what kind of page they are.
-3. Stable claims should point to evidence or validation pages.
-4. Architecture pages should point to module or source ownership pages.
-5. Minor-line pages should record meaning, not every patch note.
-
-## What “Systematic” Means Here
-
-For this repo, systematic documentation means:
-
-- every major topic has one obvious home
-- every audience has one obvious starting path
-- every stable claim has one obvious contract page
-- every active release line has one obvious historical note
-- new contributors do not have to reverse-engineer the doc structure from filenames
-
-## Anti-Patterns
-
-Avoid:
-
-- adding a page that mixes tutorial, contract, and release-note roles
-- copying the same navigation list into many unrelated pages
-- letting release posture live only in README prose
-- adding future-facing design promises without a clear current-line boundary
-- letting protocol detail pages become the only place where system architecture is discoverable
-
-## Current Thesis
-
-The current docs system should make `0.15.x` feel:
-
-- legible
-- bounded
-- teachable
-- reviewable
-- historically grounded
-
-If a new page does not help one of those outcomes, it probably belongs in a
-different page or does not need to exist yet.
+The target is one obvious entry, one owner per topic, and the smallest context
+needed to answer a question.

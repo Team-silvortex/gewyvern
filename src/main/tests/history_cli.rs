@@ -1,14 +1,8 @@
-use super::Cli;
+use super::{Cli, env_test_lock, expected_minor_line};
 use crate::history_view::render_history_index;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
-
-fn env_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-}
 
 struct EnvGuard {
     key: &'static str,
@@ -88,15 +82,18 @@ fn cli_accepts_list_history_mode() {
 
 #[test]
 fn list_history_json_renders_empty_index_when_history_is_missing() {
-    let _lock = env_lock().lock().unwrap();
+    let _lock = env_test_lock()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
     let root = temp_dir("empty-json");
     let _state = EnvGuard::set("GEWY_STATE_HOME", root.to_string_lossy());
     let _retention = EnvGuard::set("GEWY_HISTORY_RETENTION", "7");
 
     let rendered = render_history_index(true).unwrap();
+    let minor_line = expected_minor_line();
 
     assert!(rendered.contains("\"schema_version\":2"));
-    assert!(rendered.contains("\"minor_line\":\"v0.20.x\""));
+    assert!(rendered.contains(&format!("\"minor_line\":\"{minor_line}\"")));
     assert!(rendered.contains("\"history_retention\":7"));
     assert!(rendered.contains("\"catalog_artifacts\":["));
     assert!(rendered.contains("\"protocol-clusters.json\""));
@@ -107,7 +104,9 @@ fn list_history_json_renders_empty_index_when_history_is_missing() {
 
 #[test]
 fn list_history_text_reports_existing_snapshots() {
-    let _lock = env_lock().lock().unwrap();
+    let _lock = env_test_lock()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
     let root = temp_dir("text");
     let history_root = root.join("history").join("api").join("v1");
     let _state = EnvGuard::set("GEWY_STATE_HOME", root.to_string_lossy());
@@ -116,23 +115,26 @@ fn list_history_text_reports_existing_snapshots() {
     fs::create_dir_all(history_root.join("1003")).unwrap();
 
     let rendered = render_history_index(false).unwrap();
+    let minor_line = expected_minor_line();
 
     assert!(rendered.contains("History Shelf"));
-    assert!(rendered.contains("minor line: v0.20.x"));
+    assert!(rendered.contains(&format!("minor line: {minor_line}")));
     assert!(rendered.contains("retention: 32"));
     assert!(rendered.contains("entries: 2"));
     assert!(rendered.contains("latest: 1003"));
     assert!(rendered.contains("oldest: 1001"));
-    assert!(rendered.contains("- 1003 line=v0.20.x"));
+    assert!(rendered.contains(&format!("- 1003 line={minor_line}")));
     assert!(rendered.contains("protocol_catalog="));
-    assert!(rendered.contains("- 1001 line=v0.20.x"));
+    assert!(rendered.contains(&format!("- 1001 line={minor_line}")));
 
     fs::remove_dir_all(&root).unwrap();
 }
 
 #[test]
 fn list_history_text_reports_latest_protocol_catalog_delta() {
-    let _lock = env_lock().lock().unwrap();
+    let _lock = env_test_lock()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
     let root = temp_dir("delta-text");
     let history_root = root.join("history").join("api").join("v1");
     let _state = EnvGuard::set("GEWY_STATE_HOME", root.to_string_lossy());

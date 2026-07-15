@@ -23,7 +23,7 @@ pages, validation pages, and history pages, see
 [docs/documentation-system.md](docs/documentation-system.md).
 
 For the book-specific part and chapter discipline, see
-[docs/book/structure.md](docs/book/structure.md).
+[documentation system](../documentation-system.md).
 
 ## The Four Modes
 
@@ -126,7 +126,7 @@ This is the reading framework, not a second copy of the same content.
 
 Within `docs/book/`, also decide which storyline part a page belongs to. The
 current part discipline is documented in
-[docs/book/structure.md](docs/book/structure.md).
+[documentation system](../documentation-system.md).
 
 ## Writing Style
 

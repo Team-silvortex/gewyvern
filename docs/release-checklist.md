@@ -278,7 +278,8 @@ practical commands are:
 
 ```bash
 cargo audit
-dotnet list apps/leserpent/src/Leserpent/Leserpent.csproj package --vulnerable
+dotnet restore apps/leserpent/leserpent.slnx --locked-mode
+dotnet list apps/leserpent/leserpent.slnx package --vulnerable --include-transitive
 cd apps/leserpent && npm audit --json
 cd apps/leserpent && npm audit --omit=dev --json
 ```
@@ -400,9 +401,10 @@ Run the lightweight security shelf before calling the line green:
 
 ```bash
 cargo audit
-dotnet list apps/leserpent/src/Leserpent/Leserpent.csproj package --vulnerable
+dotnet restore apps/leserpent/leserpent.slnx --locked-mode
+dotnet list apps/leserpent/leserpent.slnx package --vulnerable --include-transitive
 cd apps/leserpent && npm audit --json
-dotnet test apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj
+dotnet test apps/leserpent/leserpent.slnx --no-restore
 cargo test -p etragon tests::daemon::request_limits::daemon_request_reader_rejects_duplicate_content_length_headers --bin etragon -- --exact --nocapture
 cargo test -p etragon tests::daemon::request_limits::daemon_handler_returns_400_for_invalid_request_headers --bin etragon -- --exact --nocapture
 cargo test -p etragon tests::daemon::routes::daemon_remote_token_checks_trim_and_match_headers_case_insensitively --bin etragon -- --exact --nocapture

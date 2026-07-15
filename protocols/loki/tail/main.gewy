@@ -1,1 +1,24 @@
-include "../../../dsl/loki_tail_path.gewy"
+# gewyvern stable-subset protocol path
+
+fn loki_tail_rules() =
+  let module_name = :loki_tail_path
+  let tail_narrative = "static:observed a Loki live tail stream"
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> fragment :sock_lineage_fragment
+  |> operation :loki_tail
+  |> reason_model :loki_tail_path_reason
+  |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_query_frontend
+  |> program_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", stage: :packet_observed, narr: $tail_narrative, dedupe: true, mod: $module_name, phase: :open_tail
+  |> program_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", stage: :packet_observed, narr: :transport_payload_received, dedupe: false, mod: $module_name, phase: :receive_tail_frame
+  |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_query_frontend
+  |> reason_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", event: :packet_observed, narr: $tail_narrative, dedupe: true, mod: $module_name, phase: :open_tail
+  |> reason_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", event: :packet_observed, narr: :transport_payload_received, dedupe: false, mod: $module_name, phase: :receive_tail_frame
+
+template :loki_tail_path
+|> window(duration_ms: 10000, lateness_ms: 300)
+|> use :loki_tail_rules
+|> param :sock_lineage_fragment.capture_comm, true

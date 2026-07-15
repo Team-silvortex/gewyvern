@@ -1,1 +1,20 @@
-include "../../../dsl/jaeger_sampling_path.gewy"
+# gewyvern stable-subset protocol path
+
+fn jaeger_sampling_rules() =
+  let module_name = :jaeger_sampling_path
+  let sampling_narrative = "static:observed a Jaeger sampling strategy request"
+  |> fragment :tcp_packet_meta_fragment
+  |> fragment :tcp_state_fragment
+  |> fragment :route_meta_fragment
+  |> operation :jaeger_sampling
+  |> reason_model :jaeger_sampling_path_reason
+  |> program_rule pred: :route_resolved, stage: :route_resolved, narr: :route_resolved, dedupe: true, mod: $module_name, phase: :resolve_agent_or_collector
+  |> program_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", stage: :packet_observed, narr: $sampling_narrative, dedupe: true, mod: $module_name, phase: :read_sampling_strategy
+  |> program_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_sampling_strategy
+  |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_agent_or_collector
+  |> reason_rule pred: "packet_observed:tcp:remote:http:local_to_remote:prefix4:0x47455420", event: :packet_observed, narr: $sampling_narrative, dedupe: true, mod: $module_name, phase: :read_sampling_strategy
+  |> reason_rule pred: "packet_observed:tcp:remote:http:remote_to_local:prefix4:0x48545450", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_sampling_strategy
+
+template :jaeger_sampling_path
+|> window :default_5s
+|> use :jaeger_sampling_rules

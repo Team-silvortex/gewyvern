@@ -4,7 +4,7 @@ Use this page when you need exact lookup for the current package/module shape
 used by `gewylang`.
 
 This is not a tutorial. For a first guided walkthrough, start with
-[docs/book/tutorial-gewylang-package.md](docs/book/tutorial-gewylang-package.md).
+[docs/book/tutorial-gewylang-package.md](tutorial-gewylang-package.md).
 
 ## Scope
 
@@ -18,12 +18,16 @@ This page covers:
 - the current safe package/module subset
 
 For the broader language surface, see
-[docs/dsl.md](docs/dsl.md).
+[docs/dsl.md](../dsl.md).
 
 For the syntax-first companion shelf, see
-[docs/dsl-syntax.md](docs/dsl-syntax.md).
-For the exact DSL vocabulary and compatibility shelf, see
-[docs/dsl-reference.md](docs/dsl-reference.md).
+[docs/dsl-syntax.md](../dsl-syntax.md).
+For the normative maintained-source contract, see
+[docs/gewylang-style.md](../gewylang-style.md).
+For the exact DSL vocabulary shelf, see
+[docs/dsl-reference.md](../dsl-reference.md).
+Legacy input belongs only in
+[docs/gewylang-migration.md](../gewylang-migration.md).
 
 ## Package Shape
 
@@ -112,7 +116,7 @@ The compiler now surfaces this provenance in frontend reports as
 
 Function units are the current reusable module form.
 
-Preferred form:
+Canonical form:
 
 ```text
 fn udp_process_rules(model_name, op_name = :datagram_exchange) =
@@ -120,14 +124,6 @@ fn udp_process_rules(model_name, op_name = :datagram_exchange) =
   |> fragment :route_meta_fragment
   |> operation $op_name
   |> program_model $model_name
-```
-
-Accepted alias:
-
-```text
-fn udp_process_rules(model_name, op_name = :datagram_exchange) =>
-  |> fragment :udp_packet_meta_fragment
-  |> operation $op_name
 ```
 
 Current characteristics:

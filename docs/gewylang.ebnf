@@ -1,54 +1,83 @@
-# gewylang Pipeline Grammar (Draft)
+# GewyLang Canonical Grammar
 
-This file is the draft EBNF for the preferred pipeline surface of `gewylang`.
-It intentionally focuses on the current functional DSL shape rather than the
-legacy key/value or structured compatibility layers.
+This grammar defines canonical generated and repository-maintained source. The
+parser accepts additional migration input, but those forms are outside this
+grammar and documented only in [the migration guide](gewylang-migration.md).
 
 ```ebnf
-pipeline_file        = { blank_line | comment | function_decl }, template_head,
-                       { pipeline_step | blank_line | comment } ;
+pipeline_file       = spacing, { documentation | comment | function_decl | spacing },
+                      template_head, newline,
+                      { pipeline_step | documentation | comment | spacing } ;
 
-function_decl        = function_block_decl | function_expr_decl ;
-function_block_decl  = "fn", ws, ident, "(", [ param_list ], ")", ws, "{",
-                       newline,
-                       { function_binding | function_step | blank_line | comment },
-                       "}" ;
-function_expr_decl   = "fn", ws, ident, "(", [ param_list ], ")", ws,
-                       ( "=" | "=>" ), newline,
-                       { function_binding | function_step | blank_line | comment } ;
+function_decl       = "fn", hws, ident, "(", [ param_list ], ")", hws, "=", newline,
+                      { function_binding | function_step | documentation | comment | spacing } ;
 
-template_head        = "template", "(", value, ")" ;
-pipeline_step        = "|>", ws, call ;
-function_step        = "|>", ws, call ;
-function_binding     = "let", ws, ident, ws, "=", ws, value ;
+template_head       = "template", hws, value ;
+pipeline_step       = "|>", hws, call, newline ;
+function_step       = "|>", hws, call, newline ;
+function_binding    = "let", hws, ident, hws, "=", hws, value, newline ;
 
-call                 = ident, "(", [ arg_list ], ")" ;
-arg_list             = arg, { ",", ws, arg } ;
-arg                  = value | keyword_arg ;
-keyword_arg          = ident, ":", ws, value ;
+call                = ordinary_call | window_call ;
+ordinary_call       = ident, hws, argument_list ;
+window_call         = "window", "(", window_arguments, ")" ;
+window_arguments    = "duration_ms", ":", optional_hws, value,
+                      optional_hws, ",", optional_hws,
+                      "lateness_ms", ":", optional_hws, value ;
+argument_list       = argument, { optional_hws, ",", optional_hws, argument } ;
+argument            = keyword_argument | value ;
+keyword_argument    = ident, ":", optional_hws, value ;
 
-param_list           = param_decl, { ",", ws, param_decl } ;
-param_decl           = ident, [ ":", ws, kind_name ], [ ws, "=", ws, value ] ;
-value                = atom | string | placeholder | raw_token ;
-atom                 = ":", ident ;
-placeholder          = "${", ident, "}" | "$", ident ;
-kind_name            = "atom" | "bool" | "u64" | "predicate" | "narrative" | "stage" | "key_event" | "phase" ;
+param_list          = param_decl, { optional_hws, ",", optional_hws, param_decl } ;
+param_decl          = ident, [ ":", optional_hws, kind_name ],
+                      [ hws, "=", hws, value ] ;
+kind_name           = "atom" | "bool" | "u64" | "predicate" | "narrative"
+                    | "stage" | "key_event" | "phase" ;
 
-ident                = ? non-empty identifier token ? ;
-string               = ? double-quoted string literal ? ;
-raw_token            = ? unquoted token consumed by the current pipeline step ? ;
-comment              = "#", ? rest of line ? ;
-blank_line           = "" ;
-ws                   = { " " | "\t" } ;
-newline              = "\n" ;
+value               = atom | string | boolean | unsigned_integer | placeholder | raw_token ;
+atom                = ":", ident ;
+boolean             = "true" | "false" ;
+unsigned_integer    = digit, { digit } ;
+placeholder         = "$", ident ;
+string              = '"', { string_character }, '"' ;
+raw_token           = ? non-empty step-specific token accepted by the parser ? ;
+
+documentation       = module_doc | item_doc ;
+module_doc          = "//!", ? rest of line ?, newline ;
+item_doc            = "///", ? rest of line ?, newline ;
+comment             = line_comment | block_comment ;
+line_comment        = "#", ? rest of line ?, newline ;
+block_comment       = "/*", ? characters until the next */ ?, "*/" ;
+
+ident               = ident_start, { ident_continue } ;
+ident_start         = letter | "_" ;
+ident_continue      = letter | digit | "_" | "-" ;
+spacing             = { hws | newline } ;
+hws                 = ( " " | "\t" ), { " " | "\t" } ;
+optional_hws        = { " " | "\t" } ;
+newline             = "\n" ;
+letter              = "A" | ... | "Z" | "a" | ... | "z" ;
+digit               = "0" | ... | "9" ;
+string_character    = ? any valid string character, with escapes preserved ? ;
 ```
 
-Operational notes:
+## Semantic Constraints
 
-- exactly one `template(...)` head is allowed per pipeline entry
-- `include(...)` is resolved before lowering
-- `use(...)` applies a pure function unit by positional arguments
-- `let` introduces a local immutable binding inside a function unit
-- one pipeline call still occupies one line
-- expression-style functions end when the parser reaches the next non-comment,
-  non-empty line that does not start with `|>` or `let `
+- An entry contains exactly one `template :id` head.
+- Each pipeline call occupies one physical line.
+- Function units use `fn name(...) =` and contain no braces.
+- Function defaults are trailing.
+- Placeholders use `$name`.
+- Positional call arguments precede named arguments.
+- Rules use named compact fields in canonical order.
+- Complex colon-delimited predicates are quoted strings or local bindings.
+- `let` is local and immutable inside a function unit.
+- Expression functions end at the next non-comment, non-empty line that is not
+  a `let` binding or pipeline step.
+- `include` resolves before lowering; include cycles are rejected.
+- `use` applies pure function units; recursive use cycles are rejected.
+- The valid pipeline steps and value vocabularies are closed sets defined in
+  [the LLM guide](gewylang-llm-guide.md) and
+  [DSL reference](dsl-reference.md).
+
+Formatting and repository mirror rules are normative in
+[the canonical style standard](gewylang-style.md).

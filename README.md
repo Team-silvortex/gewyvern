@@ -194,49 +194,14 @@ responsibility boundaries:
 
 ## Documentation Entrypoints
 
-Use the docs in layers:
+Use [docs/index.md](docs/index.md) as the single documentation entry. It routes
+by runtime, GewyLang, protocols, operations, or project maintenance without
+duplicating subject content.
 
-- [docs/index.md](docs/index.md)
-  Durable top-level map for project, runtime, DSL, validation, and packaging.
-- [docs/book/index.md](docs/book/index.md)
-  Structured reading spine for tutorials, how-to, reference, and explanation.
-- [docs/script-entrypoints.md](docs/script-entrypoints.md)
-  Goal-based script/operator map.
-- [docs/cli-recipes.md](docs/cli-recipes.md)
-  Runtime CLI, `gewyc`, socket ingest, API, and demo command shelf.
-
-If you are about to operate or expose a real runtime instance, also open:
-
-- [docs/book/how-to-security-checklist.md](docs/book/how-to-security-checklist.md)
-
-If you only want the project's current core contract surfaces, start with:
-
-- [docs/machine-contract.md](docs/machine-contract.md)
-- [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
-- [docs/book/reference-ir-lowering.md](docs/book/reference-ir-lowering.md)
-- [docs/book/reference-runtime-layout.md](docs/book/reference-runtime-layout.md)
-- [docs/book/reference-runtime-certificate-policy.md](docs/book/reference-runtime-certificate-policy.md)
-
-If you are orienting around architecture specifically, the shortest useful
-order is:
-
-1. [docs/architecture-blueprint.md](docs/architecture-blueprint.md)
-2. [docs/system.md](docs/system.md)
-3. [docs/architecture.md](docs/architecture.md)
-4. [docs/architecture-blueprint-modules.md](docs/architecture-blueprint-modules.md)
-5. [docs/module-boundaries.md](docs/module-boundaries.md)
-
-If you are orienting yourself for the first time, the shortest useful order is:
-
-1. [README.md](README.md)
-2. [docs/index.md](docs/index.md)
-3. [docs/book/tutorial-first-run.md](docs/book/tutorial-first-run.md)
-4. [docs/dsl.md](docs/dsl.md)
-5. [docs/development.md](docs/development.md)
-
-If you already know the system and only need the right operator or validation
-entrypoint, jump to
-[docs/script-entrypoints.md](docs/script-entrypoints.md).
+Fast paths: [first run](docs/book/tutorial-first-run.md),
+[CLI recipes](docs/cli-recipes.md),
+[security checklist](docs/book/how-to-security-checklist.md), and
+[development](docs/development.md).
 
 ## Main Entrypoints
 
@@ -327,6 +292,8 @@ For the deeper durable shelves behind those capabilities, use:
 - [docs/system.md](docs/system.md)
 - [docs/dsl.md](docs/dsl.md)
 - [docs/dsl-syntax.md](docs/dsl-syntax.md)
+- [docs/gewylang-llm-guide.md](docs/gewylang-llm-guide.md)
+- [docs/gewylang-style.md](docs/gewylang-style.md)
 - [docs/dsl-reference.md](docs/dsl-reference.md)
 - [docs/book/reference-protocol-surface.md](docs/book/reference-protocol-surface.md)
 - [docs/book/reference-protocol-volume.md](docs/book/reference-protocol-volume.md)
@@ -414,28 +381,9 @@ Use these instead of treating the README as the command notebook.
 
 ## Repo Docs
 
-The three main doc front doors are:
-
-- [docs/index.md](docs/index.md)
-  Top-level shelf map.
-- [docs/book/index.md](docs/book/index.md)
-  Reading order if you want the project as a book.
-- [docs/script-entrypoints.md](docs/script-entrypoints.md)
-  and
-  [docs/cli-recipes.md](docs/cli-recipes.md)
-  Fast operator lookup for scripts and commands.
-
-Then branch by topic:
-
-- architecture:
-  [docs/architecture-blueprint.md](docs/architecture-blueprint.md),
-  [docs/system.md](docs/system.md)
-- `gewylang`:
-  [docs/dsl.md](docs/dsl.md),
-  [docs/dsl-syntax.md](docs/dsl-syntax.md),
-  [docs/dsl-reference.md](docs/dsl-reference.md)
-- contributor workflow:
-  [docs/development.md](docs/development.md)
+All current documentation starts at [docs/index.md](docs/index.md). Historical
+release evidence is intentionally separated under
+[docs/history](docs/history/index.md).
 
 ## Near-Term Direction
 

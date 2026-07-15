@@ -83,8 +83,8 @@ It would increase:
 - cognitive load for contributors
 - risk of turning `gewylang` into a mini language platform
 
-That would work against the current `v0.15.0` posture, which is about
-convergence and clarity rather than widening the language again.
+That would work against the current `v1.0.0` posture, which favors convergence
+and clarity over widening the language again.
 
 ## The Chosen Model
 
