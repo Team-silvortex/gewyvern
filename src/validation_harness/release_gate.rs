@@ -565,7 +565,7 @@ fn summarize_remote_release_gate_posture(
             Some("sudo_not_available") => (
                 "partial",
                 "package_runtime_only",
-                "rerun with sudo or GEWY_REMOTE_EBPF_ADMIN_USER / GEWY_REMOTE_EBPF_ADMIN_PASSWORD to prove Linux attach confidence before 1.0.0",
+                "rerun with sudo or GEWY_REMOTE_EBPF_ADMIN_USER / GEWY_REMOTE_EBPF_ADMIN_PASSWORD to prove Linux attach confidence for the current release",
             ),
             Some("default_route_device_not_detected") => (
                 "partial",

@@ -1,6 +1,6 @@
 # Field Findings
 
-This note records the highest-signal findings from the active `1.0.0` line
+This note records the highest-signal findings inherited by the active `1.2.0` line
 while preserving a shorter historical tail from the earlier `0.15.x`
 field-validation phase.
 
@@ -43,7 +43,7 @@ For those, use:
 - [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 
-## Current `2026-07-10` Findings From `1.0.0`
+## `2026-07-10` Findings Inherited From `1.0.0`
 
 ### 1. The Default Release Gate Now Passes As One Routine
 
@@ -362,7 +362,7 @@ That is useful and intentional, but it is not the same thing as saying:
 
 ## Practical Read Of The Current Line
 
-The current `1.0.0` line now looks strong in these ways:
+The current `1.2.0` line inherits strength in these areas:
 
 - protocol/package shelf is stable
 - current tree-native artifacts are the ones being exercised

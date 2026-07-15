@@ -62,6 +62,7 @@ pub enum Command {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Query {
     RuntimeList { filter: RuntimeListFilter },
+    RuntimeInspect { runtime_id: RuntimeId },
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -238,6 +239,10 @@ pub enum QueryResult {
         revision: Revision,
         runtimes: Vec<RuntimeProjection>,
     },
+    RuntimeInspect {
+        revision: Revision,
+        runtime: RuntimeProjection,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -327,7 +332,7 @@ impl CommandPlan {
         }
         let (required_capability, domain_schema, capabilities) = match &self.operation {
             PlannedOperation::Query(envelope) => match &envelope.query {
-                Query::RuntimeList { .. } => (
+                Query::RuntimeList { .. } | Query::RuntimeInspect { .. } => (
                     CAPABILITY_RUNTIME_READ,
                     envelope.schema_version,
                     &envelope.capabilities,
@@ -531,6 +536,17 @@ impl InMemoryControlPlane {
                 Ok(QueryResult::RuntimeList {
                     revision: Revision(self.revision),
                     runtimes,
+                })
+            }
+            Query::RuntimeInspect { runtime_id } => {
+                let runtime = self.runtimes.get(&runtime_id).cloned().ok_or_else(|| {
+                    DomainError::RuntimeNotFound {
+                        runtime_id: runtime_id.as_str().to_string(),
+                    }
+                })?;
+                Ok(QueryResult::RuntimeInspect {
+                    revision: Revision(self.revision),
+                    runtime,
                 })
             }
         }
@@ -845,9 +861,40 @@ mod tests {
                 },
             })
             .unwrap();
-        let QueryResult::RuntimeList { runtimes, .. } = result;
+        let QueryResult::RuntimeList { runtimes, .. } = result else {
+            panic!("runtime list must return a list result");
+        };
         assert_eq!(runtimes[0].id.as_str(), "runtime-a");
         assert_eq!(runtimes[1].id.as_str(), "runtime-b");
+    }
+
+    #[test]
+    fn runtime_inspect_returns_one_projection_and_fails_when_missing() {
+        let mut control = InMemoryControlPlane::default();
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        control.register_runtime(runtime_id.clone(), "A", "http://a");
+        let envelope = |runtime_id| QueryEnvelope {
+            schema_version: DOMAIN_SCHEMA_VERSION,
+            principal: Principal {
+                id: "operator".to_string(),
+            },
+            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+            query: Query::RuntimeInspect { runtime_id },
+        };
+        let result = control.query(envelope(runtime_id.clone())).unwrap();
+        assert!(matches!(
+            result,
+            QueryResult::RuntimeInspect { revision: Revision(1), runtime }
+                if runtime.id == runtime_id
+        ));
+        assert_eq!(
+            control
+                .query(envelope(RuntimeId::new("missing").unwrap()))
+                .unwrap_err(),
+            DomainError::RuntimeNotFound {
+                runtime_id: "missing".into()
+            }
+        );
     }
 
     #[test]
@@ -990,7 +1037,9 @@ mod tests {
                 },
             })
             .unwrap();
-        let QueryResult::RuntimeList { runtimes, .. } = result;
+        let QueryResult::RuntimeList { runtimes, .. } = result else {
+            panic!("runtime list must return a list result");
+        };
         assert_eq!(runtimes.len(), 2);
         assert_eq!(runtimes[0].id.as_str(), "runtime-z");
         assert_eq!(runtimes[1].id.as_str(), "runtime-a");

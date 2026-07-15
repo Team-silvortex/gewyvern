@@ -801,7 +801,7 @@ echo "container runtime validation: ok"
 
 fn package_install_smoke_deb_body() -> &'static str {
     r#"
-RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.0.0}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.2.0}"
 
 dpkg-deb -c "${GEWY_PACKAGE_FILE}" >/tmp/gewyvern-package-contents.txt
 grep -q './usr/share/doc/gewyvern/LICENSE' /tmp/gewyvern-package-contents.txt
@@ -821,7 +821,7 @@ test -f /usr/share/gewyvern/examples/gewyvern.toml.example
 
 fn package_install_smoke_rpm_body() -> &'static str {
     r#"
-RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.0.0}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.2.0}"
 
 rpm -qpl "${GEWY_PACKAGE_FILE}" >/tmp/gewyvern-package-contents.txt
 grep -q '/usr/share/doc/gewyvern/LICENSE' /tmp/gewyvern-package-contents.txt

@@ -77,17 +77,32 @@ structured values, and persists merged output through the existing journal.
 Source-level `all` now preserves named branch order in the lossless parser,
 lowers branch-local types, and authorizes the union of branch capabilities. The
 schema-5 journal now reserves strict merge-group and ordered branch records,
-migrates legacy schemas, and rejects malformed recovery graphs. The VM
-intentionally rejects `all` before continuation allocation until atomic graph
-creation, branch completion, and retention integration are complete; executable
-multi-branch continuation wiring is still required before the gate exits.
+migrates legacy schemas, and rejects malformed recovery graphs. A shared
+ephemeral/SQLite primitive now validates and atomically writes the merge plan,
+every branch continuation and dispatch, and all declared-order links. Injected
+mid-graph failure rolls the entire SQLite transaction back; committed graphs
+recover every branch after restart. Branch terminal writes now finalize the
+group in the same transaction when the last branch completes, persist the
+declared-order merge result, and roll the branch write back if group completion
+fails. Success and permanent-failure outcomes survive restart. Retention now
+treats a completed merge graph as one logical unit: ephemeral and SQLite
+compaction remove its group, links, branch effects, and dispatches together,
+while pending or partial graphs remain untouchable. The batch limit counts
+logical units, and each graph remains physically bounded to 64 branches. The VM
+now starts one-level `all` as an ordered atomic effect batch with a stable merge
+token. Non-final branch completion exposes durable waiting progress, the final
+branch returns the declared-order aggregate, and SQLite restart resumes only the
+remaining branches. Nested `all` remains deliberately rejected before sequence
+allocation; the one-level structured-execution VM contract has exited Gate 2.
 
 The `leselang-command` boundary now lowers authorized `runtime.list` and
 `runtime.refresh` HIR effects into frontend-neutral `CommandPlan` values. The VM
 consumes that crate rather than constructing domain envelopes itself, and tests
 prove that CLI and Leselang origins preserve identical command semantics apart
-from audit origin metadata. Broader command coverage and canonical plan export
-remain before Gate 2 exits.
+from audit origin metadata. The CLI now uses that shared lowering function for
+real refresh requests and can export deterministic, validated, versioned plans
+locally without daemon credentials. Broader command coverage remains before
+Gate 2 exits.
 
 Exit: programs can suspend, restart, re-enter, and replay deterministically.
 
@@ -110,8 +125,11 @@ versioned response envelope for automation. A real binary-to-daemon test covers
 both modes. `runtime refresh` now requires explicit `--yes` for mutation, supports
 non-mutating `--dry-run`, optimistic revision checks, stable caller-provided
 idempotency keys, and local-only canonical Leselang export. A parity test parses,
-lowers, and compares the exported command. Broader inspect/watch/history/export
-operations remain before Gate 3 exits.
+lowers, and compares the exported command. Local `--export-plan` now emits the
+same normalized refresh plan used for execution and requires an explicit stable
+idempotency key. A real authenticated IPC and CLI/Leselang parity fixture now
+covers the dedicated `runtime inspect` query. Broader watch/history/export operations remain before
+Gate 3 exits.
 
 Exit: every migrated operation is executable through CLI and Leselang with the
 same parity fixtures.

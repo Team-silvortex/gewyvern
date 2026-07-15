@@ -162,7 +162,7 @@ fn execute_request(runtime: &mut ControlRuntime, request: RequestEnvelope) -> Re
     };
     let required_capability = match &request {
         ProtocolRequest::Query(query) => match query.query {
-            Query::RuntimeList { .. } => CAPABILITY_RUNTIME_READ,
+            Query::RuntimeList { .. } | Query::RuntimeInspect { .. } => CAPABILITY_RUNTIME_READ,
         },
         ProtocolRequest::Command(command) => match command.command {
             Command::RuntimeRefresh { .. } => CAPABILITY_RUNTIME_REFRESH,

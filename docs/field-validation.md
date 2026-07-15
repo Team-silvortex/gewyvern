@@ -13,7 +13,7 @@ This is the bridge between:
 
 - contract freeze
 - benchmark acceptance
-- current release judgment for the active `1.0.0` line
+- current release judgment for the active `1.2.0` line
 
 For the sealed `1.0.0` release posture and the final pre-stable checkpoint,
 see [docs/history/v1.0.0.md](docs/history/v1.0.0.md) and
@@ -69,7 +69,7 @@ For those, use:
 
 ## Current Prelaunch Scope
 
-Keep the current `1.0.0` field-validation line intentionally narrow.
+Keep the current `1.2.0` field-validation line intentionally narrow.
 
 The question is not "what else could `gewyvern` support".
 
@@ -435,6 +435,6 @@ This note does not replace:
 - release gate judgment
 - the dedicated multi-project collaboration gate with `etragon` and `leserpent`
 
-It exists so the active `1.0.0` line has a concrete "keep validating for
+It exists so the active `1.2.0` line has a concrete "keep validating for
 real" shelf rather
 than only architecture cleanup.

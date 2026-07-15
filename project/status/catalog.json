@@ -642,12 +642,12 @@
       "feature": "command-query-kernel",
       "lifecycle": "target",
       "maturity": "stabilizing",
-      "completion": 86,
+      "completion": 90,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-domain-contract",
-        "version": "0.5.0",
+        "version": "0.6.0",
         "stability": "evolving",
         "surfaces": [
           "command-envelope",
@@ -660,7 +660,9 @@
           "plan-validation",
           "domain-snapshot",
           "snapshot-validation",
-          "idempotency-state-restore"
+          "idempotency-state-restore",
+          "runtime-inspect-query",
+          "typed-runtime-not-found"
         ]
       },
       "depends_on": ["leserpent-1x/control-plane/orchestration-persistence"],
@@ -750,14 +752,14 @@
       "feature": "typed-effects",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 84,
+      "completion": 88,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-hir-contract",
-        "version": "0.10.0",
+        "version": "0.11.0",
         "stability": "evolving",
-        "surfaces": ["typed-hir", "capability-check", "effect-union", "declared-branch-order"]
+        "surfaces": ["typed-hir", "capability-check", "effect-union", "declared-branch-order", "runtime-inspect-effect"]
       },
       "depends_on": ["leserpent-2/language-syntax/lossless-frontend", "leserpent-2/domain-model/command-query-kernel"],
       "blockers": [
@@ -780,13 +782,13 @@
       "module": "language-vm",
       "feature": "effect-reentry",
       "lifecycle": "target",
-      "maturity": "developing",
-      "completion": 95,
-      "confidence": "medium",
+      "maturity": "stabilizing",
+      "completion": 100,
+      "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-execution-protocol",
-        "version": "0.10.0",
+        "version": "0.15.0",
         "stability": "evolving",
         "surfaces": [
           "step",
@@ -817,27 +819,39 @@
           "declared-order-terminal-arbitration",
           "bounded-structured-value",
           "structured-value-journal-replay",
-          "pre-allocation-execution-guard",
+          "nested-all-pre-allocation-guard",
           "journal-schema-5",
           "strict-merge-graph-metadata",
           "validated-merge-graph-recovery",
-          "legacy-merge-schema-migration"
+          "legacy-merge-schema-migration",
+          "atomic-merge-graph-creation",
+          "merge-graph-conflict-rollback",
+          "merge-branch-restart-recovery",
+          "atomic-final-branch-merge",
+          "restart-safe-merge-result",
+          "terminal-outcome-merge",
+          "merge-branch-compaction-protection",
+          "logical-unit-merge-retention",
+          "atomic-merge-graph-deletion",
+          "pending-merge-retention-exclusion",
+          "structured-effect-batch",
+          "named-branch-dispatch",
+          "merge-wait-progress",
+          "structured-vm-startup",
+          "restart-safe-structured-resume",
+          "final-branch-program-result",
+          "typed-runtime-inspect-reentry"
         ]
       },
       "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/domain-model/command-query-kernel"],
-      "blockers": [
-        {
-          "id": "durable-all-branch-graph",
-          "summary": "Source-level all, merge semantics, and schema-5 graph metadata are proven; atomic graph creation, completion, and retention integration remain before Gate 2 can exit."
-        }
-      ],
+      "blockers": [],
       "consumers": ["model-automation", "leserpent-cli", "ui-functions"],
       "evidence": [
         { "kind": "documentation", "path": "docs/leselang-language.md", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm/src/journal.rs", "state": "present" }
       ],
-      "next_gate": "Gate 2: wire atomic all graph creation, branch completion, and retention, then remove the LSV1002 guard."
+      "next_gate": "Stabilize the deterministic structured-execution contract while command, CLI, and UI coverage integrate it; nested all remains a later language extension."
     },
     {
       "id": "leserpent-2/command-lowering/command-plan-lowering",
@@ -846,20 +860,20 @@
       "feature": "command-plan-lowering",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 42,
+      "completion": 58,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-command-contract",
-        "version": "0.4.0",
+        "version": "0.6.0",
         "stability": "evolving",
-        "surfaces": ["command-plan", "planned-operation", "runtime-list-query", "runtime-refresh-command", "origin-metadata", "dry-run-plan", "versioned-plan-json", "bounded-plan-codec", "plan-semantic-validation", "fail-closed-capability-check", "canonical-leselang"]
+        "surfaces": ["command-plan", "planned-operation", "runtime-list-query", "runtime-inspect-query", "runtime-refresh-command", "origin-metadata", "dry-run-plan", "versioned-plan-json", "bounded-plan-codec", "plan-semantic-validation", "fail-closed-capability-check", "canonical-leselang", "shared-cli-command-lowering", "deterministic-local-plan-export"]
       },
       "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/domain-model/command-query-kernel"],
       "blockers": [
         {
           "id": "operation-breadth",
-          "summary": "The shared lowering boundary handles runtime.list and runtime.refresh; broader orchestration, deployment, history, and debugger commands remain."
+          "summary": "The shared lowering boundary handles runtime.list, runtime.inspect, and runtime.refresh; broader orchestration, deployment, history, and debugger commands remain."
         }
       ],
       "consumers": ["leselang-vm", "leserpent-cli", "ui-actions", "model-automation"],
@@ -869,7 +883,7 @@
         { "kind": "test", "path": "crates/leselang-command/src/lib.rs", "state": "present" },
         { "kind": "test", "path": "crates/leselang-vm/src/lib.rs", "state": "present" }
       ],
-      "next_gate": "Gate 2: lower the next orchestration command and add parity fixtures without reintroducing VM-owned envelope construction."
+      "next_gate": "Gate 2: lower the next orchestration operation and add CLI/Leselang/plan parity fixtures without reintroducing frontend-owned envelope construction."
     },
     {
       "id": "leserpent-2/ui-language/ui-ir-lowering",
@@ -1002,14 +1016,14 @@
       "feature": "cli-parity",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 50,
+      "completion": 60,
       "confidence": "high",
       "independence": "standalone-tool",
       "contract": {
         "id": "leserpent-cli-contract",
-        "version": "0.3.0",
+        "version": "0.4.0",
         "stability": "evolving",
-        "surfaces": ["native-binary", "manual-bounded-argument-parser", "authenticated-unix-ipc-client", "environment-only-token", "private-socket-validation", "wire-v1-health", "runtime-list-query", "runtime-list-filters", "runtime-refresh-command", "explicit-confirmation", "dry-run", "expected-revision", "caller-idempotency-key", "canonical-leselang-export", "cli-leselang-command-parity", "human-output", "terminal-safe-cells", "stable-json-envelope", "exit-code-contract"]
+        "surfaces": ["native-binary", "manual-bounded-argument-parser", "authenticated-unix-ipc-client", "environment-only-token", "private-socket-validation", "wire-v1-health", "runtime-list-query", "runtime-list-filters", "runtime-inspect-query", "runtime-refresh-command", "explicit-confirmation", "dry-run", "expected-revision", "caller-idempotency-key", "canonical-leselang-export", "deterministic-plan-export", "cli-leselang-command-parity", "cli-leselang-query-parity", "human-output", "terminal-safe-cells", "stable-json-envelope", "exit-code-contract"]
       },
       "depends_on": [
         "leserpent-2/transport-protocol/wire-compatibility",
@@ -1019,7 +1033,7 @@
       "blockers": [
         {
           "id": "gate-three-mutation-parity",
-          "summary": "Health, runtime list, and runtime refresh now have human/JSON, dry-run, confirmation, optimistic revision, idempotency, and canonical Leselang parity; broader inspect/watch/history/export commands remain."
+          "summary": "Health, runtime list, runtime inspect, and runtime refresh now have authenticated IPC and parity evidence; broader watch/history/export commands remain."
         }
       ],
       "consumers": ["operators", "automation", "ci"],
@@ -1029,7 +1043,7 @@
         { "kind": "source", "path": "crates/leserpent-cli", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-cli/tests/ipc_vertical.rs", "state": "present" }
       ],
-      "next_gate": "Gate 3: add inspect/watch/history surfaces and parity fixtures while preserving the frozen command and protocol contracts."
+      "next_gate": "Gate 3: add watch/history surfaces and parity fixtures while preserving the versioned command and protocol contracts."
     },
     {
       "id": "leserpent-2/ui-renderers/avalonia-renderer",

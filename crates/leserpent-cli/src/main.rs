@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use leserpent_cli::{
-    CliError, export_leselang, parse_args, render_response, request_for, send_request,
+    CliError, export_leselang, export_plan, parse_args, render_response, request_for, send_request,
 };
 use leserpent_protocol::ProtocolResponse;
 
@@ -26,6 +26,10 @@ fn run() -> Result<i32, CliError> {
     )?;
     if let Some(source) = export_leselang(&options) {
         println!("{source}");
+        return Ok(0);
+    }
+    if let Some(plan) = export_plan(&options)? {
+        println!("{plan}");
         return Ok(0);
     }
     let socket = options

@@ -6,13 +6,13 @@ description = "Native authenticated CLI for the Leserpent control runtime"
 license.workspace = true
 
 [dependencies]
+leselang-command = { path = "../leselang-command" }
 leserpent-domain = { path = "../leserpent-domain" }
 leserpent-protocol = { path = "../leserpent-protocol" }
 serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
-leselang-command = { path = "../leselang-command" }
 leselang-hir = { path = "../leselang-hir" }
 leselang-syntax = { path = "../leselang-syntax" }
 leserpent-runtime = { path = "../leserpent-runtime" }

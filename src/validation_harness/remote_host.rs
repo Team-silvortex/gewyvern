@@ -58,7 +58,7 @@ pub fn run_remote_linux_host_validation(
         .clone()
         .unwrap_or_else(default_remote_dir);
     let remote_path = remote_workspace_path(&remote_dir);
-    let release_line = env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v1.0.0".to_string());
+    let release_line = env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v1.2.0".to_string());
 
     validation_log(format!("[remote-host] host: {}", options.host));
     validation_log(format!(
@@ -2972,7 +2972,7 @@ mod tests {
     #[test]
     fn parse_remote_artifact_manifest_requires_both_package_formats() {
         let manifest = parse_remote_artifact_manifest(
-            "deb=target/packages/gewyvern_1.0.0-1_amd64.deb\nrpm=target/packages/rpm/gewyvern-1.0.0-1.x86_64.rpm\n",
+            "deb=target/packages/gewyvern_1.2.0-1_amd64.deb\nrpm=target/packages/rpm/gewyvern-1.2.0-1.x86_64.rpm\n",
         )
         .unwrap();
 

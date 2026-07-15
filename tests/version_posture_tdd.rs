@@ -115,6 +115,12 @@ fn docs_describe_one_shared_mainline_version() {
     let readme = read_repo_file("README.md");
     let monorepo = read_repo_file("docs/monorepo-stack.md");
     let leserpent_readme = read_repo_file("apps/leserpent/README.md");
+    let root_manifest = read_repo_file("Cargo.toml");
+    let workspace_version = section_version(&root_manifest, "workspace.package");
+
+    assert_eq!(workspace_version, "1.2.0");
+    assert!(readme.starts_with("# gewyvern v1.2.0\n"));
+    assert!(readme.contains("project version: `1.2.0`"));
 
     assert!(readme.contains("follows the root `gewyvern` version"));
     assert!(monorepo.contains("one shared mainline version"));

@@ -13,10 +13,10 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 mod journal;
 
-use journal::Journal;
 pub use journal::{
     JOURNAL_SCHEMA_VERSION, MAX_JOURNAL_ENTRY_BYTES, MAX_JOURNAL_RECORDS, MAX_JOURNAL_TOTAL_BYTES,
 };
+use journal::{Journal, MergeProgress};
 
 pub const CONTINUATION_SCHEMA_VERSION: u32 = 1;
 pub const MAX_CONTINUATION_BYTES: usize = 64 * 1024;
@@ -266,11 +266,34 @@ pub struct StructuredField {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct NamedEffectRequest {
+    pub branch: String,
+    pub request: EffectRequest,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct StructuredEffectBatch {
+    pub merge_token: ContinuationToken,
+    pub branches: Vec<NamedEffectRequest>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct MergeWait {
+    pub merge_token: ContinuationToken,
+    pub completed_branches: usize,
+    pub total_branches: usize,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Value {
     RuntimeList {
         revision: Revision,
         runtimes: Vec<RuntimeProjection>,
+    },
+    RuntimeInspect {
+        revision: Revision,
+        runtime: Box<RuntimeProjection>,
     },
     RuntimeRefresh {
         result: Box<CommandResult>,
@@ -305,6 +328,8 @@ pub struct Cancellation {
 pub enum Step {
     Done(Value),
     Effect(Box<EffectRequest>),
+    Effects(Box<StructuredEffectBatch>),
+    Waiting(MergeWait),
     Yield(ContinuationImage),
     Cancelled(Cancellation),
     Failed(FailedEffect),
@@ -402,10 +427,14 @@ impl Vm {
         if let Err(error) = authorize(program, &capabilities) {
             return fault(&error.code, error.message);
         }
-        if matches!(program.function.effect, Effect::All { .. }) {
-            return fault(
-                "LSV1002",
-                "structured all execution requires a multi-branch continuation",
+        if let Effect::All { branches } = &program.function.effect {
+            return self.start_all(
+                branches,
+                principal,
+                capabilities,
+                expected_revision,
+                deadline_ms,
+                deadline_at_ms,
             );
         }
 
@@ -413,27 +442,129 @@ impl Vm {
             Ok(sequence) => sequence,
             Err(error) => return Step::Fault(error),
         };
-        let token = ContinuationToken(format!("continuation-{sequence}"));
+        let request = match self.build_effect_request(
+            &program.function.effect,
+            program.function.result_type,
+            sequence,
+            principal,
+            capabilities,
+            expected_revision,
+            deadline_ms,
+            deadline_at_ms,
+        ) {
+            Ok(request) => request,
+            Err(error) => return Step::Fault(error),
+        };
+        if let Err(error) = self
+            .journal
+            .record_pending(&request.continuation, Some(&request))
+        {
+            return Step::Fault(error);
+        }
+        self.pending.insert(
+            request.continuation.token.clone(),
+            request.continuation.clone(),
+        );
+        Step::Effect(Box::new(request))
+    }
+
+    fn start_all(
+        &mut self,
+        branches: &[leselang_hir::HirBranch],
+        principal: Principal,
+        capabilities: CapabilitySet,
+        expected_revision: Option<Revision>,
+        deadline_ms: u64,
+        deadline_at_ms: Option<u64>,
+    ) -> Step {
+        if branches
+            .iter()
+            .any(|branch| matches!(branch.effect, Effect::All { .. }))
+        {
+            return fault("LSV1002", "nested structured all is not yet supported");
+        }
+        let plan = match MergePlan::new(branches.iter().map(|branch| branch.name.clone())) {
+            Ok(plan) => plan,
+            Err(error) => return Step::Fault(error),
+        };
+        let group_sequence = match self.allocate_sequence() {
+            Ok(sequence) => sequence,
+            Err(error) => return Step::Fault(error),
+        };
+        let merge_token = ContinuationToken(format!("merge-{group_sequence}"));
+        let mut named = Vec::with_capacity(branches.len());
+        for branch in branches {
+            let sequence = match self.allocate_sequence() {
+                Ok(sequence) => sequence,
+                Err(error) => return Step::Fault(error),
+            };
+            let request = match self.build_effect_request(
+                &branch.effect,
+                branch.result_type,
+                sequence,
+                principal.clone(),
+                capabilities.clone(),
+                expected_revision,
+                deadline_ms,
+                deadline_at_ms,
+            ) {
+                Ok(request) => request,
+                Err(error) => return Step::Fault(error),
+            };
+            named.push(NamedEffectRequest {
+                branch: branch.name.clone(),
+                request,
+            });
+        }
+        let graph = named
+            .iter()
+            .map(|branch| (branch.branch.as_str(), &branch.request))
+            .collect::<Vec<_>>();
+        if let Err(error) = self.journal.record_merge_graph(&merge_token, &plan, &graph) {
+            return Step::Fault(error);
+        }
+        for branch in &named {
+            self.pending.insert(
+                branch.request.continuation.token.clone(),
+                branch.request.continuation.clone(),
+            );
+        }
+        Step::Effects(Box::new(StructuredEffectBatch {
+            merge_token,
+            branches: named,
+        }))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_effect_request(
+        &self,
+        effect: &Effect,
+        result_type: Type,
+        sequence: u64,
+        principal: Principal,
+        capabilities: CapabilitySet,
+        expected_revision: Option<Revision>,
+        deadline_ms: u64,
+        deadline_at_ms: Option<u64>,
+    ) -> Result<EffectRequest, Fault> {
         let image = ContinuationImage {
             schema_version: CONTINUATION_SCHEMA_VERSION,
-            token: token.clone(),
+            token: ContinuationToken(format!("continuation-{sequence}")),
             program_counter: 1,
             expected_revision,
-            result_type: program.function.result_type,
-            pending_effect: program.function.effect.clone(),
+            result_type,
+            pending_effect: effect.clone(),
             fuel_remaining: self.fuel_limit - 1,
             deadline_ms,
             deadline_at_ms,
             max_output_items: DEFAULT_MAX_OUTPUT_ITEMS,
         };
-        if let Err(error) = encode_continuation(&image) {
-            return Step::Fault(error);
-        }
+        encode_continuation(&image)?;
         let plan = lower_effect(
-            &program.function.effect,
+            effect,
             &LoweringContext {
-                principal: principal.clone(),
-                capabilities: capabilities.clone(),
+                principal,
+                capabilities,
                 expected_revision,
                 command_id: CommandId::new(format!("leselang-command-{sequence}"))
                     .expect("generated command identifier is valid"),
@@ -444,28 +575,26 @@ impl Vm {
                 dry_run: false,
             },
         )
-        .expect("structured effects returned before command lowering");
+        .map_err(|error| Fault {
+            code: "LSV1002".to_string(),
+            message: format!("structured branch lowering failed: {error:?}"),
+        })?;
         let operation = match plan.operation {
             PlannedOperation::Query(query) => EffectOperation::Query(query),
             PlannedOperation::Command(command) => EffectOperation::Command(command),
         };
-        let request = EffectRequest {
+        Ok(EffectRequest {
             effect_id: format!("effect-{sequence}"),
             required_capability: plan.required_capability,
             operation,
             continuation: image.clone(),
             budget: ResourceBudget {
-                fuel_remaining: self.fuel_limit - 1,
+                fuel_remaining: image.fuel_remaining,
                 deadline_ms: image.deadline_ms,
                 deadline_at_ms: image.deadline_at_ms,
                 max_output_items: image.max_output_items,
             },
-        };
-        if let Err(error) = self.journal.record_pending(&image, Some(&request)) {
-            return Step::Fault(error);
-        }
-        self.pending.insert(token, image);
-        Step::Effect(Box::new(request))
+        })
     }
 
     pub fn restore(&mut self, image: ContinuationImage) -> Result<(), Fault> {
@@ -526,7 +655,7 @@ impl Vm {
 
     fn resume_inner(&mut self, image: &ContinuationImage, result: EffectResult) -> Step {
         match self.replay_completed(&image.token) {
-            Ok(Some(completed)) => return completed,
+            Ok(Some(completed)) => return self.visible_step(&image.token, completed),
             Ok(None) => {}
             Err(error) => return Step::Fault(error),
         }
@@ -554,7 +683,7 @@ impl Vm {
         self.pending.remove(&image.token);
         self.completed
             .insert(image.token.clone(), authoritative.clone());
-        authoritative
+        self.visible_step(&image.token, authoritative)
     }
 
     pub fn claim_effect(
@@ -580,7 +709,7 @@ impl Vm {
         }
         let image = &lease.request.continuation;
         match self.replay_completed(&image.token) {
-            Ok(Some(completed)) => return completed,
+            Ok(Some(completed)) => return self.visible_step(&image.token, completed),
             Ok(None) => {}
             Err(error) => return Step::Fault(error),
         }
@@ -598,7 +727,7 @@ impl Vm {
         self.pending.remove(&image.token);
         self.completed
             .insert(image.token.clone(), authoritative.clone());
-        authoritative
+        self.visible_step(&image.token, authoritative)
     }
 
     pub fn report_effect_error(
@@ -611,7 +740,9 @@ impl Vm {
         validate_scheduler_time(now_ms)?;
         self.expire_due(now_ms)?;
         if let Some(completed) = self.replay_completed(&lease.request.continuation.token)? {
-            return Ok(RetryDisposition::Terminal(completed));
+            return Ok(RetryDisposition::Terminal(
+                self.visible_step(&lease.request.continuation.token, completed),
+            ));
         }
         validate_effect_error(&error)?;
         if error.class == EffectErrorClass::Transient {
@@ -651,6 +782,9 @@ impl Vm {
             let image = &lease.request.continuation;
             self.pending.remove(&image.token);
             self.completed.insert(image.token.clone(), step.clone());
+            return Ok(RetryDisposition::Terminal(
+                self.visible_step(&image.token, step.clone()),
+            ));
         }
         Ok(authoritative)
     }
@@ -663,7 +797,7 @@ impl Vm {
             return Step::Fault(error);
         }
         match self.replay_completed(&image.token) {
-            Ok(Some(completed)) => return completed,
+            Ok(Some(completed)) => return self.visible_step(&image.token, completed),
             Ok(None) => {}
             Err(error) => return Step::Fault(error),
         }
@@ -686,6 +820,10 @@ impl Vm {
 
     pub fn completed_count(&self) -> usize {
         self.completed.len()
+    }
+
+    pub fn merge_result(&self, merge_token: &ContinuationToken) -> Result<Option<Step>, Fault> {
+        self.journal.merge_result(merge_token)
     }
 
     pub fn compact_journal(&mut self, policy: &RetentionPolicy) -> Result<CompactionReport, Fault> {
@@ -716,6 +854,32 @@ impl Vm {
         }
         self.completed.remove(token);
         Ok(None)
+    }
+
+    fn visible_step(&self, branch_token: &ContinuationToken, branch_step: Step) -> Step {
+        match self.journal.merge_progress(branch_token) {
+            Ok(MergeProgress::Standalone) => branch_step,
+            Ok(MergeProgress::Pending {
+                merge_token,
+                completed_branches,
+                total_branches,
+            }) => Step::Waiting(MergeWait {
+                merge_token,
+                completed_branches,
+                total_branches,
+            }),
+            Ok(MergeProgress::Completed { merge_token, step }) => {
+                debug_assert!(
+                    self.journal
+                        .merge_result(&merge_token)
+                        .ok()
+                        .flatten()
+                        .is_some()
+                );
+                step
+            }
+            Err(error) => Step::Fault(error),
+        }
     }
 
     fn allocate_sequence(&mut self) -> Result<u64, Fault> {
@@ -757,7 +921,7 @@ impl Vm {
         self.pending.remove(&image.token);
         self.completed
             .insert(image.token.clone(), authoritative.clone());
-        authoritative
+        self.visible_step(&image.token, authoritative)
     }
 }
 
@@ -886,6 +1050,21 @@ fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 CAPABILITY_RUNTIME_READ,
             )?;
             matches!(&query.query, Query::RuntimeList { filter } if filter == effect_filter)
+        }
+        (Effect::RuntimeInspect { runtime_id }, EffectOperation::Query(query)) => {
+            validate_effect_identity(
+                query.schema_version,
+                &query.principal,
+                &query.capabilities,
+                &request.required_capability,
+                CAPABILITY_RUNTIME_READ,
+            )?;
+            matches!(
+                &query.query,
+                Query::RuntimeInspect {
+                    runtime_id: query_runtime_id,
+                } if query_runtime_id == runtime_id
+            )
         }
         (Effect::RuntimeRefresh { runtime_id }, EffectOperation::Command(command)) => {
             validate_effect_identity(
@@ -1148,6 +1327,7 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         Value::RuntimeList { runtimes, .. } if runtimes.len() <= DEFAULT_MAX_OUTPUT_ITEMS => {
             Ok(runtimes.len())
         }
+        Value::RuntimeInspect { .. } => Ok(1),
         Value::RuntimeRefresh { .. } => Ok(1),
         Value::Structured { fields } if (2..=MAX_MERGE_BRANCHES).contains(&fields.len()) => {
             let mut names = BTreeSet::new();
@@ -1265,6 +1445,29 @@ fn step_from_effect_result(
                 )
             } else {
                 Step::Done(Value::RuntimeList { revision, runtimes })
+            }
+        }
+        (
+            Effect::RuntimeInspect { runtime_id },
+            Type::RuntimeInspect,
+            _,
+            EffectResult::Query(QueryResult::RuntimeInspect { revision, runtime }),
+        ) if runtime.id == *runtime_id => {
+            if let Some(expected) = image.expected_revision
+                && expected != revision
+            {
+                fault(
+                    "LSV2101",
+                    format!(
+                        "effect revision conflict: expected {}, actual {}",
+                        expected.0, revision.0
+                    ),
+                )
+            } else {
+                Step::Done(Value::RuntimeInspect {
+                    revision,
+                    runtime: Box::new(runtime),
+                })
             }
         }
         (
@@ -1462,7 +1665,9 @@ mod tests {
         let EffectOperation::Query(query) = request.operation else {
             panic!("expected query operation");
         };
-        let Query::RuntimeList { filter } = query.query;
+        let Query::RuntimeList { filter } = query.query else {
+            panic!("runtime list must produce a list query");
+        };
         assert_eq!(
             filter,
             RuntimeListFilter {
@@ -1474,7 +1679,43 @@ mod tests {
     }
 
     #[test]
-    fn structured_all_fails_before_continuation_allocation_until_graph_is_durable() {
+    fn runtime_inspect_reenters_with_one_typed_projection() {
+        let program = lower(&parse(
+            "fn main() = runtime.inspect(runtime_id: \"runtime-a\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+            Some(Revision(1)),
+        ) else {
+            panic!("expected inspect effect");
+        };
+        let EffectOperation::Query(query) = &request.operation else {
+            panic!("inspect must produce a query");
+        };
+        assert!(matches!(
+            &query.query,
+            Query::RuntimeInspect { runtime_id } if runtime_id.as_str() == "runtime-a"
+        ));
+        let mut control = InMemoryControlPlane::default();
+        control.register_runtime(RuntimeId::new("runtime-a").unwrap(), "A", "http://a");
+        let result = control.query(query.clone()).unwrap();
+        assert!(matches!(
+            vm.resume(&request.continuation, EffectResult::Query(result)),
+            Step::Done(Value::RuntimeInspect {
+                revision: Revision(1),
+                runtime,
+            }) if runtime.id.as_str() == "runtime-a"
+        ));
+    }
+
+    #[test]
+    fn structured_all_starts_as_an_ordered_atomic_effect_batch() {
         let structured = lower(&parse(
             "fn main() = all(read: runtime.list(), refresh: runtime.refresh(runtime_id: \"runtime-a\"))",
         ))
@@ -1493,24 +1734,573 @@ mod tests {
             Step::Fault(Fault { ref code, .. }) if code == "LSH2001"
         ));
 
-        let unsupported = vm.start(
-            &structured,
+        let executable = lower(&parse(
+            "fn main() = all(left: runtime.list(), right: runtime.list())",
+        ))
+        .unwrap();
+        let started = vm.start(
+            &executable,
             Principal {
                 id: "operator".to_string(),
             },
-            CapabilitySet::new([CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH]),
-            Some(Revision(1)),
+            CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+            None,
+        );
+        let Step::Effects(batch) = started else {
+            panic!("expected structured effect batch");
+        };
+        assert_eq!(batch.merge_token.as_str(), "merge-1");
+        assert_eq!(
+            batch
+                .branches
+                .iter()
+                .map(|branch| branch.branch.as_str())
+                .collect::<Vec<_>>(),
+            ["left", "right"]
+        );
+        assert_eq!(
+            batch
+                .branches
+                .iter()
+                .map(|branch| branch.request.continuation.token.as_str())
+                .collect::<Vec<_>>(),
+            ["continuation-2", "continuation-3"]
+        );
+        assert_eq!(vm.pending_count(), 2);
+        assert_eq!(vm.completed_count(), 0);
+
+        let first = vm.claim_effect(10, 100).unwrap().unwrap();
+        assert!(matches!(
+            vm.acknowledge_effect(&first, 11, runtime_list_result(1)),
+            Step::Waiting(MergeWait {
+                completed_branches: 1,
+                total_branches: 2,
+                ..
+            })
+        ));
+        let second = vm.claim_effect(10, 100).unwrap().unwrap();
+        assert!(matches!(
+            vm.acknowledge_effect(&second, 11, runtime_list_result(2)),
+            Step::Done(Value::Structured { .. })
+        ));
+        assert!(matches!(
+            vm.merge_result(&batch.merge_token).unwrap(),
+            Some(Step::Done(Value::Structured { .. }))
+        ));
+    }
+
+    #[test]
+    fn durable_structured_start_resumes_remaining_branches_after_restart() {
+        let journal = TempJournal::new("structured-start-restart");
+        let program = lower(&parse(
+            "fn main() = all(left: runtime.list(), right: runtime.list())",
+        ))
+        .unwrap();
+        let merge_token = {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            let Step::Effects(batch) = vm.start(
+                &program,
+                Principal {
+                    id: "operator".to_string(),
+                },
+                CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                None,
+            ) else {
+                panic!("expected durable structured batch");
+            };
+            let first = vm.claim_effect(10, 100).unwrap().unwrap();
+            assert!(matches!(
+                vm.acknowledge_effect(&first, 11, runtime_list_result(1)),
+                Step::Waiting(MergeWait {
+                    completed_branches: 1,
+                    total_branches: 2,
+                    ..
+                })
+            ));
+            batch.merge_token.clone()
+        };
+
+        let mut recovered = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert_eq!(recovered.pending_count(), 1);
+        assert_eq!(recovered.completed_count(), 1);
+        let second = recovered.claim_effect(20, 100).unwrap().unwrap();
+        let Step::Done(Value::Structured { fields }) =
+            recovered.acknowledge_effect(&second, 21, runtime_list_result(2))
+        else {
+            panic!("expected restart-safe structured result");
+        };
+        assert_eq!(
+            fields
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>(),
+            ["left", "right"]
+        );
+        assert!(matches!(
+            recovered.merge_result(&merge_token).unwrap(),
+            Some(Step::Done(Value::Structured { .. }))
+        ));
+    }
+
+    #[test]
+    fn nested_all_fails_before_sequence_allocation() {
+        let nested = lower(&parse(
+            "fn main() = all(outer: all(left: runtime.list(), right: runtime.list()), tail: runtime.list())",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let unsupported = vm.start(
+            &nested,
+            Principal {
+                id: "operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+            None,
         );
         assert!(matches!(
             unsupported,
             Step::Fault(Fault { ref code, .. }) if code == "LSV1002"
         ));
         assert_eq!(vm.pending_count(), 0);
-        assert_eq!(vm.completed_count(), 0);
         assert_eq!(
             start(&mut vm, None).continuation.token.as_str(),
             "continuation-1"
         );
+    }
+
+    fn merge_branch_requests() -> (EffectRequest, EffectRequest, MergePlan) {
+        let mut source = Vm::default();
+        let left = start(&mut source, None);
+        let right = start(&mut source, None);
+        let plan = MergePlan::new(["left", "right"]).unwrap();
+        (left, right, plan)
+    }
+
+    #[test]
+    fn durable_merge_graph_creation_recovers_every_branch_in_declared_order() {
+        let journal = TempJournal::new("merge-graph-create");
+        let (left, right, plan) = merge_branch_requests();
+        {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            vm.journal
+                .record_merge_graph(
+                    &ContinuationToken("merge-1".to_string()),
+                    &plan,
+                    &[("left", &left), ("right", &right)],
+                )
+                .unwrap();
+        }
+
+        let mut recovered = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert_eq!(recovered.pending_count(), 2);
+        let first = recovered.claim_effect(10, 100).unwrap().unwrap();
+        assert_eq!(first.request, left);
+        let second = recovered.claim_effect(10, 100).unwrap().unwrap();
+        assert_eq!(second.request, right);
+        assert!(recovered.claim_effect(10, 100).unwrap().is_none());
+    }
+
+    #[test]
+    fn ephemeral_merge_graph_creation_uses_the_same_declared_order() {
+        let (left, right, plan) = merge_branch_requests();
+        let mut vm = Vm::default();
+        vm.journal
+            .record_merge_graph(
+                &ContinuationToken("merge-1".to_string()),
+                &plan,
+                &[("left", &left), ("right", &right)],
+            )
+            .unwrap();
+
+        let first = vm.claim_effect(10, 100).unwrap().unwrap();
+        assert_eq!(first.request, left);
+        vm.journal
+            .acknowledge_dispatch(&first, 11, &Step::Done(runtime_list_value(1)))
+            .unwrap();
+        let second = vm.claim_effect(10, 100).unwrap().unwrap();
+        assert_eq!(second.request, right);
+        vm.journal
+            .acknowledge_dispatch(&second, 11, &Step::Done(runtime_list_value(2)))
+            .unwrap();
+        assert!(vm.claim_effect(10, 100).unwrap().is_none());
+        let merged = vm
+            .journal
+            .merge_result(&ContinuationToken("merge-1".to_string()))
+            .unwrap()
+            .unwrap();
+        let Step::Done(Value::Structured { fields }) = merged else {
+            panic!("expected structured merge result");
+        };
+        assert_eq!(
+            fields
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>(),
+            ["left", "right"]
+        );
+    }
+
+    #[test]
+    fn ephemeral_compaction_deletes_completed_merge_graphs_as_logical_units() {
+        let mut source = Vm::default();
+        let requests = (0..4).map(|_| start(&mut source, None)).collect::<Vec<_>>();
+        let plan = MergePlan::new(["left", "right"]).unwrap();
+        let first_token = ContinuationToken("merge-1".to_string());
+        let second_token = ContinuationToken("merge-2".to_string());
+        let mut vm = Vm::default();
+        vm.journal
+            .record_merge_graph(
+                &first_token,
+                &plan,
+                &[("left", &requests[0]), ("right", &requests[1])],
+            )
+            .unwrap();
+        vm.journal
+            .record_merge_graph(
+                &second_token,
+                &plan,
+                &[("left", &requests[2]), ("right", &requests[3])],
+            )
+            .unwrap();
+
+        let mut local_completed = Vec::new();
+        for revision in 1..=4 {
+            let lease = vm.claim_effect(10, 100).unwrap().unwrap();
+            let step = Step::Done(runtime_list_value(revision));
+            vm.journal.acknowledge_dispatch(&lease, 11, &step).unwrap();
+            local_completed.push((lease.request.continuation.token, step));
+        }
+        let compacted = vm
+            .journal
+            .compact_completed(
+                &local_completed,
+                &RetentionPolicy {
+                    max_completed_records: 1,
+                    max_delete_per_run: 1,
+                },
+            )
+            .unwrap();
+        assert_eq!(compacted.removed_records, 1);
+        assert_eq!(compacted.remaining_completed, 1);
+        assert_eq!(compacted.pruned_tokens.len(), 2);
+        assert!(vm.journal.merge_result(&first_token).unwrap().is_none());
+        assert!(vm.journal.merge_result(&second_token).unwrap().is_some());
+    }
+
+    #[test]
+    fn durable_final_branch_atomically_commits_restart_safe_merge_result() {
+        let journal = TempJournal::new("merge-final-completion");
+        let (left, right, plan) = merge_branch_requests();
+        let merge_token = ContinuationToken("merge-1".to_string());
+        {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            vm.journal
+                .record_merge_graph(&merge_token, &plan, &[("left", &left), ("right", &right)])
+                .unwrap();
+        }
+        {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            let first = vm.claim_effect(10, 100).unwrap().unwrap();
+            assert!(matches!(
+                vm.acknowledge_effect(&first, 11, runtime_list_result(1)),
+                Step::Waiting(_)
+            ));
+            assert!(vm.journal.merge_result(&merge_token).unwrap().is_none());
+
+            let second = vm.claim_effect(10, 100).unwrap().unwrap();
+            assert!(matches!(
+                vm.acknowledge_effect(&second, 11, runtime_list_result(2)),
+                Step::Done(Value::Structured { .. })
+            ));
+            assert!(matches!(
+                vm.journal.merge_result(&merge_token).unwrap(),
+                Some(Step::Done(Value::Structured { .. }))
+            ));
+        }
+
+        let recovered = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let Some(Step::Done(Value::Structured { fields })) =
+            recovered.journal.merge_result(&merge_token).unwrap()
+        else {
+            panic!("expected recovered structured merge result");
+        };
+        assert_eq!(
+            fields
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>(),
+            ["left", "right"]
+        );
+        assert!(matches!(
+            fields[0].value.as_ref(),
+            Value::RuntimeList {
+                revision: Revision(1),
+                ..
+            }
+        ));
+        assert!(matches!(
+            fields[1].value.as_ref(),
+            Value::RuntimeList {
+                revision: Revision(2),
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn durable_merge_failure_rolls_back_the_final_branch_completion() {
+        let journal = TempJournal::new("merge-final-rollback");
+        let (left, right, plan) = merge_branch_requests();
+        let merge_token = ContinuationToken("merge-1".to_string());
+        {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            vm.journal
+                .record_merge_graph(&merge_token, &plan, &[("left", &left), ("right", &right)])
+                .unwrap();
+        }
+        let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let first = vm.claim_effect(10, 100).unwrap().unwrap();
+        assert!(matches!(
+            vm.acknowledge_effect(&first, 11, runtime_list_result(1)),
+            Step::Waiting(_)
+        ));
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TRIGGER reject_merge_terminal
+                 BEFORE UPDATE OF state ON vm_merge_groups
+                 WHEN NEW.state = 'completed'
+                 BEGIN
+                   SELECT RAISE(ABORT, 'injected merge completion failure');
+                 END;",
+            )
+            .unwrap();
+        let second = vm.claim_effect(20, 100).unwrap().unwrap();
+        let failed = vm.acknowledge_effect(&second, 21, runtime_list_result(2));
+        assert!(matches!(failed, Step::Fault(Fault { ref code, .. }) if code == "LSV4033"));
+
+        let group_state: String = connection
+            .query_row(
+                "SELECT state FROM vm_merge_groups WHERE token = 'merge-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let second_state: String = connection
+            .query_row(
+                "SELECT state FROM vm_effects WHERE token = 'continuation-2'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let dispatch_state: String = connection
+            .query_row(
+                "SELECT state FROM vm_dispatches WHERE token = 'continuation-2'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(group_state, "pending");
+        assert_eq!(second_state, "pending");
+        assert_eq!(dispatch_state, "leased");
+    }
+
+    #[test]
+    fn durable_merge_commits_declared_terminal_failure() {
+        let journal = TempJournal::new("merge-terminal-failure");
+        let (left, right, plan) = merge_branch_requests();
+        let merge_token = ContinuationToken("merge-1".to_string());
+        {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            vm.journal
+                .record_merge_graph(&merge_token, &plan, &[("left", &left), ("right", &right)])
+                .unwrap();
+        }
+
+        let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let first = vm.claim_effect(10, 100).unwrap().unwrap();
+        assert!(matches!(
+            vm.acknowledge_effect(&first, 11, runtime_list_result(1)),
+            Step::Waiting(_)
+        ));
+        let second = vm.claim_effect(20, 100).unwrap().unwrap();
+        let disposition = vm
+            .report_effect_error(
+                &second,
+                21,
+                EffectError {
+                    class: EffectErrorClass::Permanent,
+                    code: "runtime.rejected".to_string(),
+                    message: "runtime rejected the branch".to_string(),
+                },
+                &RetryPolicy::default(),
+            )
+            .unwrap();
+        assert!(matches!(
+            disposition,
+            RetryDisposition::Terminal(Step::Failed(_))
+        ));
+        assert!(matches!(
+            vm.journal.merge_result(&merge_token).unwrap(),
+            Some(Step::Failed(FailedEffect {
+                error: EffectError { ref code, .. },
+                ..
+            })) if code == "runtime.rejected"
+        ));
+    }
+
+    #[test]
+    fn retention_keeps_a_completed_merge_graph_within_the_configured_limit() {
+        let journal = TempJournal::new("merge-compaction-protection");
+        let (left, right, plan) = merge_branch_requests();
+        let merge_token = ContinuationToken("merge-1".to_string());
+        {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            vm.journal
+                .record_merge_graph(&merge_token, &plan, &[("left", &left), ("right", &right)])
+                .unwrap();
+        }
+        let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        for revision in [1, 2] {
+            let lease = vm.claim_effect(10, 100).unwrap().unwrap();
+            let step = vm.acknowledge_effect(&lease, 11, runtime_list_result(revision));
+            assert!(if revision == 1 {
+                matches!(step, Step::Waiting(_))
+            } else {
+                matches!(step, Step::Done(Value::Structured { .. }))
+            });
+        }
+        let report = vm
+            .compact_journal(&RetentionPolicy {
+                max_completed_records: 1,
+                max_delete_per_run: 100,
+            })
+            .unwrap();
+        assert_eq!(report.removed_records, 0);
+        drop(vm);
+
+        let recovered = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert!(matches!(
+            recovered.journal.merge_result(&merge_token).unwrap(),
+            Some(Step::Done(Value::Structured { .. }))
+        ));
+    }
+
+    #[test]
+    fn durable_compaction_deletes_the_oldest_completed_merge_graph_as_one_unit() {
+        let journal = TempJournal::new("merge-group-compaction");
+        let mut source = Vm::default();
+        let requests = (0..4).map(|_| start(&mut source, None)).collect::<Vec<_>>();
+        let plan = MergePlan::new(["left", "right"]).unwrap();
+        let first_token = ContinuationToken("merge-1".to_string());
+        let second_token = ContinuationToken("merge-2".to_string());
+        {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            vm.journal
+                .record_merge_graph(
+                    &first_token,
+                    &plan,
+                    &[("left", &requests[0]), ("right", &requests[1])],
+                )
+                .unwrap();
+            vm.journal
+                .record_merge_graph(
+                    &second_token,
+                    &plan,
+                    &[("left", &requests[2]), ("right", &requests[3])],
+                )
+                .unwrap();
+        }
+
+        let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        for revision in 1..=4 {
+            let lease = vm.claim_effect(10, 100).unwrap().unwrap();
+            let step = vm.acknowledge_effect(&lease, 11, runtime_list_result(revision));
+            assert!(if revision % 2 == 1 {
+                matches!(step, Step::Waiting(_))
+            } else {
+                matches!(step, Step::Done(Value::Structured { .. }))
+            });
+        }
+        let report = vm
+            .compact_journal(&RetentionPolicy {
+                max_completed_records: 1,
+                max_delete_per_run: 1,
+            })
+            .unwrap();
+        assert_eq!(report.removed_records, 1);
+        assert_eq!(report.remaining_completed, 1);
+        assert!(report.reclaimed_logical_bytes > 0);
+        assert_eq!(vm.completed_count(), 2);
+        assert!(vm.journal.merge_result(&first_token).unwrap().is_none());
+        assert!(matches!(
+            vm.journal.merge_result(&second_token).unwrap(),
+            Some(Step::Done(Value::Structured { .. }))
+        ));
+        drop(vm);
+
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        let counts: (i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM vm_merge_groups),
+                   (SELECT COUNT(*) FROM vm_merge_branches),
+                   (SELECT COUNT(*) FROM vm_effects),
+                   (SELECT COUNT(*) FROM vm_dispatches)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (1, 2, 2, 2));
+        drop(connection);
+
+        let recovered = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert_eq!(recovered.completed_count(), 2);
+        assert!(matches!(
+            recovered.journal.merge_result(&second_token).unwrap(),
+            Some(Step::Done(Value::Structured { .. }))
+        ));
+    }
+
+    #[test]
+    fn durable_merge_graph_creation_rolls_back_every_row_on_branch_failure() {
+        let journal = TempJournal::new("merge-graph-rollback");
+        let (left, right, plan) = merge_branch_requests();
+        let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TRIGGER reject_second_merge_branch
+                 BEFORE INSERT ON vm_effects
+                 WHEN NEW.token = 'continuation-2'
+                 BEGIN
+                   SELECT RAISE(ABORT, 'injected branch failure');
+                 END;",
+            )
+            .unwrap();
+
+        let error = vm
+            .journal
+            .record_merge_graph(
+                &ContinuationToken("merge-1".to_string()),
+                &plan,
+                &[("left", &left), ("right", &right)],
+            )
+            .unwrap_err();
+        assert_eq!(error.code, "LSV4032");
+        for table in [
+            "vm_merge_groups",
+            "vm_merge_branches",
+            "vm_effects",
+            "vm_dispatches",
+        ] {
+            let count: i64 = connection
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(count, 0, "{table} must roll back with the graph");
+        }
     }
 
     #[test]

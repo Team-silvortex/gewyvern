@@ -5,9 +5,10 @@ implemented Leselang slice. The broader destination is defined by the
 [Leserpent 2.0 architecture](leserpent-2-architecture.md); unimplemented roadmap
 syntax is not part of this contract.
 
-Status: **Gate 2, evolving contract 0.10.0**. The current vertical slice parses,
+Status: **Gate 2, evolving contract 0.11.0**. The current vertical slice parses,
 lowers, authorizes, suspends, serializes, restores, and resumes the read-only
-`runtime.list` effect and the idempotent `runtime.refresh` command effect.
+`runtime.list` and `runtime.inspect` effects plus the idempotent
+`runtime.refresh` command effect.
 
 ## Canonical Program
 
@@ -22,6 +23,16 @@ fn main() = runtime.list(
 `runtime.list` returns a runtime list and requires the `runtime.read`
 capability. Each optional filter accepts a string or `none`; empty strings are
 normalized to `none` during HIR lowering.
+
+The canonical single-runtime query is:
+
+```leselang
+fn main() = runtime.inspect(runtime_id: "runtime-a")
+```
+
+`runtime.inspect` requires `runtime.read`, returns exactly one typed runtime
+projection, and fails with `RuntimeNotFound` when the identifier is absent. It
+does not lower to a filtered list or perform hidden refresh work.
 
 The canonical mutating program is:
 
@@ -71,10 +82,13 @@ fn main() = all(
 
 `all` requires two to 64 uniquely named effect branches. Syntax and HIR preserve
 declaration order, each branch retains its own result type, and function
-authorization requires the union of all branch capabilities. The current VM
-fails this form with `LSV1002` before allocating a continuation or writing the
-journal. Durable branch-graph execution is the next contract step; callers must
-not treat frontend acceptance as execution support yet.
+authorization requires the union of all branch capabilities. The VM starts this
+form as one atomic `Step::Effects` batch with a stable merge token and ordered
+named requests. Completing a non-final branch returns `Step::Waiting`; completing
+the final branch returns the durable aggregate result in declaration order.
+SQLite recovery resumes unfinished branches without recreating completed work.
+Nested `all` remains outside the current language surface and fails with
+`LSV1002` before sequence allocation or journal mutation.
 
 ## HIR And Authorization
 
@@ -166,12 +180,24 @@ time supplied by the trusted runtime host, never by a remote request.
 The journal is schema-versioned. Schema 4 persists indexed absolute deadlines,
 retry counts, and not-before clocks. Schema 5 adds strict merge-group and ordered
 branch metadata with bounded plan, graph-state, token-namespace, and terminal-step
-validation during recovery. Schema 1 and 2 records migrate as untimed, schema 1
+validation during recovery. The journal can atomically create a complete merge
+graph: plan, branch continuations, dispatches, and declared-order links either
+all commit or all roll back, and committed branches recover after restart. The
+last terminal branch and its declared-order group result also commit together;
+a failed group update leaves that branch pending under its existing lease.
+Success, cancellation, classified failure, fault, and deadline terminal paths
+share this finalization boundary. Retention treats a completed graph as one
+logical record and atomically removes its group, ordered links, branch effects,
+and dispatch rows; pending and partially completed graphs are excluded.
+Schema 1 and 2 records migrate as untimed, schema 1
 through 3 records migrate with zero semantic retries rather than receiving
 fabricated execution history, and schema 1 through 4 receive empty merge tables.
 Pre-existing conflicting merge-table names fail the migration closed. Schema 5
-is durable graph infrastructure only: the VM still rejects source-level `all`
-with `LSV1002` until atomic graph creation and completion are wired. The journal
+provides the executable durable graph lifecycle for one-level source `all`,
+including atomic startup, ordered progress, final aggregation, restart recovery,
+and whole-group retention. Nested `all` still fails closed with `LSV1002` before
+sequence allocation.
+The journal
 uses full synchronous commits and a five-second lock
 timeout, rejects symbolic-link final paths, and creates Unix files with `0600`
 permissions. It is bounded to 10,000 records, 8 MiB per terminal step, 100

@@ -81,7 +81,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent Gate 2 cell must exist");
-    assert_eq!(language.maturity, Maturity::Developing);
+    assert_eq!(language.maturity, Maturity::Stabilizing);
     assert_eq!(language.contract.stability, ContractStability::Evolving);
     assert!(
         language
@@ -203,7 +203,7 @@ fn native_status_cli_exposes_human_and_machine_views() {
             "--lifecycle",
             "target",
             "--maturity",
-            "developing",
+            "stabilizing",
             "--json",
         ])
         .output()

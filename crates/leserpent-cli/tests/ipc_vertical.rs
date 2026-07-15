@@ -75,6 +75,22 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
     assert_eq!(runtimes.len(), 1);
     assert_eq!(runtimes[0].id.as_str(), "runtime-a");
 
+    let inspect = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "runtime",
+            "inspect",
+            "runtime-a",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .output()
+        .unwrap();
+    assert!(inspect.status.success());
+    let inspect_stdout = String::from_utf8(inspect.stdout).unwrap();
+    assert!(inspect_stdout.contains("runtime=runtime-a"));
+    assert!(inspect_stdout.contains("endpoint=http://127.0.0.1:9411"));
+
     let unconfirmed = Command::new(binary)
         .args([
             "--socket",

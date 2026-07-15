@@ -3,10 +3,11 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use leselang_command::{LoweringContext, PlannedOperation, encode_plan, plan_runtime_refresh};
 use leserpent_domain::{
-    CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandEnvelope,
-    CommandId, CommandOrigin, CommandStatus, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey,
-    Principal, Query, QueryEnvelope, QueryResult, Revision, RuntimeId, RuntimeListFilter,
+    CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandId, CommandOrigin,
+    CommandStatus, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Query,
+    QueryEnvelope, QueryResult, Revision, RuntimeId, RuntimeListFilter,
 };
 use leserpent_protocol::{
     HealthRequest, PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse, RequestEnvelope,
@@ -25,6 +26,7 @@ pub struct CliOptions {
 pub enum CliCommand {
     Health,
     RuntimeList(RuntimeListFilter),
+    RuntimeInspect(RuntimeId),
     RuntimeRefresh(RuntimeRefreshOptions),
 }
 
@@ -36,6 +38,7 @@ pub struct RuntimeRefreshOptions {
     pub confirmed: bool,
     pub idempotency_key: Option<String>,
     pub export_leselang: bool,
+    pub export_plan: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -59,7 +62,7 @@ impl fmt::Display for CliError {
 
 impl std::error::Error for CliError {}
 
-pub const USAGE: &str = "Usage:\n  leserpent --socket PATH [--json] health\n  leserpent --socket PATH [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent --socket PATH [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
+pub const USAGE: &str = "Usage:\n  leserpent --socket PATH [--json] health\n  leserpent --socket PATH [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent --socket PATH [--json] runtime inspect RUNTIME_ID\n  leserpent --socket PATH [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
 
 static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -95,6 +98,15 @@ pub fn parse_args(
         }
         Some("runtime") => match arguments.next().as_deref() {
             Some("list") => CliCommand::RuntimeList(parse_runtime_filters(arguments)?),
+            Some("inspect") => {
+                let runtime_id = arguments
+                    .next()
+                    .ok_or_else(|| CliError::Usage("runtime inspect requires RUNTIME_ID".into()))?;
+                let runtime_id = RuntimeId::new(runtime_id)
+                    .map_err(|error| CliError::Usage(error.to_string()))?;
+                reject_trailing(arguments)?;
+                CliCommand::RuntimeInspect(runtime_id)
+            }
             Some("refresh") => CliCommand::RuntimeRefresh(parse_runtime_refresh(arguments)?),
             Some(command) => {
                 return Err(CliError::Usage(format!(
@@ -111,6 +123,9 @@ pub fn parse_args(
             &command,
             CliCommand::RuntimeRefresh(RuntimeRefreshOptions {
                 export_leselang: true,
+                ..
+            }) | CliCommand::RuntimeRefresh(RuntimeRefreshOptions {
+                export_plan: true,
                 ..
             })
         )
@@ -146,34 +161,50 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
                 filter: filter.clone(),
             },
         }),
-        CliCommand::RuntimeRefresh(refresh) if !refresh.export_leselang => {
+        CliCommand::RuntimeInspect(runtime_id) => ProtocolRequest::Query(QueryEnvelope {
+            schema_version: DOMAIN_SCHEMA_VERSION,
+            principal: Principal {
+                id: options.principal.clone(),
+            },
+            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+            query: Query::RuntimeInspect {
+                runtime_id: runtime_id.clone(),
+            },
+        }),
+        CliCommand::RuntimeRefresh(refresh) if !refresh.export_leselang && !refresh.export_plan => {
             let request_id = new_request_id();
             let idempotency_key = refresh
                 .idempotency_key
                 .clone()
                 .unwrap_or_else(|| request_id.clone());
-            ProtocolRequest::Command(CommandEnvelope {
-                schema_version: DOMAIN_SCHEMA_VERSION,
-                command_id: CommandId::new(request_id)
-                    .map_err(|error| CliError::Protocol(error.to_string()))?,
-                idempotency_key: IdempotencyKey::new(idempotency_key)
-                    .map_err(|error| CliError::Usage(error.to_string()))?,
-                expected_revision: refresh.expected_revision,
-                principal: Principal {
-                    id: options.principal.clone(),
+            let plan = plan_runtime_refresh(
+                &refresh.runtime_id,
+                &LoweringContext {
+                    principal: Principal {
+                        id: options.principal.clone(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REFRESH]),
+                    expected_revision: refresh.expected_revision,
+                    command_id: CommandId::new(request_id)
+                        .map_err(|error| CliError::Protocol(error.to_string()))?,
+                    idempotency_key: IdempotencyKey::new(idempotency_key)
+                        .map_err(|error| CliError::Usage(error.to_string()))?,
+                    origin: CommandOrigin::Cli,
+                    confirmation: if refresh.confirmed {
+                        Confirmation::Confirmed
+                    } else {
+                        Confirmation::NotRequired
+                    },
+                    dry_run: refresh.dry_run,
                 },
-                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REFRESH]),
-                origin: CommandOrigin::Cli,
-                confirmation: if refresh.confirmed {
-                    Confirmation::Confirmed
-                } else {
-                    Confirmation::NotRequired
-                },
-                dry_run: refresh.dry_run,
-                command: Command::RuntimeRefresh {
-                    runtime_id: refresh.runtime_id.clone(),
-                },
-            })
+            )
+            .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
+            let PlannedOperation::Command(command) = plan.operation else {
+                return Err(CliError::Protocol(
+                    "runtime refresh lowered to a non-command operation".into(),
+                ));
+            };
+            ProtocolRequest::Command(command)
         }
         CliCommand::RuntimeRefresh(_) => {
             return Err(CliError::Usage(
@@ -198,6 +229,46 @@ pub fn export_leselang(options: &CliOptions) -> Option<String> {
                 .expect("string encoding cannot fail")
         )
     })
+}
+
+pub fn export_plan(options: &CliOptions) -> Result<Option<String>, CliError> {
+    let CliCommand::RuntimeRefresh(refresh) = &options.command else {
+        return Ok(None);
+    };
+    if !refresh.export_plan {
+        return Ok(None);
+    }
+    let idempotency_key = refresh
+        .idempotency_key
+        .as_ref()
+        .expect("validated plan export idempotency key");
+    let plan = plan_runtime_refresh(
+        &refresh.runtime_id,
+        &LoweringContext {
+            principal: Principal {
+                id: options.principal.clone(),
+            },
+            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REFRESH]),
+            expected_revision: refresh.expected_revision,
+            command_id: CommandId::new(idempotency_key.clone())
+                .map_err(|error| CliError::Protocol(error.to_string()))?,
+            idempotency_key: IdempotencyKey::new(idempotency_key.clone())
+                .map_err(|error| CliError::Protocol(error.to_string()))?,
+            origin: CommandOrigin::Cli,
+            confirmation: if refresh.confirmed {
+                Confirmation::Confirmed
+            } else {
+                Confirmation::NotRequired
+            },
+            dry_run: refresh.dry_run,
+        },
+    )
+    .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
+    let encoded = encode_plan(&plan)
+        .map_err(|error| CliError::Protocol(format!("plan encoding failed: {error:?}")))?;
+    String::from_utf8(encoded)
+        .map(Some)
+        .map_err(|error| CliError::Protocol(format!("plan encoding is not UTF-8: {error}")))
 }
 
 pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String, CliError> {
@@ -241,6 +312,20 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
             }
             Ok(output.trim_end().to_string())
         }
+        ProtocolResponse::Query(QueryResult::RuntimeInspect { revision, runtime }) => Ok(format!(
+            "revision={} runtime={} name={} endpoint={} refresh_status={} source={}",
+            revision.0,
+            safe_cell(runtime.id.as_str()),
+            safe_cell(&runtime.name),
+            safe_cell(&runtime.endpoint),
+            match runtime.refresh_status {
+                leserpent_domain::RefreshStatus::NeverRequested => "never_requested",
+                leserpent_domain::RefreshStatus::Pending => "pending",
+                leserpent_domain::RefreshStatus::Ready => "ready",
+                leserpent_domain::RefreshStatus::Failed => "failed",
+            },
+            safe_cell(&runtime.status.status_source),
+        )),
         ProtocolResponse::Error(error) => Err(CliError::Protocol(format!(
             "{}: {}",
             error.code, error.message
@@ -389,11 +474,13 @@ fn parse_runtime_refresh(
     let mut confirmed = false;
     let mut idempotency_key = None;
     let mut export_leselang = false;
+    let mut export_plan = false;
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "--dry-run" if !dry_run => dry_run = true,
             "--yes" if !confirmed => confirmed = true,
             "--export-leselang" if !export_leselang => export_leselang = true,
+            "--export-plan" if !export_plan => export_plan = true,
             "--expected-revision" if expected_revision.is_none() => {
                 let value = arguments.next().ok_or_else(|| {
                     CliError::Usage("--expected-revision requires an integer".into())
@@ -414,6 +501,7 @@ fn parse_runtime_refresh(
             "--dry-run"
             | "--yes"
             | "--export-leselang"
+            | "--export-plan"
             | "--expected-revision"
             | "--idempotency-key" => {
                 return Err(CliError::Usage(format!(
@@ -428,10 +516,19 @@ fn parse_runtime_refresh(
         }
     }
     if export_leselang
-        && (dry_run || confirmed || expected_revision.is_some() || idempotency_key.is_some())
+        && (export_plan
+            || dry_run
+            || confirmed
+            || expected_revision.is_some()
+            || idempotency_key.is_some())
     {
         return Err(CliError::Usage(
             "--export-leselang cannot be combined with execution options".into(),
+        ));
+    }
+    if export_plan && idempotency_key.is_none() {
+        return Err(CliError::Usage(
+            "--export-plan requires --idempotency-key for deterministic output".into(),
         ));
     }
     if dry_run && confirmed {
@@ -451,6 +548,7 @@ fn parse_runtime_refresh(
         confirmed,
         idempotency_key,
         export_leselang,
+        export_plan,
     })
 }
 
@@ -502,6 +600,8 @@ fn safe_cell(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use leserpent_domain::Command;
+
     use super::*;
 
     #[test]
@@ -526,9 +626,31 @@ mod tests {
         let ProtocolRequest::Query(query) = request_for(&options).unwrap().request else {
             panic!("runtime list must produce a query request");
         };
-        let Query::RuntimeList { filter } = query.query;
+        let Query::RuntimeList { filter } = query.query else {
+            panic!("runtime list must produce a list query");
+        };
         assert_eq!(filter.environment.as_deref(), Some(" production "));
         assert_eq!(filter.role.as_deref(), Some("edge"));
+        assert!(query.capabilities.contains(CAPABILITY_RUNTIME_READ));
+    }
+
+    #[test]
+    fn parser_builds_runtime_inspect_request() {
+        let options = parse_args(
+            ["runtime", "inspect", "runtime-a"]
+                .into_iter()
+                .map(str::to_string),
+            Some("/tmp/leserpent.sock".into()),
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        let ProtocolRequest::Query(query) = request_for(&options).unwrap().request else {
+            panic!("runtime inspect must produce a query request");
+        };
+        assert!(matches!(
+            query.query,
+            Query::RuntimeInspect { runtime_id } if runtime_id.as_str() == "runtime-a"
+        ));
         assert!(query.capabilities.contains(CAPABILITY_RUNTIME_READ));
     }
 
@@ -560,6 +682,66 @@ mod tests {
         assert_eq!(
             safe_cell("Runtime\nA\t\u{1b}[31m"),
             "Runtime\u{fffd}A\u{fffd}\u{fffd}[31m"
+        );
+    }
+
+    #[test]
+    fn refresh_plan_export_is_deterministic_and_uses_shared_lowering() {
+        let options = parse_args(
+            [
+                "runtime",
+                "refresh",
+                "runtime-a",
+                "--dry-run",
+                "--expected-revision",
+                "7",
+                "--idempotency-key",
+                "plan-a",
+                "--export-plan",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            None,
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        let first = export_plan(&options).unwrap().unwrap();
+        let second = export_plan(&options).unwrap().unwrap();
+        assert_eq!(first, second);
+        let plan = leselang_command::decode_plan(first.as_bytes()).unwrap();
+        let PlannedOperation::Command(command) = plan.operation else {
+            panic!("runtime refresh plan must contain a command");
+        };
+        assert_eq!(command.command_id.as_str(), "plan-a");
+        assert_eq!(command.expected_revision, Some(Revision(7)));
+        assert!(command.dry_run);
+        assert_eq!(command.origin, CommandOrigin::Cli);
+        assert!(matches!(
+            command.command,
+            Command::RuntimeRefresh { runtime_id } if runtime_id.as_str() == "runtime-a"
+        ));
+    }
+
+    #[test]
+    fn refresh_plan_export_requires_explicit_stable_identity() {
+        let parsed = parse_args(
+            [
+                "runtime",
+                "refresh",
+                "runtime-a",
+                "--dry-run",
+                "--export-plan",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            None,
+            None,
+        );
+        assert_eq!(
+            parsed,
+            Err(CliError::Usage(
+                "--export-plan requires --idempotency-key for deterministic output".into()
+            ))
         );
     }
 }

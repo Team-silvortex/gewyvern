@@ -29,7 +29,9 @@ fn legacy_runtime_list_normalizes_to_domain_filter_order_and_status() {
     let mut control = InMemoryControlPlane::default();
     seed_runtime_collection(&mut control, collection).unwrap();
 
-    let QueryResult::RuntimeList { revision, runtimes } = control.query(query).unwrap();
+    let QueryResult::RuntimeList { revision, runtimes } = control.query(query).unwrap() else {
+        panic!("runtime list fixture must return a list result");
+    };
     assert_eq!(revision, Revision(2));
     assert_eq!(runtimes.len(), 2);
     assert_eq!(runtimes[0].id.as_str(), "runtime-alpha");

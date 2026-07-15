@@ -34,6 +34,7 @@ pub struct HirBranch {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Effect {
     RuntimeList { filter: RuntimeListFilter },
+    RuntimeInspect { runtime_id: RuntimeId },
     RuntimeRefresh { runtime_id: RuntimeId },
     All { branches: Vec<HirBranch> },
 }
@@ -42,6 +43,7 @@ pub enum Effect {
 #[serde(rename_all = "snake_case")]
 pub enum Type {
     RuntimeList,
+    RuntimeInspect,
     RuntimeRefresh,
     Structured,
 }
@@ -103,7 +105,9 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         }]);
     };
     match callee.as_str() {
-        "runtime.list" | "runtime.refresh" => lower_runtime_effect(callee, arguments, *span),
+        "runtime.list" | "runtime.inspect" | "runtime.refresh" => {
+            lower_runtime_effect(callee, arguments, *span)
+        }
         "all" => lower_all(arguments, *span),
         _ => Err(vec![Diagnostic {
             code: "LSH1003".to_string(),
@@ -147,13 +151,12 @@ fn lower_runtime_effect(
             ("runtime.list", "environment") => filter.environment = value,
             ("runtime.list", "cluster") => filter.cluster = value,
             ("runtime.list", "role") => filter.role = value,
-            ("runtime.refresh", "runtime_id") => {
+            ("runtime.inspect" | "runtime.refresh", "runtime_id") => {
                 match value.and_then(|value| RuntimeId::new(value).ok()) {
                     Some(value) => runtime_id = Some(value),
                     None => diagnostics.push(Diagnostic {
                         code: "LSH1104".to_string(),
-                        message: "runtime.refresh runtime_id must be a valid identifier string"
-                            .to_string(),
+                        message: format!("{callee} runtime_id must be a valid identifier string"),
                         span: Some(argument.span),
                     }),
                 }
@@ -165,10 +168,13 @@ fn lower_runtime_effect(
             }),
         }
     }
-    if callee == "runtime.refresh" && runtime_id.is_none() && diagnostics.is_empty() {
+    if matches!(callee, "runtime.inspect" | "runtime.refresh")
+        && runtime_id.is_none()
+        && diagnostics.is_empty()
+    {
         diagnostics.push(Diagnostic {
             code: "LSH1105".to_string(),
-            message: "runtime.refresh requires runtime_id".to_string(),
+            message: format!("{callee} requires runtime_id"),
             span: Some(span),
         });
     }
@@ -182,6 +188,13 @@ fn lower_runtime_effect(
                 filter: filter.normalized(),
             },
             Type::RuntimeList,
+            CAPABILITY_RUNTIME_READ,
+        ),
+        "runtime.inspect" => (
+            Effect::RuntimeInspect {
+                runtime_id: runtime_id.expect("validated runtime.inspect identifier"),
+            },
+            Type::RuntimeInspect,
             CAPABILITY_RUNTIME_READ,
         ),
         "runtime.refresh" => (
@@ -341,6 +354,23 @@ mod tests {
         assert!(matches!(
             program.function.effect,
             Effect::RuntimeRefresh { ref runtime_id } if runtime_id.as_str() == "runtime-a"
+        ));
+    }
+
+    #[test]
+    fn runtime_inspect_lowers_to_typed_read_effect() {
+        let program = lower(&parse(
+            "fn main() = runtime.inspect(runtime_id: \"runtime-a\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::RuntimeInspect);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_RUNTIME_READ]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::RuntimeInspect { ref runtime_id } if runtime_id.as_str() == "runtime-a"
         ));
     }
 

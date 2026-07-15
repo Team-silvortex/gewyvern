@@ -70,6 +70,6 @@ If you are validating current FTP support, the shortest useful order is:
 
 ## Stability Note
 
-This page is the lookup hub for the FTP family in the current `1.0.0` line.
+This page is the lookup hub for the FTP family in the current `1.2.0` line.
 New FTP command families should prefer landing behind this shelf instead of
 being linked from multiple higher-level pages independently.
