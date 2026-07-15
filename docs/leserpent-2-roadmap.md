@@ -47,7 +47,7 @@ future examples in this roadmap, defines what callers may use today.
 
 - lossless parser and first-class diagnostics
 - HIR, lightweight static types, effects, and capability checking
-- stackless evaluator with `Done / Effect / Yield / Fault`
+- stackless evaluator with `Done / Effect / Yield / Cancelled / Failed / Fault`
 - bounded execution, cancellation, timeout, retry, and deterministic merge
 - versioned continuation serialization
 - effect journal and exactly-once continuation consumption
@@ -59,8 +59,12 @@ durable first-completion replay. The dispatch outbox now adds attempt-fenced
 leases, crash redelivery, multi-VM exclusion, and transactional acknowledgement.
 The first mutating effect, `runtime.refresh`, now carries one stable domain
 idempotency key through crash redelivery and proves single domain commit with
-result replay. Cancellation, timeout enforcement, semantic retry, retention,
-and deterministic merge are still required before the gate exits.
+result replay. Typed requested cancellation and trusted wall-clock deadlines now
+atomically fence ready or leased dispatches and survive restart as replayable
+terminal states. Bounded semantic retry now persists deterministic not-before
+clocks independently from transport attempts and preserves command idempotency
+across restart. Retention and deterministic merge are still required before the
+gate exits.
 
 Exit: programs can suspend, restart, re-enter, and replay deterministically.
 

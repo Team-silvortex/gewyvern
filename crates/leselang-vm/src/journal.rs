@@ -7,12 +7,13 @@ use rusqlite::limits::Limit;
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
 
 use crate::{
-    ContinuationImage, ContinuationToken, DispatchLease, EffectRequest, Fault,
-    MAX_CONTINUATION_BYTES, MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS, Step, Value,
-    encode_json_capped, validate_effect_request, validate_image,
+    Cancellation, CancellationReason, ContinuationImage, ContinuationToken, DispatchLease,
+    EffectError, EffectRequest, Fault, MAX_CONTINUATION_BYTES, MAX_DISPATCH_ATTEMPTS,
+    MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES, RetryDisposition, Step, Value, encode_json_capped,
+    validate_effect_error, validate_effect_request, validate_image,
 };
 
-pub const JOURNAL_SCHEMA_VERSION: u32 = 2;
+pub const JOURNAL_SCHEMA_VERSION: u32 = 4;
 pub const MAX_JOURNAL_RECORDS: usize = 10_000;
 pub const MAX_JOURNAL_ENTRY_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_JOURNAL_TOTAL_BYTES: usize = 64 * 1024 * 1024;
@@ -38,6 +39,9 @@ struct EphemeralDispatch {
     request: EffectRequest,
     attempt: u32,
     lease_expires_at_ms: Option<u64>,
+    ready_at_ms: u64,
+    retry_count: u32,
+    last_error: Option<EffectError>,
     acknowledged: bool,
 }
 
@@ -56,7 +60,11 @@ struct DispatchRecord {
     state: String,
     attempt: u32,
     lease_expires_at_ms: Option<u64>,
+    ready_at_ms: u64,
+    retry_count: u32,
 }
+
+type RawDispatchRow = (Vec<u8>, String, i64, Option<i64>, i64, i64, Option<Vec<u8>>);
 
 impl Journal {
     pub fn ephemeral() -> Self {
@@ -122,6 +130,32 @@ impl Journal {
             Self::Sqlite(journal) => journal.acknowledge_dispatch(lease, now_ms, step),
         }
     }
+
+    pub fn cancel(&mut self, image: &ContinuationImage, step: &Step) -> Result<Step, Fault> {
+        match self {
+            Self::Ephemeral(journal) => journal.cancel(image, step),
+            Self::Sqlite(journal) => journal.cancel(image, step),
+        }
+    }
+
+    pub fn expire_due(&mut self, now_ms: u64) -> Result<Vec<(ContinuationImage, Step)>, Fault> {
+        match self {
+            Self::Ephemeral(journal) => journal.expire_due(now_ms),
+            Self::Sqlite(journal) => journal.expire_due(now_ms),
+        }
+    }
+
+    pub fn report_error(
+        &mut self,
+        lease: &DispatchLease,
+        now_ms: u64,
+        disposition: &RetryDisposition,
+    ) -> Result<RetryDisposition, Fault> {
+        match self {
+            Self::Ephemeral(journal) => journal.report_error(lease, now_ms, disposition),
+            Self::Sqlite(journal) => journal.report_error(lease, now_ms, disposition),
+        }
+    }
 }
 
 impl EphemeralJournal {
@@ -147,6 +181,9 @@ impl EphemeralJournal {
                 request: request.clone(),
                 attempt: 0,
                 lease_expires_at_ms: None,
+                ready_at_ms: 0,
+                retry_count: 0,
+                last_error: None,
                 acknowledged: false,
             },
         );
@@ -160,6 +197,7 @@ impl EphemeralJournal {
     ) -> Result<Option<DispatchLease>, Fault> {
         let candidate = self.dispatches.values_mut().find(|dispatch| {
             !dispatch.acknowledged
+                && dispatch.ready_at_ms <= now_ms
                 && dispatch
                     .lease_expires_at_ms
                     .is_none_or(|expires_at| expires_at <= now_ms)
@@ -173,6 +211,7 @@ impl EphemeralJournal {
         Ok(Some(DispatchLease {
             request: dispatch.request.clone(),
             attempt: dispatch.attempt,
+            retry_count: dispatch.retry_count,
             lease_expires_at_ms,
         }))
     }
@@ -206,6 +245,7 @@ impl EphemeralJournal {
         }
         if dispatch.request != lease.request
             || dispatch.attempt != lease.attempt
+            || dispatch.retry_count != lease.retry_count
             || dispatch.lease_expires_at_ms != Some(lease.lease_expires_at_ms)
         {
             return Err(journal_fault(
@@ -220,6 +260,90 @@ impl EphemeralJournal {
         dispatch.lease_expires_at_ms = None;
         Ok(step.clone())
     }
+
+    fn cancel(&mut self, image: &ContinuationImage, step: &Step) -> Result<Step, Fault> {
+        validate_cancellation_step(image, step)?;
+        if let Some(dispatch) = self.dispatches.get_mut(&image.token) {
+            dispatch.acknowledged = true;
+            dispatch.lease_expires_at_ms = None;
+        }
+        Ok(step.clone())
+    }
+
+    fn expire_due(&mut self, now_ms: u64) -> Result<Vec<(ContinuationImage, Step)>, Fault> {
+        let mut expired = Vec::new();
+        for dispatch in self.dispatches.values_mut() {
+            let image = &dispatch.request.continuation;
+            if dispatch.acknowledged
+                || image
+                    .deadline_at_ms
+                    .is_none_or(|deadline| deadline > now_ms)
+            {
+                continue;
+            }
+            let step = deadline_cancellation(image, now_ms);
+            dispatch.acknowledged = true;
+            dispatch.lease_expires_at_ms = None;
+            expired.push((image.clone(), step));
+        }
+        Ok(expired)
+    }
+
+    fn report_error(
+        &mut self,
+        lease: &DispatchLease,
+        now_ms: u64,
+        disposition: &RetryDisposition,
+    ) -> Result<RetryDisposition, Fault> {
+        let token = &lease.request.continuation.token;
+        let Some(dispatch) = self.dispatches.get_mut(token) else {
+            return Err(journal_fault("LSV4021", "dispatch lease is unknown"));
+        };
+        validate_retry_lease(dispatch, lease, now_ms)?;
+        match disposition {
+            RetryDisposition::Scheduled(schedule) => {
+                if schedule.retry_count != dispatch.retry_count + 1
+                    || schedule.ready_at_ms <= now_ms
+                    || validate_effect_error(&schedule.error).is_err()
+                {
+                    return Err(journal_fault("LSV4026", "retry schedule is invalid"));
+                }
+                dispatch.retry_count = schedule.retry_count;
+                dispatch.ready_at_ms = schedule.ready_at_ms;
+                dispatch.last_error = Some(schedule.error.clone());
+                dispatch.lease_expires_at_ms = None;
+            }
+            RetryDisposition::Terminal(step) => {
+                validate_terminal_step(step)?;
+                dispatch.acknowledged = true;
+                dispatch.lease_expires_at_ms = None;
+            }
+        }
+        Ok(disposition.clone())
+    }
+}
+
+fn validate_retry_lease(
+    dispatch: &EphemeralDispatch,
+    lease: &DispatchLease,
+    now_ms: u64,
+) -> Result<(), Fault> {
+    if dispatch.acknowledged
+        || dispatch.request != lease.request
+        || dispatch.attempt != lease.attempt
+        || dispatch.retry_count != lease.retry_count
+        || dispatch.ready_at_ms > now_ms
+        || dispatch.lease_expires_at_ms != Some(lease.lease_expires_at_ms)
+    {
+        return Err(journal_fault(
+            "LSV4022",
+            "dispatch lease has been superseded",
+        ));
+    }
+    if lease.lease_expires_at_ms < now_ms {
+        return Err(journal_fault("LSV4023", "dispatch lease has expired"));
+    }
+    Ok(())
 }
 
 impl SqliteJournal {
@@ -299,6 +423,7 @@ impl SqliteJournal {
                        token TEXT PRIMARY KEY,
                        state TEXT NOT NULL CHECK (state IN ('pending', 'completed')),
                        image BLOB NOT NULL,
+                       deadline_at_ms INTEGER CHECK (deadline_at_ms IS NULL OR deadline_at_ms >= 0),
                        terminal_step BLOB,
                        CHECK ((state = 'pending' AND terminal_step IS NULL) OR
                               (state = 'completed' AND terminal_step IS NOT NULL))
@@ -309,11 +434,19 @@ impl SqliteJournal {
                        state TEXT NOT NULL CHECK (state IN ('ready', 'leased', 'acknowledged')),
                        attempt INTEGER NOT NULL CHECK (attempt >= 0),
                        lease_expires_at_ms INTEGER,
+                       ready_at_ms INTEGER NOT NULL DEFAULT 0 CHECK (ready_at_ms >= 0),
+                       retry_count INTEGER NOT NULL DEFAULT 0
+                         CHECK (retry_count >= 0 AND retry_count <= 16),
+                       last_error BLOB,
                        CHECK ((state = 'ready' AND lease_expires_at_ms IS NULL) OR
                               (state = 'leased' AND lease_expires_at_ms IS NOT NULL) OR
                               (state = 'acknowledged' AND lease_expires_at_ms IS NULL))
                      ) STRICT;
-                     PRAGMA user_version = 2;
+                     CREATE INDEX vm_effect_deadline_idx
+                       ON vm_effects(state, deadline_at_ms);
+                     CREATE INDEX vm_dispatch_ready_idx
+                       ON vm_dispatches(state, ready_at_ms, lease_expires_at_ms);
+                     PRAGMA user_version = 4;
                      COMMIT;",
                 )
                 .map_err(|error| journal_error("LSV4003", "failed to initialize journal", error))?;
@@ -327,11 +460,55 @@ impl SqliteJournal {
                        state TEXT NOT NULL CHECK (state IN ('ready', 'leased', 'acknowledged')),
                        attempt INTEGER NOT NULL CHECK (attempt >= 0),
                        lease_expires_at_ms INTEGER,
+                       ready_at_ms INTEGER NOT NULL DEFAULT 0 CHECK (ready_at_ms >= 0),
+                       retry_count INTEGER NOT NULL DEFAULT 0
+                         CHECK (retry_count >= 0 AND retry_count <= 16),
+                       last_error BLOB,
                        CHECK ((state = 'ready' AND lease_expires_at_ms IS NULL) OR
                               (state = 'leased' AND lease_expires_at_ms IS NOT NULL) OR
                               (state = 'acknowledged' AND lease_expires_at_ms IS NULL))
                      ) STRICT;
-                     PRAGMA user_version = 2;
+                     ALTER TABLE vm_effects ADD COLUMN deadline_at_ms INTEGER
+                       CHECK (deadline_at_ms IS NULL OR deadline_at_ms >= 0);
+                     CREATE INDEX vm_effect_deadline_idx
+                       ON vm_effects(state, deadline_at_ms);
+                     CREATE INDEX vm_dispatch_ready_idx
+                       ON vm_dispatches(state, ready_at_ms, lease_expires_at_ms);
+                     PRAGMA user_version = 4;
+                     COMMIT;",
+                )
+                .map_err(|error| journal_error("LSV4003", "failed to migrate journal", error))?;
+        } else if version == 2 {
+            connection
+                .execute_batch(
+                    "BEGIN IMMEDIATE;
+                     ALTER TABLE vm_effects ADD COLUMN deadline_at_ms INTEGER
+                       CHECK (deadline_at_ms IS NULL OR deadline_at_ms >= 0);
+                     CREATE INDEX vm_effect_deadline_idx
+                       ON vm_effects(state, deadline_at_ms);
+                     ALTER TABLE vm_dispatches ADD COLUMN ready_at_ms INTEGER NOT NULL DEFAULT 0
+                       CHECK (ready_at_ms >= 0);
+                     ALTER TABLE vm_dispatches ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0
+                       CHECK (retry_count >= 0 AND retry_count <= 16);
+                     ALTER TABLE vm_dispatches ADD COLUMN last_error BLOB;
+                     CREATE INDEX vm_dispatch_ready_idx
+                       ON vm_dispatches(state, ready_at_ms, lease_expires_at_ms);
+                     PRAGMA user_version = 4;
+                     COMMIT;",
+                )
+                .map_err(|error| journal_error("LSV4003", "failed to migrate journal", error))?;
+        } else if version == 3 {
+            connection
+                .execute_batch(
+                    "BEGIN IMMEDIATE;
+                     ALTER TABLE vm_dispatches ADD COLUMN ready_at_ms INTEGER NOT NULL DEFAULT 0
+                       CHECK (ready_at_ms >= 0);
+                     ALTER TABLE vm_dispatches ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0
+                       CHECK (retry_count >= 0 AND retry_count <= 16);
+                     ALTER TABLE vm_dispatches ADD COLUMN last_error BLOB;
+                     CREATE INDEX vm_dispatch_ready_idx
+                       ON vm_dispatches(state, ready_at_ms, lease_expires_at_ms);
+                     PRAGMA user_version = 4;
                      COMMIT;",
                 )
                 .map_err(|error| journal_error("LSV4003", "failed to migrate journal", error))?;
@@ -378,7 +555,10 @@ impl SqliteJournal {
             .map_err(|error| journal_error("LSV4005", "failed to load journal metadata", error))?;
         let mut statement = self
             .connection
-            .prepare("SELECT token, state, image, terminal_step FROM vm_effects ORDER BY token ASC")
+            .prepare(
+                "SELECT token, state, image, deadline_at_ms, terminal_step
+                 FROM vm_effects ORDER BY token ASC",
+            )
             .map_err(|error| journal_error("LSV4005", "failed to prepare journal load", error))?;
         let mut rows = statement
             .query([])
@@ -407,13 +587,28 @@ impl SqliteJournal {
                     "journal token does not match continuation image",
                 ));
             }
+            let stored_deadline: Option<i64> = row.get(3).map_err(|error| {
+                journal_error("LSV4005", "invalid journal effect deadline", error)
+            })?;
+            let stored_deadline = stored_deadline
+                .map(|value| {
+                    u64::try_from(value)
+                        .map_err(|_| journal_fault("LSV4007", "effect deadline is invalid"))
+                })
+                .transpose()?;
+            if stored_deadline != image.deadline_at_ms {
+                return Err(journal_fault(
+                    "LSV4007",
+                    "journal deadline does not match continuation image",
+                ));
+            }
 
             match state.as_str() {
                 "pending" => {
                     pending.insert(image.token.clone(), image);
                 }
                 "completed" => {
-                    let step_bytes: Vec<u8> = row.get(3).map_err(|error| {
+                    let step_bytes: Vec<u8> = row.get(4).map_err(|error| {
                         journal_error("LSV4005", "invalid completed journal record", error)
                     })?;
                     let step: Step = decode_bounded(&step_bytes, MAX_JOURNAL_ENTRY_BYTES)?;
@@ -528,9 +723,19 @@ impl SqliteJournal {
         )?;
         transaction
             .execute(
-                "INSERT INTO vm_effects(token, state, image, terminal_step)
-                 VALUES (?1, 'pending', ?2, NULL)",
-                params![image.token.as_str(), image_bytes],
+                "INSERT INTO vm_effects(token, state, image, deadline_at_ms, terminal_step)
+                 VALUES (?1, 'pending', ?2, ?3, NULL)",
+                params![
+                    image.token.as_str(),
+                    image_bytes,
+                    image
+                        .deadline_at_ms
+                        .map(i64::try_from)
+                        .transpose()
+                        .map_err(|_| {
+                            journal_fault("LSV4010", "effect deadline is out of range")
+                        })?
+                ],
             )
             .map_err(|error| journal_error("LSV4010", "failed to store pending effect", error))?;
         if let Some(request_bytes) = request_bytes {
@@ -565,11 +770,11 @@ impl SqliteJournal {
             .map_err(|error| journal_error("LSV4016", "failed to lock dispatch journal", error))?;
         let candidate = transaction
             .query_row(
-                "SELECT d.token, d.request, d.attempt
+                "SELECT d.token, d.request, d.attempt, d.retry_count
                  FROM vm_dispatches d
                  JOIN vm_effects e ON e.token = d.token
                  WHERE e.state = 'pending'
-                   AND (d.state = 'ready' OR
+                   AND ((d.state = 'ready' AND d.ready_at_ms <= ?1) OR
                         (d.state = 'leased' AND d.lease_expires_at_ms <= ?1))
                  ORDER BY d.token ASC
                  LIMIT 1",
@@ -579,12 +784,13 @@ impl SqliteJournal {
                         row.get::<_, String>(0)?,
                         row.get::<_, Vec<u8>>(1)?,
                         row.get::<_, i64>(2)?,
+                        row.get::<_, i64>(3)?,
                     ))
                 },
             )
             .optional()
             .map_err(|error| journal_error("LSV4016", "failed to select effect dispatch", error))?;
-        let Some((token, request_bytes, attempt)) = candidate else {
+        let Some((token, request_bytes, attempt, retry_count)) = candidate else {
             transaction.commit().map_err(|error| {
                 journal_error("LSV4016", "failed to close dispatch transaction", error)
             })?;
@@ -601,6 +807,14 @@ impl SqliteJournal {
         let attempt = u32::try_from(attempt)
             .map_err(|_| journal_fault("LSV4007", "dispatch attempt is invalid"))?;
         let attempt = next_attempt(attempt)?;
+        let retry_count = u32::try_from(retry_count)
+            .map_err(|_| journal_fault("LSV4007", "dispatch retry count is invalid"))?;
+        if retry_count > MAX_SEMANTIC_RETRIES {
+            return Err(journal_fault(
+                "LSV4007",
+                "dispatch retry count exceeds runtime limit",
+            ));
+        }
         transaction
             .execute(
                 "UPDATE vm_dispatches
@@ -615,6 +829,7 @@ impl SqliteJournal {
         Ok(Some(DispatchLease {
             request,
             attempt,
+            retry_count,
             lease_expires_at_ms: expires_at,
         }))
     }
@@ -727,6 +942,8 @@ impl SqliteJournal {
         if durable_request != lease.request
             || dispatch.state != "leased"
             || dispatch.attempt != lease.attempt
+            || dispatch.retry_count != lease.retry_count
+            || dispatch.ready_at_ms > now_ms
             || dispatch.lease_expires_at_ms != Some(lease.lease_expires_at_ms)
         {
             return Err(journal_fault(
@@ -757,6 +974,217 @@ impl SqliteJournal {
             .map_err(|error| journal_error("LSV4020", "failed to commit dispatch result", error))?;
         Ok(step.clone())
     }
+
+    fn report_error(
+        &mut self,
+        lease: &DispatchLease,
+        now_ms: u64,
+        disposition: &RetryDisposition,
+    ) -> Result<RetryDisposition, Fault> {
+        validate_effect_request(&lease.request)?;
+        let image = &lease.request.continuation;
+        let image_bytes = encode_json_capped(image, MAX_CONTINUATION_BYTES, "continuation")?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| journal_error("LSV4026", "failed to lock retry journal", error))?;
+        let Some(existing) = load_record(&transaction, image.token.as_str())? else {
+            return Err(journal_fault("LSV4021", "dispatch continuation is unknown"));
+        };
+        if existing.image != image_bytes {
+            return Err(journal_fault(
+                "LSV4014",
+                "dispatch continuation conflicts with durable journal state",
+            ));
+        }
+        if existing.state == "completed" {
+            let authoritative: Step = decode_bounded(
+                &existing.terminal_step.ok_or_else(|| {
+                    journal_fault("LSV4007", "completed journal record has no terminal step")
+                })?,
+                MAX_JOURNAL_ENTRY_BYTES,
+            )?;
+            validate_terminal_step(&authoritative)?;
+            transaction.commit().map_err(|error| {
+                journal_error("LSV4026", "failed to close retry transaction", error)
+            })?;
+            return Ok(RetryDisposition::Terminal(authoritative));
+        }
+        let Some(dispatch) = load_dispatch(&transaction, image.token.as_str())? else {
+            return Err(journal_fault("LSV4021", "dispatch lease is unknown"));
+        };
+        let durable_request: EffectRequest =
+            decode_bounded(&dispatch.request, MAX_JOURNAL_ENTRY_BYTES)?;
+        if durable_request != lease.request
+            || dispatch.state != "leased"
+            || dispatch.attempt != lease.attempt
+            || dispatch.retry_count != lease.retry_count
+            || dispatch.ready_at_ms > now_ms
+            || dispatch.lease_expires_at_ms != Some(lease.lease_expires_at_ms)
+        {
+            return Err(journal_fault(
+                "LSV4022",
+                "dispatch lease has been superseded",
+            ));
+        }
+        if lease.lease_expires_at_ms < now_ms {
+            return Err(journal_fault("LSV4023", "dispatch lease has expired"));
+        }
+
+        match disposition {
+            RetryDisposition::Scheduled(schedule) => {
+                if schedule.retry_count != dispatch.retry_count + 1
+                    || schedule.retry_count > MAX_SEMANTIC_RETRIES
+                    || schedule.ready_at_ms <= now_ms
+                    || schedule.ready_at_ms > i64::MAX as u64
+                    || validate_effect_error(&schedule.error).is_err()
+                {
+                    return Err(journal_fault("LSV4026", "retry schedule is invalid"));
+                }
+                let error_bytes = encode_json_capped(&schedule.error, 2_048, "effect error")?;
+                ensure_growth(&transaction, error_bytes.len())?;
+                transaction
+                    .execute(
+                        "UPDATE vm_dispatches
+                         SET state = 'ready', retry_count = ?2, ready_at_ms = ?3,
+                             last_error = ?4, lease_expires_at_ms = NULL
+                         WHERE token = ?1",
+                        params![
+                            image.token.as_str(),
+                            i64::from(schedule.retry_count),
+                            i64::try_from(schedule.ready_at_ms).expect("validated retry clock"),
+                            error_bytes
+                        ],
+                    )
+                    .map_err(|error| {
+                        journal_error("LSV4026", "failed to schedule effect retry", error)
+                    })?;
+            }
+            RetryDisposition::Terminal(step) => {
+                validate_terminal_step(step)?;
+                let step_bytes =
+                    encode_json_capped(step, MAX_JOURNAL_ENTRY_BYTES, "terminal step")?;
+                ensure_growth(&transaction, step_bytes.len())?;
+                complete_terminal_record(&transaction, image.token.as_str(), &step_bytes)?;
+            }
+        }
+        transaction
+            .commit()
+            .map_err(|error| journal_error("LSV4026", "failed to commit effect retry", error))?;
+        Ok(disposition.clone())
+    }
+
+    fn cancel(&mut self, image: &ContinuationImage, step: &Step) -> Result<Step, Fault> {
+        validate_image(image)?;
+        validate_cancellation_step(image, step)?;
+        let image_bytes = encode_json_capped(image, MAX_CONTINUATION_BYTES, "continuation")?;
+        let step_bytes = encode_json_capped(step, MAX_JOURNAL_ENTRY_BYTES, "terminal step")?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| {
+                journal_error("LSV4025", "failed to lock cancellation journal", error)
+            })?;
+        let Some(existing) = load_record(&transaction, image.token.as_str())? else {
+            return Err(journal_fault("LSV4013", "pending continuation is missing"));
+        };
+        if existing.image != image_bytes {
+            return Err(journal_fault(
+                "LSV4014",
+                "continuation image conflicts with durable journal state",
+            ));
+        }
+        if existing.state == "completed" {
+            let authoritative: Step = decode_bounded(
+                &existing.terminal_step.ok_or_else(|| {
+                    journal_fault("LSV4007", "completed journal record has no terminal step")
+                })?,
+                MAX_JOURNAL_ENTRY_BYTES,
+            )?;
+            validate_terminal_step(&authoritative)?;
+            transaction.commit().map_err(|error| {
+                journal_error("LSV4025", "failed to close cancellation transaction", error)
+            })?;
+            return Ok(authoritative);
+        }
+        ensure_growth(&transaction, step_bytes.len())?;
+        complete_terminal_record(&transaction, image.token.as_str(), &step_bytes)?;
+        transaction.commit().map_err(|error| {
+            journal_error("LSV4025", "failed to commit effect cancellation", error)
+        })?;
+        Ok(step.clone())
+    }
+
+    fn expire_due(&mut self, now_ms: u64) -> Result<Vec<(ContinuationImage, Step)>, Fault> {
+        let now = i64::try_from(now_ms)
+            .map_err(|_| journal_fault("LSV4015", "dispatch clock is out of range"))?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| journal_error("LSV4025", "failed to lock timeout journal", error))?;
+        let mut statement = transaction
+            .prepare(
+                "SELECT token, image FROM vm_effects
+                 WHERE state = 'pending' AND deadline_at_ms IS NOT NULL AND deadline_at_ms <= ?1
+                 ORDER BY token ASC",
+            )
+            .map_err(|error| journal_error("LSV4025", "failed to prepare timeout scan", error))?;
+        let records = statement
+            .query_map([now], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
+            })
+            .map_err(|error| journal_error("LSV4025", "failed to scan timed effects", error))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| journal_error("LSV4025", "failed to read timed effect", error))?;
+        drop(statement);
+
+        let mut expired = Vec::with_capacity(records.len());
+        for (token, image_bytes) in records {
+            let image: ContinuationImage = decode_bounded(&image_bytes, MAX_CONTINUATION_BYTES)?;
+            validate_image(&image)?;
+            if image.token.as_str() != token
+                || image
+                    .deadline_at_ms
+                    .is_none_or(|deadline| deadline > now_ms)
+            {
+                return Err(journal_fault(
+                    "LSV4007",
+                    "timed effect deadline conflicts with continuation image",
+                ));
+            }
+            let step = deadline_cancellation(&image, now_ms);
+            let step_bytes = encode_json_capped(&step, MAX_JOURNAL_ENTRY_BYTES, "terminal step")?;
+            ensure_growth(&transaction, step_bytes.len())?;
+            complete_terminal_record(&transaction, &token, &step_bytes)?;
+            expired.push((image, step));
+        }
+        transaction
+            .commit()
+            .map_err(|error| journal_error("LSV4025", "failed to commit effect timeouts", error))?;
+        Ok(expired)
+    }
+}
+
+fn complete_terminal_record(
+    transaction: &rusqlite::Transaction<'_>,
+    token: &str,
+    step_bytes: &[u8],
+) -> Result<(), Fault> {
+    transaction
+        .execute(
+            "UPDATE vm_effects SET state = 'completed', terminal_step = ?2 WHERE token = ?1",
+            params![token, step_bytes],
+        )
+        .map_err(|error| journal_error("LSV4025", "failed to cancel effect", error))?;
+    transaction
+        .execute(
+            "UPDATE vm_dispatches
+             SET state = 'acknowledged', lease_expires_at_ms = NULL
+             WHERE token = ?1",
+            [token],
+        )
+        .map_err(|error| journal_error("LSV4025", "failed to close cancelled dispatch", error))?;
+    Ok(())
 }
 
 fn journal_payload_bytes(connection: &Connection) -> Result<usize, Fault> {
@@ -765,7 +1193,8 @@ fn journal_payload_bytes(connection: &Connection) -> Result<usize, Fault> {
             "SELECT
                COALESCE((SELECT SUM(length(image) + COALESCE(length(terminal_step), 0))
                          FROM vm_effects), 0) +
-               COALESCE((SELECT SUM(length(request)) FROM vm_dispatches), 0)",
+               COALESCE((SELECT SUM(length(request) + COALESCE(length(last_error), 0))
+                         FROM vm_dispatches), 0)",
             [],
             |row| row.get(0),
         )
@@ -810,19 +1239,43 @@ fn load_dispatch(
 ) -> Result<Option<DispatchRecord>, Fault> {
     transaction
         .query_row(
-            "SELECT request, state, attempt, lease_expires_at_ms
+            "SELECT request, state, attempt, lease_expires_at_ms, ready_at_ms, retry_count,
+                    last_error
              FROM vm_dispatches WHERE token = ?1",
             [token],
             |row| {
                 let attempt: i64 = row.get(2)?;
                 let expires: Option<i64> = row.get(3)?;
-                Ok((row.get(0)?, row.get(1)?, attempt, expires))
+                let ready_at: i64 = row.get(4)?;
+                let retry_count: i64 = row.get(5)?;
+                let last_error: Option<Vec<u8>> = row.get(6)?;
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    attempt,
+                    expires,
+                    ready_at,
+                    retry_count,
+                    last_error,
+                ))
             },
         )
         .optional()
         .map_err(|error| journal_error("LSV4005", "failed to read dispatch record", error))?
         .map(
-            |(request, state, attempt, expires): (Vec<u8>, String, i64, Option<i64>)| {
+            |(request, state, attempt, expires, ready_at, retry_count, last_error): RawDispatchRow| {
+                let retry_count = u32::try_from(retry_count)
+                    .map_err(|_| journal_fault("LSV4007", "dispatch retry count is invalid"))?;
+                if (retry_count == 0) != last_error.is_none() {
+                    return Err(journal_fault(
+                        "LSV4007",
+                        "dispatch retry history is inconsistent",
+                    ));
+                }
+                if let Some(bytes) = last_error {
+                    let error: EffectError = decode_bounded(&bytes, 2_048)?;
+                    validate_effect_error(&error)?;
+                }
                 Ok(DispatchRecord {
                     request,
                     state,
@@ -835,6 +1288,9 @@ fn load_dispatch(
                             })
                         })
                         .transpose()?,
+                    ready_at_ms: u64::try_from(ready_at)
+                        .map_err(|_| journal_fault("LSV4007", "dispatch ready clock is invalid"))?,
+                    retry_count,
                 })
             },
         )
@@ -867,7 +1323,7 @@ fn validate_dispatch_records(connection: &Connection) -> Result<(), Fault> {
     let mut statement = connection
         .prepare(
             "SELECT d.token, d.request, d.state, d.attempt, d.lease_expires_at_ms,
-                    e.state, e.image
+                    d.ready_at_ms, d.retry_count, d.last_error, e.state, e.image
              FROM vm_dispatches d JOIN vm_effects e ON e.token = d.token
              ORDER BY d.token ASC",
         )
@@ -893,7 +1349,7 @@ fn validate_dispatch_records(connection: &Connection) -> Result<(), Fault> {
                 "dispatch token does not match effect request",
             ));
         }
-        let effect_image: Vec<u8> = row.get(6).map_err(|error| {
+        let effect_image: Vec<u8> = row.get(9).map_err(|error| {
             journal_error("LSV4005", "invalid dispatch continuation image", error)
         })?;
         let request_image = encode_json_capped(
@@ -914,10 +1370,32 @@ fn validate_dispatch_records(connection: &Connection) -> Result<(), Fault> {
             .get(3)
             .map_err(|error| journal_error("LSV4005", "invalid dispatch attempt", error))?;
         let effect_state: String = row
-            .get(5)
+            .get(8)
             .map_err(|error| journal_error("LSV4005", "invalid dispatch effect state", error))?;
+        let ready_at: i64 = row
+            .get(5)
+            .map_err(|error| journal_error("LSV4005", "invalid dispatch ready clock", error))?;
+        let retry_count: i64 = row
+            .get(6)
+            .map_err(|error| journal_error("LSV4005", "invalid dispatch retry count", error))?;
+        let last_error: Option<Vec<u8>> = row
+            .get(7)
+            .map_err(|error| journal_error("LSV4005", "invalid dispatch retry error", error))?;
         if attempt < 0 || attempt > i64::from(MAX_DISPATCH_ATTEMPTS) {
             return Err(journal_fault("LSV4007", "dispatch attempt is invalid"));
+        }
+        if ready_at < 0 || retry_count < 0 || retry_count > i64::from(MAX_SEMANTIC_RETRIES) {
+            return Err(journal_fault("LSV4007", "dispatch retry state is invalid"));
+        }
+        if (retry_count == 0) != last_error.is_none() {
+            return Err(journal_fault(
+                "LSV4007",
+                "dispatch retry history is inconsistent",
+            ));
+        }
+        if let Some(bytes) = last_error {
+            let error: EffectError = decode_bounded(&bytes, 2_048)?;
+            validate_effect_error(&error)?;
         }
         if (state == "acknowledged") != (effect_state == "completed") {
             return Err(journal_fault(
@@ -977,6 +1455,18 @@ fn validate_terminal_step(step: &Step) -> Result<(), Fault> {
     match step {
         Step::Done(Value::RuntimeList { runtimes, .. }) if runtimes.len() <= 10_000 => Ok(()),
         Step::Done(Value::RuntimeRefresh { .. }) => Ok(()),
+        Step::Cancelled(cancellation)
+            if !cancellation.continuation.as_str().is_empty()
+                && cancellation.observed_at_ms <= i64::MAX as u64 =>
+        {
+            Ok(())
+        }
+        Step::Failed(failure)
+            if failure.retry_count <= MAX_SEMANTIC_RETRIES
+                && validate_effect_error(&failure.error).is_ok() =>
+        {
+            Ok(())
+        }
         Step::Fault(fault) if !fault.code.is_empty() && fault.code.len() <= 32 => Ok(()),
         Step::Done(_) => Err(journal_fault(
             "LSV4007",
@@ -986,11 +1476,30 @@ fn validate_terminal_step(step: &Step) -> Result<(), Fault> {
             "LSV4007",
             "journal completion must be a terminal step",
         )),
-        Step::Fault(_) => Err(journal_fault(
+        Step::Fault(_) | Step::Cancelled(_) | Step::Failed(_) => Err(journal_fault(
             "LSV4007",
             "journal fault has an invalid diagnostic code",
         )),
     }
+}
+
+fn validate_cancellation_step(image: &ContinuationImage, step: &Step) -> Result<(), Fault> {
+    validate_terminal_step(step)?;
+    match step {
+        Step::Cancelled(cancellation) if cancellation.continuation == image.token => Ok(()),
+        _ => Err(journal_fault(
+            "LSV4007",
+            "cancellation does not match continuation image",
+        )),
+    }
+}
+
+fn deadline_cancellation(image: &ContinuationImage, observed_at_ms: u64) -> Step {
+    Step::Cancelled(Cancellation {
+        continuation: image.token.clone(),
+        reason: CancellationReason::DeadlineExceeded,
+        observed_at_ms,
+    })
 }
 
 #[cfg(unix)]

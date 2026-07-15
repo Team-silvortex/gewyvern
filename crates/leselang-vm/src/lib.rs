@@ -27,6 +27,11 @@ pub const DEFAULT_MAX_OUTPUT_ITEMS: usize = 10_000;
 pub const DEFAULT_DISPATCH_LEASE_MS: u64 = 30_000;
 pub const MAX_DISPATCH_LEASE_MS: u64 = 5 * 60 * 1_000;
 pub const MAX_DISPATCH_ATTEMPTS: u32 = 100;
+pub const DEFAULT_MAX_SEMANTIC_RETRIES: u32 = 3;
+pub const MAX_SEMANTIC_RETRIES: u32 = 16;
+pub const DEFAULT_RETRY_BASE_DELAY_MS: u64 = 250;
+pub const DEFAULT_RETRY_MAX_DELAY_MS: u64 = 30_000;
+pub const MAX_RETRY_DELAY_MS: u64 = 60 * 60 * 1_000;
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -42,6 +47,8 @@ pub struct ContinuationImage {
     pub pending_effect: Effect,
     pub fuel_remaining: u64,
     pub deadline_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deadline_at_ms: Option<u64>,
     pub max_output_items: usize,
 }
 
@@ -49,6 +56,8 @@ pub struct ContinuationImage {
 pub struct ResourceBudget {
     pub fuel_remaining: u64,
     pub deadline_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deadline_at_ms: Option<u64>,
     pub max_output_items: usize,
 }
 
@@ -135,7 +144,60 @@ impl<'de> Deserialize<'de> for EffectRequest {
 pub struct DispatchLease {
     pub request: EffectRequest,
     pub attempt: u32,
+    #[serde(default)]
+    pub retry_count: u32,
     pub lease_expires_at_ms: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RetryPolicy {
+    pub max_retries: u32,
+    pub base_delay_ms: u64,
+    pub max_delay_ms: u64,
+}
+
+impl Default for RetryPolicy {
+    fn default() -> Self {
+        Self {
+            max_retries: DEFAULT_MAX_SEMANTIC_RETRIES,
+            base_delay_ms: DEFAULT_RETRY_BASE_DELAY_MS,
+            max_delay_ms: DEFAULT_RETRY_MAX_DELAY_MS,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EffectErrorClass {
+    Transient,
+    Permanent,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EffectError {
+    pub class: EffectErrorClass,
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FailedEffect {
+    pub error: EffectError,
+    pub retry_count: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RetrySchedule {
+    pub retry_count: u32,
+    pub ready_at_ms: u64,
+    pub error: EffectError,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
+pub enum RetryDisposition {
+    Scheduled(RetrySchedule),
+    Terminal(Step),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -157,11 +219,27 @@ pub struct Fault {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CancellationReason {
+    Requested,
+    DeadlineExceeded,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Cancellation {
+    pub continuation: ContinuationToken,
+    pub reason: CancellationReason,
+    pub observed_at_ms: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
 pub enum Step {
     Done(Value),
     Effect(Box<EffectRequest>),
     Yield(ContinuationImage),
+    Cancelled(Cancellation),
+    Failed(FailedEffect),
     Fault(Fault),
 }
 
@@ -208,6 +286,48 @@ impl Vm {
         capabilities: CapabilitySet,
         expected_revision: Option<Revision>,
     ) -> Step {
+        self.start_inner(
+            program,
+            principal,
+            capabilities,
+            expected_revision,
+            DEFAULT_EFFECT_DEADLINE_MS,
+            None,
+        )
+    }
+
+    pub fn start_timed(
+        &mut self,
+        program: &HirProgram,
+        principal: Principal,
+        capabilities: CapabilitySet,
+        expected_revision: Option<Revision>,
+        now_ms: u64,
+        timeout_ms: u64,
+    ) -> Step {
+        let deadline_at_ms = match validate_effect_clock(now_ms, timeout_ms) {
+            Ok(deadline_at_ms) => deadline_at_ms,
+            Err(error) => return Step::Fault(error),
+        };
+        self.start_inner(
+            program,
+            principal,
+            capabilities,
+            expected_revision,
+            timeout_ms,
+            Some(deadline_at_ms),
+        )
+    }
+
+    fn start_inner(
+        &mut self,
+        program: &HirProgram,
+        principal: Principal,
+        capabilities: CapabilitySet,
+        expected_revision: Option<Revision>,
+        deadline_ms: u64,
+        deadline_at_ms: Option<u64>,
+    ) -> Step {
         if self.fuel_limit == 0 {
             return fault("LSV1001", "execution fuel exhausted");
         }
@@ -228,7 +348,8 @@ impl Vm {
             result_type: program.function.result_type,
             pending_effect: program.function.effect.clone(),
             fuel_remaining: self.fuel_limit - 1,
-            deadline_ms: DEFAULT_EFFECT_DEADLINE_MS,
+            deadline_ms,
+            deadline_at_ms,
             max_output_items: DEFAULT_MAX_OUTPUT_ITEMS,
         };
         if let Err(error) = encode_continuation(&image) {
@@ -268,6 +389,7 @@ impl Vm {
             budget: ResourceBudget {
                 fuel_remaining: self.fuel_limit - 1,
                 deadline_ms: image.deadline_ms,
+                deadline_at_ms: image.deadline_at_ms,
                 max_output_items: image.max_output_items,
             },
         };
@@ -310,6 +432,31 @@ impl Vm {
     }
 
     pub fn resume(&mut self, image: &ContinuationImage, result: EffectResult) -> Step {
+        if image.deadline_at_ms.is_some() {
+            return fault(
+                "LSV2111",
+                "timed effects require resume_at with trusted scheduler time",
+            );
+        }
+        self.resume_inner(image, result)
+    }
+
+    pub fn resume_at(
+        &mut self,
+        image: &ContinuationImage,
+        now_ms: u64,
+        result: EffectResult,
+    ) -> Step {
+        if let Err(error) = validate_scheduler_time(now_ms) {
+            return Step::Fault(error);
+        }
+        if let Err(error) = self.expire_due(now_ms) {
+            return Step::Fault(error);
+        }
+        self.resume_inner(image, result)
+    }
+
+    fn resume_inner(&mut self, image: &ContinuationImage, result: EffectResult) -> Step {
         if let Some(completed) = self.completed.get(&image.token) {
             return completed.clone();
         }
@@ -345,6 +492,7 @@ impl Vm {
         now_ms: u64,
         lease_ms: u64,
     ) -> Result<Option<DispatchLease>, Fault> {
+        self.expire_due(now_ms)?;
         self.journal.claim_dispatch(now_ms, lease_ms)
     }
 
@@ -354,6 +502,9 @@ impl Vm {
         now_ms: u64,
         result: EffectResult,
     ) -> Step {
+        if let Err(error) = self.expire_due(now_ms) {
+            return Step::Fault(error);
+        }
         if let Err(error) = validate_effect_request(&lease.request) {
             return Step::Fault(error);
         }
@@ -378,6 +529,79 @@ impl Vm {
         authoritative
     }
 
+    pub fn report_effect_error(
+        &mut self,
+        lease: &DispatchLease,
+        now_ms: u64,
+        error: EffectError,
+        policy: &RetryPolicy,
+    ) -> Result<RetryDisposition, Fault> {
+        validate_scheduler_time(now_ms)?;
+        self.expire_due(now_ms)?;
+        if let Some(completed) = self.completed.get(&lease.request.continuation.token) {
+            return Ok(RetryDisposition::Terminal(completed.clone()));
+        }
+        validate_effect_error(&error)?;
+        if error.class == EffectErrorClass::Transient {
+            validate_retry_policy(policy)?;
+        }
+
+        let disposition = match error.class {
+            EffectErrorClass::Permanent => RetryDisposition::Terminal(Step::Failed(FailedEffect {
+                error,
+                retry_count: lease.retry_count,
+            })),
+            EffectErrorClass::Transient if lease.retry_count >= policy.max_retries => {
+                RetryDisposition::Terminal(Step::Failed(FailedEffect {
+                    error,
+                    retry_count: lease.retry_count,
+                }))
+            }
+            EffectErrorClass::Transient => {
+                let retry_count = lease.retry_count + 1;
+                let delay_ms = retry_delay(policy, retry_count)?;
+                let ready_at_ms = now_ms
+                    .checked_add(delay_ms)
+                    .filter(|ready_at| *ready_at <= i64::MAX as u64)
+                    .ok_or_else(|| Fault {
+                        code: "LSV2203".to_string(),
+                        message: "semantic retry clock overflow".to_string(),
+                    })?;
+                RetryDisposition::Scheduled(RetrySchedule {
+                    retry_count,
+                    ready_at_ms,
+                    error,
+                })
+            }
+        };
+        let authoritative = self.journal.report_error(lease, now_ms, &disposition)?;
+        if let RetryDisposition::Terminal(step) = &authoritative {
+            let image = &lease.request.continuation;
+            self.pending.remove(&image.token);
+            self.completed.insert(image.token.clone(), step.clone());
+        }
+        Ok(authoritative)
+    }
+
+    pub fn cancel_effect(&mut self, image: &ContinuationImage, now_ms: u64) -> Step {
+        if let Err(error) = validate_scheduler_time(now_ms) {
+            return Step::Fault(error);
+        }
+        if let Err(error) = self.expire_due(now_ms) {
+            return Step::Fault(error);
+        }
+        if let Some(completed) = self.completed.get(&image.token) {
+            return completed.clone();
+        }
+        let Some(stored) = self.pending.get(&image.token) else {
+            return fault("LSV2004", "unknown continuation token");
+        };
+        if stored != image {
+            return fault("LSV2005", "continuation image does not match pending state");
+        }
+        self.finish_cancellation(image, CancellationReason::Requested, now_ms)
+    }
+
     pub fn pending_count(&self) -> usize {
         self.pending.len()
     }
@@ -399,6 +623,37 @@ impl Vm {
                 return Ok(sequence);
             }
         }
+    }
+
+    fn expire_due(&mut self, now_ms: u64) -> Result<(), Fault> {
+        validate_scheduler_time(now_ms)?;
+        let expired = self.journal.expire_due(now_ms)?;
+        for (image, step) in expired {
+            self.pending.remove(&image.token);
+            self.completed.insert(image.token, step);
+        }
+        Ok(())
+    }
+
+    fn finish_cancellation(
+        &mut self,
+        image: &ContinuationImage,
+        reason: CancellationReason,
+        observed_at_ms: u64,
+    ) -> Step {
+        let step = Step::Cancelled(Cancellation {
+            continuation: image.token.clone(),
+            reason,
+            observed_at_ms,
+        });
+        let authoritative = match self.journal.cancel(image, &step) {
+            Ok(step) => step,
+            Err(error) => return Step::Fault(error),
+        };
+        self.pending.remove(&image.token);
+        self.completed
+            .insert(image.token.clone(), authoritative.clone());
+        authoritative
     }
 }
 
@@ -484,6 +739,15 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
             message: "continuation deadline exceeds runtime limit".to_string(),
         });
     }
+    if image
+        .deadline_at_ms
+        .is_some_and(|deadline| deadline == 0 || deadline > i64::MAX as u64)
+    {
+        return Err(Fault {
+            code: "LSV2011".to_string(),
+            message: "continuation absolute deadline is out of range".to_string(),
+        });
+    }
     if image.max_output_items > DEFAULT_MAX_OUTPUT_ITEMS {
         return Err(Fault {
             code: "LSV2009".to_string(),
@@ -553,6 +817,7 @@ fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
     if !operation_valid
         || request.budget.fuel_remaining != request.continuation.fuel_remaining
         || request.budget.deadline_ms != request.continuation.deadline_ms
+        || request.budget.deadline_at_ms != request.continuation.deadline_at_ms
         || request.budget.max_output_items != request.continuation.max_output_items
     {
         return Err(Fault {
@@ -561,6 +826,75 @@ fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
         });
     }
     Ok(())
+}
+
+fn validate_scheduler_time(now_ms: u64) -> Result<(), Fault> {
+    if now_ms > i64::MAX as u64 {
+        return Err(Fault {
+            code: "LSV2011".to_string(),
+            message: "scheduler clock is out of range".to_string(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_effect_clock(now_ms: u64, timeout_ms: u64) -> Result<u64, Fault> {
+    validate_scheduler_time(now_ms)?;
+    if timeout_ms == 0 || timeout_ms > MAX_EFFECT_DEADLINE_MS {
+        return Err(Fault {
+            code: "LSV2012".to_string(),
+            message: format!("effect timeout must be between 1 and {MAX_EFFECT_DEADLINE_MS} ms"),
+        });
+    }
+    now_ms
+        .checked_add(timeout_ms)
+        .filter(|deadline| *deadline <= i64::MAX as u64)
+        .ok_or_else(|| Fault {
+            code: "LSV2011".to_string(),
+            message: "effect absolute deadline is out of range".to_string(),
+        })
+}
+
+fn validate_retry_policy(policy: &RetryPolicy) -> Result<(), Fault> {
+    if policy.max_retries > MAX_SEMANTIC_RETRIES
+        || policy.base_delay_ms == 0
+        || policy.base_delay_ms > MAX_RETRY_DELAY_MS
+        || policy.max_delay_ms < policy.base_delay_ms
+        || policy.max_delay_ms > MAX_RETRY_DELAY_MS
+    {
+        return Err(Fault {
+            code: "LSV2201".to_string(),
+            message: "semantic retry policy exceeds runtime bounds".to_string(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_effect_error(error: &EffectError) -> Result<(), Fault> {
+    if error.code.is_empty()
+        || error.code.len() > 64
+        || !error
+            .code
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+        || error.message.is_empty()
+        || error.message.len() > 1_024
+    {
+        return Err(Fault {
+            code: "LSV2202".to_string(),
+            message: "effect error metadata is invalid".to_string(),
+        });
+    }
+    Ok(())
+}
+
+fn retry_delay(policy: &RetryPolicy, retry_count: u32) -> Result<u64, Fault> {
+    let shift = retry_count.saturating_sub(1).min(63);
+    let multiplier = 1_u64.checked_shl(shift).unwrap_or(u64::MAX);
+    Ok(policy
+        .base_delay_ms
+        .saturating_mul(multiplier)
+        .min(policy.max_delay_ms))
 }
 
 fn validate_effect_identity(
@@ -749,11 +1083,35 @@ mod tests {
         *request
     }
 
+    fn start_timed(vm: &mut Vm, now_ms: u64, timeout_ms: u64) -> EffectRequest {
+        let Step::Effect(request) = vm.start_timed(
+            &program(),
+            Principal {
+                id: "operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+            None,
+            now_ms,
+            timeout_ms,
+        ) else {
+            panic!("expected timed effect");
+        };
+        *request
+    }
+
     fn runtime_list_result(revision: u64) -> EffectResult {
         EffectResult::Query(QueryResult::RuntimeList {
             revision: Revision(revision),
             runtimes: Vec::new(),
         })
+    }
+
+    fn transient_error() -> EffectError {
+        EffectError {
+            class: EffectErrorClass::Transient,
+            code: "upstream.unavailable".to_string(),
+            message: "runtime endpoint is temporarily unavailable".to_string(),
+        }
     }
 
     fn start_refresh(vm: &mut Vm, expected_revision: Revision) -> EffectRequest {
@@ -1094,6 +1452,361 @@ mod tests {
     }
 
     #[test]
+    fn timed_effect_requires_trusted_clock_and_completes_before_deadline() {
+        let mut vm = Vm::default();
+        let request = start_timed(&mut vm, 1_000, 50);
+        assert_eq!(request.continuation.deadline_ms, 50);
+        assert_eq!(request.continuation.deadline_at_ms, Some(1_050));
+        assert_eq!(request.budget.deadline_at_ms, Some(1_050));
+
+        let untrusted = vm.resume(&request.continuation, runtime_list_result(1));
+        assert!(matches!(untrusted, Step::Fault(Fault { ref code, .. }) if code == "LSV2111"));
+        let completed = vm.resume_at(&request.continuation, 1_049, runtime_list_result(2));
+        assert!(matches!(
+            completed,
+            Step::Done(Value::RuntimeList {
+                revision: Revision(2),
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn timed_effect_rejects_invalid_scheduler_budgets() {
+        let mut vm = Vm::default();
+        let principal = Principal {
+            id: "operator".to_string(),
+        };
+        let capabilities = CapabilitySet::new([CAPABILITY_RUNTIME_READ]);
+        let zero = vm.start_timed(
+            &program(),
+            principal.clone(),
+            capabilities.clone(),
+            None,
+            1_000,
+            0,
+        );
+        assert!(matches!(zero, Step::Fault(Fault { ref code, .. }) if code == "LSV2012"));
+        let overflow = vm.start_timed(
+            &program(),
+            principal,
+            capabilities,
+            None,
+            i64::MAX as u64,
+            1,
+        );
+        assert!(matches!(overflow, Step::Fault(Fault { ref code, .. }) if code == "LSV2011"));
+        assert_eq!(vm.pending_count(), 0);
+    }
+
+    #[test]
+    fn trusted_deadline_atomically_cancels_ready_effect() {
+        let mut vm = Vm::default();
+        let request = start_timed(&mut vm, 1_000, 50);
+
+        assert!(vm.claim_effect(1_050, 100).unwrap().is_none());
+        assert_eq!(vm.pending_count(), 0);
+        assert_eq!(vm.completed_count(), 1);
+        let replay = vm.cancel_effect(&request.continuation, 1_051);
+        assert!(matches!(
+            replay,
+            Step::Cancelled(Cancellation {
+                reason: CancellationReason::DeadlineExceeded,
+                observed_at_ms: 1_050,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn deadline_precedes_requested_cancellation_at_same_clock_tick() {
+        let mut vm = Vm::default();
+        let request = start_timed(&mut vm, 1_000, 50);
+
+        let cancelled = vm.cancel_effect(&request.continuation, 1_050);
+        assert!(matches!(
+            cancelled,
+            Step::Cancelled(Cancellation {
+                reason: CancellationReason::DeadlineExceeded,
+                observed_at_ms: 1_050,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn requested_cancellation_fences_active_lease() {
+        let mut vm = Vm::default();
+        let request = start_timed(&mut vm, 1_000, 100);
+        let lease = vm.claim_effect(1_001, 90).unwrap().unwrap();
+
+        let cancelled = vm.cancel_effect(&request.continuation, 1_010);
+        assert!(matches!(
+            cancelled,
+            Step::Cancelled(Cancellation {
+                reason: CancellationReason::Requested,
+                observed_at_ms: 1_010,
+                ..
+            })
+        ));
+        assert_eq!(
+            vm.acknowledge_effect(&lease, 1_011, runtime_list_result(3)),
+            cancelled
+        );
+        assert!(vm.claim_effect(1_200, 50).unwrap().is_none());
+    }
+
+    #[test]
+    fn durable_timeout_survives_restart_and_fences_late_worker() {
+        let journal = TempJournal::new("timeout-restart");
+        let (request, lease) = {
+            let mut first = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            let request = start_timed(&mut first, 1_000, 50);
+            let lease = first.claim_effect(1_001, 100).unwrap().unwrap();
+            (request, lease)
+        };
+
+        let timeout = {
+            let mut restarted = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            assert!(restarted.claim_effect(1_050, 100).unwrap().is_none());
+            assert_eq!(restarted.pending_count(), 0);
+            restarted.cancel_effect(&request.continuation, 1_051)
+        };
+        assert!(matches!(
+            timeout,
+            Step::Cancelled(Cancellation {
+                reason: CancellationReason::DeadlineExceeded,
+                observed_at_ms: 1_050,
+                ..
+            })
+        ));
+
+        let mut late_worker = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert_eq!(
+            late_worker.acknowledge_effect(&lease, 1_051, runtime_list_result(4)),
+            timeout
+        );
+        assert!(late_worker.claim_effect(2_000, 100).unwrap().is_none());
+    }
+
+    #[test]
+    fn semantic_retry_waits_for_deterministic_backoff_and_exhausts_typed() {
+        let mut vm = Vm::default();
+        start_timed(&mut vm, 1_000, 10_000);
+        let first = vm.claim_effect(1_000, 100).unwrap().unwrap();
+        let policy = RetryPolicy {
+            max_retries: 1,
+            base_delay_ms: 250,
+            max_delay_ms: 1_000,
+        };
+
+        let scheduled = vm
+            .report_effect_error(&first, 1_001, transient_error(), &policy)
+            .unwrap();
+        assert_eq!(
+            scheduled,
+            RetryDisposition::Scheduled(RetrySchedule {
+                retry_count: 1,
+                ready_at_ms: 1_251,
+                error: transient_error(),
+            })
+        );
+        assert!(vm.claim_effect(1_250, 100).unwrap().is_none());
+        let second = vm.claim_effect(1_251, 100).unwrap().unwrap();
+        assert_eq!(second.attempt, 2);
+        assert_eq!(second.retry_count, 1);
+
+        let exhausted = vm
+            .report_effect_error(&second, 1_252, transient_error(), &policy)
+            .unwrap();
+        assert!(matches!(
+            exhausted,
+            RetryDisposition::Terminal(Step::Failed(FailedEffect { retry_count: 1, .. }))
+        ));
+        assert_eq!(vm.pending_count(), 0);
+        assert_eq!(vm.completed_count(), 1);
+        assert!(vm.claim_effect(2_000, 100).unwrap().is_none());
+    }
+
+    #[test]
+    fn permanent_effect_error_fails_without_retry() {
+        let mut vm = Vm::default();
+        start(&mut vm, None);
+        let lease = vm.claim_effect(1_000, 100).unwrap().unwrap();
+        let error = EffectError {
+            class: EffectErrorClass::Permanent,
+            code: "request.rejected".to_string(),
+            message: "upstream rejected the request".to_string(),
+        };
+        let failed = vm
+            .report_effect_error(&lease, 1_001, error.clone(), &RetryPolicy::default())
+            .unwrap();
+        assert_eq!(
+            failed,
+            RetryDisposition::Terminal(Step::Failed(FailedEffect {
+                error,
+                retry_count: 0,
+            }))
+        );
+    }
+
+    #[test]
+    fn retry_schedule_fences_old_lease_and_deadline_still_wins() {
+        let mut vm = Vm::default();
+        start_timed(&mut vm, 1_000, 100);
+        let lease = vm.claim_effect(1_001, 90).unwrap().unwrap();
+        let policy = RetryPolicy {
+            max_retries: 2,
+            base_delay_ms: 250,
+            max_delay_ms: 250,
+        };
+        vm.report_effect_error(&lease, 1_002, transient_error(), &policy)
+            .unwrap();
+        let stale = vm.report_effect_error(&lease, 1_003, transient_error(), &policy);
+        assert!(matches!(stale, Err(Fault { ref code, .. }) if code == "LSV4022"));
+
+        assert!(vm.claim_effect(1_100, 100).unwrap().is_none());
+        let terminal = vm.cancel_effect(&lease.request.continuation, 1_101);
+        assert!(matches!(
+            terminal,
+            Step::Cancelled(Cancellation {
+                reason: CancellationReason::DeadlineExceeded,
+                observed_at_ms: 1_100,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn deadline_precedes_invalid_effect_error_report() {
+        let mut vm = Vm::default();
+        start_timed(&mut vm, 1_000, 50);
+        let lease = vm.claim_effect(1_001, 100).unwrap().unwrap();
+        let invalid = EffectError {
+            class: EffectErrorClass::Transient,
+            code: "bad code".to_string(),
+            message: String::new(),
+        };
+
+        let disposition = vm
+            .report_effect_error(&lease, 1_050, invalid, &RetryPolicy::default())
+            .unwrap();
+        assert!(matches!(
+            disposition,
+            RetryDisposition::Terminal(Step::Cancelled(Cancellation {
+                reason: CancellationReason::DeadlineExceeded,
+                observed_at_ms: 1_050,
+                ..
+            }))
+        ));
+    }
+
+    #[test]
+    fn durable_retry_schedule_survives_restart() {
+        let journal = TempJournal::new("retry-restart");
+        let policy = RetryPolicy {
+            max_retries: 2,
+            base_delay_ms: 50,
+            max_delay_ms: 100,
+        };
+        {
+            let mut first = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            start(&mut first, None);
+            let lease = first.claim_effect(1_000, 100).unwrap().unwrap();
+            first
+                .report_effect_error(&lease, 1_001, transient_error(), &policy)
+                .unwrap();
+        }
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        let persisted_error: Vec<u8> = connection
+            .query_row("SELECT last_error FROM vm_dispatches", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(
+            serde_json::from_slice::<EffectError>(&persisted_error).unwrap(),
+            transient_error()
+        );
+        drop(connection);
+
+        let mut restarted = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert!(restarted.claim_effect(1_050, 100).unwrap().is_none());
+        let lease = restarted.claim_effect(1_051, 100).unwrap().unwrap();
+        assert_eq!(lease.retry_count, 1);
+        assert_eq!(lease.attempt, 2);
+        let completed = restarted.acknowledge_effect(&lease, 1_052, runtime_list_result(8));
+        assert!(matches!(
+            completed,
+            Step::Done(Value::RuntimeList {
+                revision: Revision(8),
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn mutating_semantic_retry_preserves_command_envelope() {
+        let journal = TempJournal::new("mutation-semantic-retry");
+        let first_lease = {
+            let mut first = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            start_refresh(&mut first, Revision(1));
+            let lease = first.claim_effect(1_000, 100).unwrap().unwrap();
+            first
+                .report_effect_error(
+                    &lease,
+                    1_001,
+                    transient_error(),
+                    &RetryPolicy {
+                        max_retries: 1,
+                        base_delay_ms: 50,
+                        max_delay_ms: 50,
+                    },
+                )
+                .unwrap();
+            lease
+        };
+
+        let mut restarted = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let second_lease = restarted.claim_effect(1_051, 100).unwrap().unwrap();
+        assert_eq!(second_lease.request, first_lease.request);
+        assert_eq!(second_lease.retry_count, 1);
+        let EffectOperation::Command(command) = &second_lease.request.operation else {
+            panic!("expected command operation");
+        };
+        assert_eq!(command.idempotency_key.as_str(), "leselang-effect-1");
+        assert_eq!(
+            command.command_id,
+            CommandId::new("leselang-command-1").unwrap()
+        );
+    }
+
+    #[test]
+    fn retry_policy_and_error_metadata_are_bounded() {
+        let mut vm = Vm::default();
+        start(&mut vm, None);
+        let lease = vm.claim_effect(1_000, 100).unwrap().unwrap();
+        let invalid_policy = RetryPolicy {
+            max_retries: MAX_SEMANTIC_RETRIES + 1,
+            ..RetryPolicy::default()
+        };
+        assert_eq!(
+            vm.report_effect_error(&lease, 1_001, transient_error(), &invalid_policy)
+                .unwrap_err()
+                .code,
+            "LSV2201"
+        );
+        let invalid_error = EffectError {
+            class: EffectErrorClass::Transient,
+            code: "bad code".to_string(),
+            message: "invalid code shape".to_string(),
+        };
+        assert_eq!(
+            vm.report_effect_error(&lease, 1_001, invalid_error, &RetryPolicy::default())
+                .unwrap_err()
+                .code,
+            "LSV2202"
+        );
+    }
+
+    #[test]
     fn durable_dispatch_reclaims_expired_lease_and_rejects_stale_worker() {
         let journal = TempJournal::new("dispatch-recovery");
         let mut first = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
@@ -1199,7 +1912,22 @@ mod tests {
         };
         let connection = rusqlite::Connection::open(journal.path()).unwrap();
         connection
-            .execute_batch("DROP TABLE vm_dispatches; PRAGMA user_version = 1;")
+            .execute_batch(
+                "DROP TABLE vm_dispatches;
+                 ALTER TABLE vm_effects RENAME TO vm_effects_v3;
+                 CREATE TABLE vm_effects (
+                   token TEXT PRIMARY KEY,
+                   state TEXT NOT NULL CHECK (state IN ('pending', 'completed')),
+                   image BLOB NOT NULL,
+                   terminal_step BLOB,
+                   CHECK ((state = 'pending' AND terminal_step IS NULL) OR
+                          (state = 'completed' AND terminal_step IS NOT NULL))
+                 ) STRICT;
+                 INSERT INTO vm_effects(token, state, image, terminal_step)
+                   SELECT token, state, image, terminal_step FROM vm_effects_v3;
+                 DROP TABLE vm_effects_v3;
+                 PRAGMA user_version = 1;",
+            )
             .unwrap();
         drop(connection);
 
@@ -1213,6 +1941,122 @@ mod tests {
                 .unwrap(),
             JOURNAL_SCHEMA_VERSION
         );
+    }
+
+    #[test]
+    fn journal_v2_migrates_absolute_deadline_column() {
+        let journal = TempJournal::new("v2-migration");
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE vm_metadata (
+                   singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+                   next_sequence INTEGER NOT NULL CHECK (next_sequence >= 1)
+                 ) STRICT;
+                 INSERT INTO vm_metadata(singleton, next_sequence) VALUES (1, 1);
+                 CREATE TABLE vm_effects (
+                   token TEXT PRIMARY KEY,
+                   state TEXT NOT NULL CHECK (state IN ('pending', 'completed')),
+                   image BLOB NOT NULL,
+                   terminal_step BLOB,
+                   CHECK ((state = 'pending' AND terminal_step IS NULL) OR
+                          (state = 'completed' AND terminal_step IS NOT NULL))
+                 ) STRICT;
+                 CREATE TABLE vm_dispatches (
+                   token TEXT PRIMARY KEY REFERENCES vm_effects(token) ON DELETE CASCADE,
+                   request BLOB NOT NULL,
+                   state TEXT NOT NULL CHECK (state IN ('ready', 'leased', 'acknowledged')),
+                   attempt INTEGER NOT NULL CHECK (attempt >= 0),
+                   lease_expires_at_ms INTEGER,
+                   CHECK ((state = 'ready' AND lease_expires_at_ms IS NULL) OR
+                          (state = 'leased' AND lease_expires_at_ms IS NOT NULL) OR
+                          (state = 'acknowledged' AND lease_expires_at_ms IS NULL))
+                 ) STRICT;
+                 PRAGMA user_version = 2;",
+            )
+            .unwrap();
+        drop(connection);
+
+        drop(Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap());
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        assert_eq!(
+            connection
+                .query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0))
+                .unwrap(),
+            JOURNAL_SCHEMA_VERSION
+        );
+        let deadline_columns: u32 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('vm_effects') WHERE name = 'deadline_at_ms'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(deadline_columns, 1);
+        let retry_columns: u32 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('vm_dispatches')
+                 WHERE name IN ('ready_at_ms', 'retry_count', 'last_error')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(retry_columns, 3);
+    }
+
+    #[test]
+    fn journal_v3_migrates_semantic_retry_state() {
+        let journal = TempJournal::new("v3-migration");
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE vm_metadata (
+                   singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+                   next_sequence INTEGER NOT NULL CHECK (next_sequence >= 1)
+                 ) STRICT;
+                 INSERT INTO vm_metadata(singleton, next_sequence) VALUES (1, 1);
+                 CREATE TABLE vm_effects (
+                   token TEXT PRIMARY KEY,
+                   state TEXT NOT NULL CHECK (state IN ('pending', 'completed')),
+                   image BLOB NOT NULL,
+                   deadline_at_ms INTEGER CHECK (deadline_at_ms IS NULL OR deadline_at_ms >= 0),
+                   terminal_step BLOB,
+                   CHECK ((state = 'pending' AND terminal_step IS NULL) OR
+                          (state = 'completed' AND terminal_step IS NOT NULL))
+                 ) STRICT;
+                 CREATE TABLE vm_dispatches (
+                   token TEXT PRIMARY KEY REFERENCES vm_effects(token) ON DELETE CASCADE,
+                   request BLOB NOT NULL,
+                   state TEXT NOT NULL CHECK (state IN ('ready', 'leased', 'acknowledged')),
+                   attempt INTEGER NOT NULL CHECK (attempt >= 0),
+                   lease_expires_at_ms INTEGER,
+                   CHECK ((state = 'ready' AND lease_expires_at_ms IS NULL) OR
+                          (state = 'leased' AND lease_expires_at_ms IS NOT NULL) OR
+                          (state = 'acknowledged' AND lease_expires_at_ms IS NULL))
+                 ) STRICT;
+                 CREATE INDEX vm_effect_deadline_idx ON vm_effects(state, deadline_at_ms);
+                 PRAGMA user_version = 3;",
+            )
+            .unwrap();
+        drop(connection);
+
+        drop(Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap());
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        assert_eq!(
+            connection
+                .query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0))
+                .unwrap(),
+            JOURNAL_SCHEMA_VERSION
+        );
+        let retry_columns: u32 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('vm_dispatches')
+                 WHERE name IN ('ready_at_ms', 'retry_count', 'last_error')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(retry_columns, 3);
     }
 
     #[test]
